@@ -16,10 +16,12 @@ os.environ["API_SECRET_KEY"] = "test-secret-key"
 
 
 @pytest.fixture(scope="session", autouse=True)
-def test_env():
-    """Set up test environment and cleanup."""
+def setup_test_database():
+    """Set up test database and cleanup."""
+    from web_app.database import init_db, engine, Base
+    from sqlalchemy.orm import close_all_sessions
+    # Create tables
+    Base.metadata.create_all(bind=engine)
     yield
-
-    # Cleanup
-    if os.path.exists(project_root / "test.db"):
-        os.remove(project_root / "test.db")
+    # Cleanup - close connections first
+    close_all_sessions()

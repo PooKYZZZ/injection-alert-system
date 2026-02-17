@@ -36,7 +36,7 @@ class AlertResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     timestamp: datetime
-    source_ip: str
+    source_ip: Optional[str] = None
     http_request: str
     prediction: str
     confidence: float
