@@ -1,11 +1,12 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Optional, List
 from datetime import datetime
 
 
 class PredictionRequest(BaseModel):
     """Request schema for prediction endpoint."""
-    http_request: str = Field(..., description="HTTP request string to classify")
+    http_request: str = Field(..., max_length=10000, description="HTTP request string to classify")
+    source_ip: Optional[str] = Field(None, description="Source IP address of the request")
 
 
 class PredictionResponse(BaseModel):
@@ -51,3 +52,28 @@ class HealthResponse(BaseModel):
     """Response schema for health check endpoint."""
     status: str
     database: str
+
+
+class StatsResponse(BaseModel):
+    """Response schema for statistics endpoint."""
+    total_requests: int = Field(..., description="Total number of requests processed")
+    attacks_detected: int = Field(..., description="Number of injection attacks detected")
+    normal_requests: int = Field(..., description="Number of normal requests")
+    accuracy_metrics: dict = Field(..., description="Accuracy and performance metrics")
+
+
+class BatchPredictionRequest(BaseModel):
+    """Request schema for batch prediction endpoint."""
+    requests: List[str] = Field(..., max_length=50, description="Max 50 requests per batch")
+
+    @field_validator('requests')
+    @classmethod
+    def validate_items(cls, v):
+        if any(len(r) > 10000 for r in v):
+            raise ValueError('Each request must be max 10000 characters')
+        return v
+
+
+class BatchPredictionResponse(BaseModel):
+    """Response schema for batch prediction endpoint."""
+    predictions: List[PredictionResponse] = Field(..., description="List of predictions")
