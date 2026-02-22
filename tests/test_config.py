@@ -7,7 +7,6 @@ import os
 
 @pytest.fixture(autouse=True)
 def clear_settings_cache():
-    """Clear settings cache before each test."""
     reset_settings_cache()
     yield
 
