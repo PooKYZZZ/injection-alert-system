@@ -29,9 +29,12 @@ def test_settings_loads_from_env(monkeypatch):
 
 def test_settings_validation_error_on_missing_env(monkeypatch):
     """Test that settings raises error when required env vars are missing"""
-    # Clear all required env vars
+    # Clear all required env vars and bypass .env file loading
     for var in ["DATABASE_URL", "APP_ENV", "LOG_LEVEL", "MODEL_PATH", "API_SECRET_KEY"]:
         monkeypatch.delenv(var, raising=False)
 
+    # Directly instantiate Settings with env_file=False to bypass .env file completely
+    # Using env_file=False (not None) ensures Pydantic doesn't load from any .env file
+    # This ensures we only test environment variables, not .env file values
     with pytest.raises(ValidationError):
-        get_settings()
+        Settings(env_file=False)
