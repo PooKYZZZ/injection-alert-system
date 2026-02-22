@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,11 +14,13 @@ from web_app.schemas import (
     AlertResponse,
     HealthResponse
 )
-from web_app.api.routes import router as api_router
 from ml_model.models.mock_model import MockInjectionClassifier
 
 settings = get_settings()
+logging.basicConfig(level=settings.log_level)
 model = MockInjectionClassifier()
+
+from web_app.api.routes import router as api_router
 
 
 @asynccontextmanager

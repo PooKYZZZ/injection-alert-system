@@ -7,7 +7,7 @@ client = TestClient(app)
 
 def test_health_endpoint():
     """Test health check endpoint returns status"""
-    response = client.get("/api/health")
+    response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert "status" in data
@@ -100,3 +100,51 @@ def test_feedback_endpoint():
             }
         )
         assert feedback_response.status_code == 200
+
+
+def test_stats_endpoint():
+    """Test statistics endpoint returns metrics"""
+    response = client.get("/api/stats")
+    assert response.status_code == 200
+    data = response.json()
+    assert "total_requests" in data
+    assert "attacks_detected" in data
+    assert "normal_requests" in data
+    assert "accuracy_metrics" in data
+    assert isinstance(data["total_requests"], int)
+    assert isinstance(data["attacks_detected"], int)
+    assert isinstance(data["normal_requests"], int)
+    assert isinstance(data["accuracy_metrics"], dict)
+
+
+def test_batch_predict_endpoint():
+    """Test batch prediction endpoint with multiple requests"""
+    requests = [
+        "GET /api/users?page=1",
+        "SELECT * FROM users WHERE id=1 OR 1=1",
+        "<script>alert('XSS')</script>"
+    ]
+    response = client.post(
+        "/api/batch-predict",
+        json={"requests": requests}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "predictions" in data
+    assert len(data["predictions"]) == 3
+    for prediction in data["predictions"]:
+        assert "class_label" in prediction
+        assert "confidence" in prediction
+        assert "confidence_level" in prediction
+
+
+def test_batch_predict_endpoint_empty():
+    """Test batch prediction endpoint with empty list"""
+    response = client.post(
+        "/api/batch-predict",
+        json={"requests": []}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "predictions" in data
+    assert len(data["predictions"]) == 0

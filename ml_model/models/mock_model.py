@@ -16,6 +16,8 @@ class MockInjectionClassifier:
     Interface is designed for easy swapping.
     """
 
+    THRESHOLD = 0.09
+
     # Pattern definitions for injection detection
     SQL_PATTERNS = [
         r'(?i)\bSELECT\b.*\bFROM\b',
@@ -77,7 +79,7 @@ class MockInjectionClassifier:
         max_score = max(sql_score, code_score, other_score)
 
         # Lower threshold - any pattern match indicates potential attack
-        if max_score < 0.09:
+        if max_score < self.THRESHOLD:
             return {
                 "class": "Normal",
                 "confidence": 1.0 - max_score,
