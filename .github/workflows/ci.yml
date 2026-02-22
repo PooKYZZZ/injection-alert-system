@@ -9,9 +9,15 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: injection-alert-system
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        path: injection-alert-system
     
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
