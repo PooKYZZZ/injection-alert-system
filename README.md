@@ -328,7 +328,7 @@ Tool configuration for `pytest`, `coverage`, `black`, and `ruff` is consolidated
 - The ML model is trained and evaluated on a **controlled, balanced dataset**. Generalization to real-world traffic distributions has not been empirically validated.
 - The transformer model targets **SQL injection detection only**. XSS, CSRF, path traversal, and other attack vectors are handled exclusively by CRS rules and are outside the ML scope.
 - The confidence gate does not replace human judgment for low-confidence decisions. A human review queue is a required operational component, not an optional feature.
-- Retraining is triggered on a **fixed 20-day cycle**, not on detected drift events. Continuous drift monitoring is an identified future work item.
+- Retraining runs **daily over a 20-day window** — each day a new training run is executed on accumulated traffic data from `data/staging/`. This is a scheduled daily pipeline, not a single trigger fired at day 20. Continuous drift-based triggering (outside the fixed window) is an identified future work item.
 - The system assumes a **single-server deployment**. Horizontal scaling, distributed model serving, and multi-region replication are explicitly out of scope.
 
 ---
@@ -337,7 +337,7 @@ Tool configuration for `pytest`, `coverage`, `black`, and `ruff` is consolidated
 
 The following capabilities are identified as post-thesis (PD2) development targets:
 
-- **Drift-triggered retraining** — Replace the fixed 20-day cycle with a Prometheus-alert-triggered retraining invocation based on confidence distribution shift.
+- **Drift-triggered retraining** — Supplement the daily 20-day retraining window with Prometheus-alert-triggered invocations based on detected confidence distribution shift, enabling out-of-window retraining when drift is measurably elevated.
 - **Expanded attack surface coverage** — Extend the ML triage model to score XSS and command injection patterns in addition to SQL injection.
 - **Policy-as-code for CI** — Integrate IaC static analysis (e.g., Checkov) and SAST scanning into the GitHub Actions pipeline as named, staged workflow files.
 - **Formal model evaluation gate** — Replace manual promotion approval with a structured gate: F1 ≥ threshold, precision ≥ threshold, no regression on held-out injection categories.
@@ -347,7 +347,7 @@ The following capabilities are identified as post-thesis (PD2) development targe
 
 ## Academic Context
 
-This system was developed as the primary deliverable for a Bachelor of Science in Information Technology capstone research project (PD1/PD2 cycle). The research objective is to evaluate whether transformer-based ML confidence scoring can measurably reduce the false-positive enforcement rate of an OWASP CRS-governed ModSecurity WAF without reducing true-positive detection coverage.
+This system was developed as the primary deliverable for a Bachelor of Science in Computer Engineering capstone research project (PD1/PD2 cycle). The research objective is to evaluate whether transformer-based ML confidence scoring can measurably reduce the false-positive enforcement rate of an OWASP CRS-governed ModSecurity WAF without reducing true-positive detection coverage.
 
 All architectural decisions, experimental design parameters, and evaluation baselines are documented in `docs/` and the accompanying feasibility study.
 
