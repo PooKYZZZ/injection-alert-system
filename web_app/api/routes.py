@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timezone
@@ -17,10 +17,13 @@ model = MockInjectionClassifier()
 
 
 @router.post("/predict", response_model=PredictionResponse)
-def predict(request: PredictionRequest, db: Session = Depends(get_db)):
+def predict(request: Request, prediction_request: PredictionRequest, db: Session = Depends(get_db)):
     """Classify an HTTP request as normal or injection attack."""
+    # Get client IP address
+    source_ip = request.client.host
+    
     # Get prediction from model
-    result = model.predict(request.http_request)
+    result = model.predict(prediction_request.http_request)
 
     # Determine action based on confidence level
     if result["confidence_level"] == "HIGH" and result["class"] != "Normal":
@@ -32,7 +35,8 @@ def predict(request: PredictionRequest, db: Session = Depends(get_db)):
 
     # Store in database
     traffic_log = TrafficLog(
-        http_request=request.http_request,
+        source_ip=source_ip,
+        http_request=prediction_request.http_request,
         prediction=result["class"],
         confidence=result["confidence"],
         confidence_level=result["confidence_level"],
@@ -45,7 +49,8 @@ def predict(request: PredictionRequest, db: Session = Depends(get_db)):
     return PredictionResponse(
         class_label=result["class"],
         confidence=result["confidence"],
-        confidence_level=result["confidence_level"]
+        confidence_level=result["confidence_level"],
+        action_taken=action_taken
     )
 
 

@@ -15,13 +15,15 @@ class PredictionResponse(BaseModel):
             "example": {
                 "class_label": "SQL Injection",
                 "confidence": 0.92,
-                "confidence_level": "HIGH"
+                "confidence_level": "HIGH",
+                "action_taken": "BLOCKED"
             }
         }
     )
     class_label: str = Field(..., description="Predicted class label")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
     confidence_level: str = Field(..., description="Confidence level (LOW, MEDIUM, HIGH)")
+    action_taken: str = Field(..., description="Action taken in response to the prediction")
 
 
 class FeedbackRequest(BaseModel):

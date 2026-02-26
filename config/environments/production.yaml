@@ -1,0 +1,15 @@
+# Environment: Production
+# Purpose: Live system serving real traffic. All enforcement active.
+# DB: PostgreSQL (production database, full audit logging enabled)
+# WAF: ModSecurity in Enforcement mode (CRS rules + ML confidence gate active)
+# ML Model: loads ONLY from model_registry/production/ (validated, signed artifact)
+# Logging: WARNING level, structured JSON to file, audit log to separate append-only table
+# Confidence Gate: enabled at full threshold — LOW confidence triggers human review queue
+
+DATABASE_URL: "postgresql://prod_user:${PROD_DB_PASS}@localhost:5432/injection_prod"
+WAF_MODE: "Enforcement"
+MODEL_REGISTRY_SLOT: "production"
+LOG_LEVEL: "WARNING"
+CONFIDENCE_GATE_ENABLED: true
+CONFIDENCE_THRESHOLD: 0.92
+HUMAN_REVIEW_QUEUE_ENABLED: true

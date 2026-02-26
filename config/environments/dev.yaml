@@ -1,0 +1,14 @@
+# Environment: Development
+# Purpose: Local development and unit testing on developer workstations.
+# DB: SQLite or local PostgreSQL (port 5432, db: injection_dev)
+# WAF: ModSecurity in DetectionOnly mode (no enforcement)
+# ML Model: loads from model_registry/staging/ (latest trained, not production-promoted)
+# Logging: DEBUG level, stdout only
+# Confidence Gate: disabled (all requests logged, none auto-blocked)
+
+DATABASE_URL: "postgresql://dev_user:dev_pass@localhost:5432/injection_dev"
+WAF_MODE: "DetectionOnly"
+MODEL_REGISTRY_SLOT: "staging"
+LOG_LEVEL: "DEBUG"
+CONFIDENCE_GATE_ENABLED: false
+CONFIDENCE_THRESHOLD: 0.90

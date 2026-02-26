@@ -8,10 +8,10 @@ from web_app.config import get_settings
 
 settings = get_settings()
 
-# Use SQLite for testing, PostgreSQL for production
+# Use SQLite for testing and development, PostgreSQL for production
 engine = create_engine(
-    settings.database_url if not settings.is_development else "sqlite:///./test.db",
-    connect_args={"check_same_thread": False} if settings.is_development else {}
+    settings.database_url if (settings.is_production and not settings.is_testing) else "sqlite:///./test.db",
+    connect_args={"check_same_thread": False} if (settings.is_development or settings.is_testing) else {}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -31,6 +31,7 @@ class TrafficLog(Base):
     prediction = Column(String(50), index=True)
     confidence = Column(Float, nullable=False)
     confidence_level = Column(String(10), nullable=False)
+    model_version = Column(String(50), nullable=True)
     action_taken = Column(String(50))
     analyst_label = Column(String(50), nullable=True)
     labeled_at = Column(DateTime, nullable=True)

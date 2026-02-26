@@ -25,3 +25,12 @@ def setup_test_database():
     yield
     # Cleanup - close connections first
     close_all_sessions()
+    # Drop all tables
+    Base.metadata.drop_all(bind=engine)
+    # Remove test.db file if it exists
+    test_db_path = os.path.join(os.getcwd(), "test.db")
+    if os.path.exists(test_db_path):
+        try:
+            os.remove(test_db_path)
+        except OSError:
+            pass

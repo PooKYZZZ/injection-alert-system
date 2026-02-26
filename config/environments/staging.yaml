@@ -1,0 +1,14 @@
+# Environment: Staging
+# Purpose: Pre-production validation — mirrors production config with test data.
+# DB: PostgreSQL (dedicated staging schema)
+# WAF: ModSecurity in Enforcement mode (CRS rules active)
+# ML Model: loads from model_registry/staging/ (promotion candidate under evaluation)
+# Logging: INFO level, file + stdout
+# Confidence Gate: enabled at reduced threshold for validation metrics collection
+
+DATABASE_URL: "postgresql://staging_user:staging_pass@localhost:5432/injection_staging"
+WAF_MODE: "Enforcement"
+MODEL_REGISTRY_SLOT: "staging"
+LOG_LEVEL: "INFO"
+CONFIDENCE_GATE_ENABLED: true
+CONFIDENCE_THRESHOLD: 0.85

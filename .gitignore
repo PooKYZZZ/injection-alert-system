@@ -52,6 +52,12 @@ htmlcov/
 data/raw/
 data/interim/
 data/processed/
+data/staging/
+
+# Model registry binaries (track READMEs and metadata only)
+model_registry/**/*.onnx
+model_registry/**/*.pt
+model_registry/**/*.bin
 
 # Logs
 *.log
