@@ -89,11 +89,4 @@ Please review [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, tes
 
 MIT License. See `LICENSE` for full terms.
 
-This repository is available for academic review and research reference. 
-
-## Notes
-
-- Humanized the introduction and unified the tone to be more developer-friendly.
-- Removed excessive emojis from headers to adhere to standard documentation practices.
-- Confidence thresholds were accurately aligned with the feasibility report (>80% / 50-80% / <50%), replacing previous conflicting values (0.92 / 0.85).
-- Reconciled database mentions to consistently refer to Supabase (Postgres) instead of legacy SQLite references.
+This repository is available for academic review and research reference.
