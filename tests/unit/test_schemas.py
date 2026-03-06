@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from web_app.schemas import (
+from web_app.presentation.schemas import (
     PredictionRequest,
     PredictionResponse,
     FeedbackRequest,
@@ -26,11 +26,13 @@ def test_prediction_response_structure():
     response = PredictionResponse(
         class_label="SQL Injection",
         confidence=0.92,
-        confidence_level="HIGH"
+        confidence_level="HIGH",
+        action_taken="BLOCKED"
     )
     assert response.class_label == "SQL Injection"
     assert response.confidence == 0.92
     assert response.confidence_level == "HIGH"
+    assert response.action_taken == "BLOCKED"
 
 
 def test_prediction_response_confidence_range():
@@ -39,7 +41,8 @@ def test_prediction_response_confidence_range():
     response = PredictionResponse(
         class_label="Normal",
         confidence=0.5,
-        confidence_level="MEDIUM"
+        confidence_level="MEDIUM",
+        action_taken="ALLOWED"
     )
     assert response.confidence == 0.5
 
@@ -48,7 +51,8 @@ def test_prediction_response_confidence_range():
         PredictionResponse(
             class_label="Normal",
             confidence=-0.1,
-            confidence_level="LOW"
+            confidence_level="LOW",
+            action_taken="ALLOWED"
         )
 
     # Confidence > 1 should fail
@@ -56,7 +60,8 @@ def test_prediction_response_confidence_range():
         PredictionResponse(
             class_label="Normal",
             confidence=1.5,
-            confidence_level="HIGH"
+            confidence_level="HIGH",
+            action_taken="ALLOWED"
         )
 
 

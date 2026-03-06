@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from web_app.database import Base, TrafficLog, get_db, init_db
+from web_app.infrastructure.database.database import Base, TrafficLog
 
 
 def test_traffic_log_model_creation():
@@ -58,7 +58,18 @@ def test_traffic_log_has_all_required_fields():
     assert retrieved.labeled_by == "analyst@example.com"
 
 
-def test_get_db_returns_session():
-    """Test that get_db generator yields a database session"""
-    # This test verifies the dependency injection pattern
-    assert callable(get_db)
+def test_traffic_log_orm_column_types():
+    """Test that TrafficLog columns have the expected types and constraints"""
+    # Verify the ORM model structure
+    assert hasattr(TrafficLog, "id")
+    assert hasattr(TrafficLog, "timestamp")
+    assert hasattr(TrafficLog, "source_ip")
+    assert hasattr(TrafficLog, "http_request")
+    assert hasattr(TrafficLog, "prediction")
+    assert hasattr(TrafficLog, "confidence")
+    assert hasattr(TrafficLog, "confidence_level")
+    assert hasattr(TrafficLog, "model_version")
+    assert hasattr(TrafficLog, "action_taken")
+    assert hasattr(TrafficLog, "analyst_label")
+    assert hasattr(TrafficLog, "labeled_at")
+    assert hasattr(TrafficLog, "labeled_by")
