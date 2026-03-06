@@ -1,20 +1,24 @@
 import pytest
 from fastapi.testclient import TestClient
-from web_app.app import app
-
-client = TestClient(app)
+from web_app.presentation.app import app
 
 
-def test_health_endpoint():
-    """Test health check endpoint returns status"""
-    response = client.get("/api/health")
+@pytest.fixture
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_health_endpoint(client):
+    """Test canonical health check endpoint returns status"""
+    response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert "status" in data
     assert "database" in data
 
 
-def test_predict_endpoint_sql_injection():
+def test_predict_endpoint_sql_injection(client):
     """Test prediction endpoint with SQL injection payload"""
     response = client.post(
         "/api/predict",
@@ -28,7 +32,7 @@ def test_predict_endpoint_sql_injection():
     assert data["class_label"] == "SQL Injection"
 
 
-def test_predict_endpoint_code_injection():
+def test_predict_endpoint_code_injection(client):
     """Test prediction endpoint with code injection payload"""
     response = client.post(
         "/api/predict",
@@ -39,7 +43,7 @@ def test_predict_endpoint_code_injection():
     assert data["class_label"] == "Code Injection"
 
 
-def test_predict_endpoint_normal_request():
+def test_predict_endpoint_normal_request(client):
     """Test prediction endpoint with normal request"""
     response = client.post(
         "/api/predict",
@@ -50,13 +54,25 @@ def test_predict_endpoint_normal_request():
     assert data["class_label"] == "Normal"
 
 
-def test_predict_endpoint_missing_request():
+def test_predict_endpoint_missing_request(client):
     """Test prediction endpoint with missing http_request"""
     response = client.post("/api/predict", json={})
     assert response.status_code == 422  # Validation error
 
 
-def test_alerts_endpoint_empty():
+def test_predict_response_has_action_taken(client):
+    """Test prediction response includes action_taken field"""
+    response = client.post(
+        "/api/predict",
+        json={"http_request": "SELECT * FROM users; DROP TABLE users;--"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "action_taken" in data
+    assert data["action_taken"] in ["BLOCKED", "THROTTLED", "ALLOWED"]
+
+
+def test_alerts_endpoint_empty(client):
     """Test alerts endpoint returns empty list when no data"""
     response = client.get("/api/alerts")
     assert response.status_code == 200
@@ -64,7 +80,7 @@ def test_alerts_endpoint_empty():
     assert isinstance(data, list)
 
 
-def test_alerts_endpoint_with_data():
+def test_alerts_endpoint_with_data(client):
     """Test alerts endpoint returns stored alerts"""
     # First make a prediction to create a log
     client.post(
@@ -77,10 +93,10 @@ def test_alerts_endpoint_with_data():
     assert isinstance(data, list)
 
 
-def test_feedback_endpoint():
+def test_feedback_endpoint(client):
     """Test feedback endpoint stores analyst correction"""
     # First create a prediction
-    predict_response = client.post(
+    client.post(
         "/api/predict",
         json={"http_request": "GET /api/test"}
     )
@@ -100,3 +116,8 @@ def test_feedback_endpoint():
             }
         )
         assert feedback_response.status_code == 200
+
+
+def test_model_singleton_injection(client):
+    """Test that the model is injected from app.state, not instantiated per-request."""
+    assert hasattr(app.state, "model"), "Model should be loaded on app.state during lifespan"

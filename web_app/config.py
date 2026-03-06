@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     model_path: str
     api_secret_key: str
+    groq_api_key: str | None = None
+    allowed_origins: list[str] = ["http://localhost:3000"]
 
     @property
     def is_development(self) -> bool:
