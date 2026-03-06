@@ -11,7 +11,7 @@
 | Metric | Formula | What It Measures | Target |
 |--------|---------|------------------|--------|
 | Accuracy | (TP+TN)/Total | Overall correctness | ≥ 95% |
-| Precision | TP/(TP+FP | How many predicted attacks are real | ≥ 90% |
+| Precision | TP/(TP+FP) | How many predicted attacks are real | ≥ 90% |
 | Recall | TP/(TP+FN) | How many real attacks are caught | ≥ 90% |
 | F1-Score | 2×(P×R)/(P+R) | Balance of precision and recall | ≥ 0.90 |
 | FPR | FP/(FP+TN) | How often benign is marked attack | ≤ 3% |

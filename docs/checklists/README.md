@@ -77,7 +77,7 @@ python ml_model/train.py --model cnn_bilstm --epochs 50
 python ml_model/evaluate.py --model models/best_model.pt
 
 # Web Application
-uvicorn web_app.app:app --host 0.0.0.0 --port 5000
+uvicorn web_app.presentation.app:app --host 0.0.0.0 --port 5000
 
 # Testing
 pytest tests/ -v

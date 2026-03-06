@@ -50,6 +50,16 @@ async def lifespan(app: FastAPI):
     # Shutdown (cleanup if needed)
 
 
+async def health_check(db: AsyncSession = Depends(get_db)):
+    """Health check endpoint with database connectivity probe."""
+    try:
+        result = await db.execute(select(TrafficLog.id).limit(1))
+        result.first()
+        return HealthResponse(status="healthy", database="connected")
+    except Exception:
+        return HealthResponse(status="unhealthy", database="disconnected")
+
+
 def create_app() -> FastAPI:
     """Application factory — the single place where FastAPI is configured."""
     app = FastAPI(
@@ -72,15 +82,8 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix="/api")
 
     # --- Canonical health endpoint (single source of truth) ---
-    @app.get("/health", response_model=HealthResponse)
-    async def health_check(db: AsyncSession = Depends(get_db)):
-        """Health check endpoint with database connectivity probe."""
-        try:
-            result = await db.execute(select(TrafficLog.id).limit(1))
-            result.first()
-            return HealthResponse(status="healthy", database="connected")
-        except Exception:
-            return HealthResponse(status="unhealthy", database="disconnected")
+    app.add_api_route("/health", health_check, response_model=HealthResponse)
+    app.add_api_route("/api/health", health_check, response_model=HealthResponse)
 
     return app
 

@@ -19,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from web_app.infrastructure.database import get_db
-from web_app.infrastructure.repositories.traffic_log_repository import TrafficLogRepository
+from web_app.infrastructure.repositories.traffic_log_repository import (
+    TrafficLogRepository,
+)
 from web_app.application.triage_use_case import TriageUseCase
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.presentation.schemas import (
@@ -54,7 +56,7 @@ async def predict(
 
     result = await use_case.execute(
         http_request=prediction_request.http_request,
-        source_ip=request.client.host,
+        source_ip=request.client.host if request.client else "unknown",
     )
 
     return PredictionResponse(

@@ -85,6 +85,10 @@ class TriageUseCase:
             confidence_level=result["confidence_level"],
             action_taken=action_taken,
         )
+        # TODO: Consider exposing the saved entity ID in TriageResult for future
+        # feedback linking (e.g., client can reference the audit record directly).
+        # Currently the return value is ignored - uncomment below when needed:
+        # saved_entity = await self._repository.save(entity)
         await self._repository.save(entity)
 
         return TriageResult(

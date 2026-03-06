@@ -35,7 +35,7 @@ cp .env.example .env
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn web_app.app:app --reload
+uvicorn web_app.presentation.app:app --reload
 ```
 
 ## Minimal Usage Example
