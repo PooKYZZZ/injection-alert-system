@@ -69,3 +69,5 @@ Thumbs.db
 
 # Worktrees
 .worktrees/
+stitch_waf_ml_soc_dashboard_overview/code.html
+stitch_waf_ml_soc_dashboard_overview/screen.png

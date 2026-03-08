@@ -8,7 +8,7 @@
 
 **Title:** Deep Learning-Based Confidence Classification for Context-Aware Injection Alert
 
-**Goal:** ML system detecting injection attacks with confidence levels (LOW <50% | MEDIUM 50-80% | HIGH >80%), automated actions, ModSecurity WAF integration, 20-day retraining pipeline.
+**Goal:** ML system detecting injection attacks with confidence levels (LOW <50% | MEDIUM 50-80% | HIGH >80%), automated actions, ModSecurity WAF integration, 20-day retraining pipeline. Deployment target: Land Registration Systems, Inc. (LARES) — IT subsidiary of the Land Registration Authority (LRA), operating the in-house Security Operations Center for LRA's land titling computerization infrastructure.
 
 ---
 
@@ -74,6 +74,7 @@
 | Database | Supabase (Managed Cloud PostgreSQL) |
 | WAF | ModSecurity + OWASP CRS v4.x |
 | Deployment | Docker Compose (3 containers), Ansible, Ubuntu Server, Nginx |
+| Redis 7 | In-memory store: IP blocklist cache, rate limiting state (LOW: 100 req/min, MEDIUM: 20 req/min), LOW-confidence review queue with TTL |
 
 ---
 
@@ -83,6 +84,7 @@
 - **Container 1:** `owasp/modsecurity-crs:nginx` (Exposed to internet on port 80/443; route reverse proxy)
 - **Container 2:** FastAPI + PyTorch models (Internal network only)
 - **Container 3:** Next.js 15 (Internal network only)
+- **Container 4:** Redis 7 (Internal network only — no external exposure; accessed only by FastAPI for enforcement state)
 
 **Frontend Specifications (11 Pages):**
 - Full multi-page application encompassing SOC Dashboard, Alert History, Incident Detail, Mitigation Log, ML Health, Traffic, Reports, Audit Trail, Settings, Admin, and Login.
@@ -97,7 +99,7 @@
 - **Stage 1:** Local Docker Compose environment
 - **Stage 2:** PD1 Demo (Cloud VM, MiniLM-L6, ModSecurity in DetectionOnly)
 - **Stage 3:** PD2 Demo (Bigger VM, Production model, ModSecurity in Enforcement)
-- **Stage 4:** Final DICT Infrastructure Handoff
+- **Stage 4:** Final LARES Infrastructure Handoff
 
 ---
 
@@ -148,6 +150,7 @@
 |-------|-------|--------|
 | PD1 | Obj 1-2 (Data Prep, Model Dev), Working Frontend Dashboard Demo (Next.js), FastAPI endpoints partially working | Current |
 | PD2 | Obj 3-9, Full Docker Compose deployment, ModSecurity enforcement, Ansible playbooks, Supabase DB, Real ML model | Future |
+| PD2 | Redis enforcement layer (rate limiting, IP blocklist, review queue) | Future |
 
 ---
 
@@ -184,6 +187,7 @@ G:\Documents\PDDDD\
 | Docker Compose | ❌ Pending | Froilan |
 | Supabase connect | ❌ Pending (SQLite now)| Jabez |
 | Documentation | 🔄 In progress | Mark/Junaid |
+| Redis connect | ❌ Pending | Jabez |
 
 **FastAPI Backend Known Issues:**
 - **Endpoints:** Missing `/api/stats`, `/api/batch-predict`, `/api/explain`
@@ -217,4 +221,7 @@ Data Preparation → Model Training → Backend Integration → Deployment
 - **Adviser:** Engr. Robin Valenzuela
 - **Panel Lead:** Engr. Verlyn Nojor
 - **Panel:** Engr. Menchie M. Rosales, Engr. Lloyd Aldrin Pornobi
-- **Client:** DICT (Department of Information and Communications Technology)
+- **Client:** Land Registration Systems, Inc. (LARES)
+- **Client Contact:** John Marco Lira
+- **Domain Expert:** Mark Anthony Evilla (SOC Consultant, LARES — formerly SOC Analyst L1/L2 at Philcox Philippines)
+- **Client Address:** IMC Building, LRA Compound, East Avenue, Diliman, Quezon City, Philippines 1100

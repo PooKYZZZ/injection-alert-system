@@ -195,7 +195,7 @@ No phase-specific metric; see final integration metrics in Phase 9.
 15. Configure systemd services for FastAPI application.
 16. Configure systemd services for Nginx.
 17. Implement SSL setup for secure HTTPS connections.
-18. Create installation documentation for DICT client.
+18. Create installation documentation for LARES client.
 
 ## Phase 8: Testing and Evaluation
 

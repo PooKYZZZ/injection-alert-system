@@ -36,11 +36,11 @@ This study contributes a **confidence-calibrated machine learning triage and aut
 
 ## Client / Prospective Client
 
-**Primary Client:** Department of Information and Communications Technology (DICT)
+**Primary Client:** Land Registration Systems, Inc. (LARES)
 
-DICT is the Philippine government agency responsible for developing and managing the country's information and communications technology sector, with a focus on cybersecurity. The proposed system would be used to protect government web portals and public-facing applications from injection attacks.
+Land Registration Systems, Inc. (LARES) is the IT subsidiary of the Land Registration Authority (LRA), operating the in-house Security Operations Center for LRA's land titling computerization infrastructure. LARES serves as the primary client and deployment target for this system.
 
-**Use Case:** DICT IT administrators would deploy the system to:
+**Use Case:** LARES IT administrators would deploy the system to:
 - Monitor HTTP traffic to government web applications
 - Reduce false-positive enforcement from existing WAF deployments
 - Provide analysts with confidence-scored attack classification
@@ -254,7 +254,7 @@ This is further supported by security-specific research demonstrating that ML-ba
   - **Stage 1 (Local):** Local developer environments running Docker Compose matching production
   - **Stage 2 (PD1):** Cloud VM deployment utilizing a high-efficiency model (e.g., MiniLM-L6) with ModSecurity in DetectionOnly mode for safe initial demonstration
   - **Stage 3 (PD2):** Full-capacity cloud deployment utilizing the optimal model with ModSecurity operating in Enforcement mode and full Ansible automation enabled
-  - **Stage 4 (Handoff):** Final deployment seamlessly transitioning the Docker environment directly to DICT infrastructure
+  - **Stage 4 (Handoff):** Final deployment seamlessly transitioning the Docker environment directly to LARES infrastructure
 - Implement Python orchestration layer in FastAPI that:
   - Loads the trained PyTorch model for inference
   - Classifies incoming HTTP requests
@@ -530,7 +530,7 @@ The FastAPI backend implements an orchestration layer that:
 - Logs all automated actions with full audit trail (timestamp, source IP, confidence score, action taken, expiration time)
 
 ### Installation Documentation
-Deployment documentation will be prepared for the target client (DICT), including environment setup, configuration, and operational procedures.
+Deployment documentation will be prepared for the target client (LARES), including environment setup, configuration, and operational procedures.
 
 ---
 
