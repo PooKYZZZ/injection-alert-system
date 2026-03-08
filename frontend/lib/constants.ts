@@ -7,7 +7,8 @@ export const NAV_ITEMS = [
 export const CONFIDENCE_THRESHOLDS = {
   LOW: 0.5,
   MEDIUM: 0.8,
-}
+  HIGH: 1.0,
+} as const
 
 export const COLOR_MAP = {
   status: {
@@ -17,6 +18,6 @@ export const COLOR_MAP = {
     blocked: '#dc2626',
     throttled: '#f97316',
     logged: '#6b7280',
-    ratelimited: '#8b5cf6',
-  }
-}
+    rate_limited: '#8b5cf6',
+  },
+} as const

@@ -12,6 +12,6 @@ export const MOCK_ML_HEALTH: MLHealthData = {
   thresholds: {
     low: CONFIDENCE_THRESHOLDS.LOW,
     medium: CONFIDENCE_THRESHOLDS.MEDIUM,
-    high: 1.0,
+    high: CONFIDENCE_THRESHOLDS.HIGH,
   }
 }

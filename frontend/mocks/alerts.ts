@@ -3,7 +3,7 @@ import { PaginatedAlerts, Alert } from '@/features/alerts/types'
 const items: Alert[] = [
   {
     alert_id: "ALT-1001",
-    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    timestamp: "2026-03-09T09:55:00.000Z",
     source_ip: "192.168.1.100",
     request_path: "/api/login",
     request_method: "POST",
@@ -21,7 +21,7 @@ const items: Alert[] = [
   },
   {
     alert_id: "ALT-1002",
-    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    timestamp: "2026-03-09T09:45:00.000Z",
     source_ip: "10.0.0.5",
     request_path: "/search",
     request_method: "GET",
@@ -34,7 +34,7 @@ const items: Alert[] = [
   },
   {
     alert_id: "ALT-1003",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    timestamp: "2026-03-09T09:00:00.000Z",
     source_ip: "172.16.0.42",
     request_path: "/products",
     request_method: "GET",
