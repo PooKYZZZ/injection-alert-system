@@ -9,14 +9,15 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.ruff_cache/
 build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -62,6 +63,23 @@ model_registry/**/*.bin
 # Logs
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+coverage/
+frontend/coverage/
+.turbo/
+frontend/.turbo/
+*.tsbuildinfo
 
 # OS
 .DS_Store
