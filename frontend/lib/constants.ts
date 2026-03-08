@@ -11,13 +11,15 @@ export const CONFIDENCE_THRESHOLDS = {
 } as const
 
 export const COLOR_MAP = {
-  status: {
-    high: '#dc2626',
-    medium: '#f97316',
-    low: '#6b7280',
-    blocked: '#dc2626',
-    throttled: '#f97316',
-    logged: '#6b7280',
-    rate_limited: '#8b5cf6',
+  severity: {
+    HIGH: '#dc2626',
+    MEDIUM: '#f97316',
+    LOW: '#6b7280',
+  },
+  action: {
+    BLOCKED: '#dc2626',
+    THROTTLED: '#f97316',
+    LOGGED: '#6b7280',
+    RATE_LIMITED: '#8b5cf6',
   },
 } as const
