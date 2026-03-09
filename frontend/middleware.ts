@@ -6,6 +6,5 @@ export const { auth: middleware } = NextAuth(authConfig)
 export const config = {
   matcher: [
     '/(dashboard|alerts|ml-health)/:path*',
-    '/api/((?!auth).*)',
   ],
 }

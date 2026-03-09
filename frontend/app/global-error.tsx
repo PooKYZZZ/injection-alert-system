@@ -11,7 +11,8 @@ export default function GlobalError({
     <html lang="en">
       <body style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
         <h2>Something went wrong</h2>
-        <p>{error.message}</p>
+        <p>An unexpected error occurred. Please try again.</p>
+        {process.env.NODE_ENV === 'development' && <pre>{error.message}</pre>}
         <button onClick={reset}>Try again</button>
       </body>
     </html>

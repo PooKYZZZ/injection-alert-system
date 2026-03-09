@@ -24,6 +24,7 @@ export function alertDetailOptions(id: string | null) {
   return queryOptions<Alert>({
     queryKey: alertKeys.detail(id ?? ''),
     queryFn: async () => {
+      if (!id) throw new Error('alertDetailOptions: id is required')
       const r = await fetch(`/api/alerts/${id}`)
       if (!r.ok) throw new Error(r.status.toString())
       return r.json()
