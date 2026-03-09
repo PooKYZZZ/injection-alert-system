@@ -1,11 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn } from '@/auth'
+import { signIn } from 'next-auth/react'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [password, setPassword] = useState('')
   const [error, setError] = useState(false)
   const [pending, setPending] = useState(false)
@@ -14,11 +12,17 @@ export default function LoginPage() {
     setError(false)
     setPending(true)
     try {
-      await signIn('credentials', {
+      const result = await signIn('credentials', {
         password,
-        redirectTo: '/dashboard',
+        redirect: false,
       })
-    } catch (e) {
+      if (result?.ok) {
+        window.location.href = '/dashboard'
+      } else {
+        setError(true)
+        setPending(false)
+      }
+    } catch {
       setError(true)
       setPending(false)
     }
@@ -49,16 +53,14 @@ export default function LoginPage() {
           />
         </div>
 
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           onClick={handleSubmit}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
-          aria-disabled={pending}
+          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={pending}
         >
           {pending ? 'Signing in…' : 'Sign in'}
-        </div>
+        </button>
       </div>
     </div>
   )

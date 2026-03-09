@@ -1,10 +1,10 @@
 'use client'
 
-import { useDashboardStore } from 'store/dashboardStore'
-import { useAlert } from 'features/alerts/queries'
-import type { Alert } from 'features/alerts/types'
-import { ShapChart } from 'components/ui/ShapChart'
-import { cn } from 'lib/utils'
+import { useDashboardStore } from '@/store/dashboardStore'
+import { useAlert } from '@/features/alerts/queries'
+import type { Alert } from '@/features/alerts/types'
+import { ShapChart } from '@/components/ui/ShapChart'
+import { cn } from '@/lib/utils'
 
 function PanelSkeleton() {
   return (

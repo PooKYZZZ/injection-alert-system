@@ -1,7 +1,7 @@
 'use client'
 
-import { useDashboardStats } from 'features/stats/queries'
-import { cn } from 'lib/utils'
+import { useDashboardStats } from '@/features/stats/queries'
+import { cn } from '@/lib/utils'
 
 interface MetricItemProps {
   label: string
