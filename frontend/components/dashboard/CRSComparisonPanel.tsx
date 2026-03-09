@@ -88,11 +88,13 @@ export default function CRSComparisonPanel() {
           />
           <MetricItem
             label="ML Avg Inference Time"
-            value='—'
+            value={data ? `${data.crs_comparison.avg_inference_ms}ms` : '—'}
           />
           <MetricItem
             label="CRS Flag Rate"
-            value='—'
+            value={data
+              ? `${((data.crs_comparison.total_crs_flagged / Math.max(data.crs_comparison.total_requests, 1)) * 100).toFixed(1)}%`
+              : '—'}
           />
         </div>
       )}

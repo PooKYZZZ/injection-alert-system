@@ -29,6 +29,7 @@ export async function GET(_request: NextRequest): Promise<Response> {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Mock stats are opt-in; must be explicitly enabled via USE_MOCK_STATS=true.
     const useMock = process.env.USE_MOCK_STATS === 'true'
 
     if (useMock) {

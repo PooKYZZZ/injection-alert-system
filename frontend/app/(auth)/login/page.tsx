@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn } from '@/auth'
+import { AuthError } from 'next-auth'
+import { loginAction } from './actions'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [password, setPassword] = useState('')
   const [error, setError] = useState(false)
   const [pending, setPending] = useState(false)
@@ -14,13 +13,16 @@ export default function LoginPage() {
     setError(false)
     setPending(true)
     try {
-      await signIn('credentials', {
-        password,
-        redirectTo: '/dashboard',
-      })
+      await loginAction(password)
     } catch (e) {
-      setError(true)
-      setPending(false)
+      // AuthError = invalid credentials. Re-throw everything else so Next.js
+      // can handle NEXT_REDIRECT (thrown on successful sign-in with redirectTo).
+      if (e instanceof AuthError) {
+        setError(true)
+        setPending(false)
+        return
+      }
+      throw e
     }
   }
 

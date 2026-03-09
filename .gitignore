@@ -102,3 +102,4 @@ stitch_waf_ml_soc_dashboard_overview/screen.png
 .github/copilot-instructions.md
 artifacts
 .playwright-mcp
+.kilocode/mcp.json

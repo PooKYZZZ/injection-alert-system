@@ -1,19 +1,13 @@
 import type { NextAuthConfig } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
+// Edge-safe config: no authorize() callback — Node.js-only logic lives in auth.ts.
 export const authConfig = {
   providers: [
     Credentials({
       name: 'Credentials',
       credentials: {
         password: { label: 'Password', type: 'password', placeholder: '' },
-      },
-      async authorize(credentials) {
-        const demoPassword = process.env.SOC_DEMO_PASSWORD ?? process.env.DEMO_PASSWORD
-        if (credentials?.password === demoPassword) {
-          return { id: '1', name: 'SOC Analyst', email: 'soc@example.com' }
-        }
-        return null
       },
     }),
   ],
