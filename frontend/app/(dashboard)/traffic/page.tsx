@@ -5,7 +5,7 @@ export default function TrafficPage() {
     <main className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold tracking-tight">Traffic</h1>
       <div
-        className="flex items-center justify-center rounded border border-dashed border-border py-24 text-muted-foreground"
+        className="flex items-center justify-center rounded border border-dashed border-border-light py-24 text-text-muted"
         data-testid="coming-pd2"
       >
         Coming in PD2

@@ -11,7 +11,7 @@ export function mlHealthOptions() {
     queryKey: mlHealthKeys.health(),
     queryFn: async () => {
       const r = await fetch('/api/ml-health')
-      if (!r.ok) throw new Error(r.status.toString())
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
       return r.json()
     },
     staleTime: 30_000,

@@ -8,6 +8,10 @@ import type { Alert } from 'features/alerts/types'
 import { useDashboardStore } from 'store/dashboardStore'
 import type { DashboardFilters, SeverityFilter, TimeRange } from 'lib/searchParams'
 import { cn } from 'lib/utils'
+
+const VALID_SEVERITIES: SeverityFilter[] = ['ALL', 'LOW', 'MEDIUM', 'HIGH']
+const VALID_TIME_RANGES: TimeRange[] = ['1h', '6h', '24h', '7d']
+const MAX_SEARCH_LENGTH = 200
 import { SeverityBadge } from 'components/ui/SeverityBadge'
 import { ConfidenceBar } from 'components/ui/ConfidenceBar'
 import { ActionLabel } from 'components/ui/ActionLabel'
@@ -49,10 +53,18 @@ function AlertsTableSkeleton() {
 function AlertsTableContent() {
   const searchParams = useSearchParams()
 
+  const rawSeverity = searchParams.get('severity') ?? 'ALL'
+  const rawTimeRange = searchParams.get('timeRange') ?? '24h'
+  const rawSearch = searchParams.get('search') ?? ''
+
   const filters: DashboardFilters = {
-    severity: (searchParams.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams.get('search') ?? '',
+    severity: (VALID_SEVERITIES as string[]).includes(rawSeverity)
+      ? (rawSeverity as SeverityFilter)
+      : 'ALL',
+    timeRange: (VALID_TIME_RANGES as string[]).includes(rawTimeRange)
+      ? (rawTimeRange as TimeRange)
+      : '24h',
+    search: rawSearch.slice(0, MAX_SEARCH_LENGTH),
   }
 
   const { toggleAlertSelection, selectAll, clearSelection, setActiveIncident } = useDashboardStore()
