@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
+import { signIn } from '@/auth'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,15 +13,14 @@ export default function LoginPage() {
   const handleSubmit = async () => {
     setError(false)
     setPending(true)
-    const result = await signIn('credentials', {
-      password,
-      redirect: false,
-    })
-    if (result?.error) {
+    try {
+      await signIn('credentials', {
+        password,
+        redirectTo: '/dashboard',
+      })
+    } catch (e) {
       setError(true)
       setPending(false)
-    } else {
-      router.push('/dashboard')
     }
   }
 

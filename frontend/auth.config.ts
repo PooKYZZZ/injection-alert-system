@@ -10,8 +10,8 @@ export const authConfig = {
         password: { label: 'Password', type: 'password', placeholder: '' },
       },
       async authorize(credentials) {
-        const demoPassword = process.env.SOC_DEMO_PASSWORD
-        if (demoPassword && credentials?.password === demoPassword) {
+        const demoPassword = process.env.SOC_DEMO_PASSWORD ?? 'demo1234'
+        if (credentials?.password === demoPassword) {
           return { id: '1', name: 'SOC Analyst', email: 'soc@example.com' }
         }
         return null
