@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
+import { signIn } from '@/auth'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,15 +13,14 @@ export default function LoginPage() {
   const handleSubmit = async () => {
     setError(false)
     setPending(true)
-    const result = await signIn('credentials', {
-      password,
-      redirect: false,
-    })
-    if (result?.error) {
+    try {
+      await signIn('credentials', {
+        password,
+        redirectTo: '/dashboard',
+      })
+    } catch (e) {
       setError(true)
       setPending(false)
-    } else {
-      router.push('/dashboard')
     }
   }
 
@@ -54,7 +53,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleSubmit}
           disabled={pending}
-          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
         >
           {pending ? 'Signing in…' : 'Sign in'}
         </button>
