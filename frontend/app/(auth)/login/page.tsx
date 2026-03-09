@@ -1,24 +1,31 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn } from '@/auth'
+import { signIn } from 'next-auth/react'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [password, setPassword] = useState('')
   const [error, setError] = useState(false)
   const [pending, setPending] = useState(false)
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (pending) return
     setError(false)
     setPending(true)
     try {
-      await signIn('credentials', {
+      const result = await signIn('credentials', {
         password,
-        redirectTo: '/dashboard',
+        redirect: false,
       })
-    } catch (e) {
+      if (result?.error) {
+        setError(true)
+        setPending(false)
+      } else {
+        window.location.href = '/dashboard'
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.error(err)
       setError(true)
       setPending(false)
     }
@@ -35,30 +42,28 @@ export default function LoginPage() {
           </p>
         )}
 
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">
-            Password
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="Enter password"
-            className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
-          />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-text-muted mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+              className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
+            />
+          </div>
 
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={handleSubmit}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
-          aria-disabled={pending}
-        >
-          {pending ? 'Signing in…' : 'Sign in'}
-        </div>
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full bg-primary hover:bg-primary-dark disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
+          >
+            {pending ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
       </div>
     </div>
   )
