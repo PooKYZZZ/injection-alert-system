@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from '@/auth'
+import { signIn } from 'next-auth/react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,10 +14,18 @@ export default function LoginPage() {
     setError(false)
     setPending(true)
     try {
-      await signIn('credentials', {
+      const res = await signIn('credentials', {
         password,
-        redirectTo: '/dashboard',
+        redirect: false,
+        callbackUrl: '/dashboard',
       })
+      if (res?.error) {
+        setError(true)
+        setPending(false)
+        return
+      }
+      // navigate to the callback URL when signIn succeeded
+      router.push((res as any)?.url ?? '/dashboard')
     } catch (e) {
       setError(true)
       setPending(false)
