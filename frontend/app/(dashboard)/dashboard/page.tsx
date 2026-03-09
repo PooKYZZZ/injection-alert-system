@@ -1,10 +1,10 @@
-import MetricCards from 'components/dashboard/MetricCards'
-import CRSComparisonPanel from 'components/dashboard/CRSComparisonPanel'
-import AlertBanner from 'components/dashboard/AlertBanner'
-import AlertsTable from 'components/dashboard/AlertsTable/AlertsTable'
-import AttackDistribution from 'components/dashboard/AttackDistribution'
-import ConfidenceHistogram from 'components/dashboard/ConfidenceHistogram'
-import IncidentDetailPanel from 'components/dashboard/IncidentDetailPanel'
+import MetricCards from '@/components/dashboard/MetricCards'
+import CRSComparisonPanel from '@/components/dashboard/CRSComparisonPanel'
+import AlertBanner from '@/components/dashboard/AlertBanner'
+import AlertsTable from '@/components/dashboard/AlertsTable/AlertsTable'
+import AttackDistribution from '@/components/dashboard/AttackDistribution'
+import ConfidenceHistogram from '@/components/dashboard/ConfidenceHistogram'
+import IncidentDetailPanel from '@/components/dashboard/IncidentDetailPanel'
 
 const ATTACK_DISTRIBUTION = [
   { label: 'SQL Injection', pct: 42.3, colorClass: 'bg-red-500' },
