@@ -5,6 +5,6 @@ export const { auth: middleware } = NextAuth(authConfig)
 
 export const config = {
   matcher: [
-    '/((?!login|api|_next/static|_next/image|favicon.ico).*)',
+    '/(dashboard|alerts|ml-health)/:path*',
   ],
 }

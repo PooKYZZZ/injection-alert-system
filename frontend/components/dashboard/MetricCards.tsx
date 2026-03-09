@@ -1,7 +1,7 @@
 'use client'
 
-import { useDashboardStats } from '@/features/stats/queries'
-import { cn } from '@/lib/utils'
+import { useDashboardStats } from 'features/stats/queries'
+import { cn } from 'lib/utils'
 
 interface MetricCardProps {
   label: string
@@ -88,7 +88,7 @@ export default function MetricCards() {
         icon="speed"
         value={
           data
-            ? `${data.crs_comparison.avg_inference_ms}ms`
+            ? `${Math.round(data.avg_confidence * 100)}%`
             : '—'
         }
         trend="p95 response time"

@@ -1,7 +1,7 @@
 'use client'
 
 import { useShallow } from 'zustand/react/shallow'
-import { useDashboardStore } from '@/store/dashboardStore'
+import { useDashboardStore } from 'store/dashboardStore'
 
 interface DashboardStoreState {
   selectedAlertIds: Set<string>
