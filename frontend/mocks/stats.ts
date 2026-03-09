@@ -11,6 +11,8 @@ export const MOCK_STATS: DashboardStats = {
     total_crs_flagged: 1000,
     ml_confirmed: 145,
     ml_overturned: 855,
-    false_positive_reduction_pct: 85.5
+    false_positive_reduction_pct: 85.5,
+    total_requests: 8400000,
+    avg_inference_ms: 3.4
   }
 }
