@@ -1,5 +1,6 @@
 import { NAV_ITEMS, SYSTEM_NAV_ITEMS } from '@/lib/constants'
 import { SidebarNavItem } from './SidebarNavItem'
+import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 
 export function Sidebar() {
@@ -20,15 +21,19 @@ export function Sidebar() {
       </div>
 
       {/* Main nav */}
-      <nav className="flex-1 py-4 flex flex-col gap-0.5 overflow-y-auto">
+      <nav className="flex-1 py-4 flex flex-col gap-0.5 overflow-y-auto">       
         {NAV_ITEMS.map((item) => (
-          <SidebarNavItem
-            key={item.href}
-            href={item.href}
-            icon={item.icon}
-            label={item.label}
-            badge={'badge' in item ? item.badge : undefined}
-          />
+          item.href === '/alerts' ? (
+            <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
+          ) : (
+            <SidebarNavItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              badge={'badge' in item ? item.badge : undefined}
+            />
+          )
         ))}
 
         {/* System section */}
