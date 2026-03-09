@@ -76,6 +76,7 @@ pnpm-debug.log*
 # Frontend
 node_modules/
 frontend/node_modules/
+frontend/.env.local
 .next/
 frontend/.next/
 out/
@@ -99,3 +100,5 @@ Thumbs.db
 stitch_waf_ml_soc_dashboard_overview/code.html
 stitch_waf_ml_soc_dashboard_overview/screen.png
 .github/copilot-instructions.md
+artifacts
+.playwright-mcp
