@@ -7,6 +7,11 @@ interface DashboardStoreState {
   selectedAlertIds: Set<string>
 }
 
+function comingSoon(feature: string) {
+  // Placeholder until server actions are wired up
+  window.alert(`${feature}: coming soon`)
+}
+
 export default function BulkActionBar() {
   const selectedIds = useDashboardStore(useShallow((s: DashboardStoreState) => [...s.selectedAlertIds]))
   const count = selectedIds.length
@@ -24,7 +29,7 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled={count === 0}
-            onClick={() => console.log('Explain Selected', selectedIds)}
+            onClick={() => comingSoon('Explain Selected')}
             className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Explain Selected
@@ -32,7 +37,7 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled={count === 0}
-            onClick={() => console.log('Mark False Positive', selectedIds)}
+            onClick={() => comingSoon('Mark False Positive')}
             className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Mark False Positive
@@ -40,7 +45,7 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled={count === 0}
-            onClick={() => console.log('Apply Mitigation', selectedIds)}
+            onClick={() => comingSoon('Apply Mitigation')}
             className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Apply Mitigation

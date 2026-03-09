@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useRef } from 'react'
+import { Suspense, useRef, useEffect } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { SeverityFilter } from '@/lib/searchParams'
 
@@ -54,6 +54,12 @@ function TopBarContent() {
     params.set('severity', severity)
     router.push(`${pathname}?${params.toString()}`, { scroll: false })
   }
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   const handleSearch = (value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)

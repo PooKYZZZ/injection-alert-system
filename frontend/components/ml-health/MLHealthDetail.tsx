@@ -24,8 +24,8 @@ function StatusBadge({ status }: { status: 'HEALTHY' | 'DEGRADED' | 'DOWN' }) {
 
 function MetricRow({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex items-center justify-between border-b border-border py-2 last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
+    <div className="flex items-center justify-between border-b border-border-light py-2 last:border-0">
+      <span className="text-sm text-text-muted">{label}</span>
       <span className="text-sm font-medium">{value}</span>
     </div>
   )
@@ -33,7 +33,7 @@ function MetricRow({ label, value }: { label: string; value: string | number }) 
 
 function ThresholdsSection({ thresholds }: { thresholds: ConfidenceThresholds }) {
   return (
-    <div className="rounded border border-border p-4">
+    <div className="rounded border border-border-light p-4">
       <h3 className="mb-2 text-sm font-semibold">Confidence Thresholds</h3>
       <MetricRow label="Low"    value={thresholds.low} />
       <MetricRow label="Medium" value={thresholds.medium} />
@@ -48,9 +48,9 @@ export default function MLHealthDetail() {
   if (isPending) {
     return (
       <div className="flex flex-col gap-3 animate-pulse" data-testid="ml-health-skeleton">
-        <div className="h-6 w-40 rounded bg-muted" />
-        <div className="h-4 w-24 rounded bg-muted" />
-        <div className="h-32 w-full rounded bg-muted" />
+        <div className="h-6 w-40 rounded bg-surface-light" />
+        <div className="h-4 w-24 rounded bg-surface-light" />
+        <div className="h-32 w-full rounded bg-surface-light" />
       </div>
     )
   }
@@ -58,18 +58,18 @@ export default function MLHealthDetail() {
   if (isError) {
     return (
       <div
-        className="flex flex-col items-center gap-4 rounded border border-destructive/50 bg-destructive/10 p-6"
+        className="flex flex-col items-center gap-4 rounded border border-status-high/50 bg-status-high/10 p-6"
         data-testid="ml-health-error"
       >
-        <p className="text-sm font-medium text-destructive">
+        <p className="text-sm font-medium text-status-high">
           Failed to load ML Health data
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-text-muted">
           {error instanceof Error ? error.message : 'Unknown error'}
         </p>
         <button
           onClick={() => void refetch()}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
         >
           Retry
         </button>
@@ -89,7 +89,7 @@ export default function MLHealthDetail() {
       </div>
 
       {/* Core Metrics */}
-      <div className="rounded border border-border p-4">
+      <div className="rounded border border-border-light p-4">
         <h3 className="mb-2 text-sm font-semibold">Metrics</h3>
         <MetricRow label="Latency (ms)"        value={data.latency_ms} />
         <MetricRow label="Latency Trend"        value={`${data.latency_trend > 0 ? '+' : ''}${data.latency_trend}`} />

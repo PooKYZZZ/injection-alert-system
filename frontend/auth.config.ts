@@ -10,11 +10,12 @@ export const authConfig = {
         password: { label: 'Password', type: 'password', placeholder: '' },
       },
       async authorize(credentials) {
-        const demoPassword = process.env.SOC_DEMO_PASSWORD ?? 'demo1234'
-        if (credentials?.password === demoPassword) {
-          return { id: '1', name: 'SOC Analyst', email: 'soc@example.com' }
-        }
-        return null
+        const demoPassword = process.env.SOC_DEMO_PASSWORD
+        // Always fail closed: require the env var to be explicitly set.
+        // Deployments without SOC_DEMO_PASSWORD are locked out rather than
+        // falling back to a well-known default.
+        if (!demoPassword || credentials?.password !== demoPassword) return null
+        return { id: '1', name: 'SOC Analyst', email: 'soc@example.com' }
       },
     }),
   ],

@@ -57,16 +57,14 @@ export default function LoginPage() {
           />
         </div>
 
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
+          disabled={pending}
           onClick={handleSubmit}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
-          aria-disabled={pending}
+          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {pending ? 'Signing in…' : 'Sign in'}
-        </div>
+        </button>
       </div>
     </div>
   )

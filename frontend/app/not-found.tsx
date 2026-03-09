@@ -6,15 +6,15 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background-main p-6 text-center">
       <div className="flex flex-col items-center gap-2">
-        <span className="text-7xl font-bold text-primary/30">404</span>
+        <span className="text-7xl font-bold text-primary opacity-30">404</span>
         <h1 className="text-2xl font-semibold tracking-tight">Page Not Found</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">
+        <p className="max-w-sm text-sm text-text-muted">
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
       </div>
       <Link
         href="/dashboard"
-        className="rounded bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        className="rounded bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-dark"
       >
         Back to Dashboard
       </Link>

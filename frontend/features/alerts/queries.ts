@@ -13,7 +13,7 @@ export function alertListOptions(filters: DashboardFilters) {
     queryKey: alertKeys.list(toQueryString(filters)),
     queryFn: async () => {
       const r = await fetch(`/api/alerts?${toQueryString(filters)}`)
-      if (!r.ok) throw new Error(r.status.toString())
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
       return r.json()
     },
     staleTime: 0,
@@ -25,7 +25,7 @@ export function alertDetailOptions(id: string | null) {
     queryKey: alertKeys.detail(id ?? ''),
     queryFn: async () => {
       const r = await fetch(`/api/alerts/${id}`)
-      if (!r.ok) throw new Error(r.status.toString())
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
       return r.json()
     },
     enabled: id !== null,
