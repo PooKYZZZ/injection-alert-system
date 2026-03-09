@@ -42,6 +42,9 @@ htmlcov/
 *~
 .ipynb_checkpoints/
 
+# Copilot
+.copilot/
+
 # ML artifacts
 *.pkl
 *.pt
@@ -89,3 +92,4 @@ Thumbs.db
 .worktrees/
 stitch_waf_ml_soc_dashboard_overview/code.html
 stitch_waf_ml_soc_dashboard_overview/screen.png
+.github/copilot-instructions.md
