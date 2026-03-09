@@ -1,7 +1,7 @@
 # Environment
 .env
 .env.local
-.env.*.local
+frontend/.env.local
 venv/
 .venv/
 
@@ -82,6 +82,10 @@ frontend/coverage/
 .turbo/
 frontend/.turbo/
 *.tsbuildinfo
+
+# Local environment files (never commit secrets)
+frontend/.env.local
+frontend/.env.*.local
 
 # OS
 .DS_Store

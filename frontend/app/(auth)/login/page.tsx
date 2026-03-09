@@ -42,29 +42,28 @@ export default function LoginPage() {
           </p>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="password" className="block text-sm font-medium text-text-muted mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
-            />
-          </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-text-muted mb-1">
+            Password
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
+            placeholder="Enter password"
+            className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
+          />
+        </div>
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full bg-primary hover:bg-primary-dark disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
-          >
-            {pending ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={pending}
+          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
+        >
+          {pending ? 'Signing in…' : 'Sign in'}
+        </button>
       </div>
     </div>
   )
