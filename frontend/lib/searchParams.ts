@@ -15,6 +15,7 @@ export const DEFAULT_FILTERS: DashboardFilters = {
 
 const SEVERITY_VALUES = ['ALL', 'LOW', 'MEDIUM', 'HIGH'] as const
 const TIME_RANGE_VALUES = ['1h', '6h', '24h', '7d'] as const
+const MAX_SEARCH_LENGTH = 200
 
 export async function normalizeSearchParams(
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -23,17 +24,17 @@ export async function normalizeSearchParams(
   return {
     severity: (
       typeof params.severity === 'string' &&
-      (SEVERITY_VALUES as readonly string[]).includes(params.severity)
+        (SEVERITY_VALUES as readonly string[]).includes(params.severity)
         ? params.severity as SeverityFilter
         : DEFAULT_FILTERS.severity
     ),
     timeRange: (
       typeof params.timeRange === 'string' &&
-      (TIME_RANGE_VALUES as readonly string[]).includes(params.timeRange)
+        (TIME_RANGE_VALUES as readonly string[]).includes(params.timeRange)
         ? params.timeRange as TimeRange
         : DEFAULT_FILTERS.timeRange
     ),
-    search: typeof params.search === 'string' ? params.search : '',
+    search: typeof params.search === 'string' ? params.search.slice(0, MAX_SEARCH_LENGTH) : '',
   }
 }
 
