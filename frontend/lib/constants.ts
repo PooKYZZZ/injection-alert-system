@@ -20,17 +20,3 @@ export const CONFIDENCE_THRESHOLDS = {
   MEDIUM: 0.8,
   HIGH: 1.0,
 } as const
-
-export const COLOR_MAP = {
-  severity: {
-    HIGH: '#dc2626',
-    MEDIUM: '#f97316',
-    LOW: '#6b7280',
-  },
-  action: {
-    BLOCKED: '#dc2626',
-    THROTTLED: '#f97316',
-    LOGGED: '#6b7280',
-    RATE_LIMITED: '#8b5cf6',
-  },
-} as const
