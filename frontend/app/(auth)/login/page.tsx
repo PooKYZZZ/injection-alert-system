@@ -43,7 +43,7 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
             placeholder="Enter password"
             className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
           />

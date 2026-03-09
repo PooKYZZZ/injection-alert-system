@@ -3,7 +3,7 @@
 export function TopBar() {
   return (
     <header className="h-14 bg-surface-light border-b border-border-light flex items-center px-4">
-      <p className="text-sm text-text-muted">TopBar — Session 6</p>
+      {/* TopBar content — placeholder */}
     </header>
   )
 }

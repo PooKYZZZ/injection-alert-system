@@ -6,7 +6,6 @@ export const authConfig = {
     Credentials({
       name: 'Credentials',
       credentials: {
-        username: { label: 'Username', type: 'text', placeholder: 'your-username' },
         password: { label: 'Password', type: 'password', placeholder: '' },
       },
       async authorize(credentials) {
