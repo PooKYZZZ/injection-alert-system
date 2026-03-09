@@ -43,22 +43,20 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
             placeholder="Enter password"
             className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
           />
         </div>
 
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           onClick={handleSubmit}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          disabled={pending}
           className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
-          aria-disabled={pending}
         >
           {pending ? 'Signing in…' : 'Sign in'}
-        </div>
+        </button>
       </div>
     </div>
   )
