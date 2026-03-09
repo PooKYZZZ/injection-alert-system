@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
+import { signIn } from '@/auth'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,18 +14,10 @@ export default function LoginPage() {
     setError(false)
     setPending(true)
     try {
-      const res = await signIn('credentials', {
+      await signIn('credentials', {
         password,
-        redirect: false,
-        callbackUrl: '/dashboard',
+        redirectTo: '/dashboard',
       })
-      if (res?.error) {
-        setError(true)
-        setPending(false)
-        return
-      }
-      // navigate to the callback URL when signIn succeeded
-      router.push((res as any)?.url ?? '/dashboard')
     } catch (e) {
       setError(true)
       setPending(false)
@@ -51,7 +43,7 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
             placeholder="Enter password"
             className="w-full border border-border-light rounded px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
           />
@@ -59,9 +51,9 @@ export default function LoginPage() {
 
         <button
           type="button"
-          disabled={pending}
           onClick={handleSubmit}
-          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={pending}
+          className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded px-4 py-2 cursor-pointer text-center transition-colors"
         >
           {pending ? 'Signing in…' : 'Sign in'}
         </button>

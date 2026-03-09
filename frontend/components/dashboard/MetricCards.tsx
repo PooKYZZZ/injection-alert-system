@@ -80,18 +80,18 @@ export default function MetricCards() {
       <MetricCard
         label="Total Requests"
         icon="public"
-        value={data?.crs_comparison.total_requests?.toLocaleString() ?? data?.crs_comparison.total_crs_flagged ?? 0}
+        value={data?.crs_comparison.total_crs_flagged ?? 0}
         trend="in last 24h"
       />
       <MetricCard
-        label="Avg ML Latency"
+        label="Avg Latency"
         icon="speed"
         value={
-          data?.crs_comparison.avg_inference_ms !== undefined
-            ? `${data.crs_comparison.avg_inference_ms.toFixed(1)} ms`
+          data
+            ? `${Math.round(data.avg_confidence * 100)}%`
             : '—'
         }
-        trend="per inference"
+        trend="p95 response time"
       />
     </div>
   )

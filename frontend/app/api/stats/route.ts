@@ -8,8 +8,8 @@ const CRSComparisonSchema = z.object({
   ml_confirmed: z.number(),
   ml_overturned: z.number(),
   false_positive_reduction_pct: z.number(),
-  total_requests: z.number().optional(),
-  avg_inference_ms: z.number().optional(),
+  total_requests: z.number(),
+  avg_inference_ms: z.number(),
 })
 
 const DashboardStatsSchema = z.object({

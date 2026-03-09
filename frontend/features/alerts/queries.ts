@@ -12,8 +12,9 @@ export function alertListOptions(filters: DashboardFilters) {
   return queryOptions<PaginatedAlerts>({
     queryKey: alertKeys.list(toQueryString(filters)),
     queryFn: async () => {
-      const r = await fetch(`/api/alerts?${toQueryString(filters)}`)
-      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+      const url = `/api/alerts?${toQueryString(filters)}`
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
     staleTime: 0,
@@ -24,8 +25,10 @@ export function alertDetailOptions(id: string | null) {
   return queryOptions<Alert>({
     queryKey: alertKeys.detail(id ?? ''),
     queryFn: async () => {
-      const r = await fetch(`/api/alerts/${id}`)
-      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+      if (!id) throw new Error('Alert ID is required')
+      const url = `/api/alerts/${id}`
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
     enabled: id !== null,

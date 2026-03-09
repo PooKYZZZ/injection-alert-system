@@ -3,8 +3,8 @@ export interface CRSComparisonMetrics {
   ml_confirmed: number
   ml_overturned: number
   false_positive_reduction_pct: number
-  total_requests?: number
-  avg_inference_ms?: number
+  total_requests: number
+  avg_inference_ms: number
 }
 
 export interface DashboardStats {

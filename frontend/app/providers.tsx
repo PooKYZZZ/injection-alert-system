@@ -1,16 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-
-const ReactQueryDevtools = dynamic(
-  () =>
-    process.env.NODE_ENV === 'development'
-      ? import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools }))
-      : Promise.resolve({ default: () => null }),
-  { ssr: false },
-)
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -28,7 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      <ReactQueryDevtools />
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
     </QueryClientProvider>
   )
 }

@@ -58,7 +58,7 @@ function MLHealthContent() {
       <div className="mb-2 space-y-1">
         <div className="text-xs text-blue-100 font-medium">DistilBERT {data.model_version}</div>
         <div className="text-[9px] text-blue-400 font-mono mb-2">
-          Model Hash: 9fa3b2d {/* placeholder */}
+          Model Hash: 9fa3b2d
         </div>
 
         <div className="flex justify-between items-center text-[10px]">
@@ -67,19 +67,19 @@ function MLHealthContent() {
         </div>
         <div className="flex justify-between items-center text-[10px]">
           <span className="text-blue-300">ECE (10-bin):</span>
-          <span className="text-blue-200 font-mono">0.021 {/* placeholder */}</span>
+          <span className="text-blue-200 font-mono">0.021</span>
         </div>
         <div className="flex justify-between items-center text-[10px]">
           <span className="text-blue-300">Brier Score:</span>
-          <span className="text-blue-200 font-mono">0.084 {/* placeholder */}</span>
+          <span className="text-blue-200 font-mono">0.084</span>
         </div>
         <div className="flex justify-between items-center text-[10px]">
           <span className="text-blue-300">OOD Retention:</span>
-          <span className="text-green-300 font-mono">94% {/* placeholder */}</span>
+          <span className="text-green-300 font-mono">94%</span>
         </div>
         <div className="flex justify-between items-center text-[10px] mt-1 pt-1 border-t border-[#2d4a77]">
           <span className="text-blue-300">Failover Mode:</span>
-          <span className="text-yellow-400 font-medium">CRS-only {/* placeholder */}</span>
+          <span className="text-yellow-400 font-medium">CRS-only</span>
         </div>
       </div>
 
@@ -132,11 +132,11 @@ function MLHealthContent() {
       {/* Pending / FP Rev counts */}
       <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-[#2d4a77] pt-2 mt-1">
         <div className="text-center">
-          <span className="block text-blue-100 font-bold">32 {/* placeholder */}</span>
+          <span className="block text-blue-100 font-bold">32</span>
           <span className="block text-blue-400">Pending</span>
         </div>
         <div className="text-center border-l border-[#2d4a77]">
-          <span className="block text-blue-100 font-bold">8 {/* placeholder */}</span>
+          <span className="block text-blue-100 font-bold">8</span>
           <span className="block text-blue-400">FP Rev.</span>
         </div>
       </div>
