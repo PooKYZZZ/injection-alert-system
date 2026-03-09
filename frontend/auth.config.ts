@@ -6,21 +6,12 @@ export const authConfig = {
     Credentials({
       name: 'Credentials',
       credentials: {
-        username: { label: 'Username', type: 'text', placeholder: 'your-username' },
         password: { label: 'Password', type: 'password', placeholder: '' },
       },
       async authorize(credentials) {
-        // PD1 Demo Mock Login
-        const demoUsername = process.env.DEMO_USERNAME
-        const demoPassword = process.env.DEMO_PASSWORD
-
-        if (
-          demoUsername &&
-          demoPassword &&
-          credentials?.username === demoUsername &&
-          credentials?.password === demoPassword
-        ) {
-          return { id: '1', name: 'Demo User', email: 'demo@example.com' }
+        const demoPassword = process.env.SOC_DEMO_PASSWORD ?? process.env.DEMO_PASSWORD
+        if (credentials?.password === demoPassword) {
+          return { id: '1', name: 'SOC Analyst', email: 'soc@example.com' }
         }
         return null
       },
