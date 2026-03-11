@@ -24,13 +24,13 @@ export async function normalizeSearchParams(
   return {
     severity: (
       typeof params.severity === 'string' &&
-      (SEVERITY_VALUES as readonly string[]).includes(params.severity)
+        (SEVERITY_VALUES as readonly string[]).includes(params.severity)
         ? params.severity as SeverityFilter
         : DEFAULT_FILTERS.severity
     ),
     timeRange: (
       typeof params.timeRange === 'string' &&
-      (TIME_RANGE_VALUES as readonly string[]).includes(params.timeRange)
+        (TIME_RANGE_VALUES as readonly string[]).includes(params.timeRange)
         ? params.timeRange as TimeRange
         : DEFAULT_FILTERS.timeRange
     ),

@@ -1,5 +1,7 @@
 # Environment
 .env
+.env.local
+frontend/.env.local
 venv/
 .venv/
 
@@ -42,6 +44,9 @@ htmlcov/
 *~
 .ipynb_checkpoints/
 
+# Copilot
+.copilot/
+
 # ML artifacts
 *.pkl
 *.pt
@@ -71,6 +76,7 @@ pnpm-debug.log*
 # Frontend
 node_modules/
 frontend/node_modules/
+frontend/.env.local
 .next/
 frontend/.next/
 out/
@@ -80,6 +86,10 @@ frontend/coverage/
 .turbo/
 frontend/.turbo/
 *.tsbuildinfo
+
+# Local environment files (never commit secrets)
+frontend/.env.local
+frontend/.env.*.local
 
 # OS
 .DS_Store
