@@ -1,0 +1,9 @@
+{
+  "tokenizer": "distilbert-base-uncased",
+  "n_examples": 19505,
+  "mean_tokens": 53.59871827736478,
+  "median_tokens": 47,
+  "95th_percentile": 119,
+  "99th_percentile": 161,
+  "max_tokens": 250
+}
