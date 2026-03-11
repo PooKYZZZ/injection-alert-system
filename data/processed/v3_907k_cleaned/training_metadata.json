@@ -1,0 +1,68 @@
+{
+  "train": {
+    "rows": 159873,
+    "class_counts": {
+      "SQL Injection": 74723,
+      "Other Attacks": 49546,
+      "Normal": 29991,
+      "Code Injection": 5613
+    },
+    "class_percentages": {
+      "SQL Injection": 0.4673897406066065,
+      "Other Attacks": 0.3099084898638294,
+      "Normal": 0.18759265166726088,
+      "Code Injection": 0.0351091178623032
+    },
+    "payload_length_chars": {
+      "mean": 98.2156962088658,
+      "median": 87.0,
+      "95th": 224.0,
+      "99th": 295.0,
+      "max": 573
+    }
+  },
+  "validation": {
+    "rows": 19661,
+    "class_counts": {
+      "SQL Injection": 9138,
+      "Other Attacks": 5982,
+      "Normal": 3864,
+      "Code Injection": 677
+    },
+    "class_percentages": {
+      "SQL Injection": 0.4647779868775749,
+      "Other Attacks": 0.3042571588423783,
+      "Normal": 0.19653120390621026,
+      "Code Injection": 0.03443365037383653
+    },
+    "payload_length_chars": {
+      "mean": 96.13015614668633,
+      "median": 87.0,
+      "95th": 217.0,
+      "99th": 290.0,
+      "max": 632
+    }
+  },
+  "test": {
+    "rows": 19505,
+    "class_counts": {
+      "SQL Injection": 8975,
+      "Other Attacks": 6035,
+      "Normal": 3658,
+      "Code Injection": 837
+    },
+    "class_percentages": {
+      "SQL Injection": 0.4601384260446039,
+      "Other Attacks": 0.30940784414252753,
+      "Normal": 0.1875416559856447,
+      "Code Injection": 0.04291207382722379
+    },
+    "payload_length_chars": {
+      "mean": 100.49418097923609,
+      "median": 87.0,
+      "95th": 233.0,
+      "99th": 310.0,
+      "max": 538
+    }
+  }
+}

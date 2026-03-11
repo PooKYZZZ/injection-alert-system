@@ -1,0 +1,51 @@
+{
+  "dataset_version": "SRBH_clean_v3.1.0",
+  "pipeline_version": "3.1.0",
+  "git_commit": "339883bf3efcc3799fbccb9a4c2947ae0661950d",
+  "date_generated": "2026-03-11T06:13:16.379803+00:00",
+  "minhash_threshold": 0.85,
+  "shingle_size": 5,
+  "minhash_num_perm": 128,
+  "split_seed": 42,
+  "final_rows": 199039,
+  "audit_counts": {
+    "stage_1_initial_rows": 907815,
+    "stage_3_malformed_removed": 2,
+    "stage_3_remaining_rows": 907813,
+    "stage_4_exact_duplicates_removed": 544760,
+    "stage_4_unique_payloads": 363053,
+    "stage_6_suspicious_benign_quarantined": 23826,
+    "stage_7b_cluster_cap_removed": 140188,
+    "stage_7b_rows_after_cap": 199039,
+    "stage_9_train_split": 159873,
+    "stage_9_val_split": 19661,
+    "stage_9_test_split": 19505
+  },
+  "near_duplicate_stats": {
+    "total_clusters": 96843,
+    "singleton_clusters": 76099,
+    "non_singleton_clusters": 20744,
+    "largest_cluster_size": 13969,
+    "payloads_in_non_singleton_clusters": 263128,
+    "shingle_size": 5,
+    "threshold": 0.85,
+    "num_perm": 128,
+    "top_10_cluster_sizes": [
+      13969,
+      11203,
+      9766,
+      9398,
+      9391,
+      5307,
+      3760,
+      3643,
+      3262,
+      2809
+    ],
+    "clusters_above_1000": 27,
+    "max_cluster_size_cap": 100,
+    "largest_cluster_after_cap": 101
+  },
+  "max_cluster_size": 100,
+  "split_candidate_seeds": 5
+}

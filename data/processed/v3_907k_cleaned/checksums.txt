@@ -1,0 +1,6 @@
+# SHA256 checksums — SRBH_clean_v3.1.0 canonical parquets
+# Algorithm: SHA256
+e1a46eaedb7aaa88db2a103be8fe457be52c18ea0185720624f382ba3c8af4a9  train.parquet
+6c6782ed606414efbfa43e63c49f19182f138c30df3471131cf2d9408af81517  validation.parquet
+fad146901022061bafbb43522970c4b750b91573a9b3dd2bf0cf995ee2a6d00f  test.parquet
+a12aad64a4ef85652fbc25fd7f48110753b1b07354a321252776b1dd01e6f39a  quarantine_dataset.parquet
