@@ -1,16 +1,16 @@
-# Injection Alert System — Local Setup Guide
+# Injection Alert System — Local Setup Guide (updated)
 
-This document explains how to clone, configure, and run the Injection Alert System locally on a development machine (Windows / PowerShell). It covers both the backend (FastAPI) and the frontend (Next.js) plus helpful troubleshooting tips.
+This document shows the commands I ran on Windows/PowerShell to get the app running locally. It focuses on a practical, working dev setup (backend on port 8000, frontend on port 3000). Where useful I note alternatives (nvm, Docker) and common Windows issues I encountered.
 
-> Quick summary: backend runs on port `8000`, frontend runs on `3000`. Use `USE_MOCK_STATS=true` for frontend-only UI development.
+Quick summary: backend runs on port `8000`, frontend runs on `3000`. For UI-only work set `USE_MOCK_STATS=true` in `frontend/.env.local`.
 
 ---
 
-## Prerequisites
+**Prerequisites**
 
 - Git (https://git-scm.com/)
-- Node.js v18+ (use nvm-windows: https://github.com/coreybutler/nvm-windows)
 - Python 3.11+ (https://www.python.org/)
+- Node.js (LTS) — on Windows you can use `nvm-windows` or `winget` (I installed via `winget` in these steps)
 - (Optional) VS Code and Windows Terminal
 
 ---
@@ -27,28 +27,30 @@ cd injection-alert-system
 
 ---
 
-## 2) Backend (FastAPI) setup
+## 2) Backend (FastAPI) setup — practical steps
 
-The backend is in `web_app/` and uses FastAPI.
+The backend lives in `web_app/` and uses FastAPI. On Windows I performed these steps.
 
-1. Create and activate a Python virtual environment
+1) Create a Python virtual environment
 
 ```powershell
 python -m venv .venv
 # Activate in PowerShell
 .venv\Scripts\Activate.ps1
-# If execution policy blocks activation (run as admin once):
-# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+# If activation is blocked by execution policy, run once as admin (or use the CurrentUser scope):
+# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-2. Copy environment variables and edit `.env`
+Note: if you prefer not to change execution policy, you can run the venv Python directly via `.venv\Scripts\python.exe -m pip ...` for installs and checks.
+
+2) Create `.env` from the example and apply quick dev settings
 
 ```powershell
 Copy-Item .env.example .env
-notepad .env  # or open in your editor
+notepad .env   # or open in your editor
 ```
 
-Recommended local `.env` adjustments for quick dev:
+Recommended local `.env` values for quick dev work:
 
 ```
 DATABASE_URL=sqlite+aiosqlite:///./dev.db
@@ -60,18 +62,25 @@ GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
 ```
 
-3. Install Python dependencies
+3) Install Python dependencies
+
+The repository `requirements.txt` includes large ML packages (torch, transformers, onnx, onnxruntime) which can take time to download and install on Windows. If you only need the frontend/UI, you can skip this step and keep `USE_MOCK_STATS=true` in `frontend/.env.local`.
+
+To install into the venv (recommended):
 
 ```powershell
-pip install -r requirements.txt
+.venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-4. Initialize DB & run the app
+If you run into permission/execution-policy issues when activating the venv, use the fully-qualified `python`/`pip` under `.venv\Scripts` as shown above.
 
-The application will create tables on first startup when `init_db()` runs.
+4) Initialize DB & run the app
+
+The application creates DB tables on first startup when `init_db()` runs. Start the backend with:
 
 ```powershell
-uvicorn web_app.presentation.app:app --reload --host 0.0.0.0 --port 8000
+cd .
+.venv\Scripts\uvicorn.exe web_app.presentation.app:app --reload --port 8000
 ```
 
 Verify the health endpoint:
@@ -82,57 +91,79 @@ curl http://localhost:8000/health
 
 ---
 
-## 3) Frontend (Next.js) setup
+## 3) Frontend (Next.js) setup — practical steps I used
 
 The frontend is in `frontend/` and uses Next.js (App Router) + TypeScript.
 
-1. Install Node (recommended via nvm-windows)
+1) Install Node.js
+
+On Windows I used `winget` to install the Node LTS distribution:
 
 ```powershell
-# install node 18 via nvm (if not already installed)
-nvm install 18
-nvm use 18
-node -v
-npm -v
+winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
 ```
 
-2. Create frontend env file
+If you use `nvm-windows` instead, the older instructions remain valid. After installing Node, ensure `npm` is callable. On PowerShell you may need to relax the execution policy for the current user to allow `npm` scripts to run:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+```
+
+2) Create or edit the frontend env file
 
 ```powershell
 cd frontend
-Copy-Item .env.example .env.local
+Copy-Item .env.example .env.local  # if not already present
 notepad .env.local
 ```
 
-Important values to set in `frontend/.env.local`:
+Important `frontend/.env.local` values (examples):
 
-- `AUTH_SECRET`: generate via `npx auth secret` or `openssl rand -hex 32`.
-- `SOC_DEMO_PASSWORD`: e.g. `demo1234` (used by the demo credentials provider).
-- `FASTAPI_BASE_URL`: `http://localhost:8000` (if using the local backend).
-- `INTERNAL_API_KEY`: must match backend `API_SECRET_KEY` when front-end server routes call backend services.
-- `USE_MOCK_STATS=true` to use local mock data for stats (safe for UI dev).
+- `AUTH_SECRET`: generate a secret (`npx auth secret` or `openssl rand -hex 32`).
+- `DEMO_USERNAME` / `DEMO_PASSWORD` (I used `demo` / `demo1234` in testing).
+- `FASTAPI_BASE_URL`: set to `http://localhost:8000` for local full-stack.
+- `INTERNAL_API_KEY`: set to match backend `API_SECRET_KEY` if server->server calls are used.
+- `USE_MOCK_STATS=true` to use local mock data and avoid calling the backend for stats.
 
-3. Install dependencies and run dev server
+Note: in my run the repo's `frontend/.env.local` default pointed to `http://fastapi:8000` — I updated it to `http://localhost:8000`.
+
+3) Install frontend dependencies
 
 ```powershell
+cd frontend
 npm install
+```
+
+4) If Next reports a missing package at runtime (for example `tw-animate-css` in my run), install it:
+
+```powershell
+cd frontend
+npm install tw-animate-css
+```
+
+5) Start the dev server
+
+```powershell
+cd frontend
 npm run dev
 ```
 
-Open your browser: http://localhost:3000
+Notes about ports: Next.js prefers `3000`. If `3000` is in use, Next will pick another port (e.g., `3001`). If you need a stable port, stop whatever is using `3000` or set `PORT=3000` before running.
 
-To sign in to the demo app use the demo password you set earlier (no username required).
+Open the UI at: http://localhost:3000 (or the port printed by Next if `3000` was unavailable).
+
+To sign in to the demo app (demo provider) use the `DEMO_PASSWORD` you set (no username required if the app expects only password-based demo auth).
 
 ---
 
 ## 4) Frontend <-> Backend modes
 
-- Mock-only UI: set `USE_MOCK_STATS=true` in `frontend/.env.local`. Frontend will not depend on the backend for stats and alerts (fast for UI work).
+- Mock-only UI: set `USE_MOCK_STATS=true` in `frontend/.env.local` — very fast for UI work and avoids installing or running the backend.
 - Full-stack local: set `USE_MOCK_STATS=false` and ensure:
   - `FASTAPI_BASE_URL=http://localhost:8000`
-  - `INTERNAL_API_KEY` (in frontend) matches `API_SECRET_KEY` (in backend `.env`).
+  - `INTERNAL_API_KEY` (frontend) matches `API_SECRET_KEY` (backend `.env`).
 
-When using full-stack, the frontend's server-side routes (Next.js App Router) will proxy to the backend.
+When using full-stack, Next.js server-side routes will proxy to the backend.
 
 ---
 
@@ -143,14 +174,14 @@ Terminal 1 (backend):
 ```powershell
 cd injection-alert-system
 .venv\Scripts\Activate.ps1
-uvicorn web_app.presentation.app:app --reload --port 8000
+cd injection-alert-system
+.venv\Scripts\uvicorn.exe web_app.presentation.app:app --reload --port 8000
 ```
 
 Terminal 2 (frontend):
 
 ```powershell
 cd injection-alert-system\frontend
-nvm use 18
 npm install   # only once
 npm run dev
 ```
@@ -159,22 +190,13 @@ Visit: http://localhost:3000
 
 ---
 
-## 6) Common troubleshooting
+## 6) Common troubleshooting (Windows-specific)
 
-- Activation issues (PowerShell execution policy):
-  - Run as admin and use `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` or run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process`.
-
-- `uvicorn` fails or DB errors:
-  - Confirm `DATABASE_URL` in backend `.env`. For local dev use SQLite as shown above.
-
-- Frontend shows ligature names instead of icons (e.g. `notifications`):
-  - Ensure `frontend/app/layout.tsx` includes the Google Material Symbols / Icons stylesheet. The project restores it by default.
-
-- Frontend cannot call backend (CORS or 401):
-  - Check backend `ALLOWED_ORIGINS` includes `http://localhost:3000` and `INTERNAL_API_KEY` / `API_SECRET_KEY` values match if server->server calls are used.
-
-- `npm run dev` or `next` errors about environment:
-  - Confirm `frontend/.env.local` contains `AUTH_SECRET` and other required keys. Don't commit `.env.local`.
+- Activation / script errors: PowerShell's execution policy can block `.ps1` scripts (including `npm` helpers). The fix I used was: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
+- Long installs / heavy ML deps: `requirements.txt` contains large packages (torch, transformers, onnx, onnxruntime). Expect long downloads and possible native wheel issues on Windows; for UI work you can skip backend install and use `USE_MOCK_STATS=true`.
+- Frontend port conflict: if `3000` is occupied Next will switch ports; stop the other process or explicitly provide `PORT=3000`.
+- CORS / 401 between front/back: ensure `ALLOWED_ORIGINS` includes `http://localhost:3000` and that `INTERNAL_API_KEY` / `API_SECRET_KEY` match when using server->server calls.
+- Missing runtime packages: if `npm run dev` logs a missing package, install it with `npm install <pkg>` (I installed `tw-animate-css`).
 
 ---
 
@@ -213,7 +235,7 @@ For the backend, configure a production-grade Postgres DB and run with Uvicorn +
 
 ## 9) Optional: Docker Compose (example)
 
-If you'd like, I can add a `docker-compose.yml` that starts Postgres, backend, and frontend for development. Tell me and I will prepare it.
+If you want, I can add a `docker-compose.yml` that starts Postgres, backend, and frontend for development — say if you want to avoid installing large ML deps locally.
 
 ---
 
@@ -225,29 +247,29 @@ If you'd like, I can add a `docker-compose.yml` that starts Postgres, backend, a
 
 ---
 
-## 11) Helpful commands summary
+## 11) Quick commands summary
 
 ```powershell
 # repo root
 git clone <repo>
 cd injection-alert-system
 
-# backend
+# backend (create venv and install deps)
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 Copy-Item .env.example .env
-pip install -r requirements.txt
-uvicorn web_app.presentation.app:app --reload --port 8000
+.venv\Scripts\pip.exe install -r requirements.txt
+.venv\Scripts\uvicorn.exe web_app.presentation.app:app --reload --port 8000
 
 # frontend (new terminal)
 cd frontend
 Copy-Item .env.example .env.local
-# edit .env.local
-nvm use 18
+# edit .env.local (set FASTAPI_BASE_URL, DEMO_PASSWORD, AUTH_SECRET, etc.)
 npm install
+npm install tw-animate-css  # optional: install if Next warns about it
 npm run dev
 ```
 
 ---
 
-If you want, I can create a `docker-compose.yml` for local development, or commit a `docs/SETUP.md` to the repository (I created this file). Would you like a `docker-compose` example next?
+If you'd like, I can commit this updated `docs/SETUP.md` and/or create a `docker-compose.yml` example next. Which would you prefer?
