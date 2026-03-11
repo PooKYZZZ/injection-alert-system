@@ -75,8 +75,8 @@ Token-length summary — `distilbert-base-uncased`
 
 **Recommended `max_seq_len`:** 128 covers the 95th percentile for all splits; 256 covers >99 %.
 
-Files created
--------------
+Files created — Phase 1
+-----------------------
 - `data/processed/v3_907k_cleaned/checksums.txt` — SHA256 of 4 canonical parquets
 - `data/processed/v3_907k_cleaned/metadata_preprocessing.json` — preprocessing params + git commit
 - `data/processed/v3_907k_cleaned/training_metadata.json` — per-split class/payload stats
@@ -84,6 +84,56 @@ Files created
 - `data/processed/v3_907k_cleaned/tokenizer_lengths_{train,validation,test}.csv` — full per-row token counts
 - `data/processed/v3_907k_cleaned/cluster_size_hist.png` — near-dup cluster size histogram
 - `docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md` — release note
+
+Phase 2 — Token analysis & training configuration
+==================================================
+
+Sequence length decision
+------------------------
+The worst-case p95 across all splits is **119 tokens** (test split).
+Following the p95-based rounding strategy, `max_seq_len = 128` is the baseline setting.
+
+| Threshold | max_seq_len | Coverage | Use case |
+|-----------|-------------|----------|----------|
+| p95 = 119 | **128**     | ≥ 95 %   | Baseline — fast iteration, low VRAM |
+| p99 = 161 | **256**     | ≥ 99 %   | High-coverage — use when VRAM ≥ 16 GB |
+
+Files created — Phase 2
+-----------------------
+- `data/processed/v3_907k_cleaned/tokenizer_metadata.json` — consolidated token stats + max_seq_len decision
+- `data/processed/v3_907k_cleaned/token_length_hist_{train,validation,test}.png` — per-split histograms with p95/p99 reference lines
+- `data/processed/v3_907k_cleaned/token_length_hist_all.png` — combined overlay for all splits
+- `ml_model/training/training_config.yaml` — full baseline training configuration
+
+Training configuration summary
+--------------------------------
+| Parameter                      | Value |
+|-------------------------------|-------|
+| Model architecture            | distilbert-base-uncased |
+| max_seq_len                   | 128 |
+| Per-device train batch size   | 32 |
+| Gradient accumulation steps   | 4 (effective batch = 128) |
+| Optimizer                     | AdamW |
+| Learning rate                 | 2e-5 |
+| LR scheduler                  | linear + 6 % warmup |
+| Epochs                        | 5 (early stop patience = 3) |
+| Primary metric                | Macro-F1 (validation) |
+| Class-weighted loss           | yes (inverse-frequency) |
+| FP16                          | yes |
+| Seed                          | 42 |
+
+**Batch strategy note:** `tokens_per_effective_batch ≈ 32 × 4 × 128 = 16,384`.
+If `max_seq_len` is raised to 256, halve `per_device_train_batch_size` to 16 and double
+`gradient_accumulation_steps` to 8 to hold the effective batch size constant.
+
+Phase 3 checklist (next steps)
+--------------------------------
+- [ ] Implement `ml_model/training/train.py` using `training_config.yaml`
+- [ ] Verify label encoder output order matches `label_names` in config
+- [ ] Compute inverse-frequency class weights at runtime from train split
+- [ ] Set up tensorboard / wandb logging (`report_to` in config)
+- [ ] Run first baseline epoch; record validation Macro-F1 and loss curve
+- [ ] Compare FPR / FNR per class against WAF acceptance criteria
 
 Repro
 -----
@@ -94,4 +144,5 @@ python scripts/compute_training_metadata.py
 python scripts/tokenize_and_compute_lengths.py --tokenizer distilbert-base-uncased --input data/processed/v3_907k_cleaned/train.parquet
 python scripts/tokenize_and_compute_lengths.py --tokenizer distilbert-base-uncased --input data/processed/v3_907k_cleaned/validation.parquet
 python scripts/tokenize_and_compute_lengths.py --tokenizer distilbert-base-uncased --input data/processed/v3_907k_cleaned/test.parquet
+python scripts/build_tokenizer_metadata.py
 ```

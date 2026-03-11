@@ -1,0 +1,45 @@
+{
+  "tokenizer": "distilbert-base-uncased",
+  "tokenizer_type": "BertTokenizer",
+  "vocab_size": 30522,
+  "tokenizer_model_max_length": 512,
+  "dataset_version": "SRBH_clean_v3.1.0",
+  "per_split_stats": {
+    "train": {
+      "tokenizer": "distilbert-base-uncased",
+      "n_examples": 159873,
+      "mean_tokens": 52.35329292626022,
+      "median_tokens": 46,
+      "95th_percentile": 113,
+      "99th_percentile": 154,
+      "max_tokens": 267
+    },
+    "validation": {
+      "tokenizer": "distilbert-base-uncased",
+      "n_examples": 19661,
+      "mean_tokens": 51.59010223284675,
+      "median_tokens": 46,
+      "95th_percentile": 112,
+      "99th_percentile": 145,
+      "max_tokens": 287
+    },
+    "test": {
+      "tokenizer": "distilbert-base-uncased",
+      "n_examples": 19505,
+      "mean_tokens": 53.59871827736478,
+      "median_tokens": 47,
+      "95th_percentile": 119,
+      "99th_percentile": 161,
+      "max_tokens": 250
+    }
+  },
+  "max_p95_across_splits": 119,
+  "recommended_max_seq_len": 128,
+  "recommended_max_seq_len_rationale": "p95 across all splits is 119 tokens. Rounding up to the next power of two (128) captures >=95% of payloads with minimal truncation. Use 256 to capture the p99 tail (~161 tokens).",
+  "histogram_files": {
+    "train": "token_length_hist_train.png",
+    "validation": "token_length_hist_validation.png",
+    "test": "token_length_hist_test.png"
+  },
+  "histogram_all_splits": "token_length_hist_all.png"
+}

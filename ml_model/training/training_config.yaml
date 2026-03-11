@@ -1,0 +1,103 @@
+# training_config.yaml
+# Phase-2 baseline training configuration — SRBH_clean_v3.1.0
+# Derived from tokenizer_metadata.json: p95 = 119 tokens → max_seq_len = 128
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+model:
+  architecture: distilbert-base-uncased
+  num_labels: 4                        # SQL Injection, Other Attacks, Normal, Code Injection
+  label_names:
+    - SQL Injection
+    - Other Attacks
+    - Normal
+    - Code Injection
+  # class order must match label-encoder output from preprocessing pipeline
+  # SQL Injection=0, Other Attacks=1, Normal=2, Code Injection=3 (verify at runtime)
+
+# ---------------------------------------------------------------------------
+# Tokenizer
+# ---------------------------------------------------------------------------
+tokenizer:
+  name: distilbert-base-uncased
+  max_seq_len: 128          # covers p95 (119); set 256 to cover p99 (161)
+  padding: max_length
+  truncation: true
+
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
+dataset:
+  version: SRBH_clean_v3.1.0
+  base_dir: data/processed/v3_907k_cleaned
+  train_file: train.parquet
+  validation_file: validation.parquet
+  test_file: test.parquet
+  text_column: combined_payload
+  label_column: final_label
+
+# ---------------------------------------------------------------------------
+# Batch / Gradient accumulation strategy
+# Tokens per effective batch ≈ constant across sequence-length choices:
+#   max_seq_len=128 → batch_size=32, grad_accum=4  →  effective_batch=128
+#   max_seq_len=256 → batch_size=16, grad_accum=8  →  effective_batch=128
+# Adjust batch_size down if VRAM < 8 GB.
+# ---------------------------------------------------------------------------
+training:
+  output_dir: model_registry/staging
+  num_train_epochs: 5
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 64
+  gradient_accumulation_steps: 4       # effective batch = 32 × 4 = 128 examples
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+
+  # Optimiser
+  optimizer: adamw_torch
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # LR schedule — warmup then linear decay
+  lr_scheduler_type: linear
+  warmup_ratio: 0.06                   # ~6% of steps for gradual warmup
+
+  # Precision
+  fp16: true                           # disable if GPU lacks FP16; use bf16: true on Ampere+
+
+  # Evaluation & checkpointing
+  evaluation_strategy: epoch
+  save_strategy: epoch
+  load_best_model_at_end: true
+  metric_for_best_model: eval_macro_f1
+  greater_is_better: true
+
+  # Early stopping
+  early_stopping_patience: 3          # stop if macro-F1 does not improve for 3 epochs
+
+  # Class-weighted loss
+  class_weighted_loss: true            # compute inverse-frequency weights at runtime
+  # approximate weights (will be recomputed from train split at runtime):
+  #   Normal: ~2.8×  |  Code Injection: ~9.0×  |  SQL Injection: ~0.7×  |  Other Attacks: ~1.0×
+
+  # Logging
+  logging_steps: 200
+  report_to: none                      # set to "tensorboard" or "wandb" as needed
+
+# ---------------------------------------------------------------------------
+# GPU memory guidance (A100-40GB / V100-16GB estimates, max_seq_len=128)
+#   batch_size=32:  ~4 GB activation memory per device
+#   batch_size=16:  ~2 GB activation memory per device
+# ---------------------------------------------------------------------------
+hardware:
+  recommended_min_vram_gb: 8
+  notes: >
+    For max_seq_len=256 halve per_device_train_batch_size to 16 and
+    double gradient_accumulation_steps to 8 to maintain the same
+    effective batch size of 128.
+
+# ---------------------------------------------------------------------------
+# Reproducibility
+# ---------------------------------------------------------------------------
+seed: 42
