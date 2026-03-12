@@ -1,0 +1,28 @@
+# WAF-ML SOC Dashboard - ML Training dependencies
+# Install runtime deps first: pip install -r requirements.txt
+# Then: pip install -r requirements.train.txt
+# Note: torch must be installed with CUDA index separately (see bottom of file)
+# Training - ML fine-tuning and evaluation
+# Install AFTER requirements.txt
+# Generated 2026-03-13 from .venv freeze
+# Requires CUDA-capable GPU (tested: RTX 3060, CUDA 12.4)
+
+accelerate==1.13.0
+ipykernel==7.2.0
+ipywidgets==8.1.8
+jupyter_client==8.8.0
+jupyter_core==5.9.1
+matplotlib==3.10.8
+pandas==3.0.1
+pyarrow==23.0.1
+scikit-learn==1.8.0
+scipy==1.17.1
+seaborn==0.13.2
+tensorboard==2.20.0
+torch==2.6.0+cu124
+transformers==5.3.0
+
+# Note: `notebook`, `datasets`, and the Hugging Face `evaluate` package were not
+# present in the current .venv freeze and are not imported by the checked-in notebooks.
+# torch: install separately with CUDA index
+# pip install torch==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124

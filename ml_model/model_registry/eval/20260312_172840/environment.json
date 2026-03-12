@@ -1,0 +1,11 @@
+{
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "torch": "2.6.0+cu124",
+  "transformers": "5.3.0",
+  "sklearn": "1.8.0",
+  "numpy": "2.4.3",
+  "pandas": "3.0.1",
+  "device": "cuda",
+  "cuda": "12.4",
+  "seed": 42
+}

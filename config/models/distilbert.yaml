@@ -1,0 +1,147 @@
+# =============================================================================
+# Model Training Configuration — DistilBERT
+# Model  : distilbert-base-uncased
+# Params : ~66M  (6 layers, 768-dim hidden, 12 attention heads)
+# Role   : Mid-tier model. Run SECOND after MiniLM validates the pipeline.
+#          Also provides Phase 9 statistical baseline (seeds 43 + 44). ~15–20 min/epoch.
+# Dataset: SRBH_clean_v3.1.0
+# Plan   : Training Implementation Plan v2.0 — Steps 1–14
+# =============================================================================
+
+# ── Identity ──────────────────────────────────────────────────────────────────
+model_key:     "distilbert"
+model_id:      "distilbert-base-uncased"
+display_name:  "DistilBERT"
+architecture:  "6-layer distilled transformer, 768-dim hidden, 12 attention heads"
+parameters_M:  66.0
+
+# ── Dataset ───────────────────────────────────────────────────────────────────
+dataset_version:  "SRBH_clean_v3.1.0"
+data_dir:         "../data/processed/v3_907k_cleaned"
+text_column:      "combined_payload"
+label_column:     "final_label"
+num_classes:      4
+label_names:
+  - "Code Injection"
+  - "Normal"
+  - "Other Attacks"
+  - "SQL Injection"
+
+# ── Sequence Length ────────────────────────────────────────────────────────────
+# Locked baseline from Phase 2 token stats: p95 = 119 tokens (test split worst case).
+# p99 = 161, median = 46–47. 128 covers p95 with headroom.
+max_seq_len: 128
+
+# ── Batch Configuration ────────────────────────────────────────────────────────
+# Target effective batch size = 128 for all models (comparable optimization dynamics).
+# DistilBERT at 66M params fits batch 16 comfortably on 6GB.
+# If check_vram.py shows VRAM is tight, drop to 8 and double accum to 16.
+per_device_train_batch_size: 16
+gradient_accumulation_steps: 8      # effective batch = 16 × 8 = 128
+effective_batch_size: 128           # informational — keep consistent with above
+
+# ── Memory Optimizations ───────────────────────────────────────────────────────
+# Gradient checkpointing optional for DistilBERT at 6GB. Enable only if
+# check_vram.py reports peak > 5200 MB at batch 16.
+gradient_checkpointing: false        # Optional — enable if VRAM peak > 5200 MB at batch 16
+fp16: true                           # Ampere Tensor Core native — mandatory on RTX 3060
+
+# ── Optimizer ─────────────────────────────────────────────────────────────────
+# AdamW with two parameter groups: weight decay excluded from bias + LayerNorm.
+# DistilBERT drops token_type_ids — AutoTokenizer handles this automatically.
+optimizer: "AdamW"
+learning_rate: 2.0e-5
+weight_decay:  0.01                  # Applied to weight matrices only (not bias/LayerNorm)
+max_grad_norm: 1.0                   # Gradient clipping — prevents FP16 NaN on minority-class batches
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+# Linear warmup computed at runtime: warmup_steps = int(0.06 × total_training_steps)
+# With 159,873 train / eff_batch 128 / 5 epochs: total ≈ 6245 steps, warmup ≈ 375
+scheduler:    "linear_warmup"
+warmup_ratio: 0.06                   # 6% of total steps — do NOT hardcode as step count
+
+# ── Training Duration ─────────────────────────────────────────────────────────
+max_epochs:            5             # Upper bound — early stopping usually triggers earlier
+early_stop_patience:   3             # Epochs without Macro-F1 improvement before stopping
+metric_for_best_model: "val_macro_f1"
+greater_is_better:     true
+
+# ── Loss Function ──────────────────────────────────────────────────────────────
+# Class imbalance: SQL Injection 46.74% vs Code Injection 3.51% (13:1 ratio).
+# Inverse-frequency weighting: w_c = N_total / (K × N_c)
+# Computed dynamically at runtime — do NOT hardcode weights.
+loss:                "CrossEntropyLoss"
+class_weighted_loss: true
+loss_weight_formula: "N_total / (num_classes * N_c)"
+
+# ── Fine-Tuning Strategy ───────────────────────────────────────────────────────
+# Full fine-tuning (all layers trainable). DistilBERT was distilled from BERT-base
+# on general text — domain adaptation to malicious HTTP payloads requires all layers.
+frozen_layers: 0
+trainable_layers: "all"
+
+# ── DataLoader ────────────────────────────────────────────────────────────────
+# DistilBERT does NOT use token_type_ids — AutoTokenizer will not return them.
+# num_workers=0 required on Windows to avoid DataLoader spawn deadlock in Jupyter.
+num_workers:          0              # Windows: keep at 0 for Jupyter; set 2–4 for script runs
+pin_memory:           false          # No benefit without background workers
+dynamic_padding:      true
+drop_token_type_ids:  true           # DistilBERT does not use token_type_ids
+
+# ── Reproducibility ───────────────────────────────────────────────────────────
+# Primary run uses seed 42. Phase 9 thesis statistical requirement:
+# run additional seeds 43 and 44 and report mean ± std across all 3 seeds.
+seed: 42
+statistical_seeds:
+  - 43
+  - 44
+
+# ── Artifacts ─────────────────────────────────────────────────────────────────
+registry_base: "../model_registry/staging"
+run_dir_pattern: "{model_key}_{dataset_version}_{timestamp}"
+artifacts:
+  checkpoint:    "checkpoint/"        # model.save_pretrained() + tokenizer.save_pretrained()
+  training_log:  "training_log.json"  # per-epoch train loss, val loss, val Macro-F1, VRAM peak
+  eval_report:   "eval_report.json"   # per-class P/R/F1, confusion matrix, FPR
+  calibration:   "calibration/"       # temperature T, ECE before/after, reliability diagram
+  config_used:   "config_used.yaml"   # exact copy of this file at run time
+  git_hash:      "git_hash.txt"       # git rev-parse HEAD at run time
+
+# ── Post-Training Calibration ──────────────────────────────────────────────────
+calibration:
+  method:        "temperature_scaling"
+  fit_on:        "validation"
+  bounds:        [0.1, 10.0]
+  report_ece:    true
+  n_bins:        10
+
+# ── Confidence Thresholds (LOCKED — never change) ─────────────────────────────
+confidence_thresholds:
+  low:    0.50
+  medium: 0.80
+  high:   0.80
+
+# ── Target Metrics ────────────────────────────────────────────────────────────
+target_metrics:
+  accuracy:         0.95
+  macro_f1:         0.85
+  fpr:              0.03
+  cpu_latency_ms:   100    # Borderline for DistilBERT at 66M params — measure carefully
+
+# ── VRAM Budget (RTX 3060 Laptop, 6GB GDDR6) ──────────────────────────────────
+vram_budget_mb:       6144
+vram_soft_ceiling_mb: 5200
+# Estimated peak at batch 16, seq 128, FP16: ~1800–2500 MB
+# If check_vram.py reports > 5200 MB, reduce per_device_train_batch_size to 8
+# and increase gradient_accumulation_steps to 16.
+
+# ── Fallback Config If VRAM Is Tight ──────────────────────────────────────────
+fallback_if_vram_tight:
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 16
+  gradient_checkpointing:      true
+
+# ── Execution Order ───────────────────────────────────────────────────────────
+# Run SECOND. Pipeline should already be validated by MiniLM run.
+# After seed-42 completes and checkpoint is saved, run seeds 43 + 44 for thesis statistics.
+execution_order: 2

@@ -1,0 +1,4 @@
+model,run_dir,git_hash,accuracy,macro_f1,weighted_f1,mcc,ece,benign_false_positive_rate,benign_high_confidence_false_block_rate,attack_detection_rate,cpu_end_to_end_mean_ms,cpu_model_only_mean_ms,temperature,promotion_ready
+distilbert,distilbert_v3_907k_cleaned_20260312_133755,54d248d4edcfda2b30a8d96b5800a2bfb570d456,0.992566,0.988523,0.992591,0.988707,0.003296,0.001914,0.001093,0.997665,21.4489,21.0193,0.596868,True
+bert-base,bert-base_v3_907k_cleaned_20260312_145113,54d248d4edcfda2b30a8d96b5800a2bfb570d456,0.99231,0.98769,0.992339,0.988319,0.003648,0.00164,0.001093,0.997476,41.5233,41.3906,0.596741,True
+minilm,minilm_v3_907k_cleaned_20260312_124833,54d248d4edcfda2b30a8d96b5800a2bfb570d456,0.99031,0.986715,0.990337,0.985305,0.005052,0.00164,0.000547,0.995457,8.1134,7.6108,0.555946,True

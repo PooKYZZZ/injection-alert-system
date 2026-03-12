@@ -1,0 +1,49 @@
+{
+  "timestamp": "20260312_172840",
+  "dataset_version": "v3_907k_cleaned",
+  "pipeline_version": "3.1.0",
+  "best_overall_model": "distilbert",
+  "highest_accuracy_model": "distilbert",
+  "lowest_latency_model": "minilm",
+  "promotion_summary": {
+    "minilm": {
+      "ready_for_promotion": true,
+      "gates": {
+        "accuracy": true,
+        "macro_f1": true,
+        "benign_false_positive_rate": true,
+        "cpu_mean_latency": true,
+        "calibration_non_regression": true
+      },
+      "temperature": 0.555946,
+      "git_hash": "54d248d4edcfda2b30a8d96b5800a2bfb570d456",
+      "run_dir": "minilm_v3_907k_cleaned_20260312_124833"
+    },
+    "distilbert": {
+      "ready_for_promotion": true,
+      "gates": {
+        "accuracy": true,
+        "macro_f1": true,
+        "benign_false_positive_rate": true,
+        "cpu_mean_latency": true,
+        "calibration_non_regression": true
+      },
+      "temperature": 0.596868,
+      "git_hash": "54d248d4edcfda2b30a8d96b5800a2bfb570d456",
+      "run_dir": "distilbert_v3_907k_cleaned_20260312_133755"
+    },
+    "bert-base": {
+      "ready_for_promotion": true,
+      "gates": {
+        "accuracy": true,
+        "macro_f1": true,
+        "benign_false_positive_rate": true,
+        "cpu_mean_latency": true,
+        "calibration_non_regression": true
+      },
+      "temperature": 0.596741,
+      "git_hash": "54d248d4edcfda2b30a8d96b5800a2bfb570d456",
+      "run_dir": "bert-base_v3_907k_cleaned_20260312_145113"
+    }
+  }
+}

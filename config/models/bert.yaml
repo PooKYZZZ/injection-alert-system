@@ -1,0 +1,176 @@
+# =============================================================================
+# Model Training Configuration — BERT-base
+# Model  : bert-base-uncased
+# Params : ~110M  (12 layers, 768-dim hidden, 12 attention heads)
+# Role   : Largest model. Run LAST after MiniLM and DistilBERT validate the
+#          pipeline. Most expensive run — ~30–45 min/epoch on RTX 3060.
+#          Gradient checkpointing REQUIRED on 6GB VRAM.
+# Dataset: SRBH_clean_v3.1.0
+# Plan   : Training Implementation Plan v2.0 — Steps 1–14
+# =============================================================================
+
+# ── Identity ──────────────────────────────────────────────────────────────────
+model_key:     "bert"
+model_id:      "bert-base-uncased"
+display_name:  "BERT-base"
+architecture:  "12-layer transformer, 768-dim hidden, 12 attention heads"
+parameters_M:  110.0
+
+# ── Dataset ───────────────────────────────────────────────────────────────────
+dataset_version:  "SRBH_clean_v3.1.0"
+data_dir:         "../data/processed/v3_907k_cleaned"
+text_column:      "combined_payload"
+label_column:     "final_label"
+num_classes:      4
+label_names:
+  - "Code Injection"
+  - "Normal"
+  - "Other Attacks"
+  - "SQL Injection"
+
+# ── Sequence Length ────────────────────────────────────────────────────────────
+# Locked baseline from Phase 2 token stats: p95 = 119 tokens (test split worst case).
+# p99 = 161, median = 46–47. 128 covers p95 with headroom.
+# Optional extended run: max_seq_len=256 (see notes at bottom). Halve batch size,
+# double accum steps, re-run check_vram.py first.
+max_seq_len: 128
+
+# ── Batch Configuration ────────────────────────────────────────────────────────
+# BERT-base at 110M params requires reduced per-device batch vs MiniLM/DistilBERT.
+# Gradient accumulation compensates to maintain effective batch 128.
+# FP16 weights: ~440 MB. AdamW states: ~880 MB. Leaves ~4.5 GB for activations.
+# batch 8 at seq 128 + FP16 + grad ckpt is the safe starting point on 6GB.
+per_device_train_batch_size: 8
+gradient_accumulation_steps: 16     # effective batch = 8 × 16 = 128
+effective_batch_size: 128           # informational — keep consistent with above
+
+# ── Memory Optimizations ───────────────────────────────────────────────────────
+# Gradient checkpointing is REQUIRED for BERT-base on 6GB VRAM.
+# Trades ~20–30% slower training per epoch for substantial activation memory savings.
+# Allows safe use of batch 8 without OOM mid-epoch.
+# Enable via model.gradient_checkpointing_enable() before moving model to device.
+gradient_checkpointing: true         # REQUIRED on 6GB — do not disable
+fp16: true                           # Ampere Tensor Core native — mandatory on RTX 3060
+
+# ── Optimizer ─────────────────────────────────────────────────────────────────
+# AdamW with two parameter groups: weight decay excluded from bias + LayerNorm.
+# Applying decay to LayerNorm weights is incorrect and slightly degrades performance.
+optimizer: "AdamW"
+learning_rate: 2.0e-5
+weight_decay:  0.01                  # Applied to weight matrices only (not bias/LayerNorm)
+max_grad_norm: 1.0                   # Gradient clipping — critical under FP16 for 110M params
+# Two-parameter-group pattern:
+#   group 1: all params where name does NOT contain "bias" or "LayerNorm.weight" → wd=0.01
+#   group 2: all params where name CONTAINS "bias" or "LayerNorm.weight" → wd=0.0
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+# Linear warmup computed at runtime: warmup_steps = int(0.06 × total_training_steps)
+# With 159,873 train / eff_batch 128 / 5 epochs: total ≈ 6245 steps, warmup ≈ 375
+scheduler:    "linear_warmup"
+warmup_ratio: 0.06                   # 6% of total steps — do NOT hardcode as step count
+
+# ── Training Duration ─────────────────────────────────────────────────────────
+max_epochs:            5             # Upper bound — early stopping usually triggers earlier
+early_stop_patience:   3             # Epochs without Macro-F1 improvement before stopping
+metric_for_best_model: "val_macro_f1"
+greater_is_better:     true
+
+# ── Loss Function ──────────────────────────────────────────────────────────────
+# Class imbalance: SQL Injection 46.74% vs Code Injection 3.51% (13:1 ratio).
+# Inverse-frequency weighting: w_c = N_total / (K × N_c)
+# Computed dynamically at runtime from training split — do NOT hardcode weights.
+loss:                "CrossEntropyLoss"
+class_weighted_loss: true
+loss_weight_formula: "N_total / (num_classes * N_c)"
+
+# ── Fine-Tuning Strategy ───────────────────────────────────────────────────────
+# Full fine-tuning (all 12 layers trainable). Domain adaptation to malicious
+# HTTP payloads requires updating all contextual representations from scratch.
+# Do NOT freeze any encoder layers.
+frozen_layers: 0
+trainable_layers: "all"
+
+# ── DataLoader ────────────────────────────────────────────────────────────────
+# BERT-base uses token_type_ids (segment IDs). AutoTokenizer returns them correctly.
+# However, they are safe to drop if not used by the classification head — the
+# DataCollatorWithPadding returns only input_ids, attention_mask, and labels.
+# num_workers=0 required on Windows to avoid DataLoader spawn deadlock in Jupyter.
+num_workers:          0              # Windows: keep at 0 for Jupyter; set 2–4 for script runs
+pin_memory:           false          # No benefit without background workers
+dynamic_padding:      true
+drop_token_type_ids:  true           # Classification head only uses [CLS] output
+
+# ── Reproducibility ───────────────────────────────────────────────────────────
+seed: 42
+# Note: Multi-seed runs are only required for DistilBERT (Phase 9 statistical requirement).
+# BERT-base runs seed 42 only for the primary 3-way model comparison.
+
+# ── Artifacts ─────────────────────────────────────────────────────────────────
+registry_base: "../model_registry/staging"
+run_dir_pattern: "{model_key}_{dataset_version}_{timestamp}"
+artifacts:
+  checkpoint:    "checkpoint/"        # model.save_pretrained() + tokenizer.save_pretrained()
+  training_log:  "training_log.json"  # per-epoch train loss, val loss, val Macro-F1, VRAM peak
+  eval_report:   "eval_report.json"   # per-class P/R/F1, confusion matrix, FPR
+  calibration:   "calibration/"       # temperature T, ECE before/after, reliability diagram
+  config_used:   "config_used.yaml"   # exact copy of this file at run time
+  git_hash:      "git_hash.txt"       # git rev-parse HEAD at run time
+
+# ── Post-Training Calibration ──────────────────────────────────────────────────
+# BERT-base is the most likely of the three models to be overconfident post-fine-tuning.
+# Temperature T typically falls between 1.5 and 3.0 for BERT-family classifiers.
+calibration:
+  method:        "temperature_scaling"
+  fit_on:        "validation"
+  bounds:        [0.1, 10.0]
+  report_ece:    true
+  n_bins:        10
+
+# ── Confidence Thresholds (LOCKED — never change) ─────────────────────────────
+confidence_thresholds:
+  low:    0.50
+  medium: 0.80
+  high:   0.80
+
+# ── Target Metrics ────────────────────────────────────────────────────────────
+target_metrics:
+  accuracy:         0.95
+  macro_f1:         0.85
+  fpr:              0.03
+  cpu_latency_ms:   100    # Most likely to exceed 100ms — priority candidate for ONNX export
+
+# ── VRAM Budget (RTX 3060 Laptop, 6GB GDDR6) ──────────────────────────────────
+vram_budget_mb:       6144
+vram_soft_ceiling_mb: 5200
+# Estimated peak at batch 8, seq 128, FP16, grad ckpt ON: ~3500–4500 MB
+# Monitor with `nvidia-smi dmon` during first 100 steps of training.
+# If peak exceeds 5200 MB with grad ckpt enabled, reduce batch to 4, accum to 32.
+
+# ── Fallback Config If VRAM Is Tight ──────────────────────────────────────────
+fallback_if_vram_tight:
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 32
+  gradient_checkpointing:      true   # Always on for BERT-base
+
+# ── Optional Extended Run (max_seq_len=256) ───────────────────────────────────
+# Only attempt after primary 128-token run is complete and MCDM selection is done.
+# At seq 256: halve per-device batch size (4), double accum steps (32).
+# Run check_vram.py at these settings before committing.
+extended_seq_len_run:
+  max_seq_len:                 256
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 32
+  requires_vram_preflight:     true
+
+# ── CPU Inference Latency Notes ───────────────────────────────────────────────
+# Production deployment is CPU-only (Ryzen 7 6800H). BERT-base at 110M params is
+# the most likely model to exceed the 100ms mean latency target.
+# Remediation path: ONNX Runtime export → ml_model/export/
+# Quantization (INT8 dynamic) can cut latency by 2–4× at minor accuracy cost.
+cpu_latency_remediation: "onnx_export"
+onnx_export_dir:          "../ml_model/export/bert/"
+
+# ── Execution Order ───────────────────────────────────────────────────────────
+# Run LAST. Most expensive run. Pipeline must be validated by MiniLM and DistilBERT first.
+# Monitor VRAM with nvidia-smi during first 100 steps.
+execution_order: 3
