@@ -1,0 +1,87 @@
+[
+  {
+    "epoch": 1,
+    "train_loss": 0.06175,
+    "val_loss": 0.00948,
+    "val_acc": 0.98856,
+    "val_macro_f1": 0.98921,
+    "per_class_f1": {
+      "Code Injection": 0.99778,
+      "Normal": 0.97894,
+      "Other Attacks": 0.9871,
+      "SQL Injection": 0.993
+    },
+    "stopped_early": false,
+    "peak_vram_mb": 3555.3,
+    "elapsed_s": 823.3,
+    "ci_weight_scale": 0.6
+  },
+  {
+    "epoch": 2,
+    "train_loss": 0.00639,
+    "val_loss": 0.00767,
+    "val_acc": 0.99084,
+    "val_macro_f1": 0.98802,
+    "per_class_f1": {
+      "Code Injection": 0.98253,
+      "Normal": 0.9854,
+      "Other Attacks": 0.98937,
+      "SQL Injection": 0.99478
+    },
+    "stopped_early": false,
+    "peak_vram_mb": 3555.3,
+    "elapsed_s": 813.9,
+    "ci_weight_scale": 0.6
+  },
+  {
+    "epoch": 3,
+    "train_loss": 0.00476,
+    "val_loss": 0.00646,
+    "val_acc": 0.99207,
+    "val_macro_f1": 0.98957,
+    "per_class_f1": {
+      "Code Injection": 0.98399,
+      "Normal": 0.98872,
+      "Other Attacks": 0.99029,
+      "SQL Injection": 0.99527
+    },
+    "stopped_early": false,
+    "peak_vram_mb": 3555.3,
+    "elapsed_s": 821.5,
+    "ci_weight_scale": 0.6
+  },
+  {
+    "epoch": 4,
+    "train_loss": 0.00383,
+    "val_loss": 0.00593,
+    "val_acc": 0.99318,
+    "val_macro_f1": 0.99366,
+    "per_class_f1": {
+      "Code Injection": 0.99778,
+      "Normal": 0.99051,
+      "Other Attacks": 0.99082,
+      "SQL Injection": 0.99555
+    },
+    "stopped_early": false,
+    "peak_vram_mb": 3555.3,
+    "elapsed_s": 816.8,
+    "ci_weight_scale": 0.6
+  },
+  {
+    "epoch": 5,
+    "train_loss": 0.00335,
+    "val_loss": 0.0059,
+    "val_acc": 0.99298,
+    "val_macro_f1": 0.9933,
+    "per_class_f1": {
+      "Code Injection": 0.99704,
+      "Normal": 0.98998,
+      "Other Attacks": 0.99074,
+      "SQL Injection": 0.99544
+    },
+    "stopped_early": false,
+    "peak_vram_mb": 3555.3,
+    "elapsed_s": 818.3,
+    "ci_weight_scale": 0.6
+  }
+]

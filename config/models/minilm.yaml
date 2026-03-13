@@ -1,0 +1,138 @@
+# =============================================================================
+# Model Training Configuration — MiniLM-L6
+# Model  : nreimers/MiniLM-L6-H384-uncased
+# Params : ~22.7M  (6 layers, 384-dim hidden, 12 attention heads)
+# Role   : Fastest model. Run FIRST to validate the full pipeline end-to-end
+#          before committing time to larger models. ~8–12 min/epoch on RTX 3060.
+# Dataset: SRBH_clean_v3.1.0
+# Plan   : Training Implementation Plan v2.0 — Steps 1–14
+# =============================================================================
+
+# ── Identity ──────────────────────────────────────────────────────────────────
+model_key:     "minilm"
+model_id:      "nreimers/MiniLM-L6-H384-uncased"
+display_name:  "MiniLM-L6"
+architecture:  "6-layer transformer, 384-dim hidden, 12 attention heads"
+parameters_M:  22.7
+
+# ── Dataset ───────────────────────────────────────────────────────────────────
+dataset_version:  "SRBH_clean_v3.1.0"
+data_dir:         "../data/processed/v3_907k_cleaned"
+text_column:      "combined_payload"
+label_column:     "final_label"
+num_classes:      4
+label_names:
+  - "Code Injection"
+  - "Normal"
+  - "Other Attacks"
+  - "SQL Injection"
+
+# ── Sequence Length ────────────────────────────────────────────────────────────
+# Locked baseline from Phase 2 token stats: p95 = 119 tokens (test split worst case).
+# p99 = 161, median = 46–47. 128 covers p95 with headroom.
+max_seq_len: 128
+
+# ── Batch Configuration ────────────────────────────────────────────────────────
+# Target effective batch size = 128 for all models (comparable optimization dynamics).
+# MiniLM at 22.7M params has the most VRAM headroom — batch 16 is safe.
+# If check_vram.py shows headroom, try per_device_train_batch_size: 32
+# and gradient_accumulation_steps: 4 for faster wall-clock training.
+per_device_train_batch_size: 16
+gradient_accumulation_steps: 8      # effective batch = 16 × 8 = 128
+effective_batch_size: 128           # informational — keep consistent with above
+
+# ── Memory Optimizations ───────────────────────────────────────────────────────
+gradient_checkpointing: false        # Not needed at 22.7M params on 6GB VRAM
+fp16: true                           # Ampere Tensor Core native — mandatory on RTX 3060
+
+# ── Optimizer ─────────────────────────────────────────────────────────────────
+# AdamW with two parameter groups: weight decay excluded from bias + LayerNorm.
+# Validated range for BERT-family full fine-tuning: 1e-5 to 5e-5.
+optimizer: "AdamW"
+learning_rate: 2.0e-5
+weight_decay:  0.01                  # Applied to weight matrices only (not bias/LayerNorm)
+max_grad_norm: 1.0                   # Gradient clipping — prevents FP16 NaN on minority-class batches
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+# Linear warmup computed at runtime: warmup_steps = int(0.06 × total_training_steps)
+# With 159,873 train / eff_batch 128 / 5 epochs: total ≈ 6245 steps, warmup ≈ 375
+scheduler:    "linear_warmup"
+warmup_ratio: 0.06                   # 6% of total steps — do NOT hardcode as step count
+
+# ── Training Duration ─────────────────────────────────────────────────────────
+max_epochs:            5             # Upper bound — early stopping usually triggers earlier
+early_stop_patience:   3             # Epochs without Macro-F1 improvement before stopping
+metric_for_best_model: "val_macro_f1"
+greater_is_better:     true
+# Note: minimum run = 4 epochs (patience=3 requires 3 non-improving + 1 best)
+
+# ── Loss Function ──────────────────────────────────────────────────────────────
+# Class imbalance: SQL Injection 46.74% vs Code Injection 3.51% (13:1 ratio).
+# Inverse-frequency weighting: w_c = N_total / (K × N_c)
+# Computed dynamically at runtime — do NOT hardcode weights.
+loss:                "CrossEntropyLoss"
+class_weighted_loss: true
+loss_weight_formula: "N_total / (num_classes * N_c)"
+
+# ── Fine-Tuning Strategy ───────────────────────────────────────────────────────
+# Full fine-tuning (all layers trainable). HTTP payload classification is a
+# domain-adaptation task — malicious syntax vocab is far from general web pretraining.
+frozen_layers: 0
+trainable_layers: "all"
+
+# ── DataLoader ────────────────────────────────────────────────────────────────
+# num_workers=0 required on Windows to avoid DataLoader spawn deadlock in Jupyter.
+# Dynamic padding via DataCollatorWithPadding — pads to longest sequence per batch,
+# not to max_seq_len globally. Median batch pads to ~60–80 tokens, not 128.
+num_workers:          0              # Windows: keep at 0 for Jupyter; set 2–4 for script runs
+pin_memory:           false          # No benefit without background workers
+dynamic_padding:      true
+drop_token_type_ids:  true           # DistilBERT + MiniLM do not use token_type_ids
+
+# ── Reproducibility ───────────────────────────────────────────────────────────
+seed: 42
+
+# ── Artifacts ─────────────────────────────────────────────────────────────────
+registry_base: "../model_registry/staging"
+run_dir_pattern: "{model_key}_{dataset_version}_{timestamp}"
+artifacts:
+  checkpoint:    "checkpoint/"        # model.save_pretrained() + tokenizer.save_pretrained()
+  training_log:  "training_log.json"  # per-epoch train loss, val loss, val Macro-F1, VRAM peak
+  eval_report:   "eval_report.json"   # per-class P/R/F1, confusion matrix, FPR
+  calibration:   "calibration/"       # temperature T, ECE before/after, reliability diagram
+  config_used:   "config_used.yaml"   # exact copy of this file at run time
+  git_hash:      "git_hash.txt"       # git rev-parse HEAD at run time
+
+# ── Post-Training Calibration ──────────────────────────────────────────────────
+# Temperature scaling (Guo et al. 2017). Mandatory before threshold evaluation.
+# Fits scalar T on validation set via minimize_scalar on NLL. T > 1 softens overconfidence.
+calibration:
+  method:        "temperature_scaling"
+  fit_on:        "validation"
+  bounds:        [0.1, 10.0]
+  report_ece:    true
+  n_bins:        10
+
+# ── Confidence Thresholds (LOCKED — never change) ─────────────────────────────
+# These drive real enforcement actions. Must operate on calibrated probabilities.
+confidence_thresholds:
+  low:    0.50     # < 0.50  → Passive monitoring + light rate limiting
+  medium: 0.80     # 0.50–0.80 → Aggressive throttling + CAPTCHA
+  high:   0.80     # ≥ 0.80  → Immediate blocking + firewall rule update
+
+# ── Target Metrics ────────────────────────────────────────────────────────────
+target_metrics:
+  accuracy:         0.95
+  macro_f1:         0.85
+  fpr:              0.03   # ≤ 3%
+  cpu_latency_ms:   100    # < 100ms mean on Ryzen 7 6800H (production deployment is CPU-only)
+
+# ── VRAM Budget (RTX 3060 Laptop, 6GB GDDR6) ──────────────────────────────────
+vram_budget_mb:      6144
+vram_soft_ceiling_mb: 5200           # Alert threshold in check_vram.py (leaves driver headroom)
+# Estimated peak at batch 16, seq 128, FP16: ~800–1200 MB (well within budget)
+
+# ── Execution Order ───────────────────────────────────────────────────────────
+# Run MiniLM FIRST. Fastest model — validates the full pipeline in ~10 min
+# before committing hours to DistilBERT or BERT-base.
+execution_order: 1

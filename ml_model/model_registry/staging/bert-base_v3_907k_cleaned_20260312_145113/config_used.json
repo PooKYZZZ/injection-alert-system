@@ -1,0 +1,19 @@
+{
+  "model_key": "bert-base",
+  "model_id": "bert-base-uncased",
+  "dataset_version": "v3_907k_cleaned",
+  "per_device_train_batch_size": 32,
+  "gradient_accumulation_steps": 4,
+  "num_train_epochs": 5,
+  "early_stop_patience": 3,
+  "learning_rate": 3e-05,
+  "weight_decay": 0.01,
+  "max_grad_norm": 1.0,
+  "lr_schedule": "cosine",
+  "warmup_ratio": 0.04,
+  "bf16": true,
+  "max_seq_len": 128,
+  "log_every_steps": 200,
+  "ci_weight_scale": 0.6,
+  "focal_gamma": 2.0
+}

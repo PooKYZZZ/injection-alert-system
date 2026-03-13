@@ -1,0 +1,192 @@
+{
+  "model": "distilbert",
+  "variant": "calibrated",
+  "accuracy": 0.992566,
+  "macro_f1": 0.988523,
+  "weighted_f1": 0.992591,
+  "mcc": 0.988707,
+  "cohen_kappa": 0.988685,
+  "log_loss": 0.01903,
+  "roc_auc_ovr": 0.999943,
+  "brier_score": 0.010856,
+  "ece": 0.003296,
+  "mce": 0.551092,
+  "temperature": 0.596868,
+  "per_class": {
+    "Code Injection": {
+      "precision": 0.950057,
+      "recall": 1.0,
+      "f1": 0.974389,
+      "support": 837,
+      "pr_auc": 0.999838
+    },
+    "Normal": {
+      "precision": 0.989967,
+      "recall": 0.998086,
+      "f1": 0.99401,
+      "support": 3658,
+      "pr_auc": 0.999862
+    },
+    "Other Attacks": {
+      "precision": 0.989747,
+      "recall": 0.991715,
+      "f1": 0.99073,
+      "support": 6035,
+      "pr_auc": 0.999757
+    },
+    "SQL Injection": {
+      "precision": 0.999775,
+      "recall": 0.990195,
+      "f1": 0.994962,
+      "support": 8975,
+      "pr_auc": 0.999903
+    }
+  },
+  "calibration_bins": [
+    {
+      "bin": 0,
+      "count": 0,
+      "avg_conf": 0.0,
+      "avg_acc": 0.0,
+      "gap": 0.0
+    },
+    {
+      "bin": 1,
+      "count": 0,
+      "avg_conf": 0.0,
+      "avg_acc": 0.0,
+      "gap": 0.0
+    },
+    {
+      "bin": 2,
+      "count": 0,
+      "avg_conf": 0.0,
+      "avg_acc": 0.0,
+      "gap": 0.0
+    },
+    {
+      "bin": 3,
+      "count": 0,
+      "avg_conf": 0.0,
+      "avg_acc": 0.0,
+      "gap": 0.0
+    },
+    {
+      "bin": 4,
+      "count": 0,
+      "avg_conf": 0.0,
+      "avg_acc": 0.0,
+      "gap": 0.0
+    },
+    {
+      "bin": 5,
+      "count": 0,
+      "avg_conf": 0.0,
+      "avg_acc": 0.0,
+      "gap": 0.0
+    },
+    {
+      "bin": 6,
+      "count": 3,
+      "avg_conf": 0.4489082098007202,
+      "avg_acc": 1.0,
+      "gap": 0.5510917901992798
+    },
+    {
+      "bin": 7,
+      "count": 15,
+      "avg_conf": 0.5173606276512146,
+      "avg_acc": 0.4666666666666667,
+      "gap": 0.050693960984547926
+    },
+    {
+      "bin": 8,
+      "count": 27,
+      "avg_conf": 0.5631710886955261,
+      "avg_acc": 0.5185185185185185,
+      "gap": 0.04465257017700763
+    },
+    {
+      "bin": 9,
+      "count": 50,
+      "avg_conf": 0.6364777684211731,
+      "avg_acc": 0.52,
+      "gap": 0.11647776842117308
+    },
+    {
+      "bin": 10,
+      "count": 34,
+      "avg_conf": 0.6945376992225647,
+      "avg_acc": 0.5,
+      "gap": 0.1945376992225647
+    },
+    {
+      "bin": 11,
+      "count": 94,
+      "avg_conf": 0.7773370742797852,
+      "avg_acc": 0.7659574468085106,
+      "gap": 0.011379627471274523
+    },
+    {
+      "bin": 12,
+      "count": 109,
+      "avg_conf": 0.8411821126937866,
+      "avg_acc": 0.5504587155963303,
+      "gap": 0.2907233970974563
+    },
+    {
+      "bin": 13,
+      "count": 67,
+      "avg_conf": 0.9057779908180237,
+      "avg_acc": 0.8805970149253731,
+      "gap": 0.02518097589265056
+    },
+    {
+      "bin": 14,
+      "count": 19106,
+      "avg_conf": 0.9990695118904114,
+      "avg_acc": 0.9997906416832408,
+      "gap": 0.0007211297928294558
+    }
+  ],
+  "operational": {
+    "benign_false_positive_rate": 0.001914,
+    "benign_high_confidence_false_block_rate": 0.001093,
+    "attack_detection_rate": 0.997665,
+    "confidence_tiers": {
+      "LOW": {
+        "count": 6,
+        "pct": 0.0308,
+        "accuracy": 0.666667,
+        "predicted_class_distribution": {
+          "Code Injection": 0,
+          "Normal": 1,
+          "Other Attacks": 3,
+          "SQL Injection": 2
+        }
+      },
+      "MEDIUM": {
+        "count": 217,
+        "pct": 1.1125,
+        "accuracy": 0.62212,
+        "predicted_class_distribution": {
+          "Code Injection": 3,
+          "Normal": 60,
+          "Other Attacks": 140,
+          "SQL Injection": 14
+        }
+      },
+      "HIGH": {
+        "count": 19282,
+        "pct": 98.8567,
+        "accuracy": 0.996836,
+        "predicted_class_distribution": {
+          "Code Injection": 878,
+          "Normal": 3627,
+          "Other Attacks": 5904,
+          "SQL Injection": 8873
+        }
+      }
+    }
+  }
+}

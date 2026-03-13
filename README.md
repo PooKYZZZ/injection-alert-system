@@ -83,7 +83,7 @@ For a deeper dive into these boundaries, see the [Architecture Document](docs/ar
 
 ## Contributing
 
-Please review [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, testing standards, and pull request procedures.
+Please review [CONTRIBUTING.md](docs/CONTRIBUTING.md) for development guidelines, testing standards, and pull request procedures.
 
 ## License
 

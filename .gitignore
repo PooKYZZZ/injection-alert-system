@@ -110,3 +110,32 @@ docs/SETUP.md
 frontend/.env.local
 frontend/package-lock.json
 frontend/package.json
+
+# --- Archive folder (local only, not for remote) ---
+archive/
+
+# --- ML: model checkpoints ---
+ml_model/model_registry/**/*.pt
+ml_model/model_registry/**/*.bin
+ml_model/model_registry/**/*.onnx
+ml_model/model_registry/**/*.safetensors
+
+# --- ML: raw eval outputs (regenerable) ---
+ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
+
+# --- Large dataset files ---
+data/raw/*.csv
+data/processed/**/*.csv
+data/processed/**/*.parquet
+!data/processed/v3_907k_cleaned/train.parquet
+!data/processed/v3_907k_cleaned/validation.parquet
+!data/processed/v3_907k_cleaned/test.parquet
+
+# --- Secrets ---
+.env
+.env.local
+.env*.local
+frontend/.env.local
+
+# --- Build artifacts ---
+frontend/tsconfig.tsbuildinfo
