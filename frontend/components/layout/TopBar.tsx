@@ -12,7 +12,9 @@ const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
 ]
 
 function pillClasses(severity: SeverityFilter, isActive: boolean): string {
-  const base = 'px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer'
+  const base =
+    'px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer'
+
   if (!isActive) {
     switch (severity) {
       case 'HIGH':
@@ -25,6 +27,7 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
         return `${base} bg-white text-slate-800 border-gray-200 hover:bg-slate-100 hover:border-slate-300`
     }
   }
+
   switch (severity) {
     case 'HIGH':
       return `${base} bg-red-50 border-red-200 text-red-700`
@@ -41,7 +44,7 @@ function TopBarContent() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const rawSeverity = searchParams.get('severity')
   const currentSeverity: SeverityFilter =
@@ -57,31 +60,27 @@ function TopBarContent() {
 
   const handleSearch = (value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+
     debounceRef.current = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString())
+
       if (value) params.set('search', value)
       else params.delete('search')
+
       router.push(`${pathname}?${params.toString()}`, { scroll: false })
     }, 300)
   }
 
   return (
     <header className="h-16 border-b border-border-light bg-surface-light flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
-      {/* Left side: title + time range + severity pills */}
+
+      {/* Left side: title + severity filter */}
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-bold text-text-main tracking-tight">SOC Overview</h2>
+        <h2 className="text-lg font-bold text-text-main tracking-tight">
+          SOC Overview
+        </h2>
 
         <div className="h-4 w-[1px] bg-border-light" />
-
-        <div className="flex items-center gap-2 text-text-muted text-sm">
-          <span className="material-symbols-outlined text-[16px]">calendar_today</span>
-          <span>Last 24 Hours</span>
-          <span className="material-symbols-outlined text-[16px] cursor-pointer hover:text-text-main">
-            expand_more
-          </span>
-        </div>
-
-        <div className="h-4 w-[1px] bg-border-light ml-2" />
 
         <div className="flex items-center gap-1.5">
           {SEVERITY_OPTIONS.map(({ value, label }) => (
@@ -96,26 +95,23 @@ function TopBarContent() {
         </div>
       </div>
 
-      {/* Right side: search + notifications */}
+      {/* Right side: search only */}
       <div className="flex items-center gap-6">
         <div className="relative">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[18px]">
             search
           </span>
+
           <input
             type="text"
             defaultValue={searchParams.get('search') ?? ''}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search IP, Hash, CVE..."
+            placeholder="Search IP address..."
             className="bg-white border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
           />
         </div>
-
-        <button className="relative text-text-muted hover:text-text-main">
-          <span className="material-symbols-outlined">notifications</span>
-          <span className="absolute top-0 right-0 h-2 w-2 bg-primary rounded-full" />
-        </button>
       </div>
+
     </header>
   )
 }

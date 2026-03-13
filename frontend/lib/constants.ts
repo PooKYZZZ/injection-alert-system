@@ -1,19 +1,13 @@
 export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
   { label: 'Alerts', href: '/alerts', icon: 'notifications', badge: 5 },
-  { label: 'Mitigation Log', href: '/mitigation', icon: 'shield_lock' },
   { label: 'Traffic', href: '/traffic', icon: 'traffic' },
-  { label: 'Rules', href: '/rules', icon: 'rule' },
-  { label: 'Threat Intel', href: '/threat-intel', icon: 'travel_explore' },
+  { label: 'Mitigation Log', href: '/mitigation', icon: 'shield_lock' },
   { label: 'ML Health', href: '/ml-health', icon: 'monitor_heart' },
-  { label: 'Reports', href: '/reports', icon: 'assessment' },
+  { label: 'Audit Trail', href: '/audit', icon: 'history_edu' }, // moved here
 ] as const
 
-export const SYSTEM_NAV_ITEMS = [
-  { label: 'Settings', href: '/settings', icon: 'settings' },
-  { label: 'Integrations', href: '/integrations', icon: 'integration_instructions' },
-  { label: 'Audit Trail', href: '/audit', icon: 'history_edu' },
-] as const
+export const SYSTEM_NAV_ITEMS = [] as const
 
 export const CONFIDENCE_THRESHOLDS = {
   LOW: 0.5,

@@ -64,7 +64,7 @@ export default function IncidentDetailPanel() {
         <div className="flex flex-col gap-6 p-4">
           {/* Captured Payload */}
           <section>
-            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
               Captured Payload
             </h3>
             <div className="bg-gray-50 border border-border-light rounded-sm p-3 overflow-x-auto">
@@ -89,7 +89,7 @@ export default function IncidentDetailPanel() {
 
           {/* Source Intelligence */}
           <section>
-            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
               Source Intelligence
             </h3>
             <div className="grid grid-cols-2 gap-4">
