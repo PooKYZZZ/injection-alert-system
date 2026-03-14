@@ -11,6 +11,8 @@ from web_app.presentation.app import create_app
 from web_app.presentation.api.routes import get_model_service
 from web_app.infrastructure.database import get_db
 
+INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
+
 
 def _make_settings(model_registry_path: Path, app_env: str) -> Settings:
     return Settings(
@@ -158,7 +160,10 @@ def test_startup_stores_real_model_service_on_app_state(
 def test_ml_health_returns_degraded_when_mock_model_active(api_client):
     client, _, _ = api_client
 
-    response = client.get("/api/ml-health")
+    response = client.get(
+        "/api/ml-health",
+        headers=INTERNAL_HEADERS,
+    )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -180,7 +185,10 @@ def test_unknown_alert_id_returns_404(api_client):
     import asyncio
     asyncio.run(init_tables())
 
-    response = client.get("/api/alerts/9999")
+    response = client.get(
+        "/api/alerts/9999",
+        headers=INTERNAL_HEADERS,
+    )
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Alert not found"}
@@ -191,7 +199,10 @@ def test_stats_returns_zeroed_response_for_empty_table(api_client):
     import asyncio
     asyncio.run(init_tables())
 
-    response = client.get("/api/stats")
+    response = client.get(
+        "/api/stats",
+        headers=INTERNAL_HEADERS,
+    )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -233,7 +244,10 @@ def test_alert_list_returns_pagination_shape(api_client):
 
     asyncio.run(_seed())
 
-    response = client.get("/api/alerts?page=1&page_size=20")
+    response = client.get(
+        "/api/alerts?page=1&page_size=20",
+        headers=INTERNAL_HEADERS,
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -269,8 +283,12 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
 
     asyncio.run(_seed_sparse_row())
 
-    list_response = client.get("/api/alerts?page=1&page_size=20&search=203.0.113.7")
-    detail_response = client.get("/api/alerts/1")
+    headers = INTERNAL_HEADERS
+    list_response = client.get(
+        "/api/alerts?page=1&page_size=20&search=203.0.113.7",
+        headers=headers,
+    )
+    detail_response = client.get("/api/alerts/1", headers=headers)
 
     assert list_response.status_code == 200
     list_payload = list_response.json()
@@ -288,3 +306,63 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
     assert detail_payload["request_method"] is None
     assert detail_payload["crs_score"] is None
     assert detail_payload["payload_snippet"] == "GET /legacy?q=test"
+
+
+def test_auth_missing_token_returns_401(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+    asyncio.run(init_tables())
+
+    response = client.get("/api/stats")
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_auth_wrong_scheme_returns_401(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+    asyncio.run(init_tables())
+
+    response = client.get(
+        "/api/stats",
+        headers={"Authorization": "Basic test-secret"},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_auth_invalid_token_returns_401(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+    asyncio.run(init_tables())
+
+    response = client.get(
+        "/api/stats",
+        headers={"Authorization": "Bearer wrong-secret"},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_auth_valid_token_allows_access(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+    asyncio.run(init_tables())
+
+    response = client.get(
+        "/api/stats",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+
+
+def test_auth_api_health_endpoint_is_public(api_client):
+    client, _, _ = api_client
+
+    response = client.get("/api/health")
+
+    assert response.status_code == 200

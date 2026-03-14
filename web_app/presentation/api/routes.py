@@ -19,12 +19,13 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.application.triage_use_case import TriageUseCase
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
-from web_app.application.triage_use_case import TriageUseCase
-from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.presentation.dependencies.auth import verify_internal_token
 from web_app.presentation.schemas import (
     AlertDetailResponse,
     AlertListResponse,
@@ -35,7 +36,10 @@ from web_app.presentation.schemas import (
     StatsResponse,
 )
 
+internal_auth_dependency = Depends(verify_internal_token)
+
 router = APIRouter()
+internal_router = APIRouter(dependencies=[internal_auth_dependency])
 
 
 def get_model(request: Request):
@@ -48,7 +52,7 @@ def get_model_service(request: Request):
     return request.app.state.model_service
 
 
-@router.post("/predict", response_model=PredictionResponse)
+@internal_router.post("/predict", response_model=PredictionResponse)
 async def predict(
     request: Request,
     prediction_request: PredictionRequest,
@@ -76,7 +80,7 @@ async def predict(
     )
 
 
-@router.get("/stats", response_model=StatsResponse)
+@internal_router.get("/stats", response_model=StatsResponse)
 async def get_stats(
     db: AsyncSession = Depends(get_db),
 ):
@@ -90,7 +94,7 @@ async def get_stats(
     )
 
 
-@router.get("/ml-health", response_model=MLHealthResponse)
+@internal_router.get("/ml-health", response_model=MLHealthResponse)
 async def get_ml_health(
     model_service=Depends(get_model_service),
 ):
@@ -106,7 +110,7 @@ async def get_ml_health(
     )
 
 
-@router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)
+@internal_router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)
 async def get_alert_by_id(
     alert_id: int,
     db: AsyncSession = Depends(get_db),
@@ -119,7 +123,7 @@ async def get_alert_by_id(
     return AlertDetailResponse.model_validate(entity)
 
 
-@router.get("/alerts", response_model=AlertListResponse)
+@internal_router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -167,3 +171,6 @@ async def submit_feedback(
         raise HTTPException(status_code=404, detail=result.message)
 
     return {"message": result.message, "traffic_id": result.traffic_id}
+
+
+router.include_router(internal_router)
