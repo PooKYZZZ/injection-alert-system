@@ -80,12 +80,12 @@ function AlertsTableContent() {
   return (
     <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle overflow-hidden">
       <div className="p-4 border-b border-border-light flex items-center justify-between">
-        <h2 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+        <h2 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider">
           Alerts
         </h2>
         {selectedIds.length > 0 && <BulkActionBar />}
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border-light bg-gray-50">

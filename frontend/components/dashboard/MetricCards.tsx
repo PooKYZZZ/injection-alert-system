@@ -15,7 +15,7 @@ function MetricCard({ label, icon, value, trend, highlight }: MetricCardProps) {
   return (
     <div
       className={cn(
-        'bg-surface-light border border-border-light p-4 rounded-sm shadow-subtle',
+        'bg-surface-light border border-border-light p-1 rounded-sm shadow-subtle',
         highlight && 'border-t-[2px] border-primary bg-[#fff5f5]'
       )}
     >
@@ -23,9 +23,13 @@ function MetricCard({ label, icon, value, trend, highlight }: MetricCardProps) {
         <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
           {label}
         </span>
-        <span className="material-symbols-outlined text-text-muted text-[20px]">{icon}</span>
+        <span className="material-symbols-outlined text-text-muted text-[20px]">
+          {icon}
+        </span>
       </div>
+
       <div className="text-3xl font-bold text-text-main">{value}</div>
+
       <div className="text-xs text-text-muted mt-2">{trend}</div>
     </div>
   )
@@ -49,8 +53,7 @@ export default function MetricCards() {
 
   if (isPending) {
     return (
-      <div className="grid grid-cols-4 gap-4">
-        <MetricCardSkeleton />
+      <div className="grid grid-cols-3 gap-4">
         <MetricCardSkeleton />
         <MetricCardSkeleton />
         <MetricCardSkeleton />
@@ -59,7 +62,9 @@ export default function MetricCards() {
   }
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-3 gap-4">
+
+      {/* High Detections */}
       <MetricCard
         label="High Detections"
         icon="gpp_maybe"
@@ -67,32 +72,24 @@ export default function MetricCards() {
         trend="vs. last 24h"
         highlight
       />
-      <MetricCard
-        label="False Positives"
-        icon="check_circle"
-        value={
-          data
-            ? `${data.crs_comparison.false_positive_reduction_pct.toFixed(1)}%`
-            : '—'
-        }
-        trend="of total traffic"
+
+      {/* Attack Types Detected */}
+     <MetricCard
+        label="Attack Types Detected"
+        icon="bug_report"
+        value="SQLi / XSS"
+        trend="Command Injection also detected"
       />
+
+      {/* Total Requests */}
       <MetricCard
         label="Total Requests"
         icon="public"
-        value={data?.crs_comparison.total_crs_flagged ?? 0}
+        // Source: /api/stats -> crs_comparison.total_requests
+        value={data?.crs_comparison?.total_requests ?? 0}
         trend="in last 24h"
       />
-      <MetricCard
-        label="Avg Latency"
-        icon="speed"
-        value={
-          data
-            ? `${Math.round(data.avg_confidence * 100)}%`
-            : '—'
-        }
-        trend="p95 response time"
-      />
+
     </div>
   )
 }

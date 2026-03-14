@@ -13,8 +13,8 @@ interface AttackDistributionProps {
 export default function AttackDistribution({ distribution }: AttackDistributionProps) {
   return (
     <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle p-4">
-      <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-4">
-        Attack Distribution
+      <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-4">
+        Detected Attack Types
       </h3>
       <div className="flex flex-col gap-3">
         {distribution.map((item) => (
