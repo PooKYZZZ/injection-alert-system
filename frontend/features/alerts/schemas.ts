@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  ALERT_ACTION_TAKEN_VALUES,
+  ALERT_PREDICTION_VALUES,
+  ALERT_SEVERITY_VALUES,
+} from './contract'
 
 export const ShapFeatureSchema = z.object({
   feature_name: z.string(),
@@ -20,10 +25,10 @@ export const AlertSchema = z.object({
   request_method: z.string(),
   user_agent: z.string().optional(),
   payload_snippet: z.string(),
-  prediction: z.string(),
+  prediction: z.enum(ALERT_PREDICTION_VALUES),
   confidence: z.number(),
-  confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-  action_taken: z.enum(['BLOCKED', 'THROTTLED', 'LOGGED', 'RATE_LIMITED']),
+  confidence_level: z.enum(ALERT_SEVERITY_VALUES),
+  action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES),
   crs_score: z.number().optional(),
   shap_values: z.array(ShapFeatureSchema).optional(),
   source_intel: SourceIntelSchema.optional(),

@@ -1,26 +1,25 @@
-import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
+import {
+  ALERT_DISPLAY_ACTION_ALIASES,
+  type AlertAction,
+} from '@/features/alerts/contract'
 
-const actionVariants = cva('text-sm', {
-  variants: {
-    action: {
-      BLOCKED:      'text-status-blocked font-bold',
-      THROTTLED:    'text-status-throttled font-medium',
-      LOGGED:       'text-status-logged font-medium',
-      RATE_LIMITED: 'text-status-ratelimited font-medium',
-    },
-  },
-})
+const ACTION_CLASS_NAMES: Record<AlertAction, string> = {
+  BLOCKED: 'text-status-blocked font-bold',
+  THROTTLED: 'text-status-throttled font-medium',
+  ALLOWED: 'text-status-logged font-medium',
+}
 
-type ActionLabelProps = VariantProps<typeof actionVariants> & {
+type ActionLabelProps = {
+  action: AlertAction
   expiresAt?: string
 }
 
 export function ActionLabel({ action, expiresAt }: ActionLabelProps) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className={cn(actionVariants({ action }))}>
-        {action}
+      <span className={cn('text-sm', ACTION_CLASS_NAMES[action])}>
+        {ALERT_DISPLAY_ACTION_ALIASES[action]}
       </span>
       {action === 'BLOCKED' && expiresAt && (
         <span className="text-[10px] text-text-muted">

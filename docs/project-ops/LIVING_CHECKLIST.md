@@ -22,8 +22,12 @@
 
 ## PRE-REQUISITES
 - [ ] PRE-A: Confirmed dev-now artifact exists in ml_model/model_registry/staging/
-- [ ] PRE-B: Checked frontend/features/alerts/types.ts — label crosswalk locked and documented
-- [ ] PRE-C: Normalization map constants file written and documented
+- [x] PRE-B: Checked frontend/features/alerts/types.ts — label crosswalk locked and documented
+- [x] PRE-C: Normalization map constants file written and documented
+      - Canonical frontend contract now derives from `frontend/features/alerts/contract.ts`
+      - Locked `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
+      - Locked current backend-aligned `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
+      - Display-only aliases are separate from canonical transport values
 
 ## P-2 BACKEND
 
@@ -113,6 +117,9 @@
       - Returns 503 if model not ready
       - Returns 401 if no token
 - [ ] ALLOWED → LOGGED fixed at source in TriageUseCase (not a BFF remap)
+      - Current frontend contract intentionally preserves today's backend-emitted values:
+        `BLOCKED`, `THROTTLED`, `ALLOWED`
+      - Do not normalize this in BFF/frontend; resolve only when backend source changes
 - [ ] Auth applied to all internal routers (triage_router and BFF-facing data routes)
 
 ### Backend Tests
@@ -189,12 +196,12 @@
 
 ## Quick Status Summary (Update This After Every Session)
 
-**Last updated:** [ ] Fill in date and what session you just completed
+**Last updated:** [x] 2026-03-15 — locked frontend alert normalization contract to a single source of truth and aligned types, schemas, mocks, and alert UI to current backend-emitted `action_taken` values
 
-**Current focus:** [ ] What task you are on right now
+**Current focus:** [x] Frontend alert contract lock complete; backend/BFF transport alignment remains future work
 
-**Next up:** [ ] What task comes after current
+**Next up:** [x] BFF wiring against real alert endpoints once backend transport contract is explicitly finalized at source
 
-**Blockers:** [ ] Anything waiting on someone else (e.g. Mark's CRSComparisonPanel decision)
+**Blockers:** [x] AGENTS/checklist business wording still differs from current backend-emitted `action_taken` values (`BLOCKED`, `THROTTLED`, `ALLOWED`)
 
-**Completed today:** [ ] Brief summary of what got done this session
+**Completed today:** [x] Added `frontend/features/alerts/contract.ts`, tightened alert schemas to enums, removed frontend-invented alert labels from mocks, and documented the current transport-vs-policy wording mismatch

@@ -1,6 +1,10 @@
-export type AlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH'
-export type AlertAction = 'BLOCKED' | 'THROTTLED' | 'LOGGED' | 'RATE_LIMITED'
-export type AttackType = 'SQLi' | 'XSS' | 'SSRF' | 'CMDi' | 'PathTraversal' | 'Unknown'
+import type {
+  AlertAction,
+  AlertPrediction,
+  AlertSeverity,
+} from './contract'
+
+export type { AlertAction, AlertPrediction, AlertSeverity }
 
 export interface ShapFeature {
   feature_name: string
@@ -22,7 +26,7 @@ export interface Alert {
   request_method: string
   user_agent?: string
   payload_snippet: string
-  prediction: AttackType
+  prediction: AlertPrediction
   confidence: number
   confidence_level: AlertSeverity
   action_taken: AlertAction

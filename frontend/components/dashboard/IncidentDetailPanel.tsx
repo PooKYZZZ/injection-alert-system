@@ -3,6 +3,7 @@
 import { useDashboardStore } from 'store/dashboardStore'
 import { useAlert } from 'features/alerts/queries'
 import type { Alert } from 'features/alerts/types'
+import { ALERT_DISPLAY_ACTION_ALIASES } from 'features/alerts/contract'
 import { ShapChart } from 'components/ui/ShapChart'
 import { cn } from 'lib/utils'
 
@@ -180,14 +181,12 @@ export default function IncidentDetailPanel() {
                       ? 'bg-red-600'
                       : incident.action_taken === 'THROTTLED'
                       ? 'bg-orange-500'
-                      : incident.action_taken === 'RATE_LIMITED'
-                      ? 'bg-yellow-500'
                       : 'bg-gray-400'
                   )}
                 />
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-text-main">
-                    Action: {incident.action_taken}
+                    Action: {ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]}
                   </span>
                   <span className="text-[10px] text-text-muted">
                     Enforcement applied
