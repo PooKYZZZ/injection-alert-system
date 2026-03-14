@@ -21,7 +21,7 @@ This is not yet the finished 3-container PD1 demo stack. The codebase is still i
 
 ### Checks run on 2026-03-14
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` -> `44 passed`
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` -> `50 passed`
 - Frontend types: `frontend\npm run typecheck` -> passed
 
 ### Backend
