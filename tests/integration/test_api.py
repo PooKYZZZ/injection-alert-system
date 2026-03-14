@@ -2,6 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from web_app.presentation.app import app
 
+INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
+
 
 @pytest.fixture
 def client():
@@ -9,7 +11,7 @@ def client():
         yield test_client
 
 
-def test_health_endpoint(client):
+def test_auth_health_endpoint_is_public(client):
     """Test canonical health check endpoint returns status"""
     response = client.get("/health")
     assert response.status_code == 200
@@ -22,7 +24,8 @@ def test_predict_endpoint_sql_injection(client):
     """Test prediction endpoint with SQL injection payload"""
     response = client.post(
         "/api/predict",
-        json={"http_request": "SELECT * FROM users WHERE id=1 OR 1=1"}
+        json={"http_request": "SELECT * FROM users WHERE id=1 OR 1=1"},
+        headers=INTERNAL_HEADERS,
     )
     assert response.status_code == 200
     data = response.json()
@@ -36,7 +39,8 @@ def test_predict_endpoint_code_injection(client):
     """Test prediction endpoint with code injection payload"""
     response = client.post(
         "/api/predict",
-        json={"http_request": "<script>alert('XSS')</script>"}
+        json={"http_request": "<script>alert('XSS')</script>"},
+        headers=INTERNAL_HEADERS,
     )
     assert response.status_code == 200
     data = response.json()
@@ -47,7 +51,8 @@ def test_predict_endpoint_normal_request(client):
     """Test prediction endpoint with normal request"""
     response = client.post(
         "/api/predict",
-        json={"http_request": "GET /api/users?page=1&limit=10"}
+        json={"http_request": "GET /api/users?page=1&limit=10"},
+        headers=INTERNAL_HEADERS,
     )
     assert response.status_code == 200
     data = response.json()
@@ -56,7 +61,7 @@ def test_predict_endpoint_normal_request(client):
 
 def test_predict_endpoint_missing_request(client):
     """Test prediction endpoint with missing http_request"""
-    response = client.post("/api/predict", json={})
+    response = client.post("/api/predict", json={}, headers=INTERNAL_HEADERS)
     assert response.status_code == 422  # Validation error
 
 
@@ -64,7 +69,8 @@ def test_predict_response_has_action_taken(client):
     """Test prediction response includes action_taken field"""
     response = client.post(
         "/api/predict",
-        json={"http_request": "SELECT * FROM users; DROP TABLE users;--"}
+        json={"http_request": "SELECT * FROM users; DROP TABLE users;--"},
+        headers=INTERNAL_HEADERS,
     )
     assert response.status_code == 200
     data = response.json()
@@ -74,7 +80,10 @@ def test_predict_response_has_action_taken(client):
 
 def test_alerts_endpoint_empty(client):
     """Test alerts endpoint returns empty list when no data"""
-    response = client.get("/api/alerts?search=__no_matching_alert__")
+    response = client.get(
+        "/api/alerts?search=__no_matching_alert__",
+        headers=INTERNAL_HEADERS,
+    )
     assert response.status_code == 200
     data = response.json()
     assert data == {
@@ -90,9 +99,10 @@ def test_alerts_endpoint_with_data(client):
     # First make a prediction to create a log
     client.post(
         "/api/predict",
-        json={"http_request": "SELECT * FROM users; DROP TABLE users;--"}
+        json={"http_request": "SELECT * FROM users; DROP TABLE users;--"},
+        headers=INTERNAL_HEADERS,
     )
-    response = client.get("/api/alerts")
+    response = client.get("/api/alerts", headers=INTERNAL_HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
@@ -106,11 +116,12 @@ def test_feedback_endpoint(client):
     # First create a prediction
     client.post(
         "/api/predict",
-        json={"http_request": "GET /api/test"}
+        json={"http_request": "GET /api/test"},
+        headers=INTERNAL_HEADERS,
     )
 
     # Get the traffic log id from alerts
-    alerts_response = client.get("/api/alerts")
+    alerts_response = client.get("/api/alerts", headers=INTERNAL_HEADERS)
     alerts = alerts_response.json()["items"]
 
     if alerts:
