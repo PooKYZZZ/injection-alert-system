@@ -113,3 +113,36 @@ async def test_get_by_transaction_id_returns_entity(
     assert found is not None
     assert found.id == saved.id
     assert found.transaction_id == "txn-123"
+
+
+@pytest.mark.asyncio
+async def test_get_alert_list_preserves_filtered_total_when_page_is_empty(
+    repository: TrafficLogRepository,
+):
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-page-1",
+            source_ip="10.0.0.4",
+            request_path="/alerts",
+            request_method="GET",
+            http_request="GET /alerts?q=match",
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            inference_latency_ms=6.0,
+            action_taken="BLOCKED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=2,
+        page_size=1,
+        severity="HIGH",
+        time_range="7d",
+        search="match",
+    )
+
+    assert page.total == 1
+    assert page.page == 2
+    assert page.page_size == 1
+    assert page.items == []

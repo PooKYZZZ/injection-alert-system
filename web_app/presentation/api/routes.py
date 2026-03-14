@@ -14,7 +14,7 @@ Dependency rule:
   - Gets DB session from infrastructure/ DI only to construct repositories
 """
 
-from typing import List, Literal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +26,6 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
 from web_app.application.triage_use_case import TriageUseCase
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.presentation.schemas import (
-    AlertResponse,
     AlertDetailResponse,
     AlertListResponse,
     FeedbackRequest,

@@ -180,10 +180,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         page_size = max(1, min(page_size, 100))
         offset = (page - 1) * page_size
 
-        stmt = select(
-            TrafficLog,
-            func.count(TrafficLog.id).over().label("total_count"),
-        )
+        stmt = select(TrafficLog)
 
         # PD1 semantics: the "severity" filter currently maps directly to the
         # persisted confidence tier. If policy/action severity diverges later,
@@ -209,6 +206,10 @@ class TrafficLogRepository(ITrafficLogRepository):
                     )
                 )
 
+        total_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self._session.execute(total_stmt)
+        total = int(total_result.scalar_one() or 0)
+
         stmt = (
             stmt.order_by(TrafficLog.timestamp.desc(), TrafficLog.id.desc())
             .offset(offset)
@@ -216,9 +217,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
 
         result = await self._session.execute(stmt)
-        rows = result.all()
-        items = [self._orm_to_entity(row[0]) for row in rows]
-        total = int(rows[0][1]) if rows else 0
+        rows = result.scalars().all()
+        items = [self._orm_to_entity(row) for row in rows]
         return TrafficLogPage(
             items=items,
             total=total,
