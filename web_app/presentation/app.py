@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from web_app.config import get_settings
 from web_app.infrastructure.database import TrafficLog, get_db, init_db
 from web_app.presentation.api.routes import router as api_router
+from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.schemas import HealthResponse
 from web_app.services.model_service import ModelService
 
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
 
     # --- API router ---
     app.include_router(api_router, prefix="/api")
+    app.include_router(triage_router, prefix="/api")
 
     # --- Canonical health endpoint (single source of truth) ---
     app.add_api_route("/health", health_check, response_model=HealthResponse)

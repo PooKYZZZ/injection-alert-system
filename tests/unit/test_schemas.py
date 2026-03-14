@@ -5,7 +5,9 @@ from web_app.presentation.schemas import (
     PredictionResponse,
     FeedbackRequest,
     AlertResponse,
-    HealthResponse
+    HealthResponse,
+    TriageIngestRequest,
+    TriageIngestResponse,
 )
 
 
@@ -97,3 +99,33 @@ def test_health_response():
     """Test HealthResponse schema"""
     health = HealthResponse(status="healthy", database="connected")
     assert health.status == "healthy"
+
+
+def test_triage_ingest_request_structure():
+    request = TriageIngestRequest(
+        transaction_id="txn-123",
+        timestamp="2026-03-15T10:00:00Z",
+        source_ip="203.0.113.10",
+        request_method="POST",
+        request_uri="/login",
+        request_headers={"Host": "example.test"},
+        request_body="username=admin",
+        http_request="POST /login HTTP/1.1",
+        crs_score=7,
+        crs_rule_ids=["942100"],
+    )
+    assert request.transaction_id == "txn-123"
+    assert request.request_headers["Host"] == "example.test"
+
+
+def test_triage_ingest_response_structure():
+    response = TriageIngestResponse(
+        alert_id=1,
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+        action_taken="BLOCKED",
+        model_version="distilbert_v1",
+    )
+    assert response.alert_id == 1
+    assert response.prediction == "SQL Injection"

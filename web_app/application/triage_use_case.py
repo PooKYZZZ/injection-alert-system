@@ -14,6 +14,7 @@ Dependency rule:
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Protocol
 
 from starlette.concurrency import run_in_threadpool
@@ -24,78 +25,204 @@ from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 class IClassifier(Protocol):
     """Protocol for any classifier that can predict on an HTTP request string."""
 
+    loaded: bool
+    model_version: str
+
     def predict(self, http_request: str) -> dict:
-        """Return dict with keys: class, confidence, confidence_level."""
+        """Return dict with prediction + confidence metadata."""
         ...
 
 
-@dataclass
+@dataclass(frozen=True)
+class TriageIngestCommand:
+    transaction_id: str
+    timestamp: datetime
+    source_ip: str
+    request_method: str
+    request_uri: str
+    request_headers: dict[str, str]
+    request_body: str
+    http_request: str
+    crs_score: int
+    crs_rule_ids: list[str]
+
+
+@dataclass(frozen=True)
 class TriageResult:
     """Value object returned by the triage use case."""
 
-    class_label: str
+    alert_id: int | None
+    prediction: str
     confidence: float
     confidence_level: str
     action_taken: str
+    model_version: str | None
+
+    @property
+    def class_label(self) -> str:
+        return self.prediction
+
+
+class ModelNotReadyError(RuntimeError):
+    """Raised when triage is requested while the model service is unavailable."""
+
+
+class TriageInProgressError(RuntimeError):
+    """Raised when another request currently owns the transaction_id claim."""
+
+
+class TriageProcessingStaleError(RuntimeError):
+    """Raised when a PROCESSING reservation exceeded the stale timeout."""
 
 
 class TriageUseCase:
-    """Coordinates ML inference → confidence-gated action → persistence.
-
-    This use case encapsulates the core business logic:
-      1. Run the classifier on the HTTP request
-      2. Determine action (BLOCKED / THROTTLED / ALLOWED) based on confidence level
-      3. Persist the audit record via the repository interface
-
-    The confidence-gate semantics are:
-      - HIGH confidence + attack class → BLOCKED
-      - MEDIUM confidence → THROTTLED
-      - Otherwise → ALLOWED
-    """
+    """Coordinates deduplication, ML inference, action policy, and persistence."""
 
     def __init__(
         self,
         classifier: IClassifier,
         repository: ITrafficLogRepository,
+        stale_processing_timeout_seconds: int = 30,
     ):
         self._classifier = classifier
         self._repository = repository
+        self._stale_processing_timeout_seconds = stale_processing_timeout_seconds
 
     async def execute(
         self,
         http_request: str,
         source_ip: str,
     ) -> TriageResult:
-        """Run the full triage pipeline and persist the result."""
-        # Step 1 — ML inference
-        result = await run_in_threadpool(self._classifier.predict, http_request)
+        """Legacy execute path used by the existing prediction endpoint."""
+        prediction = await self._predict(http_request)
+        action_taken = self._action_for(
+            prediction=prediction["prediction"],
+            confidence_level=prediction["confidence_level"],
+        )
+        saved = await self._repository.save(
+            TrafficLogEntity(
+                source_ip=source_ip,
+                http_request=http_request,
+                prediction=prediction["prediction"],
+                confidence=prediction["confidence"],
+                confidence_level=prediction["confidence_level"],
+                inference_latency_ms=prediction.get("inference_latency_ms"),
+                model_version=prediction.get("model_version"),
+                action_taken=action_taken,
+            )
+        )
+        return self._result_from_entity(saved)
 
-        # Step 2 — Confidence-gated action decision
-        if result["confidence_level"] == "HIGH" and result["class"] != "Normal":
-            action_taken = "BLOCKED"
-        elif result["confidence_level"] == "MEDIUM":
-            action_taken = "THROTTLED"
-        else:
-            action_taken = "ALLOWED"
+    async def ingest(self, command: TriageIngestCommand) -> TriageResult:
+        claimed = await self._repository.claim_processing(
+            TrafficLogEntity(
+                transaction_id=command.transaction_id,
+                timestamp=command.timestamp,
+                source_ip=command.source_ip,
+                request_path=command.request_uri,
+                request_method=command.request_method,
+                http_request=self._build_persisted_http_request(command),
+                crs_score=command.crs_score,
+                crs_rule_ids=command.crs_rule_ids,
+                status="PROCESSING",
+            )
+        )
+        if not claimed:
+            existing = await self._repository.get_by_transaction_id(command.transaction_id)
+            if existing is None:
+                raise RuntimeError(
+                    "transaction_id claim was lost but the existing row could not be loaded"
+                )
+            if existing.status == "COMPLETED":
+                return self._result_from_entity(existing)
+            if existing.status == "PROCESSING":
+                if self._is_stale(existing):
+                    raise TriageProcessingStaleError(
+                        "Triage reservation is stale; retry shortly"
+                    )
+                raise TriageInProgressError(
+                    "Triage ingest is already processing for this transaction_id"
+                )
+            raise RuntimeError(
+                f"Unsupported triage reservation status '{existing.status}' for transaction_id"
+            )
 
-        # Step 3 — Persist audit record via repository
-        entity = TrafficLogEntity(
-            source_ip=source_ip,
-            http_request=http_request,
-            prediction=result["class"],
-            confidence=result["confidence"],
-            confidence_level=result["confidence_level"],
+        prediction = await self._predict(command.http_request)
+        action_taken = self._action_for(
+            prediction=prediction["prediction"],
+            confidence_level=prediction["confidence_level"],
+        )
+        saved = await self._repository.complete_processing(
+            command.transaction_id,
+            prediction=prediction["prediction"],
+            confidence=prediction["confidence"],
+            confidence_level=prediction["confidence_level"],
+            inference_latency_ms=prediction.get("inference_latency_ms"),
+            model_version=prediction.get("model_version"),
             action_taken=action_taken,
         )
-        # TODO: Consider exposing the saved entity ID in TriageResult for future
-        # feedback linking (e.g., client can reference the audit record directly).
-        # Currently the return value is ignored - uncomment below when needed:
-        # saved_entity = await self._repository.save(entity)
-        await self._repository.save(entity)
+        return self._result_from_entity(saved)
 
+    async def _predict(self, http_request: str) -> dict:
+        if self._classifier is None or not getattr(self._classifier, "loaded", True):
+            raise ModelNotReadyError("Model service is unavailable or not ready")
+
+        raw_result = await run_in_threadpool(self._classifier.predict, http_request)
+        prediction = raw_result.get("prediction") or raw_result.get("class")
+        confidence_level = (
+            raw_result.get("confidence_level") or raw_result.get("confidence_tier")
+        )
+        model_version = raw_result.get("model_version") or getattr(
+            self._classifier,
+            "model_version",
+            None,
+        )
+        return {
+            "prediction": prediction,
+            "confidence": float(raw_result["confidence"]),
+            "confidence_level": confidence_level,
+            "inference_latency_ms": raw_result.get("inference_latency_ms"),
+            "model_version": model_version,
+        }
+
+    @staticmethod
+    def _action_for(*, prediction: str, confidence_level: str) -> str:
+        if confidence_level == "HIGH" and prediction != "Normal":
+            return "BLOCKED"
+        if confidence_level == "MEDIUM":
+            return "THROTTLED"
+        return "ALLOWED"
+
+    @staticmethod
+    def _build_persisted_http_request(command: TriageIngestCommand) -> str:
+        # Retention decision: request_headers and request_body are accepted for
+        # ingest fidelity but folded into the single http_request column.
+        header_lines = "\n".join(
+            f"{key}: {value}" for key, value in command.request_headers.items()
+        )
+        parts = [command.http_request]
+        if header_lines:
+            parts.append(f"\nHeaders:\n{header_lines}")
+        if command.request_body:
+            parts.append(f"\nBody:\n{command.request_body}")
+        return "".join(parts)
+
+    def _is_stale(self, entity: TrafficLogEntity) -> bool:
+        if entity.created_at is None:
+            return False
+        created_at = entity.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(timezone.utc) - created_at).total_seconds()
+        return age_seconds > self._stale_processing_timeout_seconds
+
+    @staticmethod
+    def _result_from_entity(entity: TrafficLogEntity) -> TriageResult:
         return TriageResult(
-            class_label=result["class"],
-            confidence=result["confidence"],
-            confidence_level=result["confidence_level"],
-            action_taken=action_taken,
+            alert_id=entity.id,
+            prediction=entity.prediction or "Normal",
+            confidence=entity.confidence or 0.0,
+            confidence_level=entity.confidence_level or "LOW",
+            action_taken=entity.action_taken or "ALLOWED",
+            model_version=entity.model_version,
         )

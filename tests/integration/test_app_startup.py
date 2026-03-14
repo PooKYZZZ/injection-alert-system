@@ -1,7 +1,9 @@
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from web_app.config import Settings
@@ -10,6 +12,7 @@ from web_app.presentation import app as app_module
 from web_app.presentation.app import create_app
 from web_app.presentation.api.routes import get_model_service
 from web_app.infrastructure.database import get_db
+from web_app.infrastructure.database.database import TrafficLog
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 
@@ -50,6 +53,44 @@ class FakeModelHealthService:
         }
 
 
+class FakeTriageModelService(FakeModelHealthService):
+    def __init__(self, *, loaded: bool = True):
+        super().__init__(
+            model_version="triage-model-v1",
+            loaded=loaded,
+            is_mock=False,
+        )
+        self.predict_calls = 0
+
+    def predict(self, http_request: str):
+        self.predict_calls += 1
+        return {
+            "prediction": "SQL Injection",
+            "confidence": 0.91,
+            "confidence_tier": "HIGH",
+            "inference_latency_ms": 4.2,
+            "model_version": self.model_version,
+        }
+
+
+def _triage_payload(transaction_id: str) -> dict:
+    return {
+        "transaction_id": transaction_id,
+        "timestamp": "2026-03-15T08:00:00Z",
+        "source_ip": "203.0.113.55",
+        "request_method": "POST",
+        "request_uri": "/login",
+        "request_headers": {
+            "Host": "lares.test",
+            "User-Agent": "pytest",
+        },
+        "request_body": "username=admin&password=pass",
+        "http_request": "POST /login HTTP/1.1",
+        "crs_score": 9,
+        "crs_rule_ids": ["942100", "942110"],
+    }
+
+
 @pytest.fixture
 def api_client():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -77,6 +118,12 @@ def api_client():
     app.dependency_overrides.clear()
     import asyncio
     asyncio.run(engine.dispose())
+
+
+async def _count_traffic_logs(session_factory) -> int:
+    async with session_factory() as session:
+        result = await session.execute(select(func.count(TrafficLog.id)))
+        return int(result.scalar_one())
 
 
 def test_startup_fails_fast_when_artifact_missing_in_production(
@@ -366,3 +413,268 @@ def test_auth_api_health_endpoint_is_public(api_client):
     response = client.get("/api/health")
 
     assert response.status_code == 200
+
+
+def test_triage_missing_token_returns_401(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.post("/api/triage", json=_triage_payload("txn-auth-missing"))
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_triage_valid_token_allows_ingest(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    service = FakeTriageModelService()
+    client.app.state.model_service = service
+    client.app.state.model = service
+
+    response = client.post(
+        "/api/triage",
+        json=_triage_payload("txn-auth-valid"),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["prediction"] == "SQL Injection"
+    assert service.predict_calls == 1
+
+
+def test_triage_returns_503_when_model_not_ready(api_client):
+    client, _, init_tables = api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    service = FakeTriageModelService(loaded=False)
+    client.app.state.model_service = service
+    client.app.state.model = service
+
+    response = client.post(
+        "/api/triage",
+        json=_triage_payload("txn-model-down"),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Model service is unavailable or not ready"
+    assert service.predict_calls == 0
+
+
+def test_triage_duplicate_ingest_is_idempotent(api_client):
+    client, session_factory, init_tables = api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    service = FakeTriageModelService()
+    client.app.state.model_service = service
+    client.app.state.model = service
+
+    first = client.post(
+        "/api/triage",
+        json=_triage_payload("txn-dup-1"),
+        headers=INTERNAL_HEADERS,
+    )
+    second = client.post(
+        "/api/triage",
+        json=_triage_payload("txn-dup-1"),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["alert_id"] == second.json()["alert_id"]
+    assert first.json() == second.json()
+    assert service.predict_calls == 1
+    assert asyncio.run(_count_traffic_logs(session_factory)) == 1
+
+
+def test_triage_processing_row_returns_409_with_retry_after(api_client):
+    client, session_factory, init_tables = api_client
+    import asyncio
+
+    async def _seed_processing() -> None:
+        await init_tables()
+        async with session_factory() as session:
+            session.add(
+                TrafficLog(
+                    transaction_id="txn-processing-1",
+                    created_at=datetime.now(timezone.utc),
+                    timestamp=datetime.now(timezone.utc),
+                    source_ip="203.0.113.55",
+                    request_path="/login",
+                    request_method="POST",
+                    http_request="POST /login HTTP/1.1",
+                    crs_score=9,
+                    crs_rule_ids=["942100"],
+                    status="PROCESSING",
+                )
+            )
+            await session.commit()
+
+    asyncio.run(_seed_processing())
+    service = FakeTriageModelService()
+    client.app.state.model_service = service
+    client.app.state.model = service
+
+    response = client.post(
+        "/api/triage",
+        json=_triage_payload("txn-processing-1"),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 409
+    assert response.headers["Retry-After"] == "5"
+    assert service.predict_calls == 0
+
+
+def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
+    client, session_factory, init_tables = api_client
+    import asyncio
+
+    async def _seed_stale_processing() -> None:
+        await init_tables()
+        async with session_factory() as session:
+            session.add(
+                TrafficLog(
+                    transaction_id="txn-stale-1",
+                    created_at=datetime.now(timezone.utc) - timedelta(seconds=31),
+                    timestamp=datetime.now(timezone.utc),
+                    source_ip="203.0.113.55",
+                    request_path="/login",
+                    request_method="POST",
+                    http_request="POST /login HTTP/1.1",
+                    crs_score=9,
+                    crs_rule_ids=["942100"],
+                    status="PROCESSING",
+                )
+            )
+            await session.commit()
+
+    asyncio.run(_seed_stale_processing())
+    service = FakeTriageModelService()
+    client.app.state.model_service = service
+    client.app.state.model = service
+
+    response = client.post(
+        "/api/triage",
+        json=_triage_payload("txn-stale-1"),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "5"
+    assert service.predict_calls == 0
+
+
+def test_processing_placeholder_rows_do_not_appear_in_alerts(api_client):
+    client, session_factory, init_tables = api_client
+    import asyncio
+
+    async def _seed_rows() -> None:
+        await init_tables()
+        async with session_factory() as session:
+            session.add_all(
+                [
+                    TrafficLog(
+                        transaction_id="txn-completed-visible",
+                        created_at=datetime.now(timezone.utc),
+                        timestamp=datetime.now(timezone.utc),
+                        source_ip="203.0.113.10",
+                        request_path="/visible",
+                        request_method="GET",
+                        http_request="GET /visible HTTP/1.1",
+                        prediction="Normal",
+                        confidence=0.44,
+                        confidence_level="LOW",
+                        action_taken="ALLOWED",
+                        status="COMPLETED",
+                    ),
+                    TrafficLog(
+                        transaction_id="txn-processing-hidden",
+                        created_at=datetime.now(timezone.utc),
+                        timestamp=datetime.now(timezone.utc),
+                        source_ip="203.0.113.11",
+                        request_path="/hidden",
+                        request_method="POST",
+                        http_request="POST /hidden HTTP/1.1",
+                        crs_score=9,
+                        crs_rule_ids=["942100"],
+                        status="PROCESSING",
+                    ),
+                ]
+            )
+            await session.commit()
+
+    asyncio.run(_seed_rows())
+
+    response = client.get("/api/alerts?page=1&page_size=20", headers=INTERNAL_HEADERS)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["request_path"] == "/visible"
+
+
+def test_processing_placeholder_rows_do_not_count_in_stats(api_client):
+    client, session_factory, init_tables = api_client
+    import asyncio
+
+    async def _seed_rows() -> None:
+        await init_tables()
+        async with session_factory() as session:
+            session.add_all(
+                [
+                    TrafficLog(
+                        transaction_id="txn-stats-visible",
+                        created_at=datetime.now(timezone.utc),
+                        timestamp=datetime.now(timezone.utc),
+                        source_ip="203.0.113.12",
+                        request_path="/stats-visible",
+                        request_method="GET",
+                        http_request="GET /stats-visible HTTP/1.1",
+                        prediction="SQL Injection",
+                        confidence=0.92,
+                        confidence_level="HIGH",
+                        inference_latency_ms=2.5,
+                        action_taken="BLOCKED",
+                        status="COMPLETED",
+                    ),
+                    TrafficLog(
+                        transaction_id="txn-stats-hidden",
+                        created_at=datetime.now(timezone.utc),
+                        timestamp=datetime.now(timezone.utc),
+                        source_ip="203.0.113.13",
+                        request_path="/stats-hidden",
+                        request_method="POST",
+                        http_request="POST /stats-hidden HTTP/1.1",
+                        crs_score=8,
+                        crs_rule_ids=["942110"],
+                        status="PROCESSING",
+                    ),
+                ]
+            )
+            await session.commit()
+
+    asyncio.run(_seed_rows())
+
+    response = client.get("/api/stats", headers=INTERNAL_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_requests": 1,
+        "counts_by_label": {
+            "SQL Injection": 1,
+            "Code Injection": 0,
+            "Other Attacks": 0,
+            "Normal": 0,
+        },
+        "avg_inference_latency_ms": 2.5,
+    }

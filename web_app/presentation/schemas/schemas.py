@@ -3,6 +3,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+PredictionLabel = Literal[
+    "SQL Injection",
+    "Code Injection",
+    "Other Attacks",
+    "Normal",
+]
+ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH"]
+ActionTaken = Literal["BLOCKED", "THROTTLED", "ALLOWED"]
+
 
 class PredictionRequest(BaseModel):
     """Request schema for prediction endpoint."""
@@ -21,10 +30,32 @@ class PredictionResponse(BaseModel):
             }
         }
     )
-    class_label: str = Field(..., description="Predicted class label")
+    class_label: PredictionLabel = Field(..., description="Predicted class label")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
-    confidence_level: str = Field(..., description="Confidence level (LOW, MEDIUM, HIGH)")
-    action_taken: str = Field(..., description="Action taken in response to the prediction")
+    confidence_level: ConfidenceLevel = Field(..., description="Confidence level (LOW, MEDIUM, HIGH)")
+    action_taken: ActionTaken = Field(..., description="Action taken in response to the prediction")
+
+
+class TriageIngestRequest(BaseModel):
+    transaction_id: str = Field(..., min_length=1)
+    timestamp: datetime
+    source_ip: str = Field(..., min_length=1)
+    request_method: str = Field(..., min_length=1)
+    request_uri: str = Field(..., min_length=1)
+    request_headers: dict[str, str]
+    request_body: str
+    http_request: str = Field(..., min_length=1)
+    crs_score: int
+    crs_rule_ids: list[str]
+
+
+class TriageIngestResponse(BaseModel):
+    alert_id: int = Field(..., ge=1)
+    prediction: PredictionLabel
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    confidence_level: ConfidenceLevel
+    action_taken: ActionTaken
+    model_version: str | None = None
 
 
 class FeedbackRequest(BaseModel):
@@ -41,10 +72,10 @@ class AlertResponse(BaseModel):
     timestamp: datetime
     source_ip: Optional[str] = None
     http_request: str
-    prediction: str
+    prediction: PredictionLabel
     confidence: float
-    confidence_level: str
-    action_taken: Optional[str] = None
+    confidence_level: ConfidenceLevel
+    action_taken: Optional[ActionTaken] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
@@ -75,10 +106,10 @@ class AlertDetailResponse(BaseModel):
     request_path: Optional[str] = None
     request_method: Optional[str] = None
     payload_snippet: str
-    prediction: str
+    prediction: PredictionLabel
     confidence: float
-    confidence_level: str
-    action_taken: Optional[str] = None
+    confidence_level: ConfidenceLevel
+    action_taken: Optional[ActionTaken] = None
     crs_score: Optional[int] = None
 
 
