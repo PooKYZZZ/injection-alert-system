@@ -4,12 +4,15 @@ Generated from ml_model/evaluate.ipynb.
 """
 
 import json
+import logging
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+logger = logging.getLogger(__name__)
 
 LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 NUM_CLASSES = len(LABEL_NAMES)
@@ -34,6 +37,22 @@ def _discover_latest_run(staging_dir: Path, model_key: str) -> Path:
     return candidates[0]
 
 
+def _resolve_run_dir(staging_dir: Path, model_key: str) -> Path:
+    if staging_dir.name.startswith(model_key + "_"):
+        return staging_dir
+    return _discover_latest_run(staging_dir, model_key)
+
+
+def _load_model_id(run_dir: Path, model_key: str) -> str:
+    config_path = run_dir / "config_used.json"
+    if config_path.exists():
+        with config_path.open("r", encoding="utf-8") as handle:
+            model_id = json.load(handle).get("model_id")
+        if isinstance(model_id, str) and model_id.strip():
+            return model_id.strip()
+    return MODEL_IDS[model_key]
+
+
 def _load_temperature(eval_dir: Path, model_key: str) -> float:
     if not eval_dir.exists():
         return 1.0
@@ -51,18 +70,43 @@ def load_model(model_key: str, staging_dir=None, device="cpu"):
     if staging_dir is None:
         staging_dir = Path(__file__).resolve().parent.parent / "model_registry" / "staging"
     staging_dir = Path(staging_dir)
-    run_dir = _discover_latest_run(staging_dir, model_key)
+    run_dir = _resolve_run_dir(staging_dir, model_key)
     ckpt_path = run_dir / f"best_{model_key}_ckpt.pt"
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Missing checkpoint: {ckpt_path}")
+    temperature = _load_temperature(run_dir.parent.parent / "eval", model_key)
 
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_IDS[model_key], num_labels=NUM_CLASSES)
-    state = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    model.load_state_dict(state, strict=True)
-    model.to(device).eval()
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_IDS[model_key])
-    temperature = _load_temperature(staging_dir.parent / "eval", model_key)
-    return model, tokenizer, temperature
+    try:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            run_dir,
+            local_files_only=True,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(
+            run_dir,
+            local_files_only=True,
+        )
+        model.to(device).eval()
+        return model, tokenizer, temperature
+    except (OSError, ValueError) as exc:
+        if not ckpt_path.exists():
+            raise RuntimeError(
+                f"Failed to load local packaged artifact from '{run_dir}' and no compatibility checkpoint exists"
+            ) from exc
+
+        model_id = _load_model_id(run_dir, model_key)
+        logger.warning(
+            "Falling back to checkpoint-based loading for '%s' from '%s': %s",
+            model_key,
+            run_dir,
+            exc,
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_id,
+            num_labels=NUM_CLASSES,
+        )
+        state = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(state, strict=True)
+        model.to(device).eval()
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        return model, tokenizer, temperature
 
 
 def predict_attack(text: str, model, tokenizer, device="cpu", temperature: float = 1.0, return_latency: bool = True):
@@ -96,4 +140,3 @@ def predict_attack(text: str, model, tokenizer, device="cpu", temperature: float
     if return_latency:
         payload["latency_ms"] = round((time.perf_counter() - start) * 1000.0, 3)
     return payload
-
