@@ -14,40 +14,52 @@ Dependency rule:
   - Never imports domain entities directly; communicates through application services
 """
 
+import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.config import get_settings
-from web_app.infrastructure.database import get_db, init_db, TrafficLog
-from web_app.presentation.schemas import HealthResponse
+from web_app.infrastructure.database import TrafficLog, get_db, init_db
 from web_app.presentation.api.routes import router as api_router
-from ml_model.models.mock_model import MockInjectionClassifier
+from web_app.presentation.schemas import HealthResponse
+from web_app.services.model_service import ModelService
 
-
-settings = get_settings()
-
-
-def _create_model() -> MockInjectionClassifier:
-    """Create and return the singleton injection classifier.
-
-    This will be replaced with a real model loader that reads from
-    model_registry/production/ once the trained model is available.
-    """
-    return MockInjectionClassifier()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
-    # Startup — initialize DB tables and singleton model
+    settings = get_settings()
+    configured_path = settings.model_registry_path.strip()
+    registry_exists = bool(configured_path) and Path(configured_path).expanduser().exists()
+
     await init_db()
-    app.state.model = _create_model()
+
+    if not registry_exists:
+        if settings.is_development or settings.is_testing:
+            logger.warning(
+                "MODEL_REGISTRY_PATH not found — using mock ModelService (configured path: %s)",
+                configured_path or "<unset>",
+            )
+            app.state.model_service = ModelService.create_mock()
+        else:
+            raise RuntimeError(
+                f"MODEL_REGISTRY_PATH '{configured_path or '<unset>'}' "
+                "not found. Set a valid path or enable IS_DEVELOPMENT=true."
+            )
+    else:
+        app.state.model_service = ModelService(settings)
+        logger.info("ModelService loaded: %s", app.state.model_service.model_version)
+
+    # Preserve the legacy dependency until routes are migrated to model_service.
+    app.state.model = app.state.model_service
     yield
-    # Shutdown (cleanup if needed)
 
 
 async def health_check(db: AsyncSession = Depends(get_db)):
@@ -62,6 +74,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
 def create_app() -> FastAPI:
     """Application factory — the single place where FastAPI is configured."""
+    settings = get_settings()
     app = FastAPI(
         title="Injection Alert Classification System",
         description="API for classifying HTTP requests as normal or injection attacks",
