@@ -2,6 +2,10 @@
 
 **Date:** February 09, 2026
 
+> Status note (2026-03-14): This file is preserved as an academic feasibility and design document.
+> It intentionally includes planned capabilities and target architecture. For current repo truth,
+> use `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`.
+
 ---
 
 ## Team Composition
@@ -140,26 +144,20 @@ To design and implement a confidence-calibrated deep learning triage system that
   - Single-request inference latency: <100ms on target CPU hardware
 
 ### 3. Web Application Development
-- Develop FastAPI backend with RESTful endpoints:
-  - `/api/predict`: Classify single HTTP request
-  - `/api/batch-predict`: Classify multiple requests (max 100 per batch)
-  - `/api/alerts`: Retrieve paginated alert history
-  - `/api/feedback`: Store analyst corrections for retraining
-  - `/api/stats`: Display attack statistics
-  - `/api/explain`: Generate LLM-based explanation for classified attack (batch-limited to control API costs)
-- Integrate an external cloud-managed Supabase (PostgreSQL) database accessed via standard connection strings for traffic logging (fields: timestamp, source_ip, http_request, prediction, confidence, confidence_level, action_taken, analyst_label)
-- Implement a comprehensive web dashboard using Next.js 15 (App Router) and TypeScript 5.x, spanning 11 functional views (e.g., SOC Dashboard, Alert History, ML Health, Audit Trail, Administrative Settings) for real-time attack visualization and analyst workflow management
-- Enforce a strict frontend security architecture leveraging Next.js API route handlers to proxy all requests to the FastAPI backend and Groq LLM API, ensuring the browser never communicates directly with internal ML or database services
-- Implement role-based access control (Analyst and Admin roles) utilizing NextAuth.js v5 with JWTs securely stored in httpOnly cookies
-- Mitigate DOM-based cross-site scripting (XSS) risks by rendering all intercepted attack payloads exclusively within safe code formatting blocks (`<pre><code>`) rather than allowing raw DOM insertion
-- Integrate lightweight LLM (e.g., Groq API with Llama 3.1 8B) for generating human-readable attack explanations:
-  - Rate-limited to 1–2 minutes between batch explanations or max 100 attacks per request
-  - Example output: "This request contains SQL injection attempting to bypass authentication via UNION-based payload"
-  - PII sanitization applied before sending to LLM API
-  - **Note:** LLM integration is a non-critical stretch goal; fallback is template-based explanations using attack class and confidence level
+- Proposed web-application scope for the study:
+  - FastAPI backend with RESTful endpoints for single-request prediction, alert retrieval, analyst feedback capture, aggregate statistics, and optional explanation services
+  - Additional endpoints such as batch prediction, statistics, and explanation generation are design targets for the full platform and should not be interpreted as all being implemented in the current repository snapshot
+- Integrate a cloud-managed Supabase (PostgreSQL) database, or an equivalent PostgreSQL deployment, for traffic logging and analyst feedback using fields such as timestamp, source IP, HTTP request, prediction, confidence, confidence level, action taken, and analyst label
+- Implement a Next.js 15 and TypeScript dashboard spanning multiple analyst and administrative views for alert review, system monitoring, and operational oversight
+- Enforce a frontend security architecture leveraging Next.js API route handlers to proxy all browser requests to backend services and optional LLM providers, ensuring the browser never communicates directly with internal ML or database services
+- Implement role-based access control (Analyst and Admin roles) using NextAuth.js v5 with JWTs securely stored in httpOnly cookies
+- Mitigate DOM-based cross-site scripting (XSS) risks by rendering intercepted attack payloads exclusively within safe code formatting blocks (`<pre><code>`) rather than allowing raw DOM insertion
+- Integrate a lightweight LLM for human-readable attack explanations as a non-critical stretch goal:
+  - Rate-limited and batch-limited to control API costs
+  - Used only after payload sanitization and with a template-based fallback if unavailable
 
 ### 4. Automated Response System and Hybrid Enforcement Policy
-- Implement confidence-based mitigation actions:
+- Proposed confidence-based mitigation actions for the target deployment:
   - **LOW confidence (<50%):** Light rate limiting (100 req/min), logging for analysis
   - **MEDIUM confidence (50–80%):** Aggressive throttling (20 req/min), mandatory captcha for browser-based sessions, dashboard alerts with analyst notification
   - **HIGH confidence (>80%):** Temporary IP blocking (1-hour default, configurable), firewall rule enforcement, real-time security notifications
@@ -177,12 +175,12 @@ The system implements a layered enforcement hierarchy in which CRS remains the p
 
 #### Automation Safeguards
 
-All automated mitigation actions are subject to the following safeguards:
+In the target deployment, all automated mitigation actions are subject to the following safeguards:
 
 | Safeguard | Implementation |
 |-----------|---------------|
 | **Time-bounded blocks** | HIGH-confidence IP blocks are temporary (default: 1 hour) and automatically expire; duration is configurable by administrators |
-| **Full audit logging** | Every automated action (rate limit, throttle, block) is logged to PostgreSQL with timestamp, source IP, confidence score, action taken, and expiration time |
+| **Full audit logging** | Every automated action (rate limit, throttle, block) is intended to be logged to PostgreSQL with timestamp, source IP, confidence score, action taken, and expiration time |
 | **No permanent rule modification** | Automated actions do not modify CRS rules, ModSecurity configuration, or firewall policies permanently; all changes are ephemeral and reversible |
 | **Administrator override** | Administrators can manually unblock IPs, adjust confidence thresholds, or disable automated responses at any time via the dashboard |
 | **Rollback capability** | All time-bounded actions include automatic expiration; manual rollback is available for any action through the admin interface |
@@ -220,10 +218,11 @@ The operational value of confidence-tiered alert response is supported by prior 
 **Calibration:** Calibration evaluation will be performed using 10-bin reliability diagrams and Expected Calibration Error (ECE) computed on the validation set prior to threshold deployment. Calibration assessment will be conducted before any automated response rules are finalized, ensuring that confidence tiers reflect statistically meaningful probability estimates rather than raw softmax outputs (Guo et al., 2017). If model calibration is poor (e.g., overconfident on wrong predictions), temperature scaling or Platt scaling will be applied to ensure softmax probabilities are meaningful.
 
 ### 5. ModSecurity Integration
-- Integrate with OWASP ModSecurity v3.0+ (maintained by OWASP since Trustwave EOL in July 2024) and OWASP Core Rule Set (CRS) v4.x
-- Develop log bridge to parse ModSecurity audit.log and feed HTTP requests to ML model
-- Implement hybrid enforcement logic where CRS anomaly scores trigger the triage pipeline and ML confidence determines mitigation intensity
-- Deploy via Docker Compose on a single Ubuntu cloud VM utilizing a structured three-container architecture: ModSecurity and Nginx act as the sole internet-facing entry point (Container 1), inspecting all inbound traffic before proxying requests securely to the FastAPI application (Container 2) and Next.js frontend (Container 3) running on isolated internal networks
+- Proposed WAF integration path:
+  - Integrate with OWASP ModSecurity v3.0+ and OWASP Core Rule Set (CRS) v4.x
+  - Develop a log bridge to parse ModSecurity audit logs and feed flagged HTTP requests to the ML model
+  - Implement hybrid enforcement logic where CRS anomaly scores trigger the triage pipeline and ML confidence determines mitigation intensity
+  - Target deployment architecture uses Docker Compose on Ubuntu with a three-service layout in which ModSecurity and Nginx are the sole internet-facing entry point, proxying traffic to FastAPI and Next.js services on internal networks
 
 ### 6. Retraining Pipeline
 - Implement 20-day automated retraining pipeline:
@@ -245,7 +244,8 @@ Retraining will be triggered only if the minimum labeled-sample threshold is met
 This is further supported by security-specific research demonstrating that ML-based intrusion detection systems experience concept drift within days to weeks as attack patterns evolve, necessitating continuous adaptation strategies rather than static deployment (Kuppa & Le-Khac, 2022).
 
 ### 7. Deployment Automation and Response Orchestration
-- Develop pre-written Ansible playbooks for infrastructure tasks:
+- Proposed deployment automation scope:
+  - Develop pre-written Ansible playbooks for infrastructure tasks
   - Initial Ubuntu VM provisioning and Docker Compose environment setup (three-container stack: ModSecurity + Nginx + OWASP CRS, FastAPI + PyTorch models, Next.js 15 frontend) — replacing manual service-by-service installation
   - Temporary IP blocking/unblocking operations (time-bounded, auto-expiring)
   - Rate-limiting adjustments
@@ -255,13 +255,13 @@ This is further supported by security-specific research demonstrating that ML-ba
   - **Stage 2 (PD1):** Cloud VM deployment utilizing a high-efficiency model (e.g., MiniLM-L6) with ModSecurity in DetectionOnly mode for safe initial demonstration
   - **Stage 3 (PD2):** Full-capacity cloud deployment utilizing the optimal model with ModSecurity operating in Enforcement mode and full Ansible automation enabled
   - **Stage 4 (Handoff):** Final deployment seamlessly transitioning the Docker environment directly to LARES infrastructure
-- Implement Python orchestration layer in FastAPI that:
+- Implement a Python orchestration layer in FastAPI that:
   - Loads the trained PyTorch model for inference
   - Classifies incoming HTTP requests
   - Triggers appropriate Ansible playbooks based on confidence level
   - Example: HIGH confidence attack → call Ansible playbook for temporary IP block (1-hour default)
 - Implement SSL termination setup for secure HTTPS connections on the Nginx internet-facing container
-- Create installation documentation for target client (DICT)
+- Create installation documentation for target client (LARES)
 
 ### 8. Testing and Evaluation
 - Conduct unit testing for preprocessing, model prediction, and API endpoints
@@ -506,9 +506,11 @@ Preliminary empirical results from PD1 training are now available (see Prelimina
 
 ## Deployment & Automation
 
+This section describes the intended deployment architecture for the completed capstone system. It should be read as a target-state deployment plan, not as a claim that every deployment component is already present in the current repository.
+
 ### Deployment Architecture
 - Ubuntu Server with Nginx reverse proxy
-- FastAPI application managed via systemd services
+- FastAPI application managed via systemd services or containerized deployment
 - PostgreSQL database for traffic logging, audit trails, and analyst feedback
 - ModSecurity v3.0+ with OWASP CRS v4.x as the primary WAF layer
 - SSL via Let's Encrypt for HTTPS connections
@@ -523,7 +525,7 @@ Pre-written Ansible playbooks will automate the following infrastructure tasks:
 All playbook-triggered actions are reversible and time-bounded. No Ansible playbook modifies CRS rules, ModSecurity configuration files, or permanent firewall policies.
 
 ### Python Orchestration Layer
-The FastAPI backend implements an orchestration layer that:
+The completed FastAPI backend is intended to implement an orchestration layer that:
 - Loads the trained PyTorch model for inference
 - Classifies incoming HTTP requests
 - Triggers appropriate Ansible playbooks based on confidence level (e.g., HIGH confidence attack triggers temporary IP block playbook)
@@ -558,13 +560,15 @@ This is further supported by security-specific research demonstrating that ML-ba
 
 ## Testing & Evaluation
 
+The testing items below describe the planned evaluation matrix for the capstone system. In the current repository snapshot, only a subset of these tests is implemented end to end.
+
 ### Unit Testing
 - Preprocessing functions (URL decoding, tokenization, padding)
 - Model prediction pipeline (input → inference → confidence classification)
 - API endpoint correctness (request/response format, error handling)
 
 ### Integration Testing
-- End-to-end classification workflow: HTTP request → ModSecurity log → ML inference → confidence tier → mitigation action
+- End-to-end classification workflow target: HTTP request → ModSecurity log → ML inference → confidence tier → mitigation action
 - Database logging integrity and audit trail completeness
 - Analyst feedback loop validation
 - Automation safeguard verification (time-bounded expiration, rollback capability)
@@ -576,7 +580,7 @@ This is further supported by security-specific research demonstrating that ML-ba
 
 ### Performance Validation
 - Inference latency profiling under load
-- End-to-end pipeline latency measurement (ModSecurity parsing → ML inference → database logging → response orchestration)
+- End-to-end pipeline latency measurement target (ModSecurity parsing → ML inference → database logging → response orchestration)
 - Database query optimization verification
 
 While isolated transformer inference can achieve low latency under optimized conditions, total end-to-end pipeline latency will be measured empirically during system testing. No deterministic latency guarantee is assumed prior to profiling under simulated traffic load.
@@ -603,6 +607,8 @@ While isolated transformer inference can achieve low latency under optimized con
 ---
 
 ## Project Timeline (36 Weeks)
+
+The schedule below is the original feasibility-phase project plan. It is preserved for proposal traceability and should not be treated as a current progress report.
 
 | Phase | Weeks | Tasks | Owner | Documentation Deliverable |
 |-------|-------|-------|-------|---------------------------|
@@ -650,6 +656,8 @@ Data Preparation → Model Training → Backend Integration → ModSecurity Inte
 ---
 
 ## Hardware & Software Requirements
+
+The following requirements describe the intended training and deployment environment for the full system, not a guarantee that each infrastructure component is already provisioned in the present repository.
 
 ### Training Hardware
 | Component | Requirement | Available Resource |

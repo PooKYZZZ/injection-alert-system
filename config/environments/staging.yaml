@@ -2,7 +2,7 @@
 # Purpose: Pre-production validation — mirrors production config with test data.
 # DB: PostgreSQL (dedicated staging schema)
 # WAF: ModSecurity in Enforcement mode (CRS rules active)
-# ML Model: loads from model_registry/staging/ (promotion candidate under evaluation)
+# ML Model: loads from ml_model/model_registry/staging/ (promotion candidate under evaluation)
 # Logging: INFO level, file + stdout
 # Confidence Gate: enabled at reduced threshold for validation metrics collection
 

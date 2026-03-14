@@ -2,7 +2,7 @@
 # Purpose: Live system serving real traffic. All enforcement active.
 # DB: PostgreSQL (production database, full audit logging enabled)
 # WAF: ModSecurity in Enforcement mode (CRS rules + ML confidence gate active)
-# ML Model: loads ONLY from model_registry/production/ (validated, signed artifact)
+# ML Model: loads ONLY from ml_model/model_registry/production/ (validated, signed artifact)
 # Logging: WARNING level, structured JSON to file, audit log to separate append-only table
 # Confidence Gate: enabled at full threshold — LOW confidence triggers human review queue
 

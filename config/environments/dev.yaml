@@ -2,7 +2,7 @@
 # Purpose: Local development and unit testing on developer workstations.
 # DB: SQLite or local PostgreSQL (port 5432, db: injection_dev)
 # WAF: ModSecurity in DetectionOnly mode (no enforcement)
-# ML Model: loads from model_registry/staging/ (latest trained, not production-promoted)
+# ML Model: loads from ml_model/model_registry/staging/ (latest trained, not production-promoted)
 # Logging: DEBUG level, stdout only
 # Confidence Gate: disabled (all requests logged, none auto-blocked)
 

@@ -106,7 +106,7 @@ seed: 42
 # BERT-base runs seed 42 only for the primary 3-way model comparison.
 
 # ── Artifacts ─────────────────────────────────────────────────────────────────
-registry_base: "../model_registry/staging"
+registry_base: "ml_model/model_registry/staging"
 run_dir_pattern: "{model_key}_{dataset_version}_{timestamp}"
 artifacts:
   checkpoint:    "checkpoint/"        # model.save_pretrained() + tokenizer.save_pretrained()

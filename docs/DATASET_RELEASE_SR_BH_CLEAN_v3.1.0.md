@@ -1,5 +1,10 @@
 # Dataset Release: SRBH_clean_v3.1.0
 
+Status note
+-----------
+This file is a dataset release note. It documents the cleaned dataset snapshot and its provenance.
+Current application/runtime status is tracked separately in `docs/CONTEXT.md`.
+
 Summary
 -------
 - **Dataset**: SRBH_clean_v3.1.0
@@ -52,6 +57,10 @@ Recommended next steps
 - Retain a copy of the pre-cap dataset snapshot if you want to analyze scanner traffic
   separately.
 
+Current repo limitation
+-----------------------
+- The release artifacts are current, but the preprocessing scripts are still developer-workstation oriented and are not yet fully repo-relative for general reruns.
+
 Contact
 -------
-For questions about the preprocessing choices, see `docs/DATASET_PIPELINE_DESIGN.md` or contact the dataset maintainers in the repository.
+For questions about preprocessing choices, inspect `data/clean_907k.py`, `data/dataset_audit.py`, and the baseline summary in `docs/DATASET_BASELINE_SR_BH_v3.1.0.md`.

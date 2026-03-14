@@ -1,275 +1,187 @@
-# Injection Alert System — Local Setup Guide (updated)
+# Local Setup
 
-This document shows the commands I ran on Windows/PowerShell to get the app running locally. It focuses on a practical, working dev setup (backend on port 8000, frontend on port 3000). Where useful I note alternatives (nvm, Docker) and common Windows issues I encountered.
+Last updated: 2026-03-14
 
-Quick summary: backend runs on port `8000`, frontend runs on `3000`. For UI-only work set `USE_MOCK_STATS=true` in `frontend/.env.local`.
+This guide reflects the repo as it exists now. It supports local backend and frontend development. It does not assume Docker Compose, ModSecurity, Redis, or Supabase are already wired in this repository.
 
----
+## Prerequisites
 
-**Prerequisites**
+- Windows PowerShell
+- Python 3.10+
+- Node.js 20+
+- npm
 
-- Git (https://git-scm.com/)
-- Python 3.11+ (https://www.python.org/)
-- Node.js (LTS) — on Windows you can use `nvm-windows` or `winget` (I installed via `winget` in these steps)
-- (Optional) VS Code and Windows Terminal
-
----
-
-## 1) Clone the repository
-
-Open PowerShell and run:
+## 1. Clone And Enter The Repo
 
 ```powershell
-# replace the URL with your repo remote
-git clone https://github.com/your-org/injection-alert-system.git
+git clone <your-remote-url>
 cd injection-alert-system
 ```
 
----
+## 2. Backend Setup
 
-## 2) Backend (FastAPI) setup — practical steps
-
-The backend lives in `web_app/` and uses FastAPI. On Windows I performed these steps.
-
-1) Create a Python virtual environment
+### Create a virtual environment
 
 ```powershell
 python -m venv .venv
-# Activate in PowerShell
 .venv\Scripts\Activate.ps1
-# If activation is blocked by execution policy, run once as admin (or use the CurrentUser scope):
-# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-Note: if you prefer not to change execution policy, you can run the venv Python directly via `.venv\Scripts\python.exe -m pip ...` for installs and checks.
+If PowerShell blocks activation, either adjust execution policy for the current user or call the venv executables directly.
 
-2) Create `.env` from the example and apply quick dev settings
+### Install Python dependencies
 
 ```powershell
-Copy-Item .env.example .env
-notepad .env   # or open in your editor
+.venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-Recommended local `.env` values for quick dev work:
+### Create `.env`
 
-```
+The backend currently reads settings from `.env`. A minimal local development file looks like this:
+
+```dotenv
 DATABASE_URL=sqlite+aiosqlite:///./dev.db
 APP_ENV=development
-LOG_LEVEL=DEBUG
+LOG_LEVEL=INFO
 MODEL_PATH=ml_model/models/mock_model.py
-API_SECRET_KEY=local_insecure_key
+MODEL_REGISTRY_PATH=
+API_SECRET_KEY=local-dev-secret
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
 ```
 
-3) Install Python dependencies
+Notes:
 
-The repository `requirements.txt` includes large ML packages (torch, transformers, onnx, onnxruntime) which can take time to download and install on Windows. If you only need the frontend/UI, you can skip this step and keep `USE_MOCK_STATS=true` in `frontend/.env.local`.
+- `MODEL_PATH` still exists in config for compatibility.
+- `MODEL_REGISTRY_PATH` controls the real runtime model service.
+- If `MODEL_REGISTRY_PATH` is empty or missing in development, startup falls back to the mock model service with a warning.
+- If you want the real staged model, use an explicit run directory such as:
 
-To install into the venv (recommended):
-
-```powershell
-.venv\Scripts\pip.exe install -r requirements.txt
+```dotenv
+MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
 ```
 
-If you run into permission/execution-policy issues when activating the venv, use the fully-qualified `python`/`pip` under `.venv\Scripts` as shown above.
-
-4) Initialize DB & run the app
-
-The application creates DB tables on first startup when `init_db()` runs. Start the backend with:
+### Run tests
 
 ```powershell
-cd .
-.venv\Scripts\uvicorn.exe web_app.presentation.app:app --reload --port 8000
+.venv\Scripts\python.exe -m pytest -q
 ```
 
-Verify the health endpoint:
+As of 2026-03-14, this passes with `42` tests.
+
+### Start the backend
 
 ```powershell
-curl http://localhost:8000/health
+uvicorn web_app.presentation.app:create_app --reload
 ```
 
----
+Backend entrypoint:
 
-## 3) Frontend (Next.js) setup — practical steps I used
+- `http://localhost:8000/health`
+- `http://localhost:8000/api/health`
 
-The frontend is in `frontend/` and uses Next.js (App Router) + TypeScript.
+Current API surface:
 
-1) Install Node.js
+- `POST /api/predict`
+- `GET /api/alerts`
+- `POST /api/feedback`
 
-On Windows I used `winget` to install the Node LTS distribution:
+## 3. Frontend Setup
 
-```powershell
-winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
-```
-
-If you use `nvm-windows` instead, the older instructions remain valid. After installing Node, ensure `npm` is callable. On PowerShell you may need to relax the execution policy for the current user to allow `npm` scripts to run:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-```
-
-2) Create or edit the frontend env file
-
-```powershell
-cd frontend
-Copy-Item .env.example .env.local  # if not already present
-notepad .env.local
-```
-
-Important `frontend/.env.local` values (examples):
-
-- `AUTH_SECRET`: generate a secret (`npx auth secret` or `openssl rand -hex 32`).
-- `DEMO_USERNAME` / `DEMO_PASSWORD` (I used `demo` / `demo1234` in testing).
-- `FASTAPI_BASE_URL`: set to `http://localhost:8000` for local full-stack.
-- `INTERNAL_API_KEY`: set to match backend `API_SECRET_KEY` if server->server calls are used.
-- `USE_MOCK_STATS=true` to use local mock data and avoid calling the backend for stats.
-
-Note: in my run the repo's `frontend/.env.local` default pointed to `http://fastapi:8000` — I updated it to `http://localhost:8000`.
-
-3) Install frontend dependencies
+### Install dependencies
 
 ```powershell
 cd frontend
 npm install
 ```
 
-4) If Next reports a missing package at runtime (for example `tw-animate-css` in my run), install it:
+### Create `frontend/.env.local`
 
-```powershell
-cd frontend
-npm install tw-animate-css
+Use a local file with the variables the current frontend actually reads:
+
+```dotenv
+AUTH_SECRET=replace-me
+SOC_DEMO_PASSWORD=demo1234
+FASTAPI_BASE_URL=http://localhost:8000
+INTERNAL_API_KEY=local-dev-secret
+GROQ_API_KEY=
+USE_MOCK_STATS=true
+NEXT_PUBLIC_APP_ENV=development
+NEXT_PUBLIC_APP_VERSION=0.0.0-LOCAL
 ```
 
-5) Start the dev server
+Notes:
+
+- `AUTH_SECRET` is the Auth.js signing secret.
+- The login flow currently checks a password only.
+- `SOC_DEMO_PASSWORD` is preferred. The code also falls back to `DEMO_PASSWORD`, then `demo1234` in development.
+- `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
+- Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
+
+### Start the frontend
 
 ```powershell
 cd frontend
 npm run dev
 ```
 
-Notes about ports: Next.js prefers `3000`. If `3000` is in use, Next will pick another port (e.g., `3001`). If you need a stable port, stop whatever is using `3000` or set `PORT=3000` before running.
-
-Open the UI at: http://localhost:3000 (or the port printed by Next if `3000` was unavailable).
-
-To sign in to the demo app (demo provider) use the `DEMO_PASSWORD` you set (no username required if the app expects only password-based demo auth).
-
----
-
-## 4) Frontend <-> Backend modes
-
-- Mock-only UI: set `USE_MOCK_STATS=true` in `frontend/.env.local` — very fast for UI work and avoids installing or running the backend.
-- Full-stack local: set `USE_MOCK_STATS=false` and ensure:
-  - `FASTAPI_BASE_URL=http://localhost:8000`
-  - `INTERNAL_API_KEY` (frontend) matches `API_SECRET_KEY` (backend `.env`).
-
-When using full-stack, Next.js server-side routes will proxy to the backend.
-
----
-
-## 5) Run the full stack (recommended sequence)
-
-Terminal 1 (backend):
+### Validate types
 
 ```powershell
-cd injection-alert-system
-.venv\Scripts\Activate.ps1
-cd injection-alert-system
-.venv\Scripts\uvicorn.exe web_app.presentation.app:app --reload --port 8000
-```
-
-Terminal 2 (frontend):
-
-```powershell
-cd injection-alert-system\frontend
-npm install   # only once
-npm run dev
-```
-
-Visit: http://localhost:3000
-
----
-
-## 6) Common troubleshooting (Windows-specific)
-
-- Activation / script errors: PowerShell's execution policy can block `.ps1` scripts (including `npm` helpers). The fix I used was: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
-- Long installs / heavy ML deps: `requirements.txt` contains large packages (torch, transformers, onnx, onnxruntime). Expect long downloads and possible native wheel issues on Windows; for UI work you can skip backend install and use `USE_MOCK_STATS=true`.
-- Frontend port conflict: if `3000` is occupied Next will switch ports; stop the other process or explicitly provide `PORT=3000`.
-- CORS / 401 between front/back: ensure `ALLOWED_ORIGINS` includes `http://localhost:3000` and that `INTERNAL_API_KEY` / `API_SECRET_KEY` match when using server->server calls.
-- Missing runtime packages: if `npm run dev` logs a missing package, install it with `npm install <pkg>` (I installed `tw-animate-css`).
-
----
-
-## 7) Tests & linting
-
-- Backend tests (if any): run from repo root using `pytest`:
-
-```powershell
-# from repo root
-python -m pytest -q
-```
-
-- Frontend typecheck & lint:
-
-```powershell
-# from frontend/
+cd frontend
 npm run typecheck
-npm run lint
 ```
 
----
+As of 2026-03-14, typecheck passes cleanly.
 
-## 8) Production / build
+## 4. Current Frontend Data Reality
 
-To build the frontend for production:
+Be explicit about the current BFF status:
+
+- `/api/stats`
+  - Can proxy to FastAPI when `USE_MOCK_STATS` is not `true`
+- `/api/alerts`
+  - Still returns mock data
+- `/api/alerts/[id]`
+  - Returns mock data by default
+  - If mocks are disabled, it currently returns `501`
+- `/api/ml-health`
+  - Still returns mock data
+
+So the current local dashboard is partially real and partially mock-backed.
+
+## 5. What This Setup Does Not Cover
+
+The following are not yet available as runnable repo-level setup paths:
+
+- `docker compose up --build`
+- ModSecurity + CRS local runtime
+- Redis-backed review queue or enforcement state
+- Live Supabase wiring
+- Fully wired dashboard alert detail and ML health upstreams
+
+## 6. Troubleshooting
+
+### Backend starts with a mock model unexpectedly
+
+- Check `MODEL_REGISTRY_PATH`
+- In development, a missing path falls back to mock mode
+- In production mode, a missing path raises at startup
+
+### Frontend cannot reach backend
+
+- Check `FASTAPI_BASE_URL`
+- Check that `INTERNAL_API_KEY` matches backend `API_SECRET_KEY`
+- Make sure the backend is running before starting full-stack local work
+
+### Typecheck or test results differ from this doc
+
+Re-run:
 
 ```powershell
+.venv\Scripts\python.exe -m pytest -q
 cd frontend
-npm run build
-npm run start   # or serve with any Node host
+npm run typecheck
 ```
 
-For the backend, configure a production-grade Postgres DB and run with Uvicorn + a process manager (systemd, supervisord) or containerize.
-
----
-
-## 9) Optional: Docker Compose (example)
-
-If you want, I can add a `docker-compose.yml` that starts Postgres, backend, and frontend for development — say if you want to avoid installing large ML deps locally.
-
----
-
-## 10) Security notes
-
-- Do NOT check `.env` or `.env.local` into Git.
-- Use strong `AUTH_SECRET` and `API_SECRET_KEY` in production.
-- `USE_MOCK_STATS` must be `false` in production.
-
----
-
-## 11) Quick commands summary
-
-```powershell
-# repo root
-git clone <repo>
-cd injection-alert-system
-
-# backend (create venv and install deps)
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-Copy-Item .env.example .env
-.venv\Scripts\pip.exe install -r requirements.txt
-.venv\Scripts\uvicorn.exe web_app.presentation.app:app --reload --port 8000
-
-# frontend (new terminal)
-cd frontend
-Copy-Item .env.example .env.local
-# edit .env.local (set FASTAPI_BASE_URL, DEMO_PASSWORD, AUTH_SECRET, etc.)
-npm install
-npm install tw-animate-css  # optional: install if Next warns about it
-npm run dev
-```
-
----
-
-If you'd like, I can commit this updated `docs/SETUP.md` and/or create a `docker-compose.yml` example next. Which would you prefer?
+If those outputs change, update this file and `docs/CONTEXT.md` in the same change.

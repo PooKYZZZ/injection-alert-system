@@ -93,7 +93,7 @@ drop_token_type_ids:  true           # DistilBERT + MiniLM do not use token_type
 seed: 42
 
 # ── Artifacts ─────────────────────────────────────────────────────────────────
-registry_base: "../model_registry/staging"
+registry_base: "ml_model/model_registry/staging"
 run_dir_pattern: "{model_key}_{dataset_version}_{timestamp}"
 artifacts:
   checkpoint:    "checkpoint/"        # model.save_pretrained() + tokenizer.save_pretrained()

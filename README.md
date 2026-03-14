@@ -1,92 +1,189 @@
 # Injection Alert System
 
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+Injection Alert System is an academic capstone project for SQL injection detection and analyst triage. The repository combines a FastAPI backend, a Next.js dashboard, and transformer-based ML artifacts for a hybrid WAF-plus-ML workflow.
 
-A hybrid, CRS-first Web Application Firewall (WAF) and machine learning confidence-gated platform for SQL injection detection. 
-It reduces the false-positive enforcement rates inherent in rule-based WAFs by conditioning automated blocking decisions on ML confidence scores.
+## Status
 
-## Table of Contents
-- [Project Overview](#project-overview)
-- [Quick Start](#quick-start)
-- [Minimal Usage Example](#minimal-usage-example)
-- [Architecture Overview](#architecture-overview)
-- [Repository Structure](#repository-structure)
-- [Documentation & Research](#documentation--research)
-- [Contributing](#contributing)
-- [License](#license)
-- [Notes](#notes)
+This repository is active, but it is not yet a full production deployment.
 
-## Project Overview
+- Backend tests currently pass: `44 passed`
+- Frontend typecheck currently passes: `npm run typecheck`
+- The dashboard exists, but some BFF routes are still mock-backed
+- Docker Compose, runnable ModSecurity wiring, and full Supabase/Redis integration are still in progress
 
-The Injection Alert System is a cybersecurity research prototype combining ModSecurity and the OWASP Core Rule Set (CRS) with a transformer-based machine learning triage model. Instead of relying solely on strict rules or pure ML classification, this system leverages a CRS-first enforcement hierarchy.
+If you need the current implementation truth rather than the thesis target architecture, start with [docs/CONTEXT.md](docs/CONTEXT.md) and [docs/architecture.md](docs/architecture.md).
 
-By placing the ML model behind the CRS as a secondary confidence gate, we dramatically reduce false-positive blocking without sacrificing detection coverage. The ML model evaluates only the traffic that is already flagged by the rule set.
+## What The Project Does
 
-This repository contains the full backend, ML lifecycle pipelines, and deployment automation required to run the triage gate.
+The target system is a CRS-first security workflow:
 
-## Quick Start
-
-Run these commands to get the backend running locally in detection-only mode:
-
-```bash
-git clone https://github.com/your-org/injection-alert-system.git
-cd injection-alert-system
-cp .env.example .env
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn web_app.presentation.app:app --reload
+```text
+Browser -> Next.js route handlers -> FastAPI -> model service -> database
 ```
 
-## Minimal Usage Example
+The broader capstone goal is:
 
-Test the triage inference engine using a mocked payload:
+- inspect flagged HTTP requests
+- classify likely attack traffic with an ML model
+- apply a confidence tier
+- surface alerts to a dashboard for review and feedback
+
+In the current repo, the application code, model-loading path, tests, and dashboard shell are present, but the full WAF deployment path is not wired end to end yet.
+
+## Current Repository Scope
+
+### Implemented now
+
+- FastAPI app factory and health endpoints
+- Backend routes for:
+  - `POST /api/predict`
+  - `GET /api/alerts`
+  - `POST /api/feedback`
+- Next.js 15 dashboard app with Auth.js credentials authentication
+- Route-handler BFF layer for dashboard data access
+- Runtime model loading through `web_app/services/model_service.py`
+- Staged model artifacts under `ml_model/model_registry/`
+- Alembic scaffolding and an initial migration
+
+### Not fully implemented yet
+
+- `GET /api/stats`
+- `GET /api/ml-health`
+- `GET /api/alerts/{id}`
+- End-to-end ModSecurity or CRS bridge
+- Docker Compose based local stack
+- Redis-backed enforcement state
+- Fully wired Supabase production boundary
+
+## Tech Stack
+
+| Layer | Current stack |
+|---|---|
+| Frontend | Next.js 15, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
+| Backend | FastAPI, async SQLAlchemy |
+| ML | PyTorch, Hugging Face Transformers |
+| Data | SQLite for tests and local development, PostgreSQL/Supabase as target production boundary |
+| Docs | Markdown in-repo docs under `docs/` |
+
+## Repository Layout
+
+```text
+frontend/     Next.js dashboard and BFF route handlers
+web_app/      FastAPI backend
+ml_model/     training, inference, export, and staged artifacts
+config/       model and environment configuration
+docs/         maintained project documentation
+tests/        backend unit and integration tests
+migrations/   Alembic migrations
+```
+
+Important note:
+
+- The active runtime model artifact path is `ml_model/model_registry/`
+
+## Getting Started
+
+Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version is below.
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 20+
+- npm
+- PowerShell or a compatible shell
+
+### Backend
+
+```powershell
+python -m venv .venv
+.venv\Scripts\pip.exe install -r requirements.txt
+.venv\Scripts\python.exe -m pytest -q
+uvicorn web_app.presentation.app:create_app --reload
+```
+
+Before starting the backend, create a root `.env` file using the current variable guidance in [docs/SETUP.md](docs/SETUP.md).
+
+### Frontend
+
+```powershell
+cd frontend
+npm install
+npm run typecheck
+npm run dev
+```
+
+Before starting the frontend, create `frontend/.env.local` using the current variable guidance in [docs/SETUP.md](docs/SETUP.md).
+
+## Usage
+
+### Health check
+
+```text
+GET /health
+GET /api/health
+```
+
+### Prediction example
 
 ```bash
 curl -X POST "http://localhost:8000/api/predict" \
-     -H "Content-Type: application/json" \
-     -d '{"http_request": "SELECT * FROM users WHERE id = 1"}'
+  -H "Content-Type: application/json" \
+  -d "{\"http_request\":\"GET /login?id=1 OR 1=1 HTTP/1.1\"}"
 ```
 
-## Architecture Overview
+### Current backend API surface
 
-Every request is evaluated by ModSecurity and OWASP CRS before being scored by the ML layer. Only flagged requests invoke ML inference.
+- `POST /api/predict`
+- `GET /api/alerts`
+- `POST /api/feedback`
+- `GET /health`
+- `GET /api/health`
 
-```text
-HTTP ──▶ Nginx Proxy ──▶ ModSecurity/CRS ──▶ FastAPI Triage ──▶ ML Inference ──▶ Gate ──▶ Supabase Audit Log
-```
+## Documentation
 
-### Confidence Gate Tiers
+- [docs/CONTEXT.md](docs/CONTEXT.md)
+  - current project status and implementation snapshot
+- [docs/architecture.md](docs/architecture.md)
+  - current architecture and planned gaps
+- [docs/SETUP.md](docs/SETUP.md)
+  - local setup and environment guidance
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+  - contributor workflow and validation steps
+- [docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md](docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md)
+  - dataset release note
+- [docs/DATASET_BASELINE_SR_BH_v3.1.0.md](docs/DATASET_BASELINE_SR_BH_v3.1.0.md)
+  - dataset baseline and training metadata
 
-| Confidence Level | Threshold | Action |
-|---|---|---|
-| **HIGH** | > 80% | Automated block enforced |
-| **MEDIUM** | 50% – 80% | Logged, conditional block |
-| **LOW** | < 50% | Routed to human review queue |
+## Support
 
-## Repository Structure
+- For local setup and environment questions, start with [docs/SETUP.md](docs/SETUP.md)
+- For implementation status and known gaps, use [docs/CONTEXT.md](docs/CONTEXT.md)
+- For architecture questions, use [docs/architecture.md](docs/architecture.md)
+- For contribution workflow, use [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
 
-- `config/` - Static configurations, CRS overrides, and environment toggles.
-- `web_app/` - FastAPI backend implementing Clean Architecture principles.
-- `ml_model/` - Separated ML lifecycle (preprocessing, training, inference, retraining).
-- `model_registry/` - Versioned model artifacts and promotion manifests.
-- `data/` - Datasets storing raw, interim, and processed files for retraining.
-- `observability/` - Prometheus metrics, alert rules, and Grafana dashboard parameters.
-- `docs/` - Deep-dive architecture and research methodology documents.
+## Development Notes
 
-For a deeper dive into these boundaries, see the [Architecture Document](docs/architecture.md).
+- Keep implementation docs aligned with code and tests
+- Use relative links inside repository documentation
+- Do not document planned behavior as if it is already live
+- Do not hardcode secrets in code or docs
 
-## Documentation & Research
+## Maintainers
 
-- **System Architecture:** [docs/architecture.md](docs/architecture.md)
-- **Feasibility Report Methodology:** [docs/feasibility_report.md](docs/feasibility_report.md)
+This repository is maintained as part of Team 13's capstone work for the Injection Alert System project. The academic design documents in [docs/feasibility_report.md](docs/feasibility_report.md) contain the broader project context.
 
 ## Contributing
 
-Please review [CONTRIBUTING.md](docs/CONTRIBUTING.md) for development guidelines, testing standards, and pull request procedures.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+
+At minimum, run:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+cd frontend
+npm run typecheck
+```
 
 ## License
 
-MIT License. See `LICENSE` for full terms.
-
-This repository is available for academic review and research reference.
+No repository license file is currently present. Do not assume the project is MIT-licensed just because older drafts said so.

@@ -1,115 +1,137 @@
-# Architecture Document: Injection Alert System
+# Architecture
 
-This document outlines the system architecture, design principles, and deployment model for the Injection Alert System, a hybrid Web Application Firewall (WAF) and Machine Learning (ML) triage platform designed to detect and mitigate SQL injection attacks.
+Last updated: 2026-03-14
 
-## System Overview
-The architecture is designed around four core principles:
-1. **CRS-first enforcement hierarchy**: ModSecurity and OWASP Core Rule Set (CRS) evaluate every incoming request. The ML layer functions exclusively as a triage gate for flagged traffic; it does not replace rule-based detection or inspect benign traffic.
-2. **Clean Architecture layering**: The FastAPI backend adheres to Clean Architecture, cleanly separating `domain`, `application`, `infrastructure`, and `presentation` layers. Outer layers depend on inner layers, enforcing strict separation of concerns.
-3. **ML lifecycle separation**: The machine learning ecosystem is structurally decoupled. Training, inference, retraining, and model export are distinct, non-overlapping pipeline stages rather than a monolithic process.
-4. **Observability as a first-class concern**: Telemetry, metrics, and alert rules are explicitly defined as named architectural components, completely segregated from runtime application logs.
+This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
-## High-Level Request Flow
-```text
-Incoming HTTP Request
-        │
-        ▼
-┌───────────────────┐
-│  Nginx (Reverse   │
-│  Proxy + TLS)     │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  ModSecurity +    │  ← Primary Enforcement Layer
-│  OWASP CRS        │    Matches CRS rules → outputs (PASS / BLOCK)
-└────────┬──────────┘
-         │
-    CRS: PASS or BLOCK
-         │
-         ▼
-┌───────────────────┐
-│  FastAPI Backend  │  ← Confidence-Gating Layer
-│  (Triage Engine)  │    Triggers ML inference for flagged requests
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Transformer ML   │  ← Secondary Scoring Layer
-│  Model (Inference)│    Outputs label + normalized confidence score
-└────────┬──────────┘
-         │
-    Confidence Gate
-    ┌────┴─────────────────────────┐
-    │                              │
-HIGH / MEDIUM confidence      LOW confidence
-    │                              │
-    ▼                              ▼
-Auto-Mitigation              Human Review Queue
-(BLOCK enforced/logged)      (Logged, flagged, held for manual SOC review)
-    │                              │
-    └──────────────┬───────────────┘
-                   │
-                   ▼
-         ┌─────────────────┐
-         │  Supabase (PG)  │  ← Audit Log: Immutable record of all decisions
-         │  Audit Log      │
-         └─────────────────┘
+## Current Topology
+
+```mermaid
+flowchart LR
+    Browser["Browser"] --> Next["Next.js 15 App Router"]
+    Next --> BFF["Route Handlers / BFF"]
+    BFF --> FastAPI["FastAPI API"]
+    FastAPI --> Model["ModelService"]
+    FastAPI --> DB["Async SQLAlchemy DB"]
+    Model --> Registry["ml_model/model_registry/"]
+
+    ModSec["ModSecurity + CRS"] -. planned .-> FastAPI
+    Redis["Redis 7"] -. planned .-> FastAPI
+    Supabase["Supabase / RLS target"] -. planned target .-> DB
 ```
 
-## Confidence Gate Enforcement Logic
-The confidence gate utilizes a deterministic, tiered logic structure to reduce false positives without degrading threat coverage. 
+## Backend
 
-| Confidence Level | Threshold | Action |
-|---|---|---|
-| **HIGH** | > 80% | Automated block enforced |
-| **MEDIUM** | 50% – 80% | Logged, conditional block (environment-dependent) |
-| **LOW** | < 50% | Routed to human review queue (logged & held) |
+### Layering
 
-- **Mitigation Handling:** Only HIGH and (optionally) MEDIUM traffic is subjected to automated blocking. LOW confidence requests bypass automated mitigation entirely and are funneled into a dedicated Human Review Queue for SOC operator review.
+The backend follows the intended Clean Architecture split:
 
-## ML Lifecycle Architecture
-The machine learning component requires physical and operational segregation across its lifecycle:
-1. **Preprocessing** (`ml_model/preprocessing/`): Raw datasets are sanitized, tokenized, and engineered into features. Raw data remains immutable.
-2. **Training** (`ml_model/training/`): The transformer model is trained on balanced data; hyperparameters are drawn from configuration.
-3. **Inference** (`ml_model/inference/`): Loaded into the FastAPI runtime to execute low-latency probabilistic scoring.
-4. **Retraining** (`ml_model/retraining/`): A daily scheduled 20-day periodic pipeline that accumulates hold-out traffic and retrains fresh model weights.
-5. **Export** (`ml_model/export/`): Newly trained models are serialized into standalone artifacts for evaluation bounding.
+- `web_app/domain/`
+  - Domain contracts and entities
+- `web_app/application/`
+  - Use cases such as triage and feedback
+- `web_app/infrastructure/`
+  - Database setup and repository implementations
+- `web_app/presentation/`
+  - FastAPI app factory, route handlers, and request/response schemas
 
-## Model Registry and Promotion Flow
-Model artifacts are deliberately isolated from runtime loading until explicitly promoted.
+This aligns with FastAPI's own guidance for larger applications: split routers and dependencies into separate modules and compose them in the main app.
 
-**Promotion Path:**
+### Runtime entrypoint
+
+- App factory: `web_app.presentation.app:create_app`
+- Lifespan startup initializes the database and loads `ModelService`
+
+### Current routes
+
+- `POST /api/predict`
+- `GET /api/alerts`
+- `POST /api/feedback`
+- `GET /health`
+- `GET /api/health`
+
+### Model loading behavior
+
+- `web_app/services/model_service.py` is the runtime model boundary.
+- In production mode, `MODEL_REGISTRY_PATH` must point to an explicit model run directory.
+- In development and testing, the service can resolve the latest staged run from a broader directory, or fall back to a mock service if the configured path does not exist.
+- The active model artifact tree is under `ml_model/model_registry/`.
+
+## Frontend
+
+### App structure
+
+- Framework: Next.js 15 App Router
+- Auth: Auth.js credentials provider with JWT sessions
+- Data layer: TanStack Query + Zod
+- Client state: Zustand
+
+### Security boundary
+
+The intended boundary is:
+
 ```text
-ml_model/export/  →  model_registry/staging/  →  model_registry/production/
-    (exported)          (evaluation window)           (live-serving slot)
+Browser -> Next.js Route Handler -> FastAPI
 ```
-Each iteration yields a manifest file (`model_registry/manifests/`) logging `eval_f1`, training dates, exact dataset fingerprints, and the `rollback_target`. Rollbacks are instantaneous slot-swaps governed by manifest targets, completely independent of re-training execution.
 
-## Repository Mapping
-The system maps its directory structure tightly to its architectural role:
+This remains the correct direction for the project. Browser-to-FastAPI direct calls are not part of the intended architecture.
 
-- `web_app/domain/` → Core entities and business rules natively untouched by FastAPI logic.
-- `web_app/application/` → Use-case orchestration.
-- `web_app/infrastructure/` → Database adapters (Supabase/PostgreSQL), external model loader integrations, repos.
-- `web_app/presentation/` → FastAPI routers, dependencies, and HTTP Pydantic schemas.
+Next.js route handlers are public endpoints, so they must handle validation, auth, and safe error responses. They are the right place to proxy or reshape backend data for the dashboard.
 
-## Observability Architecture
-Located in `observability/`, monitoring is handled via:
-- **Metrics**: Prometheus configurations scraping model drift, absolute request rates, rule-flag ratios, and retraining queue lengths.
-- **Alerts**: Rules triggered by sustained false-positive variance, confidence miscalibration alerts, or audit-log write gaps.
-- **Dashboards**: Grafana JSON panels tracking live threat distributions independently from standard system logs (held in `logs/`).
+### Current BFF status
 
-## Deployment Architecture
-Optimized for multi-container orchestration:
-- **Ingress**: Nginx terminating TLS.
-- **WAF**: ModSecurity compiled explicitly as an Nginx dynamic module.
-- **Application Server**: FastAPI via Uvicorn, orchestrated by Docker Compose.
-- **Database**: Supabase (PostgreSQL) maintaining immutable audit tables.
-- **Automation**: Docker Compose manages provisioning, environment overlays, and container lifecycle orchestration.
+- `stats`
+  - Has real proxy logic
+  - Requires `FASTAPI_BASE_URL` and `INTERNAL_API_KEY`
+- `alerts`
+  - Still returns mock data
+- `alert detail`
+  - Mock-first; `501` if mocks are disabled
+- `ml-health`
+  - Still mock-only
 
-## Security Boundaries
-- **Immutable Audit Logging**: The Supabase (Postgres) schema enforces append-only policies via Row Level Security (RLS) and strict role grants, preventing `UPDATE` or `DELETE` operations from the backend service role.
-- **Environment Isolation**: DetectionOnly mode vs Enforcement mode is dictated entirely by deployment YAML keys.
-- **Write-Protected Slots**: The `model_registry/production/` slot is write-protected from the active web application, guaranteeing inference runtimes cannot accidentally modify local model weights.
-- **Dependency Guardrails**: No synchronous database drivers (e.g., standard SQLAlchemy/SQLite) are permitted to avoid blocking ASGI asynchronous event loops.
+Because of that, the dashboard is currently a mixed real/mock application rather than a fully wired BFF.
+
+## Data and Persistence
+
+### Current database reality
+
+- Async SQLAlchemy is the persistence layer today
+- The ORM model is `TrafficLog`
+- Fields currently include:
+  - transaction metadata
+  - request metadata
+  - prediction and confidence
+  - inference latency
+  - analyst feedback metadata
+
+### Current environment reality
+
+- Tests use SQLite
+- Development can use SQLite or PostgreSQL
+- Supabase is still the production target, not the fully wired default implementation in this repo
+
+## ML Artifacts and Training Config
+
+- Staged artifacts live under `ml_model/model_registry/staging/`
+- Evaluation outputs live under `ml_model/model_registry/eval/`
+- Model configs live under `config/models/`
+- Current runtime defaults align with the DistilBERT staging path and the locked confidence thresholds
+
+## What Is Planned, Not Implemented
+
+- Docker Compose based 3-container stack
+- Runnable ModSecurity + OWASP CRS bridge
+- Redis-backed IP blocklist, rate-limit state, and low-confidence queue
+- Full Supabase append-only audit log enforcement with RLS
+- Complete BFF wiring for all dashboard data routes
+- Additional backend routes needed by the dashboard:
+  - `GET /api/stats`
+  - `GET /api/ml-health`
+  - `GET /api/alerts/{id}`
+
+## Architecture Notes For Future Edits
+
+- Do not document planned infrastructure as shipped behavior.
+- Keep the live path names exact. Runtime artifacts live under `ml_model/model_registry/`.
+- Keep setup docs and architecture docs synchronized with the route handlers and tests, not with older planning files.

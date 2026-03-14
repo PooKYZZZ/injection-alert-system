@@ -1,5 +1,9 @@
 ## Model Architecture Selection and Justification
 
+> Status note (2026-03-14): This subsection is kept as an academic model-selection rationale.
+> For current runtime integration details, use `docs/architecture.md`. The active staged artifact
+> path in this repo is `ml_model/model_registry/`.
+
 This study proposes the empirical evaluation of three hybrid neural architectures — BERT-base augmented with a convolutional neural network head (BERT-base + CNN), DistilBERT augmented with a convolutional neural network head (DistilBERT + CNN), and MiniLM-L6 augmented with a convolutional neural network head (MiniLM-L6 + CNN) — as candidate models for the confidence-calibrated triage layer of the proposed web application firewall machine learning system. Each architecture combines a pretrained transformer encoder, responsible for producing deep contextual representations of HTTP payload tokens, with a shallow convolutional classification head, responsible for extracting structured local feature patterns from those representations prior to classification. The selection of these three configurations is motivated by distinct but complementary considerations: representational capacity, parameter efficiency, CPU-feasible inference latency, and empirical precedent from the web attack detection literature.
 
 ### Transformer Backbone Justification

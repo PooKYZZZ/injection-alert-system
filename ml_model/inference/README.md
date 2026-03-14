@@ -1,15 +1,14 @@
 # ML Inference
 
-This directory contains production inference code.
+This directory contains the runtime prediction wrapper used by the backend.
 
 ## Purpose
 - Model loading and prediction serving
-- ONNX Runtime or PyTorch inference
-- Mock classifier for development/testing
+- PyTorch-based inference for staged serving artifacts
+- Mock fallback behavior in development and testing
 
-## Expected Contents
-- `predictor.py` — Real model inference (ONNX/PyTorch)
-- `mock_model.py` — Pattern-based stub (development/testing)
+## Current Contents
+- `predict_attack.py` — model loading helpers and prediction utilities
 
 ## Architectural Role
 Receives requests from the backend orchestration layer.

@@ -1,17 +1,25 @@
-# Environment
+# Secrets and env files
 .env
 .env.local
+.env*.local
 frontend/.env.local
-venv/
-.venv/
+frontend/.env.*.local
 
-# Python
+# Python environments and caches
+.venv/
+venv/
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 .ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.ipynb_checkpoints/
 build/
 develop-eggs/
 dist/
@@ -27,58 +35,14 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
 *.db
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.ipynb_checkpoints/
-
-# Copilot
-.copilot/
-
-# ML artifacts
-*.pkl
-*.pt
-*.pth
-*.h5
-*.onnx
-
-# Data (keep raw data untracked)
-data/raw/
-data/interim/
-data/processed/
-data/staging/
-
-# Model registry binaries (track READMEs and metadata only)
-model_registry/**/*.onnx
-model_registry/**/*.pt
-model_registry/**/*.bin
-
-# Logs
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Frontend
+# Frontend build output
 node_modules/
 frontend/node_modules/
-frontend/.env.local
 .next/
 frontend/.next/
+frontend/.venv/
 out/
 frontend/out/
 coverage/
@@ -86,44 +50,43 @@ frontend/coverage/
 .turbo/
 frontend/.turbo/
 *.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
 
-# Local environment files (never commit secrets)
-frontend/.env.local
-frontend/.env.*.local
+# Logs and local runtime output
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# OS
-.DS_Store
-Thumbs.db
+# IDE and local editor state
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Worktrees
+# Local tool state
 .worktrees/
-stitch_waf_ml_soc_dashboard_overview/code.html
-stitch_waf_ml_soc_dashboard_overview/screen.png
-.github/copilot-instructions.md
-artifacts
-.playwright-mcp
+.playwright-mcp/
 .kilocode/mcp.json
-frontend/package-lock.json
-frontend/package.json
+.kilocode/
+.serena/
+.copilot/
+.github/copilot-instructions.md
+AGENTS.md
 
-docs/SETUP.md
-frontend/.env.local
-frontend/package-lock.json
-frontend/package.json
-
-# --- Archive folder (local only, not for remote) ---
+# Local artifacts and external archive workspace
+artifacts/
+stitch_waf_ml_soc_dashboard_overview/
 archive/
 
-# --- ML: model checkpoints ---
-ml_model/model_registry/**/*.pt
-ml_model/model_registry/**/*.bin
-ml_model/model_registry/**/*.onnx
-ml_model/model_registry/**/*.safetensors
-
-# --- ML: raw eval outputs (regenerable) ---
-ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
-
-# --- Large dataset files ---
+# Data assets
+data/raw/
+data/interim/
+data/staging/
+data/processed/
 data/raw/*.csv
 data/processed/**/*.csv
 data/processed/**/*.parquet
@@ -131,40 +94,31 @@ data/processed/**/*.parquet
 !data/processed/v3_907k_cleaned/validation.parquet
 !data/processed/v3_907k_cleaned/test.parquet
 
-# --- Secrets ---
-.env
-.env.local
-.env*.local
-frontend/.env.local
+# ML model binaries and regenerable eval outputs
+*.pkl
+*.pt
+*.pth
+*.h5
+*.onnx
+ml_model/model_registry/**/*.pt
+ml_model/model_registry/**/*.bin
+ml_model/model_registry/**/*.onnx
+ml_model/model_registry/**/*.safetensors
+ml_model/model_registry/staging/**/config.json
+ml_model/model_registry/staging/**/serving_manifest.json
+ml_model/model_registry/staging/**/tokenizer.json
+ml_model/model_registry/staging/**/tokenizer_config.json
+ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
 
-# --- Build artifacts ---
-frontend/tsconfig.tsbuildinfo
-ml_model/model_registry/eval/20260312_172840/eval_results_bert-base_uncalibrated.json
-ml_model/model_registry/eval/20260312_172840/eval_results_distilbert_uncalibrated.json
-ml_model/model_registry/eval/20260312_172840/eval_results_minilm_uncalibrated.json
-ml_model/model_registry/eval/20260312_172840/latency_results.json
-ml_model/model_registry/eval/20260312_172840/plots/confidence_hist_bert-base.png
-ml_model/model_registry/eval/20260312_172840/plots/confidence_hist_minilm.png
-ml_model/model_registry/eval/20260312_172840/plots/confmat_bert-base.png
-ml_model/model_registry/eval/20260312_172840/plots/confmat_minilm.png
-ml_model/model_registry/eval/20260312_172840/plots/pr_bert-base.png
-ml_model/model_registry/eval/20260312_172840/plots/pr_minilm.png
-ml_model/model_registry/eval/20260312_172840/plots/reliability_bert-base.png
-ml_model/model_registry/eval/20260312_172840/plots/reliability_minilm.png
-ml_model/model_registry/eval/20260312_172840/plots/roc_bert-base.png
-ml_model/model_registry/eval/20260312_172840/plots/roc_minilm.png
-scripts/_audit_parquet.py
-scripts/_audit_parquet2.py
-docs/DATASET_PIPELINE_DESIGN.md
-docs/NOTEBOOK_FIX_GUIDE.md
+# OS files
+.DS_Store
+Thumbs.db
 .kilocode/skills/enhanced-code-review/SKILL.md
-.kilocode/skills/enhanced-code-review/skill.yaml
 .kilocode/skills/ralph/SKILL.md
 .kilocode/skills/ralph/skill.yaml
-.kilocode/skills/teams/SKILL.md
-.kilocode/skills/teams/skill.yaml
 .kilocode/skills/security-audit/SKILL.md
 .kilocode/skills/security-audit/skill.yaml
+.kilocode/skills/teams/SKILL.md
+.kilocode/skills/teams/skill.yaml
+.github/copilot-instructions.md
 AGENTS.md
-STATUS.md
-.github/workflows/ci.yml

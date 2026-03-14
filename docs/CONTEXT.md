@@ -1,227 +1,75 @@
-# Project Context - Injection Alert Classification System
+# Project Context
 
-**Updated:** 2026-03-07 | **Defense:** May 2026 | **Team:** 13
+Updated: 2026-03-14  
+Defense: May 2026  
+Client: LARES (Land Registration Systems, Inc.)
 
----
+## What This Repo Is Today
 
-## Project
+The repository currently contains:
 
-**Title:** Deep Learning-Based Confidence Classification for Context-Aware Injection Alert
+- A FastAPI backend built around a Clean Architecture split:
+  - `domain -> application -> infrastructure -> presentation`
+- A Next.js 15 dashboard using the App Router, Auth.js credentials auth, route handlers, Zod, TanStack Query, and Zustand
+- ML lifecycle assets under `ml_model/`, including staged transformer artifacts and an inference wrapper
+- Migration scaffolding and one migration under `migrations/`
+- Documentation and academic deliverables under `docs/`
 
-**Goal:** ML system detecting injection attacks with confidence levels (LOW <50% | MEDIUM 50-80% | HIGH >80%), automated actions, ModSecurity WAF integration, 20-day retraining pipeline. Deployment target: Land Registration Systems, Inc. (LARES) — IT subsidiary of the Land Registration Authority (LRA), operating the in-house Security Operations Center for LRA's land titling computerization infrastructure.
+This is not yet the finished 3-container PD1 demo stack. The codebase is still in a local integration and documentation-hardening phase.
 
----
+## Verified Status
 
-## Academic Paper Status
+### Checks run on 2026-03-14
 
-| Chapter | Status | Notes |
-|---------|--------|-------|
-| Chapter 1: Project Background | ✅ Complete | All fixes applied |
-| Chapter 2: Project Design | ✅ Complete | Ready for review |
-| Chapter 3: Design Tradeoffs | ✅ Complete | MCDM analysis done |
-| Chapter 4: Final Design | ❌ Pending | PD1 work to be reported |
-| Chapter 5: Business Plan | ❌ Pending | - |
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` -> `44 passed`
+- Frontend types: `frontend\npm run typecheck` -> passed
 
-**Paper Output Location:** REFERENCES/output/
+### Backend
 
----
+- App entrypoint: `web_app.presentation.app:create_app`
+- Current API routes:
+  - `POST /api/predict`
+  - `GET /api/alerts`
+  - `POST /api/feedback`
+  - `GET /health`
+  - `GET /api/health`
+- Model loading is handled by `web_app/services/model_service.py`
+- In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
+- In development or testing, missing model artifacts fall back to a mock model service with a warning
 
-## Feasibility Report Status
+### Frontend
 
-| Section | Status |
-|---------|--------|
-| Problem Statement | ✅ Complete |
-| Objectives (1-9) | ✅ Complete |
-| Model Comparison | ✅ Complete |
-| MCDM Decision Matrix | ✅ Complete |
-| Standards Compliance | ✅ Complete |
-| Confidence Threshold Rationale | ✅ Complete |
-| Problem Statement Evidence | ✅ Complete |
-| Gap Analysis | ✅ Complete |
-| References | ✅ Complete |
+- Dashboard routes exist under `frontend/app/(dashboard)/`
+- Authentication is implemented with Auth.js credentials auth
+- Demo login uses a password-only credentials flow
+- Current BFF status:
+  - `frontend/app/api/stats/route.ts` can proxy to FastAPI
+  - `frontend/app/api/alerts/route.ts` still returns mock data
+  - `frontend/app/api/alerts/[id]/route.ts` is mock-first and returns `501` if mocks are disabled
+  - `frontend/app/api/ml-health/route.ts` still returns mock data
 
-**Standards Covered:** NIST SP 800-94, OWASP CRS v4.x, ISO/IEC 27035-1:2023, IEEE 829-2008, Python PEP-8
+### Database
 
----
+- Runtime database access uses async SQLAlchemy
+- The backend supports PostgreSQL and SQLite connection strings
+- Tests currently use SQLite
+- Supabase remains the target production database boundary, but the repo is not yet wired to a live Supabase deployment path
 
-## Key Citations
+## Not Yet Implemented
 
-**Dataset:**
-- Sureda Riera et al. (2022) — SR-BH 2020 dataset (907,814 HTTP requests, 13 CAPEC categories)
-- Sanhour et al. (2025) — WAMM framework (~10% mislabeling in benign class)
+- Root `docker-compose.yml`
+- Dockerfiles for frontend and backend
+- Runnable ModSecurity or CRS config under the repo
+- Backend routes for:
+  - `GET /api/stats`
+  - `GET /api/ml-health`
+  - `GET /api/alerts/{id}`
+- Full BFF wiring for alerts, alert detail, and ML health
+- Redis-backed enforcement and review queue behavior
+- Confirmed Supabase RLS enforcement in runtime code
 
-**Model Benchmarks:**
-- Devlin et al. (2019) — BERT-base fine-tuning foundations
-- Sanh et al. (2019) — DistilBERT compression strategy
-- Wang et al. (2020) — MiniLM deep self-attention distillation
-- Sanhour et al. (2025) — WAMM framework (Transformer superiority for web attacks)
+## Important Truths To Keep Straight
 
-**Confidence Thresholds:**
-- Talpini et al. (2024) — Uncertainty quantification in ML-based IDS
-- Yu et al. (2025) — Empirical confidence thresholds in safety-critical AI
-- Gelman et al. (2023) — ML alert prioritization
-
----
-
-## Tech Stack
-
-| Component | Choice |
-|-----------|--------|
-| Frontend | Next.js 15 (App Router), TypeScript 5.x, Zustand, TanStack Query, Zod, shadcn/ui |
-| ML Framework | PyTorch |
-| Transformers | Hugging Face Transformers |
-| Backend API | FastAPI (Python) |
-| Database | Supabase (Managed Cloud PostgreSQL) |
-| WAF | ModSecurity + OWASP CRS v4.x |
-| Deployment | Docker Compose (3 containers), Ansible, Ubuntu Server, Nginx |
-| Redis 7 | In-memory store: IP blocklist cache, rate limiting state (LOW: 100 req/min, MEDIUM: 20 req/min), LOW-confidence review queue with TTL |
-
----
-
-## Architecture & Security Setup
-
-**Deployment Architecture (3 Containers):**
-- **Container 1:** `owasp/modsecurity-crs:nginx` (Exposed to internet on port 80/443; route reverse proxy)
-- **Container 2:** FastAPI + PyTorch models (Internal network only)
-- **Container 3:** Next.js 15 (Internal network only)
-- **Container 4:** Redis 7 (Internal network only — no external exposure; accessed only by FastAPI for enforcement state)
-
-**Frontend Specifications (11 Pages):**
-- Full multi-page application encompassing SOC Dashboard, Alert History, Incident Detail, Mitigation Log, ML Health, Traffic, Reports, Audit Trail, Settings, Admin, and Login.
-
-**Security Isolation Constraints:**
-- Browser **NEVER** calls FastAPI or Groq API directly. Proxy flow: Browser → Next.js Route Handler → FastAPI/Groq.
-- Core Secrets (`GROQ_API_KEY`, `DATABASE_URL`) stored solely in Next.js server-side / FastAPI `.env` files.
-- NextAuth v5 JWT handles role-based access (analyst vs admin) in httpOnly cookies.
-- All intercepted attack payloads are rendered inside strict `<pre><code>` blocks to block DOM XSS.
-
-**Deployment Timetable Pipeline:**
-- **Stage 1:** Local Docker Compose environment
-- **Stage 2:** PD1 Demo (Cloud VM, MiniLM-L6, ModSecurity in DetectionOnly)
-- **Stage 3:** PD2 Demo (Bigger VM, Production model, ModSecurity in Enforcement)
-- **Stage 4:** Final LARES Infrastructure Handoff
-
----
-
-## Team Roles
-
-| Member | Role | Primary Tasks |
-|--------|------|---------------|
-| **Gayao, Froilan** | DevOps & Project Manager | Ansible, Nginx, SSL, ModSecurity, orchestration |
-| **Dela Cruz, Eugene** | Data & ML Lead | Dataset, preprocessing, model training |
-| **Nonan, Faron Jabez** | Backend Lead | FastAPI, DB schema, retraining pipeline |
-| **Aquino, Mark Angelo A.** | Frontend/Test/Docs | Dashboard, tests, documentation |
-| **Bantuas, Junaid** | Frontend/Test/Docs | UI, tests, presentation |
-
----
-
-## Target Metrics
-
-| Metric | Target |
-|--------|--------|
-| Accuracy | ≥95% |
-| F1-Score | ≥0.85 (macro average) |
-| FPR | ≤3% |
-| Latency | <100ms |
-
----
-
-## Dataset
-
-- **Source:** SR-BH 2020 (Harvard Dataverse)
-- **Original:** 907,814 HTTP requests, 13 multi-label CAPEC categories
-- **Adapted:** ~335,821 samples (Imbalanced: SQLi 55%, Normal 37%, Other 4%, Code 3%)
-- **Split:** ~268K train (80%) / ~33K validation (10%) / ~33K test (10%), stratified
-- **Characteristics:** 39.23% near-duplicate rate, severe 16.65:1 class imbalance
-
----
-
-## Models (Compare 3)
-
-1. **Fine-tuned BERT-base** (High-capacity reference configuration)
-2. **Fine-tuned DistilBERT** (Balanced capacity-latency configuration)
-3. **Fine-tuned MiniLM-L6** (Ultra-fast triage configuration)
-
----
-
-## PD1/PD2 Boundary
-
-| Phase | Scope | Status |
-|-------|-------|--------|
-| PD1 | Obj 1-2 (Data Prep, Model Dev), Working Frontend Dashboard Demo (Next.js), FastAPI endpoints partially working | Current |
-| PD2 | Obj 3-9, Full Docker Compose deployment, ModSecurity enforcement, Ansible playbooks, Supabase DB, Real ML model | Future |
-| PD2 | Redis enforcement layer (rate limiting, IP blocklist, review queue) | Future |
-
----
-
-## Files
-
-```
-G:\Documents\PDDDD\
-├── CONTEXT.md              # This file
-├── REFERENCES/
-│   └── output/            # Completed chapters
-│       ├── Chapter1_Project_Background.md
-│       ├── Chapter2_Project_Design.md
-│       ├── Chapter3_Design_Tradeoffs.md
-│       └── PLANNING_DOCUMENT.md
-├── checklists/            # 9 checklist files
-└── injection-alert-system/ # Project code
-```
-
----
-
-## Current State
-
-| Component | Status | Owner |
-|-----------|--------|-------|
-| Project structure | ✅ Created | Froilan |
-| Mock FastAPI model| ✅ Created | Froilan |
-| FastAPI endpoints | ⚠️ Needs fixes | Jabez |
-| Tests (26 passing)| ✅ Working | Mark/Junaid |
-| Real ML model | ❌ Pending | Eugene |
-| Data prep | ✅ Audited | Eugene |
-| Frontend (Next.js) | ❌ In progress | Mark/Junaid |
-| Ansible playbooks | ❌ Pending | Froilan |
-| ModSecurity config| ❌ Pending | Froilan |
-| Docker Compose | ❌ Pending | Froilan |
-| Supabase connect | ❌ Pending (SQLite now)| Jabez |
-| Documentation | 🔄 In progress | Mark/Junaid |
-| Redis connect | ❌ Pending | Jabez |
-
-**FastAPI Backend Known Issues:**
-- **Endpoints:** Missing `/api/stats`, `/api/batch-predict`, `/api/explain`
-- **Schema:** Wrong field names (`traffic_id` → `alert_id`, `correct_label` → `analyst_label`)
-- **Database:** Still using local SQLite (`test.db`) rather than Supabase connection
-- **CORS:** Extremely permissive (`allow_origins=["*"]`) instead of Next.js explicitly
-- **Secrets:** `GROQ_API_KEY` missing in `.env.example` and `config.py`
-
----
-
-## Timeline (36 Weeks)
-
-```
-W1-4:    Data Preparation (Eugene)
-W5-10:   Model Development & Training (Eugene)
-W11-16:  Backend Development (Jabez)
-W17-22:  Frontend Development (Mark, Junaid)
-W23-26:  LLM Integration (Jabez, Eugene)
-W27-30:  ModSecurity Integration (Froilan)
-W31-34:  Ansible & Deployment (Froilan)
-W35-36:  Testing & Documentation (All)
-```
-
-### Critical Path
-Data Preparation → Model Training → Backend Integration → Deployment
-
----
-
-## Contacts
-
-- **Adviser:** Engr. Robin Valenzuela
-- **Panel Lead:** Engr. Verlyn Nojor
-- **Panel:** Engr. Menchie M. Rosales, Engr. Lloyd Aldrin Pornobi
-- **Client:** Land Registration Systems, Inc. (LARES)
-- **Client Contact:** John Marco Lira
-- **Domain Expert:** Mark Anthony Evilla (SOC Consultant, LARES — formerly SOC Analyst L1/L2 at Philcox Philippines)
-- **Client Address:** IMC Building, LRA Compound, East Avenue, Diliman, Quezon City, Philippines 1100
+- The active model artifact path is `ml_model/model_registry/`.
+- The repo already has more backend startup work and frontend structure than the older docs suggested.
+- The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets and partial proxy wiring.

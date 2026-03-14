@@ -97,7 +97,7 @@ statistical_seeds:
   - 44
 
 # ── Artifacts ─────────────────────────────────────────────────────────────────
-registry_base: "../model_registry/staging"
+registry_base: "ml_model/model_registry/staging"
 run_dir_pattern: "{model_key}_{dataset_version}_{timestamp}"
 artifacts:
   checkpoint:    "checkpoint/"        # model.save_pretrained() + tokenizer.save_pretrained()

@@ -1,49 +1,76 @@
 # Contributing
 
-Thanks for taking the time to contribute. This document covers the essentials.
+Last updated: 2026-03-14
 
-## Getting Started
+This repo follows a docs-as-code workflow. Keep documentation, code, and validation steps aligned in the same change set.
 
-1. Fork the repository and clone your fork.
-2. Copy `.env.example` to `.env` and fill in the values.
-3. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+## Workflow
 
-## Development Workflow
+- Create a branch from the current base branch
+- Use branch names in this form:
+  - `feat/<scope>`
+  - `fix/<scope>`
+- Keep commits focused
+- If behavior, setup, or architecture changes, update the matching document in `docs/`
 
-- Work on a dedicated feature or fix branch — do not push directly to `main`.
-- Use descriptive branch names: `feat/add-stats-endpoint`, `fix/async-db-session`.
-- Keep commits small and focused. Write clear commit messages in imperative mood.
+## Before Opening A PR
 
-## Running Tests
+Run the checks that match the area you touched:
 
-```bash
-python -m pytest tests/unit/         # Unit tests — run these before every commit
-python -m pytest tests/integration/  # Integration tests — run before opening a PR
+```powershell
+# Backend
+.venv\Scripts\python.exe -m pytest -q
+
+# Frontend
+cd frontend
+npm run typecheck
 ```
 
-All unit tests must pass before opening a pull request. Integration tests require a running database; see `.env.example` for the `DATABASE_URL` configuration.
+Optional but recommended when relevant:
 
-## Pull Requests
+```powershell
+# Python formatting / lint
+python -m black .
+python -m ruff check .
 
-- Open a PR against `main`.
-- Describe what you changed and why — include any relevant ticket or issue number.
-- If the PR changes API behavior, update the relevant `docs/` file.
-- At least one reviewer approval is required before merging.
+# Frontend tests
+cd frontend
+npm test
+```
 
-## Code Style
+## Architecture Guardrails
 
-- Python: formatted with `black`, linted with `ruff`. Config is in `pyproject.toml`.
-- Run `black .` and `ruff check .` before committing.
+- Keep the BFF pattern intact:
+  - `Browser -> Next.js Route Handler -> FastAPI`
+- Keep business logic out of route handlers
+- Use Zod for BFF payload validation
+- Use async database drivers only
+- Keep secrets in `.env` files only
+- Do not hardcode API keys, tokens, or local secrets
+- Do not write to `ml_model/model_registry/production/` from the web app
+- Do not casually modify `data/processed/v3_907k_cleaned/`
+
+## Confidence Gate Guardrail
+
+Do not change the confidence thresholds without explicit approval:
+
+- `HIGH > 80%`
+- `MEDIUM 50% to 80%`
+- `LOW < 50%`
+
+## Documentation Expectations
+
+- Document current behavior, not intent
+- If a feature is partial or mock-backed, say so directly
+- Keep setup instructions runnable on the current repo
+- Preserve academic documents, but clearly separate them from implementation-status docs
 
 ## Sensitive Data
 
-Never commit secrets, credentials, or API keys. All environment values must go in `.env` (which is gitignored). The `.env.example` file documents the required variables.
+Never commit:
 
-## Questions
-
-Open an issue or reach out to the project maintainer directly.
+- `.env`
+- `.env.local`
+- live API keys
+- production secrets
+- service-role credentials

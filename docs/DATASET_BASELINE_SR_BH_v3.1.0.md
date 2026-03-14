@@ -2,6 +2,11 @@
 
 This document captures the frozen training metadata used for baseline training.
 
+Status note
+-----------
+This file records the dataset baseline and training metadata for the current cleaned release.
+It is not the live implementation-status document for the repo. Current runtime status is tracked in `docs/CONTEXT.md`.
+
 Summary
 -------
 - Dataset version: SRBH_clean_v3.1.0
@@ -103,7 +108,7 @@ Files created — Phase 2
 - `data/processed/v3_907k_cleaned/tokenizer_metadata.json` — consolidated token stats + max_seq_len decision
 - `data/processed/v3_907k_cleaned/token_length_hist_{train,validation,test}.png` — per-split histograms with p95/p99 reference lines
 - `data/processed/v3_907k_cleaned/token_length_hist_all.png` — combined overlay for all splits
-- `ml_model/training/training_config.yaml` — full baseline training configuration
+- `config/models/distilbert.yaml` — current checked-in DistilBERT training configuration
 
 Training configuration summary
 --------------------------------
@@ -128,12 +133,17 @@ If `max_seq_len` is raised to 256, halve `per_device_train_batch_size` to 16 and
 
 Phase 3 checklist (next steps)
 --------------------------------
-- [ ] Implement `ml_model/training/train.py` using `training_config.yaml`
+- [ ] Implement `ml_model/training/train.py` using the checked-in model config under `config/models/`
 - [ ] Verify label encoder output order matches `label_names` in config
 - [ ] Compute inverse-frequency class weights at runtime from train split
 - [ ] Set up tensorboard / wandb logging (`report_to` in config)
 - [ ] Run first baseline epoch; record validation Macro-F1 and loss curve
 - [ ] Compare FPR / FNR per class against WAF acceptance criteria
+
+Repository note
+---------------
+- `data/processed/v3_907k_cleaned/` is treated as a protected dataset boundary in project workflow.
+- The active staged runtime artifacts live under `ml_model/model_registry/`.
 
 Repro
 -----

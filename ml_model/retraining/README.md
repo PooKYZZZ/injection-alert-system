@@ -16,7 +16,7 @@ This directory contains the 20-day scheduled retraining pipeline.
 
 ## Architectural Role
 Closes the feedback loop:
-  Analyst corrections → data/staging/ → retrain → validate → model_registry/
+  Analyst corrections → data/staging/ → retrain → validate → ml_model/model_registry/
 
 No model is promoted without passing validation gating.
 Rollback to the previous model version is always available.
