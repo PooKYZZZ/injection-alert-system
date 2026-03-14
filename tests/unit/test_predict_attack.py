@@ -25,6 +25,20 @@ class _FakeModel:
         return self
 
 
+def _write_manifest(run_dir: Path, temperature: float = 0.596868) -> None:
+    (run_dir / "serving_manifest.json").write_text(
+        (
+            "{"
+            f"\"temperature\": {temperature}, "
+            f"\"run_dir_name\": \"{run_dir.name}\", "
+            "\"label_names\": [\"Code Injection\", \"Normal\", \"Other Attacks\", \"SQL Injection\"], "
+            "\"max_seq_len\": 128"
+            "}"
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_load_model_prefers_local_run_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -33,6 +47,7 @@ def test_load_model_prefers_local_run_directory(
     run_dir.mkdir()
     (run_dir / "config.json").write_text("{}", encoding="utf-8")
     (run_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
+    _write_manifest(run_dir)
 
     fake_model = _FakeModel()
     fake_tokenizer = object()
@@ -55,12 +70,22 @@ def test_load_model_prefers_local_run_directory(
 
     assert model is fake_model
     assert tokenizer is fake_tokenizer
-    assert temperature == 1.0
+    assert temperature == pytest.approx(0.596868)
     assert fake_model.device == "cpu"
     assert fake_model.in_eval is True
 
 
-def test_load_model_falls_back_to_checkpoint_when_local_files_missing(
+def test_load_model_requires_serving_manifest_for_primary_path(
+    tmp_path: Path,
+):
+    run_dir = tmp_path / "distilbert_v3_907k_cleaned_20260312_133755"
+    run_dir.mkdir()
+
+    with pytest.raises(FileNotFoundError, match="serving manifest"):
+        predict_module.load_model("distilbert", staging_dir=run_dir)
+
+
+def test_load_model_falls_back_to_checkpoint_when_packaged_files_fail_to_load(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -72,6 +97,7 @@ def test_load_model_falls_back_to_checkpoint_when_local_files_missing(
         '{"model_id": "distilbert-base-uncased"}',
         encoding="utf-8",
     )
+    _write_manifest(run_dir)
 
     fake_model = _FakeModel()
     fake_tokenizer = object()
@@ -109,7 +135,7 @@ def test_load_model_falls_back_to_checkpoint_when_local_files_missing(
 
     assert model is fake_model
     assert tokenizer is fake_tokenizer
-    assert temperature == 1.0
+    assert temperature == pytest.approx(0.596868)
     assert fake_model.loaded_state == {"weights": 1}
     assert fake_model.strict is True
-    assert "Falling back to checkpoint-based loading" in caplog.text
+    assert "Falling back to legacy checkpoint-based loading" in caplog.text

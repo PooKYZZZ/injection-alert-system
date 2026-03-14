@@ -24,6 +24,8 @@ MODEL_IDS = {
     "distilbert": "distilbert-base-uncased",
     "bert-base": "bert-base-uncased",
 }
+MANIFEST_NAME = "serving_manifest.json"
+REQUIRED_MANIFEST_KEYS = ("temperature", "run_dir_name", "label_names", "max_seq_len")
 
 
 def _discover_latest_run(staging_dir: Path, model_key: str) -> Path:
@@ -43,6 +45,38 @@ def _resolve_run_dir(staging_dir: Path, model_key: str) -> Path:
     return _discover_latest_run(staging_dir, model_key)
 
 
+def _load_serving_manifest(run_dir: Path) -> dict:
+    manifest_path = run_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            f"Packaged serving manifest is missing for run '{run_dir}': {manifest_path}"
+        )
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Packaged serving manifest is invalid JSON for run '{run_dir}': {manifest_path}"
+        ) from exc
+
+    missing_keys = [
+        key for key in REQUIRED_MANIFEST_KEYS if manifest.get(key) in (None, "", [])
+    ]
+    if missing_keys:
+        raise RuntimeError(
+            f"Packaged serving manifest is incomplete for run '{run_dir}': missing {missing_keys}"
+        )
+
+    run_dir_name = manifest["run_dir_name"]
+    if str(run_dir_name).strip() != run_dir.name:
+        raise RuntimeError(
+            "Packaged serving manifest run_dir_name does not match the selected run: "
+            f"expected '{run_dir.name}', got '{run_dir_name}'"
+        )
+
+    return manifest
+
+
 def _load_model_id(run_dir: Path, model_key: str) -> str:
     config_path = run_dir / "config_used.json"
     if config_path.exists():
@@ -53,17 +87,6 @@ def _load_model_id(run_dir: Path, model_key: str) -> str:
     return MODEL_IDS[model_key]
 
 
-def _load_temperature(eval_dir: Path, model_key: str) -> float:
-    if not eval_dir.exists():
-        return 1.0
-    for run_dir in sorted([path for path in eval_dir.iterdir() if path.is_dir()], key=lambda path: path.name, reverse=True):
-        result_path = run_dir / f"eval_results_{model_key}_calibrated.json"
-        if result_path.exists():
-            with result_path.open("r", encoding="utf-8") as handle:
-                return float(json.load(handle).get("temperature", 1.0))
-    return 1.0
-
-
 def load_model(model_key: str, staging_dir=None, device="cpu"):
     if model_key not in MODEL_IDS:
         raise KeyError(f"Unknown model key: {model_key}")
@@ -72,7 +95,8 @@ def load_model(model_key: str, staging_dir=None, device="cpu"):
     staging_dir = Path(staging_dir)
     run_dir = _resolve_run_dir(staging_dir, model_key)
     ckpt_path = run_dir / f"best_{model_key}_ckpt.pt"
-    temperature = _load_temperature(run_dir.parent.parent / "eval", model_key)
+    manifest = _load_serving_manifest(run_dir)
+    temperature = float(manifest["temperature"])
 
     try:
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -93,7 +117,7 @@ def load_model(model_key: str, staging_dir=None, device="cpu"):
 
         model_id = _load_model_id(run_dir, model_key)
         logger.warning(
-            "Falling back to checkpoint-based loading for '%s' from '%s': %s",
+            "Falling back to legacy checkpoint-based loading for '%s' from '%s': %s",
             model_key,
             run_dir,
             exc,
