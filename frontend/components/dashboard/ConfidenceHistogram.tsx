@@ -14,7 +14,7 @@ interface ConfidenceHistogramProps {
 export default function ConfidenceHistogram({ bins }: ConfidenceHistogramProps) {
   return (
     <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle p-4">
-      <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-4">
+      <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-4">
         ML Confidence Distribution
       </h3>
       <div className="flex items-end gap-2 h-32">
