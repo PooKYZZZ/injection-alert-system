@@ -4,17 +4,25 @@
 # Usage: from web_app.presentation.schemas import PredictionRequest, ...
 #
 from web_app.presentation.schemas.schemas import (
+    AlertResponse,
+    AlertDetailResponse,
+    AlertListResponse,
+    HealthResponse,
+    FeedbackRequest,
+    MLHealthResponse,
     PredictionRequest,
     PredictionResponse,
-    FeedbackRequest,
-    AlertResponse,
-    HealthResponse,
+    StatsResponse,
 )
 
 __all__ = [
+    "AlertDetailResponse",
+    "AlertListResponse",
     "PredictionRequest",
     "PredictionResponse",
     "FeedbackRequest",
     "AlertResponse",
     "HealthResponse",
+    "StatsResponse",
+    "MLHealthResponse",
 ]

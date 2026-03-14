@@ -74,10 +74,15 @@ def test_predict_response_has_action_taken(client):
 
 def test_alerts_endpoint_empty(client):
     """Test alerts endpoint returns empty list when no data"""
-    response = client.get("/api/alerts")
+    response = client.get("/api/alerts?search=__no_matching_alert__")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
+    assert data == {
+        "items": [],
+        "total": 0,
+        "page": 1,
+        "page_size": 20,
+    }
 
 
 def test_alerts_endpoint_with_data(client):
@@ -90,7 +95,10 @@ def test_alerts_endpoint_with_data(client):
     response = client.get("/api/alerts")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
+    assert "items" in data
+    assert "total" in data
+    assert data["total"] >= 1
+    assert isinstance(data["items"], list)
 
 
 def test_feedback_endpoint(client):
@@ -103,7 +111,7 @@ def test_feedback_endpoint(client):
 
     # Get the traffic log id from alerts
     alerts_response = client.get("/api/alerts")
-    alerts = alerts_response.json()
+    alerts = alerts_response.json()["items"]
 
     if alerts:
         traffic_id = alerts[0]["id"]

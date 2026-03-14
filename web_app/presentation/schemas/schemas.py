@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PredictionRequest(BaseModel):
@@ -47,6 +48,45 @@ class AlertResponse(BaseModel):
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+
+
+class StatsResponse(BaseModel):
+    total_requests: int = Field(default=0, ge=0)
+    counts_by_label: dict[str, int] = Field(default_factory=dict)
+    avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
+
+
+class MLHealthResponse(BaseModel):
+    model_version: str
+    loaded: bool
+    status: Literal["healthy", "degraded"]
+    avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
+    total_processed: int = Field(default=0, ge=0)
+    drift_detected: bool = False
+    confidence_thresholds: dict[str, float] = Field(default_factory=dict)
+
+
+class AlertDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    timestamp: datetime
+    source_ip: Optional[str] = None
+    request_path: Optional[str] = None
+    request_method: Optional[str] = None
+    payload_snippet: str
+    prediction: str
+    confidence: float
+    confidence_level: str
+    action_taken: Optional[str] = None
+    crs_score: Optional[int] = None
+
+
+class AlertListResponse(BaseModel):
+    items: list[AlertDetailResponse] = Field(default_factory=list)
+    total: int = Field(default=0, ge=0)
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
 
 
 class HealthResponse(BaseModel):

@@ -15,7 +15,7 @@ Dependency rule:
 
 from abc import ABC, abstractmethod
 from typing import Optional, List
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -28,17 +28,43 @@ class TrafficLogEntity:
     """
 
     id: Optional[int] = None
+    transaction_id: Optional[str] = None
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
+    request_path: Optional[str] = None
+    request_method: Optional[str] = None
     http_request: str = ""
+    crs_score: Optional[int] = None
     prediction: str = ""
     confidence: float = 0.0
     confidence_level: str = "LOW"
+    inference_latency_ms: Optional[float] = None
     model_version: Optional[str] = None
     action_taken: Optional[str] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+
+    @property
+    def payload_snippet(self) -> str:
+        if not self.http_request:
+            return ""
+        return self.http_request[:250]
+
+
+@dataclass
+class TrafficStatsSummary:
+    total_requests: int = 0
+    counts_by_label: dict[str, int] = field(default_factory=dict)
+    avg_inference_latency_ms: float = 0.0
+
+
+@dataclass
+class TrafficLogPage:
+    items: List[TrafficLogEntity] = field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
 
 
 class ITrafficLogRepository(ABC):
@@ -56,6 +82,31 @@ class ITrafficLogRepository(ABC):
     @abstractmethod
     async def get_by_id(self, traffic_id: int) -> Optional[TrafficLogEntity]:
         """Retrieve a single traffic log by its ID."""
+        ...
+
+    @abstractmethod
+    async def get_by_transaction_id(
+        self,
+        transaction_id: str,
+    ) -> Optional[TrafficLogEntity]:
+        """Retrieve a single traffic log by its transaction ID."""
+        ...
+
+    @abstractmethod
+    async def get_stats_summary(self) -> TrafficStatsSummary:
+        """Return aggregate traffic stats with zero-safe defaults."""
+        ...
+
+    @abstractmethod
+    async def get_alert_list(
+        self,
+        page: int,
+        page_size: int,
+        severity: Optional[str] = None,
+        time_range: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> TrafficLogPage:
+        """Return a filtered, paginated alert list."""
         ...
 
     @abstractmethod
