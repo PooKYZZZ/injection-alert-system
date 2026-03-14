@@ -15,6 +15,8 @@ class ModelService:
     MODEL_KEY = "distilbert"
     CHECKPOINT_NAME = f"best_{MODEL_KEY}_ckpt.pt"
     MOCK_MODEL_VERSION = "mock-model-service"
+    DEFAULT_CONFIDENCE_LOW_THRESHOLD = 0.50
+    DEFAULT_CONFIDENCE_HIGH_THRESHOLD = 0.80
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -24,6 +26,10 @@ class ModelService:
         self.temperature = float(TEMPERATURE)
         self.model_version = ""
         self._mock_classifier: MockInjectionClassifier | None = None
+        self._total_processed = 0
+        self._total_inference_latency_ms = 0.0
+        self._confidence_low_threshold = float(settings.confidence_low_threshold)
+        self._confidence_high_threshold = float(settings.confidence_high_threshold)
 
         run_dir, was_inferred = self._resolve_run_directory(
             settings,
@@ -63,6 +69,10 @@ class ModelService:
         instance.temperature = float(TEMPERATURE)
         instance.model_version = cls.MOCK_MODEL_VERSION
         instance._mock_classifier = MockInjectionClassifier()
+        instance._total_processed = 0
+        instance._total_inference_latency_ms = 0.0
+        instance._confidence_low_threshold = cls.DEFAULT_CONFIDENCE_LOW_THRESHOLD
+        instance._confidence_high_threshold = cls.DEFAULT_CONFIDENCE_HIGH_THRESHOLD
         return instance
 
     def predict(self, payload: str) -> dict[str, Any]:
@@ -70,11 +80,13 @@ class ModelService:
 
         if self._mock_classifier is not None:
             mock_result = self._mock_classifier.predict(text)
-            return self._build_response(
+            response = self._build_response(
                 prediction=mock_result["class"],
                 confidence=float(mock_result["confidence"]),
                 inference_latency_ms=0.0,
             )
+            self._record_inference(response["inference_latency_ms"])
+            return response
 
         try:
             from ml_model.inference.predict_attack import predict_attack
@@ -92,11 +104,13 @@ class ModelService:
                 f"ModelService prediction failed for model '{self.model_version}': {exc}"
             ) from exc
 
-        return self._build_response(
+        response = self._build_response(
             prediction=result["label"],
             confidence=float(result["max_prob"]),
             inference_latency_ms=float(result.get("latency_ms", 0.0)),
         )
+        self._record_inference(response["inference_latency_ms"])
+        return response
 
     @classmethod
     def _resolve_run_directory(
@@ -195,6 +209,35 @@ class ModelService:
         response["class"] = prediction
         response["confidence_level"] = confidence_tier
         return response
+
+    def _record_inference(self, inference_latency_ms: float) -> None:
+        self._total_processed += 1
+        self._total_inference_latency_ms += float(inference_latency_ms)
+
+    @property
+    def loaded(self) -> bool:
+        return self.model is not None or self._mock_classifier is not None
+
+    @property
+    def is_mock(self) -> bool:
+        return self._mock_classifier is not None
+
+    @property
+    def total_processed(self) -> int:
+        return self._total_processed
+
+    @property
+    def avg_inference_latency_ms(self) -> float:
+        if self._total_processed == 0:
+            return 0.0
+        return round(self._total_inference_latency_ms / self._total_processed, 3)
+
+    @property
+    def confidence_thresholds(self) -> dict[str, float]:
+        return {
+            "low": self._confidence_low_threshold,
+            "high": self._confidence_high_threshold,
+        }
 
     @staticmethod
     def _confidence_tier_for(confidence: float) -> str:

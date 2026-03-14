@@ -14,9 +14,10 @@ Dependency rule:
   - Gets DB session from infrastructure/ DI only to construct repositories
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import List, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
@@ -25,10 +26,14 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
 from web_app.application.triage_use_case import TriageUseCase
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.presentation.schemas import (
+    AlertResponse,
+    AlertDetailResponse,
+    AlertListResponse,
+    FeedbackRequest,
+    MLHealthResponse,
     PredictionRequest,
     PredictionResponse,
-    FeedbackRequest,
-    AlertResponse,
+    StatsResponse,
 )
 
 router = APIRouter()
@@ -37,6 +42,11 @@ router = APIRouter()
 def get_model(request: Request):
     """Dependency that retrieves the singleton model from app.state."""
     return request.app.state.model
+
+
+def get_model_service(request: Request):
+    """Dependency that retrieves the singleton model service from app.state."""
+    return request.app.state.model_service
 
 
 @router.post("/predict", response_model=PredictionResponse)
@@ -67,31 +77,76 @@ async def predict(
     )
 
 
-@router.get("/alerts", response_model=List[AlertResponse])
+@router.get("/stats", response_model=StatsResponse)
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+):
+    """Return aggregate traffic statistics with zero-safe defaults."""
+    repository = TrafficLogRepository(db)
+    summary = await repository.get_stats_summary()
+    return StatsResponse(
+        total_requests=summary.total_requests,
+        counts_by_label=summary.counts_by_label,
+        avg_inference_latency_ms=summary.avg_inference_latency_ms,
+    )
+
+
+@router.get("/ml-health", response_model=MLHealthResponse)
+async def get_ml_health(
+    model_service=Depends(get_model_service),
+):
+    """Return health information for the currently loaded model service."""
+    return MLHealthResponse(
+        model_version=model_service.model_version,
+        loaded=model_service.loaded,
+        status="degraded" if model_service.is_mock else "healthy",
+        avg_inference_latency_ms=model_service.avg_inference_latency_ms,
+        total_processed=model_service.total_processed,
+        drift_detected=False,
+        confidence_thresholds=model_service.confidence_thresholds,
+    )
+
+
+@router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)
+async def get_alert_by_id(
+    alert_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a single alert by primary key or 404 when it does not exist."""
+    repository = TrafficLogRepository(db)
+    entity = await repository.get_by_id(alert_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return AlertDetailResponse.model_validate(entity)
+
+
+@router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts(
-    skip: int = 0,
-    limit: int = 100,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    severity: Literal["ALL", "LOW", "MEDIUM", "HIGH"] | None = Query(default=None),
+    time_range: Literal["1h", "6h", "24h", "7d"] | None = Query(default=None),
+    search: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """Get list of traffic alerts with pagination."""
     repository = TrafficLogRepository(db)
-    entities = await repository.list_recent(skip=skip, limit=limit)
-    return [
-        AlertResponse(
-            id=e.id,
-            timestamp=e.timestamp,
-            source_ip=e.source_ip,
-            http_request=e.http_request,
-            prediction=e.prediction,
-            confidence=e.confidence,
-            confidence_level=e.confidence_level,
-            action_taken=e.action_taken,
-            analyst_label=e.analyst_label,
-            labeled_at=e.labeled_at,
-            labeled_by=e.labeled_by,
-        )
-        for e in entities
-    ]
+    alert_page = await repository.get_alert_list(
+        page=page,
+        page_size=page_size,
+        severity=severity,
+        time_range=time_range,
+        search=search,
+    )
+    return AlertListResponse(
+        items=[
+            AlertDetailResponse.model_validate(entity)
+            for entity in alert_page.items
+        ],
+        total=alert_page.total,
+        page=alert_page.page,
+        page_size=alert_page.page_size,
+    )
 
 
 @router.post("/feedback")
