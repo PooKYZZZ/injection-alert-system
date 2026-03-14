@@ -16,6 +16,8 @@ Dependency rule:
 from dataclasses import dataclass
 from typing import Protocol
 
+from starlette.concurrency import run_in_threadpool
+
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 
 
@@ -66,7 +68,7 @@ class TriageUseCase:
     ) -> TriageResult:
         """Run the full triage pipeline and persist the result."""
         # Step 1 — ML inference
-        result = self._classifier.predict(http_request)
+        result = await run_in_threadpool(self._classifier.predict, http_request)
 
         # Step 2 — Confidence-gated action decision
         if result["confidence_level"] == "HIGH" and result["class"] != "Normal":

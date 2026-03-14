@@ -10,6 +10,7 @@ verifying that the use case correctly:
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+from web_app.application import triage_use_case as triage_use_case_module
 from web_app.application.triage_use_case import TriageUseCase, TriageResult
 from web_app.domain.interfaces import TrafficLogEntity
 
@@ -138,3 +139,48 @@ async def test_triage_persists_correct_entity_fields(mock_classifier, mock_repos
     assert saved_entity.prediction == "SQL Injection"
     assert saved_entity.confidence == 0.88
     assert saved_entity.action_taken == "BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_triage_offloads_sync_predict_via_threadpool(
+    mock_classifier,
+    mock_repository,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Async triage execution must offload sync ML inference."""
+    expected_result = {
+        "class": "Normal",
+        "confidence": 0.42,
+        "confidence_level": "LOW",
+    }
+    mock_classifier.predict.return_value = expected_result
+
+    captured: dict[str, object] = {}
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        captured["func"] = func
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(
+        triage_use_case_module,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    result = await use_case.execute(
+        http_request="GET /health",
+        source_ip="127.0.0.1",
+    )
+
+    assert captured["func"] is mock_classifier.predict
+    assert captured["args"] == ("GET /health",)
+    assert captured["kwargs"] == {}
+    assert result == TriageResult(
+        class_label="Normal",
+        confidence=0.42,
+        confidence_level="LOW",
+        action_taken="ALLOWED",
+    )
