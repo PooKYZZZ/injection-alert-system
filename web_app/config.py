@@ -1,5 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -9,13 +11,33 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     model_path: str
+    model_registry_path: str = ""
     api_secret_key: str
     groq_api_key: str | None = None
-    allowed_origins: list[str] = ["http://localhost:3000"]
+    allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    is_development: bool = False
+    confidence_low_threshold: float = 0.50
+    confidence_high_threshold: float = 0.80
+    max_seq_len: int = 128
+    # dev-time default — source from artifact metadata in production
+    temperature: float = 0.596868
+    # dev-time default — source from artifact metadata in production
+    label_names: list[str] = Field(
+        default_factory=lambda: [
+            "Code Injection",
+            "Normal",
+            "Other Attacks",
+            "SQL Injection",
+        ]
+    )
+    # dev-time default — source from artifact metadata in production
+    model_version: str = "distilbert_v3_907k_cleaned_20260312_133755"
 
-    @property
-    def is_development(self) -> bool:
-        return self.app_env == "development"
+    @model_validator(mode="after")
+    def apply_environment_defaults(self) -> "Settings":
+        if "is_development" not in self.model_fields_set:
+            self.is_development = self.app_env == "development"
+        return self
 
     @property
     def is_production(self) -> bool:
