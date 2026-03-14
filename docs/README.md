@@ -38,7 +38,7 @@ This folder is the maintained documentation surface for the repository. It is in
 
 ## Verified Repo State
 
-- Backend tests currently pass: `44 passed`
+- Backend tests currently pass: `50 passed`
 - Frontend typecheck currently passes: `npm run typecheck`
 - Current backend routes are limited to:
   - `POST /api/predict`

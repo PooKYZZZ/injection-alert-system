@@ -24,6 +24,7 @@ MODEL_IDS = {
     "distilbert": "distilbert-base-uncased",
     "bert-base": "bert-base-uncased",
 }
+MANIFEST_NAME = "serving_manifest.json"
 
 
 def _discover_latest_run(staging_dir: Path, model_key: str) -> Path:
@@ -64,6 +65,48 @@ def _load_temperature(eval_dir: Path, model_key: str) -> float:
     return 1.0
 
 
+def _load_packaged_manifest_temperature(run_dir: Path) -> float | None:
+    manifest_path = run_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        return None
+
+    with manifest_path.open("r", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+
+    try:
+        temperature = float(manifest["temperature"])
+    except (KeyError, TypeError, ValueError) as e:
+        raise RuntimeError(
+            f"Manifest at {manifest_path!r} has missing or invalid field 'temperature': {e}"
+        ) from e
+
+    label_names = manifest.get("label_names")
+    if not isinstance(label_names, list) or not all(isinstance(value, str) for value in label_names):
+        raise RuntimeError(
+            f"Manifest at {manifest_path!r} has missing or invalid field 'label_names': "
+            f"expected list[str], got {label_names!r}."
+        )
+    if label_names != LABEL_NAMES:
+        raise RuntimeError(
+            f"Manifest at {manifest_path!r}: 'label_names' mismatch. "
+            f"Got {label_names!r}, expected {LABEL_NAMES!r}."
+        )
+
+    max_seq_len = manifest.get("max_seq_len")
+    if not isinstance(max_seq_len, int) or isinstance(max_seq_len, bool):
+        raise RuntimeError(
+            f"Manifest at {manifest_path!r} has missing or invalid field 'max_seq_len': "
+            f"expected int, got {max_seq_len!r}."
+        )
+    if max_seq_len != MAX_SEQ_LEN:
+        raise RuntimeError(
+            f"Manifest at {manifest_path!r}: 'max_seq_len' mismatch. "
+            f"Got {max_seq_len!r}, expected {MAX_SEQ_LEN!r}."
+        )
+
+    return temperature
+
+
 def load_model(model_key: str, staging_dir=None, device="cpu"):
     if model_key not in MODEL_IDS:
         raise KeyError(f"Unknown model key: {model_key}")
@@ -72,7 +115,11 @@ def load_model(model_key: str, staging_dir=None, device="cpu"):
     staging_dir = Path(staging_dir)
     run_dir = _resolve_run_dir(staging_dir, model_key)
     ckpt_path = run_dir / f"best_{model_key}_ckpt.pt"
-    temperature = _load_temperature(run_dir.parent.parent / "eval", model_key)
+    manifest_temperature = _load_packaged_manifest_temperature(run_dir)
+    if manifest_temperature is None:
+        temperature = _load_temperature(run_dir.parent.parent / "eval", model_key)
+    else:
+        temperature = manifest_temperature
 
     try:
         model = AutoModelForSequenceClassification.from_pretrained(

@@ -8,7 +8,7 @@
 
 ## Current verified repo state
 
-- Backend tests currently pass: `44 passed`
+- Backend tests currently pass: `50 passed`
 - Frontend typecheck currently passes: `npm run typecheck`
 - Backend routes currently implemented:
   - `POST /api/predict`
