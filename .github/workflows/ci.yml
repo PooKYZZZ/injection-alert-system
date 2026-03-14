@@ -1,13 +1,22 @@
-name: Backend CI
+name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
+    paths:
+      - '**.py'
+      - '**.ts'
+      - '**.tsx'
+      - 'requirements.txt'
+      - 'frontend/package-lock.json'
+      - '.github/workflows/ci.yml'
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
-  test:
+  # ─── Backend ────────────────────────────────────────────────
+  backend:
+    name: Backend (pytest)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -15,31 +24,65 @@ jobs:
         working-directory: injection-alert-system
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        path: injection-alert-system
-    
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.10"
-        cache: "pip"
-        
-    - name: Set up .env file
-      run: |
-        if [ -f .env.example ]; then
-          cp .env.example .env
-          echo "Created .env from .env.example"
-        else
-          touch .env
-          echo "Created empty .env file"
-        fi
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Run tests with pytest
-      run: |
-        pytest
+      - uses: actions/checkout@v4
+        with:
+          path: injection-alert-system
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
+          APP_ENV: development
+          MODEL_REGISTRY_PATH: ""
+          API_SECRET_KEY: ci-test-secret
+        run: |
+          pytest -q --tb=short
+
+  # ─── Frontend ───────────────────────────────────────────────
+  frontend:
+    name: Frontend (typecheck + lint + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: injection-alert-system/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: injection-alert-system
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: injection-alert-system/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (Vitest)
+        run: npm run test
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: injection-alert-system/frontend/coverage
+          retention-days: 7

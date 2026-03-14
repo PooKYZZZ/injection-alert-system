@@ -167,3 +167,4 @@ docs/NOTEBOOK_FIX_GUIDE.md
 .kilocode/skills/security-audit/skill.yaml
 AGENTS.md
 STATUS.md
+.github/workflows/ci.yml
