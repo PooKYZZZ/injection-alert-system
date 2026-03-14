@@ -5,7 +5,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    def __init__(self, **values):
+        legacy_env_file = values.pop("env_file", None)
+        if legacy_env_file is False and "_env_file" not in values:
+            values["_env_file"] = None
+        super().__init__(**values)
 
     database_url: str
     app_env: str = "development"
