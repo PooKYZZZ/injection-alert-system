@@ -29,17 +29,20 @@ class TrafficLogEntity:
 
     id: Optional[int] = None
     transaction_id: Optional[str] = None
+    created_at: Optional[datetime] = None
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
     request_path: Optional[str] = None
     request_method: Optional[str] = None
     http_request: str = ""
     crs_score: Optional[int] = None
-    prediction: str = ""
-    confidence: float = 0.0
-    confidence_level: str = "LOW"
+    crs_rule_ids: Optional[list[str]] = None
+    prediction: Optional[str] = None
+    confidence: Optional[float] = None
+    confidence_level: Optional[str] = None
     inference_latency_ms: Optional[float] = None
     model_version: Optional[str] = None
+    status: Optional[str] = None
     action_taken: Optional[str] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
@@ -77,6 +80,34 @@ class ITrafficLogRepository(ABC):
     @abstractmethod
     async def save(self, entity: TrafficLogEntity) -> TrafficLogEntity:
         """Persist a traffic log entity and return it with its assigned ID."""
+        ...
+
+    @abstractmethod
+    async def save_if_absent(
+        self,
+        entity: TrafficLogEntity,
+    ) -> tuple[TrafficLogEntity, bool]:
+        """Insert once by transaction_id or return the existing entity."""
+        ...
+
+    @abstractmethod
+    async def claim_processing(self, entity: TrafficLogEntity) -> bool:
+        """Reserve a transaction_id with a PROCESSING placeholder row."""
+        ...
+
+    @abstractmethod
+    async def complete_processing(
+        self,
+        transaction_id: str,
+        *,
+        prediction: str,
+        confidence: float,
+        confidence_level: str,
+        inference_latency_ms: Optional[float],
+        model_version: Optional[str],
+        action_taken: str,
+    ) -> TrafficLogEntity:
+        """Complete a claimed placeholder row after inference succeeds."""
         ...
 
     @abstractmethod

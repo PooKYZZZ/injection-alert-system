@@ -2,31 +2,38 @@
 
 **Scope:** operator-only session status  
 **Defense:** May 2026  
-**Last updated:** 2026-03-14
+**Last updated:** 2026-03-15
 
 ---
 
 ## Current verified repo state
 
-- Backend tests currently pass: `50 passed`
+- Backend tests currently pass: `82 passed`
 - Frontend typecheck currently passes: `npm run typecheck`
 - Backend routes currently implemented:
   - `POST /api/predict`
+  - `POST /api/triage`
   - `GET /api/alerts`
+  - `GET /api/alerts/{id}`
+  - `GET /api/stats`
+  - `GET /api/ml-health`
   - `POST /api/feedback`
   - `GET /health`
   - `GET /api/health`
-- The dashboard exists, but the BFF is still mixed:
-  - `stats` can proxy to FastAPI
-  - `alerts`, `alert detail`, and `ml-health` are still mock-first or stubbed
+- Triage ingest is reservation-first on `transaction_id`:
+  - placeholder row inserted with `status="PROCESSING"`
+  - winner determined by `INSERT ... ON CONFLICT DO NOTHING` rowcount
+  - winner completes the row to `status="COMPLETED"` after inference
+  - loser returns existing completed data or a retriable response while processing is in flight
+- `PROCESSING` placeholder rows are excluded from normal alerts and stats reads
 - Docker Compose, runnable ModSecurity wiring, and full Supabase or Redis integration are not in the repo yet
 
 ## Open implementation gaps
 
-- Backend routes still missing for:
-  - `GET /api/stats`
-  - `GET /api/ml-health`
-  - `GET /api/alerts/{id}`
+- The reservation-first triage flow now depends on the applied DB migration for:
+  - `created_at`
+  - `status`
+  - nullable result columns on placeholder rows
 - The backend still uses async SQLAlchemy locally and is not fully wired to live Supabase behavior
 - The frontend still has mock-backed route handlers that need real upstream wiring
 - Data scripts still hardcode workstation-specific paths

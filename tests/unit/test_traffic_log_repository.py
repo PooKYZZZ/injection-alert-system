@@ -146,3 +146,93 @@ async def test_get_alert_list_preserves_filtered_total_when_page_is_empty(
     assert page.page == 2
     assert page.page_size == 1
     assert page.items == []
+
+
+@pytest.mark.asyncio
+async def test_save_if_absent_returns_existing_entity_for_duplicate_transaction_id(
+    repository: TrafficLogRepository,
+):
+    entity = TrafficLogEntity(
+        transaction_id="txn-dup-1",
+        timestamp=datetime.now(),
+        source_ip="198.51.100.10",
+        request_path="/triage",
+        request_method="POST",
+        http_request="POST /triage HTTP/1.1",
+        crs_score=11,
+        crs_rule_ids=["942100"],
+        prediction="SQL Injection",
+        confidence=0.93,
+        confidence_level="HIGH",
+        inference_latency_ms=8.1,
+        model_version="test-model-v1",
+        action_taken="BLOCKED",
+    )
+
+    first, first_created = await repository.save_if_absent(entity)
+    second, second_created = await repository.save_if_absent(entity)
+
+    assert first_created is True
+    assert second_created is False
+    assert second.id == first.id
+    assert second.transaction_id == "txn-dup-1"
+
+
+@pytest.mark.asyncio
+async def test_claim_processing_uses_transaction_id_reservation(
+    repository: TrafficLogRepository,
+):
+    placeholder = TrafficLogEntity(
+        transaction_id="txn-claim-1",
+        timestamp=datetime.now(),
+        source_ip="198.51.100.11",
+        request_path="/triage",
+        request_method="POST",
+        http_request="POST /triage HTTP/1.1",
+        crs_score=7,
+        crs_rule_ids=["942100"],
+        status="PROCESSING",
+    )
+
+    first_claim = await repository.claim_processing(placeholder)
+    second_claim = await repository.claim_processing(placeholder)
+    stored = await repository.get_by_transaction_id("txn-claim-1")
+
+    assert first_claim is True
+    assert second_claim is False
+    assert stored is not None
+    assert stored.status == "PROCESSING"
+    assert stored.prediction is None
+
+
+@pytest.mark.asyncio
+async def test_complete_processing_updates_placeholder_row(
+    repository: TrafficLogRepository,
+):
+    await repository.claim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-complete-1",
+            timestamp=datetime.now(),
+            source_ip="198.51.100.12",
+            request_path="/triage",
+            request_method="POST",
+            http_request="POST /triage HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        )
+    )
+
+    completed = await repository.complete_processing(
+        "txn-complete-1",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        inference_latency_ms=3.4,
+        model_version="test-model-v1",
+        action_taken="BLOCKED",
+    )
+
+    assert completed.status == "COMPLETED"
+    assert completed.prediction == "SQL Injection"
+    assert completed.action_taken == "BLOCKED"

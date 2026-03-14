@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     is_development: bool = False
     confidence_low_threshold: float = 0.50
     confidence_high_threshold: float = 0.80
+    stale_processing_timeout_seconds: int = 30
     max_seq_len: int = 128
     # dev-time default — source from artifact metadata in production
     temperature: float = 0.596868

@@ -13,6 +13,8 @@ from web_app.presentation.schemas.schemas import (
     PredictionRequest,
     PredictionResponse,
     StatsResponse,
+    TriageIngestRequest,
+    TriageIngestResponse,
 )
 
 __all__ = [
@@ -25,4 +27,6 @@ __all__ = [
     "HealthResponse",
     "StatsResponse",
     "MLHealthResponse",
+    "TriageIngestRequest",
+    "TriageIngestResponse",
 ]

@@ -109,11 +109,14 @@
       - Calls get_by_id() from repository
       - Normalization map applied
       - Returns 404 on unknown ID
-- [ ] POST /api/triage/crs-alert implemented:
+- [ ] POST /api/triage implemented:
       - Route handler is thin — validates, calls TriageUseCase, returns response
-      - TriageUseCase extended: dedup check → run_in_threadpool inference → action policy → persist → return
+      - Reservation-first dedup: placeholder INSERT with `status=PROCESSING` happens before inference
+      - Winner is determined by `INSERT ... ON CONFLICT DO NOTHING` rowcount on `transaction_id`
+      - Winner runs `await run_in_threadpool(model_service.predict, payload)` and updates row to `COMPLETED`
+      - Loser returns the existing completed alert or a retriable response while row is still `PROCESSING`
+      - Stale `PROCESSING` rows return `503` with `Retry-After`
       - request_headers + request_body folded into http_request at write time
-      - Atomic dedup: PostgreSQL ON CONFLICT DO NOTHING on transaction_id
       - Returns 503 if model not ready
       - Returns 401 if no token
 - [ ] ALLOWED → LOGGED fixed at source in TriageUseCase (not a BFF remap)
@@ -131,7 +134,8 @@
 - [ ] Alert detail 404 — unknown ID returns 404
 - [ ] Empty stats — zeroed response on empty table, not 500
 - [ ] Duplicate ingest — same transaction_id twice, one DB record, second returns existing
-- [ ] Dedup PostgreSQL — ON CONFLICT DO NOTHING atomic on transaction_id
+- [ ] Dedup PostgreSQL — reservation-first ON CONFLICT DO NOTHING atomic on transaction_id
+- [ ] Placeholder rows do not leak into `/api/alerts` or `/api/stats`
 
 ## P-3 BFF + FRONTEND
 
@@ -196,12 +200,12 @@
 
 ## Quick Status Summary (Update This After Every Session)
 
-**Last updated:** [x] 2026-03-15 — locked frontend alert normalization contract to a single source of truth and aligned types, schemas, mocks, and alert UI to current backend-emitted `action_taken` values
+**Last updated:** [x] 2026-03-15 — triage ingest switched to reservation-first dedup on `transaction_id`, added `PROCESSING`/`COMPLETED` placeholder handling, and aligned docs to canonical `POST /api/triage`
 
-**Current focus:** [x] Frontend alert contract lock complete; backend/BFF transport alignment remains future work
+**Current focus:** [x] Backend triage ingest concurrency fix is in place; next work remains BFF wiring and transport alignment cleanup
 
-**Next up:** [x] BFF wiring against real alert endpoints once backend transport contract is explicitly finalized at source
+**Next up:** [x] BFF wiring against real alert, stats, and ml-health endpoints once backend transport contract is explicitly finalized at source
 
-**Blockers:** [x] AGENTS/checklist business wording still differs from current backend-emitted `action_taken` values (`BLOCKED`, `THROTTLED`, `ALLOWED`)
+**Blockers:** [x] Applied environments must be migrated so `created_at`, `status`, and nullable placeholder result columns match the current reservation-first triage code
 
-**Completed today:** [x] Added `frontend/features/alerts/contract.ts`, tightened alert schemas to enums, removed frontend-invented alert labels from mocks, and documented the current transport-vs-policy wording mismatch
+**Completed today:** [x] Added reservation-first triage ingest behavior, stale PROCESSING handling, explicit placeholder-row filtering in alerts and stats, and updated operator docs to canonical `/api/triage`
