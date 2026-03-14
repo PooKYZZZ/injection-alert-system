@@ -62,27 +62,33 @@ class TrafficLogRepository(ITrafficLogRepository):
     @staticmethod
     def _entity_to_orm(entity: TrafficLogEntity) -> TrafficLog:
         """Convert a domain entity to an ORM model instance."""
-        return TrafficLog(
-            transaction_id=entity.transaction_id,
-            created_at=entity.created_at,
-            timestamp=entity.timestamp,
-            source_ip=entity.source_ip,
-            request_path=entity.request_path,
-            request_method=entity.request_method,
-            http_request=entity.http_request,
-            crs_score=entity.crs_score,
-            crs_rule_ids=entity.crs_rule_ids,
-            prediction=entity.prediction,
-            confidence=entity.confidence,
-            confidence_level=entity.confidence_level,
-            inference_latency_ms=entity.inference_latency_ms,
-            status=entity.status,
-            model_version=entity.model_version,
-            action_taken=entity.action_taken,
-            analyst_label=entity.analyst_label,
-            labeled_at=entity.labeled_at,
-            labeled_by=entity.labeled_by,
-        )
+        kwargs = {
+            "transaction_id": entity.transaction_id,
+            "source_ip": entity.source_ip,
+            "request_path": entity.request_path,
+            "request_method": entity.request_method,
+            "http_request": entity.http_request,
+            "crs_score": entity.crs_score,
+            "crs_rule_ids": entity.crs_rule_ids,
+            "prediction": entity.prediction,
+            "confidence": entity.confidence,
+            "confidence_level": entity.confidence_level,
+            "inference_latency_ms": entity.inference_latency_ms,
+            "model_version": entity.model_version,
+            "action_taken": entity.action_taken,
+            "analyst_label": entity.analyst_label,
+            "labeled_at": entity.labeled_at,
+            "labeled_by": entity.labeled_by,
+        }
+
+        if entity.created_at is not None:
+            kwargs["created_at"] = entity.created_at
+        if entity.timestamp is not None:
+            kwargs["timestamp"] = entity.timestamp
+        if entity.status is not None:
+            kwargs["status"] = entity.status
+
+        return TrafficLog(**kwargs)
 
     @staticmethod
     def _orm_to_entity(orm_obj: TrafficLog) -> TrafficLogEntity:
