@@ -110,6 +110,30 @@ function normalizeWithSchema<T>(
   return ok(parsed.data)
 }
 
+function validateMockData<T>(
+  schema: z.ZodType<T>,
+  payload: unknown
+): BffResult<T> {
+  try {
+    const parsed = schema.safeParse(payload)
+    if (!parsed.success) {
+      return err(
+        500,
+        'INVALID_MOCK_DATA',
+        'Mock data does not match expected contract.'
+      )
+    }
+
+    return ok(parsed.data)
+  } catch {
+    return err(
+      500,
+      'INVALID_MOCK_DATA',
+      'Mock data does not match expected contract.'
+    )
+  }
+}
+
 function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Alert> {
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
@@ -248,7 +272,7 @@ export async function getAlerts(
   searchParams: URLSearchParams
 ): Promise<BffResult<PaginatedAlerts>> {
   if (isMockMode()) {
-    return ok(PaginatedAlertsSchema.parse(MOCK_ALERTS))
+    return validateMockData(PaginatedAlertsSchema, MOCK_ALERTS)
   }
 
   const query = new URLSearchParams()
@@ -275,7 +299,7 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
       return err(404, 'NOT_FOUND', 'Requested resource was not found.')
     }
 
-    return ok(AlertSchema.parse(match))
+    return validateMockData(AlertSchema, match)
   }
 
   const numericId = Number(alertId)

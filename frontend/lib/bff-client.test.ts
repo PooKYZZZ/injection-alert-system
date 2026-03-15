@@ -26,6 +26,7 @@ describe('bff-client', () => {
 
   afterEach(() => {
     process.env = originalEnv
+    vi.doUnmock('@/mocks/alerts')
   })
 
   it('maps alerts list pagination and field names from FastAPI', async () => {
@@ -348,5 +349,66 @@ describe('bff-client', () => {
     if (mlHealth.ok) {
       expect(mlHealth.data.status).toBe('HEALTHY')
     }
+  })
+
+  it('returns INVALID_MOCK_DATA when mock alerts list does not match the contract', async () => {
+    process.env.USE_MOCK_API = 'true'
+    vi.doMock('@/mocks/alerts', () => ({
+      MOCK_ALERTS: {
+        items: [],
+        total: 'bad-total',
+        page: 1,
+        pageSize: 20,
+      },
+    }))
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: {
+        code: 'INVALID_MOCK_DATA',
+        message: 'Mock data does not match expected contract.',
+      },
+    })
+  })
+
+  it('returns INVALID_MOCK_DATA when mock alert detail does not match the contract', async () => {
+    process.env.USE_MOCK_API = 'true'
+    vi.doMock('@/mocks/alerts', () => ({
+      MOCK_ALERTS: {
+        items: [
+          {
+            alert_id: '1',
+            timestamp: '2026-03-15T00:00:00Z',
+            source_ip: '203.0.113.10',
+            request_path: '/login',
+            request_method: 'POST',
+            payload_snippet: 'payload',
+            prediction: 'SQL Injection',
+            confidence: 0.9,
+            confidence_level: 'HIGH',
+            action_taken: 'INVALID_ACTION',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    }))
+
+    const { getAlertDetail } = await loadClient()
+    const result = await getAlertDetail('1')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: {
+        code: 'INVALID_MOCK_DATA',
+        message: 'Mock data does not match expected contract.',
+      },
+    })
   })
 })

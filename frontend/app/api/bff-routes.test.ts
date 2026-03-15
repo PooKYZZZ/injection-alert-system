@@ -117,22 +117,28 @@ describe('BFF route handlers', () => {
   })
 
   it('alert detail route rejects non-numeric ids locally', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock
+      .mockResolvedValueOnce({ user: { id: '1' } })
+      .mockResolvedValueOnce({ user: { id: '1' } })
+      .mockResolvedValueOnce({ user: { id: '1' } })
     const { GET } = await import('./alerts/[id]/route')
 
-    const response = await GET({} as never, {
-      params: Promise.resolve({ id: 'NaN' }),
-    })
-    const body = await response.json()
+    for (const id of ['NaN', '', undefined] as const) {
+      const response = await GET({} as never, {
+        params: Promise.resolve({ id: id as unknown as string }),
+      })
+      const body = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(body).toEqual({
+        error: {
+          code: 'INVALID_ID',
+          message: 'Alert ID must be a valid number.',
+        },
+      })
+    }
 
     expect(getAlertDetailMock).not.toHaveBeenCalled()
-    expect(response.status).toBe(400)
-    expect(body).toEqual({
-      error: {
-        code: 'INVALID_ID',
-        message: 'Alert ID must be a valid number.',
-      },
-    })
   })
 
   it('stats route returns total_requests in the frontend shape', async () => {
