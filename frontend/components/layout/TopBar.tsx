@@ -18,13 +18,13 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (!isActive) {
     switch (severity) {
       case 'HIGH':
-        return `${base} bg-white text-red-700 border-gray-200 hover:bg-red-50 hover:border-red-200`
+        return `${base} bg-sidebar-active text-red-700 border-sidebar-active hover:bg-red-50 hover:border-red-200`
       case 'MEDIUM':
-        return `${base} bg-white text-orange-600 border-gray-200 hover:bg-orange-50 hover:border-orange-200`
+        return `${base} bg-sidebar-active text-orange-600 border-sidebar-active hover:bg-orange-50 hover:border-orange-200`
       case 'LOW':
-        return `${base} bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300`
+        return `${base} bg-sidebar-active text-gray-600 border-sidebar-active hover:bg-gray-50 hover:border-gray-300`
       default:
-        return `${base} bg-white text-slate-800 border-gray-200 hover:bg-slate-100 hover:border-slate-300`
+        return `${base} bg-sidebar-active text-slate-800 border-sidebar-active hover:bg-slate-100 hover:border-slate-300`
     }
   }
 
@@ -107,7 +107,7 @@ function TopBarContent() {
             defaultValue={searchParams.get('search') ?? ''}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search IP address..."
-            className="bg-white border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
+            className="bg-sidebar-active border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
           />
         </div>
       </div>

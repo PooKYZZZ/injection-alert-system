@@ -31,42 +31,64 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="bg-[#111] rounded-lg shadow-md p-8 w-full max-w-sm text-white">
+    <div className="min-h-screen bg-black flex flex-col lg:flex-row">
 
-        <h1 className="text-2xl font-semibold mb-6 text-center">
-          Login
-        </h1>
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-10 lg:px-8">
+        <div className="bg-background-main rounded-xl shadow-xl p-8 sm:p-10 xl:p-12 w-full max-w-[520px] text-text-main">
 
-        {error && (
-          <p className="mb-4 text-sm text-red-400 text-center">
-            Invalid password. Please try again.
-          </p>
-        )}
+          <h1 className="text-4xl font-semibold mb-10 text-center">
+            Login
+          </h1>
 
-        {/* Password Input */}
-        <label htmlFor="password" className="sr-only">
-          Password
-        </label>
-        <input
-          id="password"
-          type="password"
-          placeholder="Enter password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
-          className="w-full mb-4 px-3 py-2 bg-black border border-gray-600 rounded"
+          {error && (
+            <p className="mb-6 text-sm text-red-400 text-center">
+              Invalid password. Please try again.
+            </p>
+          )}
+
+          <label htmlFor="password" className="sr-only">
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            placeholder="Enter password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
+            className="w-full mb-6 px-4 py-3 bg-surface-light border border-border-light rounded-md text-lg text-text-main outline-none focus:border-text-muted"
+          />
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={pending}
+            className="w-full bg-sidebar-active hover:bg-sidebar-bg py-3 rounded-md text-lg font-medium text-white transition-colors"
+          >
+            {pending ? 'Signing in...' : 'Login'}
+          </button>
+
+        </div>
+      </div>
+
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center px-6 pb-10 lg:px-8 lg:pb-0 text-text-main">
+        <img
+          src="/logo.png"
+          alt="Team 13"
+          className="w-full max-w-[520px] mb-4"
         />
 
-        {/* Login Button */}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={pending}
-          className="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded"
-        >
-          {pending ? 'Signing in...' : 'Login'}
-        </button>
+        <h2 className="text-4xl sm:text-5xl xl:text-6xl font-bold font-[Orbitron] tracking-wide text-center">
+          CyberTrace
+        </h2>
+
+        <p className="text-text-muted mt-2 text-base sm:text-lg text-center">
+          WAF-ML Security Dashboard
+        </p>
+
+        <p className="text-text-muted text-sm text-center">
+          by Team 13
+        </p>
 
       </div>
     </div>

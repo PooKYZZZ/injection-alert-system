@@ -29,7 +29,8 @@ afterEach(() => {
 describe('Sidebar', () => {
   it('renders without crashing', () => {
     render(<Sidebar />)
-    expect(screen.getByText('WAF-ML SOC')).toBeInTheDocument()
+    expect(screen.getByText('CyberTrace')).toBeInTheDocument()
+    expect(screen.getByText('WAF-ML Security Dashboard')).toBeInTheDocument()
   })
 
   it('logout button has aria-label="Logout"', () => {

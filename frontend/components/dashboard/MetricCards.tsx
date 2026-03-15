@@ -16,11 +16,11 @@ function MetricCard({ label, icon, value, trend, highlight }: MetricCardProps) {
     <div
       className={cn(
         'bg-surface-light border border-border-light p-1 rounded-sm shadow-subtle',
-        highlight && 'border-t-[2px] border-primary bg-[#fff5f5]'
+        highlight && 'border-t-[2px] border-primary bg-surface-light'
       )}
     >
       <div className="flex justify-between items-start mb-2">
-        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+        <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">
           {label}
         </span>
         <span className="material-symbols-outlined text-text-muted text-[20px]">
