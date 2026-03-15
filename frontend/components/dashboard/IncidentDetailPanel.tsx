@@ -26,7 +26,7 @@ export default function IncidentDetailPanel() {
   if (activeIncidentId === null) return null
 
   return (
-    <aside className="fixed right-0 top-0 h-full w-[480px] bg-surface-light border-l border-border-light shadow-lg z-50 overflow-y-auto flex flex-col">
+    <aside className="fixed right-0 top-0 h-full w-[480px] bg-[#1A1A1A] border-l border-border-light shadow-lg z-50 overflow-y-auto flex flex-col">
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b border-border-light sticky top-0 bg-surface-light z-10">
         <div className="flex flex-col gap-1 min-w-0">
