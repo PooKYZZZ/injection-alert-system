@@ -7,10 +7,10 @@ This directory contains model training code and configuration.
 - Hyperparameter configuration
 - Training metrics evaluation and reporting
 
-## Expected Contents
-- `train.py` — Training loop entry point
-- `config.yaml` — Hyperparameters, epochs, learning rate schedules
-- `evaluate.py` — Metrics computation (accuracy, F1, FPR, confusion matrix)
+## Current Repo State
+- This package currently contains only the package marker and documentation.
+- Checked-in training configuration currently lives under `config/models/`.
+- Training and evaluation work in this repo is still driven by notebooks and scripts rather than a committed `ml_model/training/train.py` entrypoint.
 
 ## Architectural Role
 Separated from inference to maintain clean lifecycle boundaries.

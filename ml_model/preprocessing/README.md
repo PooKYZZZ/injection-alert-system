@@ -7,10 +7,9 @@ This directory contains data preprocessing and tokenization pipelines.
 - Dataset loading, splitting, and augmentation
 - Label encoding and class balancing
 
-## Expected Contents
-- `tokenize.py` — Tokenization pipeline (HuggingFace tokenizers)
-- `dataset.py` — Dataset loading, train/val/test splits
-- `transforms.py` — Data augmentation and normalization
+## Current Repo State
+- This package currently contains only the package marker and documentation.
+- The active preprocessing scripts live under `scripts/` and `data/`, not under this package yet.
 
 ## Architectural Role
 Transforms raw HTTP request data into model-ready tensors.

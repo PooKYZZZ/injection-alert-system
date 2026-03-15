@@ -7,9 +7,9 @@ This directory contains ModSecurity engine configuration files.
 - ModSecurity audit log format and output settings
 - Engine-level directives (SecRuleEngine, SecAuditLog, etc.)
 
-## Expected Contents
-- `modsecurity.conf` — Core engine configuration
-- `unicode.mapping` — Unicode mapping file
+## Current Repo State
+- This directory is currently a documented placeholder for future ModSecurity configuration.
+- Runnable ModSecurity config files are not checked into the repo yet.
 
 ## Architectural Role
 First layer in the CRS-first hybrid enforcement hierarchy.

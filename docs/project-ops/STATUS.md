@@ -36,6 +36,10 @@
   - all four route handlers are wired through `frontend/lib/bff-client.ts`
   - `USE_MOCK_API` is the single centralized server-only mock toggle
   - missing `FASTAPI_BASE_URL` or `INTERNAL_API_KEY` in non-mock mode returns structured `BFF_MISCONFIGURED`
+  - all four handlers require an Auth.js session and return `401` without one
+- Current auth split:
+  - protected backend routes: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `GET /api/stats`, `GET /api/ml-health`
+  - public backend routes: `POST /api/feedback`, `GET /health`, `GET /api/health`
 - Docker Compose, runnable ModSecurity wiring, and full Supabase or Redis integration are not in the repo yet
 
 ## Open implementation gaps
@@ -48,6 +52,8 @@
 - Some docs and prompts still need cleanup to remove stale verification commands and old partial-mock descriptions
 - Data scripts still hardcode workstation-specific paths
 - Dashboard stats and ML health still rely on some BFF-side normalization because backend payloads are thinner than the frontend dashboard contract
+- Stale `PROCESSING` reservations return `503` with `Retry-After`, but there is no automatic reclamation path yet
+- `app.state.model` remains a compatibility alias for `app.state.model_service`
 
 ## Operator notes
 

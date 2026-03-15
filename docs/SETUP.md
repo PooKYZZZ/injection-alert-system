@@ -48,6 +48,11 @@ MODEL_REGISTRY_PATH=
 API_SECRET_KEY=local-dev-secret
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
+CONFIDENCE_LOW_THRESHOLD=0.50
+CONFIDENCE_HIGH_THRESHOLD=0.80
+STALE_PROCESSING_TIMEOUT_SECONDS=30
+MAX_SEQ_LEN=128
+TEMPERATURE=0.596868
 ```
 
 Notes:
@@ -55,6 +60,8 @@ Notes:
 - `MODEL_PATH` still exists in config for compatibility.
 - `MODEL_REGISTRY_PATH` controls the real runtime model service.
 - If `MODEL_REGISTRY_PATH` is empty or missing in development, startup falls back to the mock model service with a warning.
+- `CONFIDENCE_LOW_THRESHOLD`, `CONFIDENCE_HIGH_THRESHOLD`, and `STALE_PROCESSING_TIMEOUT_SECONDS` are supported env overrides with locked current defaults.
+- `MAX_SEQ_LEN`, `TEMPERATURE`, `LABEL_NAMES`, and `MODEL_VERSION` are also accepted by settings, but the repo currently relies on their defaults unless you are doing targeted backend or artifact validation work.
 - If you want the real staged model, use an explicit run directory such as:
 
 ```dotenv
@@ -82,13 +89,17 @@ Backend entrypoint:
 
 Current API surface:
 
-- `POST /api/predict`
-- `POST /api/triage`
-- `GET /api/alerts`
-- `GET /api/alerts/{id}`
-- `GET /api/stats`
-- `GET /api/ml-health`
-- `POST /api/feedback`
+- Protected by backend bearer auth:
+  - `POST /api/predict`
+  - `POST /api/triage`
+  - `GET /api/alerts`
+  - `GET /api/alerts/{id}`
+  - `GET /api/stats`
+  - `GET /api/ml-health`
+- Public backend endpoints:
+  - `POST /api/feedback`
+  - `GET /health`
+  - `GET /api/health`
 
 ## 3. Frontend Setup
 
@@ -106,9 +117,9 @@ Use a local file with the variables the current frontend actually reads:
 ```dotenv
 AUTH_SECRET=replace-me
 SOC_DEMO_PASSWORD=demo1234
+DEMO_PASSWORD=
 FASTAPI_BASE_URL=http://localhost:8000
 INTERNAL_API_KEY=local-dev-secret
-GROQ_API_KEY=
 USE_MOCK_API=false
 NEXT_PUBLIC_APP_ENV=development
 NEXT_PUBLIC_APP_VERSION=0.0.0-LOCAL
@@ -165,6 +176,14 @@ Be explicit about the current BFF status:
 
 So the current local dashboard can run fully against the backend, with optional centralized mock mode via `USE_MOCK_API=true`.
 
+### Current frontend protection split
+
+- `/login` is the public sign-in page.
+- `/` redirects to `/login` or `/dashboard` based on session state.
+- `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check.
+- `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
+- The four BFF handlers also call `auth()` and return `401` without a session.
+
 ## 5. What This Setup Does Not Cover
 
 The following are not yet available as runnable repo-level setup paths:
@@ -174,6 +193,7 @@ The following are not yet available as runnable repo-level setup paths:
 - Redis-backed review queue or enforcement state
 - Live Supabase wiring
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
+- Automatic reclamation of stale `PROCESSING` triage rows
 
 ## 6. Troubleshooting
 

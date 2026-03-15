@@ -8,11 +8,9 @@ This directory contains the 20-day scheduled retraining pipeline.
 - Champion/challenger validation gating before promotion
 - Model rollback if validation fails
 
-## Expected Contents
-- `retrain.py` — Retraining entry point
-- `validate.py` — Champion vs challenger model comparison
-- `schedule.py` — Cron/timer-based scheduling logic
-- `promote.py` — Safe model promotion to registry
+## Current Repo State
+- This package currently contains only the package marker and documentation.
+- The intended retraining flow is still design-level in this repo; no committed retraining entrypoint or scheduler is present here yet.
 
 ## Architectural Role
 Closes the feedback loop:

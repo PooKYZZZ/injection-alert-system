@@ -38,15 +38,17 @@ Latest pushed work on `origin/master` includes:
 
 - App entrypoint: `web_app.presentation.app:create_app`
 - Current API routes:
-  - `POST /api/predict`
-  - `POST /api/triage`
-  - `GET /api/alerts`
-  - `GET /api/alerts/{id}`
-  - `GET /api/stats`
-  - `GET /api/ml-health`
-  - `POST /api/feedback`
-  - `GET /health`
-  - `GET /api/health`
+  - Protected by backend bearer auth:
+    - `POST /api/predict`
+    - `POST /api/triage`
+    - `GET /api/alerts`
+    - `GET /api/alerts/{id}`
+    - `GET /api/stats`
+    - `GET /api/ml-health`
+  - Public backend endpoints:
+    - `POST /api/feedback`
+    - `GET /health`
+    - `GET /api/health`
 - Model loading is handled by `web_app/services/model_service.py`
 - In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
@@ -57,6 +59,8 @@ Latest pushed work on `origin/master` includes:
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
 - Demo login uses a password-only credentials flow
+- `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
+- `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
 - Current BFF status in the working tree:
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client
   - `frontend/app/api/alerts/route.ts` proxies to FastAPI in non-mock mode
@@ -65,6 +69,9 @@ Latest pushed work on `origin/master` includes:
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode
   - `USE_MOCK_API` is the single centralized server-only mock toggle
   - all four handlers apply the same existing session auth pattern via `auth()`
+  - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
+    - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
+    - `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
 
 ### Database
 
@@ -87,3 +94,5 @@ Latest pushed work on `origin/master` includes:
 - The active model artifact path is `ml_model/model_registry/`.
 - The repo already has more backend startup work and frontend structure than older docs suggested.
 - The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets and working BFF-to-FastAPI wiring.
+- Stale `PROCESSING` reservations are surfaced safely but not automatically reclaimed.
+- `app.state.model` remains a compatibility alias for `app.state.model_service`.
