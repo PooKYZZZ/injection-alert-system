@@ -3,14 +3,14 @@
 
 @theme {
   --color-sidebar-bg: #1e3a5f;
-  --color-sidebar-active: #22457a;
+  --color-sidebar-active: #16233A;
   --color-primary: #e03131;
   --color-primary-dark: #c92a2a;
-  --color-background-main: #eef2f7;
-  --color-surface-light: #f4f7fb;
-  --color-border-light: #dde3ed;
-  --color-text-main: #1a2535;
-  --color-text-muted: #64748b;
+  --color-background-main: #262626;
+  --color-surface-light: #1A1A1A;
+  --color-border-light: #1f2937;
+  --color-text-main: #f4f7fb;
+  --color-text-muted: #f4f7fb;
   --color-status-high: #e03131;
   --color-status-medium: #f08c00;
   --color-status-low: #495057;
