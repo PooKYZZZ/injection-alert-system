@@ -18,13 +18,13 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (!isActive) {
     switch (severity) {
       case 'HIGH':
-        return `${base} bg-white text-red-700 border-gray-200 hover:bg-red-50 hover:border-red-200`
+        return `${base} bg-[#16233A] text-red-700 border-[#16233A] hover:bg-red-50 hover:border-red-200`
       case 'MEDIUM':
-        return `${base} bg-white text-orange-600 border-gray-200 hover:bg-orange-50 hover:border-orange-200`
+        return `${base} bg-[#16233A] text-orange-600 border-[#16233A] hover:bg-orange-50 hover:border-orange-200`
       case 'LOW':
-        return `${base} bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300`
+        return `${base} bg-[#16233A] text-gray-600 border-[#16233A] hover:bg-gray-50 hover:border-gray-300`
       default:
-        return `${base} bg-white text-slate-800 border-gray-200 hover:bg-slate-100 hover:border-slate-300`
+        return `${base} bg-[#16233A] text-slate-800 border-[#16233A] hover:bg-slate-100 hover:border-slate-300`
     }
   }
 
@@ -72,11 +72,11 @@ function TopBarContent() {
   }
 
   return (
-    <header className="h-16 border-b border-border-light bg-surface-light flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
+    <header className="h-16 border-b border-border-light bg-[#1A1A1A] flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
 
       {/* Left side: title + severity filter */}
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-bold text-text-main tracking-tight">
+        <h2 className="text-lg font-bold text-white tracking-tight">
           SOC Overview
         </h2>
 
@@ -107,7 +107,7 @@ function TopBarContent() {
             defaultValue={searchParams.get('search') ?? ''}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search IP address..."
-            className="bg-white border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
+            className="bg-[#16233A] border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
           />
         </div>
       </div>
