@@ -4,7 +4,7 @@ import MLHealthDetail from '@/components/ml-health/MLHealthDetail'
 export default function MLHealthPage() {
   return (
     <main className="flex flex-col gap-4 text-white">
-      <h1 className="text-2xl font-semibold tracking-tight text-light">ML Health</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-white">ML Health</h1>
       <MLHealthDetail />
     </main>
   )
