@@ -104,7 +104,7 @@ function AlertsTableContent() {
                 />
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Confidence
+                Confidence Level
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                 Timestamp

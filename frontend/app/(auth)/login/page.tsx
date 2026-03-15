@@ -31,10 +31,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex">
+    <div className="min-h-screen bg-black flex flex-col lg:flex-row">
 
-      <div className="w-1/2 flex items-center justify-center">
-        <div className="bg-background-main rounded-xl shadow-xl p-12 w-[520px] text-text-main">
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-10 lg:px-8">
+        <div className="bg-background-main rounded-xl shadow-xl p-8 sm:p-10 xl:p-12 w-full max-w-[520px] text-text-main">
 
           <h1 className="text-4xl font-semibold mb-10 text-center">
             Login
@@ -71,22 +71,22 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="w-1/2 flex flex-col items-center justify-center text-text-main">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center px-6 pb-10 lg:px-8 lg:pb-0 text-text-main">
         <img
           src="/logo.png"
           alt="Team 13"
-          className="w-[520px] mb-4"
+          className="w-full max-w-[520px] mb-4"
         />
 
-        <h2 className="text-6xl font-bold font-[Orbitron] tracking-wide">
+        <h2 className="text-4xl sm:text-5xl xl:text-6xl font-bold font-[Orbitron] tracking-wide text-center">
           CyberTrace
         </h2>
 
-        <p className="text-text-muted mt-2 text-lg">
+        <p className="text-text-muted mt-2 text-base sm:text-lg text-center">
           WAF-ML Security Dashboard
         </p>
 
-        <p className="text-text-muted text-sm">
+        <p className="text-text-muted text-sm text-center">
           by Team 13
         </p>
 

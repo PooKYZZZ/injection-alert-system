@@ -15,8 +15,8 @@ function MetricCard({ label, icon, value, trend, highlight }: MetricCardProps) {
   return (
     <div
       className={cn(
-        'bg-[#1A1A1A] border border-border-light p-1 rounded-sm shadow-subtle',
-        highlight && 'border-t-[2px] border-primary bg-[#1A1A1A]'
+        'bg-surface-light border border-border-light p-1 rounded-sm shadow-subtle',
+        highlight && 'border-t-[2px] border-primary bg-surface-light'
       )}
     >
       <div className="flex justify-between items-start mb-2">
