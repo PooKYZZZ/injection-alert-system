@@ -88,7 +88,7 @@ function AlertsTableContent() {
       <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border-light bg-gray-50">
+            <tr className="border-b border-border-light bg-[#16233A]">
               <th className="p-3 w-10">
                 <input
                   type="checkbox"
@@ -104,7 +104,7 @@ function AlertsTableContent() {
                 />
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Severity
+                Confidence
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                 Timestamp
@@ -134,7 +134,7 @@ function AlertsTableContent() {
               <tr
                 key={alert.alert_id}
                 className={cn(
-                  'cursor-pointer hover:bg-gray-50 transition-colors',
+                  'cursor-pointer hover:bg-[#16233A] transition-colors',
                   getRowBorderClass(alert)
                 )}
                 onClick={() => setActiveIncident(alert.alert_id)}
