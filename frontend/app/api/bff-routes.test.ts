@@ -37,6 +37,50 @@ describe('BFF route handlers', () => {
     })
   })
 
+  it('alert detail route applies the existing session auth pattern', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { GET } = await import('./alerts/[id]/route')
+
+    const response = await GET({} as never, {
+      params: Promise.resolve({ id: '12' }),
+    })
+    const body = await response.json()
+
+    expect(getAlertDetailMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+    expect(body).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+    })
+  })
+
+  it('stats route applies the existing session auth pattern', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { GET } = await import('./stats/route')
+
+    const response = await GET({} as never)
+    const body = await response.json()
+
+    expect(getStatsMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+    expect(body).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+    })
+  })
+
+  it('ml-health route applies the existing session auth pattern', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { GET } = await import('./ml-health/route')
+
+    const response = await GET({} as never)
+    const body = await response.json()
+
+    expect(getMlHealthMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+    expect(body).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+    })
+  })
+
   it('alerts route returns centralized client errors unchanged', async () => {
     authMock.mockResolvedValueOnce({ user: { id: '1' } })
     getAlertsMock.mockResolvedValueOnce({

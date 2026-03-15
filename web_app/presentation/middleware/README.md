@@ -6,15 +6,14 @@ This directory contains FastAPI middleware components.
 Middleware is a presentation-layer concern and belongs under `presentation/`.
 
 ## Purpose
-- API authentication and authorization
-- Rate limiting for classification endpoints
+- Presentation-layer middleware and request guards
 - CORS policy enforcement
 - Request/response logging middleware
 
-## Expected Contents
-- `auth.py` — API key / JWT authentication middleware
-- `rate_limit.py` — Rate limiting for /api/predict
-- `logging.py` — Structured request/response logging
+## Current Repo State
+- This directory currently contains only the package marker and this README.
+- Internal API bearer auth is implemented in `web_app/presentation/dependencies/auth.py`, not as FastAPI middleware.
+- Rate limiting and structured request logging middleware are still deferred.
 
 ## Architectural Role
 Security hardening layer between external requests and internal services.

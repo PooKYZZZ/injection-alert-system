@@ -7,10 +7,9 @@ This directory contains OWASP Core Rule Set configuration and overrides.
 - Rule exclusion overrides (no permanent CRS mutation)
 - Paranoia level configuration
 
-## Expected Contents
-- `crs-setup.conf` — CRS initialization and paranoia level
-- `REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf` — Pre-CRS exclusions
-- `RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf` — Post-CRS exclusions
+## Current Repo State
+- This directory is currently a documented placeholder for future CRS configuration.
+- Runnable CRS config files are not checked into the repo yet.
 
 ## Architectural Constraint
 CRS rules are NEVER permanently modified.

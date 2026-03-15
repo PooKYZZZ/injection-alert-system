@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, and academic deliverables.
 
@@ -38,16 +38,12 @@ This folder is the maintained documentation surface for the repository. It is in
 
 ## Verified Repo State
 
-- Backend tests currently pass: `50 passed`
+- Backend tests currently pass: `84 passed`
 - Frontend typecheck currently passes: `npm run typecheck`
-- Current backend routes are limited to:
-  - `POST /api/predict`
-  - `GET /api/alerts`
-  - `POST /api/feedback`
-  - `/health` and `/api/health`
-- The Next.js dashboard exists, but the BFF is still mixed:
-  - `stats` can proxy to FastAPI
-  - `alerts`, `alert detail`, and `ml-health` are still mock-first or stubbed
+- Current backend API surface includes:
+  - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `GET /api/stats`, `GET /api/ml-health`
+  - public: `POST /api/feedback`, `GET /health`, `GET /api/health`
+- The Next.js dashboard BFF is wired for alerts, alert detail, stats, and ML health through `frontend/lib/bff-client.ts`
 - Docker Compose, Dockerfiles, and runnable ModSecurity wiring are not in the repo yet
 
 ## Documentation Rules For This Repo

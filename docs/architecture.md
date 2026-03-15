@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -44,11 +44,17 @@ This aligns with FastAPI's own guidance for larger applications: split routers a
 
 ### Current routes
 
-- `POST /api/predict`
-- `GET /api/alerts`
-- `POST /api/feedback`
-- `GET /health`
-- `GET /api/health`
+- Protected by backend bearer auth:
+  - `POST /api/predict`
+  - `POST /api/triage`
+  - `GET /api/alerts`
+  - `GET /api/alerts/{id}`
+  - `GET /api/stats`
+  - `GET /api/ml-health`
+- Public backend endpoints:
+  - `POST /api/feedback`
+  - `GET /health`
+  - `GET /api/health`
 
 ### Model loading behavior
 
@@ -76,21 +82,15 @@ Browser -> Next.js Route Handler -> FastAPI
 
 This remains the correct direction for the project. Browser-to-FastAPI direct calls are not part of the intended architecture.
 
-Next.js route handlers are public endpoints, so they must handle validation, auth, and safe error responses. They are the right place to proxy or reshape backend data for the dashboard.
+Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
 ### Current BFF status
 
-- `stats`
-  - Has real proxy logic
-  - Requires `FASTAPI_BASE_URL` and `INTERNAL_API_KEY`
-- `alerts`
-  - Still returns mock data
-- `alert detail`
-  - Mock-first; `501` if mocks are disabled
-- `ml-health`
-  - Still mock-only
-
-Because of that, the dashboard is currently a mixed real/mock application rather than a fully wired BFF.
+- `frontend/lib/bff-client.ts` is the shared server-only BFF client.
+- `frontend/app/api/alerts/route.ts`, `frontend/app/api/alerts/[id]/route.ts`, `frontend/app/api/stats/route.ts`, and `frontend/app/api/ml-health/route.ts` call FastAPI in non-mock mode.
+- Those four handlers all require a valid Auth.js session via `auth()`.
+- `USE_MOCK_API` is the single centralized server-only mock toggle for those handlers.
+- The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
 
 ## Data and Persistence
 
@@ -124,11 +124,13 @@ Because of that, the dashboard is currently a mixed real/mock application rather
 - Runnable ModSecurity + OWASP CRS bridge
 - Redis-backed IP blocklist, rate-limit state, and low-confidence queue
 - Full Supabase append-only audit log enforcement with RLS
-- Complete BFF wiring for all dashboard data routes
-- Additional backend routes needed by the dashboard:
-  - `GET /api/stats`
-  - `GET /api/ml-health`
-  - `GET /api/alerts/{id}`
+
+## Current limitations
+
+- `PROCESSING` placeholder rows are hidden from normal alerts and stats reads, but stale reservations are only surfaced with `503` and `Retry-After`; there is no auto-reclaim path yet.
+- `app.state.model` remains as a compatibility alias for `app.state.model_service`.
+- `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
+- The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
 
 ## Architecture Notes For Future Edits
 

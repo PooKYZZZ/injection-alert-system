@@ -3,13 +3,12 @@
 This directory contains model format conversion and optimization tools.
 
 ## Purpose
-- Export trained PyTorch models to ONNX format
-- Model optimization for inference latency
+- Package trained model runs into self-contained serving artifacts
+- Preserve runtime metadata used by the backend loader
 
-## Expected Contents
-- `export_onnx.py` — PyTorch to ONNX conversion script
-- `optimize.py` — ONNX graph optimization
+## Current Contents
+- `package_serving_artifact.py` — packages and validates staged serving artifacts under `ml_model/model_registry/staging/`
 
 ## Architectural Role
 Bridge between training output and production inference.
-ONNX models are stored in the model registry.
+The packaged serving artifacts are stored in the model registry.

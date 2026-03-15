@@ -4,6 +4,10 @@
 > Check off items as you complete them. Keep this file updated after every session.
 > This is your memory across sessions — never skip updating it.
 
+Status note:
+- This file is a working implementation checklist, not the live runtime source of truth.
+- Some unchecked historical tasks below have since been implemented in code; use `docs/project-ops/STATUS.md`, `docs/CONTEXT.md`, and the codebase itself for current repo truth.
+
 ---
 
 ## How to Use This File
@@ -200,7 +204,7 @@
 
 ## Quick Status Summary
 
-**Last updated:** [x] 2026-03-15 — confirmed cloud `master` includes backend read APIs, internal bearer auth, and reservation-first triage ingest; locally wired all four Next.js BFF handlers through `frontend/lib/bff-client.ts`, centralized `USE_MOCK_API`, and verified frontend/backend checks
+**Last updated:** [x] 2026-03-15 — confirmed cloud `master` includes backend read APIs, internal bearer auth, and reservation-first triage ingest; locally wired all four Next.js BFF handlers through `frontend/lib/bff-client.ts`, centralized `USE_MOCK_API`, verified frontend/backend checks, and confirmed backend test baseline is `84 passed`
 
 **Current focus:** [x] BFF wiring is complete; next work is backend contract enrichment for richer dashboard stats and ML health details if needed
 

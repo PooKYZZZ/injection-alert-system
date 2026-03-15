@@ -4,6 +4,12 @@
 **Team:** Team 13  
 **Final Defense:** May 2026
 
+Status note
+-----------
+This folder is planning material, not the live runtime source of truth for the repository.
+For current commands, routes, env vars, and implementation status, use `docs/SETUP.md`,
+`docs/CONTEXT.md`, and `docs/architecture.md`.
+
 ---
 
 ## Quick Navigation
@@ -66,25 +72,14 @@
 ## Quick Commands Reference
 
 ```bash
-# Activate environment
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+# Backend tests
+.venv\Scripts\python.exe -m pytest -q
 
-# Training
-python ml_model/train.py --model cnn_bilstm --epochs 50
+# Backend app
+uvicorn web_app.presentation.app:create_app --reload
 
-# Evaluation
-python ml_model/evaluate.py --model models/best_model.pt
-
-# Web Application
-uvicorn web_app.presentation.app:app --host 0.0.0.0 --port 5000
-
-# Testing
-pytest tests/ -v
-
-# Deployment
-ansible-playbook ansible/deploy.yml -i ansible/inventory.ini --ask-become-pass
-
-# Retraining
-python scripts/retrain.py
+# Frontend
+cd frontend
+npm run typecheck
+npm run dev
 ```

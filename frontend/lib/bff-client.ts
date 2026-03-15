@@ -71,6 +71,15 @@ function err<T>(status: number, code: string, message: string): BffResult<T> {
   return { ok: false, status, error: { code, message } }
 }
 
+function parseAlertId(alertId: string): BffResult<number> {
+  const trimmedId = alertId.trim()
+  if (!/^[1-9]\d*$/.test(trimmedId)) {
+    return err(400, 'INVALID_ID', 'Alert ID must be a valid number.')
+  }
+
+  return ok(Number(trimmedId))
+}
+
 function isMockMode(): boolean {
   return process.env.USE_MOCK_API === 'true'
 }
@@ -302,8 +311,12 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
     return validateMockData(AlertSchema, match)
   }
 
-  const numericId = Number(alertId)
-  const upstream = await fetchUpstream(`/api/alerts/${numericId}`, BackendAlertSchema)
+  const parsedId = parseAlertId(alertId)
+  if (!parsedId.ok) {
+    return parsedId
+  }
+
+  const upstream = await fetchUpstream(`/api/alerts/${parsedId.data}`, BackendAlertSchema)
   if (!upstream.ok) {
     return upstream
   }

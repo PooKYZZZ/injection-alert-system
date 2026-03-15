@@ -10,5 +10,7 @@ This directory contains the human-in-the-loop review dashboard.
 
 ## Architectural Role
 SOC-style operational interface.
-Connects to FastAPI backend via REST API.
-Analyst corrections flow to `data/staging/` for the retraining pipeline.
+Uses the BFF pattern:
+  Browser -> Next.js route handler -> FastAPI
+Dashboard pages are session-protected, and the implemented BFF handlers also require a valid Auth.js session.
+Analyst feedback is stored through backend routes; any downstream retraining flow remains separate from the current dashboard wiring.
