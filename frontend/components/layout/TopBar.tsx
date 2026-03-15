@@ -18,13 +18,13 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (!isActive) {
     switch (severity) {
       case 'HIGH':
-        return `${base} bg-[#16233A] text-red-700 border-[#16233A] hover:bg-red-50 hover:border-red-200`
+        return `${base} bg-sidebar-active text-red-700 border-sidebar-active hover:bg-red-50 hover:border-red-200`
       case 'MEDIUM':
-        return `${base} bg-[#16233A] text-orange-600 border-[#16233A] hover:bg-orange-50 hover:border-orange-200`
+        return `${base} bg-sidebar-active text-orange-600 border-sidebar-active hover:bg-orange-50 hover:border-orange-200`
       case 'LOW':
-        return `${base} bg-[#16233A] text-gray-600 border-[#16233A] hover:bg-gray-50 hover:border-gray-300`
+        return `${base} bg-sidebar-active text-gray-600 border-sidebar-active hover:bg-gray-50 hover:border-gray-300`
       default:
-        return `${base} bg-[#16233A] text-slate-800 border-[#16233A] hover:bg-slate-100 hover:border-slate-300`
+        return `${base} bg-sidebar-active text-slate-800 border-sidebar-active hover:bg-slate-100 hover:border-slate-300`
     }
   }
 
@@ -72,11 +72,11 @@ function TopBarContent() {
   }
 
   return (
-    <header className="h-16 border-b border-border-light bg-[#1A1A1A] flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
+    <header className="h-16 border-b border-border-light bg-surface-light flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
 
       {/* Left side: title + severity filter */}
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-bold text-white tracking-tight">
+        <h2 className="text-lg font-bold text-text-main tracking-tight">
           SOC Overview
         </h2>
 
@@ -107,7 +107,7 @@ function TopBarContent() {
             defaultValue={searchParams.get('search') ?? ''}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search IP address..."
-            className="bg-[#16233A] border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
+            className="bg-sidebar-active border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
           />
         </div>
       </div>

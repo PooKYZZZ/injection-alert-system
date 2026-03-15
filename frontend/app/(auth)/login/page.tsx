@@ -34,7 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-black flex">
 
       <div className="w-1/2 flex items-center justify-center">
-        <div className="bg-[#262626] rounded-xl shadow-xl p-12 w-[520px] text-white">
+        <div className="bg-background-main rounded-xl shadow-xl p-12 w-[520px] text-text-main">
 
           <h1 className="text-4xl font-semibold mb-10 text-center">
             Login
@@ -56,14 +56,14 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
-            className="w-full mb-6 px-4 py-3 bg-[#1A1A1A] border border-gray-700 rounded-md text-lg outline-none focus:border-gray-500"
+            className="w-full mb-6 px-4 py-3 bg-surface-light border border-border-light rounded-md text-lg text-text-main outline-none focus:border-text-muted"
           />
 
           <button
             type="button"
             onClick={handleSubmit}
             disabled={pending}
-            className="w-full bg-[#16233A] hover:bg-gray-600 py-3 rounded-md text-lg font-medium transition-colors"
+            className="w-full bg-sidebar-active hover:bg-sidebar-bg py-3 rounded-md text-lg font-medium text-white transition-colors"
           >
             {pending ? 'Signing in...' : 'Login'}
           </button>
@@ -71,7 +71,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="w-1/2 flex flex-col items-center justify-center text-white">
+      <div className="w-1/2 flex flex-col items-center justify-center text-text-main">
         <img
           src="/logo.png"
           alt="Team 13"
@@ -82,11 +82,11 @@ export default function LoginPage() {
           CyberTrace
         </h2>
 
-        <p className="text-gray-400 mt-2 text-lg">
+        <p className="text-text-muted mt-2 text-lg">
           WAF-ML Security Dashboard
         </p>
 
-        <p className="text-gray-500 text-sm">
+        <p className="text-text-muted text-sm">
           by Team 13
         </p>
 
