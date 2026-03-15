@@ -3,6 +3,22 @@
 import { Suspense } from 'react'
 import { useMLHealth } from '@/features/ml-health/queries'
 
+function formatPercentThreshold(value: number | null): string | null {
+  if (value === null) {
+    return null
+  }
+
+  return `${Math.round(value * 100)}%`
+}
+
+function formatLessThanThreshold(value: string | null): string {
+  return value === null ? 'N/A' : `< ${value}`
+}
+
+function formatGreaterThanThreshold(value: string | null): string {
+  return value === null ? 'N/A' : `> ${value}`
+}
+
 function MLHealthContent() {
   const { data, isPending, isError } = useMLHealth()
 
@@ -23,7 +39,20 @@ function MLHealthContent() {
     )
   }
 
-  const driftPct = `${(data.drift_score * 100).toFixed(1)}%`
+  const driftPct =
+    data.drift_score === null ? 'N/A' : `${(data.drift_score * 100).toFixed(1)}%`
+  const inferenceTime =
+    `${data.latency_ms.toFixed(1)}ms`
+  const lowThresholdLabel = formatPercentThreshold(data.thresholds.low)
+  const mediumThresholdValue = formatPercentThreshold(data.thresholds.medium)
+  const highThresholdLabel = formatPercentThreshold(data.thresholds.high)
+  const mediumThresholdLabel =
+    mediumThresholdValue ?? (
+      lowThresholdLabel !== null && highThresholdLabel !== null
+        ? `${lowThresholdLabel} - ${highThresholdLabel}`
+        : null
+    )
+  const highThresholdBoundary = mediumThresholdValue ?? highThresholdLabel
 
   const statusColor =
     data.status === 'HEALTHY'
@@ -80,7 +109,7 @@ function MLHealthContent() {
 
         <div className="flex justify-between">
           <span className="text-blue-300">Inference Time:</span>
-          <span className="text-blue-200 font-mono">3.4ms</span>
+          <span className="text-blue-200 font-mono">{inferenceTime}</span>
         </div>
 
         <div className="flex justify-between border-t border-[#2d4a77] pt-1 mt-1">
@@ -101,22 +130,21 @@ function MLHealthContent() {
           <div className="flex justify-between">
             <span className="text-status-low">LOW</span>
             <span className="text-blue-200">
-              &lt; {Math.round(data.thresholds.low * 100)}%
+              {formatLessThanThreshold(lowThresholdLabel)}
             </span>
           </div>
 
           <div className="flex justify-between">
             <span className="text-status-medium">MED</span>
             <span className="text-blue-200">
-              {Math.round(data.thresholds.low * 100)}-
-              {Math.round(data.thresholds.medium * 100)}%
+              {mediumThresholdLabel ?? 'N/A'}
             </span>
           </div>
 
           <div className="flex justify-between">
             <span className="text-status-high">HIGH</span>
             <span className="text-blue-200">
-              &gt; {Math.round(data.thresholds.medium * 100)}%
+              {formatGreaterThanThreshold(highThresholdBoundary)}
             </span>
           </div>
 

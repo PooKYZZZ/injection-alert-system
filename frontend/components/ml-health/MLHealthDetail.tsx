@@ -31,13 +31,21 @@ function MetricRow({ label, value }: { label: string; value: string | number }) 
   )
 }
 
+function formatMetricValue(value: number | null, formatter?: (input: number) => string): string | number {
+  if (value === null) {
+    return 'N/A'
+  }
+
+  return formatter ? formatter(value) : value
+}
+
 function ThresholdsSection({ thresholds }: { thresholds: ConfidenceThresholds }) {
   return (
     <div className="rounded border border-border-light p-4">
       <h3 className="mb-2 text-sm font-semibold">Confidence Thresholds</h3>
-      <MetricRow label="Low"    value={thresholds.low} />
-      <MetricRow label="Medium" value={thresholds.medium} />
-      <MetricRow label="High"   value={thresholds.high} />
+      <MetricRow label="Low"    value={formatMetricValue(thresholds.low)} />
+      <MetricRow label="Medium" value={formatMetricValue(thresholds.medium)} />
+      <MetricRow label="High"   value={formatMetricValue(thresholds.high)} />
     </div>
   )
 }
@@ -92,8 +100,17 @@ export default function MLHealthDetail() {
       <div className="rounded border border-border-light p-4">
         <h3 className="mb-2 text-sm font-semibold">Metrics</h3>
         <MetricRow label="Latency (ms)"        value={data.latency_ms} />
-        <MetricRow label="Latency Trend"        value={`${data.latency_trend > 0 ? '+' : ''}${data.latency_trend}`} />
-        <MetricRow label="Drift Score"          value={data.drift_score.toFixed(4)} />
+        <MetricRow
+          label="Latency Trend"
+          value={formatMetricValue(
+            data.latency_trend,
+            (value) => `${value > 0 ? '+' : ''}${value}`
+          )}
+        />
+        <MetricRow
+          label="Drift Score"
+          value={formatMetricValue(data.drift_score, (value) => value.toFixed(4))}
+        />
         <MetricRow label="Drift Status"         value={data.drift_status} />
         <MetricRow label="Traffic Processed"    value={data.traffic_processed.toLocaleString()} />
         {/* TODO: Add ECE when available in MLHealthData */}

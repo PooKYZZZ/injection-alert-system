@@ -11,11 +11,15 @@ const ACTION_CLASS_NAMES: Record<AlertAction, string> = {
 }
 
 type ActionLabelProps = {
-  action: AlertAction
+  action: AlertAction | null
   expiresAt?: string
 }
 
 export function ActionLabel({ action, expiresAt }: ActionLabelProps) {
+  if (action === null) {
+    return <span className="text-sm text-text-muted">Unavailable</span>
+  }
+
   return (
     <div className="flex flex-col gap-0.5">
       <span className={cn('text-sm', ACTION_CLASS_NAMES[action])}>

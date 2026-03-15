@@ -1,6 +1,6 @@
 # Local Setup
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
 This guide reflects the repo as it exists now. It supports local backend and frontend development. It does not assume Docker Compose, ModSecurity, Redis, or Supabase are already wired in this repository.
 
@@ -67,7 +67,7 @@ MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_2
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-14, this passes with `42` tests.
+As of 2026-03-15, this passes with `84` tests.
 
 ### Start the backend
 
@@ -83,7 +83,11 @@ Backend entrypoint:
 Current API surface:
 
 - `POST /api/predict`
+- `POST /api/triage`
 - `GET /api/alerts`
+- `GET /api/alerts/{id}`
+- `GET /api/stats`
+- `GET /api/ml-health`
 - `POST /api/feedback`
 
 ## 3. Frontend Setup
@@ -105,7 +109,7 @@ SOC_DEMO_PASSWORD=demo1234
 FASTAPI_BASE_URL=http://localhost:8000
 INTERNAL_API_KEY=local-dev-secret
 GROQ_API_KEY=
-USE_MOCK_STATS=true
+USE_MOCK_API=false
 NEXT_PUBLIC_APP_ENV=development
 NEXT_PUBLIC_APP_VERSION=0.0.0-LOCAL
 ```
@@ -116,6 +120,7 @@ Notes:
 - The login flow currently checks a password only.
 - `SOC_DEMO_PASSWORD` is preferred. The code also falls back to `DEMO_PASSWORD`, then `demo1234` in development.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
+- `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
 
 ### Start the frontend
@@ -132,23 +137,33 @@ cd frontend
 npm run typecheck
 ```
 
-As of 2026-03-14, typecheck passes cleanly.
+As of 2026-03-15, typecheck passes cleanly.
+
+### Run focused frontend BFF tests
+
+```powershell
+cd frontend
+npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts
+```
 
 ## 4. Current Frontend Data Reality
 
 Be explicit about the current BFF status:
 
 - `/api/stats`
-  - Can proxy to FastAPI when `USE_MOCK_STATS` is not `true`
+  - Wired through `frontend/lib/bff-client.ts`
+  - Calls real FastAPI in non-mock mode
 - `/api/alerts`
-  - Still returns mock data
+  - Wired through `frontend/lib/bff-client.ts`
+  - Calls real FastAPI in non-mock mode
 - `/api/alerts/[id]`
-  - Returns mock data by default
-  - If mocks are disabled, it currently returns `501`
+  - Wired through `frontend/lib/bff-client.ts`
+  - Calls real FastAPI in non-mock mode
 - `/api/ml-health`
-  - Still returns mock data
+  - Wired through `frontend/lib/bff-client.ts`
+  - Calls real FastAPI in non-mock mode
 
-So the current local dashboard is partially real and partially mock-backed.
+So the current local dashboard can run fully against the backend, with optional centralized mock mode via `USE_MOCK_API=true`.
 
 ## 5. What This Setup Does Not Cover
 
@@ -158,7 +173,7 @@ The following are not yet available as runnable repo-level setup paths:
 - ModSecurity + CRS local runtime
 - Redis-backed review queue or enforcement state
 - Live Supabase wiring
-- Fully wired dashboard alert detail and ML health upstreams
+- Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 
 ## 6. Troubleshooting
 
@@ -172,6 +187,7 @@ The following are not yet available as runnable repo-level setup paths:
 
 - Check `FASTAPI_BASE_URL`
 - Check that `INTERNAL_API_KEY` matches backend `API_SECRET_KEY`
+- If you intentionally want UI-only local work, set `USE_MOCK_API=true`
 - Make sure the backend is running before starting full-stack local work
 
 ### Typecheck or test results differ from this doc
@@ -182,6 +198,7 @@ Re-run:
 .venv\Scripts\python.exe -m pytest -q
 cd frontend
 npm run typecheck
+npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts
 ```
 
 If those outputs change, update this file and `docs/CONTEXT.md` in the same change.

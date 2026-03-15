@@ -11,7 +11,7 @@
 1. After every session, open this file and check off what you completed
 2. Paste the updated checklist into the next AI session alongside the context block
 3. The AI reads your checklist and knows exactly where you left off
-4. Never start a session without an up-to-date checklist — the AI will repeat work or skip steps
+4. Never start a session without an up-to-date checklist
 
 ---
 
@@ -139,73 +139,73 @@
 
 ## P-3 BFF + FRONTEND
 
-### Pre-Checks (Do Before Any BFF Work)
+### Pre-Checks
 - [ ] Checkpoint Mark: CRSComparisonPanel — cut or keep? (Do NOT wire stats until answered)
-- [ ] MetricCards.tsx — total_requests binding fixed:
+- [x] MetricCards.tsx — total_requests binding fixed:
       data?.crs_comparison.total_crs_flagged → data?.crs_comparison?.total_requests ?? 0
 
 ### BFF Utility
-- [ ] frontend/lib/bff-client.ts created:
+- [x] frontend/lib/bff-client.ts created:
       - Reads INTERNAL_API_KEY and FASTAPI_BASE_URL from process.env
       - Injects Authorization: Bearer header
       - Handles upstream failures with structured error response
-      - Propagates upstream HTTP status code — not generic 500
+      - Propagates upstream HTTP status code where reasonable
       - All four route handlers use this utility — no scattered raw fetch calls
+      - `USE_MOCK_API` is the single centralized server-only mock toggle
 
 ### BFF Route Handlers
-- [ ] alerts/route.ts — real wiring:
-      - Filter params (severity, time_range, search) read from searchParams and forwarded
-      - Response normalized: { items, total, page, page_size }
+- [x] alerts/route.ts — real wiring:
+      - Filter params (severity, time_range, search, page, page_size) read from searchParams and forwarded
+      - Response normalized to frontend pagination shape
       - Normalization map applied for field remapping
-- [ ] alerts/[id]/route.ts — real wiring:
-      - Returns real data or clean 404 (was returning 501)
+- [x] alerts/[id]/route.ts — real wiring:
+      - Returns real data or clean 404 (no more mock-only `501`)
       - Normalization map applied
-      - NOTE: Next.js 15 params Promise fix already done in this file — do not redo
-- [ ] stats/route.ts — real wiring:
-      - Upstream GET /api/stats now exists from P-2
-      - total_requests field flows correctly
-      - Metric labels honest — not false-positive rates
-- [ ] ml-health/route.ts — real wiring:
-      - Was mock only — now calls real upstream
-      - Shape matches ML health component contract
-- [ ] USE_MOCK_API consolidated:
+      - NOTE: Next.js 15 params Promise fix already done in this file
+- [x] stats/route.ts — real wiring:
+      - Upstream GET /api/stats is used
+      - `total_requests` flows correctly to the frontend shape
+      - Metric labels stay honest; no invented false-positive semantics
+- [x] ml-health/route.ts — real wiring:
+      - Calls real upstream in non-mock mode
+      - Shape matches the frontend ML health component contract
+- [x] USE_MOCK_API consolidated:
       - Single server-only flag (not NEXT_PUBLIC_)
-      - Consolidated with existing mock flags in stats/route.ts and alerts/[id]/route.ts
       - One flag, one place to check, shared via bff-client.ts
 
 ### Env
-- [ ] .env.example restored with all six vars and placeholders:
-      - API_SECRET_KEY=
-      - MODEL_REGISTRY_PATH=
-      - DATABASE_URL=
+- [x] frontend/.env.example restored/updated with required vars:
       - FASTAPI_BASE_URL=
       - INTERNAL_API_KEY=
       - USE_MOCK_API=
 
 ### Frontend Tests
-- [ ] BFF alerts list: shape correct, pagination fields present, filters forwarded, normalization applied
-- [ ] BFF alert detail: normalization map applied, 404 propagated cleanly
-- [ ] BFF stats: total_requests field present, shape matches MetricCards contract
-- [ ] BFF ml-health: response shape matches ML health component contract
+- [x] BFF alerts list: shape correct, pagination fields present, filters forwarded, normalization applied
+- [x] BFF alert detail: normalization map applied, 404 propagated cleanly
+- [x] BFF stats: total_requests field present, shape matches MetricCards contract
+- [x] BFF ml-health: response shape matches ML health component contract
+- [x] Missing env returns `500` + `BFF_MISCONFIGURED`
+- [x] Upstream failure returns structured error
+- [x] Existing session auth pattern is still applied to all BFF handlers
 
 ### TypeScript
 - [ ] Sidebar.tsx:34 type error fixed:
       unknown not assignable to number | undefined — specific type annotation fixed
-- [ ] npm run typecheck — clean pass, zero errors
+- [x] npm run typecheck — clean pass, zero errors
 
 === END CHECKLIST ===
 ```
 
 ---
 
-## Quick Status Summary (Update This After Every Session)
+## Quick Status Summary
 
-**Last updated:** [x] 2026-03-15 — triage ingest switched to reservation-first dedup on `transaction_id`, added `PROCESSING`/`COMPLETED` placeholder handling, and aligned docs to canonical `POST /api/triage`
+**Last updated:** [x] 2026-03-15 — confirmed cloud `master` includes backend read APIs, internal bearer auth, and reservation-first triage ingest; locally wired all four Next.js BFF handlers through `frontend/lib/bff-client.ts`, centralized `USE_MOCK_API`, and verified frontend/backend checks
 
-**Current focus:** [x] Backend triage ingest concurrency fix is in place; next work remains BFF wiring and transport alignment cleanup
+**Current focus:** [x] BFF wiring is complete; next work is backend contract enrichment for richer dashboard stats and ML health details if needed
 
-**Next up:** [x] BFF wiring against real alert, stats, and ml-health endpoints once backend transport contract is explicitly finalized at source
+**Next up:** [x] Clean remaining stale docs/prompts and decide whether dashboard-only stats fields should stay BFF-derived defaults or be added at backend source
 
 **Blockers:** [x] Applied environments must be migrated so `created_at`, `status`, and nullable placeholder result columns match the current reservation-first triage code
 
-**Completed today:** [x] Added reservation-first triage ingest behavior, stale PROCESSING handling, explicit placeholder-row filtering in alerts and stats, and updated operator docs to canonical `/api/triage`
+**Completed today:** [x] Added shared server-only BFF fetch/normalization/error handling, real upstream wiring for alerts/detail/stats/ml-health, centralized mock mode, focused frontend tests, and doc updates based on pushed cloud baseline plus current local BFF work

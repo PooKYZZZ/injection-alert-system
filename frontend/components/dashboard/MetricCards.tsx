@@ -48,6 +48,10 @@ function MetricCardSkeleton() {
   )
 }
 
+function formatMetricValue(value: string | number | null | undefined): string | number {
+  return value ?? 'N/A'
+}
+
 export default function MetricCards() {
   const { data, isPending } = useDashboardStats()
 
@@ -68,7 +72,7 @@ export default function MetricCards() {
       <MetricCard
         label="High Detections"
         icon="gpp_maybe"
-        value={data?.actionable_alerts ?? 0}
+        value={formatMetricValue(data?.actionable_alerts)}
         trend="vs. last 24h"
         highlight
       />
@@ -86,7 +90,7 @@ export default function MetricCards() {
         label="Total Requests"
         icon="public"
         // Source: /api/stats -> crs_comparison.total_requests
-        value={data?.crs_comparison?.total_requests ?? 0}
+        value={formatMetricValue(data?.crs_comparison?.total_requests)}
         trend="in last 24h"
       />
 
