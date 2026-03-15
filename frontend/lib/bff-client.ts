@@ -303,6 +303,10 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
   }
 
   const numericId = Number(alertId)
+  if (!alertId || !Number.isFinite(numericId) || !Number.isInteger(numericId)) {
+    return err(400, 'INVALID_ID', 'Alert ID must be a valid number.')
+  }
+
   const upstream = await fetchUpstream(`/api/alerts/${numericId}`, BackendAlertSchema)
   if (!upstream.ok) {
     return upstream

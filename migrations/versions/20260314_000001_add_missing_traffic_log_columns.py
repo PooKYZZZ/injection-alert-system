@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -21,6 +22,34 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name
+    inspector = inspect(bind)
+
+    if not inspector.has_table("traffic_logs"):
+        op.create_table(
+            "traffic_logs",
+            sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
+            sa.Column("transaction_id", sa.String(length=128), unique=True, nullable=True),
+            sa.Column("timestamp", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column("source_ip", sa.String(length=45), nullable=True),
+            sa.Column("request_path", sa.String(length=512), nullable=True),
+            sa.Column("request_method", sa.String(length=16), nullable=True),
+            sa.Column("http_request", sa.Text(), nullable=False),
+            sa.Column("crs_score", sa.Integer(), nullable=True),
+            sa.Column("crs_rule_ids", sa.JSON(), nullable=True),
+            sa.Column("prediction", sa.String(length=50), nullable=False),
+            sa.Column("confidence", sa.Float(), nullable=False),
+            sa.Column("confidence_level", sa.String(length=10), nullable=False),
+            sa.Column("inference_latency_ms", sa.Float(), nullable=True),
+            sa.Column("model_version", sa.String(length=50), nullable=True),
+            sa.Column("action_taken", sa.String(length=50), nullable=True),
+            sa.Column("analyst_label", sa.String(length=50), nullable=True),
+            sa.Column("labeled_at", sa.DateTime(), nullable=True),
+            sa.Column("labeled_by", sa.String(length=100), nullable=True),
+        )
+        op.create_index("ix_traffic_logs_id", "traffic_logs", ["id"], unique=False)
+        op.create_index("ix_traffic_logs_source_ip", "traffic_logs", ["source_ip"], unique=False)
+        op.create_index("ix_traffic_logs_prediction", "traffic_logs", ["prediction"], unique=False)
+        return
 
     op.add_column("traffic_logs", sa.Column("transaction_id", sa.String(length=128), nullable=True))
     op.add_column("traffic_logs", sa.Column("request_path", sa.String(length=512), nullable=True))
@@ -30,12 +59,11 @@ def upgrade() -> None:
     op.add_column("traffic_logs", sa.Column("inference_latency_ms", sa.Float(), nullable=True))
 
     if dialect_name == "sqlite":
-        op.create_index(
-            "uq_traffic_logs_transaction_id",
-            "traffic_logs",
-            ["transaction_id"],
-            unique=True,
-        )
+        with op.batch_alter_table("traffic_logs") as batch_op:
+            batch_op.create_unique_constraint(
+                "uq_traffic_logs_transaction_id",
+                ["transaction_id"],
+            )
     else:
         op.create_unique_constraint("uq_traffic_logs_transaction_id", "traffic_logs", ["transaction_id"])
 
@@ -43,9 +71,24 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name
+    inspector = inspect(bind)
+
+    columns = {column["name"] for column in inspector.get_columns("traffic_logs")}
+    if {"request_path", "request_method", "crs_score", "crs_rule_ids", "inference_latency_ms", "transaction_id"} <= columns:
+        if inspector.get_indexes("traffic_logs"):
+            index_names = {index["name"] for index in inspector.get_indexes("traffic_logs")}
+            if "ix_traffic_logs_prediction" in index_names:
+                op.drop_index("ix_traffic_logs_prediction", table_name="traffic_logs")
+            if "ix_traffic_logs_source_ip" in index_names:
+                op.drop_index("ix_traffic_logs_source_ip", table_name="traffic_logs")
+            if "ix_traffic_logs_id" in index_names:
+                op.drop_index("ix_traffic_logs_id", table_name="traffic_logs")
+        op.drop_table("traffic_logs")
+        return
 
     if dialect_name == "sqlite":
-        op.drop_index("uq_traffic_logs_transaction_id", table_name="traffic_logs")
+        with op.batch_alter_table("traffic_logs") as batch_op:
+            batch_op.drop_constraint("uq_traffic_logs_transaction_id", type_="unique")
     else:
         op.drop_constraint("uq_traffic_logs_transaction_id", "traffic_logs", type_="unique")
 
