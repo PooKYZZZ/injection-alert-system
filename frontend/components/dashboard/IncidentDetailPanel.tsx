@@ -99,7 +99,7 @@ export default function IncidentDetailPanel() {
                   IP Reputation
                 </span>
                 <span className="text-sm font-medium text-text-main">
-                  {incident.source_intel?.ip ?? incident.source_ip}
+                  {incident.source_intel?.ip ?? incident.source_ip ?? 'Unknown'}
                 </span>
                 {incident.source_intel?.reputation_score !== undefined && (
                   <span
@@ -129,7 +129,7 @@ export default function IncidentDetailPanel() {
                   {incident.source_intel?.country ?? 'Unknown'}
                 </span>
                 <span className="text-xs text-text-muted">
-                  Method: {incident.request_method}
+                  Method: {incident.request_method ?? 'Unknown'}
                 </span>
                 {incident.user_agent && (
                   <span className="text-xs text-text-muted truncate" title={incident.user_agent}>
@@ -186,10 +186,13 @@ export default function IncidentDetailPanel() {
                 />
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-text-main">
-                    Action: {ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]}
+                    Action:{' '}
+                    {incident.action_taken
+                      ? ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]
+                      : 'Unavailable'}
                   </span>
                   <span className="text-[10px] text-text-muted">
-                    Enforcement applied
+                    {incident.action_taken ? 'Enforcement applied' : 'No enforcement data returned'}
                   </span>
                 </div>
               </li>

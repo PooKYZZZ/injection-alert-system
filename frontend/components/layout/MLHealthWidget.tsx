@@ -23,7 +23,14 @@ function MLHealthContent() {
     )
   }
 
-  const driftPct = `${(data.drift_score * 100).toFixed(1)}%`
+  const driftPct =
+    data.drift_score === null ? 'N/A' : `${(data.drift_score * 100).toFixed(1)}%`
+  const inferenceTime =
+    data.latency_ms === null ? 'N/A' : `${data.latency_ms.toFixed(1)}ms`
+  const lowThresholdLabel =
+    data.thresholds.low === null ? 'N/A' : `${Math.round(data.thresholds.low * 100)}%`
+  const mediumThresholdLabel =
+    data.thresholds.medium === null ? 'N/A' : `${Math.round(data.thresholds.medium * 100)}%`
 
   const statusColor =
     data.status === 'HEALTHY'
@@ -80,7 +87,7 @@ function MLHealthContent() {
 
         <div className="flex justify-between">
           <span className="text-blue-300">Inference Time:</span>
-          <span className="text-blue-200 font-mono">3.4ms</span>
+          <span className="text-blue-200 font-mono">{inferenceTime}</span>
         </div>
 
         <div className="flex justify-between border-t border-[#2d4a77] pt-1 mt-1">
@@ -101,22 +108,23 @@ function MLHealthContent() {
           <div className="flex justify-between">
             <span className="text-status-low">LOW</span>
             <span className="text-blue-200">
-              &lt; {Math.round(data.thresholds.low * 100)}%
+              &lt; {lowThresholdLabel}
             </span>
           </div>
 
           <div className="flex justify-between">
             <span className="text-status-medium">MED</span>
             <span className="text-blue-200">
-              {Math.round(data.thresholds.low * 100)}-
-              {Math.round(data.thresholds.medium * 100)}%
+              {lowThresholdLabel}
+              {' - '}
+              {mediumThresholdLabel}
             </span>
           </div>
 
           <div className="flex justify-between">
             <span className="text-status-high">HIGH</span>
             <span className="text-blue-200">
-              &gt; {Math.round(data.thresholds.medium * 100)}%
+              {data.thresholds.medium === null ? 'N/A' : `> ${mediumThresholdLabel}`}
             </span>
           </div>
 

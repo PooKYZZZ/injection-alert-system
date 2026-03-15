@@ -160,7 +160,7 @@ function AlertsTableContent() {
                   {alert.crs_score ?? '—'}
                 </td>
                 <td className="p-3 text-xs font-mono text-text-main max-w-[200px] truncate">
-                  {alert.request_path}
+                  {alert.request_path ?? '—'}
                 </td>
                 <td className="p-3 text-xs text-text-main">
                   {alert.prediction}

@@ -21,15 +21,15 @@ export interface SourceIntel {
 export interface Alert {
   alert_id: string
   timestamp: string
-  source_ip: string
-  request_path: string
-  request_method: string
+  source_ip: string | null
+  request_path: string | null
+  request_method: string | null
   user_agent?: string
   payload_snippet: string
   prediction: AlertPrediction
   confidence: number
   confidence_level: AlertSeverity
-  action_taken: AlertAction
+  action_taken: AlertAction | null
   crs_score?: number
   shap_values?: ShapFeature[]
   source_intel?: SourceIntel
