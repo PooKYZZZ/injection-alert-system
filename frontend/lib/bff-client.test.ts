@@ -171,9 +171,39 @@ describe('bff-client', () => {
     })
   })
 
-  it('rejects non-numeric alert ids locally with 400 before fetch', async () => {
+  it('rejects non-digit alert ids locally with 400 before fetch', async () => {
     const { getAlertDetail } = await loadClient()
     const result = await getAlertDetail('NaN')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: {
+        code: 'INVALID_ID',
+        message: 'Alert ID must be a valid number.',
+      },
+    })
+  })
+
+  it('rejects whitespace-only alert ids locally with 400 before fetch', async () => {
+    const { getAlertDetail } = await loadClient()
+    const result = await getAlertDetail('   ')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: {
+        code: 'INVALID_ID',
+        message: 'Alert ID must be a valid number.',
+      },
+    })
+  })
+
+  it('rejects zero-like alert ids locally with 400 before fetch', async () => {
+    const { getAlertDetail } = await loadClient()
+    const result = await getAlertDetail('0')
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result).toEqual({

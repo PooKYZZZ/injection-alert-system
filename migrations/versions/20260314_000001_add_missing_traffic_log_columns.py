@@ -28,7 +28,7 @@ def upgrade() -> None:
         op.create_table(
             "traffic_logs",
             sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
-            sa.Column("transaction_id", sa.String(length=128), unique=True, nullable=True),
+            sa.Column("transaction_id", sa.String(length=128), nullable=True),
             sa.Column("timestamp", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
             sa.Column("source_ip", sa.String(length=45), nullable=True),
             sa.Column("request_path", sa.String(length=512), nullable=True),
@@ -45,6 +45,7 @@ def upgrade() -> None:
             sa.Column("analyst_label", sa.String(length=50), nullable=True),
             sa.Column("labeled_at", sa.DateTime(), nullable=True),
             sa.Column("labeled_by", sa.String(length=100), nullable=True),
+            sa.UniqueConstraint("transaction_id", name="uq_traffic_logs_transaction_id"),
         )
         op.create_index("ix_traffic_logs_id", "traffic_logs", ["id"], unique=False)
         op.create_index("ix_traffic_logs_source_ip", "traffic_logs", ["source_ip"], unique=False)
@@ -72,25 +73,20 @@ def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name
     inspector = inspect(bind)
-
-    columns = {column["name"] for column in inspector.get_columns("traffic_logs")}
-    if {"request_path", "request_method", "crs_score", "crs_rule_ids", "inference_latency_ms", "transaction_id"} <= columns:
-        if inspector.get_indexes("traffic_logs"):
-            index_names = {index["name"] for index in inspector.get_indexes("traffic_logs")}
-            if "ix_traffic_logs_prediction" in index_names:
-                op.drop_index("ix_traffic_logs_prediction", table_name="traffic_logs")
-            if "ix_traffic_logs_source_ip" in index_names:
-                op.drop_index("ix_traffic_logs_source_ip", table_name="traffic_logs")
-            if "ix_traffic_logs_id" in index_names:
-                op.drop_index("ix_traffic_logs_id", table_name="traffic_logs")
-        op.drop_table("traffic_logs")
+    if not inspector.has_table("traffic_logs"):
         return
 
-    if dialect_name == "sqlite":
-        with op.batch_alter_table("traffic_logs") as batch_op:
-            batch_op.drop_constraint("uq_traffic_logs_transaction_id", type_="unique")
-    else:
-        op.drop_constraint("uq_traffic_logs_transaction_id", "traffic_logs", type_="unique")
+    unique_constraints = {
+        constraint["name"]
+        for constraint in inspector.get_unique_constraints("traffic_logs")
+        if constraint["name"]
+    }
+    if "uq_traffic_logs_transaction_id" in unique_constraints:
+        if dialect_name == "sqlite":
+            with op.batch_alter_table("traffic_logs") as batch_op:
+                batch_op.drop_constraint("uq_traffic_logs_transaction_id", type_="unique")
+        else:
+            op.drop_constraint("uq_traffic_logs_transaction_id", "traffic_logs", type_="unique")
 
     op.drop_column("traffic_logs", "inference_latency_ms")
     op.drop_column("traffic_logs", "crs_rule_ids")
