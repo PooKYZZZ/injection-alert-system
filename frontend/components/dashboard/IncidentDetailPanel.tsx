@@ -9,6 +9,15 @@ function formatRuleIds(ruleIds: string[] | null | undefined): string {
   return ruleIds.join(', ')
 }
 
+function formatUtcTimestamp(timestamp: string | null | undefined): string {
+  if (!timestamp) return 'Unavailable'
+  if (!/(Z|[+-]\d{2}:\d{2})$/.test(timestamp)) return timestamp
+
+  const parsed = new Date(timestamp)
+  if (Number.isNaN(parsed.getTime())) return timestamp
+  return parsed.toLocaleString()
+}
+
 function PanelSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -173,9 +182,7 @@ export default function IncidentDetailPanel() {
                   Labeled At
                 </span>
                 <span className="text-sm font-medium text-text-main">
-                  {incident.labeled_at
-                    ? new Date(incident.labeled_at).toLocaleString()
-                    : 'Unavailable'}
+                  {formatUtcTimestamp(incident.labeled_at)}
                 </span>
               </div>
             </div>

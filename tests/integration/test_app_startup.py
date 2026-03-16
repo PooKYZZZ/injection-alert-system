@@ -312,7 +312,7 @@ def test_alert_list_returns_pagination_shape(api_client):
     assert payload["items"][0]["crs_rule_ids"] == ["942100", "942110"]
     assert payload["items"][0]["analyst_label"] == "SQL Injection"
     assert payload["items"][0]["labeled_by"] == "analyst@lares.test"
-    assert payload["items"][0]["labeled_at"] == "2026-03-15T00:05:00"
+    assert payload["items"][0]["labeled_at"] == "2026-03-15T00:05:00Z"
 
 
 def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):

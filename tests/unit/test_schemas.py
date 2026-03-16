@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timedelta, timezone
 from pydantic import ValidationError
 from web_app.presentation.schemas import (
     AlertDetailResponse,
@@ -153,3 +154,33 @@ def test_alert_detail_response_supports_optional_crs_and_review_fields():
     assert alert.crs_rule_ids == ["942100", "942110"]
     assert alert.analyst_label == "Normal"
     assert alert.labeled_by == "analyst@example.com"
+
+
+def test_alert_detail_response_serializes_labeled_at_as_utc_rfc3339():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp="2026-03-15T10:00:00Z",
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+        labeled_at=datetime(2026, 3, 15, 10, 5),
+    )
+
+    assert alert.model_dump(mode="json")["labeled_at"] == "2026-03-15T10:05:00Z"
+
+
+def test_alert_detail_response_converts_aware_labeled_at_to_utc_rfc3339():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp="2026-03-15T10:00:00Z",
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+        labeled_at=datetime(
+            2026, 3, 15, 18, 5, tzinfo=timezone(timedelta(hours=8))
+        ),
+    )
+
+    assert alert.model_dump(mode="json")["labeled_at"] == "2026-03-15T10:05:00Z"

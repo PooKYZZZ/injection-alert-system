@@ -1,7 +1,7 @@
 from typing import Literal, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 PredictionLabel = Literal[
     "SQL Injection",
@@ -115,6 +115,16 @@ class AlertDetailResponse(BaseModel):
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+
+    @field_serializer("labeled_at", when_used="json")
+    def serialize_labeled_at(self, value: Optional[datetime]) -> Optional[str]:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        else:
+            value = value.astimezone(timezone.utc)
+        return value.isoformat().replace("+00:00", "Z")
 
 
 class AlertListResponse(BaseModel):
