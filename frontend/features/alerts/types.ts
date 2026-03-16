@@ -31,6 +31,10 @@ export interface Alert {
   confidence_level: AlertSeverity
   action_taken: AlertAction | null
   crs_score?: number
+  crs_rule_ids?: string[] | null
+  analyst_label?: string | null
+  labeled_at?: string | null
+  labeled_by?: string | null
   shap_values?: ShapFeature[]
   source_intel?: SourceIntel
 }

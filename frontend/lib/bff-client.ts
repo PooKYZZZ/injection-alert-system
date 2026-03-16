@@ -30,6 +30,10 @@ const BackendAlertSchema = z.object({
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH']),
   action_taken: z.enum(['BLOCKED', 'THROTTLED', 'ALLOWED']).nullable().optional(),
   crs_score: z.number().nullable().optional(),
+  crs_rule_ids: z.array(z.string()).nullable().optional(),
+  analyst_label: z.string().nullable().optional(),
+  labeled_at: z.string().nullable().optional(),
+  labeled_by: z.string().nullable().optional(),
 })
 
 const BackendPaginatedAlertsSchema = z.object({
@@ -156,6 +160,10 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     confidence_level: alert.confidence_level,
     action_taken: alert.action_taken ?? null,
     crs_score: alert.crs_score ?? undefined,
+    crs_rule_ids: alert.crs_rule_ids ?? null,
+    analyst_label: alert.analyst_label ?? null,
+    labeled_at: alert.labeled_at ?? null,
+    labeled_by: alert.labeled_by ?? null,
   })
 }
 

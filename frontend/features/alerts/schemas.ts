@@ -30,6 +30,10 @@ export const AlertSchema = z.object({
   confidence_level: z.enum(ALERT_SEVERITY_VALUES),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable(),
   crs_score: z.number().optional(),
+  crs_rule_ids: z.array(z.string()).nullable().optional(),
+  analyst_label: z.string().nullable().optional(),
+  labeled_at: z.string().nullable().optional(),
+  labeled_by: z.string().nullable().optional(),
   shap_values: z.array(ShapFeatureSchema).optional(),
   source_intel: SourceIntelSchema.optional(),
 })

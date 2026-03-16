@@ -21,6 +21,12 @@ interface DashboardStoreState {
   setActiveIncident: (id: string | null) => void
 }
 
+function formatRuleIds(ruleIds: string[] | null | undefined): string {
+  if (!ruleIds || ruleIds.length === 0) return '—'
+  if (ruleIds.length === 1) return ruleIds[0]
+  return `${ruleIds[0]} +${ruleIds.length - 1}`
+}
+
 function AlertsTableSkeleton() {
   return (
     <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle overflow-hidden">
@@ -113,6 +119,9 @@ function AlertsTableContent() {
                 CRS Score
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                Rule IDs
+              </th>
+              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                 Target Path
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
@@ -153,6 +162,9 @@ function AlertsTableContent() {
                 <td className="p-3 text-xs text-text-muted tabular-nums">
                   {alert.crs_score ?? '—'}
                 </td>
+                <td className="p-3 text-xs font-mono text-text-muted whitespace-nowrap">
+                  {formatRuleIds(alert.crs_rule_ids)}
+                </td>
                 <td className="p-3 text-xs font-mono text-text-main max-w-[200px] truncate">
                   {alert.request_path ?? '—'}
                 </td>
@@ -169,7 +181,7 @@ function AlertsTableContent() {
             ))}
             {alerts.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-sm text-text-muted">
+                <td colSpan={9} className="p-8 text-center text-sm text-text-muted">
                   No alerts found for the selected filters.
                 </td>
               </tr>

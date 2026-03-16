@@ -285,6 +285,11 @@ def test_alert_list_returns_pagination_shape(api_client):
                     confidence_level="HIGH",
                     inference_latency_ms=11.2,
                     action_taken="BLOCKED",
+                    crs_score=9,
+                    crs_rule_ids=["942100", "942110"],
+                    analyst_label="SQL Injection",
+                    labeled_at=datetime(2026, 3, 15, 0, 5, tzinfo=timezone.utc),
+                    labeled_by="analyst@lares.test",
                 )
             )
             await session.commit()
@@ -304,6 +309,10 @@ def test_alert_list_returns_pagination_shape(api_client):
     assert isinstance(payload["items"], list)
     assert payload["items"][0]["id"] == 1
     assert payload["items"][0]["payload_snippet"] == "POST /login username=admin' OR '1'='1"
+    assert payload["items"][0]["crs_rule_ids"] == ["942100", "942110"]
+    assert payload["items"][0]["analyst_label"] == "SQL Injection"
+    assert payload["items"][0]["labeled_by"] == "analyst@lares.test"
+    assert payload["items"][0]["labeled_at"] == "2026-03-15T00:05:00Z"
 
 
 def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
@@ -344,6 +353,10 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
     assert list_payload["items"][0]["request_path"] is None
     assert list_payload["items"][0]["request_method"] is None
     assert list_payload["items"][0]["crs_score"] is None
+    assert list_payload["items"][0]["crs_rule_ids"] is None
+    assert list_payload["items"][0]["analyst_label"] is None
+    assert list_payload["items"][0]["labeled_at"] is None
+    assert list_payload["items"][0]["labeled_by"] is None
     assert list_payload["items"][0]["payload_snippet"] == "GET /legacy?q=test"
 
     assert detail_response.status_code == 200
@@ -352,6 +365,10 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
     assert detail_payload["request_path"] is None
     assert detail_payload["request_method"] is None
     assert detail_payload["crs_score"] is None
+    assert detail_payload["crs_rule_ids"] is None
+    assert detail_payload["analyst_label"] is None
+    assert detail_payload["labeled_at"] is None
+    assert detail_payload["labeled_by"] is None
     assert detail_payload["payload_snippet"] == "GET /legacy?q=test"
 
 

@@ -4,6 +4,20 @@ import { useDashboardStore } from 'store/dashboardStore'
 import { useAlert } from 'features/alerts/queries'
 import { ALERT_DISPLAY_ACTION_ALIASES } from 'features/alerts/contract'
 
+function formatRuleIds(ruleIds: string[] | null | undefined): string {
+  if (!ruleIds || ruleIds.length === 0) return 'None'
+  return ruleIds.join(', ')
+}
+
+function formatUtcTimestamp(timestamp: string | null | undefined): string {
+  if (!timestamp) return 'Unavailable'
+  if (!/(Z|[+-]\d{2}:\d{2})$/.test(timestamp)) return timestamp
+
+  const parsed = new Date(timestamp)
+  if (Number.isNaN(parsed.getTime())) return timestamp
+  return parsed.toLocaleString()
+}
+
 function PanelSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -129,6 +143,46 @@ export default function IncidentDetailPanel() {
                 </span>
                 <span className="text-sm font-medium text-text-main">
                   {incident.crs_score ?? 'Unavailable'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 col-span-2">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  CRS Rule IDs
+                </span>
+                <span className="text-sm font-medium text-text-main font-mono break-all">
+                  {formatRuleIds(incident.crs_rule_ids)}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+              Analyst Review
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Analyst Label
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.analyst_label ?? 'Not labeled'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Labeled By
+                </span>
+                <span className="text-sm font-medium text-text-main break-all">
+                  {incident.labeled_by ?? 'Unavailable'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 col-span-2">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Labeled At
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {formatUtcTimestamp(incident.labeled_at)}
                 </span>
               </div>
             </div>
