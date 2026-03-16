@@ -110,9 +110,6 @@ function AlertsTableContent() {
                 Timestamp
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                CRS Rule ID
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                 CRS Score
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
@@ -153,9 +150,6 @@ function AlertsTableContent() {
                 <td className="p-3 text-xs text-text-muted whitespace-nowrap">
                   {new Date(alert.timestamp).toLocaleString()}
                 </td>
-                <td className="p-3 text-xs font-mono text-text-muted">
-                  {alert.crs_score !== undefined ? `CRS-${Math.round(alert.crs_score)}` : '—'}
-                </td>
                 <td className="p-3 text-xs text-text-muted tabular-nums">
                   {alert.crs_score ?? '—'}
                 </td>
@@ -175,7 +169,7 @@ function AlertsTableContent() {
             ))}
             {alerts.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-sm text-text-muted">
+                <td colSpan={8} className="p-8 text-center text-sm text-text-muted">
                   No alerts found for the selected filters.
                 </td>
               </tr>

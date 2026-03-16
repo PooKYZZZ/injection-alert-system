@@ -54,6 +54,10 @@ function formatMetricValue(value: string | number | null | undefined): string | 
 
 export default function MetricCards() {
   const { data, isPending } = useDashboardStats()
+  const avgInferenceLatency =
+    data?.crs_comparison?.avg_inference_ms === null || data?.crs_comparison?.avg_inference_ms === undefined
+      ? 'N/A'
+      : `${data.crs_comparison.avg_inference_ms} ms`
 
   if (isPending) {
     return (
@@ -70,19 +74,19 @@ export default function MetricCards() {
 
       {/* High Detections */}
       <MetricCard
-        label="High Detections"
+        label="Actionable Alerts"
         icon="gpp_maybe"
         value={formatMetricValue(data?.actionable_alerts)}
-        trend="vs. last 24h"
+        trend="Derived from backend attack labels"
         highlight
       />
 
-      {/* Attack Types Detected */}
+      {/* Average Inference Latency */}
      <MetricCard
-        label="Attack Types Detected"
-        icon="bug_report"
-        value="SQLi / XSS"
-        trend="Command Injection also detected"
+        label="Avg Inference Latency"
+        icon="speed"
+        value={avgInferenceLatency}
+        trend="Backend-reported ML latency"
       />
 
       {/* Total Requests */}

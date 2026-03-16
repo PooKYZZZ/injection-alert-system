@@ -2,10 +2,7 @@
 
 import { useDashboardStore } from 'store/dashboardStore'
 import { useAlert } from 'features/alerts/queries'
-import type { Alert } from 'features/alerts/types'
 import { ALERT_DISPLAY_ACTION_ALIASES } from 'features/alerts/contract'
-import { ShapChart } from 'components/ui/ShapChart'
-import { cn } from 'lib/utils'
 
 function PanelSkeleton() {
   return (
@@ -63,6 +60,80 @@ export default function IncidentDetailPanel() {
         <PanelSkeleton />
       ) : incident ? (
         <div className="flex flex-col gap-6 p-4">
+          <section>
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+              Alert Details
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Source IP
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.source_ip ?? 'Unknown'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Request Method
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.request_method ?? 'Unknown'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Request Path
+                </span>
+                <span className="text-sm font-medium text-text-main break-all">
+                  {incident.request_path ?? 'Unavailable'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Prediction
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.prediction}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  ML Confidence
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {Math.round(incident.confidence * 100)}%
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Confidence Level
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.confidence_level}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  Action Taken
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.action_taken
+                    ? ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]
+                    : 'Unavailable'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                  CRS Score
+                </span>
+                <span className="text-sm font-medium text-text-main">
+                  {incident.crs_score ?? 'Unavailable'}
+                </span>
+              </div>
+            </div>
+          </section>
+
           {/* Captured Payload */}
           <section>
             <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
@@ -75,128 +146,6 @@ export default function IncidentDetailPanel() {
                 </code>
               </pre>
             </div>
-          </section>
-
-          {/* ML Feature Contribution (SHAP) */}
-          <section>
-            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1">
-              ML Feature Contribution (SHAP)
-            </h3>
-            <p className="text-xs text-text-muted mb-3">
-              Feature importance scores explaining the ML model decision.
-            </p>
-            <ShapChart features={incident.shap_values ?? []} />
-          </section>
-
-          {/* Source Intelligence */}
-          <section>
-            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
-              Source Intelligence
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  IP Reputation
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.source_intel?.ip ?? incident.source_ip ?? 'Unknown'}
-                </span>
-                {incident.source_intel?.reputation_score !== undefined && (
-                  <span
-                    className={cn(
-                      'text-xs font-medium',
-                      incident.source_intel.reputation_score > 70
-                        ? 'text-red-600'
-                        : incident.source_intel.reputation_score > 40
-                        ? 'text-orange-500'
-                        : 'text-green-600'
-                    )}
-                  >
-                    Score: {incident.source_intel.reputation_score}
-                  </span>
-                )}
-                {incident.source_intel?.asn && (
-                  <span className="text-xs text-text-muted">
-                    ASN: {incident.source_intel.asn}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Geolocation
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.source_intel?.country ?? 'Unknown'}
-                </span>
-                <span className="text-xs text-text-muted">
-                  Method: {incident.request_method ?? 'Unknown'}
-                </span>
-                {incident.user_agent && (
-                  <span className="text-xs text-text-muted truncate" title={incident.user_agent}>
-                    UA: {incident.user_agent}
-                  </span>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* ML Analysis & Action Timeline */}
-          <section>
-            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-3">
-              ML Analysis &amp; Action Timeline
-            </h3>
-            <ol className="flex flex-col gap-3">
-              <li className="flex items-start gap-3">
-                <span className="mt-1 h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-text-main">Request Received</span>
-                  <span className="text-[10px] text-text-muted">
-                    {new Date(incident.timestamp).toLocaleString()}
-                  </span>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="mt-1 h-2 w-2 rounded-full bg-orange-400 shrink-0" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-text-main">CRS Flagged</span>
-                  <span className="text-[10px] text-text-muted">
-                    Score: {incident.crs_score ?? 'N/A'}
-                  </span>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="mt-1 h-2 w-2 rounded-full bg-purple-500 shrink-0" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-text-main">ML Inference</span>
-                  <span className="text-[10px] text-text-muted">
-                    {incident.prediction} — Confidence: {Math.round(incident.confidence * 100)}%
-                  </span>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span
-                  className={cn(
-                    'mt-1 h-2 w-2 rounded-full shrink-0',
-                    incident.action_taken === 'BLOCKED'
-                      ? 'bg-red-600'
-                      : incident.action_taken === 'THROTTLED'
-                      ? 'bg-orange-500'
-                      : 'bg-gray-400'
-                  )}
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-text-main">
-                    Action:{' '}
-                    {incident.action_taken
-                      ? ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]
-                      : 'Unavailable'}
-                  </span>
-                  <span className="text-[10px] text-text-muted">
-                    {incident.action_taken ? 'Enforcement applied' : 'No enforcement data returned'}
-                  </span>
-                </div>
-              </li>
-            </ol>
           </section>
         </div>
       ) : (
