@@ -74,7 +74,7 @@ function TopBarContent() {
   return (
     <header className="h-16 border-b border-border-light bg-surface-light flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
 
-      {/* Left side: title + severity filter */}
+      {/* Left side: title + confidence filter */}
       <div className="flex items-center gap-4">
         <h2 className="text-lg font-bold text-text-main tracking-tight">
           SOC Overview
@@ -83,6 +83,9 @@ function TopBarContent() {
         <div className="h-4 w-[1px] bg-border-light" />
 
         <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            ML Confidence
+          </span>
           {SEVERITY_OPTIONS.map(({ value, label }) => (
             <button
               key={value}

@@ -112,11 +112,6 @@ function MLHealthContent() {
           <span className="text-blue-200 font-mono">{inferenceTime}</span>
         </div>
 
-        <div className="flex justify-between border-t border-[#2d4a77] pt-1 mt-1">
-          <span className="text-blue-300">Last Retrain:</span>
-          <span className="text-green-300 font-medium">Today 02:00</span>
-        </div>
-
       </div>
 
       {/* Confidence Thresholds */}

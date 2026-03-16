@@ -1,6 +1,6 @@
 export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
-  { label: 'Alerts', href: '/alerts', icon: 'notifications', badge: 5 },
+  { label: 'Alerts', href: '/alerts', icon: 'notifications' },
   { label: 'Traffic', href: '/traffic', icon: 'traffic' },
   { label: 'Mitigation Log', href: '/mitigation', icon: 'shield_lock' },
   { label: 'ML Health', href: '/ml-health', icon: 'monitor_heart' },
