@@ -42,24 +42,13 @@ describe('MetricCards', () => {
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
   })
 
-  it('renders correct total_requests value (not total_crs_flagged)', () => {
+  it('renders total requests card with updated description', () => {
     mockedUseDashboardStats.mockReturnValue({
       isPending: false,
       data: {
         actionable_alerts: 10,
-        actionable_alerts_trend: 0,
-        avg_confidence: 0,
-        avg_confidence_trend: 0,
-        threat_ip_count: 0,
-        threat_ip_count_trend: 0,
-        crs_comparison: {
-          total_crs_flagged: 99,
-          ml_confirmed: 0,
-          ml_overturned: 0,
-          false_positive_reduction_pct: 0,
-          total_requests: 321,
-          avg_inference_ms: 0,
-        },
+        total_requests: 321,
+        avg_inference_latency_ms: 0,
       },
     } as ReturnType<typeof useDashboardStats>)
 
@@ -68,33 +57,27 @@ describe('MetricCards', () => {
 
     expect(screen.getByText('Total Requests')).toBeInTheDocument()
     expect(screen.getByText('321')).toBeInTheDocument()
-    expect(screen.queryByText('99')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('All requests in current stats response')
+    ).toBeInTheDocument()
   })
 
-  it('assert displayed value is 321 when total_requests=321 and total_crs_flagged=99', () => {
+  it('renders latency and actionable-alert descriptions from real stats fields', () => {
     mockedUseDashboardStats.mockReturnValue({
       isPending: false,
       data: {
         actionable_alerts: 1,
-        actionable_alerts_trend: 0,
-        avg_confidence: 0,
-        avg_confidence_trend: 0,
-        threat_ip_count: 0,
-        threat_ip_count_trend: 0,
-        crs_comparison: {
-          total_crs_flagged: 99,
-          ml_confirmed: 0,
-          ml_overturned: 0,
-          false_positive_reduction_pct: 0,
-          total_requests: 321,
-          avg_inference_ms: 0,
-        },
+        total_requests: 321,
+        avg_inference_latency_ms: 4.5,
       },
     } as ReturnType<typeof useDashboardStats>)
 
     const Wrapper = createWrapper()
     render(<MetricCards />, { wrapper: Wrapper })
 
-    expect(screen.getByText('321')).toHaveTextContent('321')
+    expect(screen.getByText('4.5 ms')).toBeInTheDocument()
+    expect(
+      screen.getByText('Derived from attack-labeled requests in current stats response')
+    ).toBeInTheDocument()
   })
 })
