@@ -122,3 +122,15 @@ Thumbs.db
 .kilocode/skills/teams/skill.yaml
 .github/copilot-instructions.md
 AGENTS.md
+.claude/skills/playwright-cli/SKILL.md
+.claude/skills/playwright-cli/references/request-mocking.md
+.claude/skills/playwright-cli/references/running-code.md
+.claude/skills/playwright-cli/references/session-management.md
+.claude/skills/playwright-cli/references/storage-state.md
+.claude/skills/playwright-cli/references/test-generation.md
+.claude/skills/playwright-cli/references/tracing.md
+.claude/skills/playwright-cli/references/video-recording.md
+docs/agent-tooling.md
+opencode.json
+frontend/test-results/.last-run.json
+frontend/temp/
