@@ -198,19 +198,8 @@ describe('BFF route handlers', () => {
       ok: true,
       data: {
         actionable_alerts: 4,
-        actionable_alerts_trend: null,
-        avg_confidence: null,
-        avg_confidence_trend: null,
-        threat_ip_count: null,
-        threat_ip_count_trend: null,
-        crs_comparison: {
-          total_crs_flagged: null,
-          ml_confirmed: 4,
-          ml_overturned: null,
-          false_positive_reduction_pct: null,
-          total_requests: 1234,
-          avg_inference_ms: 3.2,
-        },
+        total_requests: 1234,
+        avg_inference_latency_ms: 3.2,
       },
     })
 
@@ -219,7 +208,8 @@ describe('BFF route handlers', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.crs_comparison.total_requests).toBe(1234)
+    expect(body.total_requests).toBe(1234)
+    expect(body.avg_inference_latency_ms).toBe(3.2)
   })
 
   it('ml-health route returns the frontend component contract shape', async () => {

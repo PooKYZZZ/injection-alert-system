@@ -7,11 +7,11 @@ interface MetricCardProps {
   label: string
   icon: string
   value: string | number
-  trend: string
+  detail: string
   highlight?: boolean
 }
 
-function MetricCard({ label, icon, value, trend, highlight }: MetricCardProps) {
+function MetricCard({ label, icon, value, detail, highlight }: MetricCardProps) {
   return (
     <div
       className={cn(
@@ -30,7 +30,7 @@ function MetricCard({ label, icon, value, trend, highlight }: MetricCardProps) {
 
       <div className="text-3xl font-bold text-text-main">{value}</div>
 
-      <div className="text-xs text-text-muted mt-2">{trend}</div>
+      <div className="text-xs text-text-muted mt-2">{detail}</div>
     </div>
   )
 }
@@ -55,9 +55,9 @@ function formatMetricValue(value: string | number | null | undefined): string | 
 export default function MetricCards() {
   const { data, isPending } = useDashboardStats()
   const avgInferenceLatency =
-    data?.crs_comparison?.avg_inference_ms === null || data?.crs_comparison?.avg_inference_ms === undefined
+    data?.avg_inference_latency_ms === null || data?.avg_inference_latency_ms === undefined
       ? 'N/A'
-      : `${data.crs_comparison.avg_inference_ms} ms`
+      : `${data.avg_inference_latency_ms} ms`
 
   if (isPending) {
     return (
@@ -77,27 +77,25 @@ export default function MetricCards() {
         label="Actionable Alerts"
         icon="gpp_maybe"
         value={formatMetricValue(data?.actionable_alerts)}
-        trend="Derived from backend attack labels"
+        detail="Count of non-normal labels in the current stats response"
         highlight
       />
 
       {/* Average Inference Latency */}
-     <MetricCard
+      <MetricCard
         label="Avg Inference Latency"
         icon="speed"
         value={avgInferenceLatency}
-        trend="Backend-reported ML latency"
+        detail="Backend average model latency, in milliseconds"
       />
 
       {/* Total Requests */}
       <MetricCard
         label="Total Requests"
         icon="public"
-        // Source: /api/stats -> crs_comparison.total_requests
-        value={formatMetricValue(data?.crs_comparison?.total_requests)}
-        trend="in last 24h"
+        value={formatMetricValue(data?.total_requests)}
+        detail="All requests included in the current stats response"
       />
-
     </div>
   )
 }

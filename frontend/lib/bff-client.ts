@@ -194,22 +194,9 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
     payload.counts_by_label['Other Attacks']
 
   return {
-    // display-only -- derived from backend data, not a backend-native measurement
     actionable_alerts: actionableAlerts,
-    actionable_alerts_trend: null,
-    avg_confidence: null,
-    avg_confidence_trend: null,
-    threat_ip_count: null,
-    threat_ip_count_trend: null,
-    crs_comparison: {
-      total_crs_flagged: null,
-      // display-only -- derived from backend data, not a backend-native measurement
-      ml_confirmed: actionableAlerts,
-      ml_overturned: null,
-      false_positive_reduction_pct: null,
-      total_requests: payload.total_requests,
-      avg_inference_ms: payload.avg_inference_latency_ms,
-    },
+    total_requests: payload.total_requests,
+    avg_inference_latency_ms: payload.avg_inference_latency_ms,
   }
 }
 

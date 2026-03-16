@@ -256,19 +256,8 @@ describe('bff-client', () => {
       ok: true,
       data: {
         actionable_alerts: 6,
-        actionable_alerts_trend: null,
-        avg_confidence: null,
-        avg_confidence_trend: null,
-        threat_ip_count: null,
-        threat_ip_count_trend: null,
-        crs_comparison: {
-          total_crs_flagged: null,
-          ml_confirmed: 6,
-          ml_overturned: null,
-          false_positive_reduction_pct: null,
-          total_requests: 321,
-          avg_inference_ms: 4.5,
-        },
+        total_requests: 321,
+        avg_inference_latency_ms: 4.5,
       },
     })
   })
@@ -404,7 +393,7 @@ describe('bff-client', () => {
     }
 
     if (stats.ok) {
-      expect(stats.data.crs_comparison.total_requests).toBe(8400000)
+      expect(stats.data.total_requests).toBe(8400000)
     }
 
     if (mlHealth.ok) {
