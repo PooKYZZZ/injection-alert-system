@@ -126,6 +126,11 @@ describe('BFF route handlers', () => {
           confidence: 0.9,
           confidence_level: 'HIGH',
           action_taken: 'BLOCKED',
+          crs_score: 9,
+          crs_rule_ids: ['942100'],
+          analyst_label: 'Normal',
+          labeled_at: '2026-03-15T00:05:00Z',
+          labeled_by: 'analyst@lares.test',
         },
       })
       .mockResolvedValueOnce({
@@ -151,6 +156,8 @@ describe('BFF route handlers', () => {
 
     expect(okResponse.status).toBe(200)
     expect(okBody.alert_id).toBe('12')
+    expect(okBody.crs_rule_ids).toEqual(['942100'])
+    expect(okBody.analyst_label).toBe('Normal')
     expect(notFoundResponse.status).toBe(404)
     expect(notFoundBody).toEqual({
       error: {

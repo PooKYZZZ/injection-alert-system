@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from web_app.presentation.schemas import (
+    AlertDetailResponse,
     PredictionRequest,
     PredictionResponse,
     FeedbackRequest,
@@ -129,3 +130,26 @@ def test_triage_ingest_response_structure():
     )
     assert response.alert_id == 1
     assert response.prediction == "SQL Injection"
+
+
+def test_alert_detail_response_supports_optional_crs_and_review_fields():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp="2026-03-15T10:00:00Z",
+        source_ip="203.0.113.10",
+        request_path="/login",
+        request_method="POST",
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+        action_taken="BLOCKED",
+        crs_score=9,
+        crs_rule_ids=["942100", "942110"],
+        analyst_label="Normal",
+        labeled_at="2026-03-15T10:05:00Z",
+        labeled_by="analyst@example.com",
+    )
+    assert alert.crs_rule_ids == ["942100", "942110"]
+    assert alert.analyst_label == "Normal"
+    assert alert.labeled_by == "analyst@example.com"

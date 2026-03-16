@@ -111,6 +111,10 @@ class AlertDetailResponse(BaseModel):
     confidence_level: ConfidenceLevel
     action_taken: Optional[ActionTaken] = None
     crs_score: Optional[int] = None
+    crs_rule_ids: Optional[list[str]] = None
+    analyst_label: Optional[str] = None
+    labeled_at: Optional[datetime] = None
+    labeled_by: Optional[str] = None
 
 
 class AlertListResponse(BaseModel):
