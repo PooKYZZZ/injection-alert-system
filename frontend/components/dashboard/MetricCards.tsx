@@ -72,7 +72,7 @@ export default function MetricCards() {
   return (
     <div className="grid grid-cols-3 gap-4">
 
-      {/* High Detections */}
+      {/* Actionable Alerts */}
       <MetricCard
         label="Actionable Alerts"
         icon="gpp_maybe"

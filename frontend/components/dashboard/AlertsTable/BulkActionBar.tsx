@@ -22,8 +22,6 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled
-            aria-disabled="true"
-            title="Bulk actions are not available in the current build."
             className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed"
           >
             Explain Selected
@@ -31,8 +29,6 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled
-            aria-disabled="true"
-            title="Bulk actions are not available in the current build."
             className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed"
           >
             Mark False Positive
@@ -40,8 +36,6 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled
-            aria-disabled="true"
-            title="Bulk actions are not available in the current build."
             className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed"
           >
             Apply Mitigation
