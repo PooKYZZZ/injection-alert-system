@@ -42,7 +42,7 @@ describe('MetricCards', () => {
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
   })
 
-  it('renders correct total_requests value (not total_crs_flagged)', () => {
+  it('renders total requests card with updated description', () => {
     mockedUseDashboardStats.mockReturnValue({
       isPending: false,
       data: {
@@ -58,7 +58,7 @@ describe('MetricCards', () => {
     expect(screen.getByText('Total Requests')).toBeInTheDocument()
     expect(screen.getByText('321')).toBeInTheDocument()
     expect(
-      screen.getByText('All requests included in the current stats response')
+      screen.getByText('All requests in current stats response')
     ).toBeInTheDocument()
   })
 
@@ -77,7 +77,7 @@ describe('MetricCards', () => {
 
     expect(screen.getByText('4.5 ms')).toBeInTheDocument()
     expect(
-      screen.getByText('Count of non-normal labels in the current stats response')
+      screen.getByText('Derived from attack-labeled requests in current stats response')
     ).toBeInTheDocument()
   })
 })

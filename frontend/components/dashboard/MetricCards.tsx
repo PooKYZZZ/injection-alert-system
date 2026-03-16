@@ -77,7 +77,7 @@ export default function MetricCards() {
         label="Actionable Alerts"
         icon="gpp_maybe"
         value={formatMetricValue(data?.actionable_alerts)}
-        detail="Count of non-normal labels in the current stats response"
+        detail="Derived from attack-labeled requests in current stats response"
         highlight
       />
 
@@ -86,7 +86,7 @@ export default function MetricCards() {
         label="Avg Inference Latency"
         icon="speed"
         value={avgInferenceLatency}
-        detail="Backend average model latency, in milliseconds"
+        detail="Backend average model latency (ms)"
       />
 
       {/* Total Requests */}
@@ -94,7 +94,7 @@ export default function MetricCards() {
         label="Total Requests"
         icon="public"
         value={formatMetricValue(data?.total_requests)}
-        detail="All requests included in the current stats response"
+        detail="All requests in current stats response"
       />
     </div>
   )

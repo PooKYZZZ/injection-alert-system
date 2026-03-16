@@ -189,9 +189,9 @@ function normalizeAlertList(
 
 function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardStats {
   const actionableAlerts =
-    payload.counts_by_label['SQL Injection'] +
-    payload.counts_by_label['Code Injection'] +
-    payload.counts_by_label['Other Attacks']
+    (payload.counts_by_label['SQL Injection'] ?? 0) +
+    (payload.counts_by_label['Code Injection'] ?? 0) +
+    (payload.counts_by_label['Other Attacks'] ?? 0)
 
   return {
     actionable_alerts: actionableAlerts,
