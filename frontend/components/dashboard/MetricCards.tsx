@@ -53,10 +53,10 @@ function formatMetricValue(value: string | number | null | undefined): string | 
 }
 
 export default function MetricCards() {
-  const { data, isPending } = useDashboardStats()
+  const { data, isPending, isError, error } = useDashboardStats()
   const avgInferenceLatency =
     data?.avg_inference_latency_ms === null || data?.avg_inference_latency_ms === undefined
-      ? 'N/A'
+      ? 'Unavailable with current response'
       : `${data.avg_inference_latency_ms} ms`
 
   if (isPending) {
@@ -69,6 +69,25 @@ export default function MetricCards() {
     )
   }
 
+  if (isError) {
+    return (
+      <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
+        <p className="text-sm font-medium text-status-high">Failed to load dashboard stats</p>
+        <p className="mt-1 text-xs text-text-muted">
+          {error instanceof Error ? error.message : 'Unknown error'}
+        </p>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="rounded-sm border border-border-light bg-surface-light p-4">
+        <p className="text-sm text-text-muted">No data available</p>
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-3 gap-4">
 
@@ -76,7 +95,7 @@ export default function MetricCards() {
       <MetricCard
         label="Actionable Alerts"
         icon="gpp_maybe"
-        value={formatMetricValue(data?.actionable_alerts)}
+        value={formatMetricValue(data.actionable_alerts)}
         detail="Derived from attack-labeled requests in current stats response"
         highlight
       />
@@ -93,7 +112,7 @@ export default function MetricCards() {
       <MetricCard
         label="Total Requests"
         icon="public"
-        value={formatMetricValue(data?.total_requests)}
+        value={formatMetricValue(data.total_requests)}
         detail="All requests in current stats response"
       />
     </div>

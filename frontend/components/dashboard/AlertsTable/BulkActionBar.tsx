@@ -22,21 +22,27 @@ export default function BulkActionBar() {
           <button
             type="button"
             disabled
-            className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed"
+            aria-disabled="true"
+            title="Unavailable in the current build"
+            className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-50"
           >
             Explain Selected
           </button>
           <button
             type="button"
             disabled
-            className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed"
+            aria-disabled="true"
+            title="Unavailable in the current build"
+            className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-50"
           >
             Mark False Positive
           </button>
           <button
             type="button"
             disabled
-            className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed"
+            aria-disabled="true"
+            title="Unavailable in the current build"
+            className="text-xs font-medium px-3 py-1 rounded border border-blue-300 text-blue-700 bg-white opacity-50 cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-50"
           >
             Apply Mitigation
           </button>

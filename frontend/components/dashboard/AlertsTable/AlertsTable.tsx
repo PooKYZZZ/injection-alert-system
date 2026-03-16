@@ -52,6 +52,15 @@ function AlertsTableSkeleton() {
   )
 }
 
+function AlertsTableError({ message }: { message: string }) {
+  return (
+    <div className="bg-surface-light border border-status-high/50 rounded-sm shadow-subtle p-4">
+      <p className="text-sm font-medium text-status-high">Failed to load alerts</p>
+      <p className="mt-1 text-xs text-text-muted">{message}</p>
+    </div>
+  )
+}
+
 function AlertsTableContent() {
   const searchParams = useSearchParams()
 
@@ -69,9 +78,11 @@ function AlertsTableContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.severity, filters.timeRange, filters.search])
 
-  const { data, isPending } = useAlerts(filters)
+  const { data, isPending, isError, error } = useAlerts(filters)
 
   const alerts = data?.items ?? []
+  const hasFilter =
+    filters.search.trim().length > 0 || filters.severity !== 'ALL' || filters.timeRange !== '24h'
 
   function getRowBorderClass(alert: Alert): string {
     if (alert.confidence_level === 'HIGH') return 'border-l-[3px] border-l-red-500'
@@ -81,6 +92,18 @@ function AlertsTableContent() {
 
   if (isPending) {
     return <AlertsTableSkeleton />
+  }
+
+  if (isError) {
+    return (
+      <AlertsTableError
+        message={error instanceof Error ? error.message : 'Unexpected error while loading alerts'}
+      />
+    )
+  }
+
+  if (!data) {
+    return <AlertsTableError message="Unavailable with current response" />
   }
 
   return (
@@ -106,7 +129,8 @@ function AlertsTableContent() {
                       clearSelection()
                     }
                   }}
-                  className="rounded border-gray-300"
+                  className="rounded border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
+                  aria-label="Select all alerts"
                 />
               </th>
               <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
@@ -140,17 +164,27 @@ function AlertsTableContent() {
               <tr
                 key={alert.alert_id}
                 className={cn(
-                  'cursor-pointer hover:bg-[#16233A] transition-colors',
+                  'cursor-pointer hover:bg-[#16233A] transition-colors focus-within:bg-[#16233A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px]',
                   getRowBorderClass(alert)
                 )}
                 onClick={() => setActiveIncident(alert.alert_id)}
+                onKeyDown={(e) => {
+                  if (e.target instanceof HTMLInputElement) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setActiveIncident(alert.alert_id)
+                  }
+                }}
+                tabIndex={0}
+                aria-selected={selectedIds.includes(alert.alert_id)}
               >
                 <td className="p-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(alert.alert_id)}
                     onChange={() => toggleAlertSelection(alert.alert_id)}
-                    className="rounded border-gray-300"
+                    className="rounded border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
+                    aria-label={`Select alert ${alert.alert_id}`}
                   />
                 </td>
                 <td className="p-3">
@@ -182,7 +216,7 @@ function AlertsTableContent() {
             {alerts.length === 0 && (
               <tr>
                 <td colSpan={9} className="p-8 text-center text-sm text-text-muted">
-                  No alerts found for the selected filters.
+                  {hasFilter ? 'No matching alerts' : 'No alerts found'}
                 </td>
               </tr>
             )}

@@ -33,7 +33,7 @@ function MetricRow({ label, value }: { label: string; value: string | number }) 
 
 function formatMetricValue(value: number | null, formatter?: (input: number) => string): string | number {
   if (value === null) {
-    return 'N/A'
+    return 'Unavailable with current response'
   }
 
   return formatter ? formatter(value) : value
@@ -77,10 +77,18 @@ export default function MLHealthDetail() {
         </p>
         <button
           onClick={() => void refetch()}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
+          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
         >
           Retry
         </button>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="rounded border border-border-light bg-surface-light p-4" data-testid="ml-health-unavailable">
+        <p className="text-sm text-text-muted">No data available</p>
       </div>
     )
   }

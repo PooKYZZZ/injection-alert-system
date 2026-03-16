@@ -1,16 +1,17 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { useDashboardStore } from 'store/dashboardStore'
 import { useAlert } from 'features/alerts/queries'
 import { ALERT_DISPLAY_ACTION_ALIASES } from 'features/alerts/contract'
 
 function formatRuleIds(ruleIds: string[] | null | undefined): string {
-  if (!ruleIds || ruleIds.length === 0) return 'None'
+  if (!ruleIds || ruleIds.length === 0) return 'No data available'
   return ruleIds.join(', ')
 }
 
 function formatUtcTimestamp(timestamp: string | null | undefined): string {
-  if (!timestamp) return 'Unavailable'
+  if (!timestamp) return 'Not reviewed'
   if (!/(Z|[+-]\d{2}:\d{2})$/.test(timestamp)) return timestamp
 
   const parsed = new Date(timestamp)
@@ -32,12 +33,58 @@ function PanelSkeleton() {
 export default function IncidentDetailPanel() {
   const activeIncidentId = useDashboardStore(s => s.activeIncidentId)
   const setActiveIncident = useDashboardStore(s => s.setActiveIncident)
-  const { data: incident, isPending } = useAlert(activeIncidentId)
+  const { data: incident, isPending, isError, error } = useAlert(activeIncidentId)
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+  const panelOpen = activeIncidentId !== null
 
-  if (activeIncidentId === null) return null
+  useEffect(() => {
+    if (!panelOpen) return
+
+    const activeElement = document.activeElement
+    restoreFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null
+
+    // Keep keyboard users in context when the panel opens.
+    closeButtonRef.current?.focus()
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      restoreFocusRef.current?.focus()
+    }
+  }, [panelOpen])
+
+  useEffect(() => {
+    if (!panelOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setActiveIncident(null)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [panelOpen, setActiveIncident])
+
+  if (!panelOpen) return null
 
   return (
-    <aside className="fixed right-0 top-0 h-full w-[480px] bg-surface-light border-l border-border-light shadow-lg z-50 overflow-y-auto flex flex-col">
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/50"
+        onClick={() => setActiveIncident(null)}
+        aria-hidden="true"
+      />
+      <aside
+        className="fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col overflow-y-auto border-l border-border-light bg-surface-light shadow-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="incident-panel-title"
+      >
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b border-border-light sticky top-0 bg-surface-light z-10">
         <div className="flex flex-col gap-1 min-w-0">
@@ -46,7 +93,7 @@ export default function IncidentDetailPanel() {
           ) : incident ? (
             <>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm font-bold text-text-main">
+                <h2 id="incident-panel-title" className="text-sm font-bold text-text-main">
                   Incident #{incident.alert_id}
                 </h2>
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">
@@ -54,15 +101,20 @@ export default function IncidentDetailPanel() {
                 </span>
               </div>
               <span className="text-xs text-text-muted">
-                {new Date(incident.timestamp).toLocaleString()}
+                {formatUtcTimestamp(incident.timestamp)}
               </span>
             </>
-          ) : null}
+          ) : (
+            <h2 id="incident-panel-title" className="text-sm font-bold text-text-main">
+              Incident detail
+            </h2>
+          )}
         </div>
         <button
+          ref={closeButtonRef}
           type="button"
           onClick={() => setActiveIncident(null)}
-          className="shrink-0 ml-2 text-text-muted hover:text-text-main transition-colors"
+          className="ml-2 shrink-0 text-text-muted transition-colors hover:text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
           aria-label="Close incident panel"
         >
           <span className="material-symbols-outlined text-[20px]">close</span>
@@ -72,6 +124,13 @@ export default function IncidentDetailPanel() {
       {/* Body */}
       {isPending ? (
         <PanelSkeleton />
+      ) : isError ? (
+        <div className="flex flex-col gap-2 p-4" role="alert">
+          <p className="text-sm font-medium text-status-high">Failed to load incident details</p>
+          <p className="text-xs text-text-muted">
+            {error instanceof Error ? error.message : 'Unexpected error while loading incident details'}
+          </p>
+        </div>
       ) : incident ? (
         <div className="flex flex-col gap-6 p-4">
           <section>
@@ -84,7 +143,7 @@ export default function IncidentDetailPanel() {
                   Source IP
                 </span>
                 <span className="text-sm font-medium text-text-main">
-                  {incident.source_ip ?? 'Unknown'}
+                  {incident.source_ip ?? 'Unavailable with current response'}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -92,7 +151,7 @@ export default function IncidentDetailPanel() {
                   Request Method
                 </span>
                 <span className="text-sm font-medium text-text-main">
-                  {incident.request_method ?? 'Unknown'}
+                  {incident.request_method ?? 'Unavailable with current response'}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -100,7 +159,7 @@ export default function IncidentDetailPanel() {
                   Request Path
                 </span>
                 <span className="text-sm font-medium text-text-main break-all">
-                  {incident.request_path ?? 'Unavailable'}
+                  {incident.request_path ?? 'Unavailable with current response'}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -134,7 +193,7 @@ export default function IncidentDetailPanel() {
                 <span className="text-sm font-medium text-text-main">
                   {incident.action_taken
                     ? ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]
-                    : 'Unavailable'}
+                    : 'Unavailable with current response'}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -142,7 +201,7 @@ export default function IncidentDetailPanel() {
                   CRS Score
                 </span>
                 <span className="text-sm font-medium text-text-main">
-                  {incident.crs_score ?? 'Unavailable'}
+                  {incident.crs_score ?? 'Unavailable with current response'}
                 </span>
               </div>
               <div className="flex flex-col gap-1 col-span-2">
@@ -166,7 +225,7 @@ export default function IncidentDetailPanel() {
                   Analyst Label
                 </span>
                 <span className="text-sm font-medium text-text-main">
-                  {incident.analyst_label ?? 'Not labeled'}
+                  {incident.analyst_label ?? 'Not reviewed'}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -174,7 +233,7 @@ export default function IncidentDetailPanel() {
                   Labeled By
                 </span>
                 <span className="text-sm font-medium text-text-main break-all">
-                  {incident.labeled_by ?? 'Unavailable'}
+                  {incident.labeled_by ?? 'Not reviewed'}
                 </span>
               </div>
               <div className="flex flex-col gap-1 col-span-2">
@@ -196,7 +255,7 @@ export default function IncidentDetailPanel() {
             <div className="bg-gray-50 border border-border-light rounded-sm p-3 overflow-x-auto">
               <pre className="m-0">
                 <code className="font-mono text-xs text-red-700 break-all">
-                  {incident.payload_snippet}
+                  {incident.payload_snippet || 'No data available'}
                 </code>
               </pre>
             </div>
@@ -204,9 +263,10 @@ export default function IncidentDetailPanel() {
         </div>
       ) : (
         <div className="flex items-center justify-center flex-1 p-8">
-          <p className="text-sm text-text-muted">Incident not found.</p>
+          <p className="text-sm text-text-muted">No data available</p>
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   )
 }
