@@ -1,15 +1,18 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { useAlerts } from '@/features/alerts/queries'
 import { useMLHealth } from '@/features/ml-health/queries'
 import type { Alert } from '@/features/alerts/types'
-import type { DashboardFilters, SeverityFilter, TimeRange } from '@/lib/searchParams'
 
 interface DistributionRow {
   label: string
   value: number
+}
+
+interface DashboardAlertAnalyticsProps {
+  alerts: Alert[]
+  alertsPending: boolean
+  alertsError?: Error | null
 }
 
 interface ChartPanelProps {
@@ -79,14 +82,6 @@ function formatBandLabel(value: number | null, prefix: '< ' | '> '): string {
   return value === null ? 'Unavailable' : `${prefix}${Math.round(value * 100)}%`
 }
 
-function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
-  return {
-    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams?.get('search') ?? '',
-  }
-}
-
 function buildDistribution(
   alerts: Alert[],
   getValue: (alert: Alert) => string | null | undefined,
@@ -106,13 +101,12 @@ function buildDistribution(
     .map(([label, value]) => ({ label, value }))
 }
 
-export default function DashboardAlertAnalytics() {
-  const searchParams = useSearchParams()
-  const filters = buildFilters(searchParams)
-  const { data, isPending, isError, error } = useAlerts(filters)
+export default function DashboardAlertAnalytics({
+  alerts,
+  alertsPending,
+  alertsError,
+}: DashboardAlertAnalyticsProps) {
   const { data: mlHealth } = useMLHealth()
-
-  const alerts = data?.items ?? []
 
   const actionBreakdown = useMemo(() => {
     const blocked = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
@@ -170,7 +164,7 @@ export default function DashboardAlertAnalytics() {
     }
   }, [alerts, mlHealth?.thresholds.high, mlHealth?.thresholds.low, mlHealth?.thresholds.medium])
 
-  if (isPending) {
+  if (alertsPending) {
     return (
       <div className="grid gap-4 xl:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
@@ -183,12 +177,12 @@ export default function DashboardAlertAnalytics() {
     )
   }
 
-  if (isError) {
+  if (alertsError) {
     return (
       <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
         <p className="text-sm font-medium text-status-high">Failed to load dashboard analytics</p>
         <p className="mt-1 text-xs text-text-muted">
-          {error instanceof Error ? error.message : 'Unknown error'}
+          {alertsError.message}
         </p>
       </div>
     )
@@ -196,8 +190,8 @@ export default function DashboardAlertAnalytics() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-text-muted">
-        These panels are derived from the alerts currently loaded in this view, not backend-wide aggregate analytics.
+      <p className="text-[11px] text-text-muted">
+        Based on the alerts currently loaded in this view.
       </p>
 
       <div className="grid gap-4 xl:grid-cols-2">
