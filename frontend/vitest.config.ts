@@ -15,8 +15,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      components: path.resolve(__dirname, './components'),
       features: path.resolve(__dirname, './features'),
       lib: path.resolve(__dirname, './lib'),
+      store: path.resolve(__dirname, './store'),
     },
   },
 })
