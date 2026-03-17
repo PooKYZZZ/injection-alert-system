@@ -48,11 +48,11 @@ function MetricCardSkeleton() {
   return (
     <div className="bg-surface-light border border-border-light p-4 rounded-sm shadow-subtle">
       <div className="flex justify-between items-start mb-2">
-        <div className="animate-pulse bg-gray-200 rounded h-3 w-24" />
-        <div className="animate-pulse bg-gray-200 rounded h-5 w-5" />
+        <div className="animate-pulse bg-border-light rounded h-3 w-24" />
+        <div className="animate-pulse bg-border-light rounded h-5 w-5" />
       </div>
-      <div className="animate-pulse bg-gray-200 rounded h-9 w-20 mt-1" />
-      <div className="animate-pulse bg-gray-200 rounded h-3 w-28 mt-2" />
+      <div className="animate-pulse bg-border-light rounded h-9 w-20 mt-1" />
+      <div className="animate-pulse bg-border-light rounded h-3 w-32 mt-2" />
     </div>
   )
 }
@@ -122,7 +122,9 @@ export default function MetricCards({ alerts, alertsPending, alertsError }: Metr
   if (!stats) {
     return (
       <div className="rounded-sm border border-border-light bg-surface-light p-4">
-        <p className="text-sm text-text-muted">No data available</p>
+        <p className="text-sm text-text-muted">
+          Dashboard metrics are unavailable for the current response.
+        </p>
       </div>
     )
   }

@@ -78,6 +78,110 @@ function HorizontalBars({
   )
 }
 
+function ChartPanelSkeleton({
+  descriptionWidth = 'w-48',
+  body,
+}: {
+  descriptionWidth?: string
+  body: React.ReactNode
+}) {
+  return (
+    <section className="rounded-sm border border-border-light bg-surface-light p-4 shadow-subtle">
+      <div className="mb-4">
+        <div className="h-4 w-36 animate-pulse rounded-sm bg-border-light" />
+        <div className={`mt-2 h-3 animate-pulse rounded-sm bg-border-light ${descriptionWidth}`} />
+      </div>
+      {body}
+    </section>
+  )
+}
+
+function DashboardAlertAnalyticsSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="h-3 w-52 animate-pulse rounded-sm bg-border-light" />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartPanelSkeleton
+          descriptionWidth="w-52"
+          body={
+            <div className="flex min-h-44 flex-col items-center justify-center gap-4">
+              <div className="h-40 w-40 animate-pulse rounded-full bg-border-light" />
+              <div className="flex gap-4">
+                <div className="h-3 w-20 animate-pulse rounded-sm bg-border-light" />
+                <div className="h-3 w-20 animate-pulse rounded-sm bg-border-light" />
+              </div>
+            </div>
+          }
+        />
+        <ChartPanelSkeleton
+          descriptionWidth="w-56"
+          body={
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
+                >
+                  <div className="h-3 w-24 animate-pulse rounded-sm bg-border-light" />
+                  <div className="h-3 animate-pulse rounded-full bg-border-light" />
+                  <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
+                </div>
+              ))}
+            </div>
+          }
+        />
+        <ChartPanelSkeleton
+          descriptionWidth="w-56"
+          body={
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
+                  >
+                    <div className="h-3 w-28 animate-pulse rounded-sm bg-border-light" />
+                    <div className="h-3 animate-pulse rounded-full bg-border-light" />
+                    <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-sm border border-border-light bg-[#16233A] p-3">
+                <div className="h-3 w-24 animate-pulse rounded-sm bg-border-light" />
+                <div className="mt-3 space-y-2">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between gap-3">
+                      <div className="h-3 w-28 animate-pulse rounded-sm bg-border-light" />
+                      <div className="h-3 w-6 animate-pulse rounded-sm bg-border-light" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          }
+        />
+        <ChartPanelSkeleton
+          descriptionWidth="w-52"
+          body={
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
+                >
+                  <div className="h-3 w-20 animate-pulse rounded-sm bg-border-light" />
+                  <div className="h-3 animate-pulse rounded-full bg-border-light" />
+                  <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
+                </div>
+              ))}
+            </div>
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
 function formatBandLabel(value: number | null, prefix: '< ' | '> '): string {
   return value === null ? 'Unavailable' : `${prefix}${Math.round(value * 100)}%`
 }
@@ -165,16 +269,7 @@ export default function DashboardAlertAnalytics({
   }, [alerts, mlHealth?.thresholds.high, mlHealth?.thresholds.low, mlHealth?.thresholds.medium])
 
   if (alertsPending) {
-    return (
-      <div className="grid gap-4 xl:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={index}
-            className="h-72 animate-pulse rounded-sm border border-border-light bg-surface-light shadow-subtle"
-          />
-        ))}
-      </div>
-    )
+    return <DashboardAlertAnalyticsSkeleton />
   }
 
   if (alertsError) {

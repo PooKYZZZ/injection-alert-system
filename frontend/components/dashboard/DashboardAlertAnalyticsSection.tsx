@@ -11,13 +11,33 @@ const DashboardAlertAnalytics = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="grid gap-4 xl:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={index}
-            className="h-72 animate-pulse rounded-sm border border-border-light bg-surface-light shadow-subtle"
-          />
-        ))}
+      <div className="flex flex-col gap-4">
+        <div className="h-3 w-52 animate-pulse rounded-sm bg-border-light" />
+        <div className="grid gap-4 xl:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-sm border border-border-light bg-surface-light p-4 shadow-subtle"
+            >
+              <div className="mb-4">
+                <div className="h-4 w-36 animate-pulse rounded-sm bg-border-light" />
+                <div className="mt-2 h-3 w-52 animate-pulse rounded-sm bg-border-light" />
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
+                  >
+                    <div className="h-3 w-24 animate-pulse rounded-sm bg-border-light" />
+                    <div className="h-3 animate-pulse rounded-full bg-border-light" />
+                    <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     ),
   }

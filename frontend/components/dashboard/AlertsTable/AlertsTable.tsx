@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useAlerts } from 'features/alerts/queries'
 import type { Alert } from 'features/alerts/types'
 import { useDashboardStore } from 'store/dashboardStore'
-import type { DashboardFilters, SeverityFilter, TimeRange } from 'lib/searchParams'
+import {
+  DEFAULT_FILTERS,
+  type DashboardFilters,
+  type SeverityFilter,
+  type TimeRange,
+} from 'lib/searchParams'
 import { cn } from 'lib/utils'
 import { SeverityBadge } from 'components/ui/SeverityBadge'
 import { ConfidenceBar } from 'components/ui/ConfidenceBar'
@@ -41,6 +46,19 @@ const TRIAGE_DISPOSITION_OPTIONS: TriageDisposition[] = [
   'Benign / Expected',
   'Needs Follow-up',
 ]
+const ALERT_TABLE_COLUMN_COUNT = 11
+const ALERT_TABLE_HEADERS = [
+  'Triage Status (Local)',
+  'Confidence Level',
+  'Timestamp',
+  'Source IP',
+  'CRS Score',
+  'Target Path',
+  'Rule IDs',
+  'Attack Type',
+  'ML Confidence',
+  'Action',
+] as const
 
 function formatRuleIds(ruleIds: string[] | null | undefined): string {
   if (!ruleIds || ruleIds.length === 0) return '—'
@@ -54,6 +72,19 @@ function formatCrsScore(score: number | null | undefined): string {
 
 function defaultTriageEntry(): TriageEntry {
   return { status: 'New', disposition: null }
+}
+
+function formatLoadedAt(timestamp: number): string | null {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return null
+  }
+
+  return new Date(timestamp).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function sanitizeTriageRecord(value: unknown): Record<string, TriageEntry> {
@@ -89,41 +120,144 @@ function sanitizeTriageRecord(value: unknown): Record<string, TriageEntry> {
   return sanitized
 }
 
-function AlertsTableSkeleton() {
+function AlertsTableSkeletonRows({ rowCount = 3 }: { rowCount?: number }) {
+  return (
+    <>
+      {Array.from({ length: rowCount }).map((_, index) => (
+        <tr key={index} aria-hidden="true" className="border-l-[3px] border-l-border-light">
+          <td className="p-3">
+            <div className="h-4 w-4 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3 align-top">
+            <div className="flex min-w-[180px] flex-col gap-2">
+              <div className="h-8 w-full animate-pulse rounded-sm bg-border-light" />
+              <div className="h-7 w-36 animate-pulse rounded-sm bg-border-light" />
+              <div className="h-7 w-14 animate-pulse rounded-sm bg-border-light" />
+            </div>
+          </td>
+          <td className="p-3">
+            <div className="h-6 w-28 animate-pulse rounded-full bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-4 w-32 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-4 w-12 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-4 w-40 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-4 w-20 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-3 w-24 animate-pulse rounded-full bg-border-light" />
+          </td>
+          <td className="p-3">
+            <div className="h-5 w-20 animate-pulse rounded-full bg-border-light" />
+          </td>
+        </tr>
+      ))}
+    </>
+  )
+}
+
+function AlertsTableShell({
+  selectedIds,
+  alerts,
+  selectAll,
+  clearSelection,
+  children,
+}: {
+  selectedIds: string[]
+  alerts: Alert[]
+  selectAll: (ids: string[]) => void
+  clearSelection: () => void
+  children: React.ReactNode
+}) {
   return (
     <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle overflow-hidden">
-      <div className="p-4 border-b border-border-light">
-        <div className="animate-pulse bg-gray-200 rounded h-4 w-32" />
+      <div className="flex items-start justify-between gap-4 border-b border-border-light p-4">
+        <div>
+          <h2 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider">
+            Alerts
+          </h2>
+          <p className="mt-1 text-xs text-text-muted">
+            Triage status is stored locally in this browser for demo purposes only.
+          </p>
+        </div>
+        {selectedIds.length > 0 && <BulkActionBar />}
       </div>
-      <div className="divide-y divide-border-light">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 p-4">
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-4" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-16" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-32" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-24" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-12" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 flex-1" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-20" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-24" />
-            <div className="animate-pulse bg-gray-200 rounded h-4 w-16" />
-          </div>
-        ))}
+      <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border-light bg-[#16233A]">
+              <th className="p-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={alerts.length > 0 && selectedIds.length === alerts.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      selectAll(alerts.map((a) => a.alert_id))
+                    } else {
+                      clearSelection()
+                    }
+                  }}
+                  className="rounded border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
+                  aria-label="Select all alerts"
+                />
+              </th>
+              {ALERT_TABLE_HEADERS.map((header) => (
+                <th
+                  key={header}
+                  className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider"
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-light">{children}</tbody>
+        </table>
       </div>
     </div>
   )
 }
 
-function AlertsTableError({ message }: { message: string }) {
+function AlertsTableStateRow({
+  title,
+  detail,
+  meta,
+  action,
+}: {
+  title: string
+  detail?: string
+  meta?: string | null
+  action?: React.ReactNode
+}) {
   return (
-    <div className="bg-surface-light border border-status-high/50 rounded-sm shadow-subtle p-4">
-      <p className="text-sm font-medium text-status-high">Failed to load alerts</p>
-      <p className="mt-1 text-xs text-text-muted">{message}</p>
-    </div>
+    <tr>
+      <td colSpan={ALERT_TABLE_COLUMN_COUNT} className="p-8">
+        <div className="flex flex-col items-center justify-center gap-2 text-center">
+          <p className="text-sm font-medium text-text-main">{title}</p>
+          {detail ? <p className="text-xs text-text-muted">{detail}</p> : null}
+          {meta ? <p className="text-[11px] text-text-muted">{meta}</p> : null}
+          {action ? <div className="pt-1">{action}</div> : null}
+        </div>
+      </td>
+    </tr>
   )
 }
 
 function AlertsTableContent() {
+  const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [hydrated, setHydrated] = useState(false)
   const [savedTriage, setSavedTriage] = useState<Record<string, TriageEntry>>({})
@@ -143,11 +277,14 @@ function AlertsTableContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.severity, filters.timeRange, filters.search])
 
-  const { data, isPending, isError, error } = useAlerts(filters)
+  const { data, isPending, isError, error, refetch, dataUpdatedAt } = useAlerts(filters)
 
   const alerts = data?.items ?? []
   const hasFilter =
-    filters.search.trim().length > 0 || filters.severity !== 'ALL' || filters.timeRange !== '24h'
+    filters.search.trim().length > 0 ||
+    filters.severity !== DEFAULT_FILTERS.severity ||
+    filters.timeRange !== DEFAULT_FILTERS.timeRange
+  const lastLoadedAt = formatLoadedAt(dataUpdatedAt)
 
   useEffect(() => {
     setHydrated(true)
@@ -169,7 +306,16 @@ function AlertsTableContent() {
   }, [])
 
   if (!hydrated) {
-    return <AlertsTableSkeleton />
+    return (
+      <AlertsTableShell
+        selectedIds={selectedIds}
+        alerts={[]}
+        selectAll={selectAll}
+        clearSelection={clearSelection}
+      >
+        <AlertsTableSkeletonRows />
+      </AlertsTableShell>
+    )
   }
 
   function getRowBorderClass(alert: Alert): string {
@@ -211,88 +357,69 @@ function AlertsTableContent() {
     }
   }
 
-  if (isPending) {
-    return <AlertsTableSkeleton />
-  }
-
-  if (isError) {
-    return (
-      <AlertsTableError
-        message={error instanceof Error ? error.message : 'Unexpected error while loading alerts'}
-      />
-    )
-  }
-
-  if (!data) {
-    return <AlertsTableError message="Unavailable with current response" />
-  }
-
   return (
-    <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle overflow-hidden">
-      <div className="flex items-start justify-between gap-4 border-b border-border-light p-4">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider">
-            Alerts
-          </h2>
-          <p className="mt-1 text-xs text-text-muted">
-            Triage status is stored locally in this browser for demo purposes only.
-          </p>
-        </div>
-        {selectedIds.length > 0 && <BulkActionBar />}
-      </div>
-      <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border-light bg-[#16233A]">
-              <th className="p-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={alerts.length > 0 && selectedIds.length === alerts.length}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      selectAll(alerts.map((a) => a.alert_id))
-                    } else {
-                      clearSelection()
-                    }
-                  }}
-                  className="rounded border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
-                  aria-label="Select all alerts"
-                />
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Triage Status (Local)
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Confidence Level
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Timestamp
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Source IP
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                CRS Score
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Target Path
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Rule IDs
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Attack Type
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                ML Confidence
-              </th>
-              <th className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-light">
-            {alerts.map((alert) => (
+    <AlertsTableShell
+      selectedIds={selectedIds}
+      alerts={alerts}
+      selectAll={selectAll}
+      clearSelection={clearSelection}
+    >
+      {isPending ? <AlertsTableSkeletonRows /> : null}
+
+      {isError ? (
+        <AlertsTableStateRow
+          title="Unable to load alerts."
+          detail={error instanceof Error ? error.message : 'Unexpected error while loading alerts.'}
+          action={
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
+            >
+              Retry
+            </button>
+          }
+        />
+      ) : null}
+
+      {!isPending && !isError && !data ? (
+        <AlertsTableStateRow
+          title="Unable to load alerts."
+          detail="The alerts response did not include a table payload."
+          action={
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
+            >
+              Retry
+            </button>
+          }
+        />
+      ) : null}
+
+      {!isPending && !isError && data && alerts.length === 0 ? (
+        <AlertsTableStateRow
+          title={
+            hasFilter ? 'No alerts match the current filters.' : 'No alerts in the selected range.'
+          }
+          meta={lastLoadedAt ? `Last loaded ${lastLoadedAt}` : null}
+          action={
+            hasFilter && pathname ? (
+              <button
+                type="button"
+                onClick={() => void router.replace(pathname)}
+                className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
+              >
+                Clear filters
+              </button>
+            ) : undefined
+          }
+        />
+      ) : null}
+
+      {!isPending && !isError && data
+        ? alerts.map((alert) => (
               (() => {
                 const draftEntry = getTriageEntry(draftTriage, alert.alert_id)
                 const savedEntry = getTriageEntry(savedTriage, alert.alert_id)
@@ -433,24 +560,26 @@ function AlertsTableContent() {
                   </tr>
                 )
               })()
-            ))}
-            {alerts.length === 0 && (
-              <tr>
-                <td colSpan={11} className="p-8 text-center text-sm text-text-muted">
-                  {hasFilter ? 'No matching alerts' : 'No alerts found'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+            ))
+        : null}
+    </AlertsTableShell>
   )
 }
 
 export default function AlertsTable() {
   return (
-    <Suspense fallback={<AlertsTableSkeleton />}>
+    <Suspense
+      fallback={
+        <AlertsTableShell
+          selectedIds={[]}
+          alerts={[]}
+          selectAll={() => undefined}
+          clearSelection={() => undefined}
+        >
+          <AlertsTableSkeletonRows />
+        </AlertsTableShell>
+      }
+    >
       <AlertsTableContent />
     </Suspense>
   )
