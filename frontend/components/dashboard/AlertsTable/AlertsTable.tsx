@@ -219,7 +219,7 @@ function AlertsTableShell({
                   className={cn(
                     'p-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted',
                     column.key === 'crsScore' && 'w-[70px]',
-                    column.key === 'targetPath' && 'w-[160px]'
+                    column.key === 'targetPath' && 'w-[200px]'
                   )}
                 >
                   {column.header}
