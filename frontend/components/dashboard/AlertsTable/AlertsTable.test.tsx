@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AlertsTable from './AlertsTable'
 import { useAlerts } from 'features/alerts/queries'
 import { useDashboardStore } from '@/store/dashboardStore'
+import type { Alert } from 'features/alerts/types'
 
 const mockReplace = vi.fn()
 
@@ -23,6 +24,20 @@ const mockedUseAlerts = vi.mocked(useAlerts)
 const mockedUseSearchParams = vi.mocked(useSearchParams)
 const mockedUsePathname = vi.mocked(usePathname)
 const mockedUseRouter = vi.mocked(useRouter)
+const sampleAlert: Alert = {
+  alert_id: 'alert-1',
+  timestamp: '2026-03-17T15:30:00Z',
+  source_ip: '192.168.0.10',
+  request_path: '/search',
+  request_method: 'GET',
+  payload_snippet: "' OR 1=1 --",
+  prediction: 'SQL Injection',
+  confidence: 0.91,
+  confidence_level: 'HIGH',
+  action_taken: 'BLOCKED',
+  crs_score: 8.5,
+  crs_rule_ids: ['942100'],
+}
 
 function buildQueryResult(overrides: Partial<ReturnType<typeof useAlerts>> = {}) {
   return {
@@ -63,6 +78,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -121,5 +137,33 @@ describe('AlertsTable', () => {
     expect(await screen.findByText('Unable to load alerts.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(refetch).toHaveBeenCalled()
+  })
+
+  it('auto-saves triage edits and shows a brief confirmation', async () => {
+    vi.useFakeTimers()
+    mockedUseAlerts.mockReturnValue(
+      buildQueryResult({
+        data: {
+          items: [sampleAlert],
+          total: 1,
+          page: 1,
+          pageSize: 25,
+        },
+      })
+    )
+
+    render(<AlertsTable />)
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    const triageSelect = screen.getByLabelText('Triage status for alert alert-1')
+    fireEvent.change(triageSelect, { target: { value: 'In Progress' } })
+
+    expect(screen.getByText('Saving...')).toBeInTheDocument()
+
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(window.localStorage.getItem('cybertrace.localTriageStatus')).toContain('In Progress')
   })
 })

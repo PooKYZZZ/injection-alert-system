@@ -1,7 +1,7 @@
 'use client'
 
 import type { UseQueryResult } from '@tanstack/react-query'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useAlerts } from 'features/alerts/queries'
@@ -47,6 +47,8 @@ const TRIAGE_DISPOSITION_OPTIONS: TriageDisposition[] = [
   'Benign / Expected',
   'Needs Follow-up',
 ]
+const AUTO_SAVE_DELAY_MS = 450
+const SAVE_CONFIRMED_DURATION_MS = 1800
 const ALERT_TABLE_COLUMN_COUNT = 11
 const ALERT_TABLE_HEADERS = [
   'Triage Status (Local)',
@@ -60,6 +62,14 @@ const ALERT_TABLE_HEADERS = [
   'ML Confidence',
   'Action',
 ] as const
+const FOCUS_RING_CLASS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light'
+const CHECKBOX_CLASS = cn(
+  'h-6 w-6 cursor-pointer rounded border-border-light bg-surface-light text-primary',
+  FOCUS_RING_CLASS
+)
+
+type SaveState = 'idle' | 'saving' | 'saved'
 
 function formatRuleIds(ruleIds: string[] | null | undefined): string {
   if (!ruleIds || ruleIds.length === 0) return '—'
@@ -198,7 +208,7 @@ function AlertsTableShell({
       <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border-light bg-[#16233A]">
+            <tr className="border-b border-border-light bg-sidebar-active">
               <th className="p-3 w-10">
                 <input
                   type="checkbox"
@@ -210,7 +220,7 @@ function AlertsTableShell({
                       clearSelection()
                     }
                   }}
-                  className="rounded border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
+                  className={CHECKBOX_CLASS}
                   aria-label="Select all alerts"
                 />
               </th>
@@ -263,6 +273,9 @@ function AlertsTableContent() {
   const [hydrated, setHydrated] = useState(false)
   const [savedTriage, setSavedTriage] = useState<Record<string, TriageEntry>>({})
   const [draftTriage, setDraftTriage] = useState<Record<string, TriageEntry>>({})
+  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
+  const saveTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const saveResetTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const filters: DashboardFilters = {
     severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
@@ -310,6 +323,13 @@ function AlertsTableContent() {
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      Object.values(saveTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
+      Object.values(saveResetTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
+    }
+  }, [])
+
   if (!hydrated) {
     return (
       <AlertsTableShell
@@ -338,10 +358,37 @@ function AlertsTableContent() {
       ...current,
       [alertId]: nextEntry,
     }))
+
+    if (saveTimeoutsRef.current[alertId]) {
+      clearTimeout(saveTimeoutsRef.current[alertId])
+      delete saveTimeoutsRef.current[alertId]
+    }
+
+    if (saveResetTimeoutsRef.current[alertId]) {
+      clearTimeout(saveResetTimeoutsRef.current[alertId])
+      delete saveResetTimeoutsRef.current[alertId]
+    }
+
+    if (nextEntry.status === 'Closed' && !nextEntry.disposition) {
+      setSaveStates((current) => ({
+        ...current,
+        [alertId]: 'idle',
+      }))
+      return
+    }
+
+    setSaveStates((current) => ({
+      ...current,
+      [alertId]: 'saving',
+    }))
+
+    saveTimeoutsRef.current[alertId] = setTimeout(() => {
+      persistTriage(alertId, nextEntry)
+      delete saveTimeoutsRef.current[alertId]
+    }, AUTO_SAVE_DELAY_MS)
   }
 
-  function persistTriage(alertId: string) {
-    const nextEntry = getTriageEntry(draftTriage, alertId)
+  function persistTriage(alertId: string, nextEntry = getTriageEntry(draftTriage, alertId)) {
     if (nextEntry.status === 'Closed' && !nextEntry.disposition) {
       return
     }
@@ -350,7 +397,6 @@ function AlertsTableContent() {
       ...savedTriage,
       [alertId]: nextEntry,
     }
-
     setSavedTriage(nextSaved)
 
     if (typeof window !== 'undefined') {
@@ -360,6 +406,19 @@ function AlertsTableContent() {
         // Keep local triage usable even if browser storage is unavailable.
       }
     }
+
+    setSaveStates((current) => ({
+      ...current,
+      [alertId]: 'saved',
+    }))
+
+    saveResetTimeoutsRef.current[alertId] = setTimeout(() => {
+      setSaveStates((current) => ({
+        ...current,
+        [alertId]: 'idle',
+      }))
+      delete saveResetTimeoutsRef.current[alertId]
+    }, SAVE_CONFIRMED_DURATION_MS)
   }
 
   return (
@@ -379,7 +438,10 @@ function AlertsTableContent() {
             <button
               type="button"
               onClick={retryAlerts}
-              className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
+              className={cn(
+                'rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-sidebar-active',
+                FOCUS_RING_CLASS
+              )}
             >
               Retry
             </button>
@@ -395,7 +457,10 @@ function AlertsTableContent() {
             <button
               type="button"
               onClick={retryAlerts}
-              className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
+              className={cn(
+                'rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-sidebar-active',
+                FOCUS_RING_CLASS
+              )}
             >
               Retry
             </button>
@@ -414,7 +479,10 @@ function AlertsTableContent() {
               <button
                 type="button"
                 onClick={() => void router.replace(pathname)}
-                className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
+                className={cn(
+                  'rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-sidebar-active',
+                  FOCUS_RING_CLASS
+                )}
               >
                 Clear filters
               </button>
@@ -433,12 +501,13 @@ function AlertsTableContent() {
                 const isDirty =
                   draftEntry.status !== savedEntry.status ||
                   draftEntry.disposition !== savedEntry.disposition
+                const saveState = saveStates[alert.alert_id] ?? 'idle'
 
                 return (
                   <tr
                     key={alert.alert_id}
                     className={cn(
-                      'cursor-pointer hover:bg-[#16233A] transition-colors focus-within:bg-[#16233A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px]',
+                      'cursor-pointer transition-colors duration-150 ease-out hover:bg-sidebar-active focus-within:bg-sidebar-active focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px]',
                       getRowBorderClass(alert)
                     )}
                     onClick={(event) => {
@@ -467,7 +536,7 @@ function AlertsTableContent() {
                         type="checkbox"
                         checked={selectedIds.includes(alert.alert_id)}
                         onChange={() => toggleAlertSelection(alert.alert_id)}
-                        className="rounded border-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
+                        className={CHECKBOX_CLASS}
                         aria-label={`Select alert ${alert.alert_id}`}
                       />
                     </td>
@@ -482,7 +551,10 @@ function AlertsTableContent() {
                                 event.target.value === 'Closed' ? draftEntry.disposition : null,
                             })
                           }
-                          className="rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          className={cn(
+                            'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
+                            FOCUS_RING_CLASS
+                          )}
                           aria-label={`Triage status for alert ${alert.alert_id}`}
                         >
                           {TRIAGE_STATUS_OPTIONS.map((status) => (
@@ -503,7 +575,10 @@ function AlertsTableContent() {
                                   : null,
                               })
                             }
-                            className="rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className={cn(
+                              'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
+                              FOCUS_RING_CLASS
+                            )}
                             aria-label={`Disposition for alert ${alert.alert_id}`}
                           >
                             <option value="">Select disposition</option>
@@ -515,15 +590,30 @@ function AlertsTableContent() {
                           </select>
                         )}
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => persistTriage(alert.alert_id)}
-                            disabled={!isDirty || requiresDisposition}
-                            className="rounded-sm border border-border-light px-2 py-1 text-[11px] font-medium text-text-main disabled:cursor-not-allowed disabled:opacity-40"
+                        <div className="flex min-h-6 items-center gap-2">
+                          <span
+                            className={cn(
+                              'text-[11px] transition-all duration-200',
+                              saveState === 'saving' && isDirty && 'text-text-muted',
+                              saveState === 'saved' && !isDirty && 'text-status-blocked',
+                              saveState === 'idle' &&
+                                isDirty &&
+                                !requiresDisposition &&
+                                'text-text-muted/80'
+                            )}
+                            role="status"
+                            aria-live="polite"
                           >
-                            Save
-                          </button>
+                            {requiresDisposition
+                              ? null
+                              : saveState === 'saving'
+                                ? 'Saving...'
+                                : saveState === 'saved' && !isDirty
+                                  ? 'Saved'
+                                  : isDirty
+                                    ? 'Autosaving'
+                                    : 'Saved locally'}
+                          </span>
                           {requiresDisposition && (
                             <span className="text-[11px] text-status-medium">
                               Disposition required to close
@@ -541,7 +631,7 @@ function AlertsTableContent() {
                     <td className="p-3 text-xs text-text-muted whitespace-nowrap">
                       {new Date(alert.timestamp).toLocaleString()}
                     </td>
-                    <td className="p-3 text-xs font-mono text-[#2E90FA] whitespace-nowrap">
+                    <td className="p-3 text-xs font-mono text-text-main whitespace-nowrap">
                       {alert.source_ip ?? '—'}
                     </td>
                     <td className="p-3 text-xs text-text-muted tabular-nums">

@@ -13,7 +13,7 @@ const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
 
 function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   const base =
-    'px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer'
+    'inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border px-2.5 py-1 text-[10px] font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light'
 
   if (!isActive) {
     switch (severity) {
@@ -117,8 +117,10 @@ function TopBarContent({
               {SEVERITY_OPTIONS.map(({ value, label }) => (
                 <button
                   key={value}
+                  type="button"
                   onClick={() => setSeverity(value)}
                   className={pillClasses(value, currentSeverity === value)}
+                  aria-pressed={currentSeverity === value}
                 >
                   {label}
                 </button>
@@ -140,7 +142,7 @@ function TopBarContent({
               defaultValue={searchParams?.get('search') ?? ''}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder={searchPlaceholder}
-              className="bg-sidebar-active border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
+              className="w-64 rounded-md border border-border-light bg-sidebar-active py-1.5 pl-10 pr-4 text-sm text-text-main placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
             />
           </div>
         </div>

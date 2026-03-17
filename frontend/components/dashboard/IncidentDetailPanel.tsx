@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDashboardStore } from 'store/dashboardStore'
 import { useAlert } from 'features/alerts/queries'
 import { ALERT_DISPLAY_ACTION_ALIASES } from 'features/alerts/contract'
 import { ShapChart } from '@/components/ui/ShapChart'
+
+const FOCUS_RING_CLASS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light'
 
 function formatRuleIds(ruleIds: string[] | null | undefined): string {
   if (!ruleIds || ruleIds.length === 0) return 'No data available'
@@ -38,10 +41,10 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
 function PanelSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="animate-pulse bg-gray-200 rounded h-6 w-48" />
-      <div className="animate-pulse bg-gray-200 rounded h-24 w-full" />
-      <div className="animate-pulse bg-gray-200 rounded h-32 w-full" />
-      <div className="animate-pulse bg-gray-200 rounded h-20 w-full" />
+      <div className="h-6 w-48 animate-pulse rounded bg-border-light" />
+      <div className="h-24 w-full animate-pulse rounded bg-border-light" />
+      <div className="h-32 w-full animate-pulse rounded bg-border-light" />
+      <div className="h-20 w-full animate-pulse rounded bg-border-light" />
     </div>
   )
 }
@@ -54,14 +57,18 @@ export default function IncidentDetailPanel() {
   const panelRef = useRef<HTMLElement | null>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const panelOpen = activeIncidentId !== null
+  const [isEntering, setIsEntering] = useState(false)
 
   useEffect(() => {
     if (!panelOpen) return
+
+    setIsEntering(false)
 
     const activeElement = document.activeElement
     restoreFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null
 
     requestAnimationFrame(() => {
+      setIsEntering(true)
       closeButtonRef.current?.focus()
     })
 
@@ -116,13 +123,17 @@ export default function IncidentDetailPanel() {
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/50"
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ease-out ${
+          isEntering ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={() => setActiveIncident(null)}
         aria-hidden="true"
       />
       <aside
         ref={panelRef}
-        className="fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col overflow-y-auto border-l border-border-light bg-surface-light shadow-lg"
+        className={`fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col overflow-y-auto border-l border-border-light bg-surface-light shadow-lg transition-transform duration-250 ease-out will-change-transform ${
+          isEntering ? 'translate-x-0' : 'translate-x-full'
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="incident-panel-title"
@@ -131,7 +142,7 @@ export default function IncidentDetailPanel() {
       <div className="flex items-start justify-between p-4 border-b border-border-light sticky top-0 bg-surface-light z-10">
         <div className="flex flex-col gap-1 min-w-0">
           {isPending ? (
-            <div className="animate-pulse bg-gray-200 rounded h-5 w-40" />
+            <div className="animate-pulse rounded h-5 w-40 bg-border-light" />
           ) : incident ? (
             <>
               <div className="flex items-center gap-2 flex-wrap">
@@ -141,8 +152,8 @@ export default function IncidentDetailPanel() {
                 <span
                   className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold ${
                     incident.prediction === 'Normal'
-                      ? 'bg-gray-200 text-gray-700'
-                      : 'bg-red-600 text-white'
+                      ? 'bg-border-light text-text-muted'
+                      : 'bg-status-high/15 text-status-high'
                   }`}
                 >
                   {incident.prediction}
@@ -162,7 +173,7 @@ export default function IncidentDetailPanel() {
           ref={closeButtonRef}
           type="button"
           onClick={() => setActiveIncident(null)}
-          className="ml-2 shrink-0 text-text-muted transition-colors hover:text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light"
+          className={`ml-2 inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-main ${FOCUS_RING_CLASS}`}
           aria-label="Close incident panel"
         >
           <span className="material-symbols-outlined text-[20px]">close</span>
@@ -229,7 +240,7 @@ export default function IncidentDetailPanel() {
               Explainability
             </h3>
             {incident.shap_values && incident.shap_values.length > 0 ? (
-              <div className="rounded-sm border border-border-light bg-[#16233A] p-3">
+              <div className="rounded-sm border border-border-light bg-sidebar-active p-3">
                 <p className="mb-3 text-xs text-text-muted">
                   Token contribution is shown only because this alert includes real `shap_values` data.
                 </p>
@@ -246,9 +257,9 @@ export default function IncidentDetailPanel() {
             <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
               Captured Payload
             </h3>
-            <div className="bg-gray-50 border border-border-light rounded-sm p-3 overflow-x-auto">
+            <div className="overflow-x-auto rounded-sm border border-border-light bg-sidebar-active p-3">
               <pre className="m-0">
-                <code className="font-mono text-xs text-red-700 break-all">
+                <code className="break-all font-mono text-xs text-status-high">
                   {incident.payload_snippet || 'No data available'}
                 </code>
               </pre>
