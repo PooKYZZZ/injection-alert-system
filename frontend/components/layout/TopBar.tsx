@@ -11,33 +11,31 @@ const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
   { value: 'LOW', label: 'LOW' },
 ]
 
+const DEFAULT_SEARCH_PLACEHOLDER = 'Search path, attack type...'
+
 function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   const base =
-    'px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer'
+    'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel'
 
-  if (!isActive) {
-    switch (severity) {
-      case 'HIGH':
-        return `${base} bg-sidebar-active text-red-700 border-sidebar-active hover:bg-red-50 hover:border-red-200`
-      case 'MEDIUM':
-        return `${base} bg-sidebar-active text-orange-600 border-sidebar-active hover:bg-orange-50 hover:border-orange-200`
-      case 'LOW':
-        return `${base} bg-sidebar-active text-gray-600 border-sidebar-active hover:bg-gray-50 hover:border-gray-300`
-      default:
-        return `${base} bg-sidebar-active text-slate-800 border-sidebar-active hover:bg-slate-100 hover:border-slate-300`
-    }
+  if (severity === 'ALL') {
+    return isActive
+      ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
+      : `${base} border-[#243050] bg-transparent text-text-muted`
   }
 
-  switch (severity) {
-    case 'HIGH':
-      return `${base} bg-red-50 border-red-200 text-red-700`
-    case 'MEDIUM':
-      return `${base} bg-orange-50 border-orange-200 text-orange-600`
-    case 'LOW':
-      return `${base} bg-gray-50 border-gray-300 text-gray-600`
-    default:
-      return `${base} bg-slate-200 text-slate-800 border-slate-300`
+  if (severity === 'HIGH') {
+    return isActive
+      ? `${base} border-[#5c2020] bg-[#1a0a0a] text-[#f87171]`
+      : `${base} border-[#3a1515] bg-transparent text-[#f87171]`
   }
+
+  if (severity === 'MEDIUM') {
+    return isActive
+      ? `${base} border-[#4a3a10] bg-[#1a1500] text-[#facc15]`
+      : `${base} border-[#2e2a10] bg-transparent text-[#facc15]`
+  }
+
+  return `${base} border-[#243050] bg-transparent text-text-muted`
 }
 
 interface TopBarProps {
@@ -45,8 +43,6 @@ interface TopBarProps {
   showAlertControls?: boolean
   searchPlaceholder?: string
 }
-
-const DEFAULT_SEARCH_PLACEHOLDER = 'Search path, attack type...'
 
 function TopBarContent({
   title,
@@ -79,9 +75,7 @@ function TopBarContent({
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-      }
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
 
@@ -100,47 +94,56 @@ function TopBarContent({
   }
 
   return (
-    <header className="h-16 border-b border-border-light bg-surface-light flex items-center justify-between px-6 flex-shrink-0 shadow-subtle z-10">
+    <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-bg-panel px-6 shadow-subtle">
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-bold text-text-main tracking-tight">
-          {title}
-        </h2>
+        <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
 
-        {showAlertControls && (
+        {showAlertControls ? (
           <>
-            <div className="h-4 w-[1px] bg-border-light" />
-
+            <div className="h-4 w-px bg-border-light" />
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                ML Confidence
-              </span>
               {SEVERITY_OPTIONS.map(({ value, label }) => (
                 <button
                   key={value}
+                  type="button"
                   onClick={() => setSeverity(value)}
                   className={pillClasses(value, currentSeverity === value)}
+                  aria-pressed={currentSeverity === value}
                 >
                   {label}
                 </button>
               ))}
             </div>
           </>
-        )}
+        ) : null}
       </div>
 
       {showAlertControls ? (
         <div className="flex items-center gap-6">
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[18px]">
-              search
+            <span className="absolute left-3 top-1/2 -translate-y-1/2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </span>
-
             <input
               type="text"
               defaultValue={searchParams?.get('search') ?? ''}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(event) => handleSearch(event.target.value)}
               placeholder={searchPlaceholder}
-              className="bg-sidebar-active border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"
+              className="w-64 rounded-md border border-border-light bg-bg-elevated py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel"
             />
           </div>
         </div>
@@ -153,11 +156,7 @@ function TopBarContent({
 
 export function TopBar(props: TopBarProps) {
   return (
-    <Suspense
-      fallback={
-        <header className="h-16 border-b border-border-light bg-surface-light flex-shrink-0" />
-      }
-    >
+    <Suspense fallback={<header className="h-16 flex-shrink-0 border-b border-border-light bg-bg-panel" />}>
       <TopBarContent {...props} />
     </Suspense>
   )

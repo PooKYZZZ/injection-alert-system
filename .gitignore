@@ -134,3 +134,5 @@ docs/agent-tooling.md
 opencode.json
 frontend/test-results/.last-run.json
 frontend/temp/
+seed_demo.py
+sample_real_attacks.py

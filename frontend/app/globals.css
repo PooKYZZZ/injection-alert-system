@@ -1,21 +1,95 @@
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @theme {
-  --color-sidebar-bg: #1e3a5f;
-  --color-sidebar-active: #16233A;
-  --color-primary: #e03131;
-  --color-primary-dark: #c92a2a;
-  --color-background-main: #262626;
-  --color-surface-light: #1A1A1A;
-  --color-border-light: #1f2937;
-  --color-text-main: #f4f7fb;
-  --color-text-muted: #94a3b8;
-  --color-status-high: #e03131;
-  --color-status-medium: #f08c00;
-  --color-status-low: #495057;
-  --color-status-blocked: #2f9e44;
-  --color-status-throttled: #e67700;
-  --color-status-ratelimited: #868e96;
-  --color-status-logged: #adb5bd;
+  /* Background depth layers */
+  --color-bg-base: #060b14;
+  --color-bg-page: #0c1120;
+  --color-bg-panel: #111827;
+  --color-bg-elevated: #1a2236;
+  --color-bg-inset: #060c18;
+
+  /* Text hierarchy */
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #475569;
+  --color-text-ghost: #1e2a3d;
+
+  /* Severity — HIGH threat */
+  --color-severity-high-bg: #140d0d;
+  --color-severity-high-border: #5c2020;
+  --color-severity-high-accent: #ef4444;
+  --color-severity-high-text: #f87171;
+
+  /* Severity — Blocked/warning */
+  --color-severity-blocked-bg: #14100a;
+  --color-severity-blocked-border: #5c3a0a;
+  --color-severity-blocked-accent: #f97316;
+  --color-severity-blocked-text: #fb923c;
+
+  /* Severity — Allowed/safe */
+  --color-severity-safe-bg: #0f1a0a;
+  --color-severity-safe-border: #1a4a2a;
+  --color-severity-safe-accent: #4ade80;
+  --color-severity-safe-text: #4ade80;
+
+  /* Severity — Benign/normal */
+  --color-severity-benign-bg: #111827;
+  --color-severity-benign-border: #2d3748;
+  --color-severity-benign-accent: #475569;
+  --color-severity-benign-text: #64748b;
+
+  /* Accents */
+  --color-accent-blue: #7eb8f7;
+  --color-accent-blue-bg: #1e2d4a;
+  --color-accent-purple: #a78bfa;
+  --color-accent-purple-bg: #2d1060;
+  --color-accent-amber: #f97316;
+  --color-accent-amber-bg: #3d2a0a;
+  --color-accent-cyan: #38bdf8;
+  --color-accent-yellow: #facc15;
+
+  /* Typography scale */
+  --font-size-kpi: 28px;
+  --font-size-label: 9px;
+  --font-size-micro: 9px;
+
+  /* Legacy aliases for existing utilities */
+  --color-sidebar-bg: var(--color-bg-base);
+  --color-sidebar-active: var(--color-bg-elevated);
+  --color-primary: var(--color-severity-high-accent);
+  --color-primary-dark: var(--color-severity-high-text);
+  --color-background-main: var(--color-bg-page);
+  --color-surface-light: var(--color-bg-panel);
+  --color-border-light: var(--color-text-ghost);
+  --color-text-main: var(--color-text-primary);
+  --color-status-high: var(--color-severity-high-accent);
+  --color-status-medium: var(--color-severity-blocked-accent);
+  --color-status-low: var(--color-severity-benign-accent);
+  --color-status-blocked: var(--color-severity-safe-accent);
+  --color-status-throttled: var(--color-severity-blocked-text);
+  --color-status-ratelimited: var(--color-severity-benign-text);
+  --color-status-logged: var(--color-text-secondary);
+}
+
+@layer base {
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+
+  body {
+    background: var(--color-bg-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-inter), sans-serif;
+  }
+}
+
+.font-orbitron {
+  font-family: var(--font-orbitron), sans-serif;
+}
+
+.font-ibm-plex-sans {
+  font-family: var(--font-ibm-plex-sans), sans-serif;
 }

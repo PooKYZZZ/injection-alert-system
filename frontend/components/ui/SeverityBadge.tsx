@@ -3,15 +3,18 @@ import type { AlertPrediction } from '@/features/alerts/contract'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold',
+  'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold',
   {
     variants: {
       severity: {
-        BENIGN:   'bg-gray-200 text-gray-700 border border-gray-300',
-        CRITICAL: 'bg-red-100 text-red-800 border border-red-200',
-        HIGH:     'bg-red-100 text-red-800 border border-red-200',
-        MEDIUM:   'bg-gray-200 text-gray-700 border border-gray-300',
-        LOW:      'bg-gray-200 text-gray-500 border border-gray-300',
+        BENIGN:
+          'border-severity-benign-border bg-severity-benign-bg text-severity-benign-text',
+        HIGH:
+          'border-severity-high-border bg-severity-high-bg text-severity-high-text',
+        MEDIUM:
+          'border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text',
+        LOW:
+          'border-severity-benign-border bg-severity-benign-bg text-severity-benign-text',
       },
     },
   }
@@ -23,15 +26,17 @@ type SeverityBadgeProps = VariantProps<typeof badgeVariants> & {
 }
 
 export function SeverityBadge({ severity, needsReview, prediction }: SeverityBadgeProps) {
-  const displaySeverity = prediction === 'Normal' ? 'BENIGN' : severity
+  const displaySeverity =
+    prediction === 'Normal' ? 'BENIGN' : (severity ?? 'LOW')
+  const label = prediction === 'Normal' ? 'Benign' : displaySeverity
 
   return (
     <div className="inline-flex flex-col items-start gap-0.5">
       <span className={cn(badgeVariants({ severity: displaySeverity }))}>
-        {displaySeverity}
+        {label}
       </span>
       {needsReview && (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+        <span className="inline-flex items-center rounded-full border border-severity-blocked-border bg-severity-blocked-bg px-2 py-0.5 text-[10px] font-medium text-severity-blocked-text">
           Needs Review
         </span>
       )}

@@ -1,141 +1,90 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { useDashboardStats } from 'features/stats/queries'
-import { useAlerts } from 'features/alerts/queries'
-import type { DashboardFilters, SeverityFilter, TimeRange } from 'lib/searchParams'
+import type { Alert } from 'features/alerts/types'
 import { cn } from 'lib/utils'
+
+interface MetricCardsProps {
+  alerts: Alert[]
+  alertsPending: boolean
+  alertsError?: Error | null
+}
 
 interface MetricCardProps {
   label: string
-  icon: string
   value: string | number
-  detail: string
-  accent?: 'urgent' | 'blocked'
+  subtitle?: string
+  className?: string
+  valueClassName?: string
+  style?: CSSProperties
 }
 
-function MetricCard({ label, icon, value, detail, accent }: MetricCardProps) {
+function MetricCard({ label, value, subtitle = 'Loaded records', className, valueClassName, style }: MetricCardProps) {
   return (
     <div
       className={cn(
-        'rounded-sm border border-border-light bg-surface-light p-4 shadow-subtle',
-        accent === 'urgent' && 'border-l-[3px] border-l-status-high',
-        accent === 'blocked' && 'border-l-[3px] border-l-status-medium'
+        'border border-border-light bg-bg-panel p-4',
+        className
       )}
+      style={style}
     >
-      <div className="flex justify-between items-start mb-2">
-        <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">
-          {label}
-        </span>
-        <span className="material-symbols-outlined text-text-muted text-[20px]">
-          {icon}
-        </span>
+      <p className="text-label font-semibold uppercase tracking-[0.07em] text-text-muted">
+        {label}
+      </p>
+      <div className={cn('mt-3 text-kpi font-medium leading-none text-text-primary', valueClassName)}>
+        {value}
       </div>
-
-      <div className="text-3xl font-bold text-text-main">{value}</div>
-
-      <div className="text-xs text-text-muted mt-2">{detail}</div>
+      <p className="mt-3 text-[10px] italic text-text-muted">{subtitle}</p>
     </div>
   )
 }
 
 function MetricCardSkeleton() {
   return (
-    <div className="bg-surface-light border border-border-light p-4 rounded-sm shadow-subtle">
-      <div className="flex justify-between items-start mb-2">
-        <div className="animate-pulse bg-gray-200 rounded h-3 w-24" />
-        <div className="animate-pulse bg-gray-200 rounded h-5 w-5" />
-      </div>
-      <div className="animate-pulse bg-gray-200 rounded h-9 w-20 mt-1" />
-      <div className="animate-pulse bg-gray-200 rounded h-3 w-28 mt-2" />
+    <div className="rounded-lg bg-bg-elevated p-4" aria-hidden="true">
+      <div className="h-2.5 w-20 rounded-sm bg-bg-panel [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+      <div className="mt-4 h-8 w-16 rounded-sm bg-bg-panel [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+      <div className="mt-4 h-2.5 w-24 rounded-sm bg-bg-panel [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
     </div>
   )
 }
 
-function formatMetricValue(value: string | number | null | undefined): string | number {
-  return value ?? 'N/A'
-}
-
-function formatPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return 'Unavailable with current response'
-  }
-
-  return `${(value * 100).toFixed(1)}%`
-}
-
-function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
-  return {
-    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams?.get('search') ?? '',
-  }
-}
-
-export default function MetricCards() {
-  const searchParams = useSearchParams()
-  const filters = buildFilters(searchParams)
-  const {
-    data: stats,
-    isPending: statsPending,
-    isError: statsError,
-    error: statsQueryError,
-  } = useDashboardStats()
-  const {
-    data: alertData,
-    isPending: alertsPending,
-    isError: alertsError,
-    error: alertsQueryError,
-  } = useAlerts(filters)
-
-  const alertMetrics = useMemo(() => {
-    const alerts = alertData?.items ?? []
-    const actionableAlerts = alerts.filter((alert) => alert.prediction !== 'Normal').length
-    const blockedAlerts = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
-    const allowedAlerts = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
-    const avgConfidence =
+export default function MetricCards({ alerts, alertsPending, alertsError }: MetricCardsProps) {
+  const metrics = useMemo(() => {
+    const highAlerts = alerts.filter((alert) => alert.confidence_level === 'HIGH').length
+    const blocked = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
+    const allowed = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
+    const totalRequests = alerts.length
+    const avgConfidenceValue =
       alerts.length > 0
-        ? alerts.reduce((sum, alert) => sum + alert.confidence, 0) / alerts.length
-        : null
+        ? (alerts.reduce((sum, alert) => sum + alert.confidence, 0) / alerts.length) * 100
+        : 0
 
     return {
-      actionableAlerts,
-      blockedAlerts,
-      allowedAlerts,
-      avgConfidence,
-      loadedAlertCount: alerts.length,
+      highAlerts,
+      blocked,
+      allowed,
+      avgConfidence: alerts.length > 0 ? `${avgConfidenceValue.toFixed(1)}%` : '—',
+      totalRequests,
     }
-  }, [alertData?.items])
+  }, [alerts])
 
-  if (statsPending || alertsPending) {
+  if (alertsPending) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCardSkeleton />
-        <MetricCardSkeleton />
-        <MetricCardSkeleton />
-        <MetricCardSkeleton />
-        <MetricCardSkeleton />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <MetricCardSkeleton key={index} />
+        ))}
       </div>
     )
   }
 
-  if (statsError || alertsError) {
-    const error = statsQueryError ?? alertsQueryError
+  if (alertsError) {
     return (
-      <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
-        <p className="text-sm font-medium text-status-high">Failed to load dashboard metrics</p>
-        <p className="mt-1 text-xs text-text-muted">
-          {error instanceof Error ? error.message : 'Unknown error'}
-        </p>
-      </div>
-    )
-  }
-
-  if (!stats || !alertData) {
-    return (
-      <div className="rounded-sm border border-border-light bg-surface-light p-4">
-        <p className="text-sm text-text-muted">No data available</p>
+      <div className="rounded-lg border border-severity-high-border bg-severity-high-bg p-4">
+        <p className="text-sm font-medium text-severity-high-text">Unable to load dashboard metrics.</p>
+        <p className="mt-1 text-xs text-text-secondary">{alertsError.message}</p>
       </div>
     )
   }
@@ -143,37 +92,27 @@ export default function MetricCards() {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
-        label="Actionable Alerts"
-        icon="gpp_maybe"
-        value={formatMetricValue(alertMetrics.actionableAlerts)}
-        detail={`Derived from ${alertMetrics.loadedAlertCount} currently loaded alerts`}
-        accent="urgent"
+        label="High Alerts"
+        value={metrics.highAlerts}
+        className="border-l-2 border-l-severity-high-accent bg-severity-high-bg"
+        valueClassName="text-severity-high-text"
+        style={{ borderRadius: '0 8px 8px 0' }}
       />
       <MetricCard
         label="Blocked"
-        icon="block"
-        value={formatMetricValue(alertMetrics.blockedAlerts)}
-        detail="Blocked actions in the current loaded alert set"
-        accent="blocked"
+        value={metrics.blocked}
+        className="border-l-2 border-l-severity-blocked-accent bg-severity-blocked-bg"
+        valueClassName="text-severity-blocked-text"
+        style={{ borderRadius: '0 8px 8px 0' }}
       />
-      <MetricCard
-        label="Allowed"
-        icon="check_circle"
-        value={formatMetricValue(alertMetrics.allowedAlerts)}
-        detail="Allowed actions in the current loaded alert set"
-      />
+      <MetricCard label="Allowed" value={metrics.allowed} className="rounded-lg" />
       <MetricCard
         label="Avg ML Confidence"
-        icon="network_intelligence"
-        value={formatPercent(alertMetrics.avgConfidence)}
-        detail="Average confidence across the current loaded alert set"
+        value={metrics.avgConfidence}
+        valueClassName="text-accent-purple"
+        className="rounded-lg"
       />
-      <MetricCard
-        label="Total Requests"
-        icon="public"
-        value={formatMetricValue(stats.total_requests)}
-        detail="All requests in the current stats response"
-      />
+      <MetricCard label="Total Requests" value={metrics.totalRequests} className="rounded-lg" />
     </div>
   )
 }

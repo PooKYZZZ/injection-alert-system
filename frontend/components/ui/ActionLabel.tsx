@@ -5,9 +5,9 @@ import {
 } from '@/features/alerts/contract'
 
 const ACTION_CLASS_NAMES: Record<AlertAction, string> = {
-  BLOCKED: 'text-status-blocked font-bold',
-  THROTTLED: 'text-status-throttled font-medium',
-  ALLOWED: 'text-status-logged font-medium',
+  BLOCKED: 'text-severity-blocked-text font-semibold',
+  THROTTLED: 'text-severity-blocked-text font-medium',
+  ALLOWED: 'text-severity-safe-text font-medium',
 }
 
 type ActionLabelProps = {
@@ -17,7 +17,7 @@ type ActionLabelProps = {
 
 export function ActionLabel({ action, expiresAt }: ActionLabelProps) {
   if (action === null) {
-    return <span className="text-sm text-text-muted">Unavailable</span>
+    return <span className="text-sm text-text-secondary">Unavailable</span>
   }
 
   return (

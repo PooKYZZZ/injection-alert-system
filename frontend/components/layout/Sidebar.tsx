@@ -1,7 +1,8 @@
 'use client'
 
 import { NAV_ITEMS } from '@/lib/constants'
-import { SidebarNavItem } from './SidebarNavItem'
+import Image from 'next/image'
+import { SidebarIcon, SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
@@ -25,41 +26,27 @@ export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
   const activeItems = NAV_ITEMS.filter((item) => !plannedLabels.has(item.label))
   const plannedItems = NAV_ITEMS.filter((item) => plannedLabels.has(item.label))
   const resolvedName = displayName?.trim() || 'Authenticated User'
-  const resolvedSecondaryLabel = secondaryLabel?.trim() || 'Signed in'
   const initials = getInitials(resolvedName)
+  const handleLogout = () => signOut({ callbackUrl: '/login' })
 
   return (
-    <aside className="w-[260px] bg-background-main flex-shrink-0 flex flex-col h-full border-r border-border-light">
-
-      {/* Header */}
-      <div className="h-20 flex flex-col justify-center px-6 border-b border-border-light bg-surface-light">
-        <div className="flex items-center gap-2 mb-1">
-          <img
-            src="/logo.png"
-            alt="logo"
-            className="w-8 h-8"
-          />
-
-          <h1 className="text-white text-base font-bold leading-tight tracking-wide font-[Orbitron]">
+    <aside className="flex h-full w-[260px] flex-shrink-0 flex-col border-r border-border-light bg-bg-base">
+      <div className="flex h-20 flex-col justify-center border-b border-border-light bg-bg-panel px-6">
+        <div className="mb-1 flex items-center gap-2">
+          <Image src="/logo.png" alt="logo" width={32} height={32} className="h-8 w-8" />
+          <h1 className="font-orbitron text-base font-bold leading-tight tracking-wide text-text-primary">
             CyberTrace
           </h1>
         </div>
-
-        <p className="text-text-muted text-[12px] font-medium tracking-wide pl-9">
+        <p className="pl-9 text-[12px] font-medium tracking-wide text-text-secondary">
           WAF-ML Security Dashboard
         </p>
       </div>
 
-      {/* Main Navigation */}
-      <nav className="flex-1 py-4 flex flex-col gap-0.5 overflow-y-auto bg-surface-light">
+      <nav className="flex flex-1 flex-col overflow-y-auto bg-bg-panel py-4">
         {activeItems.map((item) =>
           item.href === '/alerts' ? (
-            <AlertsNavItem
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-            />
+            <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
           ) : (
             <SidebarNavItem
               key={item.href}
@@ -71,68 +58,71 @@ export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
           )
         )}
 
-        {plannedItems.length > 0 && (
+        {plannedItems.length > 0 ? (
           <div className="mt-4 px-4">
             <div className="border-t border-border-light pt-4">
-              <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted/70">
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
                 Planned
               </p>
-
               <div className="mt-2 flex flex-col gap-0.5">
                 {plannedItems.map((item) => (
                   <div
                     key={item.href}
                     aria-disabled="true"
-                    className="flex items-center gap-3 px-4 h-[40px] rounded-sm border-l-[3px] border-transparent text-blue-200/35 cursor-not-allowed select-none"
+                    className="pointer-events-none flex h-[40px] select-none items-center gap-3 rounded-sm border-l-[3px] border-transparent px-4 text-text-ghost opacity-70"
                   >
-                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                    <span className="text-sm font-medium flex-1">{item.label}</span>
+                    <SidebarIcon icon={item.icon} />
+                    <span className="flex-1 text-sm font-medium">{item.label}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </nav>
 
-      {/* Bottom Panel */}
-      <div className="bg-surface-light border-t border-border-light">
+      <div className="bg-bg-panel">
+        <div className="border-t border-[#1a2236]">
+          <MLHealthWidget />
+        </div>
 
-        {/* ML Health Widget */}
-        <MLHealthWidget />
-
-        {/* User Profile Row */}
-        <div className="px-4 py-3 bg-surface-light border-t border-border-light flex items-center gap-3">
-
-          <div className="h-8 w-8 rounded bg-blue-700 flex items-center justify-center">
-            <span className="text-xs font-bold text-white">{initials}</span>
+        <div className="flex items-center gap-3 border-t border-[#1a2236] bg-bg-panel px-4 py-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded bg-accent-blue-bg">
+            <span className="text-xs font-bold text-accent-blue">{initials}</span>
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-white truncate">
-              {resolvedName}
-            </div>
-            <div className="text-[10px] text-text-muted truncate">
-              {resolvedSecondaryLabel}
-            </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-medium text-text-primary">{resolvedName}</div>
           </div>
 
-          {/* Logout Button */}
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            aria-label="Logout"
+            onClick={handleLogout}
+            aria-label="Log out"
             type="button"
-            className="text-gray-400 hover:text-red-400 transition-colors"
-            title="Logout"
+            title="Log out"
+            style={{
+              marginLeft: 'auto',
+              minWidth: '24px',
+              minHeight: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              borderRadius: '4px',
+              padding: '4px',
+            }}
           >
-            <span className="material-symbols-outlined text-[16px]">
-              logout
-            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
           </button>
-
         </div>
       </div>
-
     </aside>
   )
 }

@@ -4,25 +4,34 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import MetricCards from './MetricCards'
-import { useDashboardStats } from 'features/stats/queries'
-import { useAlerts } from 'features/alerts/queries'
-import { useSearchParams } from 'next/navigation'
+import type { Alert } from 'features/alerts/types'
 
-vi.mock('features/stats/queries', () => ({
-  useDashboardStats: vi.fn(),
-}))
-
-vi.mock('features/alerts/queries', () => ({
-  useAlerts: vi.fn(),
-}))
-
-vi.mock('next/navigation', () => ({
-  useSearchParams: vi.fn(),
-}))
-
-const mockedUseDashboardStats = vi.mocked(useDashboardStats)
-const mockedUseAlerts = vi.mocked(useAlerts)
-const mockedUseSearchParams = vi.mocked(useSearchParams)
+const sampleAlerts: Alert[] = [
+  {
+    alert_id: 'a-1',
+    timestamp: '2026-03-17T00:00:00Z',
+    source_ip: '127.0.0.1',
+    request_path: '/login',
+    request_method: 'POST',
+    payload_snippet: 'SELECT 1',
+    prediction: 'SQL Injection',
+    confidence: 0.91,
+    confidence_level: 'HIGH',
+    action_taken: 'BLOCKED',
+  },
+  {
+    alert_id: 'a-2',
+    timestamp: '2026-03-17T00:01:00Z',
+    source_ip: '127.0.0.2',
+    request_path: '/health',
+    request_method: 'GET',
+    payload_snippet: 'ok',
+    prediction: 'Normal',
+    confidence: 0.25,
+    confidence_level: 'LOW',
+    action_taken: 'ALLOWED',
+  },
+]
 
 afterEach(() => {
   cleanup()
@@ -42,92 +51,59 @@ function createWrapper() {
 }
 
 describe('MetricCards', () => {
-  function mockDefaultSearchParams() {
-    mockedUseSearchParams.mockReturnValue({
-      get: (key: string) => new URLSearchParams().get(key),
-    } as ReturnType<typeof useSearchParams>)
-  }
-
   it('renders loading skeleton', () => {
-    mockDefaultSearchParams()
-    mockedUseDashboardStats.mockReturnValue({
-      data: undefined,
-      isPending: true,
-    } as ReturnType<typeof useDashboardStats>)
-    mockedUseAlerts.mockReturnValue({
-      data: undefined,
-      isPending: true,
-      isError: false,
-    } as ReturnType<typeof useAlerts>)
-
     const Wrapper = createWrapper()
-    const { container } = render(<MetricCards />, { wrapper: Wrapper })
+    const { container } = render(
+      <MetricCards alerts={[]} alertsPending={true} alertsError={null} />,
+      { wrapper: Wrapper }
+    )
 
     expect(screen.queryByText('Total Requests')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0)
   })
 
-  it('renders total requests card with updated description', () => {
-    mockDefaultSearchParams()
-    mockedUseDashboardStats.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        actionable_alerts: 10,
-        total_requests: 321,
-        avg_inference_latency_ms: 0,
-      },
-    } as ReturnType<typeof useDashboardStats>)
-    mockedUseAlerts.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        items: [
-          { confidence: 0.91, prediction: 'SQL Injection', action_taken: 'BLOCKED' },
-          { confidence: 0.25, prediction: 'Normal', action_taken: 'ALLOWED' },
-        ],
-      },
-    } as ReturnType<typeof useAlerts>)
-
+  it('renders the required five summary cards with live alert counts', () => {
     const Wrapper = createWrapper()
-    render(<MetricCards />, { wrapper: Wrapper })
+    render(
+      <MetricCards alerts={sampleAlerts} alertsPending={false} alertsError={null} />,
+      { wrapper: Wrapper }
+    )
 
+    expect(screen.getByText('High Alerts')).toBeInTheDocument()
     expect(screen.getByText('Total Requests')).toBeInTheDocument()
-    expect(screen.getByText('321')).toBeInTheDocument()
-    expect(screen.getByText('All requests in the current stats response')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getAllByText('Loaded records').length).toBe(5)
     expect(screen.getByText('Blocked')).toBeInTheDocument()
     expect(screen.getByText('Allowed')).toBeInTheDocument()
+    expect(screen.getByText('Avg ML Confidence')).toBeInTheDocument()
   })
 
-  it('renders alert-derived metrics from the loaded alerts dataset', () => {
-    mockDefaultSearchParams()
-    mockedUseDashboardStats.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        actionable_alerts: 1,
-        total_requests: 321,
-        avg_inference_latency_ms: 4.5,
-      },
-    } as ReturnType<typeof useDashboardStats>)
-    mockedUseAlerts.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        items: [
-          { confidence: 0.9, prediction: 'SQL Injection', action_taken: 'BLOCKED' },
-          { confidence: 0.3, prediction: 'Normal', action_taken: 'ALLOWED' },
-        ],
-      },
-    } as ReturnType<typeof useAlerts>)
-
+  it('renders alert-derived metrics from the loaded alerts dataset safely', () => {
     const Wrapper = createWrapper()
-    render(<MetricCards />, { wrapper: Wrapper })
+    const expectedAvgConfidence = `${(
+      (sampleAlerts.reduce((sum, alert) => sum + alert.confidence, 0) / sampleAlerts.length) *
+      100
+    ).toFixed(1)}%`
 
-    expect(screen.getByText('Actionable Alerts')).toBeInTheDocument()
+    render(
+      <MetricCards alerts={sampleAlerts} alertsPending={false} alertsError={null} />,
+      { wrapper: Wrapper }
+    )
+
+    expect(screen.getByText('High Alerts')).toBeInTheDocument()
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(3)
-    expect(screen.getByText('Derived from 2 currently loaded alerts')).toBeInTheDocument()
-    expect(screen.getByText('60.0%')).toBeInTheDocument()
-    expect(screen.getByText('Average confidence across the current loaded alert set')).toBeInTheDocument()
+    expect(screen.getByText(expectedAvgConfidence)).toBeInTheDocument()
+  })
+
+  it('renders empty alert datasets without NaN output', () => {
+    const Wrapper = createWrapper()
+    render(<MetricCards alerts={[]} alertsPending={false} alertsError={null} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(screen.getByText('High Alerts')).toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.queryByText('NaN%')).not.toBeInTheDocument()
+    expect(screen.queryByText('Infinity')).not.toBeInTheDocument()
   })
 })
