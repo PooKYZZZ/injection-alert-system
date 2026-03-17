@@ -16,13 +16,19 @@ _UNAUTHORIZED = HTTPException(
 async def verify_internal_token(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> None:
+    settings = get_settings()
+    
+    # Skip auth in development mode if no API key is configured
+    if settings.is_development and not settings.api_secret_key:
+        return
+    
     if credentials is None:
         raise _UNAUTHORIZED
 
     if credentials.scheme.lower() != "bearer":
         raise _UNAUTHORIZED
 
-    api_secret_key = get_settings().api_secret_key
+    api_secret_key = settings.api_secret_key
     if not api_secret_key:
         raise _UNAUTHORIZED
 
