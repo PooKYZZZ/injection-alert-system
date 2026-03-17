@@ -1,6 +1,7 @@
 'use client'
 
 import { NAV_ITEMS } from '@/lib/constants'
+import Image from 'next/image'
 import { SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
@@ -34,13 +35,15 @@ export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
       {/* Header */}
       <div className="h-20 flex flex-col justify-center px-6 border-b border-border-light bg-surface-light">
         <div className="flex items-center gap-2 mb-1">
-          <img
+          <Image
             src="/logo.png"
             alt="logo"
+            width={32}
+            height={32}
             className="w-8 h-8"
           />
 
-          <h1 className="text-white text-base font-bold leading-tight tracking-wide font-[Orbitron]">
+          <h1 className="text-white text-base font-bold leading-tight tracking-wide font-orbitron">
             CyberTrace
           </h1>
         </div>

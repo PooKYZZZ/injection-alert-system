@@ -1,6 +1,24 @@
 import type { Metadata } from 'next'
+import { IBM_Plex_Sans, Inter, Orbitron } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+})
+
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-ibm-plex-sans',
+})
+
+const orbitron = Orbitron({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-orbitron',
+})
 
 export const metadata: Metadata = {
   title: 'Injection Alert System',
@@ -14,14 +32,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body>
+      <body className={`${inter.variable} ${ibmPlexSans.variable} ${orbitron.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>

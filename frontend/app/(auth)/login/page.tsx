@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { AuthError } from 'next-auth'
 import { loginAction } from './actions'
@@ -72,13 +73,15 @@ export default function LoginPage() {
       </div>
 
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center px-6 pb-10 lg:px-8 lg:pb-0 text-text-main">
-        <img
+        <Image
           src="/logo.png"
           alt="Team 13"
+          width={520}
+          height={520}
           className="w-full max-w-[520px] mb-4"
         />
 
-        <h2 className="text-4xl sm:text-5xl xl:text-6xl font-bold font-[Orbitron] tracking-wide text-center">
+        <h2 className="text-4xl sm:text-5xl xl:text-6xl font-bold font-orbitron tracking-wide text-center">
           CyberTrace
         </h2>
 
