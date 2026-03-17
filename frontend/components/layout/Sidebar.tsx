@@ -6,7 +6,28 @@ import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
 
-export function Sidebar() {
+interface SidebarProps {
+  displayName?: string | null
+  secondaryLabel?: string | null
+}
+
+function getInitials(name: string): string {
+  const cleaned = name.trim()
+  if (!cleaned) return 'U'
+
+  const segments = cleaned.split(/\s+/).slice(0, 2)
+  const initials = segments.map((segment) => segment.charAt(0).toUpperCase()).join('')
+  return initials || 'U'
+}
+
+export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
+  const plannedLabels = new Set(['Traffic', 'Mitigation Log', 'Audit Trail'])
+  const activeItems = NAV_ITEMS.filter((item) => !plannedLabels.has(item.label))
+  const plannedItems = NAV_ITEMS.filter((item) => plannedLabels.has(item.label))
+  const resolvedName = displayName?.trim() || 'Authenticated User'
+  const resolvedSecondaryLabel = secondaryLabel?.trim() || 'Signed in'
+  const initials = getInitials(resolvedName)
+
   return (
     <aside className="w-[260px] bg-background-main flex-shrink-0 flex flex-col h-full border-r border-border-light">
 
@@ -31,7 +52,7 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 py-4 flex flex-col gap-0.5 overflow-y-auto bg-surface-light">
-        {NAV_ITEMS.map((item) =>
+        {activeItems.map((item) =>
           item.href === '/alerts' ? (
             <AlertsNavItem
               key={item.href}
@@ -49,6 +70,29 @@ export function Sidebar() {
             />
           )
         )}
+
+        {plannedItems.length > 0 && (
+          <div className="mt-4 px-4">
+            <div className="border-t border-border-light pt-4">
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted/70">
+                Planned
+              </p>
+
+              <div className="mt-2 flex flex-col gap-0.5">
+                {plannedItems.map((item) => (
+                  <div
+                    key={item.href}
+                    aria-disabled="true"
+                    className="flex items-center gap-3 px-4 h-[40px] rounded-sm border-l-[3px] border-transparent text-blue-200/35 cursor-not-allowed select-none"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                    <span className="text-sm font-medium flex-1">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Bottom Panel */}
@@ -61,15 +105,15 @@ export function Sidebar() {
         <div className="px-4 py-3 bg-surface-light border-t border-border-light flex items-center gap-3">
 
           <div className="h-8 w-8 rounded bg-blue-700 flex items-center justify-center">
-            <span className="text-xs font-bold text-white">13</span>
+            <span className="text-xs font-bold text-white">{initials}</span>
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="text-xs font-medium text-white truncate">
-              Team 13
+              {resolvedName}
             </div>
             <div className="text-[10px] text-text-muted truncate">
-              SOC Analyst
+              {resolvedSecondaryLabel}
             </div>
           </div>
 

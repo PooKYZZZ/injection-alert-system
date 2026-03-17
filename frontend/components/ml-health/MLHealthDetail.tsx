@@ -39,13 +39,33 @@ function formatMetricValue(value: number | null, formatter?: (input: number) => 
   return formatter ? formatter(value) : value
 }
 
+function formatPercentBoundary(value: number | null): string | null {
+  if (value === null) {
+    return null
+  }
+
+  return `${Math.round(value * 100)}%`
+}
+
 function ThresholdsSection({ thresholds }: { thresholds: ConfidenceThresholds }) {
+  const lowLabel = formatPercentBoundary(thresholds.low)
+  const mediumLower = lowLabel
+  const mediumUpper = formatPercentBoundary(thresholds.high ?? thresholds.medium)
+  const highLabel = formatPercentBoundary(thresholds.high ?? thresholds.medium)
+
   return (
     <div className="rounded border border-border-light p-4">
       <h3 className="mb-2 text-sm font-semibold">Confidence Thresholds</h3>
-      <MetricRow label="Low"    value={formatMetricValue(thresholds.low)} />
-      <MetricRow label="Medium" value={formatMetricValue(thresholds.medium)} />
-      <MetricRow label="High"   value={formatMetricValue(thresholds.high)} />
+      <MetricRow label="Low"    value={lowLabel ? `< ${lowLabel}` : 'Unavailable with current response'} />
+      <MetricRow
+        label="Medium"
+        value={
+          mediumLower && mediumUpper
+            ? `${mediumLower}\u2013${mediumUpper}`
+            : 'Unavailable with current response'
+        }
+      />
+      <MetricRow label="High"   value={highLabel ? `> ${highLabel}` : 'Unavailable with current response'} />
     </div>
   )
 }
