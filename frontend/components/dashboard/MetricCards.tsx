@@ -1,10 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { useDashboardStats } from 'features/stats/queries'
-import { useAlerts } from 'features/alerts/queries'
-import type { DashboardFilters, SeverityFilter, TimeRange } from 'lib/searchParams'
+import type { Alert } from 'features/alerts/types'
 import { cn } from 'lib/utils'
 
 interface MetricCardProps {
@@ -13,6 +11,12 @@ interface MetricCardProps {
   value: string | number
   detail: string
   accent?: 'urgent' | 'blocked'
+}
+
+interface MetricCardsProps {
+  alerts: Alert[]
+  alertsPending: boolean
+  alertsError?: Error | null
 }
 
 function MetricCard({ label, icon, value, detail, accent }: MetricCardProps) {
@@ -25,7 +29,7 @@ function MetricCard({ label, icon, value, detail, accent }: MetricCardProps) {
       )}
     >
       <div className="flex justify-between items-start mb-2">
-        <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
           {label}
         </span>
         <span className="material-symbols-outlined text-text-muted text-[20px]">
@@ -33,7 +37,7 @@ function MetricCard({ label, icon, value, detail, accent }: MetricCardProps) {
         </span>
       </div>
 
-      <div className="text-3xl font-bold text-text-main">{value}</div>
+      <div className="text-4xl font-extrabold leading-none text-text-main">{value}</div>
 
       <div className="text-xs text-text-muted mt-2">{detail}</div>
     </div>
@@ -59,39 +63,22 @@ function formatMetricValue(value: string | number | null | undefined): string | 
 
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined) {
-    return 'Unavailable with current response'
+    return 'N/A'
   }
 
   return `${(value * 100).toFixed(1)}%`
 }
 
-function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
-  return {
-    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams?.get('search') ?? '',
-  }
-}
-
-export default function MetricCards() {
-  const searchParams = useSearchParams()
-  const filters = buildFilters(searchParams)
+export default function MetricCards({ alerts, alertsPending, alertsError }: MetricCardsProps) {
   const {
     data: stats,
     isPending: statsPending,
     isError: statsError,
     error: statsQueryError,
   } = useDashboardStats()
-  const {
-    data: alertData,
-    isPending: alertsPending,
-    isError: alertsError,
-    error: alertsQueryError,
-  } = useAlerts(filters)
 
   const alertMetrics = useMemo(() => {
-    const alerts = alertData?.items ?? []
-    const actionableAlerts = alerts.filter((alert) => alert.prediction !== 'Normal').length
+    const highSeverityAlerts = alerts.filter((alert) => alert.confidence_level === 'HIGH').length
     const blockedAlerts = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
     const allowedAlerts = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
     const avgConfidence =
@@ -100,13 +87,13 @@ export default function MetricCards() {
         : null
 
     return {
-      actionableAlerts,
+      highSeverityAlerts,
       blockedAlerts,
       allowedAlerts,
       avgConfidence,
       loadedAlertCount: alerts.length,
     }
-  }, [alertData?.items])
+  }, [alerts])
 
   if (statsPending || alertsPending) {
     return (
@@ -121,7 +108,7 @@ export default function MetricCards() {
   }
 
   if (statsError || alertsError) {
-    const error = statsQueryError ?? alertsQueryError
+    const error = statsQueryError ?? alertsError
     return (
       <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
         <p className="text-sm font-medium text-status-high">Failed to load dashboard metrics</p>
@@ -132,7 +119,7 @@ export default function MetricCards() {
     )
   }
 
-  if (!stats || !alertData) {
+  if (!stats) {
     return (
       <div className="rounded-sm border border-border-light bg-surface-light p-4">
         <p className="text-sm text-text-muted">No data available</p>
@@ -143,10 +130,10 @@ export default function MetricCards() {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
-        label="Actionable Alerts"
+        label="High Severity Alerts"
         icon="gpp_maybe"
-        value={formatMetricValue(alertMetrics.actionableAlerts)}
-        detail={`Derived from ${alertMetrics.loadedAlertCount} currently loaded alerts`}
+        value={formatMetricValue(alertMetrics.highSeverityAlerts)}
+        detail={`From ${alertMetrics.loadedAlertCount} loaded alerts in the current view`}
         accent="urgent"
       />
       <MetricCard
