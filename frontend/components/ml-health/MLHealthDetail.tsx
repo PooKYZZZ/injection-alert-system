@@ -30,27 +30,87 @@ function MetricSkeletonCard() {
 function ThresholdRow({
   label,
   value,
-  width,
+  barWidth,
   barClassName,
 }: {
   label: string
   value: string
-  width: string
+  barWidth: string
   barClassName: string
 }) {
   return (
     <div className="grid grid-cols-[90px_1fr_auto] items-center gap-3">
       <span className="text-xs text-text-secondary">{label}</span>
       <div className="h-[5px] rounded-full bg-bg-inset">
-        <div className={`h-full rounded-full opacity-70 ${barClassName}`} style={{ width }} />
+        <div
+          className={`h-full rounded-full opacity-70 ${barClassName}`}
+          style={{ width: barWidth, height: '100%' }}
+        />
       </div>
       <span className="text-xs text-text-secondary">{value}</span>
     </div>
   )
 }
 
+function getModelDisplayName(modelVersion: string | null | undefined): string {
+  if (!modelVersion) return 'Unknown model'
+  if (modelVersion.startsWith('distilbert_v3')) return 'DistilBERT v3'
+  if (modelVersion.startsWith('distilbert_v2')) return 'DistilBERT v2'
+  if (modelVersion.startsWith('bert_')) return 'BERT'
+  if (modelVersion.startsWith('minilm_')) return 'MiniLM'
+  // Fallback: capitalize and clean the raw string
+  return modelVersion.split('_').slice(0, 2).join(' ')
+}
+
 export default function MLHealthDetail() {
   const { data, isPending, isError, error, refetch } = useMLHealth()
+
+  // Dynamic thresholds with fallback
+  const thresholds = data?.thresholds as
+    | { low?: number | null; medium?: number | null; high?: number | null }
+    | undefined
+
+  const formatPercent = (value: number): string => {
+    const pct = value <= 1 ? value * 100 : value
+    return `${Math.round(pct)}%`
+  }
+
+  // Defaults match previous hardcoded behavior
+  let lowValue = '< 50%'
+  let mediumValue = '50–80%'
+  let highValue = '> 80%'
+  let lowWidth = '30%'
+  let mediumWidth = '60%'
+  let highWidth = '100%'
+  let hasMedium = true
+
+  if (thresholds && typeof thresholds.low === 'number' && typeof thresholds.high === 'number') {
+    const low = thresholds.low
+    const medium = thresholds.medium
+    const high = thresholds.high
+    const toPct = (v: number) => (v <= 1 ? v * 100 : v)
+    const maxVal = typeof high === 'number' ? toPct(high) : 100
+
+    if (maxVal > 0 && toPct(low) >= 0 && toPct(low) <= maxVal) {
+      if (typeof medium === 'number' && toPct(medium) >= toPct(low) && toPct(medium) <= maxVal) {
+        // Three-band case
+        lowValue = `< ${formatPercent(low)}`
+        mediumValue = `${formatPercent(low)}–${formatPercent(medium)}`
+        highValue = `> ${formatPercent(medium)}`
+        lowWidth = `${(toPct(low) / maxVal) * 100}%`
+        mediumWidth = `${((toPct(medium) - toPct(low)) / maxVal) * 100}%`
+        highWidth = `${((maxVal - toPct(medium)) / maxVal) * 100}%`
+        hasMedium = true
+      } else {
+        // Two-band case
+        lowValue = `< ${formatPercent(low)}`
+        highValue = `>= ${formatPercent(low)}`
+        lowWidth = `${(toPct(low) / maxVal) * 100}%`
+        highWidth = `${((maxVal - toPct(low)) / maxVal) * 100}%`
+        hasMedium = false
+      }
+    }
+  }
 
   if (isError) {
     return (
@@ -89,7 +149,9 @@ export default function MLHealthDetail() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <h2 className="text-sm font-medium text-text-primary">DistilBERT v3</h2>
+              <h2 className="text-sm font-medium text-text-primary">
+                {isPending ? 'Loading model...' : getModelDisplayName(data?.model_version)}
+              </h2>
               {!isPending && data ? <StatusBadge status={data.status} /> : null}
             </div>
             <p className="mt-1 font-mono text-[9px] text-text-muted">
@@ -99,6 +161,8 @@ export default function MLHealthDetail() {
         </div>
         <div style={{ height: '1px', background: '#1a2236', margin: '12px 0' }} />
       </section>
+
+      <div style={{ height: '1px', background: '#1a2236', margin: '0 0 4px 0' }} />
 
       <section className="rounded-lg border border-border-light bg-bg-panel p-5">
         <div className="grid gap-4 md:grid-cols-3">
@@ -146,20 +210,22 @@ export default function MLHealthDetail() {
           <div className="mt-4 space-y-3">
             <ThresholdRow
               label="Low"
-              value="< 50%"
-              width="30%"
+              value={lowValue}
+              barWidth={lowWidth}
               barClassName="bg-severity-safe-accent"
             />
-            <ThresholdRow
-              label="Medium"
-              value="50–80%"
-              width="60%"
-              barClassName="bg-accent-yellow"
-            />
+            {hasMedium ? (
+              <ThresholdRow
+                label="Medium"
+                value={mediumValue}
+                barWidth={mediumWidth}
+                barClassName="bg-accent-yellow"
+              />
+            ) : null}
             <ThresholdRow
               label="High"
-              value="> 80%"
-              width="100%"
+              value={highValue}
+              barWidth={highWidth}
               barClassName="bg-severity-high-accent"
             />
           </div>

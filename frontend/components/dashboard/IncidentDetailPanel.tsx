@@ -15,6 +15,7 @@ function formatUtcTimestamp(timestamp: string | null | undefined): string {
   const parsed = new Date(timestamp)
   if (Number.isNaN(parsed.getTime())) return timestamp
   return parsed.toLocaleString('en-US', {
+    timeZone: 'UTC',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -82,12 +83,20 @@ function TimelineStep({
   emphasize?: boolean
   showLine?: boolean
 }) {
+  const dotSize = emphasize ? '22px' : '18px'
+  const lineLeft = emphasize ? '11px' : '9px'
   return (
     <li className="relative mb-3 pl-10 last:mb-0">
-      {showLine ? <div className="absolute left-[10px] top-[22px] h-[calc(100%+18px)] w-px bg-border-light" aria-hidden="true" /> : null}
+      {showLine ? (
+        <div
+          className="absolute top-[22px] w-px bg-border-light"
+          style={{ left: lineLeft, height: 'calc(100% + 18px)' }}
+          aria-hidden="true"
+        />
+      ) : null}
       <span
         className={`absolute left-0 top-0 rounded-full ${dotClassName}`}
-        style={emphasize ? { width: '22px', height: '22px' } : { width: '18px', height: '18px' }}
+        style={{ width: dotSize, height: dotSize }}
       />
       <p className={`text-sm font-medium ${labelClassName}`}>{title}</p>
       {badge ? <div className="mt-1">{badge}</div> : null}

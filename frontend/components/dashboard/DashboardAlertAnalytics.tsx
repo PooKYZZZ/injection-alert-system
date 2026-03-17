@@ -141,6 +141,23 @@ export default function DashboardAlertAnalytics({
   alertsPending,
   alertsError,
 }: DashboardAlertAnalyticsProps) {
+  const { highThreshold, mediumThreshold } = useMemo(() => {
+    let high = 0.8
+    let medium = 0.5
+
+    const sampleWithThresholds = alerts.find(
+      (a) => (a as any)?.mlHealthData?.thresholds != null
+    ) as any
+
+    const thresholds = sampleWithThresholds?.mlHealthData?.thresholds
+    if (thresholds) {
+      if (typeof thresholds.high === 'number') high = thresholds.high
+      if (typeof thresholds.medium === 'number') medium = thresholds.medium
+    }
+
+    return { highThreshold: high, mediumThreshold: medium }
+  }, [alerts])
+
   const actionBreakdown = useMemo(() => {
     const blocked = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
     const allowed = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
@@ -175,21 +192,24 @@ export default function DashboardAlertAnalytics({
   const confidenceBands = useMemo(() => {
     const counts = { high: 0, medium: 0, low: 0 }
     for (const alert of alerts) {
-      if (alert.confidence > 0.8) {
+      if (alert.confidence > highThreshold) {
         counts.high += 1
-      } else if (alert.confidence >= 0.5) {
+      } else if (alert.confidence >= mediumThreshold) {
         counts.medium += 1
       } else {
         counts.low += 1
       }
     }
 
+    const highPct = Math.round(highThreshold * 100)
+    const mediumPct = Math.round(mediumThreshold * 100)
+
     return [
-      { label: 'High > 80%', value: counts.high, colorClassName: 'bg-accent-purple' },
-      { label: 'Medium 50–80%', value: counts.medium, colorClassName: 'bg-accent-yellow' },
-      { label: 'Low < 50%', value: counts.low, colorClassName: 'bg-severity-safe-accent' },
+      { label: `High > ${highPct}%`, value: counts.high, colorClassName: 'bg-accent-purple' },
+      { label: `Medium ${mediumPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
+      { label: `Low < ${mediumPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
     ]
-  }, [alerts])
+  }, [alerts, highThreshold, mediumThreshold])
 
   if (alertsPending) {
     return <DashboardAlertAnalyticsSkeleton />

@@ -25,10 +25,21 @@ function MLHealthContent() {
           ? 'Degraded'
           : 'Down'
 
+  const statusDotClass =
+    isError || !data
+      ? 'bg-bg-elevated'
+      : data.status === 'HEALTHY'
+        ? 'bg-severity-safe-accent'
+        : data.status === 'DEGRADED'
+          ? 'bg-accent-yellow'
+          : 'bg-severity-high-accent'
+
+  const modelLabel = isError || !data ? 'Model' : data.model_version || 'Model'
+
   return (
     <div className="flex items-center gap-3 px-4 py-3">
-      <span className="h-[7px] w-[7px] rounded-full bg-severity-safe-accent" aria-hidden="true" />
-      <span className="text-[11px] font-medium text-text-secondary">DistilBERT v3</span>
+      <span className={`h-[7px] w-[7px] rounded-full ${statusDotClass}`} aria-hidden="true" />
+      <span className="text-[11px] font-medium text-text-secondary">{modelLabel}</span>
       <span className="text-[10px] text-text-muted">{statusLabel}</span>
     </div>
   )

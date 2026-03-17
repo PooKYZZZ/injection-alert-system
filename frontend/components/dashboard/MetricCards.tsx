@@ -24,7 +24,7 @@ function MetricCard({ label, value, subtitle = 'Loaded records', className, valu
   return (
     <div
       className={cn(
-        'rounded-r-lg rounded-l-none border border-border-light bg-bg-panel p-4',
+        'border border-border-light bg-bg-panel p-4',
         className
       )}
       style={style}
@@ -105,13 +105,14 @@ export default function MetricCards({ alerts, alertsPending, alertsError }: Metr
         valueClassName="text-severity-blocked-text"
         style={{ borderRadius: '0 8px 8px 0' }}
       />
-      <MetricCard label="Allowed" value={metrics.allowed} />
+      <MetricCard label="Allowed" value={metrics.allowed} className="rounded-lg" />
       <MetricCard
         label="Avg ML Confidence"
         value={metrics.avgConfidence}
         valueClassName="text-accent-purple"
+        className="rounded-lg"
       />
-      <MetricCard label="Total Requests" value={metrics.totalRequests} />
+      <MetricCard label="Total Requests" value={metrics.totalRequests} className="rounded-lg" />
     </div>
   )
 }

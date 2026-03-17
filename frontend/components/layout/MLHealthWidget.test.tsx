@@ -52,7 +52,7 @@ describe('MLHealthWidget', () => {
     const Wrapper = createWrapper()
     render(<MLHealthWidget />, { wrapper: Wrapper })
 
-    expect(screen.getByText('DistilBERT v3')).toBeInTheDocument()
+    expect(screen.getByText('distilbert-v1')).toBeInTheDocument()
     expect(screen.getByText('Stable')).toBeInTheDocument()
   })
 
@@ -66,7 +66,7 @@ describe('MLHealthWidget', () => {
     const Wrapper = createWrapper()
     render(<MLHealthWidget />, { wrapper: Wrapper })
 
-    expect(screen.getByText('DistilBERT v3')).toBeInTheDocument()
+    expect(screen.getByText('Model')).toBeInTheDocument()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
   })
 })

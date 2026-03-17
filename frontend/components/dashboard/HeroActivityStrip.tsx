@@ -11,7 +11,7 @@ export function HeroActivityStrip({ alerts, isLoading }: Props) {
   const BUCKETS = 24
   const VB_W = 1200
   const VB_H = 28
-  const PAD_X = 60
+  const PAD_X = 80
   const PAD_Y = 4
 
   const { allPoints, blockedPoints } = useMemo(() => {

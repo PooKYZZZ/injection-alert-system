@@ -314,20 +314,22 @@ function AlertsTableContent() {
   const columnCount = visibleColumns.length + 1
 
   const updateTriage = (alertId: string) => {
-    const currentStatus = triageEntries[alertId]?.status ?? 'New'
-    const nextEntries = {
-      ...triageEntries,
-      [alertId]: { status: nextTriageStatus(currentStatus) },
-    }
-    setTriageEntries(nextEntries)
-
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(TRIAGE_STORAGE_KEY, JSON.stringify(nextEntries))
-      } catch {
-        // Keep the local interaction usable if storage is unavailable.
+    setTriageEntries((current) => {
+      const currentStatus = current[alertId]?.status ?? 'New'
+      const nextEntries = {
+        ...current,
+        [alertId]: { status: nextTriageStatus(currentStatus) },
       }
-    }
+      // Persist to localStorage inside the updater so it always uses latest state
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(TRIAGE_STORAGE_KEY, JSON.stringify(nextEntries))
+        } catch {
+          // Keep the local interaction usable if storage is unavailable.
+        }
+      }
+      return nextEntries
+    })
 
     if (savingTimeoutsRef.current[alertId]) {
       clearTimeout(savingTimeoutsRef.current[alertId])
