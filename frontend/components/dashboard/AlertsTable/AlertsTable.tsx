@@ -130,9 +130,9 @@ function AlertsTableContent() {
   const [draftTriage, setDraftTriage] = useState<Record<string, TriageEntry>>({})
 
   const filters: DashboardFilters = {
-    severity: (searchParams.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams.get('search') ?? '',
+    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
+    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
+    search: searchParams?.get('search') ?? '',
   }
 
   const { toggleAlertSelection, selectAll, clearSelection, setActiveIncident } = useDashboardStore()
@@ -203,7 +203,11 @@ function AlertsTableContent() {
     setSavedTriage(nextSaved)
 
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(TRIAGE_STORAGE_KEY, JSON.stringify(nextSaved))
+      try {
+        window.localStorage.setItem(TRIAGE_STORAGE_KEY, JSON.stringify(nextSaved))
+      } catch {
+        // Keep local triage usable even if browser storage is unavailable.
+      }
     }
   }
 

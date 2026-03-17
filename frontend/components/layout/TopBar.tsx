@@ -58,7 +58,7 @@ function TopBarContent({
   const router = useRouter()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const rawSeverity = searchParams.get('severity')
+  const rawSeverity = searchParams?.get('severity')
   const currentSeverity: SeverityFilter =
     rawSeverity === 'HIGH' || rawSeverity === 'MEDIUM' || rawSeverity === 'LOW'
       ? rawSeverity
@@ -66,7 +66,7 @@ function TopBarContent({
 
   const createQueryString = useCallback(
     (name: string, value: string | null) => {
-      const params = new URLSearchParams(searchParams.toString())
+      const params = new URLSearchParams(searchParams?.toString() ?? '')
       if (value === null || value === '') {
         params.delete(name)
       } else {
@@ -137,7 +137,7 @@ function TopBarContent({
 
             <input
               type="text"
-              defaultValue={searchParams.get('search') ?? ''}
+              defaultValue={searchParams?.get('search') ?? ''}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder={searchPlaceholder}
               className="bg-sidebar-active border border-border-light text-sm text-text-main rounded-md pl-10 pr-4 py-1.5 focus:outline-none focus:border-primary w-64 placeholder:text-gray-400"

@@ -27,7 +27,12 @@ function formatConfidence(confidence: number): string {
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(
     'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  )].filter((element) => !element.hasAttribute('disabled') && !element.getAttribute('aria-hidden'))
+  )].filter(
+    (element) =>
+      !element.hasAttribute('disabled') &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      !element.closest('[aria-hidden="true"]')
+  )
 }
 
 function PanelSkeleton() {

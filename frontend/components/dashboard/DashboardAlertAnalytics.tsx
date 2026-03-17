@@ -79,11 +79,11 @@ function formatBandLabel(value: number | null, prefix: '< ' | '> '): string {
   return value === null ? 'Unavailable' : `${prefix}${Math.round(value * 100)}%`
 }
 
-function buildFilters(searchParams: URLSearchParams): DashboardFilters {
+function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
   return {
-    severity: (searchParams.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams.get('search') ?? '',
+    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
+    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
+    search: searchParams?.get('search') ?? '',
   }
 }
 

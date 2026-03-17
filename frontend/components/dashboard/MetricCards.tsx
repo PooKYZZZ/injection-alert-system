@@ -65,11 +65,11 @@ function formatPercent(value: number | null | undefined): string {
   return `${(value * 100).toFixed(1)}%`
 }
 
-function buildFilters(searchParams: URLSearchParams): DashboardFilters {
+function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
   return {
-    severity: (searchParams.get('severity') ?? 'ALL') as SeverityFilter,
-    timeRange: (searchParams.get('timeRange') ?? '24h') as TimeRange,
-    search: searchParams.get('search') ?? '',
+    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
+    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
+    search: searchParams?.get('search') ?? '',
   }
 }
 
@@ -124,7 +124,7 @@ export default function MetricCards() {
     const error = statsQueryError ?? alertsQueryError
     return (
       <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
-        <p className="text-sm font-medium text-status-high">Failed to load dashboard stats</p>
+        <p className="text-sm font-medium text-status-high">Failed to load dashboard metrics</p>
         <p className="mt-1 text-xs text-text-muted">
           {error instanceof Error ? error.message : 'Unknown error'}
         </p>
