@@ -112,6 +112,11 @@ describe('MetricCards', () => {
     } as ReturnType<typeof useDashboardStats>)
 
     const Wrapper = createWrapper()
+    const expectedAvgConfidence = `${(
+      (sampleAlerts.reduce((sum, alert) => sum + alert.confidence, 0) / sampleAlerts.length) *
+      100
+    ).toFixed(1)}%`
+
     render(
       <MetricCards alerts={sampleAlerts} alertsPending={false} alertsError={null} />,
       { wrapper: Wrapper }
@@ -120,7 +125,7 @@ describe('MetricCards', () => {
     expect(screen.getByText('High Severity Alerts')).toBeInTheDocument()
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(3)
     expect(screen.getByText('From 2 loaded alerts in the current view')).toBeInTheDocument()
-    expect(screen.getByText('60.0%')).toBeInTheDocument()
+    expect(screen.getByText(expectedAvgConfidence)).toBeInTheDocument()
     expect(screen.getByText('Average confidence across the current loaded alert set')).toBeInTheDocument()
   })
 
