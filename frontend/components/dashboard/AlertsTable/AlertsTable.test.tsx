@@ -99,8 +99,7 @@ describe('AlertsTable', () => {
   it('renders the unfiltered empty state copy inside the table', async () => {
     render(<AlertsTable />)
 
-    expect(await screen.findByText('No alerts in the selected range.')).toBeInTheDocument()
-    expect(screen.getByText(/Last loaded/i)).toBeInTheDocument()
+    expect(await screen.findByText('No alerts in the current window.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
   })
 
@@ -138,7 +137,7 @@ describe('AlertsTable', () => {
     expect(refetch).toHaveBeenCalled()
   })
 
-  it('auto-saves triage edits and shows a brief confirmation', async () => {
+  it('cycles the triage pill and stores the next status locally', async () => {
     vi.useFakeTimers()
     mockedUseAlerts.mockReturnValue(
       buildQueryResult({
@@ -155,14 +154,17 @@ describe('AlertsTable', () => {
 
     await vi.advanceTimersByTimeAsync(0)
 
-    const triageSelect = screen.getByLabelText('Triage status for alert alert-1')
-    fireEvent.change(triageSelect, { target: { value: 'In Progress' } })
+    const triageButton = screen.getByRole('button', {
+      name: /Triage status for alert alert-1: New/i,
+    })
+    fireEvent.click(triageButton)
 
-    expect(screen.getByText('Saving...')).toBeInTheDocument()
-
-    await vi.advanceTimersByTimeAsync(500)
-
-    expect(screen.getByText('Saved')).toBeInTheDocument()
     expect(window.localStorage.getItem('cybertrace.localTriageStatus')).toContain('In Progress')
+    expect(
+      screen.getByRole('button', { name: /Triage status for alert alert-1: In Progress/i })
+    ).toBeInTheDocument()
+
+    await vi.advanceTimersByTimeAsync(250)
+    expect(screen.queryByRole('button', { name: /^Save$/i })).not.toBeInTheDocument()
   })
 })

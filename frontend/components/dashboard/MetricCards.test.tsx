@@ -5,13 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import MetricCards from './MetricCards'
 import type { Alert } from 'features/alerts/types'
-import { useDashboardStats } from 'features/stats/queries'
-
-vi.mock('features/stats/queries', () => ({
-  useDashboardStats: vi.fn(),
-}))
-
-const mockedUseDashboardStats = vi.mocked(useDashboardStats)
 
 const sampleAlerts: Alert[] = [
   {
@@ -59,11 +52,6 @@ function createWrapper() {
 
 describe('MetricCards', () => {
   it('renders loading skeleton', () => {
-    mockedUseDashboardStats.mockReturnValue({
-      data: undefined,
-      isPending: true,
-    } as ReturnType<typeof useDashboardStats>)
-
     const Wrapper = createWrapper()
     const { container } = render(
       <MetricCards alerts={[]} alertsPending={true} alertsError={null} />,
@@ -71,46 +59,26 @@ describe('MetricCards', () => {
     )
 
     expect(screen.queryByText('Total Requests')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0)
   })
 
   it('renders the required five summary cards with live alert counts', () => {
-    mockedUseDashboardStats.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        actionable_alerts: 10,
-        total_requests: 321,
-        avg_inference_latency_ms: 0,
-      },
-    } as ReturnType<typeof useDashboardStats>)
-
     const Wrapper = createWrapper()
     render(
       <MetricCards alerts={sampleAlerts} alertsPending={false} alertsError={null} />,
       { wrapper: Wrapper }
     )
 
-    expect(screen.getByText('High Severity Alerts')).toBeInTheDocument()
+    expect(screen.getByText('High Alerts')).toBeInTheDocument()
     expect(screen.getByText('Total Requests')).toBeInTheDocument()
-    expect(screen.getByText('321')).toBeInTheDocument()
-    expect(screen.getByText('All requests in the current stats response')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getAllByText('Loaded records').length).toBe(5)
     expect(screen.getByText('Blocked')).toBeInTheDocument()
     expect(screen.getByText('Allowed')).toBeInTheDocument()
     expect(screen.getByText('Avg ML Confidence')).toBeInTheDocument()
   })
 
   it('renders alert-derived metrics from the loaded alerts dataset safely', () => {
-    mockedUseDashboardStats.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        actionable_alerts: 1,
-        total_requests: 321,
-        avg_inference_latency_ms: 4.5,
-      },
-    } as ReturnType<typeof useDashboardStats>)
-
     const Wrapper = createWrapper()
     const expectedAvgConfidence = `${(
       (sampleAlerts.reduce((sum, alert) => sum + alert.confidence, 0) / sampleAlerts.length) *
@@ -122,31 +90,19 @@ describe('MetricCards', () => {
       { wrapper: Wrapper }
     )
 
-    expect(screen.getByText('High Severity Alerts')).toBeInTheDocument()
+    expect(screen.getByText('High Alerts')).toBeInTheDocument()
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(3)
-    expect(screen.getByText('From 2 loaded alerts in the current view')).toBeInTheDocument()
     expect(screen.getByText(expectedAvgConfidence)).toBeInTheDocument()
-    expect(screen.getByText('Average confidence across the current loaded alert set')).toBeInTheDocument()
   })
 
   it('renders empty alert datasets without NaN output', () => {
-    mockedUseDashboardStats.mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: {
-        actionable_alerts: 0,
-        total_requests: 0,
-        avg_inference_latency_ms: 0,
-      },
-    } as ReturnType<typeof useDashboardStats>)
-
     const Wrapper = createWrapper()
     render(<MetricCards alerts={[]} alertsPending={false} alertsError={null} />, {
       wrapper: Wrapper,
     })
 
-    expect(screen.getByText('High Severity Alerts')).toBeInTheDocument()
-    expect(screen.getByText('N/A')).toBeInTheDocument()
+    expect(screen.getByText('High Alerts')).toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByText('NaN%')).not.toBeInTheDocument()
     expect(screen.queryByText('Infinity')).not.toBeInTheDocument()
   })

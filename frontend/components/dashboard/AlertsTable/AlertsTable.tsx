@@ -1,7 +1,7 @@
 'use client'
 
 import type { UseQueryResult } from '@tanstack/react-query'
-import { useEffect, useRef, useState, Suspense } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useAlerts } from 'features/alerts/queries'
@@ -20,15 +20,9 @@ import { ActionLabel } from 'components/ui/ActionLabel'
 import BulkActionBar from 'components/dashboard/AlertsTable/BulkActionBar'
 
 type TriageStatus = 'New' | 'In Progress' | 'Closed'
-type TriageDisposition =
-  | 'Confirmed Threat'
-  | 'False Positive'
-  | 'Benign / Expected'
-  | 'Needs Follow-up'
 
 interface TriageEntry {
   status: TriageStatus
-  disposition: TriageDisposition | null
 }
 
 interface DashboardStoreState {
@@ -41,15 +35,6 @@ interface DashboardStoreState {
 
 const TRIAGE_STORAGE_KEY = 'cybertrace.localTriageStatus'
 const TRIAGE_STATUS_OPTIONS: TriageStatus[] = ['New', 'In Progress', 'Closed']
-const TRIAGE_DISPOSITION_OPTIONS: TriageDisposition[] = [
-  'Confirmed Threat',
-  'False Positive',
-  'Benign / Expected',
-  'Needs Follow-up',
-]
-const AUTO_SAVE_DELAY_MS = 450
-const SAVE_CONFIRMED_DURATION_MS = 1800
-const SHOW_RULE_IDS_COLUMN = true
 
 type AlertColumnKey =
   | 'triageStatus'
@@ -69,9 +54,9 @@ interface AlertTableColumn {
 }
 
 const ALERT_TABLE_COLUMNS: readonly AlertTableColumn[] = [
-  { key: 'triageStatus', header: 'Triage Status (Local)' },
-  { key: 'confidenceLevel', header: 'Confidence Level' },
-  { key: 'timestamp', header: 'Timestamp' },
+  { key: 'triageStatus', header: 'Triage Status' },
+  { key: 'confidenceLevel', header: 'Threat Severity' },
+  { key: 'timestamp', header: 'Timestamp ▼' },
   { key: 'sourceIp', header: 'Source IP' },
   { key: 'crsScore', header: 'CRS Score' },
   { key: 'targetPath', header: 'Target Path' },
@@ -81,21 +66,12 @@ const ALERT_TABLE_COLUMNS: readonly AlertTableColumn[] = [
   { key: 'action', header: 'Action' },
 ] as const
 
-function isColumnVisible(column: AlertTableColumn): boolean {
-  if (column.key === 'ruleIds') return SHOW_RULE_IDS_COLUMN
-  return true
-}
-
-const VISIBLE_ALERT_TABLE_COLUMNS = ALERT_TABLE_COLUMNS.filter(isColumnVisible)
-const ALERT_TABLE_COLUMN_COUNT = VISIBLE_ALERT_TABLE_COLUMNS.length + 1
 const FOCUS_RING_CLASS =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light'
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel'
 const CHECKBOX_CLASS = cn(
-  'h-6 w-6 cursor-pointer rounded border-border-light bg-surface-light text-primary',
+  'h-4 w-4 cursor-pointer rounded border-border-light bg-bg-panel text-primary',
   FOCUS_RING_CLASS
 )
-
-type SaveState = 'idle' | 'saving' | 'saved'
 
 function formatRuleIds(ruleIds: string[] | null | undefined): string {
   if (!ruleIds || ruleIds.length === 0) return '—'
@@ -103,139 +79,94 @@ function formatRuleIds(ruleIds: string[] | null | undefined): string {
   return `${ruleIds[0]} +${ruleIds.length - 1}`
 }
 
-function formatCrsScore(score: number | null | undefined): string {
-  return score === null || score === undefined ? '—' : Number(score).toFixed(2)
-}
-
-function defaultTriageEntry(): TriageEntry {
-  return { status: 'New', disposition: null }
-}
-
-function formatLoadedAt(timestamp: number): string | null {
-  if (!Number.isFinite(timestamp) || timestamp <= 0) {
-    return null
-  }
-
-  return new Date(timestamp).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
+function formatTimeOnly(timestamp: string): string {
+  const parsed = new Date(timestamp)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
   })
 }
 
 function sanitizeTriageRecord(value: unknown): Record<string, TriageEntry> {
-  if (!value || typeof value !== 'object') {
-    return {}
-  }
+  if (!value || typeof value !== 'object') return {}
 
-  const entries = Object.entries(value as Record<string, unknown>)
   const sanitized: Record<string, TriageEntry> = {}
-
-  for (const [alertId, entry] of entries) {
-    if (!entry || typeof entry !== 'object') continue
-
-    const status = (entry as { status?: unknown }).status
-    const disposition = (entry as { disposition?: unknown }).disposition
-
-    if (status !== 'New' && status !== 'In Progress' && status !== 'Closed') {
-      continue
-    }
-
-    sanitized[alertId] = {
-      status,
-      disposition:
-        disposition === 'Confirmed Threat' ||
-        disposition === 'False Positive' ||
-        disposition === 'Benign / Expected' ||
-        disposition === 'Needs Follow-up'
-          ? disposition
-          : null,
+  for (const [alertId, entry] of Object.entries(value as Record<string, unknown>)) {
+    const status = (entry as { status?: unknown })?.status
+    if (status === 'New' || status === 'In Progress' || status === 'Closed') {
+      sanitized[alertId] = { status }
     }
   }
-
   return sanitized
 }
 
-function AlertsTableSkeletonRows({ rowCount = 3 }: { rowCount?: number }) {
+function getTriageClasses(status: TriageStatus, isSaving: boolean): string {
+  const base =
+    'inline-flex items-center rounded-full border px-2 py-[2px] text-[10px] font-medium transition-colors'
+
+  if (isSaving) {
+    return `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
+  }
+
+  switch (status) {
+    case 'In Progress':
+      return `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
+    case 'Closed':
+      return `${base} border-severity-safe-border bg-severity-safe-bg text-severity-safe-text`
+    default:
+      return `${base} border-severity-benign-border bg-bg-elevated text-text-muted`
+  }
+}
+
+function nextTriageStatus(current: TriageStatus): TriageStatus {
+  const currentIndex = TRIAGE_STATUS_OPTIONS.indexOf(current)
+  return TRIAGE_STATUS_OPTIONS[(currentIndex + 1) % TRIAGE_STATUS_OPTIONS.length]
+}
+
+function AlertsTableSkeletonRows({
+  rowCount = 3,
+  columnCount,
+}: {
+  rowCount?: number
+  columnCount: number
+}) {
   return (
     <>
       {Array.from({ length: rowCount }).map((_, index) => (
-        <tr key={index} aria-hidden="true" className="border-l-[3px] border-l-border-light">
+        <tr key={index} aria-hidden="true" className="border-b border-border-light">
           <td className="p-3">
-            <div className="h-4 w-4 animate-pulse rounded-sm bg-border-light" />
+            <div className="h-[10px] w-[10px] rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
-          {VISIBLE_ALERT_TABLE_COLUMNS.map((column) => {
-            switch (column.key) {
-              case 'triageStatus':
-                return (
-                  <td key={column.key} className="p-3 align-top">
-                    <div className="flex min-w-[180px] flex-col gap-2">
-                      <div className="h-8 w-full animate-pulse rounded-sm bg-border-light" />
-                      <div className="h-7 w-36 animate-pulse rounded-sm bg-border-light" />
-                      <div className="h-7 w-14 animate-pulse rounded-sm bg-border-light" />
-                    </div>
-                  </td>
-                )
-              case 'confidenceLevel':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-6 w-28 animate-pulse rounded-full bg-border-light" />
-                  </td>
-                )
-              case 'timestamp':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-4 w-32 animate-pulse rounded-sm bg-border-light" />
-                  </td>
-                )
-              case 'sourceIp':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
-                  </td>
-                )
-              case 'crsScore':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-4 w-12 animate-pulse rounded-sm bg-border-light" />
-                  </td>
-                )
-              case 'targetPath':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-4 w-40 animate-pulse rounded-sm bg-border-light" />
-                  </td>
-                )
-              case 'ruleIds':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-4 w-20 animate-pulse rounded-sm bg-border-light" />
-                  </td>
-                )
-              case 'attackType':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
-                  </td>
-                )
-              case 'mlConfidence':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-3 w-24 animate-pulse rounded-full bg-border-light" />
-                  </td>
-                )
-              case 'action':
-                return (
-                  <td key={column.key} className="p-3">
-                    <div className="h-5 w-20 animate-pulse rounded-full bg-border-light" />
-                  </td>
-                )
-            }
-          })}
+          {Array.from({ length: columnCount - 1 }).map((__, cellIndex) => (
+            <td key={cellIndex} className="p-3">
+              <div className="h-[10px] rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            </td>
+          ))}
         </tr>
       ))}
     </>
+  )
+}
+
+function AlertsTableStateRow({
+  title,
+  action,
+  columnCount,
+}: {
+  title: string
+  action?: React.ReactNode
+  columnCount: number
+}) {
+  return (
+    <tr>
+      <td colSpan={columnCount} className="p-8">
+        <div className="flex flex-col items-center justify-center gap-3 text-center">
+          <p className="text-sm font-medium text-text-primary">{title}</p>
+          {action ? <div>{action}</div> : null}
+        </div>
+      </td>
+    </tr>
   )
 }
 
@@ -245,37 +176,35 @@ function AlertsTableShell({
   selectAll,
   clearSelection,
   children,
+  columns,
 }: {
   selectedIds: string[]
   alerts: Alert[]
   selectAll: (ids: string[]) => void
   clearSelection: () => void
   children: React.ReactNode
+  columns: AlertTableColumn[]
 }) {
   return (
-    <div className="bg-surface-light border border-border-light rounded-sm shadow-subtle overflow-hidden">
+    <div className="overflow-hidden rounded-lg border border-border-light bg-bg-panel shadow-subtle">
       <div className="flex items-start justify-between gap-4 border-b border-border-light p-4">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider">
-            Alerts
-          </h2>
-          <p className="mt-1 text-xs text-text-muted">
-            Triage status is stored locally in this browser for demo purposes only.
-          </p>
-        </div>
-        {selectedIds.length > 0 && <BulkActionBar />}
+        <h2 className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
+          Alerts
+        </h2>
+        {selectedIds.length > 0 ? <BulkActionBar /> : null}
       </div>
-      <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+
+      <div className="max-h-[420px] overflow-x-auto overflow-y-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border-light bg-sidebar-active">
-              <th className="p-3 w-10">
+            <tr className="bg-bg-inset">
+              <th className="w-10 p-3">
                 <input
                   type="checkbox"
                   checked={alerts.length > 0 && selectedIds.length === alerts.length}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      selectAll(alerts.map((a) => a.alert_id))
+                  onChange={(event) => {
+                    if (event.target.checked) {
+                      selectAll(alerts.map((alert) => alert.alert_id))
                     } else {
                       clearSelection()
                     }
@@ -284,10 +213,14 @@ function AlertsTableShell({
                   aria-label="Select all alerts"
                 />
               </th>
-              {VISIBLE_ALERT_TABLE_COLUMNS.map((column) => (
+              {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider"
+                  className={cn(
+                    'p-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted',
+                    column.key === 'crsScore' && 'w-[70px]',
+                    column.key === 'targetPath' && 'w-[160px]'
+                  )}
                 >
                   {column.header}
                 </th>
@@ -295,34 +228,19 @@ function AlertsTableShell({
             </tr>
           </thead>
           <tbody className="divide-y divide-border-light">{children}</tbody>
+          <tfoot>
+            <tr>
+              <td
+                colSpan={columns.length + 1}
+                className="border-t border-border-light px-3 py-2 text-[10px] italic text-text-muted"
+              >
+                Showing {alerts.length} loaded records · Triage status stored locally in this browser.
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
-  )
-}
-
-function AlertsTableStateRow({
-  title,
-  detail,
-  meta,
-  action,
-}: {
-  title: string
-  detail?: string
-  meta?: string | null
-  action?: React.ReactNode
-}) {
-  return (
-    <tr>
-      <td colSpan={ALERT_TABLE_COLUMN_COUNT} className="p-8">
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
-          <p className="text-sm font-medium text-text-main">{title}</p>
-          {detail ? <p className="text-xs text-text-muted">{detail}</p> : null}
-          {meta ? <p className="text-[11px] text-text-muted">{meta}</p> : null}
-          {action ? <div className="pt-1">{action}</div> : null}
-        </div>
-      </td>
-    </tr>
   )
 }
 
@@ -331,11 +249,9 @@ function AlertsTableContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [hydrated, setHydrated] = useState(false)
-  const [savedTriage, setSavedTriage] = useState<Record<string, TriageEntry>>({})
-  const [draftTriage, setDraftTriage] = useState<Record<string, TriageEntry>>({})
-  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
-  const saveTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const saveResetTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [triageEntries, setTriageEntries] = useState<Record<string, TriageEntry>>({})
+  const [savingIds, setSavingIds] = useState<Record<string, boolean>>({})
+  const savingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const filters: DashboardFilters = {
     severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
@@ -344,7 +260,9 @@ function AlertsTableContent() {
   }
 
   const { toggleAlertSelection, selectAll, clearSelection, setActiveIncident } = useDashboardStore()
-  const selectedIds = useDashboardStore(useShallow((s: DashboardStoreState) => [...s.selectedAlertIds]))
+  const selectedIds = useDashboardStore(
+    useShallow((state: DashboardStoreState) => [...state.selectedAlertIds])
+  )
 
   useEffect(() => {
     if (selectedIds.length > 0) clearSelection()
@@ -352,17 +270,21 @@ function AlertsTableContent() {
   }, [filters.severity, filters.timeRange, filters.search])
 
   const alertsQuery: UseQueryResult<PaginatedAlerts, Error> = useAlerts(filters)
-  const { data, isPending, isError, error, dataUpdatedAt } = alertsQuery
-
-  const alerts = data?.items ?? []
+  const { data, isPending, isError } = alertsQuery
+  const alerts = useMemo(
+    () =>
+      [...(data?.items ?? [])].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      ),
+    [data?.items]
+  )
+  const retryAlerts = () => {
+    void alertsQuery.refetch()
+  }
   const hasFilter =
     filters.search.trim().length > 0 ||
     filters.severity !== DEFAULT_FILTERS.severity ||
     filters.timeRange !== DEFAULT_FILTERS.timeRange
-  const lastLoadedAt = formatLoadedAt(dataUpdatedAt)
-  const retryAlerts = () => {
-    void alertsQuery.refetch()
-  }
 
   useEffect(() => {
     setHydrated(true)
@@ -373,22 +295,50 @@ function AlertsTableContent() {
 
     try {
       const storedValue = window.localStorage.getItem(TRIAGE_STORAGE_KEY)
-      const parsedValue = storedValue ? JSON.parse(storedValue) : {}
-      const sanitized = sanitizeTriageRecord(parsedValue)
-      setSavedTriage(sanitized)
-      setDraftTriage(sanitized)
+      setTriageEntries(sanitizeTriageRecord(storedValue ? JSON.parse(storedValue) : {}))
     } catch {
-      setSavedTriage({})
-      setDraftTriage({})
+      setTriageEntries({})
     }
   }, [])
 
   useEffect(() => {
     return () => {
-      Object.values(saveTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
-      Object.values(saveResetTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
+      Object.values(savingTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
     }
   }, [])
+
+  const hasRuleIdsColumn = alerts.some((alert) => (alert.crs_rule_ids?.length ?? 0) > 0)
+  const visibleColumns = ALERT_TABLE_COLUMNS.filter(
+    (column) => column.key !== 'ruleIds' || hasRuleIdsColumn
+  )
+  const columnCount = visibleColumns.length + 1
+
+  const updateTriage = (alertId: string) => {
+    const currentStatus = triageEntries[alertId]?.status ?? 'New'
+    const nextEntries = {
+      ...triageEntries,
+      [alertId]: { status: nextTriageStatus(currentStatus) },
+    }
+    setTriageEntries(nextEntries)
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(TRIAGE_STORAGE_KEY, JSON.stringify(nextEntries))
+      } catch {
+        // Keep the local interaction usable if storage is unavailable.
+      }
+    }
+
+    if (savingTimeoutsRef.current[alertId]) {
+      clearTimeout(savingTimeoutsRef.current[alertId])
+    }
+
+    setSavingIds((current) => ({ ...current, [alertId]: true }))
+    savingTimeoutsRef.current[alertId] = setTimeout(() => {
+      setSavingIds((current) => ({ ...current, [alertId]: false }))
+      delete savingTimeoutsRef.current[alertId]
+    }, 200)
+  }
 
   if (!hydrated) {
     return (
@@ -397,88 +347,13 @@ function AlertsTableContent() {
         alerts={[]}
         selectAll={selectAll}
         clearSelection={clearSelection}
+        columns={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds')}
       >
-        <AlertsTableSkeletonRows />
+        <AlertsTableSkeletonRows
+          columnCount={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds').length + 1}
+        />
       </AlertsTableShell>
     )
-  }
-
-  function getRowBorderClass(alert: Alert): string {
-    if (alert.confidence_level === 'HIGH') return 'border-l-[3px] border-l-red-500'
-    if (alert.confidence_level === 'MEDIUM') return 'border-l-[3px] border-l-orange-400'
-    return 'border-l-[3px] border-l-gray-300'
-  }
-
-  function getTriageEntry(source: Record<string, TriageEntry>, alertId: string): TriageEntry {
-    return source[alertId] ?? defaultTriageEntry()
-  }
-
-  function updateDraft(alertId: string, nextEntry: TriageEntry) {
-    setDraftTriage((current) => ({
-      ...current,
-      [alertId]: nextEntry,
-    }))
-
-    if (saveTimeoutsRef.current[alertId]) {
-      clearTimeout(saveTimeoutsRef.current[alertId])
-      delete saveTimeoutsRef.current[alertId]
-    }
-
-    if (saveResetTimeoutsRef.current[alertId]) {
-      clearTimeout(saveResetTimeoutsRef.current[alertId])
-      delete saveResetTimeoutsRef.current[alertId]
-    }
-
-    if (nextEntry.status === 'Closed' && !nextEntry.disposition) {
-      setSaveStates((current) => ({
-        ...current,
-        [alertId]: 'idle',
-      }))
-      return
-    }
-
-    setSaveStates((current) => ({
-      ...current,
-      [alertId]: 'saving',
-    }))
-
-    saveTimeoutsRef.current[alertId] = setTimeout(() => {
-      persistTriage(alertId, nextEntry)
-      delete saveTimeoutsRef.current[alertId]
-    }, AUTO_SAVE_DELAY_MS)
-  }
-
-  function persistTriage(alertId: string, nextEntry = getTriageEntry(draftTriage, alertId)) {
-    if (nextEntry.status === 'Closed' && !nextEntry.disposition) {
-      return
-    }
-
-    const nextSaved = {
-      ...savedTriage,
-      [alertId]: nextEntry,
-    }
-    setSavedTriage(nextSaved)
-
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(TRIAGE_STORAGE_KEY, JSON.stringify(nextSaved))
-      } catch {
-        // Keep local triage usable even if browser storage is unavailable.
-      }
-    }
-
-    setSaveStates((current) => ({
-      ...current,
-      [alertId]: 'saved',
-    }))
-
-    saveResetTimeoutsRef.current[alertId] = setTimeout(() => {
-      setSaveStates((current) => ({
-        ...current,
-        [alertId]: 'idle',
-      }))
-      delete saveResetTimeoutsRef.current[alertId]
-    }, SAVE_CONFIRMED_DURATION_MS)
   }
 
   return (
@@ -487,19 +362,20 @@ function AlertsTableContent() {
       alerts={alerts}
       selectAll={selectAll}
       clearSelection={clearSelection}
+      columns={visibleColumns}
     >
-      {isPending ? <AlertsTableSkeletonRows /> : null}
+      {isPending ? <AlertsTableSkeletonRows columnCount={columnCount} /> : null}
 
-      {isError ? (
+      {!isPending && isError ? (
         <AlertsTableStateRow
           title="Unable to load alerts."
-          detail={error instanceof Error ? error.message : 'Unexpected error while loading alerts.'}
+          columnCount={columnCount}
           action={
             <button
               type="button"
               onClick={retryAlerts}
               className={cn(
-                'rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-sidebar-active',
+                'rounded-md border border-border-light px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-elevated',
                 FOCUS_RING_CLASS
               )}
             >
@@ -512,13 +388,13 @@ function AlertsTableContent() {
       {!isPending && !isError && !data ? (
         <AlertsTableStateRow
           title="Unable to load alerts."
-          detail="The alerts response did not include a table payload."
+          columnCount={columnCount}
           action={
             <button
               type="button"
               onClick={retryAlerts}
               className={cn(
-                'rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-sidebar-active',
+                'rounded-md border border-border-light px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-elevated',
                 FOCUS_RING_CLASS
               )}
             >
@@ -530,17 +406,15 @@ function AlertsTableContent() {
 
       {!isPending && !isError && data && alerts.length === 0 ? (
         <AlertsTableStateRow
-          title={
-            hasFilter ? 'No alerts match the current filters.' : 'No alerts in the selected range.'
-          }
-          meta={lastLoadedAt ? `Last loaded ${lastLoadedAt}` : null}
+          title={hasFilter ? 'No alerts match the current filters.' : 'No alerts in the current window.'}
+          columnCount={columnCount}
           action={
             hasFilter && pathname ? (
               <button
                 type="button"
                 onClick={() => void router.replace(pathname)}
                 className={cn(
-                  'rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-sidebar-active',
+                  'rounded-md border border-border-light px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-elevated',
                   FOCUS_RING_CLASS
                 )}
               >
@@ -552,206 +426,140 @@ function AlertsTableContent() {
       ) : null}
 
       {!isPending && !isError && data
-        ? alerts.map((alert) => (
-              (() => {
-                const draftEntry = getTriageEntry(draftTriage, alert.alert_id)
-                const savedEntry = getTriageEntry(savedTriage, alert.alert_id)
-                const requiresDisposition =
-                  draftEntry.status === 'Closed' && !draftEntry.disposition
-                const isDirty =
-                  draftEntry.status !== savedEntry.status ||
-                  draftEntry.disposition !== savedEntry.disposition
-                const saveState = saveStates[alert.alert_id] ?? 'idle'
+        ? alerts.map((alert) => {
+            const triageStatus = triageEntries[alert.alert_id]?.status ?? 'New'
+            const isSaving = savingIds[alert.alert_id] ?? false
 
-                return (
-                  <tr
-                    key={alert.alert_id}
-                    className={cn(
-                      'cursor-pointer transition-colors duration-150 ease-out hover:bg-sidebar-active focus-within:bg-sidebar-active focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px]',
-                      getRowBorderClass(alert)
-                    )}
-                    onClick={(event) => {
-                      event.currentTarget.focus()
-                      setActiveIncident(alert.alert_id)
-                    }}
-                    onKeyDown={(e) => {
-                      if (
-                        e.target instanceof HTMLInputElement ||
-                        e.target instanceof HTMLSelectElement ||
-                        e.target instanceof HTMLButtonElement
-                      ) {
-                        return
-                      }
+            return (
+              <tr
+                key={alert.alert_id}
+                className="cursor-pointer transition-[background-color] duration-100 ease-in hover:bg-bg-elevated focus-within:bg-bg-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px]"
+                onClick={(event) => {
+                  event.currentTarget.focus()
+                  setActiveIncident(alert.alert_id)
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.target instanceof HTMLInputElement ||
+                    event.target instanceof HTMLSelectElement ||
+                    event.target instanceof HTMLButtonElement
+                  ) {
+                    return
+                  }
 
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setActiveIncident(alert.alert_id)
-                      }
-                    }}
-                    tabIndex={0}
-                    aria-selected={selectedIds.includes(alert.alert_id)}
-                  >
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(alert.alert_id)}
-                        onChange={() => toggleAlertSelection(alert.alert_id)}
-                        className={CHECKBOX_CLASS}
-                        aria-label={`Select alert ${alert.alert_id}`}
-                      />
-                    </td>
-                    {VISIBLE_ALERT_TABLE_COLUMNS.map((column) => {
-                      switch (column.key) {
-                        case 'triageStatus':
-                          return (
-                            <td key={column.key} className="p-3 align-top" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex min-w-[180px] flex-col gap-2">
-                                <select
-                                  value={draftEntry.status}
-                                  onChange={(event) =>
-                                    updateDraft(alert.alert_id, {
-                                      status: event.target.value as TriageStatus,
-                                      disposition:
-                                        event.target.value === 'Closed'
-                                          ? draftEntry.disposition
-                                          : null,
-                                    })
-                                  }
-                                  className={cn(
-                                    'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
-                                    FOCUS_RING_CLASS
-                                  )}
-                                  aria-label={`Triage status for alert ${alert.alert_id}`}
-                                >
-                                  {TRIAGE_STATUS_OPTIONS.map((status) => (
-                                    <option key={status} value={status}>
-                                      {status}
-                                    </option>
-                                  ))}
-                                </select>
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setActiveIncident(alert.alert_id)
+                  }
+                }}
+                tabIndex={0}
+                aria-selected={selectedIds.includes(alert.alert_id)}
+              >
+                <td className="p-3" onClick={(event) => event.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(alert.alert_id)}
+                    onChange={() => toggleAlertSelection(alert.alert_id)}
+                    className={CHECKBOX_CLASS}
+                    aria-label={`Select alert ${alert.alert_id}`}
+                  />
+                </td>
 
-                                {draftEntry.status === 'Closed' && (
-                                  <select
-                                    value={draftEntry.disposition ?? ''}
-                                    onChange={(event) =>
-                                      updateDraft(alert.alert_id, {
-                                        ...draftEntry,
-                                        disposition: event.target.value
-                                          ? (event.target.value as TriageDisposition)
-                                          : null,
-                                      })
-                                    }
-                                    className={cn(
-                                      'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
-                                      FOCUS_RING_CLASS
-                                    )}
-                                    aria-label={`Disposition for alert ${alert.alert_id}`}
-                                  >
-                                    <option value="">Select disposition</option>
-                                    {TRIAGE_DISPOSITION_OPTIONS.map((disposition) => (
-                                      <option key={disposition} value={disposition}>
-                                        {disposition}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-
-                                <div className="flex min-h-6 items-center gap-2">
-                                  <span
-                                    className={cn(
-                                      'text-[11px] transition-all duration-200',
-                                      saveState === 'saving' && isDirty && 'text-text-muted',
-                                      saveState === 'saved' && !isDirty && 'text-status-blocked',
-                                      saveState === 'idle' &&
-                                        isDirty &&
-                                        !requiresDisposition &&
-                                        'text-text-muted/80'
-                                    )}
-                                    role="status"
-                                    aria-live="polite"
-                                  >
-                                    {requiresDisposition
-                                      ? null
-                                      : saveState === 'saving'
-                                        ? 'Saving...'
-                                        : saveState === 'saved' && !isDirty
-                                          ? 'Saved'
-                                          : isDirty
-                                            ? 'Autosaving'
-                                            : 'Saved locally'}
-                                  </span>
-                                  {requiresDisposition && (
-                                    <span className="text-[11px] text-status-medium">
-                                      Disposition required to close
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          )
-                        case 'confidenceLevel':
-                          return (
-                            <td key={column.key} className="p-3">
-                              <SeverityBadge
-                                severity={alert.confidence_level}
-                                prediction={alert.prediction}
-                              />
-                            </td>
-                          )
-                        case 'timestamp':
-                          return (
-                            <td key={column.key} className="p-3 text-xs text-text-muted whitespace-nowrap">
-                              {new Date(alert.timestamp).toLocaleString()}
-                            </td>
-                          )
-                        case 'sourceIp':
-                          return (
-                            <td key={column.key} className="p-3 text-xs font-mono text-text-main whitespace-nowrap">
-                              {alert.source_ip ?? '—'}
-                            </td>
-                          )
-                        case 'crsScore':
-                          return (
-                            <td key={column.key} className="p-3 text-xs text-text-muted tabular-nums">
-                              {formatCrsScore(alert.crs_score)}
-                            </td>
-                          )
-                        case 'targetPath':
-                          return (
-                            <td key={column.key} className="p-3 text-xs font-mono text-text-main max-w-[200px] truncate">
-                              {alert.request_path ?? '—'}
-                            </td>
-                          )
-                        case 'ruleIds':
-                          return (
-                            <td key={column.key} className="p-3 text-xs font-mono text-text-muted whitespace-nowrap">
-                              {formatRuleIds(alert.crs_rule_ids)}
-                            </td>
-                          )
-                        case 'attackType':
-                          return (
-                            <td key={column.key} className="p-3 text-xs text-text-main">
-                              {alert.prediction}
-                            </td>
-                          )
-                        case 'mlConfidence':
-                          return (
-                            <td key={column.key} className="p-3">
-                              <ConfidenceBar confidence={alert.confidence} />
-                            </td>
-                          )
-                        case 'action':
-                          return (
-                            <td key={column.key} className="p-3">
-                              <ActionLabel action={alert.action_taken} />
-                            </td>
-                          )
-                      }
-                    })}
-                  </tr>
-                )
-              })()
-            ))
+                {visibleColumns.map((column) => {
+                  switch (column.key) {
+                    case 'triageStatus':
+                      return (
+                        <td key={column.key} className="p-3" onClick={(event) => event.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => updateTriage(alert.alert_id)}
+                            className={cn(getTriageClasses(triageStatus, isSaving), FOCUS_RING_CLASS)}
+                            aria-label={`Triage status for alert ${alert.alert_id}: ${triageStatus}`}
+                          >
+                            {triageStatus}
+                          </button>
+                        </td>
+                      )
+                    case 'confidenceLevel':
+                      return (
+                        <td key={column.key} className="p-3">
+                          <SeverityBadge
+                            severity={alert.confidence_level}
+                            prediction={alert.prediction}
+                          />
+                        </td>
+                      )
+                    case 'timestamp':
+                      return (
+                        <td
+                          key={column.key}
+                          className="whitespace-nowrap p-3 text-[10px] text-text-muted"
+                          title={alert.timestamp}
+                        >
+                          {formatTimeOnly(alert.timestamp)}
+                        </td>
+                      )
+                    case 'sourceIp':
+                      return (
+                        <td
+                          key={column.key}
+                          className="whitespace-nowrap p-3 font-mono text-xs text-text-secondary"
+                        >
+                          {alert.source_ip ?? '—'}
+                        </td>
+                      )
+                    case 'crsScore':
+                      return (
+                        <td key={column.key} className="w-[70px] p-3 text-xs tabular-nums text-text-secondary">
+                          {alert.crs_score === null || alert.crs_score === undefined
+                            ? '—'
+                            : Number(alert.crs_score ?? 0).toFixed(2)}
+                        </td>
+                      )
+                    case 'targetPath':
+                      return (
+                        <td
+                          key={column.key}
+                          className="w-[160px] max-w-[160px] truncate p-3 font-mono text-xs text-text-primary"
+                        >
+                          {alert.request_path ?? '—'}
+                        </td>
+                      )
+                    case 'ruleIds':
+                      return (
+                        <td
+                          key={column.key}
+                          className="whitespace-nowrap p-3 font-mono text-xs text-text-secondary"
+                        >
+                          {formatRuleIds(alert.crs_rule_ids)}
+                        </td>
+                      )
+                    case 'attackType':
+                      return (
+                        <td key={column.key} className="p-3 text-xs text-text-primary">
+                          {alert.prediction}
+                        </td>
+                      )
+                    case 'mlConfidence':
+                      return (
+                        <td key={column.key} className="p-3">
+                          <ConfidenceBar
+                            confidence={alert.confidence}
+                            prediction={alert.prediction}
+                          />
+                        </td>
+                      )
+                    case 'action':
+                      return (
+                        <td key={column.key} className="p-3">
+                          <ActionLabel action={alert.action_taken} />
+                        </td>
+                      )
+                  }
+                })}
+              </tr>
+            )
+          })
         : null}
     </AlertsTableShell>
   )
@@ -766,8 +574,11 @@ export default function AlertsTable() {
           alerts={[]}
           selectAll={() => undefined}
           clearSelection={() => undefined}
+          columns={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds')}
         >
-          <AlertsTableSkeletonRows />
+          <AlertsTableSkeletonRows
+            columnCount={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds').length + 1}
+          />
         </AlertsTableShell>
       }
     >

@@ -1,13 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useMLHealth } from '@/features/ml-health/queries'
 import type { Alert } from '@/features/alerts/types'
-
-interface DistributionRow {
-  label: string
-  value: number
-}
 
 interface DashboardAlertAnalyticsProps {
   alerts: Alert[]
@@ -21,11 +15,18 @@ interface ChartPanelProps {
   children: React.ReactNode
 }
 
+interface DistributionRow {
+  label: string
+  value: number
+  colorClassName?: string
+  labelClassName?: string
+}
+
 function ChartPanel({ title, description, children }: ChartPanelProps) {
   return (
-    <section className="rounded-sm border border-border-light bg-surface-light p-4 shadow-subtle">
+    <section className="h-[220px] overflow-hidden rounded-lg border border-border-light bg-bg-panel p-4 shadow-subtle">
       <div className="mb-4">
-        <h2 className="text-[13px] font-semibold uppercase tracking-wider text-text-muted">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wider text-text-secondary">
           {title}
         </h2>
         <p className="mt-1 text-xs text-text-muted">{description}</p>
@@ -37,7 +38,7 @@ function ChartPanel({ title, description, children }: ChartPanelProps) {
 
 function EmptyChartState({ message }: { message: string }) {
   return (
-    <div className="flex min-h-44 items-center justify-center rounded-sm border border-dashed border-border-light px-4 text-center text-sm text-text-muted">
+    <div className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
       {message}
     </div>
   )
@@ -45,145 +46,76 @@ function EmptyChartState({ message }: { message: string }) {
 
 function HorizontalBars({
   rows,
-  barClassName,
   emptyMessage,
   valueFormatter = (value: number) => value.toString(),
+  showStub = false,
 }: {
   rows: DistributionRow[]
-  barClassName: string
   emptyMessage: string
   valueFormatter?: (value: number) => string
+  showStub?: boolean
 }) {
-  const maxValue = rows.length > 0 ? Math.max(...rows.map((row) => row.value)) : 0
+  const maxValue = rows.length > 0 ? Math.max(...rows.map((row) => row.value), 0) : 0
 
-  if (rows.length === 0 || maxValue === 0) {
+  if (rows.length === 0) {
+    return <EmptyChartState message={emptyMessage} />
+  }
+
+  if (maxValue === 0 && !showStub) {
     return <EmptyChartState message={emptyMessage} />
   }
 
   return (
     <div className="space-y-3">
-      {rows.map((row) => (
-        <div key={row.label} className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3">
-          <span className="truncate text-xs text-text-main">{row.label}</span>
-          <div className="h-3 overflow-hidden rounded-full bg-[#1B2940]">
-            <div
-              className={`h-full rounded-full ${barClassName}`}
-              style={{ width: `${(row.value / maxValue) * 100}%` }}
-            />
-          </div>
-          <span className="text-xs tabular-nums text-text-muted">{valueFormatter(row.value)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+      {rows.map((row) => {
+        const width =
+          maxValue === 0
+            ? showStub
+              ? '3px'
+              : '0%'
+            : row.value === 0 && showStub
+              ? '3px'
+              : `${Math.max((row.value / maxValue) * 100, 0)}%`
 
-function ChartPanelSkeleton({
-  descriptionWidth = 'w-48',
-  body,
-}: {
-  descriptionWidth?: string
-  body: React.ReactNode
-}) {
-  return (
-    <section className="rounded-sm border border-border-light bg-surface-light p-4 shadow-subtle">
-      <div className="mb-4">
-        <div className="h-4 w-36 animate-pulse rounded-sm bg-border-light" />
-        <div className={`mt-2 h-3 animate-pulse rounded-sm bg-border-light ${descriptionWidth}`} />
-      </div>
-      {body}
-    </section>
+        return (
+          <div key={row.label} className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3">
+            <span className={row.labelClassName ?? 'truncate text-xs text-text-primary'}>{row.label}</span>
+            <div className="h-3 overflow-hidden rounded-full bg-bg-elevated">
+              <div
+                className={`h-full rounded-full ${row.colorClassName ?? 'bg-accent-blue'}`}
+                style={{ width }}
+              />
+            </div>
+            <span className="text-xs tabular-nums text-text-secondary">{valueFormatter(row.value)}</span>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
 function DashboardAlertAnalyticsSkeleton() {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="h-3 w-52 animate-pulse rounded-sm bg-border-light" />
-      <div className="grid gap-4 xl:grid-cols-2">
-        <ChartPanelSkeleton
-          descriptionWidth="w-52"
-          body={
-            <div className="flex min-h-44 flex-col items-center justify-center gap-4">
-              <div className="h-40 w-40 animate-pulse rounded-full bg-border-light" />
-              <div className="flex gap-4">
-                <div className="h-3 w-20 animate-pulse rounded-sm bg-border-light" />
-                <div className="h-3 w-20 animate-pulse rounded-sm bg-border-light" />
+    <div className="grid gap-4 xl:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <section key={index} className="rounded-lg border border-border-light bg-bg-panel p-4 shadow-subtle">
+          <div className="mb-4">
+            <div className="h-4 w-36 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="mt-2 h-3 w-52 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+          </div>
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((__, rowIndex) => (
+              <div key={rowIndex} className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3">
+                <div className="h-3 w-24 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                <div className="h-3 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                <div className="h-3 w-8 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
               </div>
-            </div>
-          }
-        />
-        <ChartPanelSkeleton
-          descriptionWidth="w-56"
-          body={
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
-                >
-                  <div className="h-3 w-24 animate-pulse rounded-sm bg-border-light" />
-                  <div className="h-3 animate-pulse rounded-full bg-border-light" />
-                  <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
-                </div>
-              ))}
-            </div>
-          }
-        />
-        <ChartPanelSkeleton
-          descriptionWidth="w-56"
-          body={
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
-                  >
-                    <div className="h-3 w-28 animate-pulse rounded-sm bg-border-light" />
-                    <div className="h-3 animate-pulse rounded-full bg-border-light" />
-                    <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-sm border border-border-light bg-[#16233A] p-3">
-                <div className="h-3 w-24 animate-pulse rounded-sm bg-border-light" />
-                <div className="mt-3 space-y-2">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className="flex items-center justify-between gap-3">
-                      <div className="h-3 w-28 animate-pulse rounded-sm bg-border-light" />
-                      <div className="h-3 w-6 animate-pulse rounded-sm bg-border-light" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          }
-        />
-        <ChartPanelSkeleton
-          descriptionWidth="w-52"
-          body={
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3"
-                >
-                  <div className="h-3 w-20 animate-pulse rounded-sm bg-border-light" />
-                  <div className="h-3 animate-pulse rounded-full bg-border-light" />
-                  <div className="h-3 w-8 animate-pulse rounded-sm bg-border-light" />
-                </div>
-              ))}
-            </div>
-          }
-        />
-      </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
-}
-
-function formatBandLabel(value: number | null, prefix: '< ' | '> '): string {
-  return value === null ? 'Unavailable' : `${prefix}${Math.round(value * 100)}%`
 }
 
 function buildDistribution(
@@ -191,13 +123,12 @@ function buildDistribution(
   getValue: (alert: Alert) => string | null | undefined,
   limit = 5
 ): DistributionRow[] {
-  const counts = new Map<string, number>()
-
-  for (const alert of alerts) {
+  const counts = alerts.reduce((acc, alert) => {
     const value = getValue(alert)?.trim()
-    if (!value) continue
-    counts.set(value, (counts.get(value) ?? 0) + 1)
-  }
+    if (!value) return acc
+    acc.set(value, (acc.get(value) ?? 0) + 1)
+    return acc
+  }, new Map<string, number>())
 
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -210,63 +141,55 @@ export default function DashboardAlertAnalytics({
   alertsPending,
   alertsError,
 }: DashboardAlertAnalyticsProps) {
-  const { data: mlHealth } = useMLHealth()
-
   const actionBreakdown = useMemo(() => {
     const blocked = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
     const allowed = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
-    const throttled = alerts.filter((alert) => alert.action_taken === 'THROTTLED').length
     const total = blocked + allowed
+    const blockedPct = total > 0 ? (blocked / total) * 100 : 0
 
-    return {
-      blocked,
-      allowed,
-      throttled,
-      total,
-      blockedPct: total > 0 ? Math.round((blocked / total) * 100) : 0,
-    }
+    return { blocked, allowed, total, blockedPct }
   }, [alerts])
 
-  const predictionDistribution = useMemo(
-    () => buildDistribution(alerts, (alert) => alert.prediction, 6),
-    [alerts]
-  )
+  const predictionDistribution = useMemo(() => {
+    return buildDistribution(alerts, (alert) => alert.prediction, 6).map((row) => ({
+      ...row,
+      colorClassName:
+        row.label === 'Normal'
+          ? 'bg-slate-700'
+          : row.label === 'SQL Injection'
+            ? 'bg-accent-purple'
+            : 'bg-severity-high-accent',
+    }))
+  }, [alerts])
 
   const topPaths = useMemo(
-    () => buildDistribution(alerts, (alert) => alert.request_path, 5),
+    () =>
+      buildDistribution(alerts, (alert) => alert.request_path, 5).map((row) => ({
+        ...row,
+        colorClassName: 'bg-accent-blue',
+        labelClassName: 'truncate font-mono text-xs text-text-primary',
+      })),
     [alerts]
   )
 
   const confidenceBands = useMemo(() => {
-    const lowBoundary = mlHealth?.thresholds.low ?? null
-    const highBoundary = mlHealth?.thresholds.high ?? mlHealth?.thresholds.medium ?? null
-
-    if (lowBoundary === null || highBoundary === null) {
-      return null
-    }
-
-    const counts = { low: 0, medium: 0, high: 0 }
+    const counts = { high: 0, medium: 0, low: 0 }
     for (const alert of alerts) {
-      if (alert.confidence < lowBoundary) {
-        counts.low += 1
-      } else if (alert.confidence > highBoundary) {
+      if (alert.confidence > 0.8) {
         counts.high += 1
-      } else {
+      } else if (alert.confidence >= 0.5) {
         counts.medium += 1
+      } else {
+        counts.low += 1
       }
     }
 
-    return {
-      rows: [
-        { label: formatBandLabel(highBoundary, '> '), value: counts.high },
-        {
-          label: `${Math.round(lowBoundary * 100)}%\u2013${Math.round(highBoundary * 100)}%`,
-          value: counts.medium,
-        },
-        { label: formatBandLabel(lowBoundary, '< '), value: counts.low },
-      ],
-    }
-  }, [alerts, mlHealth?.thresholds.high, mlHealth?.thresholds.low, mlHealth?.thresholds.medium])
+    return [
+      { label: 'High > 80%', value: counts.high, colorClassName: 'bg-accent-purple' },
+      { label: 'Medium 50–80%', value: counts.medium, colorClassName: 'bg-accent-yellow' },
+      { label: 'Low < 50%', value: counts.low, colorClassName: 'bg-severity-safe-accent' },
+    ]
+  }, [alerts])
 
   if (alertsPending) {
     return <DashboardAlertAnalyticsSkeleton />
@@ -274,58 +197,47 @@ export default function DashboardAlertAnalytics({
 
   if (alertsError) {
     return (
-      <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
-        <p className="text-sm font-medium text-status-high">Failed to load dashboard analytics</p>
-        <p className="mt-1 text-xs text-text-muted">
-          {alertsError.message}
-        </p>
+      <div className="rounded-lg border border-severity-high-border bg-severity-high-bg p-4">
+        <p className="text-sm font-medium text-severity-high-text">Failed to load dashboard analytics.</p>
+        <p className="mt-1 text-xs text-text-secondary">{alertsError.message}</p>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[11px] text-text-muted">
-        Based on the alerts currently loaded in this view.
-      </p>
-
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartPanel
           title="Blocked vs Allowed"
           description="Action counts from the currently loaded alerts."
         >
           {actionBreakdown.total > 0 ? (
-            <div className="flex min-h-44 flex-col items-center justify-center gap-4">
+            <div className="flex min-h-36 items-center justify-between gap-6">
               <div
-                className="relative flex h-40 w-40 items-center justify-center rounded-full"
+                className="relative flex h-28 w-28 items-center justify-center rounded-full"
                 style={{
-                  background: `conic-gradient(#DC6803 0 ${actionBreakdown.blockedPct}%, #2E90FA ${actionBreakdown.blockedPct}% 100%)`,
+                  background: `conic-gradient(var(--color-severity-blocked-accent) 0 ${actionBreakdown.blockedPct}%, var(--color-severity-safe-accent) ${actionBreakdown.blockedPct}% 100%)`,
                 }}
               >
-                <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-surface-light">
-                  <span className="text-2xl font-semibold text-text-main">
-                    {actionBreakdown.blockedPct}%
+                <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-bg-panel text-sm font-semibold text-text-primary">
+                  <span>
+                    {actionBreakdown.total > 0 ? `${Math.round(actionBreakdown.blockedPct)}%` : '—'}
                   </span>
-                  <span className="text-xs text-text-muted">blocked</span>
+                  <span className="text-[10px] font-normal text-text-muted">blocked</span>
                 </div>
               </div>
-
-              <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-text-muted">
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#DC6803]" />
-                  Blocked {actionBreakdown.blocked}
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#2E90FA]" />
-                  Allowed {actionBreakdown.allowed}
-                </span>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2 text-text-primary">
+                  <span className="h-2.5 w-2.5 rounded-full bg-severity-blocked-accent" />
+                  <span>Blocked</span>
+                  <span className="tabular-nums text-text-secondary">{actionBreakdown.blocked}</span>
+                </div>
+                <div className="flex items-center gap-2 text-text-primary">
+                  <span className="h-2.5 w-2.5 rounded-full bg-severity-safe-accent" />
+                  <span>Allowed</span>
+                  <span className="tabular-nums text-text-secondary">{actionBreakdown.allowed}</span>
+                </div>
               </div>
-
-              {actionBreakdown.throttled > 0 && (
-                <p className="text-xs text-text-muted">
-                  {actionBreakdown.throttled} throttled alert{actionBreakdown.throttled === 1 ? '' : 's'} omitted from this blocked-vs-allowed split.
-                </p>
-              )}
             </div>
           ) : (
             <EmptyChartState message="No blocked or allowed alerts are present in the current loaded set." />
@@ -338,7 +250,6 @@ export default function DashboardAlertAnalytics({
         >
           <HorizontalBars
             rows={predictionDistribution}
-            barClassName="bg-status-high"
             emptyMessage="No prediction labels are available in the current loaded alerts."
           />
         </ChartPanel>
@@ -347,53 +258,26 @@ export default function DashboardAlertAnalytics({
           title="Top Targeted Paths"
           description="Request paths ranked from the currently loaded alerts."
         >
-          {topPaths.length > 0 ? (
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
-              <HorizontalBars
-                rows={topPaths}
-                barClassName="bg-[#2E90FA]"
-                emptyMessage="No request paths are available in the current loaded alerts."
-              />
-
-              <div className="rounded-sm border border-border-light bg-[#16233A] p-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Top Targeted Paths
-                </h3>
-                <ol className="mt-3 space-y-2">
-                  {topPaths.map((row, index) => (
-                    <li key={row.label} className="flex items-start justify-between gap-3 text-xs">
-                      <span className="inline-flex min-w-0 items-start gap-2 text-text-main">
-                        <span className="tabular-nums text-text-muted">{index + 1}.</span>
-                        <span className="truncate font-mono">{row.label}</span>
-                      </span>
-                      <span className="tabular-nums text-text-muted">{row.value}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </div>
-          ) : (
-            <EmptyChartState message="No request paths are available in the current loaded alerts." />
-          )}
+          <HorizontalBars
+            rows={topPaths}
+            emptyMessage="No request paths are available in the current loaded alerts."
+          />
         </ChartPanel>
 
         <ChartPanel
           title="ML Confidence Bands"
-          description="Band counts using the current ML health thresholds."
+          description="Confidence score distribution across loaded alerts."
         >
-          {confidenceBands ? (
-            <HorizontalBars
-              rows={[
-                { label: `High ${confidenceBands.rows[0].label}`, value: confidenceBands.rows[0].value },
-                { label: `Medium ${confidenceBands.rows[1].label}`, value: confidenceBands.rows[1].value },
-                { label: `Low ${confidenceBands.rows[2].label}`, value: confidenceBands.rows[2].value },
-              ]}
-              barClassName="bg-[#7F56D9]"
-              emptyMessage="No confidence values are available in the current loaded alerts."
-            />
-          ) : (
-            <EmptyChartState message="Confidence bands are unavailable because current threshold values were not returned by ML health." />
-          )}
+          <HorizontalBars
+            rows={confidenceBands}
+            emptyMessage="No confidence values are available in the current loaded alerts."
+            showStub
+          />
+          {alerts.length > 0 && confidenceBands[0].value === alerts.length ? (
+            <p className="mt-3 text-[9px] text-text-muted">
+              All {alerts.length} requests scored high confidence.
+            </p>
+          ) : null}
         </ChartPanel>
       </div>
     </div>
