@@ -49,19 +49,45 @@ const TRIAGE_DISPOSITION_OPTIONS: TriageDisposition[] = [
 ]
 const AUTO_SAVE_DELAY_MS = 450
 const SAVE_CONFIRMED_DURATION_MS = 1800
-const ALERT_TABLE_COLUMN_COUNT = 11
-const ALERT_TABLE_HEADERS = [
-  'Triage Status (Local)',
-  'Confidence Level',
-  'Timestamp',
-  'Source IP',
-  'CRS Score',
-  'Target Path',
-  'Rule IDs',
-  'Attack Type',
-  'ML Confidence',
-  'Action',
+const SHOW_RULE_IDS_COLUMN = true
+
+type AlertColumnKey =
+  | 'triageStatus'
+  | 'confidenceLevel'
+  | 'timestamp'
+  | 'sourceIp'
+  | 'crsScore'
+  | 'targetPath'
+  | 'ruleIds'
+  | 'attackType'
+  | 'mlConfidence'
+  | 'action'
+
+interface AlertTableColumn {
+  key: AlertColumnKey
+  header: string
+}
+
+const ALERT_TABLE_COLUMNS: readonly AlertTableColumn[] = [
+  { key: 'triageStatus', header: 'Triage Status (Local)' },
+  { key: 'confidenceLevel', header: 'Confidence Level' },
+  { key: 'timestamp', header: 'Timestamp' },
+  { key: 'sourceIp', header: 'Source IP' },
+  { key: 'crsScore', header: 'CRS Score' },
+  { key: 'targetPath', header: 'Target Path' },
+  { key: 'ruleIds', header: 'Rule IDs' },
+  { key: 'attackType', header: 'Attack Type' },
+  { key: 'mlConfidence', header: 'ML Confidence' },
+  { key: 'action', header: 'Action' },
 ] as const
+
+function isColumnVisible(column: AlertTableColumn): boolean {
+  if (column.key === 'ruleIds') return SHOW_RULE_IDS_COLUMN
+  return true
+}
+
+const VISIBLE_ALERT_TABLE_COLUMNS = ALERT_TABLE_COLUMNS.filter(isColumnVisible)
+const ALERT_TABLE_COLUMN_COUNT = VISIBLE_ALERT_TABLE_COLUMNS.length + 1
 const FOCUS_RING_CLASS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-light'
 const CHECKBOX_CLASS = cn(
@@ -139,40 +165,74 @@ function AlertsTableSkeletonRows({ rowCount = 3 }: { rowCount?: number }) {
           <td className="p-3">
             <div className="h-4 w-4 animate-pulse rounded-sm bg-border-light" />
           </td>
-          <td className="p-3 align-top">
-            <div className="flex min-w-[180px] flex-col gap-2">
-              <div className="h-8 w-full animate-pulse rounded-sm bg-border-light" />
-              <div className="h-7 w-36 animate-pulse rounded-sm bg-border-light" />
-              <div className="h-7 w-14 animate-pulse rounded-sm bg-border-light" />
-            </div>
-          </td>
-          <td className="p-3">
-            <div className="h-6 w-28 animate-pulse rounded-full bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-4 w-32 animate-pulse rounded-sm bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-4 w-12 animate-pulse rounded-sm bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-4 w-40 animate-pulse rounded-sm bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-4 w-20 animate-pulse rounded-sm bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-3 w-24 animate-pulse rounded-full bg-border-light" />
-          </td>
-          <td className="p-3">
-            <div className="h-5 w-20 animate-pulse rounded-full bg-border-light" />
-          </td>
+          {VISIBLE_ALERT_TABLE_COLUMNS.map((column) => {
+            switch (column.key) {
+              case 'triageStatus':
+                return (
+                  <td key={column.key} className="p-3 align-top">
+                    <div className="flex min-w-[180px] flex-col gap-2">
+                      <div className="h-8 w-full animate-pulse rounded-sm bg-border-light" />
+                      <div className="h-7 w-36 animate-pulse rounded-sm bg-border-light" />
+                      <div className="h-7 w-14 animate-pulse rounded-sm bg-border-light" />
+                    </div>
+                  </td>
+                )
+              case 'confidenceLevel':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-6 w-28 animate-pulse rounded-full bg-border-light" />
+                  </td>
+                )
+              case 'timestamp':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-4 w-32 animate-pulse rounded-sm bg-border-light" />
+                  </td>
+                )
+              case 'sourceIp':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
+                  </td>
+                )
+              case 'crsScore':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-4 w-12 animate-pulse rounded-sm bg-border-light" />
+                  </td>
+                )
+              case 'targetPath':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-4 w-40 animate-pulse rounded-sm bg-border-light" />
+                  </td>
+                )
+              case 'ruleIds':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-4 w-20 animate-pulse rounded-sm bg-border-light" />
+                  </td>
+                )
+              case 'attackType':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-4 w-24 animate-pulse rounded-sm bg-border-light" />
+                  </td>
+                )
+              case 'mlConfidence':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-3 w-24 animate-pulse rounded-full bg-border-light" />
+                  </td>
+                )
+              case 'action':
+                return (
+                  <td key={column.key} className="p-3">
+                    <div className="h-5 w-20 animate-pulse rounded-full bg-border-light" />
+                  </td>
+                )
+            }
+          })}
         </tr>
       ))}
     </>
@@ -224,12 +284,12 @@ function AlertsTableShell({
                   aria-label="Select all alerts"
                 />
               </th>
-              {ALERT_TABLE_HEADERS.map((header) => (
+              {VISIBLE_ALERT_TABLE_COLUMNS.map((column) => (
                 <th
-                  key={header}
+                  key={column.key}
                   className="p-3 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider"
                 >
-                  {header}
+                  {column.header}
                 </th>
               ))}
             </tr>
@@ -540,118 +600,154 @@ function AlertsTableContent() {
                         aria-label={`Select alert ${alert.alert_id}`}
                       />
                     </td>
-                    <td className="p-3 align-top" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex min-w-[180px] flex-col gap-2">
-                        <select
-                          value={draftEntry.status}
-                          onChange={(event) =>
-                            updateDraft(alert.alert_id, {
-                              status: event.target.value as TriageStatus,
-                              disposition:
-                                event.target.value === 'Closed' ? draftEntry.disposition : null,
-                            })
-                          }
-                          className={cn(
-                            'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
-                            FOCUS_RING_CLASS
-                          )}
-                          aria-label={`Triage status for alert ${alert.alert_id}`}
-                        >
-                          {TRIAGE_STATUS_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
+                    {VISIBLE_ALERT_TABLE_COLUMNS.map((column) => {
+                      switch (column.key) {
+                        case 'triageStatus':
+                          return (
+                            <td key={column.key} className="p-3 align-top" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex min-w-[180px] flex-col gap-2">
+                                <select
+                                  value={draftEntry.status}
+                                  onChange={(event) =>
+                                    updateDraft(alert.alert_id, {
+                                      status: event.target.value as TriageStatus,
+                                      disposition:
+                                        event.target.value === 'Closed'
+                                          ? draftEntry.disposition
+                                          : null,
+                                    })
+                                  }
+                                  className={cn(
+                                    'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
+                                    FOCUS_RING_CLASS
+                                  )}
+                                  aria-label={`Triage status for alert ${alert.alert_id}`}
+                                >
+                                  {TRIAGE_STATUS_OPTIONS.map((status) => (
+                                    <option key={status} value={status}>
+                                      {status}
+                                    </option>
+                                  ))}
+                                </select>
 
-                        {draftEntry.status === 'Closed' && (
-                          <select
-                            value={draftEntry.disposition ?? ''}
-                            onChange={(event) =>
-                              updateDraft(alert.alert_id, {
-                                ...draftEntry,
-                                disposition: event.target.value
-                                  ? (event.target.value as TriageDisposition)
-                                  : null,
-                              })
-                            }
-                            className={cn(
-                              'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
-                              FOCUS_RING_CLASS
-                            )}
-                            aria-label={`Disposition for alert ${alert.alert_id}`}
-                          >
-                            <option value="">Select disposition</option>
-                            {TRIAGE_DISPOSITION_OPTIONS.map((disposition) => (
-                              <option key={disposition} value={disposition}>
-                                {disposition}
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                                {draftEntry.status === 'Closed' && (
+                                  <select
+                                    value={draftEntry.disposition ?? ''}
+                                    onChange={(event) =>
+                                      updateDraft(alert.alert_id, {
+                                        ...draftEntry,
+                                        disposition: event.target.value
+                                          ? (event.target.value as TriageDisposition)
+                                          : null,
+                                      })
+                                    }
+                                    className={cn(
+                                      'min-h-9 rounded-sm border border-border-light bg-surface-light px-2 py-1 text-xs text-text-main',
+                                      FOCUS_RING_CLASS
+                                    )}
+                                    aria-label={`Disposition for alert ${alert.alert_id}`}
+                                  >
+                                    <option value="">Select disposition</option>
+                                    {TRIAGE_DISPOSITION_OPTIONS.map((disposition) => (
+                                      <option key={disposition} value={disposition}>
+                                        {disposition}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
 
-                        <div className="flex min-h-6 items-center gap-2">
-                          <span
-                            className={cn(
-                              'text-[11px] transition-all duration-200',
-                              saveState === 'saving' && isDirty && 'text-text-muted',
-                              saveState === 'saved' && !isDirty && 'text-status-blocked',
-                              saveState === 'idle' &&
-                                isDirty &&
-                                !requiresDisposition &&
-                                'text-text-muted/80'
-                            )}
-                            role="status"
-                            aria-live="polite"
-                          >
-                            {requiresDisposition
-                              ? null
-                              : saveState === 'saving'
-                                ? 'Saving...'
-                                : saveState === 'saved' && !isDirty
-                                  ? 'Saved'
-                                  : isDirty
-                                    ? 'Autosaving'
-                                    : 'Saved locally'}
-                          </span>
-                          {requiresDisposition && (
-                            <span className="text-[11px] text-status-medium">
-                              Disposition required to close
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <SeverityBadge
-                        severity={alert.confidence_level}
-                        prediction={alert.prediction}
-                      />
-                    </td>
-                    <td className="p-3 text-xs text-text-muted whitespace-nowrap">
-                      {new Date(alert.timestamp).toLocaleString()}
-                    </td>
-                    <td className="p-3 text-xs font-mono text-text-main whitespace-nowrap">
-                      {alert.source_ip ?? '—'}
-                    </td>
-                    <td className="p-3 text-xs text-text-muted tabular-nums">
-                      {formatCrsScore(alert.crs_score)}
-                    </td>
-                    <td className="p-3 text-xs font-mono text-text-main max-w-[200px] truncate">
-                      {alert.request_path ?? '—'}
-                    </td>
-                    <td className="p-3 text-xs font-mono text-text-muted whitespace-nowrap">
-                      {formatRuleIds(alert.crs_rule_ids)}
-                    </td>
-                    <td className="p-3 text-xs text-text-main">
-                      {alert.prediction}
-                    </td>
-                    <td className="p-3">
-                      <ConfidenceBar confidence={alert.confidence} />
-                    </td>
-                    <td className="p-3">
-                      <ActionLabel action={alert.action_taken} />
-                    </td>
+                                <div className="flex min-h-6 items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      'text-[11px] transition-all duration-200',
+                                      saveState === 'saving' && isDirty && 'text-text-muted',
+                                      saveState === 'saved' && !isDirty && 'text-status-blocked',
+                                      saveState === 'idle' &&
+                                        isDirty &&
+                                        !requiresDisposition &&
+                                        'text-text-muted/80'
+                                    )}
+                                    role="status"
+                                    aria-live="polite"
+                                  >
+                                    {requiresDisposition
+                                      ? null
+                                      : saveState === 'saving'
+                                        ? 'Saving...'
+                                        : saveState === 'saved' && !isDirty
+                                          ? 'Saved'
+                                          : isDirty
+                                            ? 'Autosaving'
+                                            : 'Saved locally'}
+                                  </span>
+                                  {requiresDisposition && (
+                                    <span className="text-[11px] text-status-medium">
+                                      Disposition required to close
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          )
+                        case 'confidenceLevel':
+                          return (
+                            <td key={column.key} className="p-3">
+                              <SeverityBadge
+                                severity={alert.confidence_level}
+                                prediction={alert.prediction}
+                              />
+                            </td>
+                          )
+                        case 'timestamp':
+                          return (
+                            <td key={column.key} className="p-3 text-xs text-text-muted whitespace-nowrap">
+                              {new Date(alert.timestamp).toLocaleString()}
+                            </td>
+                          )
+                        case 'sourceIp':
+                          return (
+                            <td key={column.key} className="p-3 text-xs font-mono text-text-main whitespace-nowrap">
+                              {alert.source_ip ?? '—'}
+                            </td>
+                          )
+                        case 'crsScore':
+                          return (
+                            <td key={column.key} className="p-3 text-xs text-text-muted tabular-nums">
+                              {formatCrsScore(alert.crs_score)}
+                            </td>
+                          )
+                        case 'targetPath':
+                          return (
+                            <td key={column.key} className="p-3 text-xs font-mono text-text-main max-w-[200px] truncate">
+                              {alert.request_path ?? '—'}
+                            </td>
+                          )
+                        case 'ruleIds':
+                          return (
+                            <td key={column.key} className="p-3 text-xs font-mono text-text-muted whitespace-nowrap">
+                              {formatRuleIds(alert.crs_rule_ids)}
+                            </td>
+                          )
+                        case 'attackType':
+                          return (
+                            <td key={column.key} className="p-3 text-xs text-text-main">
+                              {alert.prediction}
+                            </td>
+                          )
+                        case 'mlConfidence':
+                          return (
+                            <td key={column.key} className="p-3">
+                              <ConfidenceBar confidence={alert.confidence} />
+                            </td>
+                          )
+                        case 'action':
+                          return (
+                            <td key={column.key} className="p-3">
+                              <ActionLabel action={alert.action_taken} />
+                            </td>
+                          )
+                      }
+                    })}
                   </tr>
                 )
               })()

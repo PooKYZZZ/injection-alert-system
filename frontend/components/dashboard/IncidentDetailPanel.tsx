@@ -131,7 +131,7 @@ export default function IncidentDetailPanel() {
       />
       <aside
         ref={panelRef}
-        className={`fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col overflow-y-auto border-l border-border-light bg-surface-light shadow-lg transition-transform duration-250 ease-out will-change-transform ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col overflow-y-auto border-l border-border-light bg-surface-light shadow-lg transition-transform duration-[250ms] ease-out ${
           isEntering ? 'translate-x-0' : 'translate-x-full'
         }`}
         role="dialog"
