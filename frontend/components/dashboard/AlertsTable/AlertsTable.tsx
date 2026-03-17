@@ -1,10 +1,11 @@
 'use client'
 
+import type { UseQueryResult } from '@tanstack/react-query'
 import { useEffect, useState, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useAlerts } from 'features/alerts/queries'
-import type { Alert } from 'features/alerts/types'
+import type { Alert, PaginatedAlerts } from 'features/alerts/types'
 import { useDashboardStore } from 'store/dashboardStore'
 import {
   DEFAULT_FILTERS,
@@ -277,7 +278,8 @@ function AlertsTableContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.severity, filters.timeRange, filters.search])
 
-  const { data, isPending, isError, error, refetch, dataUpdatedAt } = useAlerts(filters)
+  const alertsQuery: UseQueryResult<PaginatedAlerts, Error> = useAlerts(filters)
+  const { data, isPending, isError, error, dataUpdatedAt } = alertsQuery
 
   const alerts = data?.items ?? []
   const hasFilter =
@@ -285,6 +287,9 @@ function AlertsTableContent() {
     filters.severity !== DEFAULT_FILTERS.severity ||
     filters.timeRange !== DEFAULT_FILTERS.timeRange
   const lastLoadedAt = formatLoadedAt(dataUpdatedAt)
+  const retryAlerts = () => {
+    void alertsQuery.refetch()
+  }
 
   useEffect(() => {
     setHydrated(true)
@@ -373,7 +378,7 @@ function AlertsTableContent() {
           action={
             <button
               type="button"
-              onClick={() => void refetch()}
+              onClick={retryAlerts}
               className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
             >
               Retry
@@ -389,7 +394,7 @@ function AlertsTableContent() {
           action={
             <button
               type="button"
-              onClick={() => void refetch()}
+              onClick={retryAlerts}
               className="rounded-sm border border-border-light px-3 py-1.5 text-xs font-medium text-text-main transition-colors hover:bg-[#16233A]"
             >
               Retry

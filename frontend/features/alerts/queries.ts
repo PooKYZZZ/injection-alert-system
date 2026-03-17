@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { toQueryString, DashboardFilters } from '@/lib/searchParams'
 import { Alert, PaginatedAlerts } from './types'
 
@@ -35,5 +35,9 @@ export function alertDetailOptions(id: string | null) {
   })
 }
 
-export const useAlerts = (filters: DashboardFilters) => useQuery(alertListOptions(filters))
-export const useAlert = (id: string | null) => useQuery(alertDetailOptions(id))
+export const useAlerts = (
+  filters: DashboardFilters
+): UseQueryResult<PaginatedAlerts, Error> => useQuery(alertListOptions(filters))
+
+export const useAlert = (id: string | null): UseQueryResult<Alert, Error> =>
+  useQuery(alertDetailOptions(id))

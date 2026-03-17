@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AlertsTable from './AlertsTable'
 import { useAlerts } from 'features/alerts/queries'
-import { useDashboardStore } from 'store/dashboardStore'
+import { useDashboardStore } from '@/store/dashboardStore'
 
 const mockReplace = vi.fn()
 
@@ -44,9 +44,16 @@ function buildQueryResult(overrides: Partial<ReturnType<typeof useAlerts>> = {})
 beforeEach(() => {
   mockedUsePathname.mockReturnValue('/dashboard')
   mockedUseRouter.mockReturnValue({
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+    push: vi.fn(),
     replace: mockReplace,
-  } as ReturnType<typeof useRouter>)
-  mockedUseSearchParams.mockReturnValue(new URLSearchParams())
+    refresh: vi.fn(),
+  } as unknown as ReturnType<typeof useRouter>)
+  mockedUseSearchParams.mockReturnValue(
+    new URLSearchParams() as unknown as ReturnType<typeof useSearchParams>
+  )
   mockedUseAlerts.mockReturnValue(buildQueryResult())
   useDashboardStore.setState({
     selectedAlertIds: new Set(),
@@ -87,7 +94,7 @@ describe('AlertsTable', () => {
       new URLSearchParams({
         severity: 'HIGH',
         search: 'union select',
-      })
+      }) as unknown as ReturnType<typeof useSearchParams>
     )
 
     render(<AlertsTable />)
