@@ -84,9 +84,10 @@ function TimelineStep({
 }) {
   return (
     <li className="relative mb-3 pl-10 last:mb-0">
-      {showLine ? <div className="absolute left-[10px] top-[22px] h-[calc(100%+14px)] w-px bg-border-light" aria-hidden="true" /> : null}
+      {showLine ? <div className="absolute left-[10px] top-[22px] h-[calc(100%+18px)] w-px bg-border-light" aria-hidden="true" /> : null}
       <span
-        className={`absolute left-0 top-0 rounded-full ${emphasize ? 'h-[22px] w-[22px]' : 'h-[18px] w-[18px]'} ${dotClassName}`}
+        className={`absolute left-0 top-0 rounded-full ${dotClassName}`}
+        style={emphasize ? { width: '22px', height: '22px' } : { width: '18px', height: '18px' }}
       />
       <p className={`text-sm font-medium ${labelClassName}`}>{title}</p>
       {badge ? <div className="mt-1">{badge}</div> : null}
@@ -256,7 +257,7 @@ export default function IncidentDetailPanel() {
               <h3 className="mb-[10px] text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
                 Detection Timeline
               </h3>
-              <ol className="space-y-5">
+              <ol className="space-y-[12px]">
                 <TimelineStep
                   title="Request Received"
                   detail={`${formatUtcTimestamp(incident.timestamp)} · ${incident.request_method ?? '—'} ${incident.request_path ?? '—'}`}

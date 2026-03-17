@@ -30,19 +30,19 @@ function MetricSkeletonCard() {
 function ThresholdRow({
   label,
   value,
-  widthClassName,
+  width,
   barClassName,
 }: {
   label: string
   value: string
-  widthClassName: string
+  width: string
   barClassName: string
 }) {
   return (
     <div className="grid grid-cols-[90px_1fr_auto] items-center gap-3">
       <span className="text-xs text-text-secondary">{label}</span>
       <div className="h-[5px] rounded-full bg-bg-inset">
-        <div className={`h-full rounded-full opacity-70 ${widthClassName} ${barClassName}`} />
+        <div className={`h-full rounded-full opacity-70 ${barClassName}`} style={{ width }} />
       </div>
       <span className="text-xs text-text-secondary">{value}</span>
     </div>
@@ -147,19 +147,19 @@ export default function MLHealthDetail() {
             <ThresholdRow
               label="Low"
               value="< 50%"
-              widthClassName="w-[30%]"
+              width="30%"
               barClassName="bg-severity-safe-accent"
             />
             <ThresholdRow
               label="Medium"
               value="50–80%"
-              widthClassName="w-[60%]"
+              width="60%"
               barClassName="bg-accent-yellow"
             />
             <ThresholdRow
               label="High"
               value="> 80%"
-              widthClassName="w-full"
+              width="100%"
               barClassName="bg-severity-high-accent"
             />
           </div>
