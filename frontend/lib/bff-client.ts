@@ -203,6 +203,25 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
 function normalizeMlHealth(
   payload: z.infer<typeof BackendMlHealthSchema>
 ): MLHealthData {
+  // BFF validation: ensure thresholds are valid
+  const low = payload.confidence_thresholds.low
+  const high = payload.confidence_thresholds.high
+  let medium: number | null = null
+
+  if (typeof low === 'number' && typeof high === 'number') {
+    // BFF check: validate threshold range (0-1 or 0-100)
+    const normalizedLow = low <= 1 ? low : low / 100
+    const normalizedHigh = high <= 1 ? high : high / 100
+
+    // BFF check: ensure low < high
+    if (normalizedLow >= normalizedHigh) {
+      console.warn('[BFF] Invalid thresholds: low >= high, using defaults')
+    } else {
+      // BFF transform: derive medium from low/high range
+      medium = (normalizedLow + normalizedHigh) / 2
+    }
+  }
+
   return {
     model_version: payload.model_version,
     status: payload.loaded
@@ -216,9 +235,9 @@ function normalizeMlHealth(
     drift_status: payload.drift_detected ? 'WARNING' : 'NORMAL',
     traffic_processed: payload.total_processed,
     thresholds: {
-      low: payload.confidence_thresholds.low ?? null,
-      medium: null,
-      high: payload.confidence_thresholds.high ?? null,
+      low: low ?? null,
+      medium,
+      high: high ?? null,
     },
   }
 }

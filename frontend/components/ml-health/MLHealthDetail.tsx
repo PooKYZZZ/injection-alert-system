@@ -102,12 +102,14 @@ export default function MLHealthDetail() {
         highWidth = `${((maxVal - toPct(medium)) / maxVal) * 100}%`
         hasMedium = true
       } else {
-        // Two-band case
+        // Two-band case - derive medium from low/high range
         lowValue = `< ${formatPercent(low)}`
-        highValue = `>= ${formatPercent(low)}`
+        mediumValue = `${formatPercent(low)}–${formatPercent(high)}`
+        highValue = `>= ${formatPercent(high)}`
         lowWidth = `${(toPct(low) / maxVal) * 100}%`
-        highWidth = `${((maxVal - toPct(low)) / maxVal) * 100}%`
-        hasMedium = false
+        mediumWidth = `${((toPct(high) - toPct(low)) / maxVal) * 100}%`
+        highWidth = '0%' // No space beyond high
+        hasMedium = true
       }
     }
   }

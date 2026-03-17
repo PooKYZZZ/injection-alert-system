@@ -34,7 +34,15 @@ function MLHealthContent() {
           ? 'bg-accent-yellow'
           : 'bg-severity-high-accent'
 
-  const modelLabel = isError || !data ? 'Model' : data.model_version || 'Model'
+  // Extract short model name (e.g., "distilbert_v3" from "distilbert_v3_907k_cleaned_...")
+  const getShortModelName = (version: string | undefined): string => {
+    if (!version || version === 'mock-model-service') return 'Model'
+    const parts = version.split('_')
+    // Return first two parts (e.g., "distilbert_v3")
+    return parts.length >= 2 ? `${parts[0]}_${parts[1]}` : version
+  }
+
+  const modelLabel = isError || !data ? 'Model' : getShortModelName(data.model_version)
 
   return (
     <div className="flex items-center gap-3 px-4 py-3">
