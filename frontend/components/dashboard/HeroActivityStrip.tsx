@@ -1,102 +1,140 @@
 'use client'
-
 import { useMemo } from 'react'
-import type { Alert } from '@/features/alerts/types'
+import { Alert } from '@/features/alerts/types'
 
-interface HeroActivityStripProps {
+interface Props {
   alerts: Alert[]
-  isPending: boolean
+  isLoading?: boolean
 }
 
-function buildPolyline(values: number[], width: number, height: number): string {
-  const maxValue = Math.max(...values, 1)
+export function HeroActivityStrip({ alerts, isLoading }: Props) {
+  const BUCKETS = 24
+  const VB_W = 1200
+  const VB_H = 28
+  const PAD_X = 16
+  const PAD_Y = 4
 
-  return values
-    .map((value, index) => {
-      const normalizedValue = value / maxValue
-      const x = 16 + (index / Math.max(values.length - 1, 1)) * (width - 32)
-      const y = height - 4 - normalizedValue * (height - 8)
-      return `${x},${y}`
-    })
-    .join(' ')
-}
-
-export default function HeroActivityStrip({ alerts, isPending }: HeroActivityStripProps) {
-  const series = useMemo(() => {
-    const bucketCount = 20
+  const { allPoints, blockedPoints } = useMemo(() => {
     if (alerts.length === 0) {
-      return {
-        loaded: Array(bucketCount).fill(0),
-        blocked: Array(bucketCount).fill(0),
-      }
+      const flat = Array.from({ length: BUCKETS }, (_, i) => {
+        const x = PAD_X + (i / (BUCKETS - 1)) * (VB_W - PAD_X * 2)
+        return `${x.toFixed(1)},${(VB_H / 2).toFixed(1)}`
+      }).join(' ')
+      return { allPoints: flat, blockedPoints: flat }
     }
 
-    const timestamps = alerts
-      .map((alert) => new Date(alert.timestamp).getTime())
-      .filter((value) => Number.isFinite(value))
-      .sort((a, b) => a - b)
+    const times = alerts.map(a => new Date(a.timestamp).getTime())
+    const min = Math.min(...times)
+    const max = Math.max(...times)
+    const range = max - min || 1
 
-    if (timestamps.length === 0) {
-      return {
-        loaded: Array(bucketCount).fill(0),
-        blocked: Array(bucketCount).fill(0),
-      }
+    const allBuckets = new Array(BUCKETS).fill(0)
+    const blockedBuckets = new Array(BUCKETS).fill(0)
+
+    alerts.forEach(a => {
+      const idx = Math.min(
+        Math.floor(((new Date(a.timestamp).getTime() - min) / range) * BUCKETS),
+        BUCKETS - 1
+      )
+      allBuckets[idx]++
+      if (a.action_taken === 'BLOCKED') blockedBuckets[idx]++
+    })
+
+    const allMax = Math.max(...allBuckets, 1)
+    const blockedMax = Math.max(...blockedBuckets, 1)
+
+    const toPoints = (buckets: number[], maxVal: number) =>
+      buckets
+        .map((v, i) => {
+          const x = PAD_X + (i / (BUCKETS - 1)) * (VB_W - PAD_X * 2)
+          const y = VB_H - PAD_Y - (v / maxVal) * (VB_H - PAD_Y * 2)
+          return `${x.toFixed(1)},${y.toFixed(1)}`
+        })
+        .join(' ')
+
+    return {
+      allPoints: toPoints(allBuckets, allMax),
+      blockedPoints: toPoints(blockedBuckets, blockedMax),
     }
-
-    const min = timestamps[0]
-    const max = timestamps[timestamps.length - 1]
-    const span = Math.max(max - min, 1)
-    const loaded = Array(bucketCount).fill(0)
-    const blocked = Array(bucketCount).fill(0)
-
-    for (const alert of alerts) {
-      const time = new Date(alert.timestamp).getTime()
-      const ratio = span === 0 ? 0 : (time - min) / span
-      const index = Math.min(bucketCount - 1, Math.max(0, Math.floor(ratio * (bucketCount - 1))))
-      loaded[index] += 1
-      if (alert.action_taken === 'BLOCKED') blocked[index] += 1
-    }
-
-    return { loaded, blocked }
   }, [alerts])
 
   return (
-    <section className="h-16 rounded-lg border border-border-light bg-bg-panel px-[14px] py-2 shadow-subtle">
-      <div className="mb-1 flex items-center justify-between gap-4">
-        <p className="text-[10px] uppercase tracking-[0.09em] text-text-muted">Loaded event activity</p>
-        <div className="flex items-center gap-4 text-[10px] text-text-secondary">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-[7px] w-[7px] rounded-full bg-accent-cyan" />
-            Loaded records
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-[7px] w-[7px] rounded-full bg-severity-high-accent" />
-            Blocked
-          </span>
+    <div
+      style={{
+        height: '56px',
+        minHeight: '56px',
+        maxHeight: '56px',
+        background: 'var(--color-bg-panel)',
+        border: '1px solid #1e2a3d',
+        borderRadius: '8px',
+        padding: '8px 14px 6px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        marginBottom: '12px',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <span style={{
+          fontSize: '10px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          color: 'var(--color-text-muted)',
+          fontWeight: 600,
+        }}>
+          Loaded event activity
+        </span>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {[
+            { color: '#38bdf8', label: 'Loaded records' },
+            { color: '#ef4444', label: 'Blocked' },
+          ].map(({ color, label }) => (
+            <span key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: 'var(--color-text-muted)' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+              {label}
+            </span>
+          ))}
         </div>
       </div>
-      <div className="h-[34px]">
-        {isPending ? (
-          <div className="h-[34px] w-full rounded-md bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-        ) : (
-          <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-[34px] w-full">
-            <polyline
-              fill="none"
-              stroke="var(--color-accent-cyan)"
-              strokeWidth="2"
-              opacity="1"
-              points={buildPolyline(series.loaded, 100, 34)}
-            />
-            <polyline
-              fill="none"
-              stroke="var(--color-severity-high-accent)"
-              strokeWidth="2"
-              opacity="1"
-              points={buildPolyline(series.blocked, 100, 34)}
-            />
-          </svg>
-        )}
-      </div>
-    </section>
+
+      {isLoading ? (
+        <div style={{
+          flex: 1,
+          background: 'var(--color-bg-elevated)',
+          borderRadius: '3px',
+          animation: 'skeleton-pulse 1.5s ease-in-out infinite',
+        }} />
+      ) : (
+        <svg
+          width="100%"
+          height="22"
+          viewBox={`0 0 ${VB_W} ${VB_H}`}
+          preserveAspectRatio="none"
+          style={{ display: 'block', flexShrink: 0 }}
+        >
+          <polyline
+            points={allPoints}
+            fill="none"
+            stroke="#38bdf8"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="1"
+          />
+          <polyline
+            points={blockedPoints}
+            fill="none"
+            stroke="#ef4444"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="1"
+          />
+        </svg>
+      )}
+    </div>
   )
 }
+
+export default HeroActivityStrip

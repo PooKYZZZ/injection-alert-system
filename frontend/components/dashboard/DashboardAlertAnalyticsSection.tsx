@@ -53,7 +53,7 @@ export default function DashboardAlertAnalyticsSection() {
   return (
     <div className="flex flex-col gap-4">
       <MetricCards alerts={alerts} alertsPending={isPending} alertsError={alertsError} />
-      <HeroActivityStrip alerts={alerts} isPending={isPending} />
+      <HeroActivityStrip alerts={alerts} isLoading={isPending} />
       <div className="flex items-baseline justify-between">
         <span className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
           Security overview

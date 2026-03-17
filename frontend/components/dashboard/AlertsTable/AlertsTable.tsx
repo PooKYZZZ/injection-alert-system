@@ -103,7 +103,7 @@ function sanitizeTriageRecord(value: unknown): Record<string, TriageEntry> {
 
 function getTriageClasses(status: TriageStatus, isSaving: boolean): string {
   const base =
-    'inline-flex items-center rounded-full border px-2 py-[2px] text-[10px] font-medium transition-colors'
+    'inline-flex min-h-6 min-w-12 items-center justify-center rounded-full border px-2 py-[2px] text-[10px] font-medium transition-colors'
 
   if (isSaving) {
     return `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
@@ -520,7 +520,8 @@ function AlertsTableContent() {
                       return (
                         <td
                           key={column.key}
-                          className="w-[160px] max-w-[160px] truncate p-3 font-mono text-xs text-text-primary"
+                          title={alert.request_path ?? ''}
+                          className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-text-primary"
                         >
                           {alert.request_path ?? '—'}
                         </td>

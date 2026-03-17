@@ -81,7 +81,7 @@ export default function MLHealthDetail() {
     !isPending && data && (data.latency_trend === null || data.drift_score === null)
 
   return (
-    <div className="flex flex-col gap-6" data-testid="ml-health-detail">
+    <div className="flex flex-col gap-6 pb-8" data-testid="ml-health-detail">
       <section className="rounded-lg border border-border-light bg-bg-panel p-5">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-[7px] bg-accent-blue-bg text-sm text-accent-blue">
@@ -97,6 +97,7 @@ export default function MLHealthDetail() {
             </p>
           </div>
         </div>
+        <div style={{ height: '1px', background: '#1a2236', margin: '12px 0' }} />
       </section>
 
       <section className="rounded-lg border border-border-light bg-bg-panel p-5">
@@ -139,7 +140,7 @@ export default function MLHealthDetail() {
         ) : null}
 
         <div className="mt-6 border-t border-[color:var(--color-bg-elevated)] pt-6">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-secondary">
+          <h3 className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
             Confidence Thresholds
           </h3>
           <div className="mt-4 space-y-3">

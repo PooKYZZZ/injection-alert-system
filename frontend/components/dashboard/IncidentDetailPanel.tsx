@@ -83,7 +83,7 @@ function TimelineStep({
   showLine?: boolean
 }) {
   return (
-    <li className="relative pl-10">
+    <li className="relative mb-3 pl-10 last:mb-0">
       {showLine ? <div className="absolute left-[10px] top-[22px] h-[calc(100%+14px)] w-px bg-border-light" aria-hidden="true" /> : null}
       <span
         className={`absolute left-0 top-0 rounded-full ${emphasize ? 'h-[22px] w-[22px]' : 'h-[18px] w-[18px]'} ${dotClassName}`}
@@ -362,7 +362,7 @@ export default function IncidentDetailPanel() {
                   <span className="text-accent-blue">Source-IP</span>: <span className="text-text-secondary">{incident.source_ip ?? '—'}</span>
                   {'\n'}
                   {'\n'}
-                  <span className="text-text-primary">{incident.payload_snippet || 'Not included in current response.'}</span>
+                  <span className="text-text-primary">{incident.payload_snippet?.trim() || 'Not included in current response.'}</span>
                 </pre>
               </div>
             </section>

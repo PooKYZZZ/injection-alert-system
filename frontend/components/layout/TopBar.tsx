@@ -13,13 +13,29 @@ const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
 
 const DEFAULT_SEARCH_PLACEHOLDER = 'Search path, attack type...'
 
-function pillClasses(isActive: boolean): string {
+function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   const base =
-    'inline-flex min-h-[28px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel'
+    'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel'
 
-  return isActive
-    ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
-    : `${base} border-[#243050] bg-transparent text-text-secondary hover:border-[#334155] hover:text-text-primary`
+  if (severity === 'ALL') {
+    return isActive
+      ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
+      : `${base} border-[#243050] bg-transparent text-text-muted`
+  }
+
+  if (severity === 'HIGH') {
+    return isActive
+      ? `${base} border-[#5c2020] bg-[#1a0a0a] text-[#f87171]`
+      : `${base} border-[#3a1515] bg-transparent text-[#f87171] opacity-70`
+  }
+
+  if (severity === 'MEDIUM') {
+    return isActive
+      ? `${base} border-[#4a3a10] bg-[#1a1500] text-[#facc15]`
+      : `${base} border-[#2e2a10] bg-transparent text-[#facc15] opacity-70`
+  }
+
+  return `${base} border-[#243050] bg-transparent text-text-muted`
 }
 
 interface TopBarProps {
@@ -91,7 +107,7 @@ function TopBarContent({
                   key={value}
                   type="button"
                   onClick={() => setSeverity(value)}
-                  className={pillClasses(currentSeverity === value)}
+                  className={pillClasses(value, currentSeverity === value)}
                   aria-pressed={currentSeverity === value}
                 >
                   {label}
@@ -105,8 +121,22 @@ function TopBarContent({
       {showAlertControls ? (
         <div className="flex items-center gap-6">
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-text-secondary">
-              search
+            <span className="absolute left-3 top-1/2 -translate-y-1/2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </span>
             <input
               type="text"
