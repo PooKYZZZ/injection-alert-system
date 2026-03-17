@@ -1,6 +1,10 @@
 'use client'
 
+import { useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useDashboardStats } from 'features/stats/queries'
+import { useAlerts } from 'features/alerts/queries'
+import type { DashboardFilters, SeverityFilter, TimeRange } from 'lib/searchParams'
 import { cn } from 'lib/utils'
 
 interface MetricCardProps {
@@ -8,15 +12,16 @@ interface MetricCardProps {
   icon: string
   value: string | number
   detail: string
-  highlight?: boolean
+  accent?: 'urgent' | 'blocked'
 }
 
-function MetricCard({ label, icon, value, detail, highlight }: MetricCardProps) {
+function MetricCard({ label, icon, value, detail, accent }: MetricCardProps) {
   return (
     <div
       className={cn(
-        'bg-surface-light border border-border-light p-1 rounded-sm shadow-subtle',
-        highlight && 'border-t-[2px] border-primary bg-surface-light'
+        'rounded-sm border border-border-light bg-surface-light p-4 shadow-subtle',
+        accent === 'urgent' && 'border-l-[3px] border-l-status-high',
+        accent === 'blocked' && 'border-l-[3px] border-l-status-medium'
       )}
     >
       <div className="flex justify-between items-start mb-2">
@@ -52,16 +57,62 @@ function formatMetricValue(value: string | number | null | undefined): string | 
   return value ?? 'N/A'
 }
 
-export default function MetricCards() {
-  const { data, isPending, isError, error } = useDashboardStats()
-  const avgInferenceLatency =
-    data?.avg_inference_latency_ms === null || data?.avg_inference_latency_ms === undefined
-      ? 'Unavailable with current response'
-      : `${data.avg_inference_latency_ms} ms`
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return 'Unavailable with current response'
+  }
 
-  if (isPending) {
+  return `${(value * 100).toFixed(1)}%`
+}
+
+function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
+  return {
+    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
+    timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
+    search: searchParams?.get('search') ?? '',
+  }
+}
+
+export default function MetricCards() {
+  const searchParams = useSearchParams()
+  const filters = buildFilters(searchParams)
+  const {
+    data: stats,
+    isPending: statsPending,
+    isError: statsError,
+    error: statsQueryError,
+  } = useDashboardStats()
+  const {
+    data: alertData,
+    isPending: alertsPending,
+    isError: alertsError,
+    error: alertsQueryError,
+  } = useAlerts(filters)
+
+  const alertMetrics = useMemo(() => {
+    const alerts = alertData?.items ?? []
+    const actionableAlerts = alerts.filter((alert) => alert.prediction !== 'Normal').length
+    const blockedAlerts = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
+    const allowedAlerts = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
+    const avgConfidence =
+      alerts.length > 0
+        ? alerts.reduce((sum, alert) => sum + alert.confidence, 0) / alerts.length
+        : null
+
+    return {
+      actionableAlerts,
+      blockedAlerts,
+      allowedAlerts,
+      avgConfidence,
+      loadedAlertCount: alerts.length,
+    }
+  }, [alertData?.items])
+
+  if (statsPending || alertsPending) {
     return (
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCardSkeleton />
+        <MetricCardSkeleton />
         <MetricCardSkeleton />
         <MetricCardSkeleton />
         <MetricCardSkeleton />
@@ -69,10 +120,11 @@ export default function MetricCards() {
     )
   }
 
-  if (isError) {
+  if (statsError || alertsError) {
+    const error = statsQueryError ?? alertsQueryError
     return (
       <div className="rounded-sm border border-status-high/50 bg-status-high/10 p-4">
-        <p className="text-sm font-medium text-status-high">Failed to load dashboard stats</p>
+        <p className="text-sm font-medium text-status-high">Failed to load dashboard metrics</p>
         <p className="mt-1 text-xs text-text-muted">
           {error instanceof Error ? error.message : 'Unknown error'}
         </p>
@@ -80,7 +132,7 @@ export default function MetricCards() {
     )
   }
 
-  if (!data) {
+  if (!stats || !alertData) {
     return (
       <div className="rounded-sm border border-border-light bg-surface-light p-4">
         <p className="text-sm text-text-muted">No data available</p>
@@ -89,31 +141,38 @@ export default function MetricCards() {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-
-      {/* Actionable Alerts */}
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
         label="Actionable Alerts"
         icon="gpp_maybe"
-        value={formatMetricValue(data.actionable_alerts)}
-        detail="Derived from attack-labeled requests in current stats response"
-        highlight
+        value={formatMetricValue(alertMetrics.actionableAlerts)}
+        detail={`Derived from ${alertMetrics.loadedAlertCount} currently loaded alerts`}
+        accent="urgent"
       />
-
-      {/* Average Inference Latency */}
       <MetricCard
-        label="Avg Inference Latency"
-        icon="speed"
-        value={avgInferenceLatency}
-        detail="Backend average model latency (ms)"
+        label="Blocked"
+        icon="block"
+        value={formatMetricValue(alertMetrics.blockedAlerts)}
+        detail="Blocked actions in the current loaded alert set"
+        accent="blocked"
       />
-
-      {/* Total Requests */}
+      <MetricCard
+        label="Allowed"
+        icon="check_circle"
+        value={formatMetricValue(alertMetrics.allowedAlerts)}
+        detail="Allowed actions in the current loaded alert set"
+      />
+      <MetricCard
+        label="Avg ML Confidence"
+        icon="network_intelligence"
+        value={formatPercent(alertMetrics.avgConfidence)}
+        detail="Average confidence across the current loaded alert set"
+      />
       <MetricCard
         label="Total Requests"
         icon="public"
-        value={formatMetricValue(data.total_requests)}
-        detail="All requests in current stats response"
+        value={formatMetricValue(stats.total_requests)}
+        detail="All requests in the current stats response"
       />
     </div>
   )

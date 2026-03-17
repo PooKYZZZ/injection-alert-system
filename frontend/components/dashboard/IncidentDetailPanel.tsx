@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useDashboardStore } from 'store/dashboardStore'
 import { useAlert } from 'features/alerts/queries'
 import { ALERT_DISPLAY_ACTION_ALIASES } from 'features/alerts/contract'
+import { ShapChart } from '@/components/ui/ShapChart'
 
 function formatRuleIds(ruleIds: string[] | null | undefined): string {
   if (!ruleIds || ruleIds.length === 0) return 'No data available'
@@ -17,6 +18,21 @@ function formatUtcTimestamp(timestamp: string | null | undefined): string {
   const parsed = new Date(timestamp)
   if (Number.isNaN(parsed.getTime())) return timestamp
   return parsed.toLocaleString()
+}
+
+function formatConfidence(confidence: number): string {
+  return `${Math.round(confidence * 100)}%`
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter(
+    (element) =>
+      !element.hasAttribute('disabled') &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      !element.closest('[aria-hidden="true"]')
+  )
 }
 
 function PanelSkeleton() {
@@ -35,6 +51,7 @@ export default function IncidentDetailPanel() {
   const setActiveIncident = useDashboardStore(s => s.setActiveIncident)
   const { data: incident, isPending, isError, error } = useAlert(activeIncidentId)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const panelRef = useRef<HTMLElement | null>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const panelOpen = activeIncidentId !== null
 
@@ -44,8 +61,9 @@ export default function IncidentDetailPanel() {
     const activeElement = document.activeElement
     restoreFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null
 
-    // Keep keyboard users in context when the panel opens.
-    closeButtonRef.current?.focus()
+    requestAnimationFrame(() => {
+      closeButtonRef.current?.focus()
+    })
 
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -63,11 +81,34 @@ export default function IncidentDetailPanel() {
       if (event.key === 'Escape') {
         event.preventDefault()
         setActiveIncident(null)
+        return
+      }
+
+      if (event.key !== 'Tab' || !panelRef.current) {
+        return
+      }
+
+      const focusable = getFocusableElements(panelRef.current)
+      if (focusable.length === 0) {
+        event.preventDefault()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const activeElement = document.activeElement
+
+      if (event.shiftKey && activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
   }, [panelOpen, setActiveIncident])
 
   if (!panelOpen) return null
@@ -80,6 +121,7 @@ export default function IncidentDetailPanel() {
         aria-hidden="true"
       />
       <aside
+        ref={panelRef}
         className="fixed right-0 top-0 z-50 flex h-full w-[480px] flex-col overflow-y-auto border-l border-border-light bg-surface-light shadow-lg"
         role="dialog"
         aria-modal="true"
@@ -96,7 +138,13 @@ export default function IncidentDetailPanel() {
                 <h2 id="incident-panel-title" className="text-sm font-bold text-text-main">
                   Incident #{incident.alert_id}
                 </h2>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">
+                <span
+                  className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold ${
+                    incident.prediction === 'Normal'
+                      ? 'bg-gray-200 text-gray-700'
+                      : 'bg-red-600 text-white'
+                  }`}
+                >
                   {incident.prediction}
                 </span>
               </div>
@@ -121,7 +169,6 @@ export default function IncidentDetailPanel() {
         </button>
       </div>
 
-      {/* Body */}
       {isPending ? (
         <PanelSkeleton />
       ) : isError ? (
@@ -135,7 +182,82 @@ export default function IncidentDetailPanel() {
         <div className="flex flex-col gap-6 p-4">
           <section>
             <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
-              Alert Details
+              Detection Timeline
+            </h3>
+            <ol className="space-y-4 border-l border-border-light pl-4">
+              <li className="relative">
+                <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-primary bg-surface-light" />
+                <p className="text-sm font-medium text-text-main">Request Received</p>
+                <p className="text-xs text-text-muted">
+                  {formatUtcTimestamp(incident.timestamp)}
+                  {incident.request_method || incident.request_path
+                    ? ` · ${(incident.request_method ?? 'Request')} ${incident.request_path ?? ''}`.trim()
+                    : ''}
+                </p>
+              </li>
+              <li className="relative">
+                <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-orange-400 bg-surface-light" />
+                <p className="text-sm font-medium text-text-main">CRS Flagged</p>
+                <p className="text-xs text-text-muted">
+                  CRS score {incident.crs_score === undefined ? 'unavailable with current response' : Number(incident.crs_score).toFixed(2)}
+                </p>
+                <p className="text-xs font-mono text-text-muted">
+                  {formatRuleIds(incident.crs_rule_ids)}
+                </p>
+              </li>
+              <li className="relative">
+                <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-status-medium bg-surface-light" />
+                <p className="text-sm font-medium text-text-main">ML Inference</p>
+                <p className="text-xs text-text-muted">
+                  {incident.prediction} at {formatConfidence(incident.confidence)} confidence ({incident.confidence_level})
+                </p>
+              </li>
+              <li className="relative">
+                <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-status-high bg-surface-light" />
+                <p className="text-sm font-medium text-text-main">Action Taken</p>
+                <p className="text-xs text-text-muted">
+                  {incident.action_taken
+                    ? ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]
+                    : 'Unavailable with current response'}
+                </p>
+              </li>
+            </ol>
+          </section>
+
+          <section>
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+              Explainability
+            </h3>
+            {incident.shap_values && incident.shap_values.length > 0 ? (
+              <div className="rounded-sm border border-border-light bg-[#16233A] p-3">
+                <p className="mb-3 text-xs text-text-muted">
+                  Token contribution is shown only because this alert includes real `shap_values` data.
+                </p>
+                <ShapChart features={incident.shap_values} />
+              </div>
+            ) : (
+              <div className="rounded-sm border border-dashed border-border-light p-3 text-sm text-text-muted">
+                Token contribution is unavailable with the current incident response.
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+              Captured Payload
+            </h3>
+            <div className="bg-gray-50 border border-border-light rounded-sm p-3 overflow-x-auto">
+              <pre className="m-0">
+                <code className="font-mono text-xs text-red-700 break-all">
+                  {incident.payload_snippet || 'No data available'}
+                </code>
+              </pre>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+              Source
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
@@ -162,102 +284,16 @@ export default function IncidentDetailPanel() {
                   {incident.request_path ?? 'Unavailable with current response'}
                 </span>
               </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Prediction
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.prediction}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  ML Confidence
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {Math.round(incident.confidence * 100)}%
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Confidence Level
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.confidence_level}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Action Taken
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.action_taken
-                    ? ALERT_DISPLAY_ACTION_ALIASES[incident.action_taken]
-                    : 'Unavailable with current response'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  CRS Score
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.crs_score ?? 'Unavailable with current response'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1 col-span-2">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  CRS Rule IDs
-                </span>
-                <span className="text-sm font-medium text-text-main font-mono break-all">
-                  {formatRuleIds(incident.crs_rule_ids)}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
-              Analyst Review
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Analyst Label
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {incident.analyst_label ?? 'Not reviewed'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Labeled By
-                </span>
-                <span className="text-sm font-medium text-text-main break-all">
-                  {incident.labeled_by ?? 'Not reviewed'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1 col-span-2">
-                <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                  Labeled At
-                </span>
-                <span className="text-sm font-medium text-text-main">
-                  {formatUtcTimestamp(incident.labeled_at)}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Captured Payload */}
-          <section>
-            <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">
-              Captured Payload
-            </h3>
-            <div className="bg-gray-50 border border-border-light rounded-sm p-3 overflow-x-auto">
-              <pre className="m-0">
-                <code className="font-mono text-xs text-red-700 break-all">
-                  {incident.payload_snippet || 'No data available'}
-                </code>
-              </pre>
+              {incident.user_agent !== undefined && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                    User Agent
+                  </span>
+                  <span className="text-sm font-medium text-text-main break-all">
+                    {incident.user_agent || 'Unavailable with current response'}
+                  </span>
+                </div>
+              )}
             </div>
           </section>
         </div>

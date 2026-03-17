@@ -3,22 +3,6 @@
 import { Suspense } from 'react'
 import { useMLHealth } from '@/features/ml-health/queries'
 
-function formatPercentThreshold(value: number | null): string | null {
-  if (value === null) {
-    return null
-  }
-
-  return `${Math.round(value * 100)}%`
-}
-
-function formatLessThanThreshold(value: string | null): string {
-  return value === null ? 'N/A' : `< ${value}`
-}
-
-function formatGreaterThanThreshold(value: string | null): string {
-  return value === null ? 'N/A' : `> ${value}`
-}
-
 function MLHealthContent() {
   const { data, isPending, isError } = useMLHealth()
 
@@ -38,21 +22,6 @@ function MLHealthContent() {
       </div>
     )
   }
-
-  const driftPct =
-    data.drift_score === null ? 'N/A' : `${(data.drift_score * 100).toFixed(1)}%`
-  const inferenceTime =
-    `${data.latency_ms.toFixed(1)}ms`
-  const lowThresholdLabel = formatPercentThreshold(data.thresholds.low)
-  const mediumThresholdValue = formatPercentThreshold(data.thresholds.medium)
-  const highThresholdLabel = formatPercentThreshold(data.thresholds.high)
-  const mediumThresholdLabel =
-    mediumThresholdValue ?? (
-      lowThresholdLabel !== null && highThresholdLabel !== null
-        ? `${lowThresholdLabel} - ${highThresholdLabel}`
-        : null
-    )
-  const highThresholdBoundary = mediumThresholdValue ?? highThresholdLabel
 
   const statusColor =
     data.status === 'HEALTHY'
@@ -74,78 +43,24 @@ function MLHealthContent() {
       : data.status === 'DEGRADED'
       ? 'Degraded'
       : 'Down'
+  const modelVersion = data.model_version.trim()
+  const modelLabel = modelVersion.toLowerCase().startsWith('distilbert')
+    ? modelVersion
+    : `DistilBERT ${modelVersion}`
 
   return (
     <div className="px-4 py-3">
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
-          ML Health
-        </span>
-
-        <div className="flex items-center gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full ${statusDotColor}`} />
-          <span className={`text-[10px] font-medium ${statusColor}`}>
+      <div className="flex items-center gap-2">
+        <div className={`h-2 w-2 rounded-full ${statusDotColor}`} />
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-blue-300">
+            {modelLabel}
+          </p>
+          <p className={`text-[11px] font-medium ${statusColor}`}>
             {statusLabel}
-          </span>
+          </p>
         </div>
       </div>
-
-      {/* Model Info */}
-      <div className="space-y-1 text-[10px]">
-
-        <div className="flex justify-between">
-          <span className="text-blue-300">Model:</span>
-          <span className="text-blue-100 font-medium">
-            DistilBERT {data.model_version}
-          </span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="text-blue-300">Drift:</span>
-          <span className="text-orange-300 font-mono">{driftPct}</span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="text-blue-300">Inference Time:</span>
-          <span className="text-blue-200 font-mono">{inferenceTime}</span>
-        </div>
-
-      </div>
-
-      {/* Confidence Thresholds */}
-      <div className="bg-[#11243d] rounded p-2 mt-3 border border-[#2d4a77]">
-        <div className="text-[9px] text-blue-300 mb-1 font-bold">
-          Confidence Thresholds
-        </div>
-
-        <div className="flex flex-col gap-0.5 text-[9px] font-mono">
-
-          <div className="flex justify-between">
-            <span className="text-status-low">LOW</span>
-            <span className="text-blue-200">
-              {formatLessThanThreshold(lowThresholdLabel)}
-            </span>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-status-medium">MED</span>
-            <span className="text-blue-200">
-              {mediumThresholdLabel ?? 'N/A'}
-            </span>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-status-high">HIGH</span>
-            <span className="text-blue-200">
-              {formatGreaterThanThreshold(highThresholdBoundary)}
-            </span>
-          </div>
-
-        </div>
-      </div>
-
     </div>
   )
 }

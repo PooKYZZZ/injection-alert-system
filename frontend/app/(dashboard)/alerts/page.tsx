@@ -13,7 +13,6 @@ export default async function AlertsPage({
 
   return (
     <main className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
       <AlertsTable />
       <IncidentDetailPanel />
     </main>

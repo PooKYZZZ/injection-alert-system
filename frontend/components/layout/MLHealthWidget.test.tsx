@@ -29,7 +29,7 @@ function createWrapper() {
 }
 
 describe('MLHealthWidget', () => {
-  it('derives threshold labels from low/high when medium is null', () => {
+  it('renders simplified model identity and healthy status', () => {
     mockedUseMLHealth.mockReturnValue({
       data: {
         model_version: 'distilbert-v1',
@@ -52,39 +52,20 @@ describe('MLHealthWidget', () => {
     const Wrapper = createWrapper()
     render(<MLHealthWidget />, { wrapper: Wrapper })
 
-    expect(screen.getByText('< 50%')).toBeInTheDocument()
-    expect(screen.getByText('50% - 80%')).toBeInTheDocument()
-    expect(screen.getByText('> 80%')).toBeInTheDocument()
-    expect(screen.queryByText('N/A - N/A')).not.toBeInTheDocument()
-    expect(screen.queryByText('< N/A')).not.toBeInTheDocument()
+    expect(screen.getByText('distilbert-v1')).toBeInTheDocument()
+    expect(screen.getByText('Stable')).toBeInTheDocument()
   })
 
-  it('renders a single N/A when threshold values are absent', () => {
+  it('renders unavailable message when ml health data is missing', () => {
     mockedUseMLHealth.mockReturnValue({
-      data: {
-        model_version: 'distilbert-v1',
-        status: 'HEALTHY',
-        latency_ms: 2.5,
-        latency_trend: null,
-        drift_score: null,
-        drift_status: 'NORMAL',
-        traffic_processed: 44,
-        thresholds: {
-          low: null,
-          medium: null,
-          high: null,
-        },
-      },
+      data: undefined,
       isPending: false,
-      isError: false,
+      isError: true,
     } as ReturnType<typeof useMLHealth>)
 
     const Wrapper = createWrapper()
     render(<MLHealthWidget />, { wrapper: Wrapper })
 
-    expect(screen.getAllByText('N/A').length).toBeGreaterThanOrEqual(4)
-    expect(screen.queryByText('< N/A')).not.toBeInTheDocument()
-    expect(screen.queryByText('N/A - N/A')).not.toBeInTheDocument()
-    expect(screen.queryByText('> N/A')).not.toBeInTheDocument()
+    expect(screen.getByText('Model unavailable')).toBeInTheDocument()
   })
 })

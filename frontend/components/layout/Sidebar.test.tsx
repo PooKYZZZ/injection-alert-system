@@ -31,6 +31,14 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
     expect(screen.getByText('WAF-ML Security Dashboard')).toBeInTheDocument()
+    expect(screen.getByText('Authenticated User')).toBeInTheDocument()
+    expect(screen.getByText('Signed in')).toBeInTheDocument()
+  })
+
+  it('renders provided identity values', () => {
+    render(<Sidebar displayName="SOC Analyst" secondaryLabel="soc@example.com" />)
+    expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
+    expect(screen.getByText('soc@example.com')).toBeInTheDocument()
   })
 
   it('logout button has aria-label="Logout"', () => {
