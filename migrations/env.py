@@ -15,10 +15,19 @@ if config.config_file_name is not None:
 
 
 def _get_sync_database_url() -> str:
+    """
+    Alembic runs synchronously. Strip async driver prefixes so it works
+    regardless of what DATABASE_URL is set to in .env.
+    Safe for SQLite (aiosqlite → sqlite).
+    Safe for PostgreSQL only if psycopg2 is installed alongside asyncpg.
+    """
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL must be set in the environment for Alembic")
 
+    # Strip async prefixes for synchronous Alembic usage
+    if database_url.startswith("sqlite+aiosqlite://"):
+        return database_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     if database_url.startswith("postgresql+asyncpg://"):
         return database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
     if database_url.startswith("postgresql://"):

@@ -88,6 +88,14 @@ artifacts/
 stitch_waf_ml_soc_dashboard_overview/
 archive/
 
+# ML model weights — distributed via team shared drive, not committed to repo
+ml_model/model_registry/**/*.bin
+ml_model/model_registry/**/*.safetensors
+ml_model/model_registry/**/*.h5
+ml_model/model_registry/**/*.msgpack
+ml_model/model_registry/**/*.ckpt
+distilbert_v3_model.zip
+
 # Data assets
 data/raw/
 data/interim/

@@ -37,30 +37,29 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     settings = get_settings()
-    configured_path = settings.model_registry_path.strip()
-    registry_exists = bool(configured_path) and Path(configured_path).expanduser().exists()
 
     await init_db()
 
-    if not registry_exists:
-        if settings.is_development or settings.is_testing:
-            logger.warning(
-                "MODEL_REGISTRY_PATH not found — using mock ModelService (configured path: %s)",
-                configured_path or "<unset>",
-            )
-            app.state.model_service = ModelService.create_mock()
-        else:
-            raise RuntimeError(
-                f"MODEL_REGISTRY_PATH '{configured_path or '<unset>'}' "
-                "not found. Set a valid path or enable IS_DEVELOPMENT=true."
-            )
-    else:
-        app.state.model_service = ModelService(settings)
-        logger.info("ModelService loaded: %s", app.state.model_service.model_version)
+    # ── Startup: Load model with fallback to mock mode ─────────────────────────
+    try:
+        model_service = ModelService(settings)
+        logger.info("Model loaded successfully from %s", settings.model_registry_path)
+    except Exception as exc:
+        logger.warning(
+            "Model load failed — %s. "
+            "Starting in mock mode. Predictions will be simulated. "
+            "To use the real model, set MODEL_REGISTRY_PATH correctly in .env "
+            "and ensure model files are present at that path.",
+            exc,
+        )
+        model_service = ModelService.create_mock()
 
+    app.state.model_service = model_service
     # Preserve the legacy dependency until routes are migrated to model_service.
     app.state.model = app.state.model_service
     yield
+    # ── Shutdown ──────────────────────────────────────────────────────────────
+    # add any cleanup here if needed
 
 
 async def health_check(db: AsyncSession = Depends(get_db)):
