@@ -363,8 +363,8 @@ export default function IncidentDetailPanel() {
               </h3>
               <div className="rounded-md border border-border-light bg-bg-inset px-3 py-2">
                 <pre className="m-0 whitespace-pre-wrap break-all font-mono text-[10px] leading-[1.8] text-text-secondary">
-                  <span className="text-accent-amber">{incident.request_method ?? 'REQUEST'}</span>{' '}
-                  <span className="text-severity-high-text">{incident.request_path ?? '/'}</span>{' '}
+                  <span className="text-accent-amber">{incident.request_method ?? '—'}</span>{' '}
+                  <span className="text-severity-high-text">{incident.request_path ?? '—'}</span>{' '}
                   <span className="text-text-muted">HTTP/1.1</span>
                   {'\n'}
                   <span className="text-accent-blue">Host</span>: <span className="text-text-secondary">dashboard.local</span>

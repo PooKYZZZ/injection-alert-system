@@ -2,6 +2,18 @@ import { queryOptions, useQuery, type UseQueryResult } from '@tanstack/react-que
 import { toQueryString, DashboardFilters } from '@/lib/searchParams'
 import { Alert, PaginatedAlerts } from './types'
 
+/*
+ * QUERY FRESHNESS POLICY
+ *
+ * Alerts: staleTime = 0 (always refetch on mount)
+ * - Rationale: Security alerts are time-critical. Analysts need the latest data.
+ * - Alerts are the primary working surface for triage decisions.
+ * - No local caching - each mount triggers a fresh fetch.
+ *
+ * The alerts query throws on non-2xx responses - errors propagate to UI.
+ * No placeholderData or fake success states are used.
+ */
+
 export const alertKeys = {
   all: ['alerts'] as const,
   list: (filtersKey: string) => ['alerts', 'list', filtersKey] as const,

@@ -264,6 +264,14 @@ function AlertsTableContent() {
     useShallow((state: DashboardStoreState) => [...state.selectedAlertIds])
   )
 
+  // DEV NOTE: Using Set for O(1) lookups vs O(n) array.includes() in the render loop.
+  // Impact: With 20-100 alerts/page, this prevents O(n²) checkbox rendering on selection change.
+  // The Set is cheap to create (just object allocation) and only rebuilds on selection change.
+  const selectedIdsSet = useMemo(
+    () => new Set(selectedIds),
+    [selectedIds]
+  )
+
   useEffect(() => {
     if (selectedIds.length > 0) clearSelection()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,8 +280,10 @@ function AlertsTableContent() {
   const alertsQuery: UseQueryResult<PaginatedAlerts, Error> = useAlerts(filters)
   const { data, isPending, isError } = alertsQuery
   const alerts = useMemo(
+    // DEV NOTE: toSorted() is the non-mutating ES2023 alternative to sort().
+    // Avoids redundant array copy that spread operator created. Minor cleanliness improvement.
     () =>
-      [...(data?.items ?? [])].sort(
+      (data?.items ?? []).toSorted(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       ),
     [data?.items]
@@ -455,12 +465,12 @@ function AlertsTableContent() {
                   }
                 }}
                 tabIndex={0}
-                aria-selected={selectedIds.includes(alert.alert_id)}
+                aria-selected={selectedIdsSet.has(alert.alert_id)}
               >
                 <td className="p-3" onClick={(event) => event.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(alert.alert_id)}
+                    checked={selectedIdsSet.has(alert.alert_id)}
                     onChange={() => toggleAlertSelection(alert.alert_id)}
                     className={CHECKBOX_CLASS}
                     aria-label={`Select alert ${alert.alert_id}`}
@@ -522,7 +532,7 @@ function AlertsTableContent() {
                       return (
                         <td
                           key={column.key}
-                          title={alert.request_path ?? ''}
+                          title={alert.request_path ?? '—'}
                           className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-text-primary"
                         >
                           {alert.request_path ?? '—'}

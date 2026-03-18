@@ -241,4 +241,147 @@ describe('BFF route handlers', () => {
     expect(body.thresholds.medium).toBeNull()
     expect(body.thresholds.high).toBe(0.8)
   })
+
+  it('alerts route propagates upstream 502 (invalid payload) as UPSTREAM_ERROR', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getAlertsMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+
+    const { GET } = await import('./alerts/route')
+    const response = await GET(new NextRequest('http://localhost:3000/api/alerts'))
+    const body = await response.json()
+
+    expect(response.status).toBe(502)
+    expect(body).toEqual({
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+  })
+
+  it('stats route propagates upstream 503 (service unavailable)', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getStatsMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream service failed.',
+      },
+    })
+
+    const { GET } = await import('./stats/route')
+    const response = await GET({} as never)
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body).toEqual({
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream service failed.',
+      },
+    })
+  })
+
+  it('ml-health route propagates INTERNAL_SERVICE_AUTH_FAILED error', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getMlHealthMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      error: {
+        code: 'INTERNAL_SERVICE_AUTH_FAILED',
+        message: 'Internal service authentication failed.',
+      },
+    })
+
+    const { GET } = await import('./ml-health/route')
+    const response = await GET({} as never)
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toEqual({
+      error: {
+        code: 'INTERNAL_SERVICE_AUTH_FAILED',
+        message: 'Internal service authentication failed.',
+      },
+    })
+  })
+
+  it('alerts route rejects unauthenticated request before calling BFF client', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { GET } = await import('./alerts/route')
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/alerts'))
+
+    // BFF client must NOT be called when auth fails
+    expect(getAlertsMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+  })
+
+  it('alert detail route rejects unauthenticated request before calling BFF client', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { GET } = await import('./alerts/[id]/route')
+
+    const response = await GET({} as never, {
+      params: Promise.resolve({ id: '1' }),
+    })
+
+    // BFF client must NOT be called when auth fails
+    expect(getAlertDetailMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+  })
+
+  it('stats route rejects unauthenticated request before calling BFF client', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { GET } = await import('./stats/route')
+
+    const response = await GET({} as never)
+
+    // BFF client must NOT be called when auth fails
+    expect(getStatsMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+  })
+
+  it('alerts route returns 500 for unhandled exceptions', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getAlertsMock.mockRejectedValueOnce(new Error('Unexpected failure'))
+
+    const { GET } = await import('./alerts/route')
+    const response = await GET(new NextRequest('http://localhost:3000/api/alerts'))
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toEqual({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred.',
+      },
+    })
+  })
+
+  it('stats route forwards Retry-After header from upstream 503', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getStatsMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream service failed.',
+      },
+      retryAfter: '30',
+    })
+
+    const { GET } = await import('./stats/route')
+    const response = await GET({} as never)
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('Retry-After')).toBe('30')
+  })
 })

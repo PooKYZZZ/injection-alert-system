@@ -296,7 +296,7 @@ describe('bff-client', () => {
         traffic_processed: 42,
         thresholds: {
           low: 0.5,
-          medium: null,
+          medium: 0.65,
           high: 0.8,
         },
       },
@@ -370,6 +370,58 @@ describe('bff-client', () => {
       error: {
         code: 'BFF_MISCONFIGURED',
         message: 'Server configuration is incomplete.',
+      },
+    })
+  })
+
+  it('returns INTERNAL_SERVICE_AUTH_FAILED when upstream returns 401 (internal auth failure)', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }))
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    // Upstream 401 means the internal API key is invalid/missing/expired,
+    // not that the browser user is unauthorized.
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: {
+        code: 'INTERNAL_SERVICE_AUTH_FAILED',
+        message: 'Internal service authentication failed.',
+      },
+    })
+  })
+
+  it('returns INTERNAL_SERVICE_AUTH_FAILED when upstream returns 403 (internal auth failure)', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }))
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    // Upstream 403 means the internal API key lacks permissions,
+    // not that the browser user is forbidden.
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: {
+        code: 'INTERNAL_SERVICE_AUTH_FAILED',
+        message: 'Internal service authentication failed.',
+      },
+    })
+  })
+
+  it('returns UPSTREAM_ERROR with 400 status when upstream returns 400', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 400 }))
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream request failed.',
       },
     })
   })

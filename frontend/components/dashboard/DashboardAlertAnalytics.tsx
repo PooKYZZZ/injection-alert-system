@@ -2,11 +2,19 @@
 
 import { useMemo } from 'react'
 import type { Alert } from '@/features/alerts/types'
+import type { ConfidenceThresholds } from '@/features/ml-health/types'
+
+interface ThresholdState {
+  thresholds: ConfidenceThresholds | null
+  isLoading: boolean
+  isError: boolean
+}
 
 interface DashboardAlertAnalyticsProps {
   alerts: Alert[]
   alertsPending: boolean
   alertsError?: Error | null
+  thresholdState: ThresholdState
 }
 
 interface ChartPanelProps {
@@ -140,27 +148,42 @@ export default function DashboardAlertAnalytics({
   alerts,
   alertsPending,
   alertsError,
+  thresholdState,
 }: DashboardAlertAnalyticsProps) {
-  const { highThreshold, mediumThreshold } = useMemo(() => {
-    let high = 0.8
-    let medium = 0.5
+  const { thresholds, isLoading, isError } = thresholdState
 
-    const sampleWithThresholds = alerts.find(
-      (a) => (a as any)?.mlHealthData?.thresholds != null
-    ) as any
-
-    const thresholds = sampleWithThresholds?.mlHealthData?.thresholds
-    if (thresholds) {
-      if (typeof thresholds.high === 'number') high = thresholds.high
-      if (typeof thresholds.medium === 'number') medium = thresholds.medium
+  // Threshold source of truth: ML health contract
+  // Use explicit thresholds from ML health, or show unavailable state
+  const { highThreshold, mediumThreshold, thresholdsAvailable } = useMemo(() => {
+    // Thresholds must come from ML health contract - no fallback inference from alerts
+    if (!thresholds || thresholds.high === null || thresholds.medium === null) {
+      return {
+        highThreshold: null,
+        mediumThreshold: null,
+        thresholdsAvailable: false,
+      }
     }
 
-    return { highThreshold: high, mediumThreshold: medium }
-  }, [alerts])
+    return {
+      highThreshold: thresholds.high,
+      mediumThreshold: thresholds.medium,
+      thresholdsAvailable: true,
+    }
+  }, [thresholds])
 
+  // DEV NOTE: Single-pass loop instead of two .filter() calls.
+  // Micro-optimization: avoids redundant iteration over alerts array.
+  // Impact is minor at current page sizes but follows the principle of avoiding unnecessary work.
   const actionBreakdown = useMemo(() => {
-    const blocked = alerts.filter((alert) => alert.action_taken === 'BLOCKED').length
-    const allowed = alerts.filter((alert) => alert.action_taken === 'ALLOWED').length
+    let blocked = 0
+    let allowed = 0
+    for (const alert of alerts) {
+      if (alert.action_taken === 'BLOCKED') {
+        blocked += 1
+      } else if (alert.action_taken === 'ALLOWED') {
+        allowed += 1
+      }
+    }
     const total = blocked + allowed
     const blockedPct = total > 0 ? (blocked / total) * 100 : 0
 
@@ -190,6 +213,11 @@ export default function DashboardAlertAnalytics({
   )
 
   const confidenceBands = useMemo(() => {
+    // If thresholds are not available, show empty/unavailable state
+    if (!thresholdsAvailable || highThreshold === null || mediumThreshold === null) {
+      return null
+    }
+
     const counts = { high: 0, medium: 0, low: 0 }
     for (const alert of alerts) {
       if (alert.confidence > highThreshold) {
@@ -209,7 +237,7 @@ export default function DashboardAlertAnalytics({
       { label: `Medium ${mediumPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
       { label: `Low < ${mediumPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
     ]
-  }, [alerts, highThreshold, mediumThreshold])
+  }, [alerts, highThreshold, mediumThreshold, thresholdsAvailable])
 
   if (alertsPending) {
     return <DashboardAlertAnalyticsSkeleton />
@@ -286,18 +314,34 @@ export default function DashboardAlertAnalytics({
 
         <ChartPanel
           title="ML Confidence Bands"
-          description="Confidence score distribution across loaded alerts."
+          description="Confidence score distribution using backend ML-health thresholds."
         >
-          <HorizontalBars
-            rows={confidenceBands}
-            emptyMessage="No confidence values are available in the current loaded alerts."
-            showStub
-          />
-          {alerts.length > 0 && confidenceBands[0].value === alerts.length ? (
-            <p className="mt-3 text-[9px] text-text-muted">
-              All {alerts.length} requests scored high confidence.
-            </p>
-          ) : null}
+          {isLoading ? (
+            <div role="status" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
+              Loading confidence thresholds...
+            </div>
+          ) : isError ? (
+            <div role="alert" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
+              Unable to load confidence thresholds.
+            </div>
+          ) : thresholdsAvailable && confidenceBands ? (
+            <>
+              <HorizontalBars
+                rows={confidenceBands}
+                emptyMessage="No confidence values are available in the current loaded alerts."
+                showStub
+              />
+              {alerts.length > 0 && confidenceBands[0].value === alerts.length ? (
+                <p className="mt-3 text-[9px] text-text-muted">
+                  All {alerts.length} requests scored high confidence.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <div role="status" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
+              Confidence thresholds unavailable.
+            </div>
+          )}
         </ChartPanel>
       </div>
     </div>

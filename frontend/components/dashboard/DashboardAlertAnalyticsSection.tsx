@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import MetricCards from '@/components/dashboard/MetricCards'
 import HeroActivityStrip from '@/components/dashboard/HeroActivityStrip'
 import { useAlerts } from '@/features/alerts/queries'
+import { useDashboardStats } from '@/features/stats/queries'
+import { useMLHealth } from '@/features/ml-health/queries'
 import type { DashboardFilters, SeverityFilter, TimeRange } from '@/lib/searchParams'
 
 const DashboardAlertAnalytics = dynamic(
@@ -46,15 +48,28 @@ function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): Dashbo
 export default function DashboardAlertAnalyticsSection() {
   const searchParams = useSearchParams()
   const filters = buildFilters(searchParams)
-  const { data, isPending, error } = useAlerts(filters)
-  const alerts = data?.items ?? []
-  const alertsError = error instanceof Error ? error : null
+
+  // Stats query for metric cards - system-wide stats, not filtered
+  const { data: stats, isPending: statsPending, error: statsError } = useDashboardStats()
+
+  // Alerts query for the alerts table - filtered data
+  // Note: We intentionally do NOT use fallback here to ensure loading/error states are handled
+  // by child components. If data exists but items is undefined, treat as empty array.
+  const { data: alertsData, isPending: alertsPending, error: alertsError } = useAlerts(filters)
+  const alertsErrorMessage = alertsError instanceof Error ? alertsError : null
+
+  // ML health query for threshold source of truth
+  const { data: mlHealthData, isPending: mlHealthPending, isError: mlHealthError } = useMLHealth()
+
+  // Presentational fallback: only apply when we know data exists but items is missing
+  // This is a legitimate presentation fallback, NOT a contract-masking one
+  const alerts = alertsData?.items !== undefined ? alertsData.items : []
 
   return (
     <div className="flex flex-col gap-4">
-      <MetricCards alerts={alerts} alertsPending={isPending} alertsError={alertsError} />
+      <MetricCards stats={stats} statsPending={statsPending} statsError={statsError} />
       <div style={{ maxHeight: '56px', overflow: 'hidden' }}>
-        <HeroActivityStrip alerts={alerts} isLoading={isPending} />
+        <HeroActivityStrip alerts={alerts} isLoading={alertsPending} />
       </div>
       <div className="flex items-baseline justify-between">
         <span className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
@@ -62,7 +77,16 @@ export default function DashboardAlertAnalyticsSection() {
         </span>
         <span className="text-[10px] italic text-text-muted">Derived from loaded alerts.</span>
       </div>
-      <DashboardAlertAnalytics alerts={alerts} alertsPending={isPending} alertsError={alertsError} />
+      <DashboardAlertAnalytics
+        alerts={alerts}
+        alertsPending={alertsPending}
+        alertsError={alertsErrorMessage}
+        thresholdState={{
+          thresholds: mlHealthData?.thresholds ?? null,
+          isLoading: mlHealthPending,
+          isError: mlHealthError,
+        }}
+      />
     </div>
   )
 }

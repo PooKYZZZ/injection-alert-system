@@ -16,7 +16,7 @@ export interface BffError {
 
 export type BffResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; error: BffError }
+  | { ok: false; status: number; error: BffError; retryAfter?: string }
 
 const BackendAlertSchema = z.object({
   id: z.number(),
@@ -71,8 +71,8 @@ function ok<T>(data: T): BffResult<T> {
   return { ok: true, data }
 }
 
-function err<T>(status: number, code: string, message: string): BffResult<T> {
-  return { ok: false, status, error: { code, message } }
+function err<T>(status: number, code: string, message: string, retryAfter?: string): BffResult<T> {
+  return { ok: false, status, error: { code, message }, retryAfter }
 }
 
 function parseAlertId(alertId: string): BffResult<number> {
@@ -270,12 +270,25 @@ async function fetchUpstream<T>(
   }
 
   if (!response.ok) {
+    // Route handlers enforce auth before calling BFF client, so upstream 401/403
+    // indicates an internal auth failure (e.g., invalid, expired, or unauthorized
+    // INTERNAL_API_KEY). Map to INTERNAL_SERVICE_AUTH_FAILED to accurately reflect
+    // the possible causes while remaining browser-safe (no sensitive details leaked).
+    if (response.status === 401 || response.status === 403) {
+      return err(
+        500,
+        'INTERNAL_SERVICE_AUTH_FAILED',
+        'Internal service authentication failed.'
+      )
+    }
+
     if (response.status === 404) {
       return err(404, 'NOT_FOUND', 'Requested resource was not found.')
     }
 
     if (response.status >= 500) {
-      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.')
+      const retryAfter = response.headers.get('Retry-After')
+      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.', retryAfter ?? undefined)
     }
 
     return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.')
