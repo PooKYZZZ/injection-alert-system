@@ -26,6 +26,43 @@ vi.mock('@/features/alerts/queries', () => ({
   useAlerts: vi.fn(),
 }))
 
+// Mock dynamic imports
+vi.mock('@/components/dashboard/DashboardAlertAnalytics', () => ({
+  __esModule: true,
+  default: vi.fn(({ alertsError, thresholdState }) => {
+    // Render error state if alertsError is present
+    if (alertsError) {
+      return (
+        <div data-testid="dashboard-analytics-error">
+          <p>Failed to load dashboard analytics.</p>
+          <p>{alertsError.message}</p>
+        </div>
+      )
+    }
+    // Render loading state if threshold is loading
+    if (thresholdState?.isLoading) {
+      return <div data-testid="threshold-loading">Loading confidence thresholds...</div>
+    }
+    // Render error if threshold state has error
+    if (thresholdState?.isError) {
+      return <div data-testid="threshold-error">Unable to load confidence thresholds.</div>
+    }
+    // Render unavailable if thresholds are null/missing
+    const t = thresholdState?.thresholds
+    if (!t || t.high === null || t.medium === null || t.low === null) {
+      return <div data-testid="threshold-unavailable">Confidence thresholds unavailable.</div>
+    }
+    // Default: render threshold bands
+    return (
+      <div data-testid="threshold-bands">
+        <span>High &gt; {Math.round((t?.high ?? 0) * 100)}%</span>
+        <span>Medium {Math.round((t?.medium ?? 0) * 100)}–{Math.round((t?.high ?? 0) * 100)}%</span>
+        <span>Low &lt; {Math.round((t?.medium ?? 0) * 100)}%</span>
+      </div>
+    )
+  }),
+}))
+
 vi.mock('@/features/ml-health/queries', () => ({
   useMLHealth: vi.fn(),
 }))
