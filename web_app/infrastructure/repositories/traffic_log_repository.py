@@ -279,19 +279,33 @@ class TrafficLogRepository(ITrafficLogRepository):
         """Return aggregate traffic stats with zero-safe defaults."""
         counts_by_label = {label: 0 for label in CANONICAL_PREDICTION_LABELS}
 
+        # Get baseline counts and latency
         summary_result = await self._session.execute(
             select(
                 func.count(TrafficLog.id).label("total_requests"),
                 func.coalesce(func.avg(TrafficLog.inference_latency_ms), 0.0).label(
                     "avg_inference_latency_ms"
                 ),
-                func.coalesce(func.avg(TrafficLog.confidence), 0.0).label(
-                    "avg_confidence"
-                ),
             )
             .where(self._completed_or_legacy_clause())
         )
         summary_row = summary_result.one()
+
+        # Get avg_confidence honestly - only from non-null confidence values
+        confidence_result = await self._session.execute(
+            select(
+                func.avg(TrafficLog.confidence).label("avg_confidence"),
+                func.count(TrafficLog.confidence).label("confidence_count"),
+            )
+            .where(self._completed_or_legacy_clause())
+            .where(TrafficLog.confidence.isnot(None))
+        )
+        confidence_row = confidence_result.one()
+        
+        # Return None if no non-null confidence values exist
+        avg_confidence = None
+        if confidence_row.confidence_count and confidence_row.confidence_count > 0:
+            avg_confidence = round(float(confidence_row.avg_confidence), 3)
 
         counts_result = await self._session.execute(
             select(
@@ -323,11 +337,6 @@ class TrafficLogRepository(ITrafficLogRepository):
             elif action_taken == "ALLOWED":
                 allowed_count = int(count)
 
-        # Handle avg_confidence: return None if no records exist, otherwise round
-        avg_confidence = None
-        if summary_row.total_requests and summary_row.total_requests > 0:
-            avg_confidence = round(float(summary_row.avg_confidence or 0.0), 3)
-
         return TrafficStatsSummary(
             total_requests=int(summary_row.total_requests or 0),
             counts_by_label=counts_by_label,
@@ -347,64 +356,99 @@ class TrafficLogRepository(ITrafficLogRepository):
         vs. all-time average. If recent confidence is significantly lower,
         it may indicate model drift.
 
+        Drift is computed only from rows with non-null confidence values.
+        Returns unavailable state if insufficient usable data exists.
+
         Returns:
-            DriftMetrics with drift_score, drift_detected, and confidence values.
+            DriftMetrics with drift_score (0-1, clamped), drift_detected, and confidence values.
+            Returns None for unavailable fields when data is insufficient.
         """
-        # Get baseline (all-time average confidence)
+        # Get baseline (all-time average confidence) from non-null confidence rows
         baseline_result = await self._session.execute(
             select(
                 func.avg(TrafficLog.confidence).label("baseline_avg"),
-                func.count(TrafficLog.id).label("total_count"),
-            ).where(self._completed_or_legacy_clause())
+                func.count(TrafficLog.confidence).label("confidence_count"),
+            ).where(
+                self._completed_or_legacy_clause(),
+                TrafficLog.confidence.isnot(None),
+            )
         )
         baseline_row = baseline_result.one()
 
-        baseline_avg = float(baseline_row.baseline_avg or 0.0)
-        total_count = int(baseline_row.total_count or 0)
+        baseline_avg = float(baseline_row.baseline_avg) if baseline_row.baseline_avg is not None else 0.0
+        baseline_count = int(baseline_row.confidence_count or 0)
 
-        if total_count < recent_window:
-            # Not enough data for drift detection
+        if baseline_count < recent_window:
+            # Not enough baseline data for drift detection
             return DriftMetrics(
-                drift_score=0.0,
+                drift_score=None,
                 drift_detected=False,
-                recent_mean_confidence=0.0,
+                recent_mean_confidence=None,
                 baseline_mean_confidence=round(baseline_avg, 4) if baseline_avg > 0 else 0.0,
                 recent_sample_size=0,
-                baseline_sample_size=total_count,
+                baseline_sample_size=baseline_count,
             )
 
-        # Get recent average confidence (last N records ordered by timestamp)
-        recent_result = await self._session.execute(
-            select(func.avg(TrafficLog.confidence).label("recent_avg"))
-            .where(self._completed_or_legacy_clause())
+        # Get recent average confidence using correct subquery approach:
+        # First select the N most recent rows with non-null confidence, then average them
+        # This uses a subquery to ensure the N selection happens before the average
+        recent_subquery = (
+            select(TrafficLog.confidence)
+            .where(
+                self._completed_or_legacy_clause(),
+                TrafficLog.confidence.isnot(None),
+            )
             .order_by(TrafficLog.timestamp.desc())
             .limit(recent_window)
+            .subquery()
+        )
+        
+        recent_result = await self._session.execute(
+            select(
+                func.avg(recent_subquery.c.confidence).label("recent_avg"),
+                func.count(recent_subquery.c.confidence).label("recent_count"),
+            )
         )
         recent_row = recent_result.one()
-        recent_avg = float(recent_row.recent_avg or 0.0)
+        
+        recent_avg = float(recent_row.recent_avg) if recent_row.recent_avg is not None else 0.0
+        recent_count = int(recent_row.recent_count or 0)
+
+        if recent_count < recent_window:
+            # Not enough recent data for drift detection
+            return DriftMetrics(
+                drift_score=None,
+                drift_detected=False,
+                recent_mean_confidence=round(recent_avg, 4) if recent_avg > 0 else 0.0,
+                baseline_mean_confidence=round(baseline_avg, 4),
+                recent_sample_size=recent_count,
+                baseline_sample_size=baseline_count,
+            )
 
         if baseline_avg == 0:
             return DriftMetrics(
-                drift_score=0.0,
+                drift_score=None,
                 drift_detected=False,
-                recent_mean_confidence=round(recent_avg, 4) if recent_avg > 0 else 0.0,
+                recent_mean_confidence=round(recent_avg, 4),
                 baseline_mean_confidence=0.0,
-                recent_sample_size=recent_window,
-                baseline_sample_size=0,
+                recent_sample_size=recent_count,
+                baseline_sample_size=baseline_count,
             )
 
-        # Compute drift score as relative change
-        drift_score = abs(recent_avg - baseline_avg) / baseline_avg
+        # Compute drift score as relative change, clamped to 0-1 per schema
+        raw_drift = abs(recent_avg - baseline_avg) / baseline_avg
+        drift_score = min(1.0, max(0.0, round(raw_drift, 4)))
+        
         # Consider drift detected if score > 10% (simple threshold)
         drift_detected = drift_score > 0.10
 
         return DriftMetrics(
-            drift_score=round(drift_score, 4),
+            drift_score=drift_score,
             drift_detected=drift_detected,
             recent_mean_confidence=round(recent_avg, 4),
             baseline_mean_confidence=round(baseline_avg, 4),
-            recent_sample_size=recent_window,
-            baseline_sample_size=total_count,
+            recent_sample_size=recent_count,
+            baseline_sample_size=baseline_count,
         )
 
     async def get_activity_buckets(

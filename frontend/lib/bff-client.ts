@@ -307,21 +307,21 @@ async function fetchUpstream<T>(
   }
 
   if (!response.ok) {
-    // Capture Retry-After header once for any non-OK response
-    const retryAfter = response.headers.get('Retry-After') ?? undefined
-
     // Route handlers enforce auth before calling BFF client, so upstream 401/403
     // indicates an internal auth failure (e.g., invalid, expired, or unauthorized
     // INTERNAL_API_KEY). Map to INTERNAL_SERVICE_AUTH_FAILED to accurately reflect
     // the possible causes while remaining browser-safe (no sensitive details leaked).
+    // Note: retryAfter is NOT attached for auth failures - those are not "wait and retry" semantics.
     if (response.status === 401 || response.status === 403) {
       return err(
         500,
         'INTERNAL_SERVICE_AUTH_FAILED',
-        'Internal service authentication failed.',
-        retryAfter
+        'Internal service authentication failed.'
       )
     }
+
+    // Capture Retry-After header for retryable upstream failures
+    const retryAfter = response.headers.get('Retry-After') ?? undefined
 
     if (response.status === 404) {
       return err(404, 'NOT_FOUND', 'Requested resource was not found.', retryAfter)

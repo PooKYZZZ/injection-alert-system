@@ -397,6 +397,7 @@ describe('bff-client', () => {
 
     // Upstream 401 means the internal API key is invalid/missing/expired,
     // not that the browser user is unauthorized.
+    // Note: retryAfter is NOT attached for auth failures (not a "wait and retry" scenario)
     expect(result).toEqual({
       ok: false,
       status: 500,
@@ -415,6 +416,7 @@ describe('bff-client', () => {
 
     // Upstream 403 means the internal API key lacks permissions,
     // not that the browser user is forbidden.
+    // Note: retryAfter is NOT attached for auth failures (not a "wait and retry" scenario)
     expect(result).toEqual({
       ok: false,
       status: 500,

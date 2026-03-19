@@ -139,8 +139,8 @@ export default function MLHealthDetail() {
     )
   }
 
-  // Drift status now comes from real database analysis, so it's always available
-  // when data is loaded. Only show unavailable note for latency_trend and drift_score.
+  // Drift status is derived from real database analysis when drift_score is available.
+  // If drift_score is null, drift cannot be computed (insufficient data) and drift_status will be null.
   const showUnavailableNote =
     !isPending && data && (data.latency_trend === null || data.drift_score === null)
 

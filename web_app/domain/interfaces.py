@@ -21,11 +21,15 @@ from datetime import datetime
 
 @dataclass
 class DriftMetrics:
-    """Domain object representing ML model drift detection metrics."""
+    """Domain object representing ML model drift detection metrics.
+    
+    drift_score is None when drift cannot be computed (insufficient data).
+    drift_detected is False when drift_score is None.
+    """
 
-    drift_score: float  # 0.0-1.0 indicating severity
-    drift_detected: bool  # True if drift exceeds threshold
-    recent_mean_confidence: float  # Mean confidence of recent window
+    drift_score: float | None  # 0.0-1.0 indicating severity, None if unavailable
+    drift_detected: bool  # True if drift exceeds threshold, False if not or if unavailable
+    recent_mean_confidence: float | None  # Mean confidence of recent window, None if unavailable
     baseline_mean_confidence: float  # Mean confidence of baseline
     recent_sample_size: int  # Number of records in recent window
     baseline_sample_size: int  # Number of records in baseline

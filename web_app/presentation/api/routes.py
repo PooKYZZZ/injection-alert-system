@@ -14,9 +14,11 @@ Dependency rule:
   - Gets DB session from infrastructure/ DI only to construct repositories
 """
 
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.application.feedback_use_case import FeedbackUseCase
@@ -36,6 +38,8 @@ from web_app.presentation.schemas import (
     PredictionResponse,
     StatsResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 internal_auth_dependency = Depends(verify_internal_token)
 
@@ -101,9 +105,9 @@ async def get_stats(
             )
             for b in activity_buckets
         ]
-    except Exception:
-        # Database not available or not initialized - return empty list
-        pass
+    except DBAPIError as e:
+        # Database not available or not initialized - return empty buckets
+        logger.warning("Database unavailable while fetching activity buckets: %s", e)
 
     return StatsResponse(
         total_requests=summary.total_requests,
@@ -122,22 +126,18 @@ async def get_ml_health(
     db: AsyncSession = Depends(get_db),
 ):
     """Return health information for the currently loaded model service."""
-    # Get real drift metrics from database
-    # Track whether drift computation was successful
+    # Get real drift metrics from database (graceful degradation for DB unavailability)
     drift_detected = False
     drift_score: float | None = None
-    drift_available = False
 
     try:
         repository = TrafficLogRepository(db)
         drift_metrics = await repository.get_drift_metrics(recent_window=100)
         drift_detected = drift_metrics.drift_detected
         drift_score = drift_metrics.drift_score
-        drift_available = True
-    except Exception:
-        # Database not available or not initialized - drift detection unavailable
-        # Do NOT silently become "NORMAL" - mark as unavailable
-        drift_available = False
+    except DBAPIError as e:
+        # Database not available - drift detection unavailable
+        logger.warning("Database unavailable while computing drift metrics: %s", e)
 
     return MLHealthResponse(
         model_version=model_service.model_version,
