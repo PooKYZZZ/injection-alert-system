@@ -14,6 +14,7 @@ Dependency rule:
   - Does NOT import from presentation/ or application/
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
@@ -27,6 +28,8 @@ from web_app.domain.interfaces import (
     TrafficLogEntity,
     TrafficLogPage,
     TrafficStatsSummary,
+    DriftMetrics,
+    ActivityBucket,
 )
 from web_app.infrastructure.database.database import TrafficLog
 
@@ -36,6 +39,7 @@ CANONICAL_PREDICTION_LABELS = (
     "Other Attacks",
     "Normal",
 )
+
 
 TIME_RANGE_DELTAS = {
     "1h": timedelta(hours=1),
@@ -281,6 +285,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 func.coalesce(func.avg(TrafficLog.inference_latency_ms), 0.0).label(
                     "avg_inference_latency_ms"
                 ),
+                func.coalesce(func.avg(TrafficLog.confidence), 0.0).label(
+                    "avg_confidence"
+                ),
             )
             .where(self._completed_or_legacy_clause())
         )
@@ -299,6 +306,28 @@ class TrafficLogRepository(ITrafficLogRepository):
                 continue
             counts_by_label[prediction] = int(count)
 
+        # Get counts by action_taken
+        blocked_count = 0
+        allowed_count = 0
+        action_result = await self._session.execute(
+            select(
+                TrafficLog.action_taken,
+                func.count(TrafficLog.id).label("action_count"),
+            )
+            .where(self._completed_or_legacy_clause())
+            .group_by(TrafficLog.action_taken)
+        )
+        for action_taken, count in action_result.all():
+            if action_taken == "BLOCKED":
+                blocked_count = int(count)
+            elif action_taken == "ALLOWED":
+                allowed_count = int(count)
+
+        # Handle avg_confidence: return None if no records exist, otherwise round
+        avg_confidence = None
+        if summary_row.total_requests and summary_row.total_requests > 0:
+            avg_confidence = round(float(summary_row.avg_confidence or 0.0), 3)
+
         return TrafficStatsSummary(
             total_requests=int(summary_row.total_requests or 0),
             counts_by_label=counts_by_label,
@@ -306,7 +335,140 @@ class TrafficLogRepository(ITrafficLogRepository):
                 float(summary_row.avg_inference_latency_ms or 0.0),
                 3,
             ),
+            blocked_count=blocked_count,
+            allowed_count=allowed_count,
+            avg_confidence=avg_confidence,
         )
+
+    async def get_drift_metrics(self, recent_window: int = 100) -> DriftMetrics:
+        """Compute drift metrics by comparing recent confidence to baseline.
+
+        A simple drift signal: compare average confidence in recent N records
+        vs. all-time average. If recent confidence is significantly lower,
+        it may indicate model drift.
+
+        Returns:
+            DriftMetrics with drift_score, drift_detected, and confidence values.
+        """
+        # Get baseline (all-time average confidence)
+        baseline_result = await self._session.execute(
+            select(
+                func.avg(TrafficLog.confidence).label("baseline_avg"),
+                func.count(TrafficLog.id).label("total_count"),
+            ).where(self._completed_or_legacy_clause())
+        )
+        baseline_row = baseline_result.one()
+
+        baseline_avg = float(baseline_row.baseline_avg or 0.0)
+        total_count = int(baseline_row.total_count or 0)
+
+        if total_count < recent_window:
+            # Not enough data for drift detection
+            return DriftMetrics(
+                drift_score=0.0,
+                drift_detected=False,
+                recent_mean_confidence=0.0,
+                baseline_mean_confidence=round(baseline_avg, 4) if baseline_avg > 0 else 0.0,
+                recent_sample_size=0,
+                baseline_sample_size=total_count,
+            )
+
+        # Get recent average confidence (last N records ordered by timestamp)
+        recent_result = await self._session.execute(
+            select(func.avg(TrafficLog.confidence).label("recent_avg"))
+            .where(self._completed_or_legacy_clause())
+            .order_by(TrafficLog.timestamp.desc())
+            .limit(recent_window)
+        )
+        recent_row = recent_result.one()
+        recent_avg = float(recent_row.recent_avg or 0.0)
+
+        if baseline_avg == 0:
+            return DriftMetrics(
+                drift_score=0.0,
+                drift_detected=False,
+                recent_mean_confidence=round(recent_avg, 4) if recent_avg > 0 else 0.0,
+                baseline_mean_confidence=0.0,
+                recent_sample_size=recent_window,
+                baseline_sample_size=0,
+            )
+
+        # Compute drift score as relative change
+        drift_score = abs(recent_avg - baseline_avg) / baseline_avg
+        # Consider drift detected if score > 10% (simple threshold)
+        drift_detected = drift_score > 0.10
+
+        return DriftMetrics(
+            drift_score=round(drift_score, 4),
+            drift_detected=drift_detected,
+            recent_mean_confidence=round(recent_avg, 4),
+            baseline_mean_confidence=round(baseline_avg, 4),
+            recent_sample_size=recent_window,
+            baseline_sample_size=total_count,
+        )
+
+    async def get_activity_buckets(
+        self, hours: int = 24, buckets: int = 24
+    ) -> List[ActivityBucket]:
+        """Get bucketed activity counts for the hero activity strip.
+
+        Returns a list of buckets representing activity over the specified time period.
+        Each bucket contains total_count and blocked_count.
+
+        Args:
+            hours: Number of hours to look back (default 24)
+            buckets: Number of buckets to divide the time into (default 24)
+        """
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=hours)
+
+        # Get all records in the time window
+        result = await self._session.execute(
+            select(
+                TrafficLog.timestamp,
+                TrafficLog.action_taken,
+            )
+            .where(self._completed_or_legacy_clause())
+            .where(TrafficLog.timestamp >= window_start)
+        )
+        records = result.all()
+
+        # Initialize buckets
+        bucket_data = [
+            {"total": 0, "blocked": 0}
+            for _ in range(buckets)
+        ]
+
+        # Calculate time window per bucket in seconds
+        seconds_per_bucket = (hours * 3600) / buckets
+
+        for record in records:
+            timestamp = record.timestamp
+            if timestamp is None:
+                continue
+
+            # Handle naive datetimes
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+            # Calculate bucket index
+            seconds_since_start = (timestamp - window_start).total_seconds()
+            bucket_idx = int(seconds_since_start / seconds_per_bucket)
+            bucket_idx = max(0, min(bucket_idx, buckets - 1))
+
+            bucket_data[bucket_idx]["total"] += 1
+            if record.action_taken == "BLOCKED":
+                bucket_data[bucket_idx]["blocked"] += 1
+
+        return [
+            ActivityBucket(
+                bucket_index=i,
+                total_count=bucket_data[i]["total"],
+                blocked_count=bucket_data[i]["blocked"],
+                timestamp_start=window_start + timedelta(seconds=i * seconds_per_bucket),
+            )
+            for i in range(buckets)
+        ]
 
     async def get_alert_list(
         self,

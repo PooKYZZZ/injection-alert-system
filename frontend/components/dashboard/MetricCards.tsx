@@ -99,12 +99,29 @@ export default function MetricCards({ stats, statsPending, statsError }: MetricC
         style={{ borderRadius: '0 8px 8px 0' }}
       />
       <MetricCard
-        label="Avg ML Latency"
-        value={`${stats.avg_inference_latency_ms}ms`}
+        label="Blocked"
+        value={stats.blocked_count}
+        className="rounded-lg"
+        valueClassName="text-severity-high-text"
+      />
+      <MetricCard
+        label="Allowed"
+        value={stats.allowed_count}
+        className="rounded-lg"
+        valueClassName="text-severity-medium-text"
+      />
+      <MetricCard
+        label="Avg ML Confidence"
+        value={stats.avg_confidence !== null ? `${(stats.avg_confidence * 100).toFixed(0)}%` : '—'}
+        unavailable={stats.avg_confidence === null}
         className="rounded-lg"
         valueClassName="text-accent-purple"
       />
-      <MetricCard label="Total Requests" value={stats.total_requests} className="rounded-lg" />
+      <MetricCard
+        label="Total Requests"
+        value={stats.total_requests}
+        className="rounded-lg"
+      />
     </div>
   )
 }

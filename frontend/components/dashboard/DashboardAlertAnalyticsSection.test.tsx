@@ -30,10 +30,19 @@ vi.mock('@/features/ml-health/queries', () => ({
   useMLHealth: vi.fn(),
 }))
 
+const mockActivityBuckets = [
+  { bucket_index: 0, total_count: 50, blocked_count: 5, timestamp_start: new Date() },
+  { bucket_index: 1, total_count: 45, blocked_count: 3, timestamp_start: new Date() },
+]
+
 const mockStats: DashboardStats = {
   actionable_alerts: 500,
   total_requests: 1000000,
   avg_inference_latency_ms: 5.2,
+  blocked_count: 320,
+  allowed_count: 85,
+  avg_confidence: 0.72,
+  activity_buckets: mockActivityBuckets,
 }
 
 const mockAlertsPage1: PaginatedAlerts = {

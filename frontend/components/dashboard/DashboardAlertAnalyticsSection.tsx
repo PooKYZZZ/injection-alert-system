@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
+import { useState, useCallback } from 'react'
 import MetricCards from '@/components/dashboard/MetricCards'
 import HeroActivityStrip from '@/components/dashboard/HeroActivityStrip'
 import { useAlerts } from '@/features/alerts/queries'
@@ -49,6 +50,9 @@ export default function DashboardAlertAnalyticsSection() {
   const searchParams = useSearchParams()
   const filters = buildFilters(searchParams)
 
+  // Track actual data source used by hero strip for truthful subtitle
+  const [heroStripDbBacked, setHeroStripDbBacked] = useState<boolean>(false)
+
   // Stats query for metric cards - system-wide stats, not filtered
   const { data: stats, isPending: statsPending, error: statsError } = useDashboardStats()
 
@@ -65,17 +69,29 @@ export default function DashboardAlertAnalyticsSection() {
   // This is a legitimate presentation fallback, NOT a contract-masking one
   const alerts = alertsData?.items !== undefined ? alertsData.items : []
 
+  // Callback to track actual data source used by hero strip
+  const handleHeroDataSourceDetected = useCallback((isDbBacked: boolean) => {
+    setHeroStripDbBacked(isDbBacked)
+  }, [])
+
   return (
     <div className="flex flex-col gap-4">
       <MetricCards stats={stats} statsPending={statsPending} statsError={statsError} />
       <div style={{ maxHeight: '56px', overflow: 'hidden' }}>
-        <HeroActivityStrip alerts={alerts} isLoading={alertsPending} />
+        <HeroActivityStrip
+          activityBuckets={stats?.activity_buckets}
+          alerts={alerts}
+          isLoading={alertsPending}
+          onDataSourceDetected={handleHeroDataSourceDetected}
+        />
       </div>
       <div className="flex items-baseline justify-between">
         <span className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
           Security overview
         </span>
-        <span className="text-[10px] italic text-text-muted">Derived from loaded alerts.</span>
+        <span className="text-[10px] italic text-text-muted">
+          {heroStripDbBacked ? 'Real-time activity from database.' : 'Derived from loaded alerts.'}
+        </span>
       </div>
       <DashboardAlertAnalytics
         alerts={alerts}

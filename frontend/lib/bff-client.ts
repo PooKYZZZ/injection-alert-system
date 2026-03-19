@@ -43,6 +43,13 @@ const BackendPaginatedAlertsSchema = z.object({
   page_size: z.number(),
 })
 
+const BackendActivityBucketSchema = z.object({
+  bucket_index: z.number(),
+  total_count: z.number(),
+  blocked_count: z.number(),
+  timestamp_start: z.string(),
+})
+
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
   counts_by_label: z.object({
@@ -52,6 +59,10 @@ const BackendStatsSchema = z.object({
     Normal: z.number(),
   }),
   avg_inference_latency_ms: z.number(),
+  blocked_count: z.number(),
+  allowed_count: z.number(),
+  avg_confidence: z.number().nullable(),
+  activity_buckets: z.array(BackendActivityBucketSchema),
 })
 
 const BackendMlHealthSchema = z.object({
@@ -61,6 +72,7 @@ const BackendMlHealthSchema = z.object({
   avg_inference_latency_ms: z.number(),
   total_processed: z.number(),
   drift_detected: z.boolean(),
+  drift_score: z.number().nullable().optional(),
   confidence_thresholds: z.object({
     low: z.number().optional(),
     high: z.number().optional(),
@@ -197,6 +209,15 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
     actionable_alerts: actionableAlerts,
     total_requests: payload.total_requests,
     avg_inference_latency_ms: payload.avg_inference_latency_ms,
+    blocked_count: payload.blocked_count,
+    allowed_count: payload.allowed_count,
+    avg_confidence: payload.avg_confidence,
+    activity_buckets: payload.activity_buckets.map((b) => ({
+      bucket_index: b.bucket_index,
+      total_count: b.total_count,
+      blocked_count: b.blocked_count,
+      timestamp_start: new Date(b.timestamp_start),
+    })),
   }
 }
 
@@ -222,6 +243,22 @@ function normalizeMlHealth(
     }
   }
 
+  // BFF honesty: drift_detected comes from real database analysis (comparing
+  // recent confidence vs baseline). drift_score is also from the backend.
+  // If drift_score is null/undefined, drift computation was unavailable,
+  // so we must NOT claim "NORMAL" - set to null to indicate unavailable.
+  const driftScore = payload.drift_score ?? null
+  const hasRealDriftData = typeof driftScore === 'number'
+  let driftStatus: 'NORMAL' | 'WARNING' | 'CRITICAL' | null = null
+
+  if (hasRealDriftData) {
+    // Real drift data available - determine status based on drift_detected
+    driftStatus = payload.drift_detected ? 'WARNING' : 'NORMAL'
+  } else {
+    // No real drift data - cannot claim NORMAL, set to null for unavailable
+    driftStatus = null
+  }
+
   return {
     model_version: payload.model_version,
     status: payload.loaded
@@ -231,8 +268,8 @@ function normalizeMlHealth(
       : 'DOWN',
     latency_ms: payload.avg_inference_latency_ms,
     latency_trend: null,
-    drift_score: null,
-    drift_status: payload.drift_detected ? 'WARNING' : 'NORMAL',
+    drift_score: driftScore,
+    drift_status: driftStatus,
     traffic_processed: payload.total_processed,
     thresholds: {
       low: low ?? null,
@@ -270,6 +307,9 @@ async function fetchUpstream<T>(
   }
 
   if (!response.ok) {
+    // Capture Retry-After header once for any non-OK response
+    const retryAfter = response.headers.get('Retry-After') ?? undefined
+
     // Route handlers enforce auth before calling BFF client, so upstream 401/403
     // indicates an internal auth failure (e.g., invalid, expired, or unauthorized
     // INTERNAL_API_KEY). Map to INTERNAL_SERVICE_AUTH_FAILED to accurately reflect
@@ -278,20 +318,20 @@ async function fetchUpstream<T>(
       return err(
         500,
         'INTERNAL_SERVICE_AUTH_FAILED',
-        'Internal service authentication failed.'
+        'Internal service authentication failed.',
+        retryAfter
       )
     }
 
     if (response.status === 404) {
-      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.', retryAfter)
     }
 
     if (response.status >= 500) {
-      const retryAfter = response.headers.get('Retry-After')
-      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.', retryAfter ?? undefined)
+      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.', retryAfter)
     }
 
-    return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.')
+    return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.', retryAfter)
   }
 
   let payload: unknown

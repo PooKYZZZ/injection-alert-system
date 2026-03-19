@@ -244,6 +244,13 @@ describe('bff-client', () => {
             Normal: 10,
           },
           avg_inference_latency_ms: 4.5,
+          blocked_count: 4,
+          allowed_count: 2,
+          avg_confidence: 0.82,
+          activity_buckets: [
+            { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: '2026-03-18T12:00:00Z' },
+            { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: '2026-03-18T13:00:00Z' },
+          ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
@@ -258,6 +265,13 @@ describe('bff-client', () => {
         actionable_alerts: 6,
         total_requests: 321,
         avg_inference_latency_ms: 4.5,
+        blocked_count: 4,
+        allowed_count: 2,
+        avg_confidence: 0.82,
+        activity_buckets: [
+          { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: new Date('2026-03-18T12:00:00Z') },
+          { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: new Date('2026-03-18T13:00:00Z') },
+        ],
       },
     })
   })
@@ -272,6 +286,7 @@ describe('bff-client', () => {
           avg_inference_latency_ms: 6.2,
           total_processed: 42,
           drift_detected: false,
+          drift_score: 0.05, // Real drift data available
           confidence_thresholds: {
             low: 0.5,
             high: 0.8,
@@ -291,8 +306,8 @@ describe('bff-client', () => {
         status: 'DEGRADED',
         latency_ms: 6.2,
         latency_trend: null,
-        drift_score: null,
-        drift_status: 'NORMAL',
+        drift_score: 0.05,
+        drift_status: 'NORMAL', // With real drift data, false = NORMAL
         traffic_processed: 42,
         thresholds: {
           low: 0.5,

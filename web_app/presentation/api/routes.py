@@ -27,6 +27,7 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
 )
 from web_app.presentation.dependencies.auth import verify_internal_token
 from web_app.presentation.schemas import (
+    ActivityBucketSchema,
     AlertDetailResponse,
     AlertListResponse,
     FeedbackRequest,
@@ -87,25 +88,65 @@ async def get_stats(
     """Return aggregate traffic statistics with zero-safe defaults."""
     repository = TrafficLogRepository(db)
     summary = await repository.get_stats_summary()
+    # Get real activity buckets from database for hero activity strip (graceful degradation)
+    activity_buckets_list = []
+    try:
+        activity_buckets = await repository.get_activity_buckets(hours=24, buckets=24)
+        activity_buckets_list = [
+            ActivityBucketSchema(
+                bucket_index=b.bucket_index,
+                total_count=b.total_count,
+                blocked_count=b.blocked_count,
+                timestamp_start=b.timestamp_start,
+            )
+            for b in activity_buckets
+        ]
+    except Exception:
+        # Database not available or not initialized - return empty list
+        pass
+
     return StatsResponse(
         total_requests=summary.total_requests,
         counts_by_label=summary.counts_by_label,
         avg_inference_latency_ms=summary.avg_inference_latency_ms,
+        blocked_count=summary.blocked_count,
+        allowed_count=summary.allowed_count,
+        avg_confidence=summary.avg_confidence,
+        activity_buckets=activity_buckets_list,
     )
 
 
 @internal_router.get("/ml-health", response_model=MLHealthResponse)
 async def get_ml_health(
     model_service=Depends(get_model_service),
+    db: AsyncSession = Depends(get_db),
 ):
     """Return health information for the currently loaded model service."""
+    # Get real drift metrics from database
+    # Track whether drift computation was successful
+    drift_detected = False
+    drift_score: float | None = None
+    drift_available = False
+
+    try:
+        repository = TrafficLogRepository(db)
+        drift_metrics = await repository.get_drift_metrics(recent_window=100)
+        drift_detected = drift_metrics.drift_detected
+        drift_score = drift_metrics.drift_score
+        drift_available = True
+    except Exception:
+        # Database not available or not initialized - drift detection unavailable
+        # Do NOT silently become "NORMAL" - mark as unavailable
+        drift_available = False
+
     return MLHealthResponse(
         model_version=model_service.model_version,
         loaded=model_service.loaded,
         status="degraded" if model_service.is_mock else "healthy",
         avg_inference_latency_ms=model_service.avg_inference_latency_ms,
         total_processed=model_service.total_processed,
-        drift_detected=False,
+        drift_detected=drift_detected,
+        drift_score=drift_score,
         confidence_thresholds=model_service.confidence_thresholds,
     )
 

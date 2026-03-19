@@ -1,5 +1,6 @@
 from typing import Literal, Optional
 from datetime import datetime, timezone
+from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -81,10 +82,25 @@ class AlertResponse(BaseModel):
     labeled_by: Optional[str] = None
 
 
+class ActivityBucketSchema(BaseModel):
+    """Schema for activity bucket data in stats response."""
+
+    bucket_index: int = Field(default=0, ge=0, description="Bucket index (0-23 for 24-hour period)")
+    total_count: int = Field(default=0, ge=0, description="Total requests in this bucket")
+    blocked_count: int = Field(default=0, ge=0, description="Blocked requests in this bucket")
+    timestamp_start: datetime = Field(description="Start of this bucket's time window")
+
+
 class StatsResponse(BaseModel):
     total_requests: int = Field(default=0, ge=0)
     counts_by_label: dict[str, int] = Field(default_factory=dict)
     avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
+    blocked_count: int = Field(default=0, ge=0)
+    allowed_count: int = Field(default=0, ge=0)
+    avg_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    activity_buckets: List[ActivityBucketSchema] = Field(
+        default_factory=list, description="Bucketed activity counts for hero activity strip"
+    )
 
 
 class MLHealthResponse(BaseModel):
@@ -94,6 +110,7 @@ class MLHealthResponse(BaseModel):
     avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
     total_processed: int = Field(default=0, ge=0)
     drift_detected: bool = False
+    drift_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Drift score 0-1 indicating severity")
     confidence_thresholds: dict[str, float] = Field(default_factory=dict)
 
 
