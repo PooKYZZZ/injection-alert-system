@@ -41,10 +41,31 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     # ── Startup: Load model with fallback to mock mode ─────────────────────────
+    # In production mode, fail fast on model load errors (convert to RuntimeError).
+    # In development/testing, allow fallback to mock mode.
     try:
         model_service = ModelService(settings)
         logger.info("Model loaded successfully from %s", settings.model_registry_path)
+    except RuntimeError:
+        # Re-raise RuntimeError to fail fast in production mode
+        raise
+    except FileNotFoundError as exc:
+        # In production, convert FileNotFoundError to RuntimeError for consistent error contract
+        # In testing/development, fall back to mock mode
+        if settings.is_production:
+            raise RuntimeError(str(exc)) from exc
+        logger.warning(
+            "Model load failed — %s. "
+            "Starting in mock mode. Predictions will be simulated. "
+            "To use the real model, set MODEL_REGISTRY_PATH correctly in .env "
+            "and ensure model files are present at that path.",
+            exc,
+        )
+        model_service = ModelService.create_mock()
     except Exception as exc:
+        if settings.is_production:
+            # In production, fail fast on any model load error
+            raise
         logger.warning(
             "Model load failed — %s. "
             "Starting in mock mode. Predictions will be simulated. "

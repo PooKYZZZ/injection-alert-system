@@ -139,6 +139,8 @@ export default function MLHealthDetail() {
     )
   }
 
+  // Drift status is derived from real database analysis when drift_score is available.
+  // If drift_score is null, drift cannot be computed (insufficient data) and drift_status will be null.
   const showUnavailableNote =
     !isPending && data && (data.latency_trend === null || data.drift_score === null)
 
@@ -184,8 +186,17 @@ export default function MLHealthDetail() {
               </div>
               <div className="rounded-md border border-border-light bg-bg-inset p-3">
                 <p className="text-xs text-text-secondary">Drift status</p>
-                <div className="mt-3 text-2xl font-medium text-severity-safe-accent">
-                  {data.drift_status}
+                <div
+                  className="mt-3 text-2xl font-medium"
+                  style={{
+                    color: data.drift_status === 'WARNING'
+                      ? 'var(--color-severity-high-accent)'
+                      : data.drift_status === null
+                        ? 'var(--color-text-muted)'
+                        : 'var(--color-severity-safe-accent)',
+                  }}
+                >
+                  {data.drift_status ?? 'UNAVAILABLE'}
                 </div>
               </div>
               <div className="rounded-md border border-border-light bg-bg-inset p-3">

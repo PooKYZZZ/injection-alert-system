@@ -12,6 +12,8 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"
 os.environ["APP_ENV"] = "testing"
 os.environ["LOG_LEVEL"] = "DEBUG"
 os.environ["MODEL_PATH"] = "ml_model/models/mock_model.py"
+# Set MODEL_REGISTRY_PATH to non-existent path to trigger mock fallback in tests
+os.environ["MODEL_REGISTRY_PATH"] = "ml_model/model_registry/does_not_exist"
 os.environ["API_SECRET_KEY"] = "test-secret-key"
 
 

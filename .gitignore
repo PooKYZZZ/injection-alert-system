@@ -124,8 +124,14 @@ ml_model/model_registry/staging/**/tokenizer.json
 ml_model/model_registry/staging/**/tokenizer_config.json
 ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
 
-# OS files
-.DS_Store
+# Ignore AI agent and tool directories
+.agent/
+.agents/
+.claude/
+.factory/
+.github/
+.playwright/
+.windsurf/
 Thumbs.db
 .kilocode/skills/enhanced-code-review/SKILL.md
 .kilocode/skills/ralph/SKILL.md
@@ -156,3 +162,7 @@ frontend/package.json
 frontend/playwright.config.ts
 frontend/e2e/README.md
 frontend/e2e/website.spec.ts
+.agent\\
+skills-lock.json
+agent-tooling.md
+docs/skills.md

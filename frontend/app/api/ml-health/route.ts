@@ -14,7 +14,11 @@ export async function GET(_request: NextRequest): Promise<Response> {
 
     const result = await getMlHealth()
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status })
+      const response = NextResponse.json({ error: result.error }, { status: result.status })
+      if (result.retryAfter) {
+        response.headers.set('Retry-After', result.retryAfter)
+      }
+      return response
     }
 
     return NextResponse.json(result.data)

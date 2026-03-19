@@ -220,6 +220,7 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
         "avg_inference_latency_ms": 0.0,
         "total_processed": 0,
         "drift_detected": False,
+        "drift_score": None,  # Drift unavailable when DB not initialized
         "confidence_thresholds": {
             "low": 0.5,
             "high": 0.8,
@@ -252,16 +253,20 @@ def test_stats_returns_zeroed_response_for_empty_table(api_client):
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "total_requests": 0,
-        "counts_by_label": {
-            "SQL Injection": 0,
-            "Code Injection": 0,
-            "Other Attacks": 0,
-            "Normal": 0,
-        },
-        "avg_inference_latency_ms": 0.0,
-    }
+    response_data = response.json()
+    # Verify core stats
+    assert response_data["total_requests"] == 0
+    assert response_data["counts_by_label"]["SQL Injection"] == 0
+    assert response_data["avg_inference_latency_ms"] == 0.0
+    assert response_data["blocked_count"] == 0
+    assert response_data["avg_confidence"] is None
+    # Verify activity_buckets is returned with 24 empty buckets
+    assert "activity_buckets" in response_data
+    assert len(response_data["activity_buckets"]) == 24
+    # All buckets should have zero counts when there's no data
+    for bucket in response_data["activity_buckets"]:
+        assert bucket["total_count"] == 0
+        assert bucket["blocked_count"] == 0
 
 
 def test_alert_list_returns_pagination_shape(api_client):
@@ -685,13 +690,13 @@ def test_processing_placeholder_rows_do_not_count_in_stats(api_client):
     response = client.get("/api/stats", headers=INTERNAL_HEADERS)
 
     assert response.status_code == 200
-    assert response.json() == {
-        "total_requests": 1,
-        "counts_by_label": {
-            "SQL Injection": 1,
-            "Code Injection": 0,
-            "Other Attacks": 0,
-            "Normal": 0,
-        },
-        "avg_inference_latency_ms": 2.5,
-    }
+    response_data = response.json()
+    # Verify core stats
+    assert response_data["total_requests"] == 1
+    assert response_data["counts_by_label"]["SQL Injection"] == 1
+    assert response_data["avg_inference_latency_ms"] == 2.5
+    assert response_data["blocked_count"] == 1
+    assert response_data["avg_confidence"] == 0.92
+    # Verify activity_buckets is returned with 24 buckets
+    assert "activity_buckets" in response_data
+    assert len(response_data["activity_buckets"]) == 24

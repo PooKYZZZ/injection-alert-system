@@ -10,7 +10,7 @@ export interface MLHealthData {
   latency_ms: number
   latency_trend: number | null
   drift_score: number | null
-  drift_status: 'NORMAL' | 'WARNING' | 'CRITICAL'
+  drift_status: 'NORMAL' | 'WARNING' | 'CRITICAL' | null
   traffic_processed: number
   thresholds: ConfidenceThresholds
 }

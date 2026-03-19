@@ -20,6 +20,32 @@ from datetime import datetime
 
 
 @dataclass
+class DriftMetrics:
+    """Domain object representing ML model drift detection metrics.
+    
+    drift_score is None when drift cannot be computed (insufficient data).
+    drift_detected is False when drift_score is None.
+    """
+
+    drift_score: float | None  # 0.0-1.0 indicating severity, None if unavailable
+    drift_detected: bool  # True if drift exceeds threshold, False if not or if unavailable
+    recent_mean_confidence: float | None  # Mean confidence of recent window, None if unavailable
+    baseline_mean_confidence: float  # Mean confidence of baseline
+    recent_sample_size: int  # Number of records in recent window
+    baseline_sample_size: int  # Number of records in baseline
+
+
+@dataclass
+class ActivityBucket:
+    """Domain object representing activity count in a time bucket."""
+
+    bucket_index: int  # 0-23 for 24-hour period
+    total_count: int  # Total requests in this bucket
+    blocked_count: int  # Blocked requests in this bucket
+    timestamp_start: datetime  # Start of this bucket's time window
+
+
+@dataclass
 class TrafficLogEntity:
     """Domain entity representing a traffic log record.
 
@@ -60,6 +86,9 @@ class TrafficStatsSummary:
     total_requests: int = 0
     counts_by_label: dict[str, int] = field(default_factory=dict)
     avg_inference_latency_ms: float = 0.0
+    blocked_count: int = 0
+    allowed_count: int = 0
+    avg_confidence: Optional[float] = None
 
 
 @dataclass
@@ -126,6 +155,33 @@ class ITrafficLogRepository(ABC):
     @abstractmethod
     async def get_stats_summary(self) -> TrafficStatsSummary:
         """Return aggregate traffic stats with zero-safe defaults."""
+        ...
+
+    @abstractmethod
+    async def get_drift_metrics(self, recent_window: int = 100) -> "DriftMetrics":
+        """Compute drift metrics by comparing recent confidence to baseline.
+
+        Args:
+            recent_window: Number of recent records to compare (default 100)
+
+        Returns:
+            DriftMetrics with drift_score, drift_detected, and confidence values.
+        """
+        ...
+
+    @abstractmethod
+    async def get_activity_buckets(
+        self, hours: int = 24, buckets: int = 24
+    ) -> List["ActivityBucket"]:
+        """Get bucketed activity counts for the hero activity strip.
+
+        Args:
+            hours: Number of hours to look back (default 24)
+            buckets: Number of buckets to divide the time into (default 24)
+
+        Returns:
+            List of ActivityBucket with bucket_index, total_count, and blocked_count.
+        """
         ...
 
     @abstractmethod
