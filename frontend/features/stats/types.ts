@@ -11,6 +11,7 @@ export interface DashboardStats {
   avg_inference_latency_ms: number
   blocked_count: number
   allowed_count: number
+  throttled_count?: number
   avg_confidence: number | null
   activity_buckets: ActivityBucket[]
 }

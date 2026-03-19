@@ -38,6 +38,7 @@ export const MOCK_STATS: DashboardStats = {
   avg_inference_latency_ms: 3.4,
   blocked_count: 89,
   allowed_count: 23,
+  throttled_count: 12,
   avg_confidence: 0.78,
   activity_buckets: MOCK_ACTIVITY_BUCKETS,
 }
