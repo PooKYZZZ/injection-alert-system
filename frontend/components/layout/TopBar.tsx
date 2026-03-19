@@ -20,22 +20,22 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (severity === 'ALL') {
     return isActive
       ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
-      : `${base} border-[#243050] bg-transparent text-text-muted`
+      : `${base} border-border-light bg-transparent text-text-muted`
   }
 
   if (severity === 'HIGH') {
     return isActive
-      ? `${base} border-[#5c2020] bg-[#1a0a0a] text-[#f87171]`
-      : `${base} border-[#3a1515] bg-transparent text-[#f87171]`
+      ? `${base} border-severity-high-border bg-severity-high-bg text-severity-high-text`
+      : `${base} border-border-light bg-transparent text-severity-high-text`
   }
 
   if (severity === 'MEDIUM') {
     return isActive
-      ? `${base} border-[#4a3a10] bg-[#1a1500] text-[#facc15]`
-      : `${base} border-[#2e2a10] bg-transparent text-[#facc15]`
+      ? `${base} border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text`
+      : `${base} border-border-light bg-transparent text-accent-yellow`
   }
 
-  return `${base} border-[#243050] bg-transparent text-text-muted`
+  return `${base} border-border-light bg-transparent text-text-muted`
 }
 
 interface TopBarProps {

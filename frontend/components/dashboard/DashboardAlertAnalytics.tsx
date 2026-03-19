@@ -154,19 +154,19 @@ export default function DashboardAlertAnalytics({
 
   // Threshold source of truth: ML health contract
   // Use explicit thresholds from ML health, or show unavailable state
-  const { highThreshold, mediumThreshold, thresholdsAvailable } = useMemo(() => {
+  const { highThreshold, lowThreshold, thresholdsAvailable } = useMemo(() => {
     // Thresholds must come from ML health contract - no fallback inference from alerts
-    if (!thresholds || thresholds.high === null || thresholds.medium === null) {
+    if (!thresholds || thresholds.high === null || thresholds.low === null) {
       return {
         highThreshold: null,
-        mediumThreshold: null,
+        lowThreshold: null,
         thresholdsAvailable: false,
       }
     }
 
     return {
       highThreshold: thresholds.high,
-      mediumThreshold: thresholds.medium,
+      lowThreshold: thresholds.low,
       thresholdsAvailable: true,
     }
   }, [thresholds])
@@ -214,7 +214,7 @@ export default function DashboardAlertAnalytics({
 
   const confidenceBands = useMemo(() => {
     // If thresholds are not available, show empty/unavailable state
-    if (!thresholdsAvailable || highThreshold === null || mediumThreshold === null) {
+    if (!thresholdsAvailable || highThreshold === null || lowThreshold === null) {
       return null
     }
 
@@ -222,7 +222,7 @@ export default function DashboardAlertAnalytics({
     for (const alert of alerts) {
       if (alert.confidence > highThreshold) {
         counts.high += 1
-      } else if (alert.confidence >= mediumThreshold) {
+      } else if (alert.confidence >= lowThreshold) {
         counts.medium += 1
       } else {
         counts.low += 1
@@ -230,14 +230,14 @@ export default function DashboardAlertAnalytics({
     }
 
     const highPct = Math.round(highThreshold * 100)
-    const mediumPct = Math.round(mediumThreshold * 100)
+    const lowPct = Math.round(lowThreshold * 100)
 
     return [
       { label: `High > ${highPct}%`, value: counts.high, colorClassName: 'bg-accent-purple' },
-      { label: `Medium ${mediumPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
-      { label: `Low < ${mediumPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
+      { label: `Medium ${lowPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
+      { label: `Low < ${lowPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
     ]
-  }, [alerts, highThreshold, mediumThreshold, thresholdsAvailable])
+  }, [alerts, highThreshold, lowThreshold, thresholdsAvailable])
 
   if (alertsPending) {
     return <DashboardAlertAnalyticsSkeleton />

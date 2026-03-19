@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { IBM_Plex_Sans, Inter, Orbitron } from 'next/font/google'
+import { IBM_Plex_Sans, Inter, JetBrains_Mono, Orbitron } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 
@@ -12,6 +12,12 @@ const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   variable: '--font-ibm-plex-sans',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-jetbrains-mono',
 })
 
 const orbitron = Orbitron({
@@ -32,7 +38,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${ibmPlexSans.variable} ${orbitron.variable}`}>
+      <body className={`${inter.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable} ${orbitron.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>

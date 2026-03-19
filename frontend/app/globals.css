@@ -3,6 +3,10 @@
 @import "tw-animate-css";
 
 @theme {
+  /* Font tokens */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
   /* Background depth layers */
   --color-bg-base: #060b14;
   --color-bg-page: #0c1120;
@@ -56,6 +60,7 @@
   --font-size-micro: 9px;
 
   /* Legacy aliases for existing utilities */
+  --color-border-light: var(--color-text-ghost);
   --color-sidebar-bg: var(--color-bg-base);
   --color-sidebar-active: var(--color-bg-elevated);
   --color-primary: var(--color-severity-high-accent);
@@ -82,7 +87,9 @@
   body {
     background: var(--color-bg-page);
     color: var(--color-text-primary);
-    font-family: var(--font-inter), sans-serif;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 

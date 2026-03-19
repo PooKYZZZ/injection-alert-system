@@ -1,35 +1,38 @@
+'use client'
+
 import { cn } from '@/lib/utils'
 import {
   ALERT_DISPLAY_ACTION_ALIASES,
   type AlertAction,
 } from '@/features/alerts/contract'
 
-const ACTION_CLASS_NAMES: Record<AlertAction, string> = {
-  BLOCKED: 'text-severity-blocked-text font-semibold',
-  THROTTLED: 'text-severity-blocked-text font-medium',
-  ALLOWED: 'text-severity-safe-text font-medium',
-}
-
-type ActionLabelProps = {
+interface ActionLabelProps {
   action: AlertAction | null
-  expiresAt?: string
 }
 
-export function ActionLabel({ action, expiresAt }: ActionLabelProps) {
+const styles: Record<AlertAction, string> = {
+  BLOCKED: 'bg-[#2d1b1b] text-red-400',
+  THROTTLED: 'bg-[#2d2310] text-amber-400',
+  ALLOWED: 'bg-[#0f2d1a] text-emerald-400',
+}
+
+export function ActionLabel({ action }: ActionLabelProps) {
   if (action === null) {
-    return <span className="text-sm text-text-secondary">Unavailable</span>
+    return (
+      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium text-[#7d8590]">
+        Unavailable
+      </span>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className={cn('text-sm', ACTION_CLASS_NAMES[action])}>
-        {ALERT_DISPLAY_ACTION_ALIASES[action]}
-      </span>
-      {action === 'BLOCKED' && expiresAt && (
-        <span className="text-[10px] text-text-muted">
-          {expiresAt}
-        </span>
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+        styles[action]
       )}
-    </div>
+    >
+      {ALERT_DISPLAY_ACTION_ALIASES[action]}
+    </span>
   )
 }

@@ -45,3 +45,35 @@ export function toQueryString(filters: DashboardFilters): string {
     search: filters.search,
   }).toString()
 }
+
+// Alerts-specific search param normalization
+import { AlertFiltersSchema, type AlertFilters } from '@/features/alerts/schemas'
+
+export const DEFAULT_ALERT_FILTERS: AlertFilters = {
+  page: 1,
+  pageSize: 20,
+  sort_by: 'timestamp',
+  sort_dir: 'desc',
+}
+
+export function normalizeAlertSearchParams(
+  params: Record<string, string | string[] | undefined>
+): AlertFilters {
+  const normalized: Record<string, string | string[]> = {}
+
+  for (const [key, value] of Object.entries(params)) {
+    if (key === 'confidence_level') {
+      if (typeof value === 'string') normalized[key] = [value]
+      else if (Array.isArray(value) && value.length > 0) {
+        normalized[key] = Array.from(new Set(value))
+      }
+      continue
+    }
+
+    if (typeof value === 'string') normalized[key] = value
+    else if (Array.isArray(value) && value.length > 0) normalized[key] = value[0]
+  }
+
+  const parsed = AlertFiltersSchema.safeParse(normalized)
+  return parsed.success ? parsed.data : DEFAULT_ALERT_FILTERS
+}

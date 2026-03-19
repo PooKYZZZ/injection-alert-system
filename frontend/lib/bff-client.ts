@@ -273,7 +273,7 @@ function normalizeMlHealth(
     traffic_processed: payload.total_processed,
     thresholds: {
       low: low ?? null,
-      medium,
+      medium: medium ?? null,
       high: high ?? null,
     },
   }
@@ -344,6 +344,20 @@ async function fetchUpstream<T>(
   return normalizeWithSchema(schema, payload)
 }
 
+const PARAM_MAP: Record<string, string> = {
+  page: 'page',
+  pageSize: 'page_size',
+  severity: 'severity',
+  action: 'action',
+  triage_status: 'triage_status',
+  prediction: 'prediction',
+  source_ip: 'source_ip',
+  search: 'search',
+  window: 'window',
+  sort_by: 'sort_by',
+  sort_dir: 'sort_dir',
+}
+
 export async function getAlerts(
   searchParams: URLSearchParams
 ): Promise<BffResult<PaginatedAlerts>> {
@@ -352,11 +366,14 @@ export async function getAlerts(
   }
 
   const query = new URLSearchParams()
-  for (const key of ['page', 'page_size', 'severity', 'time_range', 'search']) {
-    const value = searchParams.get(key)
-    if (value) {
-      query.set(key, value)
-    }
+
+  for (const [frontendKey, backendKey] of Object.entries(PARAM_MAP)) {
+    const value = searchParams.get(frontendKey)
+    if (value) query.set(backendKey, value)
+  }
+
+  for (const value of searchParams.getAll('confidence_level')) {
+    if (value) query.append('confidence_level', value)
   }
 
   const path = query.size > 0 ? `/api/alerts?${query.toString()}` : '/api/alerts'

@@ -1,3 +1,6 @@
+'use client'
+
+import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import type { AlertPrediction } from '@/features/alerts/contract'
 
@@ -6,22 +9,30 @@ interface ConfidenceBarProps {
   prediction: AlertPrediction
 }
 
+function getConfidenceColors(confidence: number): { text: string; bg: string } {
+  const value = Math.round(confidence * 100)
+  if (value >= 80) return { text: 'text-violet-400', bg: 'bg-violet-600' }
+  if (value >= 50) return { text: 'text-amber-400', bg: 'bg-amber-600' }
+  return { text: 'text-emerald-400', bg: 'bg-emerald-600' }
+}
+
 export function ConfidenceBar({ confidence, prediction }: ConfidenceBarProps) {
-  const pct = Math.round(confidence * 100)
-  const colorClass =
-    prediction === 'Normal' ? 'bg-severity-benign-accent' : 'bg-accent-purple'
+  const value = Math.round(confidence * 100)
+  const colors = getConfidenceColors(confidence)
 
   return (
-    <div className="flex items-center gap-2 min-w-[100px]">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-elevated">
-        <div
-          className={cn('h-full rounded-full', colorClass)}
-          style={{ width: `${pct}%` }}
+    <div className="flex items-center gap-2">
+      <span className={cn('min-w-[32px] font-medium', colors.text)}>
+        {value}%
+      </span>
+      <div className="h-1 w-12 overflow-hidden rounded-full bg-[#0d1117]">
+        <motion.div
+          className={cn('h-full', colors.bg)}
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.2 }}
         />
       </div>
-      <span className="w-9 text-right text-xs tabular-nums text-text-secondary">
-        {pct}%
-      </span>
     </div>
   )
 }

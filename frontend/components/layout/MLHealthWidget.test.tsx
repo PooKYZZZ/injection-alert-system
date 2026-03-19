@@ -41,7 +41,6 @@ describe('MLHealthWidget', () => {
         traffic_processed: 44,
         thresholds: {
           low: 0.5,
-          medium: null,
           high: 0.8,
         },
       },

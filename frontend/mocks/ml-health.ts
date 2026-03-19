@@ -11,7 +11,7 @@ export const MOCK_ML_HEALTH: MLHealthData = {
   traffic_processed: 120500,
   thresholds: {
     low: CONFIDENCE_THRESHOLDS.LOW,
-    medium: CONFIDENCE_THRESHOLDS.MEDIUM,
+    medium: (CONFIDENCE_THRESHOLDS.LOW + CONFIDENCE_THRESHOLDS.HIGH) / 2,
     high: CONFIDENCE_THRESHOLDS.HIGH,
   }
 }

@@ -64,15 +64,15 @@ describe('bff-client', () => {
     const result = await getAlerts(
       new URLSearchParams({
         page: '2',
-        page_size: '5',
+        pageSize: '5',
         severity: 'HIGH',
-        time_range: '24h',
+        window: '24h',
         search: '203.0.113.10',
       })
     )
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&time_range=24h&search=203.0.113.10',
+      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&search=203.0.113.10&window=24h',
       expect.objectContaining({
         cache: 'no-store',
         headers: {

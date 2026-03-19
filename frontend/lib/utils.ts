@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getConfidenceLevel(confidence: number): AlertSeverity {
-  if (confidence >= CONFIDENCE_THRESHOLDS.MEDIUM) return 'HIGH'
+  if (confidence >= CONFIDENCE_THRESHOLDS.HIGH) return 'HIGH'
   if (confidence >= CONFIDENCE_THRESHOLDS.LOW) return 'MEDIUM'
   return 'LOW'
 }
