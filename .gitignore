@@ -175,3 +175,11 @@ docs/PROJECT_DOCUMENTATION of ai studio.md
 docs/project-ops/PORT_AUTHORITY.md
 docs/project-ops/BATCH_3_5_7_DEPENDENCIES.md
 docs/DESIGN_SYSTEM.md
+docs/project-ops/AI_STUDIO_PORT_CHECKLIST.md
+docs/project-ops/DATA_AUDIT.md
+docs/project-ops/LIVING_CHECKLIST.md
+docs/project-ops/STATUS.md
+BACKEND_PROMPT_REFERENCE.md
+
+.github/
+.serena/
