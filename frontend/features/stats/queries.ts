@@ -15,14 +15,15 @@ import { DashboardStats } from './types'
 
 export const statsKeys = {
   all: ['stats'] as const,
-  stats: () => ['stats', 'dashboard'] as const,
+  stats: (window?: string) => ['stats', 'dashboard', { window }] as const,
 }
 
-export function statsOptions() {
+export function statsOptions(window?: string) {
   return queryOptions<DashboardStats>({
-    queryKey: statsKeys.stats(),
+    queryKey: statsKeys.stats(window),
     queryFn: async () => {
-      const r = await fetch('/api/stats')
+      const url = window ? `/api/stats?window=${window}` : '/api/stats'
+      const r = await fetch(url)
       if (!r.ok) throw new Error(`/api/stats responded with ${r.status}`)
       return r.json()
     },
@@ -30,4 +31,4 @@ export function statsOptions() {
   })
 }
 
-export const useDashboardStats = () => useQuery(statsOptions())
+export const useDashboardStats = (window?: string) => useQuery(statsOptions(window))

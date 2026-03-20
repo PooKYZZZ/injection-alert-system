@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from ml_model.models.mock_model import MockInjectionClassifier
 from web_app.config import Settings
@@ -30,6 +30,7 @@ class ModelService:
         self._total_inference_latency_ms = 0.0
         self._confidence_low_threshold = float(settings.confidence_low_threshold)
         self._confidence_high_threshold = float(settings.confidence_high_threshold)
+        self._eval_metadata: dict[str, Any] = {}
 
         run_dir, was_inferred = self._resolve_run_directory(
             settings,
@@ -54,6 +55,7 @@ class ModelService:
         self.tokenizer = tokenizer
         self.temperature = float(loaded_temperature or TEMPERATURE)
         self.model_version = self._derive_model_version(run_dir)
+        self._eval_metadata = self._load_eval_metadata(run_dir)
 
     @classmethod
     def create_mock(cls) -> "ModelService":
@@ -73,6 +75,7 @@ class ModelService:
         instance._total_inference_latency_ms = 0.0
         instance._confidence_low_threshold = cls.DEFAULT_CONFIDENCE_LOW_THRESHOLD
         instance._confidence_high_threshold = cls.DEFAULT_CONFIDENCE_HIGH_THRESHOLD
+        instance._eval_metadata = {}
         return instance
 
     def predict(self, payload: str) -> dict[str, Any]:
@@ -238,6 +241,68 @@ class ModelService:
             "low": self._confidence_low_threshold,
             "high": self._confidence_high_threshold,
         }
+
+    @property
+    def eval_metadata(self) -> dict[str, Any]:
+        """Evaluation metrics from model registry artifact (macro_f1, ece, per_class_f1, etc.)."""
+        return self._eval_metadata.copy()
+
+    def _load_eval_metadata(self, run_dir: Path) -> dict[str, Any]:
+        """Load evaluation metrics from model registry eval JSON if present."""
+        import json
+
+        eval_dir = run_dir / "eval"
+        if not eval_dir.is_dir():
+            return {}
+
+        # Find the most recent eval file (format: YYYYMMDD_HHMMSS_metrics.json)
+        candidates = sorted(
+            [
+                path
+                for path in eval_dir.iterdir()
+                if path.is_file() and path.name.endswith("_metrics.json")
+            ],
+            key=lambda p: p.name,
+            reverse=True,
+        )
+        if not candidates:
+            return {}
+
+        metrics_path = candidates[0]
+        try:
+            raw = json.loads(metrics_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+        # Extract fields aligned with backend schema (MLHealthResponse)
+        metadata: dict[str, Any] = {}
+        if "macro_f1" in raw:
+            metadata["macro_f1"] = float(raw["macro_f1"])
+        if "ece" in raw:
+            metadata["ece"] = float(raw["ece"])
+        if "per_class_f1" in raw and isinstance(raw["per_class_f1"], dict):
+            metadata["per_class_f1"] = {
+                k: float(v) for k, v in raw["per_class_f1"].items()
+            }
+        if "calibration_bins" in raw and isinstance(raw["calibration_bins"], list):
+            metadata["calibration_bins"] = [
+                {
+                    "bin_idx": int(b.get("bin_idx", i)),
+                    "bin_center": float(b["bin_center"]),
+                    "accuracy": float(b["accuracy"]),
+                    "confidence": float(b["confidence"]),
+                    "count": int(b["count"]),
+                }
+                for i, b in enumerate(raw["calibration_bins"])
+                if isinstance(b, dict)
+            ]
+        if "prediction_distribution" in raw and isinstance(
+            raw["prediction_distribution"], dict
+        ):
+            metadata["prediction_distribution"] = {
+                k: int(v) for k, v in raw["prediction_distribution"].items()
+            }
+        return metadata
 
     @staticmethod
     def _confidence_tier_for(confidence: float) -> str:

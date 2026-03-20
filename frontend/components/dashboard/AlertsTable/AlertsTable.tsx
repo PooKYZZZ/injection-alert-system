@@ -312,8 +312,9 @@ function AlertsTableContent() {
   }, [])
 
   useEffect(() => {
+    const timeouts = savingTimeoutsRef.current
     return () => {
-      Object.values(savingTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
+      Object.values(timeouts).forEach((timeoutId) => clearTimeout(timeoutId))
     }
   }, [])
 

@@ -1,15 +1,30 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { motion } from 'motion/react'
 import { useMLHealth } from '@/features/ml-health/queries'
 import { ModelHeader } from '@/components/ml-health/ModelHeader'
-import { PerClassF1Chart } from '@/components/ml-health/PerClassF1Chart'
-import { ReliabilityDiagram } from '@/components/ml-health/ReliabilityDiagram'
-import { ConfidenceDriftChart } from '@/components/ml-health/ConfidenceDriftChart'
-import { PredictionDistribution } from '@/components/ml-health/PredictionDistribution'
 import { ConfidenceThresholds } from '@/components/ml-health/ConfidenceThresholds'
 import { LoadingSkeleton, ErrorState } from '@/components/ui/StateViews'
 import type { MLHealthData } from '@/features/ml-health/types'
+
+// Lazy-load Recharts components to avoid SSR hydration issues and reduce initial bundle
+const PerClassF1Chart = dynamic(
+  () => import('@/components/ml-health/PerClassF1Chart').then((m) => m.PerClassF1Chart),
+  { ssr: false, loading: () => <div className="h-48 animate-pulse bg-[var(--color-bg-panel)] rounded" /> }
+)
+const ReliabilityDiagram = dynamic(
+  () => import('@/components/ml-health/ReliabilityDiagram').then((m) => m.ReliabilityDiagram),
+  { ssr: false, loading: () => <div className="h-48 animate-pulse bg-[var(--color-bg-panel)] rounded" /> }
+)
+const ConfidenceDriftChart = dynamic(
+  () => import('@/components/ml-health/ConfidenceDriftChart').then((m) => m.ConfidenceDriftChart),
+  { ssr: false, loading: () => <div className="h-48 animate-pulse bg-[var(--color-bg-panel)] rounded" /> }
+)
+const PredictionDistribution = dynamic(
+  () => import('@/components/ml-health/PredictionDistribution').then((m) => m.PredictionDistribution),
+  { ssr: false, loading: () => <div className="h-48 animate-pulse bg-[var(--color-bg-panel)] rounded" /> }
+)
 
 interface HealthStatProps {
   label: string
@@ -164,11 +179,13 @@ export default function MLHealthPage() {
               <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
                 Per-class F1 score
               </span>
-              <span className="text-[10px] text-[var(--color-text-muted)]">
-                Not yet available
-              </span>
+              {health.macro_f1 !== null && health.macro_f1 !== undefined ? (
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  Macro F1 {(health.macro_f1 * 100).toFixed(1)}%
+                </span>
+              ) : null}
             </div>
-            <PerClassF1Chart perClassF1={null} />
+            <PerClassF1Chart perClassF1={health.per_class_f1 ?? null} />
           </motion.div>
 
           <motion.div
@@ -222,7 +239,10 @@ export default function MLHealthPage() {
                 Calibration quality
               </span>
             </div>
-            <ReliabilityDiagram bins={null} ece={null} />
+            <ReliabilityDiagram
+              bins={health.calibration_bins ?? null}
+              ece={health.ece ?? null}
+            />
           </motion.div>
 
           <motion.div

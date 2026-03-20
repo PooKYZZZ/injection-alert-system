@@ -53,7 +53,7 @@ export function ConfidenceDriftChart({ driftData }: ConfidenceDriftChartProps) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#111827',
+                backgroundColor: 'var(--color-bg-panel)',
                 border: '1px solid #30363d',
                 fontSize: '10px',
                 borderRadius: '4px',

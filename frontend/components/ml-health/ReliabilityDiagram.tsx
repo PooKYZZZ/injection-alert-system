@@ -13,7 +13,7 @@ import {
 import { EmptyState } from '@/components/ui/StateViews'
 
 interface ReliabilityDiagramProps {
-  bins?: Array<{ x: number; y: number }> | null
+  bins?: Array<{ bin_center: number; accuracy: number }> | null
   ece?: number | null
 }
 
@@ -39,7 +39,7 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
             />
             <XAxis
               type="number"
-              dataKey="x"
+              dataKey="bin_center"
               name="Mean confidence"
               domain={[0, 1]}
               tick={{ fill: '#484f58', fontSize: 9 }}
@@ -48,7 +48,7 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
             />
             <YAxis
               type="number"
-              dataKey="y"
+              dataKey="accuracy"
               name="Actual accuracy"
               domain={[0, 1]}
               tick={{ fill: '#484f58', fontSize: 9 }}
@@ -58,7 +58,7 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
               contentStyle={{
-                backgroundColor: '#111827',
+                backgroundColor: 'var(--color-bg-panel)',
                 border: '1px solid #30363d',
                 fontSize: '10px',
                 borderRadius: '4px',

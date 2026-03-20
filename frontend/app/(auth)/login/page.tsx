@@ -81,7 +81,7 @@ export default function LoginPage() {
           className="w-full max-w-[520px] mb-4"
         />
 
-        <h2 className="text-4xl sm:text-5xl xl:text-6xl font-bold font-orbitron tracking-wide text-center">
+        <h2 className="text-4xl sm:text-5xl xl:text-6xl font-bold font-sans tracking-wide text-center">
           CyberTrace
         </h2>
 

@@ -83,13 +83,32 @@ class TrafficLogEntity:
 
 
 @dataclass
+class SourceIPSummary:
+    """Domain object representing a source IP with request count and most recent action."""
+    ip: str
+    count: int
+    action: Optional[str] = None
+
+
+@dataclass
+class TargetPathSummary:
+    """Domain object representing a targeted path with hit count."""
+    path: str
+    hits: int
+
+
+@dataclass
 class TrafficStatsSummary:
     total_requests: int = 0
     counts_by_label: dict[str, int] = field(default_factory=dict)
     avg_inference_latency_ms: float = 0.0
     blocked_count: int = 0
     allowed_count: int = 0
+    throttled_count: int = 0
     avg_confidence: Optional[float] = None
+    attack_distribution: dict[str, int] = field(default_factory=dict)
+    top_source_ips: List[SourceIPSummary] = field(default_factory=list)
+    top_targeted_paths: List[TargetPathSummary] = field(default_factory=list)
 
 
 @dataclass

@@ -78,8 +78,12 @@ const mockStats: DashboardStats = {
   avg_inference_latency_ms: 5.2,
   blocked_count: 320,
   allowed_count: 85,
+  throttled_count: 15,
   avg_confidence: 0.72,
   activity_buckets: mockActivityBuckets,
+  attack_distribution: {},
+  top_source_ips: [],
+  top_targeted_paths: [],
 }
 
 const mockAlertsPage1: PaginatedAlerts = {

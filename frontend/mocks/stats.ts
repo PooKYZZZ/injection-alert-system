@@ -41,4 +41,20 @@ export const MOCK_STATS: DashboardStats = {
   throttled_count: 12,
   avg_confidence: 0.78,
   activity_buckets: MOCK_ACTIVITY_BUCKETS,
+  attack_distribution: {
+    'SQL Injection': 45,
+    'Code Injection': 8,
+    'Other Attacks': 12,
+    'Normal': 3,
+  },
+  top_source_ips: [
+    { ip: '192.168.1.14', count: 7, action: 'BLOCKED' },
+    { ip: '10.0.0.45', count: 4, action: 'BLOCKED' },
+    { ip: '172.16.0.7', count: 3, action: 'THROTTLED' },
+  ],
+  top_targeted_paths: [
+    { path: '/api/login', hits: 6 },
+    { path: '/admin/query', hits: 4 },
+    { path: '/api/users', hits: 3 },
+  ],
 }

@@ -38,6 +38,9 @@ export async function normalizeSearchParams(
   }
 }
 
+// Alerts-specific search param normalization
+import { AlertFiltersSchema, type AlertFilters } from '@/features/alerts/schemas'
+
 export function toQueryString(filters: DashboardFilters): string {
   return new URLSearchParams({
     severity: filters.severity,
@@ -45,9 +48,6 @@ export function toQueryString(filters: DashboardFilters): string {
     search: filters.search,
   }).toString()
 }
-
-// Alerts-specific search param normalization
-import { AlertFiltersSchema, type AlertFilters } from '@/features/alerts/schemas'
 
 export const DEFAULT_ALERT_FILTERS: AlertFilters = {
   page: 1,

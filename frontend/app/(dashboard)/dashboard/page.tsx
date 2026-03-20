@@ -1,11 +1,11 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
-import { TimelineChart, type TimeWindow } from '@/components/dashboard/TimelineChart'
 import { AttackTypePanel } from '@/components/dashboard/AttackTypePanel'
 import { MLConfidenceBands } from '@/components/dashboard/MLConfidenceBands'
 import { MLEnforcementMap } from '@/components/dashboard/MLEnforcementMap'
@@ -16,6 +16,22 @@ import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
 import type { AlertPrediction } from '@/features/alerts/contract'
+import type { TimeWindow } from '@/components/dashboard/TimelineChart'
+
+// Lazy-load TimelineChart to avoid SSR hydration issues and reduce initial bundle
+const TimelineChart = dynamic(
+  () => import('@/components/dashboard/TimelineChart').then((m) => m.TimelineChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-48 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col gap-2 w-full">
+          <div className="h-32 bg-[#161b22] rounded" />
+        </div>
+      </div>
+    ),
+  }
+)
 
 // Default filters for dashboard preview
 const DEFAULT_DASHBOARD_FILTERS: DashboardFilters = {
@@ -29,11 +45,11 @@ export default function DashboardPage() {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('6h')
 
   // Stats query for dashboard data
-  const { data: stats, isPending: statsPending } = useDashboardStats()
+  const { data: stats, isPending: statsPending } = useDashboardStats(timeWindow)
 
   // Alerts query for recent alerts preview
   const { data: alertsData, isPending: alertsPending } = useAlerts(DEFAULT_DASHBOARD_FILTERS)
-  const alerts = alertsData?.items ?? []
+  const alerts = useMemo(() => alertsData?.items ?? [], [alertsData?.items])
 
   // Calculate attack type distribution from alerts
   const attackCounts = useMemo(() => {
@@ -68,7 +84,6 @@ export default function DashboardPage() {
     {
       label: 'High alerts',
       value: stats?.actionable_alerts ?? '—',
-      secondary: '↑ +3 vs prev 6h',
       secondaryColor: 'text-red-400',
       borderColor: 'border-l-red-700',
     },
@@ -84,7 +99,6 @@ export default function DashboardPage() {
     {
       label: 'Throttled',
       value: stats?.throttled_count ?? '—',
-      secondary: '50–80% confidence',
       secondaryColor: 'text-amber-400',
       borderColor: 'border-l-amber-700',
     },
@@ -97,7 +111,6 @@ export default function DashboardPage() {
     {
       label: 'Avg ML confidence',
       value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
-      secondary: '↓ Model stable',
       secondaryColor: 'text-emerald-400',
     },
     {
@@ -122,7 +135,7 @@ export default function DashboardPage() {
             key={card.label}
             label={card.label}
             value={card.value}
-            secondary={card.secondary}
+            secondary={card.secondary ?? undefined}
             secondaryColor={card.secondaryColor}
             borderColor={card.borderColor}
           />
@@ -158,7 +171,7 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          {/* TODO: pass time window to stats query when backend supports it */}
+          {/* Time window filter applied to stats query */}
           <span className="text-[10px] text-[#484f58]">Hover for details</span>
         </div>
         <TimelineChart
@@ -228,8 +241,7 @@ export default function DashboardPage() {
           <div className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider mb-1">
             Top source IPs
           </div>
-          {/* TODO: wire top source IPs when stats API exposes ranked source data */}
-          <TopSourceIPs ips={[]} />
+          <TopSourceIPs ips={stats?.top_source_ips ?? []} />
         </motion.div>
 
         {/* Top Targeted Paths */}
@@ -242,8 +254,7 @@ export default function DashboardPage() {
           <div className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider mb-1">
             Top targeted paths
           </div>
-          {/* TODO: wire top targeted paths when stats API exposes ranked path data */}
-          <TopTargetedPaths paths={[]} />
+          <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} />
         </motion.div>
       </div>
 

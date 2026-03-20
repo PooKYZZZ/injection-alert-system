@@ -65,7 +65,7 @@ export function PredictionDistribution({
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#111827',
+                backgroundColor: 'var(--color-bg-panel)',
                 border: '1px solid #30363d',
                 fontSize: '10px',
                 borderRadius: '4px',

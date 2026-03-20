@@ -41,6 +41,7 @@ class FakeModelHealthService:
         avg_inference_latency_ms: float = 0.0,
         total_processed: int = 0,
         confidence_thresholds: dict[str, float] | None = None,
+        eval_metadata: dict[str, object] | None = None,
     ):
         self.model_version = model_version
         self.loaded = loaded
@@ -51,6 +52,7 @@ class FakeModelHealthService:
             "low": 0.5,
             "high": 0.8,
         }
+        self.eval_metadata = eval_metadata or {}
 
 
 class FakeTriageModelService(FakeModelHealthService):
@@ -225,6 +227,12 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
             "low": 0.5,
             "high": 0.8,
         },
+        # Optional eval metadata defaults when not available
+        "macro_f1": None,
+        "ece": None,
+        "per_class_f1": {},
+        "calibration_bins": [],
+        "prediction_distribution": {},
     }
 
 

@@ -40,7 +40,9 @@ from web_app.presentation.schemas import (
     MLHealthResponse,
     PredictionRequest,
     PredictionResponse,
+    SourceIPSummarySchema,
     StatsResponse,
+    TargetPathSummarySchema,
     TriageUpdateRequest,
 )
 
@@ -92,11 +94,18 @@ async def predict(
 
 @internal_router.get("/stats", response_model=StatsResponse)
 async def get_stats(
+    window: Literal["1h", "6h", "24h", "7d"] | None = Query(
+        default=None, description="Time window for stats (all-time if not specified)"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return aggregate traffic statistics with zero-safe defaults."""
+    """Return aggregate traffic statistics with zero-safe defaults.
+    
+    Optional window parameter filters stats to the specified time period.
+    No window = all-time stats.
+    """
     repository = TrafficLogRepository(db)
-    summary = await repository.get_stats_summary()
+    summary = await repository.get_stats_summary(window=window)
     # Get real activity buckets from database for hero activity strip (graceful degradation)
     activity_buckets_list = []
     try:
@@ -114,14 +123,37 @@ async def get_stats(
         # Database not available or not initialized - return empty buckets
         logger.warning("Database unavailable while fetching activity buckets: %s", e)
 
+    # Build top source IPs list
+    top_source_ips_list = [
+        SourceIPSummarySchema(
+            ip=ip.ip,
+            count=ip.count,
+            action=ip.action,
+        )
+        for ip in summary.top_source_ips
+    ]
+
+    # Build top targeted paths list
+    top_targeted_paths_list = [
+        TargetPathSummarySchema(
+            path=path.path,
+            hits=path.hits,
+        )
+        for path in summary.top_targeted_paths
+    ]
+
     return StatsResponse(
         total_requests=summary.total_requests,
         counts_by_label=summary.counts_by_label,
         avg_inference_latency_ms=summary.avg_inference_latency_ms,
         blocked_count=summary.blocked_count,
         allowed_count=summary.allowed_count,
+        throttled_count=summary.throttled_count,
         avg_confidence=summary.avg_confidence,
         activity_buckets=activity_buckets_list,
+        attack_distribution=summary.attack_distribution,
+        top_source_ips=top_source_ips_list,
+        top_targeted_paths=top_targeted_paths_list,
     )
 
 
@@ -144,6 +176,9 @@ async def get_ml_health(
         # Database not available - drift detection unavailable
         logger.warning("Database unavailable while computing drift metrics: %s", e)
 
+    # Get eval metadata from model service (returns empty dict if not available)
+    eval_metadata = model_service.eval_metadata
+
     return MLHealthResponse(
         model_version=model_service.model_version,
         loaded=model_service.loaded,
@@ -153,6 +188,12 @@ async def get_ml_health(
         drift_detected=drift_detected,
         drift_score=drift_score,
         confidence_thresholds=model_service.confidence_thresholds,
+        # Optional eval metadata from model registry artifacts
+        macro_f1=eval_metadata.get("macro_f1"),
+        ece=eval_metadata.get("ece"),
+        per_class_f1=eval_metadata.get("per_class_f1") or {},
+        calibration_bins=eval_metadata.get("calibration_bins") or [],
+        prediction_distribution=eval_metadata.get("prediction_distribution") or {},
     )
 
 

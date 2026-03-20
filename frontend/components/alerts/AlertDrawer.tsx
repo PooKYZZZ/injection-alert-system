@@ -33,10 +33,10 @@ function formatUtcTimestamp(timestamp: string | null | undefined): string {
 function DrawerSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="h-6 w-48 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-      <div className="h-24 w-full rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-      <div className="h-32 w-full rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-      <div className="h-20 w-full rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+      <div className="h-6 w-48 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+      <div className="h-24 w-full rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+      <div className="h-32 w-full rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+      <div className="h-20 w-full rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
     </div>
   )
 }

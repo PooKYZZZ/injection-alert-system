@@ -103,7 +103,7 @@ export function ModelHeader({ health }: ModelHeaderProps) {
                     : 'text-[var(--color-text-muted)]'
             }
           />
-          <MetaItem label="Calibration" value="Temp-scaled" valueColor="text-emerald-400" />
+          <MetaItem label="Calibration" value="—" valueColor="text-[var(--color-text-muted)]" />
         </div>
       </div>
 

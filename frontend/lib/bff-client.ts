@@ -3,6 +3,7 @@ import 'server-only'
 import { z } from 'zod'
 import { AlertSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
 import type { Alert, PaginatedAlerts } from '@/features/alerts/types'
+import type { AlertAction } from '@/features/alerts/contract'
 import type { MLHealthData } from '@/features/ml-health/types'
 import type { DashboardStats } from '@/features/stats/types'
 import { MOCK_ALERTS } from '@/mocks/alerts'
@@ -53,6 +54,17 @@ const BackendActivityBucketSchema = z.object({
   timestamp_start: z.string(),
 })
 
+const BackendSourceIPSchema = z.object({
+  ip: z.string(),
+  count: z.number(),
+  action: z.string().nullable().optional(),
+})
+
+const BackendTargetPathSchema = z.object({
+  path: z.string(),
+  hits: z.number(),
+})
+
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
   counts_by_label: z.object({
@@ -64,8 +76,20 @@ const BackendStatsSchema = z.object({
   avg_inference_latency_ms: z.number(),
   blocked_count: z.number(),
   allowed_count: z.number(),
+  throttled_count: z.number().optional(),
   avg_confidence: z.number().nullable(),
   activity_buckets: z.array(BackendActivityBucketSchema),
+  attack_distribution: z.record(z.string(), z.number()).optional(),
+  top_source_ips: z.array(BackendSourceIPSchema).optional(),
+  top_targeted_paths: z.array(BackendTargetPathSchema).optional(),
+})
+
+const CalibrationBinSchema = z.object({
+  bin_idx: z.number(),
+  bin_center: z.number(),
+  accuracy: z.number(),
+  confidence: z.number(),
+  count: z.number(),
 })
 
 const BackendMlHealthSchema = z.object({
@@ -80,6 +104,12 @@ const BackendMlHealthSchema = z.object({
     low: z.number().optional(),
     high: z.number().optional(),
   }),
+  // Optional eval metadata from model registry artifacts
+  macro_f1: z.number().nullable().optional(),
+  ece: z.number().nullable().optional(),
+  per_class_f1: z.record(z.number()).optional(),
+  calibration_bins: z.array(CalibrationBinSchema).optional(),
+  prediction_distribution: z.record(z.number()).optional(),
 })
 
 function ok<T>(data: T): BffResult<T> {
@@ -209,12 +239,26 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
     (payload.counts_by_label['Code Injection'] ?? 0) +
     (payload.counts_by_label['Other Attacks'] ?? 0)
 
+  // Normalize new fields with safe defaults for staged rollout
+  const throttledCount = payload.throttled_count ?? 0
+  const attackDistribution = payload.attack_distribution ?? {}
+  const topSourceIps = (payload.top_source_ips ?? []).map((ip) => ({
+    ip: ip.ip,
+    count: ip.count,
+    action: (ip.action ?? null) as AlertAction | null,
+  }))
+  const topTargetedPaths = (payload.top_targeted_paths ?? []).map((path) => ({
+    path: path.path,
+    hits: path.hits,
+  }))
+
   return {
     actionable_alerts: actionableAlerts,
     total_requests: payload.total_requests,
     avg_inference_latency_ms: payload.avg_inference_latency_ms,
     blocked_count: payload.blocked_count,
     allowed_count: payload.allowed_count,
+    throttled_count: throttledCount,
     avg_confidence: payload.avg_confidence,
     activity_buckets: payload.activity_buckets.map((b) => ({
       bucket_index: b.bucket_index,
@@ -222,6 +266,9 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
       blocked_count: b.blocked_count,
       timestamp_start: new Date(b.timestamp_start),
     })),
+    attack_distribution: attackDistribution,
+    top_source_ips: topSourceIps,
+    top_targeted_paths: topTargetedPaths,
   }
 }
 
@@ -280,6 +327,12 @@ function normalizeMlHealth(
       medium: medium ?? null,
       high: high ?? null,
     },
+    // Optional eval metadata from model registry artifacts
+    macro_f1: payload.macro_f1 ?? null,
+    ece: payload.ece ?? null,
+    per_class_f1: payload.per_class_f1 ?? {},
+    calibration_bins: payload.calibration_bins ?? [],
+    prediction_distribution: payload.prediction_distribution ?? {},
   }
 }
 

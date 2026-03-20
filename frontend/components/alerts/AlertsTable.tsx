@@ -46,34 +46,34 @@ function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
       {Array.from({ length: rowCount }).map((_, index) => (
         <tr key={index} aria-hidden="true" className="border-b border-[#21262d]">
           <td className="p-3">
-            <div className="h-4 w-4 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-5 w-16 rounded-full bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-5 w-16 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-5 w-12 rounded-full bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-5 w-12 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-16 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-16 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-24 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-24 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-20 truncate rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-20 truncate rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-14 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-14 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-20 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-20 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-20 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-20 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-5 w-14 rounded-full bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-5 w-14 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
         </tr>
       ))}
@@ -418,7 +418,7 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: Al
               <thead className="sticky top-0 z-10 bg-[#161b22]">
                 <tr className="border-b border-[#30363d]">
                   <th className="w-10 p-3">
-                    <div className="h-4 w-4 rounded bg-[#1a2236] [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                    <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
                   </th>
                   {ALERT_TABLE_COLUMNS.map((column) => (
                     <th

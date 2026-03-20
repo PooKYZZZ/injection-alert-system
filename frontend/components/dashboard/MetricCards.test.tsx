@@ -17,8 +17,12 @@ const sampleStats: DashboardStats = {
   avg_inference_latency_ms: 3.4,
   blocked_count: 89,
   allowed_count: 23,
+  throttled_count: 12,
   avg_confidence: 0.78,
   activity_buckets: sampleActivityBuckets,
+  attack_distribution: {},
+  top_source_ips: [],
+  top_targeted_paths: [],
 }
 
 afterEach(() => {

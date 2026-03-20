@@ -270,11 +270,15 @@ describe('bff-client', () => {
         avg_inference_latency_ms: 4.5,
         blocked_count: 4,
         allowed_count: 2,
+        throttled_count: 0,
         avg_confidence: 0.82,
         activity_buckets: [
           { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: new Date('2026-03-18T12:00:00Z') },
           { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: new Date('2026-03-18T13:00:00Z') },
         ],
+        attack_distribution: {},
+        top_source_ips: [],
+        top_targeted_paths: [],
       },
     })
   })
@@ -317,6 +321,12 @@ describe('bff-client', () => {
           medium: 0.65,
           high: 0.8,
         },
+        // Optional eval metadata defaults when not provided
+        macro_f1: null,
+        ece: null,
+        per_class_f1: {},
+        calibration_bins: [],
+        prediction_distribution: {},
       },
     })
   })

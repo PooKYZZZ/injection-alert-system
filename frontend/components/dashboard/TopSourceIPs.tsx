@@ -7,7 +7,7 @@ import type { AlertAction } from '@/features/alerts/contract'
 export interface SourceIPSummary {
   ip: string
   count: number
-  action: AlertAction
+  action: AlertAction | null
 }
 
 interface TopSourceIPsProps {
@@ -46,14 +46,16 @@ export function TopSourceIPs({ ips, isLoading = false }: TopSourceIPsProps) {
           <span className="font-mono text-violet-400">{item.ip}</span>
           <div className="flex items-center gap-2">
             <span className="font-medium">{item.count}</span>
-            <span
-              className={cn(
-                'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                statusStyles[item.action]
-              )}
-            >
-              {actionLabels[item.action]}
-            </span>
+            {item.action && statusStyles[item.action as AlertAction] && (
+              <span
+                className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                  statusStyles[item.action as AlertAction]
+                )}
+              >
+                {actionLabels[item.action as AlertAction]}
+              </span>
+            )}
           </div>
         </div>
       ))}
