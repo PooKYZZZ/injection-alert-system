@@ -2,8 +2,7 @@ import { Suspense } from 'react'
 import { normalizeAlertSearchParams } from '@/lib/searchParams'
 import { getAlerts } from '@/lib/bff-client'
 import { FilterBar } from '@/components/alerts/FilterBar'
-import AlertsTable from '@/components/dashboard/AlertsTable/AlertsTable'
-import IncidentDetailPanel from '@/components/dashboard/IncidentDetailPanel'
+import { AlertsPageClient } from '@/components/alerts/AlertsPageClient'
 
 export default async function AlertsPage({
   searchParams,
@@ -34,8 +33,7 @@ export default async function AlertsPage({
       <Suspense fallback={null}>
         <FilterBar filteredCount={filteredCount} />
       </Suspense>
-      <AlertsTable />
-      <IncidentDetailPanel />
+      <AlertsPageClient />
     </main>
   )
 }

@@ -83,6 +83,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             "analyst_label": entity.analyst_label,
             "labeled_at": entity.labeled_at,
             "labeled_by": entity.labeled_by,
+            "triage_status": entity.triage_status,
         }
 
         if entity.created_at is not None:
@@ -118,6 +119,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             analyst_label=orm_obj.analyst_label,
             labeled_at=orm_obj.labeled_at,
             labeled_by=orm_obj.labeled_by,
+            triage_status=orm_obj.triage_status,
         )
 
     # ------------------------------------------------------------------
@@ -602,6 +604,24 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.analyst_label = analyst_label
         orm_obj.labeled_by = analyst_email
         orm_obj.labeled_at = labeled_at
+        await self._session.commit()
+        await self._session.refresh(orm_obj)
+        return self._orm_to_entity(orm_obj)
+
+    async def update_triage_status(
+        self,
+        traffic_id: int,
+        triage_status: str,
+    ) -> Optional[TrafficLogEntity]:
+        """Update triage status on a traffic log. Returns None if not found."""
+        result = await self._session.execute(
+            select(TrafficLog).filter(TrafficLog.id == traffic_id)
+        )
+        orm_obj = result.scalars().first()
+        if orm_obj is None:
+            return None
+
+        orm_obj.triage_status = triage_status
         await self._session.commit()
         await self._session.refresh(orm_obj)
         return self._orm_to_entity(orm_obj)

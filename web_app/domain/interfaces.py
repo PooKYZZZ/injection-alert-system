@@ -73,6 +73,7 @@ class TrafficLogEntity:
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+    triage_status: Optional[str] = None
 
     @property
     def payload_snippet(self) -> str:
@@ -210,4 +211,13 @@ class ITrafficLogRepository(ABC):
         labeled_at: datetime,
     ) -> Optional[TrafficLogEntity]:
         """Update analyst feedback on a traffic log. Returns None if not found."""
+        ...
+
+    @abstractmethod
+    async def update_triage_status(
+        self,
+        traffic_id: int,
+        triage_status: str,
+    ) -> Optional[TrafficLogEntity]:
+        """Update triage status on a traffic log. Returns None if not found."""
         ...

@@ -34,6 +34,9 @@ const BackendAlertSchema = z.object({
   analyst_label: z.string().nullable().optional(),
   labeled_at: z.string().nullable().optional(),
   labeled_by: z.string().nullable().optional(),
+  triage_status: z.enum([
+    'new', 'in_review', 'escalated', 'resolved', 'false_positive'
+  ]).nullable().optional(),
 })
 
 const BackendPaginatedAlertsSchema = z.object({
@@ -176,6 +179,7 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     analyst_label: alert.analyst_label ?? null,
     labeled_at: alert.labeled_at ?? null,
     labeled_by: alert.labeled_by ?? null,
+    triage_status: alert.triage_status ?? null,
   })
 }
 
@@ -432,4 +436,85 @@ export async function getMlHealth(): Promise<BffResult<MLHealthData>> {
   }
 
   return ok(normalizeMlHealth(upstream.data))
+}
+
+export async function updateAlertTriage(
+  alertId: string,
+  status: 'new' | 'in_review' | 'escalated' | 'resolved' | 'false_positive'
+): Promise<BffResult<Alert>> {
+  if (isMockMode()) {
+    // Find the matching alert in MOCK_ALERTS
+    const match = MOCK_ALERTS.items.find((item) => item.alert_id === alertId)
+    if (!match) {
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    }
+    // Update in-memory
+    match.triage_status = status
+    return validateMockData(AlertSchema, match)
+  }
+
+  const parsedId = parseAlertId(alertId)
+  if (!parsedId.ok) {
+    return parsedId
+  }
+
+  const config = getUpstreamConfig()
+  if (!config.ok) {
+    return config
+  }
+
+  let response: Response
+  try {
+    response = await fetch(
+      `${config.data.baseUrl}/api/alerts/${parsedId.data}/triage`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${config.data.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ triage_status: status }),
+      }
+    )
+  } catch {
+    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      return err(
+        500,
+        'INTERNAL_SERVICE_AUTH_FAILED',
+        'Internal service authentication failed.'
+      )
+    }
+
+    if (response.status === 404) {
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    }
+
+    if (response.status >= 500) {
+      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.')
+    }
+
+    return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.')
+  }
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+  }
+
+  const parsed = BackendAlertSchema.safeParse(payload)
+  if (!parsed.success) {
+    return err(
+      502,
+      'UPSTREAM_ERROR',
+      'Upstream response did not match expected shape.'
+    )
+  }
+
+  return normalizeAlert(parsed.data)
 }

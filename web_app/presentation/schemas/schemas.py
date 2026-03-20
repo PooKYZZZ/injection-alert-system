@@ -12,6 +12,7 @@ PredictionLabel = Literal[
 ]
 ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH"]
 ActionTaken = Literal["BLOCKED", "THROTTLED", "ALLOWED"]
+TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
 
 
 class PredictionRequest(BaseModel):
@@ -132,6 +133,7 @@ class AlertDetailResponse(BaseModel):
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+    triage_status: Optional[TriageStatus] = None
 
     @field_serializer("labeled_at", when_used="json")
     def serialize_labeled_at(self, value: Optional[datetime]) -> Optional[str]:
@@ -149,6 +151,17 @@ class AlertListResponse(BaseModel):
     total: int = Field(default=0, ge=0)
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+
+class TriageUpdateRequest(BaseModel):
+    """Request schema for updating alert triage status."""
+    triage_status: Literal[
+        'new',
+        'in_review',
+        'escalated',
+        'resolved',
+        'false_positive',
+    ] = Field(..., description="Triage status to set on the alert")
 
 
 class HealthResponse(BaseModel):

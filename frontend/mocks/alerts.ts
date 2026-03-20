@@ -13,6 +13,7 @@ const items: Alert[] = [
     confidence_level: "HIGH",
     action_taken: "BLOCKED",
     crs_score: 20,
+    triage_status: null,
     shap_values: [
       { feature_name: "keyword_or", contribution: 0.4 },
       { feature_name: "quote_balance", contribution: 0.4 },
@@ -31,6 +32,7 @@ const items: Alert[] = [
     confidence_level: "MEDIUM",
     action_taken: "THROTTLED",
     crs_score: 12,
+    triage_status: null,
   },
   {
     alert_id: "ALT-1003",
@@ -44,6 +46,7 @@ const items: Alert[] = [
     confidence_level: "LOW",
     action_taken: "ALLOWED",
     crs_score: 8,
+    triage_status: null,
   }
 ]
 

@@ -28,6 +28,10 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
 from web_app.presentation.dependencies.auth import verify_internal_token
+from web_app.application.update_alert_triage_use_case import (
+    UpdateAlertTriageUseCase,
+    InvalidTriageStatusError,
+)
 from web_app.presentation.schemas import (
     ActivityBucketSchema,
     AlertDetailResponse,
@@ -37,6 +41,7 @@ from web_app.presentation.schemas import (
     PredictionRequest,
     PredictionResponse,
     StatsResponse,
+    TriageUpdateRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -212,6 +217,30 @@ async def submit_feedback(
         raise HTTPException(status_code=404, detail=result.message)
 
     return {"message": result.message, "traffic_id": result.traffic_id}
+
+
+@internal_router.patch("/alerts/{alert_id}/triage", response_model=AlertDetailResponse)
+async def update_alert_triage(
+    alert_id: int,
+    request: TriageUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the triage status of an alert."""
+    repository = TrafficLogRepository(db)
+    use_case = UpdateAlertTriageUseCase(repository=repository)
+
+    try:
+        result = await use_case.execute(
+            alert_id=alert_id,
+            triage_status=request.triage_status,
+        )
+    except InvalidTriageStatusError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not result.success:
+        raise HTTPException(status_code=404, detail=result.message)
+
+    return AlertDetailResponse.model_validate(result.alert)
 
 
 router.include_router(internal_router)

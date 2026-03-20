@@ -16,6 +16,7 @@ from web_app.presentation.schemas.schemas import (
     StatsResponse,
     TriageIngestRequest,
     TriageIngestResponse,
+    TriageUpdateRequest,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "MLHealthResponse",
     "TriageIngestRequest",
     "TriageIngestResponse",
+    "TriageUpdateRequest",
 ]

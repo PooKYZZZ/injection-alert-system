@@ -64,6 +64,7 @@ class TrafficLog(Base):
     analyst_label = Column(String(50), nullable=True)
     labeled_at = Column(DateTime, nullable=True)
     labeled_by = Column(String(100), nullable=True)
+    triage_status = Column(String(32), nullable=True)
 
 
 async def init_db():
