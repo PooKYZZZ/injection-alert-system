@@ -498,3 +498,160 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
     assert classifier.calls == 1
     assert first.alert_id == second.alert_id == 1
     assert first.prediction == second.prediction == "SQL Injection"
+
+
+@pytest.mark.asyncio
+async def test_execute_parses_http_request_for_method_and_path(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that execute() parses the raw http_request to extract method and path.
+    
+    This verifies the end-to-end flow: raw HTTP request -> parse -> persist.
+    The parsed method and path should be stored in the database.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+        "inference_latency_ms": 3.5,
+        "model_version": "test-model-v1",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    # This raw HTTP request should be parsed to extract method and path
+    raw_http_request = "POST /api/login?redirect=home HTTP/1.1\nHost: example.com\n\nusername=admin"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="192.168.1.50",
+    )
+
+    # Verify the entity passed to save has parsed method and path
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    # Method should be extracted and uppercased
+    assert saved_entity.request_method == "POST"
+    # Path should have query string stripped
+    assert saved_entity.request_method is not None
+    assert saved_entity.request_path is not None
+
+
+@pytest.mark.asyncio
+async def test_execute_parses_get_request(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that GET requests with query strings are parsed correctly."""
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.99,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    raw_http_request = "GET /users?id=123&sort=name HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="10.0.0.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    assert saved_entity.request_method == "GET"
+    assert saved_entity.request_path == "/users"  # Query string stripped
+
+
+@pytest.mark.asyncio
+async def test_execute_preserves_none_when_parsing_fails(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that malformed HTTP request results in None values, not errors."""
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.50,
+        "confidence_level": "LOW",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    # Malformed request - no valid HTTP method
+    raw_http_request = "not a valid http request"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="127.0.0.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    # Parsing fails gracefully - None values stored
+    assert saved_entity.request_method is None
+    assert saved_entity.request_path is None
+
+
+@pytest.mark.asyncio
+async def test_execute_handles_connect_authority_form_correctly(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that CONNECT method with authority-form (host:port) returns None for path.
+    
+    RFC 7230 defines authority-form as: CONNECT example.com:443 HTTP/1.1
+    This is used for HTTP tunneling. The parser should reject this, not treat
+    it as a path. The raw http_request is still stored for forensics.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.99,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    # CONNECT request with authority-form (no path)
+    raw_http_request = "CONNECT example.com:443 HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="192.168.1.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    # CONNECT method is valid, but authority-form has no path
+    assert saved_entity.request_method == "CONNECT"
+    assert saved_entity.request_path is None  # Authority-form explicitly rejected
+    # Raw request is preserved for forensics
+    assert saved_entity.http_request == raw_http_request
+
+
+@pytest.mark.asyncio
+async def test_execute_handles_options_asterisk_form(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that OPTIONS method with asterisk-form (*) returns * as path.
+    
+    RFC 7230 defines asterisk-form as: OPTIONS * HTTP/1.1
+    This is used to query server capabilities. The parser should return '*' as path.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.99,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    raw_http_request = "OPTIONS * HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="192.168.1.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    assert saved_entity.request_method == "OPTIONS"
+    assert saved_entity.request_path == "*"  # Asterisk-form returned as-is
+    assert saved_entity.http_request == raw_http_request

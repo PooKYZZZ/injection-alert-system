@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     is_development: bool = False
+    enable_api_docs: bool = True
     confidence_low_threshold: float = 0.50
     confidence_high_threshold: float = 0.80
     stale_processing_timeout_seconds: int = 30
@@ -48,6 +49,10 @@ class Settings(BaseSettings):
     def apply_environment_defaults(self) -> "Settings":
         if "is_development" not in self.model_fields_set:
             self.is_development = self.app_env == "development"
+        # Disable API docs by default in production and staging unless explicitly enabled
+        if "enable_api_docs" not in self.model_fields_set:
+            if self.app_env == "production" or self.app_env == "staging":
+                self.enable_api_docs = False
         return self
 
     @property
@@ -57,6 +62,10 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         return self.app_env == "testing"
+
+    @property
+    def is_staging(self) -> bool:
+        return self.app_env == "staging"
 
 
 @lru_cache()

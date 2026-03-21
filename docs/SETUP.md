@@ -1,13 +1,13 @@
 # Local Setup
 
-Last updated: 2026-03-15
+Last updated: 2026-03-20
 
 This guide reflects the repo as it exists now. It supports local backend and frontend development. It does not assume Docker Compose, ModSecurity, Redis, or Supabase are already wired in this repository.
 
 ## Prerequisites
 
 - Windows PowerShell
-- Python 3.10+
+- Python 3.13+
 - Node.js 20+
 - npm
 
@@ -74,7 +74,7 @@ MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_2
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-15, this passes with `84` tests.
+As of 2026-03-20, this passes with **123 backend tests**.
 
 ### Start the backend
 
@@ -94,8 +94,9 @@ Current API surface:
   - `POST /api/triage`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
-  - `GET /api/stats`
-  - `GET /api/ml-health`
+  - `PATCH /api/alerts/{id}/triage` (NEW)
+  - `GET /api/stats` (with window=1h|6h|24h|7d filtering and extended fields)
+  - `GET /api/ml-health` (with optional eval metadata)
 - Public backend endpoints:
   - `POST /api/feedback`
   - `GET /health`
@@ -131,7 +132,7 @@ Notes:
 - The login flow currently checks a password only.
 - `SOC_DEMO_PASSWORD` is preferred. The code also falls back to `DEMO_PASSWORD`, then `demo1234` in development.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
-- `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, stats, and ML health.
+- `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
 
 ### Start the frontend
@@ -148,14 +149,23 @@ cd frontend
 npm run typecheck
 ```
 
-As of 2026-03-15, typecheck passes cleanly.
+As of 2026-03-20, typecheck passes cleanly.
 
 ### Run focused frontend BFF tests
 
 ```powershell
 cd frontend
-npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts
+npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 ```
+
+### Run full frontend test suite
+
+```powershell
+cd frontend
+npx vitest run
+```
+
+As of 2026-03-20, full suite passes with **40 frontend tests**.
 
 ## 4. Current Frontend Data Reality
 
@@ -170,11 +180,16 @@ Be explicit about the current BFF status:
 - `/api/alerts/[id]`
   - Wired through `frontend/lib/bff-client.ts`
   - Calls real FastAPI in non-mock mode
+- `/api/alerts/[id]/triage` (PATCH)
+  - Wired through `frontend/app/api/alerts/[id]/triage/route.ts`
+  - Calls real FastAPI in non-mock mode
 - `/api/ml-health`
   - Wired through `frontend/lib/bff-client.ts`
   - Calls real FastAPI in non-mock mode
 
 So the current local dashboard can run fully against the backend, with optional centralized mock mode via `USE_MOCK_API=true`.
+
+**Current state:** `USE_MOCK_API=false` - the dashboard is hitting the real FastAPI backend.
 
 ### Current frontend protection split
 
@@ -182,7 +197,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check.
 - `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- The four BFF handlers also call `auth()` and return `401` without a session.
+- All five BFF handlers also call `auth()` and return `401` without a session.
 
 ## 5. What This Setup Does Not Cover
 
@@ -195,7 +210,23 @@ The following are not yet available as runnable repo-level setup paths:
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic reclamation of stale `PROCESSING` triage rows
 
-## 6. Troubleshooting
+## 6. 2026-03-20 Audit Findings
+
+Full audit report available at: `docs/project-ops/DATA_AUDIT.md`
+
+### Hardcoded Values Fixed
+- Dashboard page: removed hardcoded derived claims (`'↑ +3 vs prev 6h'`, `'50–80% confidence'`, `'↓ Model stable'`)
+- ML Health ModelHeader: changed `value="Temp-scaled"` to `value="—"`
+
+### BFF Layer Verified
+- Auth boundary correct: all 5 handlers call `auth()` before data fetch
+- CalibrationBin schema correct: uses `bin_center` and `accuracy` field names
+- Multi-select confidence_level correct: uses `delete()` + `append()` not `get()` + `set()`
+
+### Verified Status
+- `/api/alerts` returns persisted records correctly
+
+## 7. Troubleshooting
 
 ### Backend starts with a mock model unexpectedly
 
@@ -218,7 +249,7 @@ Re-run:
 .venv\Scripts\python.exe -m pytest -q
 cd frontend
 npm run typecheck
-npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts
+npx vitest run
 ```
 
 If those outputs change, update this file and `docs/CONTEXT.md` in the same change.

@@ -6,7 +6,8 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 This repository is active, but it is not yet a full production deployment.
 
-- Backend tests currently pass: `84 passed`
+- Backend tests currently pass: `123 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
+- Frontend tests: `40 passed` (run with `cd frontend && npx vitest run`)
 - Frontend typecheck currently passes: `npm run typecheck`
 - The dashboard BFF routes for alerts, alert detail, stats, and ML health are wired to FastAPI in non-mock mode
 - Docker Compose, runnable ModSecurity wiring, and full Supabase/Redis integration are still in progress
@@ -61,7 +62,7 @@ In the current repo, the application code, model-loading path, tests, and dashbo
 | Layer | Current stack |
 |---|---|
 | Frontend | Next.js 15, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
-| Backend | FastAPI, async SQLAlchemy |
+| Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.13 |
 | ML | PyTorch, Hugging Face Transformers |
 | Data | SQLite for tests and local development, PostgreSQL/Supabase as target production boundary |
 | Docs | Markdown in-repo docs under `docs/` |
@@ -88,7 +89,7 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.13+ (tested with 3.13.7)
 - Node.js 20+
 - npm
 - PowerShell or a compatible shell
@@ -200,9 +201,15 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 At minimum, run:
 
 ```powershell
+# Backend tests
 .venv\Scripts\python.exe -m pytest -q
+
+# Frontend typecheck
 cd frontend
 npm run typecheck
+
+# Frontend BFF tests (optional)
+npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 ```
 
 ## License

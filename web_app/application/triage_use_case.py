@@ -19,6 +19,7 @@ from typing import Protocol
 
 from starlette.concurrency import run_in_threadpool
 
+from web_app.application.http_parsing import parse_http_request_line
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 
 
@@ -93,15 +94,25 @@ class TriageUseCase:
         http_request: str,
         source_ip: str,
     ) -> TriageResult:
-        """Legacy execute path used by the existing prediction endpoint."""
+        """Legacy execute path used by the existing prediction endpoint.
+        
+        Now parses structured request metadata (method, path) from the raw HTTP
+        request string to enable analytics like top_targeted_paths.
+        """
         prediction = await self._predict(http_request)
         action_taken = self._action_for(
             prediction=prediction["prediction"],
             confidence_level=prediction["confidence_level"],
         )
+        
+        # Parse structured request metadata from raw HTTP request
+        parsed = parse_http_request_line(http_request)
+        
         saved = await self._repository.save(
             TrafficLogEntity(
                 source_ip=source_ip,
+                request_method=parsed.method,
+                request_path=parsed.path,
                 http_request=http_request,
                 prediction=prediction["prediction"],
                 confidence=prediction["confidence"],
