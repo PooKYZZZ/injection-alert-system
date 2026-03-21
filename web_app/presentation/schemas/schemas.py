@@ -141,6 +141,14 @@ class StatsResponse(BaseModel):
     allowed_count: int = Field(default=0, ge=0)
     throttled_count: int = Field(default=0, ge=0)
     avg_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    false_positive_rate: float = Field(default=0.0, ge=0.0)
+    false_positive_count: int = Field(default=0, ge=0)
+    high_alert_count: int = Field(default=0, ge=0)
+    prev_high_alert_count: Optional[int] = Field(default=None, ge=0)
+    prev_total_requests: Optional[int] = Field(default=None, ge=0)
+    prev_blocked_count: Optional[int] = Field(default=None, ge=0)
+    prev_allowed_count: Optional[int] = Field(default=None, ge=0)
+    prev_throttled_count: Optional[int] = Field(default=None, ge=0)
     activity_buckets: List[ActivityBucketSchema] = Field(
         default_factory=list,
         description="Bucketed activity counts for hero activity strip",

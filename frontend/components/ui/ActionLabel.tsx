@@ -19,7 +19,7 @@ const styles: Record<AlertAction, string> = {
 export function ActionLabel({ action }: ActionLabelProps) {
   if (action === null) {
     return (
-      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium text-[#7d8590]">
+      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-secondary)]">
         Unavailable
       </span>
     )
@@ -36,3 +36,5 @@ export function ActionLabel({ action }: ActionLabelProps) {
     </span>
   )
 }
+
+

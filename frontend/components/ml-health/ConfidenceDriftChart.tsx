@@ -36,25 +36,25 @@ export function ConfidenceDriftChart({ driftData }: ConfidenceDriftChartProps) {
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="#30363d"
+              stroke="var(--color-text-ghost)"
               vertical={false}
               opacity={0.3}
             />
             <XAxis
               dataKey="time"
-              tick={{ fill: '#484f58', fontSize: 9 }}
-              axisLine={{ stroke: '#30363d' }}
+              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--color-text-ghost)' }}
             />
             <YAxis
               domain={[80, 100]}
-              tick={{ fill: '#484f58', fontSize: 9 }}
-              axisLine={{ stroke: '#30363d' }}
+              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--color-text-ghost)' }}
               tickFormatter={(v) => `${v}%`}
             />
             <Tooltip
               contentStyle={{
                 backgroundColor: 'var(--color-bg-panel)',
-                border: '1px solid #30363d',
+                border: '1px solid var(--color-text-ghost)',
                 fontSize: '10px',
                 borderRadius: '4px',
               }}
@@ -62,21 +62,21 @@ export function ConfidenceDriftChart({ driftData }: ConfidenceDriftChartProps) {
             />
             <ReferenceLine
               y={85}
-              stroke="#f59e0b"
+              stroke="var(--color-accent-amber)"
               strokeDasharray="3 3"
               label={{
                 value: 'Warning',
                 position: 'right',
-                fill: '#f59e0b',
-                fontSize: 9,
+                fill: 'var(--color-accent-amber)',
+                fontSize: 10,
               }}
             />
             <Line
               type="monotone"
               dataKey="conf"
-              stroke="#7c3aed"
+              stroke="var(--color-accent-purple)"
               strokeWidth={1.5}
-              dot={{ r: 3, fill: '#7c3aed' }}
+              dot={{ r: 3, fill: 'var(--color-accent-purple)' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -84,3 +84,6 @@ export function ConfidenceDriftChart({ driftData }: ConfidenceDriftChartProps) {
     </>
   )
 }
+
+
+

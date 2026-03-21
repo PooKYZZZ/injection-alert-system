@@ -25,7 +25,7 @@ export function ConfidenceBar({ confidence, prediction }: ConfidenceBarProps) {
       <span className={cn('min-w-[32px] font-medium', colors.text)}>
         {value}%
       </span>
-      <div className="h-1 w-12 overflow-hidden rounded-full bg-[#0d1117]">
+      <div className="h-1 w-12 overflow-hidden rounded-full bg-[var(--color-bg-base)]">
         <motion.div
           className={cn('h-full', colors.bg)}
           initial={{ width: 0 }}
@@ -36,3 +36,4 @@ export function ConfidenceBar({ confidence, prediction }: ConfidenceBarProps) {
     </div>
   )
 }
+

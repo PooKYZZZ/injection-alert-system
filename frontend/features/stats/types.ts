@@ -28,6 +28,14 @@ export interface DashboardStats {
   allowed_count: number
   throttled_count: number
   avg_confidence: number | null
+  false_positive_rate: number
+  false_positive_count: number
+  high_alert_count: number
+  prev_high_alert_count: number | null
+  prev_total_requests: number | null
+  prev_blocked_count: number | null
+  prev_allowed_count: number | null
+  prev_throttled_count: number | null
   activity_buckets: ActivityBucket[]
   attack_distribution: Record<string, number>
   top_source_ips: SourceIPSummary[]

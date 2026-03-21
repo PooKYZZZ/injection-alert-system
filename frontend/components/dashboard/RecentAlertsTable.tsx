@@ -11,7 +11,7 @@ import type { Alert } from '@/features/alerts/types'
 
 interface RecentAlertsTableProps {
   alerts: Alert[]
-  isLoading?: boolean
+  isPending?: boolean
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -26,10 +26,10 @@ function formatTimestamp(timestamp: string): string {
   return `${month} ${day}, ${displayHour}:${minutes} ${period}`
 }
 
-export function RecentAlertsTable({ alerts, isLoading = false }: RecentAlertsTableProps) {
-  if (isLoading) {
+export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
+  if (isPending) {
     return (
-      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-4">
+      <div className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4">
         <LoadingSkeleton rows={4} />
       </div>
     )
@@ -42,19 +42,19 @@ export function RecentAlertsTable({ alerts, isLoading = false }: RecentAlertsTab
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="bg-[#161b22] border border-[#30363d] rounded-lg p-4"
+      className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4"
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[12px] font-medium text-[#7d8590] uppercase tracking-wider">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
           Recent alerts
         </span>
-        <Link href="/alerts" className="text-[10px] text-blue-400 hover:underline">
+        <Link href="/alerts" className="text-[11px] text-blue-400 hover:underline">
           View all →
         </Link>
       </div>
       <table className="w-full text-[11px] border-collapse">
         <thead>
-          <tr className="text-[#484f58] uppercase tracking-wider text-[10px]">
+          <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
             <th className="pb-2 text-left px-2">
               <input type="checkbox" className="accent-violet-600" />
             </th>
@@ -68,9 +68,9 @@ export function RecentAlertsTable({ alerts, isLoading = false }: RecentAlertsTab
             <th className="pb-2 text-left px-2">Action</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#21262d]">
+        <tbody className="divide-y divide-[var(--color-text-ghost)]">
           {displayAlerts.map((alert) => (
-            <tr key={alert.alert_id} className="hover:bg-[#0d1117] transition-colors">
+            <tr key={alert.alert_id} className="hover:bg-[var(--color-bg-base)] transition-colors">
               <td className="p-2">
                 <input type="checkbox" className="accent-violet-600" />
               </td>
@@ -80,10 +80,10 @@ export function RecentAlertsTable({ alerts, isLoading = false }: RecentAlertsTab
               <td className="p-2">
                 <SeverityBadge severity={alert.confidence_level} prediction={alert.prediction} />
               </td>
-              <td className="p-2 font-mono text-[#8b949e]">{formatTimestamp(alert.timestamp)}</td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
               <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
-              <td className="p-2 font-mono text-[#8b949e]">{alert.request_path ?? '—'}</td>
-              <td className="p-2 text-[#e6edf3]">{alert.prediction}</td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
+              <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
               <td className="p-2">
                 <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
               </td>
@@ -97,3 +97,5 @@ export function RecentAlertsTable({ alerts, isLoading = false }: RecentAlertsTab
     </motion.div>
   )
 }
+
+

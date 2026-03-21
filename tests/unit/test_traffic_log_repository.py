@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -236,3 +236,273 @@ async def test_complete_processing_updates_placeholder_row(
     assert completed.status == "COMPLETED"
     assert completed.prediction == "SQL Injection"
     assert completed.action_taken == "BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_activity_buckets_use_monotonic_window_aligned_starts(
+    repository: TrafficLogRepository,
+):
+    reference_time = datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc)
+    window_start = reference_time - timedelta(hours=24)
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-bucket-boundary-1",
+            timestamp=window_start,
+            source_ip="198.51.100.20",
+            request_path="/boundary/start",
+            request_method="GET",
+            http_request="GET /boundary/start",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="HIGH",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-bucket-boundary-2",
+            timestamp=reference_time - timedelta(seconds=1),
+            source_ip="198.51.100.21",
+            request_path="/boundary/end-minus-1s",
+            request_method="GET",
+            http_request="GET /boundary/end-minus-1s",
+            prediction="Normal",
+            confidence=0.10,
+            confidence_level="LOW",
+            inference_latency_ms=1.5,
+            action_taken="ALLOWED",
+        )
+    )
+    # End boundary is exclusive; this row must not be counted.
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-bucket-boundary-3",
+            timestamp=reference_time,
+            source_ip="198.51.100.22",
+            request_path="/boundary/end",
+            request_method="GET",
+            http_request="GET /boundary/end",
+            prediction="Code Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            inference_latency_ms=1.8,
+            action_taken="THROTTLED",
+        )
+    )
+
+    buckets = await repository.get_activity_buckets(
+        window="24h",
+        buckets=24,
+        reference_time=reference_time,
+    )
+
+    assert len(buckets) == 24
+    assert buckets[0].timestamp_start == window_start
+
+    for idx in range(1, len(buckets)):
+        assert buckets[idx].timestamp_start > buckets[idx - 1].timestamp_start
+        assert (
+            buckets[idx].timestamp_start - buckets[idx - 1].timestamp_start
+        ) == timedelta(hours=1)
+
+    assert sum(bucket.total_count for bucket in buckets) == 2
+    assert sum(bucket.blocked_count for bucket in buckets) == 1
+    assert sum(bucket.allowed_count for bucket in buckets) == 1
+    assert sum(bucket.throttled_count for bucket in buckets) == 0
+
+
+@pytest.mark.asyncio
+async def test_windowed_stats_and_bucket_totals_stay_consistent(
+    repository: TrafficLogRepository,
+):
+    reference_time = datetime(2026, 3, 22, 0, 0, 0, tzinfo=timezone.utc)
+
+    entries = [
+        ("txn-consistency-1", reference_time - timedelta(hours=1), "BLOCKED"),
+        ("txn-consistency-2", reference_time - timedelta(hours=2), "THROTTLED"),
+        ("txn-consistency-3", reference_time - timedelta(hours=3), "ALLOWED"),
+        ("txn-consistency-4", reference_time - timedelta(hours=4), "BLOCKED"),
+    ]
+
+    for txn, ts, action in entries:
+        await repository.save(
+            TrafficLogEntity(
+                transaction_id=txn,
+                timestamp=ts,
+                source_ip="203.0.113.50",
+                request_path="/stats-consistency",
+                request_method="POST",
+                http_request="POST /stats-consistency",
+                prediction="SQL Injection" if action != "ALLOWED" else "Normal",
+                confidence=0.8,
+                confidence_level="HIGH" if action != "ALLOWED" else "LOW",
+                inference_latency_ms=2.5,
+                action_taken=action,
+            )
+        )
+
+    summary = await repository.get_stats_summary(
+        window="24h",
+        reference_time=reference_time,
+    )
+    buckets = await repository.get_activity_buckets(
+        window="24h",
+        buckets=24,
+        reference_time=reference_time,
+    )
+
+    assert summary.total_requests == sum(bucket.total_count for bucket in buckets)
+    assert summary.blocked_count == sum(bucket.blocked_count for bucket in buckets)
+    assert summary.allowed_count == sum(bucket.allowed_count for bucket in buckets)
+    assert summary.throttled_count == sum(bucket.throttled_count for bucket in buckets)
+
+
+@pytest.mark.asyncio
+async def test_windowed_summary_filters_are_strictly_bounded(
+    repository: TrafficLogRepository,
+):
+    reference_time = datetime(2026, 3, 22, 12, 0, 0, tzinfo=timezone.utc)
+
+    # In-window records for a 1h range [11:00, 12:00)
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-in-1",
+            timestamp=reference_time - timedelta(minutes=30),
+            source_ip="198.51.100.30",
+            request_path="/api/login",
+            request_method="POST",
+            http_request="POST /api/login",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="HIGH",
+            inference_latency_ms=2.1,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-in-2",
+            timestamp=reference_time - timedelta(minutes=5),
+            source_ip="198.51.100.30",
+            request_path="/api/search",
+            request_method="GET",
+            http_request="GET /api/search?q=1",
+            prediction="Code Injection",
+            confidence=0.82,
+            confidence_level="HIGH",
+            inference_latency_ms=3.2,
+            action_taken="THROTTLED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-in-3",
+            timestamp=reference_time - timedelta(minutes=1),
+            source_ip="198.51.100.31",
+            request_path="/api/public",
+            request_method="GET",
+            http_request="GET /api/public",
+            prediction="Other Attacks",
+            confidence=0.66,
+            confidence_level="MEDIUM",
+            inference_latency_ms=1.9,
+            action_taken="ALLOWED",
+        )
+    )
+
+    # Out-of-window records that must be excluded by the same [start, end) filter.
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-out-old",
+            timestamp=reference_time - timedelta(hours=2),
+            source_ip="198.51.100.99",
+            request_path="/api/admin",
+            request_method="GET",
+            http_request="GET /api/admin",
+            prediction="SQL Injection",
+            confidence=0.99,
+            confidence_level="HIGH",
+            inference_latency_ms=4.8,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-out-end-exclusive",
+            timestamp=reference_time,
+            source_ip="198.51.100.88",
+            request_path="/api/end",
+            request_method="GET",
+            http_request="GET /api/end",
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            inference_latency_ms=2.4,
+            action_taken="BLOCKED",
+        )
+    )
+
+    summary = await repository.get_stats_summary(
+        window="1h",
+        reference_time=reference_time,
+    )
+    buckets = await repository.get_activity_buckets(
+        window="1h",
+        buckets=6,
+        reference_time=reference_time,
+    )
+
+    assert summary.total_requests == 3
+    assert summary.blocked_count == 1
+    assert summary.throttled_count == 1
+    assert summary.allowed_count == 1
+    assert summary.total_requests == sum(bucket.total_count for bucket in buckets)
+    assert summary.blocked_count == sum(bucket.blocked_count for bucket in buckets)
+    assert summary.throttled_count == sum(bucket.throttled_count for bucket in buckets)
+    assert summary.allowed_count == sum(bucket.allowed_count for bucket in buckets)
+    assert summary.false_positive_count == 1
+    assert summary.false_positive_rate == round((1 / 3) * 100, 2)
+    assert summary.counts_by_label["SQL Injection"] == 1
+    assert summary.counts_by_label["Code Injection"] == 1
+    assert summary.counts_by_label["Other Attacks"] == 1
+    assert summary.counts_by_label["Normal"] == 0
+    assert summary.attack_distribution == {
+        "SQL Injection": 1,
+        "Code Injection": 1,
+        "Other Attacks": 1,
+    }
+
+    assert summary.top_source_ips
+    assert summary.top_source_ips[0].ip == "198.51.100.30"
+    assert summary.top_source_ips[0].count == 2
+    assert summary.top_source_ips[0].action == "THROTTLED"
+
+    top_paths = {item.path: item.hits for item in summary.top_targeted_paths}
+    assert top_paths == {
+        "/api/login": 1,
+        "/api/search": 1,
+        "/api/public": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_seven_day_bucket_boundaries_are_deterministic(
+    repository: TrafficLogRepository,
+):
+    reference_time = datetime(2026, 3, 22, 0, 0, 0, tzinfo=timezone.utc)
+    buckets = await repository.get_activity_buckets(
+        window="7d",
+        buckets=24,
+        reference_time=reference_time,
+    )
+
+    assert len(buckets) == 24
+    assert buckets[0].timestamp_start == reference_time - timedelta(days=7)
+
+    expected_step = timedelta(seconds=int(timedelta(days=7).total_seconds()) // 24)
+    for idx in range(1, len(buckets)):
+        assert (
+            buckets[idx].timestamp_start - buckets[idx - 1].timestamp_start
+        ) == expected_step

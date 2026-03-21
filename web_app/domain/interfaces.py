@@ -114,6 +114,14 @@ class TrafficStatsSummary:
     allowed_count: int = 0
     throttled_count: int = 0
     avg_confidence: Optional[float] = None
+    false_positive_rate: float = 0.0
+    false_positive_count: int = 0
+    high_alert_count: int = 0
+    prev_high_alert_count: Optional[int] = None
+    prev_total_requests: Optional[int] = None
+    prev_blocked_count: Optional[int] = None
+    prev_allowed_count: Optional[int] = None
+    prev_throttled_count: Optional[int] = None
     attack_distribution: dict[str, int] = field(default_factory=dict)
     top_source_ips: List[SourceIPSummary] = field(default_factory=list)
     top_targeted_paths: List[TargetPathSummary] = field(default_factory=list)
@@ -182,7 +190,7 @@ class ITrafficLogRepository(ABC):
 
     @abstractmethod
     async def get_stats_summary(
-        self, window: Optional[str] = None
+        self, window: Optional[str] = None, reference_time: Optional[datetime] = None
     ) -> TrafficStatsSummary:
         """Return aggregate traffic stats with zero-safe defaults."""
         ...
@@ -201,7 +209,10 @@ class ITrafficLogRepository(ABC):
 
     @abstractmethod
     async def get_activity_buckets(
-        self, window: Optional[str] = None, buckets: int = 24
+        self,
+        window: Optional[str] = None,
+        buckets: int = 24,
+        reference_time: Optional[datetime] = None,
     ) -> List["ActivityBucket"]:
         """Get bucketed activity counts for the hero activity strip.
 

@@ -6,12 +6,12 @@ import type { ActivityBucket } from '@/features/stats/types'
 interface Props {
   alerts?: Alert[]
   activityBuckets?: ActivityBucket[]
-  isLoading?: boolean
+  isPending?: boolean
   /** Callback to report the actual data source used for rendering */
   onDataSourceDetected?: (isDbBacked: boolean) => void
 }
 
-export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSourceDetected }: Props) {
+export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSourceDetected }: Props) {
   const BUCKETS = 24
   const VB_W = 1200
   const VB_H = 28
@@ -105,7 +105,7 @@ export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSo
         minHeight: '56px',
         maxHeight: '56px',
         background: 'var(--color-bg-panel)',
-        border: '1px solid #1e2a3d',
+        border: '1px solid var(--color-text-ghost)',
         borderRadius: '8px',
         padding: '8px 14px 6px',
         display: 'flex',
@@ -127,8 +127,8 @@ export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSo
         </span>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {[
-            { color: '#38bdf8', label: 'Loaded records' },
-            { color: '#ef4444', label: 'Blocked' },
+            { color: 'var(--color-accent-blue)', label: 'Loaded records' },
+            { color: 'var(--color-severity-high-accent)', label: 'Blocked' },
           ].map(({ color, label }) => (
             <span key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: 'var(--color-text-muted)' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: color, flexShrink: 0 }} />
@@ -138,7 +138,7 @@ export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSo
         </div>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div style={{
           flex: 1,
           background: 'var(--color-bg-elevated)',
@@ -156,7 +156,7 @@ export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSo
           <polyline
             points={allPoints}
             fill="none"
-            stroke="#38bdf8"
+            stroke="var(--color-accent-blue)"
             strokeWidth="4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -165,7 +165,7 @@ export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSo
           <polyline
             points={blockedPoints}
             fill="none"
-            stroke="#ef4444"
+            stroke="var(--color-severity-high-accent)"
             strokeWidth="4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -178,3 +178,5 @@ export function HeroActivityStrip({ alerts, activityBuckets, isLoading, onDataSo
 }
 
 export default HeroActivityStrip
+
+

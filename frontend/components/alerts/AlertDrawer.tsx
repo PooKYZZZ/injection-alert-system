@@ -86,7 +86,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
             {/* Drawer panel */}
             <Dialog.Content asChild>
               <motion.div
-                className="fixed top-0 right-0 z-30 flex h-full w-[420px] flex-col border-l border-[#30363d] bg-[#0d1117] shadow-2xl"
+                className="fixed top-0 right-0 z-30 flex h-full w-[420px] flex-col border-l border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] shadow-2xl"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
@@ -98,13 +98,13 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 </Dialog.Title>
 
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#30363d] bg-[#0d1117] p-4">
+                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] p-4">
                   <div className="min-w-0">
-                    <h2 className="text-[14px] font-medium text-[#e6edf3]">
+                    <h2 className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {alert.prediction}
                     </h2>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] text-[#7d8590]">
+                      <span className="text-[10px] text-[var(--color-text-secondary)]">
                         {formatUtcTimestamp(alert.timestamp)}
                       </span>
                       <SeverityBadge
@@ -124,7 +124,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     <button
                       type="button"
                       aria-label="Close alert detail"
-                      className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[#7d8590] transition-colors hover:bg-[#21262d] hover:text-[#e6edf3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                     >
                       <svg
                         width="14"
@@ -147,7 +147,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 <div className="flex-1 overflow-y-auto p-4">
                   {/* Verdict buttons */}
                   <section className="mb-6">
-                    <h3 className="mb-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#7d8590]">
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
                       Triage Verdict
                     </h3>
                     <div className="flex flex-wrap gap-2">
@@ -158,8 +158,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'rounded border px-3 py-1.5 text-xs font-medium transition-colors',
                           displayStatus === 'false_positive'
-                            ? 'border-[#3d444d] bg-[#21262d] text-[#e6edf3]'
-                            : 'border-[#30363d] bg-[#161b22] text-[#7d8590] hover:border-[#3d444d] hover:bg-[#21262d]',
+                            ? 'border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] text-[var(--color-text-primary)]'
+                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)]',
                           isPending && 'opacity-50 cursor-not-allowed'
                         )}
                       >
@@ -195,7 +195,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                           'rounded border px-3 py-1.5 text-xs font-medium transition-colors',
                           displayStatus === 'escalated'
                             ? 'border-red-800 bg-red-950/50 text-red-400'
-                            : 'border-[#30363d] bg-[#161b22] text-[#7d8590] hover:border-[#3d444d] hover:bg-[#21262d]',
+                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)]',
                           isPending && 'opacity-50 cursor-not-allowed'
                         )}
                       >
@@ -231,7 +231,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                           'rounded border px-3 py-1.5 text-xs font-medium transition-colors',
                           displayStatus === 'resolved'
                             ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400'
-                            : 'border-[#30363d] bg-[#161b22] text-[#7d8590] hover:border-[#3d444d] hover:bg-[#21262d]',
+                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)]',
                           isPending && 'opacity-50 cursor-not-allowed'
                         )}
                       >
@@ -264,24 +264,24 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
                   {/* Detection Timeline */}
                   <section className="mb-6">
-                    <h3 className="mb-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#7d8590]">
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
                       Detection Timeline
                     </h3>
-                    <div className="relative space-y-4 before:absolute before:inset-0 before:ml-[3px] before:h-full before:w-[1px] before:-translate-x-px before:bg-[#21262d]">
+                    <div className="relative space-y-4 before:absolute before:inset-0 before:ml-[3px] before:h-full before:w-[1px] before:-translate-x-px before:bg-[var(--color-text-ghost)]">
                       <div className="relative flex items-start gap-3">
-                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-blue-400 ring-4 ring-[#0d1117]" />
+                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-blue-400 ring-4 ring-[var(--color-bg-base)]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-blue-400">Request Received</p>
-                          <p className="mt-0.5 text-[10px] text-[#7d8590]">
+                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
                             {alert.request_method} {alert.request_path}
                           </p>
                         </div>
                       </div>
                       <div className="relative flex items-start gap-3">
-                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-amber-500 ring-4 ring-[#0d1117]" />
+                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-amber-500 ring-4 ring-[var(--color-bg-base)]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-amber-500">CRS Flagged</p>
-                          <p className="mt-0.5 text-[10px] text-[#7d8590]">
+                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
                             Score:{' '}
                             {alert.crs_score !== null && alert.crs_score !== undefined
                               ? alert.crs_score.toFixed(2)
@@ -290,10 +290,10 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         </div>
                       </div>
                       <div className="relative flex items-start gap-3">
-                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-violet-400 ring-4 ring-[#0d1117]" />
+                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-violet-400 ring-4 ring-[var(--color-bg-base)]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-violet-400">ML Inference</p>
-                          <p className="mt-0.5 text-[10px] text-[#7d8590]">
+                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
                             {alert.prediction} · {Math.round(alert.confidence * 100)}% confidence
                           </p>
                         </div>
@@ -301,7 +301,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       <div className="relative flex items-start gap-3">
                         <div
                           className={cn(
-                            'relative z-10 mt-0.5 h-2 w-2 rounded-full ring-4 ring-[#0d1117]',
+                            'relative z-10 mt-0.5 h-2 w-2 rounded-full ring-4 ring-[var(--color-bg-base)]',
                             alert.action_taken === 'BLOCKED' ? 'bg-red-500' : 'bg-emerald-500'
                           )}
                         />
@@ -314,7 +314,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                           >
                             Action Taken
                           </p>
-                          <p className="mt-0.5 text-[10px] text-[#7d8590]">
+                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
                             {alert.action_taken
                               ? ALERT_DISPLAY_ACTION_ALIASES[alert.action_taken]
                               : '—'}
@@ -326,7 +326,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
                   {/* Explainability (SHAP) */}
                   <section className="mb-6">
-                    <h3 className="mb-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#7d8590]">
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
                       Explainability
                     </h3>
                     {topShapValues.length > 0 ? (
@@ -336,10 +336,10 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             key={item.feature_name}
                             className="grid grid-cols-[100px_1fr_48px] items-center gap-2"
                           >
-                            <span className="truncate font-mono text-[10px] text-[#7d8590]">
+                            <span className="truncate font-mono text-[10px] text-[var(--color-text-secondary)]">
                               {item.feature_name}
                             </span>
-                            <div className="h-1.5 overflow-hidden rounded-full bg-[#161b22]">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-panel)]">
                               <div
                                 className="h-full rounded-full bg-violet-500"
                                 style={{
@@ -347,14 +347,14 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                                 }}
                               />
                             </div>
-                            <span className="text-right font-mono text-[10px] tabular-nums text-[#7d8590]">
+                            <span className="text-right font-mono text-[10px] tabular-nums text-[var(--color-text-secondary)]">
                               {item.contribution.toFixed(3)}
                             </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="rounded border border-[#21262d] bg-[#161b22] px-3 py-2 text-[10px] text-[#7d8590]">
+                      <p className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-3 py-2 text-[10px] text-[var(--color-text-secondary)]">
                         No explainability data available.
                       </p>
                     )}
@@ -362,23 +362,23 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
                   {/* Captured Payload */}
                   <section className="mb-6">
-                    <h3 className="mb-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#7d8590]">
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
                       Captured Payload
                     </h3>
-                    <div className="overflow-hidden rounded-md border border-[#21262d] bg-[#0d1117]">
-                      <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.8] text-[#7d8590]">
+                    <div className="overflow-hidden rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
+                      <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.8] text-[var(--color-text-secondary)]">
                         <span className="text-amber-400">{alert.request_method ?? '—'}</span>{' '}
                         <span className="text-red-400">{alert.request_path ?? '—'}</span>{' '}
-                        <span className="text-[#7d8590]">HTTP/1.1</span>
+                        <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
                         {'\n'}
                         <span className="text-blue-400">Host</span>:{' '}
-                        <span className="text-[#7d8590]">dashboard.local</span>
+                        <span className="text-[var(--color-text-secondary)]">dashboard.local</span>
                         {'\n'}
                         <span className="text-blue-400">Source-IP</span>:{' '}
-                        <span className="text-[#7d8590]">{alert.source_ip ?? '—'}</span>
+                        <span className="text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</span>
                         {'\n'}
                         {'\n'}
-                        <span className="text-[#e6edf3]">
+                        <span className="text-[var(--color-text-primary)]">
                           {alert.payload_snippet?.trim() || 'No payload captured.'}
                         </span>
                       </pre>
@@ -387,34 +387,34 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
                   {/* Source */}
                   <section>
-                    <h3 className="mb-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#7d8590]">
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
                       Source
                     </h3>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                           Source IP
                         </p>
-                        <p className="font-mono text-sm text-[#7d8590]">
+                        <p className="font-mono text-sm text-[var(--color-text-secondary)]">
                           {alert.source_ip ?? '—'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                           Request Method
                         </p>
-                        <p className="text-sm text-[#e6edf3]">{alert.request_method ?? '—'}</p>
+                        <p className="text-sm text-[var(--color-text-primary)]">{alert.request_method ?? '—'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                           Request Path
                         </p>
-                        <p className="break-all text-sm text-[#e6edf3]">
+                        <p className="break-all text-sm text-[var(--color-text-primary)]">
                           {alert.request_path ?? '—'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                           CRS Score
                         </p>
                         <p className="text-sm text-amber-400">
@@ -427,28 +427,28 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         <>
                           {alert.source_intel.asn && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                                 ASN
                               </p>
-                              <p className="text-sm text-[#7d8590]">{alert.source_intel.asn}</p>
+                              <p className="text-sm text-[var(--color-text-secondary)]">{alert.source_intel.asn}</p>
                             </div>
                           )}
                           {alert.source_intel.country && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                                 Country
                               </p>
-                              <p className="text-sm text-[#7d8590]">
+                              <p className="text-sm text-[var(--color-text-secondary)]">
                                 {alert.source_intel.country}
                               </p>
                             </div>
                           )}
                           {alert.source_intel.reputation_score !== undefined && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-[#7d8590]">
+                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
                                 Reputation
                               </p>
-                              <p className="text-sm text-[#7d8590]">
+                              <p className="text-sm text-[var(--color-text-secondary)]">
                                 {alert.source_intel.reputation_score.toFixed(1)}
                               </p>
                             </div>
@@ -466,3 +466,6 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
     </Dialog.Root>
   )
 }
+
+
+

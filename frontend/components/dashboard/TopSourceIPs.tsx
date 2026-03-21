@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
+import { LoadingSkeleton } from '@/components/ui/StateViews'
 import type { AlertAction } from '@/features/alerts/contract'
 
 export interface SourceIPSummary {
@@ -12,13 +12,13 @@ export interface SourceIPSummary {
 
 interface TopSourceIPsProps {
   ips: SourceIPSummary[]
-  isLoading?: boolean
+  isPending?: boolean
 }
 
 const statusStyles: Record<AlertAction, string> = {
-  BLOCKED: 'bg-[#2d1b1b] text-red-400',
-  THROTTLED: 'bg-[#2d2310] text-amber-400',
-  ALLOWED: 'bg-[#0f2d1a] text-emerald-400',
+  BLOCKED: 'bg-[var(--color-severity-high-bg)] text-red-400',
+  THROTTLED: 'bg-[var(--color-severity-blocked-bg)] text-amber-400',
+  ALLOWED: 'bg-[var(--color-severity-safe-bg)] text-emerald-400',
 }
 
 const actionLabels: Record<AlertAction, string> = {
@@ -27,13 +27,22 @@ const actionLabels: Record<AlertAction, string> = {
   ALLOWED: 'Allowed',
 }
 
-export function TopSourceIPs({ ips, isLoading = false }: TopSourceIPsProps) {
-  if (isLoading) {
+export function TopSourceIPs({ ips, isPending = false }: TopSourceIPsProps) {
+  if (isPending) {
     return <LoadingSkeleton rows={4} />
   }
 
   if (ips.length === 0) {
-    return <EmptyState message="No source IP data" subtext="Top IPs will appear here when available" />
+    return (
+      <div className="flex flex-col items-center justify-center py-6 gap-2">
+        <p className="text-[11px] font-medium text-[var(--color-text-secondary)]">
+          No source IPs in this window
+        </p>
+        <p className="text-[10px] text-[var(--color-text-muted)] text-center max-w-[160px] leading-relaxed">
+          IPs appear when blocked or throttled traffic is detected
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -41,7 +50,7 @@ export function TopSourceIPs({ ips, isLoading = false }: TopSourceIPsProps) {
       {ips.map((item) => (
         <div
           key={item.ip}
-          className="flex items-center justify-between py-1 border-b border-[#21262d] last:border-0 text-[11px]"
+          className="flex items-center justify-between py-1 border-b border-[var(--color-text-ghost)] last:border-0 text-[11px]"
         >
           <span className="font-mono text-violet-400">{item.ip}</span>
           <div className="flex items-center gap-2">
@@ -49,7 +58,7 @@ export function TopSourceIPs({ ips, isLoading = false }: TopSourceIPsProps) {
             {item.action && statusStyles[item.action as AlertAction] && (
               <span
                 className={cn(
-                  'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                  'text-[11px] px-1.5 py-0.5 rounded-full font-medium',
                   statusStyles[item.action as AlertAction]
                 )}
               >
@@ -62,3 +71,4 @@ export function TopSourceIPs({ ips, isLoading = false }: TopSourceIPsProps) {
     </div>
   )
 }
+

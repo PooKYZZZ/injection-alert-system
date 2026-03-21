@@ -67,6 +67,44 @@ const BackendTargetPathSchema = z.object({
   hits: z.number(),
 })
 
+type BackendSourceIp = {
+  ip: string
+  count: number
+  action?: string | null
+}
+
+type BackendTargetPath = {
+  path: string
+  hits: number
+}
+
+type BackendStatsPayload = {
+  total_requests: number
+  counts_by_label: {
+    'SQL Injection': number
+    'Code Injection': number
+    'Other Attacks': number
+    Normal: number
+  }
+  avg_inference_latency_ms: number
+  blocked_count: number
+  allowed_count: number
+  throttled_count?: number
+  avg_confidence: number | null
+  false_positive_rate?: number
+  false_positive_count?: number
+  high_alert_count?: number
+  prev_high_alert_count?: number | null
+  prev_total_requests?: number | null
+  prev_blocked_count?: number | null
+  prev_allowed_count?: number | null
+  prev_throttled_count?: number | null
+  activity_buckets: z.infer<typeof BackendActivityBucketSchema>[]
+  attack_distribution?: Record<string, number>
+  top_source_ips?: BackendSourceIp[]
+  top_targeted_paths?: BackendTargetPath[]
+}
+
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
   counts_by_label: z.object({
@@ -80,10 +118,18 @@ const BackendStatsSchema = z.object({
   allowed_count: z.number(),
   throttled_count: z.number().optional(),
   avg_confidence: z.number().nullable(),
+  false_positive_rate: z.number().optional(),
+  false_positive_count: z.number().optional(),
+  high_alert_count: z.number().optional(),
+  prev_high_alert_count: z.number().nullable().optional(),
+  prev_total_requests: z.number().nullable().optional(),
+  prev_blocked_count: z.number().nullable().optional(),
+  prev_allowed_count: z.number().nullable().optional(),
+  prev_throttled_count: z.number().nullable().optional(),
   activity_buckets: z.array(BackendActivityBucketSchema),
   attack_distribution: z.record(z.string(), z.number()).optional(),
-  top_source_ips: z.array(BackendSourceIPSchema).optional(),
-  top_targeted_paths: z.array(BackendTargetPathSchema).optional(),
+  top_source_ips: z.array(BackendSourceIPSchema).default([]),
+  top_targeted_paths: z.array(BackendTargetPathSchema).default([]),
 })
 
 const CalibrationBinSchema = z.object({
@@ -243,7 +289,18 @@ function normalizeAlertList(
   })
 }
 
-function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardStats {
+function normalizeAlertAction(value: string | null | undefined): AlertAction | null {
+  if (value === 'BLOCKED' || value === 'THROTTLED' || value === 'ALLOWED') {
+    return value
+  }
+  return null
+}
+
+type NormalizedBucket = DashboardStats['activity_buckets'][number] & {
+  _originalIndex: number
+}
+
+function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats> {
   const actionableAlerts =
     (payload.counts_by_label['SQL Injection'] ?? 0) +
     (payload.counts_by_label['Code Injection'] ?? 0) +
@@ -255,14 +312,49 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
   const topSourceIps = (payload.top_source_ips ?? []).map((ip) => ({
     ip: ip.ip,
     count: ip.count,
-    action: (ip.action ?? null) as AlertAction | null,
+    action: normalizeAlertAction(ip.action),
   }))
   const topTargetedPaths = (payload.top_targeted_paths ?? []).map((path) => ({
     path: path.path,
     hits: path.hits,
   }))
+  const highAlertCount =
+    payload.high_alert_count ??
+    Object.entries(payload.counts_by_label)
+      .filter(([label]) => label !== 'Normal')
+      .reduce((sum, [, count]) => sum + count, 0)
 
-  return {
+  const normalizedBuckets: NormalizedBucket[] = []
+  for (let idx = 0; idx < payload.activity_buckets.length; idx += 1) {
+    const bucket = payload.activity_buckets[idx]
+    const parsedTimestamp = new Date(bucket.timestamp_start)
+    if (Number.isNaN(parsedTimestamp.getTime())) {
+      return err(
+        502,
+        'UPSTREAM_ERROR',
+        `Upstream response contained invalid bucket timestamp at index ${idx}: ${bucket.timestamp_start}`
+      )
+    }
+
+    normalizedBuckets.push({
+      bucket_index: bucket.bucket_index,
+      total_count: bucket.total_count,
+      blocked_count: bucket.blocked_count,
+      allowed_count: bucket.allowed_count,
+      throttled_count: bucket.throttled_count,
+      timestamp_start: parsedTimestamp,
+      _originalIndex: idx,
+    })
+  }
+
+  normalizedBuckets.sort(
+    (a, b) =>
+      a.timestamp_start.getTime() - b.timestamp_start.getTime() ||
+      a.bucket_index - b.bucket_index ||
+      a._originalIndex - b._originalIndex
+  )
+
+  return ok({
     actionable_alerts: actionableAlerts,
     total_requests: payload.total_requests,
     avg_inference_latency_ms: payload.avg_inference_latency_ms,
@@ -270,18 +362,19 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
     allowed_count: payload.allowed_count,
     throttled_count: throttledCount,
     avg_confidence: payload.avg_confidence,
-    activity_buckets: payload.activity_buckets.map((b) => ({
-      bucket_index: b.bucket_index,
-      total_count: b.total_count,
-      blocked_count: b.blocked_count,
-      allowed_count: b.allowed_count,
-      throttled_count: b.throttled_count,
-      timestamp_start: new Date(b.timestamp_start),
-    })),
+    false_positive_rate: payload.false_positive_rate ?? 0,
+    false_positive_count: payload.false_positive_count ?? 0,
+    high_alert_count: highAlertCount,
+    prev_high_alert_count: payload.prev_high_alert_count ?? null,
+    prev_total_requests: payload.prev_total_requests ?? null,
+    prev_blocked_count: payload.prev_blocked_count ?? null,
+    prev_allowed_count: payload.prev_allowed_count ?? null,
+    prev_throttled_count: payload.prev_throttled_count ?? null,
+    activity_buckets: normalizedBuckets.map(({ _originalIndex: _, ...bucket }) => bucket),
     attack_distribution: attackDistribution,
     top_source_ips: topSourceIps,
     top_targeted_paths: topTargetedPaths,
-  }
+  })
 }
 
 function normalizeMlHealth(
@@ -507,7 +600,7 @@ export async function getStats(window?: string): Promise<BffResult<DashboardStat
     return upstream
   }
 
-  return ok(normalizeStats(upstream.data))
+  return normalizeStats(upstream.data)
 }
 
 export async function getMlHealth(): Promise<BffResult<MLHealthData>> {

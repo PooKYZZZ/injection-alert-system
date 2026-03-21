@@ -127,12 +127,12 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col gap-3 rounded-lg border border-[#30363d] bg-[#161b22] p-3"
+      className="flex flex-col gap-3 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3"
     >
       {/* Row 1: Filter chips */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[#7d8590]">Filter:</span>
+          <span className="text-[11px] text-[var(--color-text-secondary)]">Filter:</span>
           <FilterChip
             label={`Severity: ${currentSeverity}`}
             active={currentSeverity !== 'ALL'}
@@ -174,7 +174,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             </button>
           )}
           {filteredCount !== undefined && (
-            <span className="text-[11px] text-[#7d8590]">
+            <span className="text-[11px] text-[var(--color-text-secondary)]">
               {filteredCount} results
             </span>
           )}
@@ -183,7 +183,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
 
       {/* Row 2: Confidence pills */}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-[#7d8590]">Confidence:</span>
+        <span className="text-[11px] text-[var(--color-text-secondary)]">Confidence:</span>
         {CONFIDENCE_LEVELS.map(({ value, label }) => (
           <ConfidencePill
             key={value}
@@ -196,3 +196,5 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     </motion.div>
   )
 }
+
+

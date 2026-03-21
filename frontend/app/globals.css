@@ -56,15 +56,15 @@
 
   /* Typography scale */
   --font-size-kpi: 28px;
-  --font-size-label: 9px;
-  --font-size-micro: 9px;
+  --font-size-label: 11px;
+  --font-size-micro: 10px;
 
   /* Legacy aliases for existing utilities */
   --color-border-light: var(--color-text-ghost);
   --color-sidebar-bg: var(--color-bg-base);
   --color-sidebar-active: var(--color-bg-elevated);
-  --color-primary: var(--color-severity-high-accent);
-  --color-primary-dark: var(--color-severity-high-text);
+  --color-primary: var(--color-accent-purple);
+  --color-primary-dark: var(--color-accent-purple-bg);
   --color-background-main: var(--color-bg-page);
   --color-surface-light: var(--color-bg-panel);
   --color-border-light: var(--color-text-ghost);
@@ -72,10 +72,26 @@
   --color-status-high: var(--color-severity-high-accent);
   --color-status-medium: var(--color-severity-blocked-accent);
   --color-status-low: var(--color-severity-benign-accent);
-  --color-status-blocked: var(--color-severity-safe-accent);
+  --color-status-blocked: var(--color-severity-high-accent);
   --color-status-throttled: var(--color-severity-blocked-text);
   --color-status-ratelimited: var(--color-severity-benign-text);
   --color-status-logged: var(--color-text-secondary);
+
+  /* Semantic helpers */
+  --color-chart-blocked: var(--color-severity-high-accent);
+  --color-chart-throttled: var(--color-severity-blocked-accent);
+  --color-chart-allowed: var(--color-severity-safe-accent);
+  --color-skeleton-base: var(--color-bg-elevated);
+  --color-skeleton-shine: var(--color-bg-panel);
+  --color-delta-positive: var(--color-severity-high-accent);
+  --color-delta-negative: var(--color-severity-safe-accent);
+  --color-delta-neutral: var(--color-text-muted);
+  --color-empty-state-icon: var(--color-text-muted);
+  --color-empty-state-text: var(--color-text-secondary);
+  --color-kpi-border-high: var(--color-severity-high-border);
+  --color-kpi-border-blocked: var(--color-severity-blocked-border);
+  --color-kpi-border-safe: var(--color-severity-safe-border);
+  --color-kpi-border-default: var(--color-bg-elevated);
 }
 
 @layer base {
@@ -90,6 +106,14 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .skeleton {
+    background: var(--color-skeleton-base);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    border-radius: 4px;
   }
 }
 

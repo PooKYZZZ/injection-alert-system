@@ -44,7 +44,7 @@ function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
   return (
     <>
       {Array.from({ length: rowCount }).map((_, index) => (
-        <tr key={index} aria-hidden="true" className="border-b border-[#21262d]">
+        <tr key={index} aria-hidden="true" className="border-b border-[var(--color-text-ghost)]">
           <td className="p-3">
             <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
@@ -91,14 +91,14 @@ function EmptyState({
   return (
     <tr>
       <td colSpan={10} className="p-8 text-center">
-        <p className="text-sm text-[#7d8590]">
+        <p className="text-sm text-[var(--color-text-secondary)]">
           {hasFilters ? 'No alerts match the current filters.' : 'No alerts in the current window.'}
         </p>
         {hasFilters && onClearFilters && (
           <button
             type="button"
             onClick={onClearFilters}
-            className="mt-3 rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs font-medium text-[#e6edf3] transition-colors hover:bg-[#30363d]"
+            className="mt-3 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)]"
           >
             Clear filters
           </button>
@@ -116,7 +116,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs font-medium text-[#e6edf3] transition-colors hover:bg-[#30363d]"
+          className="mt-3 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)]"
         >
           Retry
         </button>
@@ -138,7 +138,7 @@ function SortHeader({
 }) {
   if (!column.sortable) {
     return (
-      <th className="p-3 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7d8590]">
+      <th className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
         {column.label}
       </th>
     )
@@ -152,13 +152,13 @@ function SortHeader({
       <button
         type="button"
         onClick={() => onSort(column.key as SortColumn)}
-        className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7d8590] transition-colors hover:text-[#e6edf3]"
+        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
       >
         {column.label}
         {isActive ? (
           <span className="text-blue-400">{isAsc ? '↑' : '↓'}</span>
         ) : (
-          <span className="text-[#484f58]">↕</span>
+          <span className="text-[var(--color-text-muted)]">↕</span>
         )}
       </button>
     </th>
@@ -248,17 +248,17 @@ function AlertsTableContent({
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#30363d] bg-[#0d1117]">
+    <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
       <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-[#161b22]">
-            <tr className="border-b border-[#30363d]">
+          <thead className="sticky top-0 z-10 bg-[var(--color-bg-panel)]">
+            <tr className="border-b border-[var(--color-text-ghost)]">
               <th className="w-10 p-3">
                 <input
                   type="checkbox"
                   checked={alerts.length > 0 && selectedIds.length === alerts.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded border-[#30363d] bg-[#0d1117] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                  className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                   aria-label="Select all alerts"
                 />
               </th>
@@ -274,7 +274,7 @@ function AlertsTableContent({
               <th className="w-12 p-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#21262d]">
+          <tbody className="divide-y divide-[var(--color-text-ghost)]">
             {isPending ? (
               <AlertsTableSkeletonRows />
             ) : isError ? (
@@ -285,7 +285,7 @@ function AlertsTableContent({
               alerts.map((alert) => (
                 <tr
                   key={alert.alert_id}
-                  className="group cursor-pointer transition-colors duration-100 hover:bg-[#161b22]"
+                  className="group cursor-pointer transition-colors duration-100 hover:bg-[var(--color-bg-panel)]"
                   onClick={() => onAlertClick(alert)}
                 >
                   <td className="p-3" onClick={(e) => e.stopPropagation()}>
@@ -293,7 +293,7 @@ function AlertsTableContent({
                       type="checkbox"
                       checked={selectedIdsSet.has(alert.alert_id)}
                       onChange={() => handleSelectOne(alert.alert_id)}
-                      className="h-4 w-4 cursor-pointer rounded border-[#30363d] bg-[#0d1117] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                      className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                       aria-label={`Select alert ${alert.alert_id}`}
                     />
                   </td>
@@ -306,24 +306,24 @@ function AlertsTableContent({
                       prediction={alert.prediction}
                     />
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[#7d8590]">
+                  <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-secondary)]">
                     {formatTimeOnly(alert.timestamp)}
                   </td>
                   <td className="whitespace-nowrap p-3 font-mono text-xs text-blue-400">
                     {alert.source_ip ?? '—'}
                   </td>
                   <td
-                    className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-[#e6edf3]"
+                    className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-[var(--color-text-primary)]"
                     title={alert.request_path ?? '—'}
                   >
                     {alert.request_path ?? '—'}
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-xs tabular-nums text-[#7d8590]">
+                  <td className="whitespace-nowrap p-3 font-mono text-xs tabular-nums text-[var(--color-text-secondary)]">
                     {alert.crs_score !== null && alert.crs_score !== undefined
                       ? alert.crs_score.toFixed(2)
                       : '—'}
                   </td>
-                  <td className="p-3 text-xs text-[#e6edf3]">{alert.prediction}</td>
+                  <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
                     <ConfidenceBar
                       confidence={alert.confidence}
@@ -336,7 +336,7 @@ function AlertsTableContent({
                   <td className="p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded text-[#7d8590] hover:bg-[#21262d] hover:text-[#e6edf3]"
+                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)]"
                       aria-label={`View details for alert ${alert.alert_id}`}
                     >
                       <svg
@@ -360,8 +360,8 @@ function AlertsTableContent({
       </div>
 
       {/* Pagination footer */}
-      <div className="flex items-center justify-between border-t border-[#30363d] px-4 py-3">
-        <p className="text-xs text-[#7d8590]">
+      <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+        <p className="text-xs text-[var(--color-text-secondary)]">
           {data ? (
             <>
               Showing {(params.page - 1) * params.pageSize + 1}–
@@ -381,11 +381,11 @@ function AlertsTableContent({
               router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
             }}
             disabled={params.page <= 1}
-            className="rounded border border-[#30363d] bg-[#21262d] px-3 py-1 text-xs font-medium text-[#e6edf3] transition-colors hover:bg-[#30363d] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             ← Prev
           </button>
-          <span className="text-xs text-[#7d8590]">
+          <span className="text-xs text-[var(--color-text-secondary)]">
             Page {params.page}
             {data ? ` of ${Math.ceil(data.total / params.pageSize)}` : ''}
           </span>
@@ -398,7 +398,7 @@ function AlertsTableContent({
               router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
             }}
             disabled={data ? params.page * params.pageSize >= data.total : true}
-            className="rounded border border-[#30363d] bg-[#21262d] px-3 py-1 text-xs font-medium text-[#e6edf3] transition-colors hover:bg-[#30363d] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Next →
           </button>
@@ -412,18 +412,18 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: Al
   return (
     <Suspense
       fallback={
-        <div className="overflow-hidden rounded-lg border border-[#30363d] bg-[#0d1117]">
+        <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[#161b22]">
-                <tr className="border-b border-[#30363d]">
+              <thead className="sticky top-0 z-10 bg-[var(--color-bg-panel)]">
+                <tr className="border-b border-[var(--color-text-ghost)]">
                   <th className="w-10 p-3">
                     <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
                   </th>
                   {ALERT_TABLE_COLUMNS.map((column) => (
                     <th
                       key={column.key}
-                      className="p-3 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7d8590]"
+                      className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]"
                     >
                       {column.label}
                     </th>
@@ -447,3 +447,6 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: Al
     </Suspense>
   )
 }
+
+
+

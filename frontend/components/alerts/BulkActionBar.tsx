@@ -70,12 +70,12 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
-          className="flex items-center justify-between rounded-md border border-[#30363d] bg-[#161b22] px-4 py-2"
+          className="flex items-center justify-between rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-4 py-2"
         >
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <CheckSquare size={14} className="text-violet-400" />
-              <span className="text-sm font-medium text-[#e6edf3]">
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">
                 {selectedCount} selected
               </span>
             </div>
@@ -85,7 +85,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('false_positive')}
-                className="rounded border border-[#30363d] bg-[#21262d] px-3 py-1 text-xs font-medium text-[#7d8590] transition-colors hover:border-[#3d444d] hover:bg-[#30363d] hover:text-[#e6edf3] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? 'Processing...' : 'Mark False Positive'}
               </button>
@@ -93,7 +93,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('escalated')}
-                className="rounded border border-[#30363d] bg-[#21262d] px-3 py-1 text-xs font-medium text-[#7d8590] transition-colors hover:border-red-800 hover:bg-red-950/30 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-red-800 hover:bg-red-950/30 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? 'Processing...' : 'Escalate'}
               </button>
@@ -101,7 +101,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('resolved')}
-                className="rounded border border-[#30363d] bg-[#21262d] px-3 py-1 text-xs font-medium text-[#7d8590] transition-colors hover:border-emerald-800 hover:bg-emerald-950/30 hover:text-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-emerald-800 hover:bg-emerald-950/30 hover:text-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? 'Processing...' : 'Resolve'}
               </button>
@@ -124,7 +124,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
             type="button"
             onClick={onClearSelection}
             disabled={isProcessing}
-            className="flex items-center gap-1 text-xs text-[#7d8590] transition-colors hover:text-[#e6edf3] disabled:opacity-50"
+            className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-[14px]">close</span>
             Clear selection
@@ -134,3 +134,5 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
     </AnimatePresence>
   )
 }
+
+

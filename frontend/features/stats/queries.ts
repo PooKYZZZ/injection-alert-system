@@ -27,7 +27,9 @@ export function statsOptions(window?: string) {
       if (!r.ok) throw new Error(`/api/stats responded with ${r.status}`)
       return r.json()
     },
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+    placeholderData: (previousData) => previousData,
   })
 }
 

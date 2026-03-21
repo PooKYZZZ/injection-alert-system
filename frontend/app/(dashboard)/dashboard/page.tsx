@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { AttackTypePanel } from '@/components/dashboard/AttackTypePanel'
@@ -26,29 +26,31 @@ const TimelineChart = dynamic(
     loading: () => (
       <div className="h-48 flex items-center justify-center">
         <div className="animate-pulse flex flex-col gap-2 w-full">
-          <div className="h-32 bg-[#161b22] rounded" />
+          <div className="h-32 bg-[var(--color-bg-panel)] rounded" />
         </div>
       </div>
     ),
   }
 )
 
-// Default filters for dashboard preview
-const DEFAULT_DASHBOARD_FILTERS: DashboardFilters = {
-  severity: 'ALL',
-  timeRange: '24h',
-  search: '',
-}
-
 export default function DashboardPage() {
   // Time window selector state (display-only until backend supports it)
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('6h')
+
+  const dashboardFilters = useMemo<DashboardFilters>(
+    () => ({
+      severity: 'ALL',
+      timeRange: timeWindow,
+      search: '',
+    }),
+    [timeWindow]
+  )
 
   // Stats query for dashboard data
   const { data: stats, isPending: statsPending } = useDashboardStats(timeWindow)
 
   // Alerts query for recent alerts preview
-  const { data: alertsData, isPending: alertsPending } = useAlerts(DEFAULT_DASHBOARD_FILTERS)
+  const { data: alertsData, isPending: alertsPending } = useAlerts(dashboardFilters)
   const alerts = useMemo(() => alertsData?.items ?? [], [alertsData?.items])
 
   // Calculate attack type distribution from alerts
@@ -79,13 +81,36 @@ export default function DashboardPage() {
     return { high, medium, low }
   }, [alerts])
 
+  const summaryWindowTotal =
+    (stats?.blocked_count ?? 0) +
+    (stats?.throttled_count ?? 0) +
+    (stats?.allowed_count ?? 0)
+
+  const bucketWindowTotal =
+    stats?.activity_buckets.reduce(
+      (sum, bucket) => sum + bucket.blocked_count + bucket.throttled_count + bucket.allowed_count,
+      0
+    ) ?? 0
+
+  const hasTimelineEvents = bucketWindowTotal > 0
+  const hasWindowDataMismatch = stats != null && summaryWindowTotal !== bucketWindowTotal
+
   // Stat card values with honest fallback
   const statCards = [
     {
       label: 'High alerts',
       value: stats?.actionable_alerts ?? '—',
+      secondary:
+        stats?.actionable_alerts === 0
+          ? timeWindow
+            ? 'No threats in this window'
+            : 'No threats detected'
+          : undefined,
       secondaryColor: 'text-red-400',
       borderColor: 'border-l-2 border-l-red-700',
+      previousValue: stats?.prev_high_alert_count ?? null,
+      hideDeltaWhenValueZero: true,
+      delay: 0,
     },
     {
       label: 'Blocked',
@@ -93,15 +118,23 @@ export default function DashboardPage() {
       secondary:
         stats?.blocked_count != null && stats?.total_requests
           ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
-          : 'Calculating...',
+          : 'No traffic in window',
       secondaryColor: 'text-violet-400',
       borderColor: 'border-l-2 border-l-violet-700',
+      previousValue: stats?.prev_blocked_count ?? null,
+      progressBar:
+        stats?.total_requests && stats.total_requests > 0
+          ? (stats.blocked_count / stats.total_requests) * 100
+          : undefined,
+      delay: 0.05,
     },
     {
       label: 'Throttled',
       value: stats?.throttled_count ?? '—',
       secondaryColor: 'text-amber-400',
       borderColor: 'border-l-2 border-l-amber-700',
+      previousValue: stats?.prev_throttled_count ?? null,
+      delay: 0.1,
     },
     {
       label: 'Allowed',
@@ -109,19 +142,31 @@ export default function DashboardPage() {
       secondary: 'Benign / LOW conf',
       secondaryColor: 'text-emerald-400',
       borderColor: 'border-l-2 border-l-emerald-800',
+      previousValue: stats?.prev_allowed_count ?? null,
+      deltaInverted: true,
+      delay: 0.15,
     },
     {
       label: 'Avg ML confidence',
       value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
+      secondary:
+        stats?.avg_confidence != null ? 'Model stable' : 'No traffic in window',
       secondaryColor: 'text-emerald-400',
       borderColor: 'border-l-2 border-l-emerald-900',
+      delay: 0.2,
     },
     {
       label: 'False Positive Rate',
-      value: '—',
-      secondary: 'Not available',
-      secondaryColor: 'text-[#7d8590]',
-      borderColor: 'border-l-2 border-l-[#30363d]',
+      value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
+      secondary:
+        stats?.false_positive_rate == null
+          ? 'No data'
+          : stats.false_positive_rate > 0
+            ? 'Of total requests'
+            : 'Clean window',
+      secondaryColor: 'text-[var(--color-text-secondary)]',
+      borderColor: 'border-l-2 border-l-[var(--color-text-ghost)]',
+      delay: 0.25,
     },
   ]
 
@@ -142,6 +187,11 @@ export default function DashboardPage() {
             secondary={card.secondary ?? undefined}
             secondaryColor={card.secondaryColor}
             borderColor={card.borderColor}
+            previousValue={card.previousValue}
+            deltaInverted={card.deltaInverted}
+            progressBar={card.progressBar}
+            hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
+            delay={card.delay}
           />
         ))}
       </div>
@@ -151,11 +201,11 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="bg-[#161b22] border border-[#30363d] rounded-lg p-4"
+        className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <span className="text-[12px] font-medium text-[#7d8590] uppercase tracking-wider">
+            <span className="text-[12px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
               Attack events — last {timeWindow}
             </span>
             <div className="flex gap-1">
@@ -167,7 +217,7 @@ export default function DashboardPage() {
                     'text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer',
                     timeWindow === win
                       ? 'bg-violet-600 border-violet-500 text-white'
-                      : 'bg-[#161b22] border-[#30363d] text-[#7d8590] hover:text-[#e6edf3]'
+                      : 'bg-[var(--color-bg-panel)] border-[var(--color-text-ghost)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                   )}
                 >
                   {win}
@@ -176,13 +226,29 @@ export default function DashboardPage() {
             </div>
           </div>
           {/* Time window filter applied to stats query */}
-          <span className="text-[10px] text-[#484f58]">Hover for details</span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">Hover for details</span>
         </div>
-        <TimelineChart
-          buckets={stats?.activity_buckets ?? []}
-          timeWindow={timeWindow}
-          isLoading={statsPending}
-        />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={timeWindow}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <TimelineChart
+              buckets={stats?.activity_buckets ?? []}
+              timeWindow={timeWindow}
+              isPending={statsPending}
+              hasEvents={hasTimelineEvents}
+              consistencyWarning={
+                hasWindowDataMismatch
+                  ? 'Window totals are being recalculated. Timeline data may be briefly out of sync.'
+                  : null
+              }
+            />
+          </motion.div>
+        </AnimatePresence>
       </motion.div>
 
       {/* Distribution Grid */}
@@ -192,12 +258,12 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
-          className="bg-[#161b22] border border-[#30363d] rounded-lg p-3.5 flex flex-col gap-2"
+          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
         >
-          <div className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider mb-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             Attack type dist.
           </div>
-          <AttackTypePanel countsByLabel={attackCounts} isLoading={alertsPending} />
+          <AttackTypePanel countsByLabel={attackCounts} isPending={alertsPending} />
         </motion.div>
 
         {/* ML Confidence Bands + Enforcement Map */}
@@ -205,19 +271,19 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-          className="bg-[#161b22] border border-[#30363d] rounded-lg p-3.5 flex flex-col gap-2"
+          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
         >
-          <div className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider mb-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             ML confidence bands
           </div>
-          <MLConfidenceBands
-            high={confidenceBands.high}
-            medium={confidenceBands.medium}
-            low={confidenceBands.low}
-            isLoading={alertsPending}
-          />
+            <MLConfidenceBands
+              high={confidenceBands.high}
+              medium={confidenceBands.medium}
+              low={confidenceBands.low}
+              isPending={alertsPending}
+            />
 
-          <div className="mt-4 pt-3 border-t border-[#21262d] flex flex-col gap-2">
+          <div className="mt-4 pt-3 border-t border-[var(--color-text-ghost)] flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
                 ML Enforcement Map
@@ -230,7 +296,7 @@ export default function DashboardPage() {
               high={confidenceBands.high}
               medium={confidenceBands.medium}
               low={confidenceBands.low}
-              isLoading={alertsPending}
+              isPending={alertsPending}
             />
           </div>
         </motion.div>
@@ -240,12 +306,12 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-          className="bg-[#161b22] border border-[#30363d] rounded-lg p-3.5 flex flex-col gap-2"
+          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
         >
-          <div className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider mb-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             Top source IPs
           </div>
-          <TopSourceIPs ips={stats?.top_source_ips ?? []} />
+          <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
         </motion.div>
 
         {/* Top Targeted Paths */}
@@ -253,17 +319,19 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
-          className="bg-[#161b22] border border-[#30363d] rounded-lg p-3.5 flex flex-col gap-2"
+          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
         >
-          <div className="text-[11px] font-medium text-[#8b949e] uppercase tracking-wider mb-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             Top targeted paths
           </div>
-          <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} />
+          <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
         </motion.div>
       </div>
 
       {/* Recent Alerts Table (Preview) */}
-      <RecentAlertsTable alerts={alerts} isLoading={alertsPending} />
+      <RecentAlertsTable alerts={alerts} isPending={alertsPending} />
     </motion.div>
   )
 }
+
+

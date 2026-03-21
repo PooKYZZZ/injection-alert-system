@@ -13,7 +13,7 @@ const TRIAGE_MAPPING: Record<string, { label: string; styles: string }> = {
   in_review: { label: 'In Review', styles: 'bg-transparent text-amber-400 border-amber-500/30' },
   escalated: { label: 'Escalated', styles: 'bg-transparent text-red-400 border-red-500/30' },
   resolved: { label: 'Resolved', styles: 'bg-transparent text-emerald-400 border-emerald-500/30' },
-  false_positive: { label: 'False Positive', styles: 'bg-transparent text-[#7d8590] border-[#30363d]' },
+  false_positive: { label: 'False Positive', styles: 'bg-transparent text-[var(--color-text-secondary)] border-[var(--color-text-ghost)]' },
 }
 
 export function TriageBadge({ triage_status }: TriageBadgeProps) {
@@ -34,3 +34,5 @@ export function TriageBadge({ triage_status }: TriageBadgeProps) {
     </motion.span>
   )
 }
+
+

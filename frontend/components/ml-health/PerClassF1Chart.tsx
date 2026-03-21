@@ -19,13 +19,13 @@ interface PerClassF1ChartProps {
 
 // Color map keyed by prediction label, matching AI Studio treatment
 const COLOR_MAP: Record<string, { bar: string; text: string }> = {
-  'SQL Injection':  { bar: '#7c3aed', text: 'text-violet-400' },
-  'Other Attacks':  { bar: '#ef4444', text: 'text-red-400' },
-  Normal:           { bar: '#4ade80', text: 'text-emerald-400' },
-  'Code Injection': { bar: '#f59e0b', text: 'text-amber-400' },
+  'SQL Injection':  { bar: 'var(--color-accent-purple)', text: 'text-violet-400' },
+  'Other Attacks':  { bar: 'var(--color-severity-high-accent)', text: 'text-red-400' },
+  Normal:           { bar: 'var(--color-severity-safe-accent)', text: 'text-emerald-400' },
+  'Code Injection': { bar: 'var(--color-accent-amber)', text: 'text-amber-400' },
 }
 
-const FALLBACK_COLOR = '#475569'
+const FALLBACK_COLOR = 'var(--color-text-muted)'
 
 export function PerClassF1Chart({ perClassF1 }: PerClassF1ChartProps) {
   if (!perClassF1) {
@@ -54,33 +54,33 @@ export function PerClassF1Chart({ perClassF1 }: PerClassF1ChartProps) {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="#30363d"
+            stroke="var(--color-text-ghost)"
             horizontal={false}
             opacity={0.4}
           />
           <XAxis
             type="number"
             domain={[0, 1]}
-            tick={{ fill: '#484f58', fontSize: 9 }}
-            axisLine={{ stroke: '#30363d' }}
+            tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+            axisLine={{ stroke: 'var(--color-text-ghost)' }}
             tickFormatter={(v: number) => v.toFixed(1)}
           />
           <YAxis
             type="category"
             dataKey="label"
             width={90}
-            tick={{ fill: '#94a3b8', fontSize: 10 }}
-            axisLine={{ stroke: '#30363d' }}
+            tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }}
+            axisLine={{ stroke: 'var(--color-text-ghost)' }}
           />
           <Tooltip
             contentStyle={{
               backgroundColor: 'var(--color-bg-panel)',
-              border: '1px solid #30363d',
+              border: '1px solid var(--color-text-ghost)',
               fontSize: '10px',
               borderRadius: '4px',
             }}
             formatter={(value) => [typeof value === 'number' ? value.toFixed(3) : String(value), 'F1']}
-            labelStyle={{ color: '#94a3b8' }}
+            labelStyle={{ color: 'var(--color-text-secondary)' }}
           />
           <Bar dataKey="f1" radius={[0, 2, 2, 0]}>
             {data.map((entry) => (
@@ -92,3 +92,6 @@ export function PerClassF1Chart({ perClassF1 }: PerClassF1ChartProps) {
     </div>
   )
 }
+
+
+

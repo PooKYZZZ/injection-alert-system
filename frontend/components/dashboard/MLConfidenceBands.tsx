@@ -7,7 +7,7 @@ interface MLConfidenceBandsProps {
   high: number
   medium: number
   low: number
-  isLoading?: boolean
+  isPending?: boolean
   unavailable?: boolean
 }
 
@@ -15,10 +15,10 @@ export function MLConfidenceBands({
   high,
   medium,
   low,
-  isLoading = false,
+  isPending = false,
   unavailable = false,
 }: MLConfidenceBandsProps) {
-  if (isLoading) {
+  if (isPending) {
     return <LoadingSkeleton rows={3} />
   }
 
@@ -40,45 +40,52 @@ export function MLConfidenceBands({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col gap-2"
     >
-      <div className="flex items-center gap-2 text-[11px]">
-        <span className="w-24 text-[#8b949e]">{`High > 80%`}</span>
-        <div className="flex-1 h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+      <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
+        <span className="text-[11px] text-[var(--color-text-secondary)] truncate">{`High > 80%`}</span>
+        <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
           <div
-            className="h-full bg-violet-500 rounded-full"
-            style={{ width: `${total > 0 ? (high / total) * 100 : 0}%` }}
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${total > 0 ? (high / total) * 100 : 0}%`, background: 'var(--color-accent-purple)' }}
           />
         </div>
-        <span className="w-6 text-right font-medium">{high}</span>
-        <span className="w-8 text-right text-[#484f58] text-[10px]">
-          {total > 0 ? Math.round((high / total) * 100) : 0}%
-        </span>
+        <div className="flex items-center justify-end gap-2 tabular-nums">
+          <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-right">{high}</span>
+          <span className="text-[11px] text-[var(--color-text-muted)] text-right">
+            {total > 0 ? Math.round((high / total) * 100) : 0}%
+          </span>
+        </div>
       </div>
-      <div className="flex items-center gap-2 text-[11px]">
-        <span className="w-24 text-[#8b949e]">Medium 50–80%</span>
-        <div className="flex-1 h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+      <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
+        <span className="text-[11px] text-[var(--color-text-secondary)] truncate">Medium 50–80%</span>
+        <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
           <div
-            className="h-full bg-amber-500 rounded-full"
-            style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%` }}
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%`, background: 'var(--color-accent-amber)' }}
           />
         </div>
-        <span className="w-6 text-right font-medium">{medium}</span>
-        <span className="w-8 text-right text-[#484f58] text-[10px]">
-          {total > 0 ? Math.round((medium / total) * 100) : 0}%
-        </span>
+        <div className="flex items-center justify-end gap-2 tabular-nums">
+          <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-right">{medium}</span>
+          <span className="text-[11px] text-[var(--color-text-muted)] text-right">
+            {total > 0 ? Math.round((medium / total) * 100) : 0}%
+          </span>
+        </div>
       </div>
-      <div className="flex items-center gap-2 text-[11px]">
-        <span className="w-24 text-[#8b949e]">{`Low < 50%`}</span>
-        <div className="flex-1 h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+      <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
+        <span className="text-[11px] text-[var(--color-text-secondary)] truncate">{`Low < 50%`}</span>
+        <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
           <div
-            className="h-full bg-emerald-500 rounded-full"
-            style={{ width: `${total > 0 ? (low / total) * 100 : 0}%` }}
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${total > 0 ? (low / total) * 100 : 0}%`, background: 'var(--color-severity-safe-accent)' }}
           />
         </div>
-        <span className="w-6 text-right font-medium">{low}</span>
-        <span className="w-8 text-right text-[#484f58] text-[10px]">
-          {total > 0 ? Math.round((low / total) * 100) : 0}%
-        </span>
+        <div className="flex items-center justify-end gap-2 tabular-nums">
+          <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-right">{low}</span>
+          <span className="text-[11px] text-[var(--color-text-muted)] text-right">
+            {total > 0 ? Math.round((low / total) * 100) : 0}%
+          </span>
+        </div>
       </div>
     </motion.div>
   )
 }
+

@@ -42,19 +42,19 @@ export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) 
       </div>
       <div className="relative h-8 bg-[var(--color-bg-inset)] rounded-md overflow-hidden flex">
         <div
-          className="h-full bg-[#0f2d1a] text-emerald-400 flex items-center justify-center text-[10px] font-medium"
+          className="h-full bg-[var(--color-severity-safe-bg)] text-emerald-400 flex items-center justify-center text-[10px] font-medium"
           style={{ width: `${lowWidth}%` }}
         >
           {`Low < ${low}%`}
         </div>
         <div
-          className="h-full bg-[#2d2310] text-amber-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
+          className="h-full bg-[var(--color-severity-blocked-bg)] text-amber-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
           style={{ width: `${mediumWidth}%` }}
         >
           {`Med ${low}%–${high}%`}
         </div>
         <div
-          className="h-full bg-[#2d1b1b] text-red-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
+          className="h-full bg-[var(--color-severity-high-bg)] text-red-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
           style={{ width: `${highWidth}%` }}
         >
           {`High > ${high}%`}
@@ -71,3 +71,4 @@ export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) 
     </>
   )
 }
+

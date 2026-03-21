@@ -13,17 +13,17 @@ const STATUS_BADGE: Record<
   { bg: string; text: string; border: string }
 > = {
   HEALTHY: {
-    bg: 'bg-[#0f2d1a]',
+    bg: 'bg-[var(--color-severity-safe-bg)]',
     text: 'text-emerald-400',
     border: 'border-emerald-900',
   },
   DEGRADED: {
-    bg: 'bg-[#2d2310]',
+    bg: 'bg-[var(--color-severity-blocked-bg)]',
     text: 'text-amber-400',
     border: 'border-amber-900',
   },
   DOWN: {
-    bg: 'bg-[#2d1b1b]',
+    bg: 'bg-[var(--color-severity-high-bg)]',
     text: 'text-red-400',
     border: 'border-red-900',
   },
@@ -120,3 +120,4 @@ export function ModelHeader({ health }: ModelHeaderProps) {
     </motion.div>
   )
 }
+

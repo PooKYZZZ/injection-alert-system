@@ -6,14 +6,16 @@ import type { ConfidenceThresholds } from '@/features/ml-health/types'
 
 interface ThresholdState {
   thresholds: ConfidenceThresholds | null
-  isLoading: boolean
+  isPending: boolean
   isError: boolean
+  onRetry?: () => void
 }
 
 interface DashboardAlertAnalyticsProps {
   alerts: Alert[]
   alertsPending: boolean
   alertsError?: Error | null
+  onRetryAlerts?: () => void
   thresholdState: ThresholdState
 }
 
@@ -148,9 +150,10 @@ export default function DashboardAlertAnalytics({
   alerts,
   alertsPending,
   alertsError,
+  onRetryAlerts,
   thresholdState,
 }: DashboardAlertAnalyticsProps) {
-  const { thresholds, isLoading, isError } = thresholdState
+  const { thresholds, isPending, isError, onRetry } = thresholdState
 
   // Threshold source of truth: ML health contract
   // Use explicit thresholds from ML health, or show unavailable state
@@ -248,6 +251,15 @@ export default function DashboardAlertAnalytics({
       <div className="rounded-lg border border-severity-high-border bg-severity-high-bg p-4">
         <p className="text-sm font-medium text-severity-high-text">Failed to load dashboard analytics.</p>
         <p className="mt-1 text-xs text-text-secondary">{alertsError.message}</p>
+        {onRetryAlerts ? (
+          <button
+            type="button"
+            onClick={onRetryAlerts}
+            className="mt-3 rounded border border-severity-high-border bg-severity-high-bg px-3 py-1 text-[11px] font-medium text-text-primary transition-colors hover:border-severity-high-accent"
+          >
+            Retry
+          </button>
+        ) : null}
       </div>
     )
   }
@@ -316,13 +328,20 @@ export default function DashboardAlertAnalytics({
           title="ML Confidence Bands"
           description="Confidence score distribution using backend ML-health thresholds."
         >
-          {isLoading ? (
+          {isPending ? (
             <div role="status" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
               Loading confidence thresholds...
             </div>
           ) : isError ? (
-            <div role="alert" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
-              Unable to load confidence thresholds.
+            <div role="alert" className="flex min-h-44 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
+              <span>Unable to load confidence thresholds.</span>
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded border border-border-light bg-bg-elevated px-3 py-1 text-[11px] font-medium text-text-primary transition-colors hover:border-severity-high-accent"
+              >
+                Retry
+              </button>
             </div>
           ) : thresholdsAvailable && confidenceBands ? (
             <>
@@ -332,7 +351,7 @@ export default function DashboardAlertAnalytics({
                 showStub
               />
               {alerts.length > 0 && confidenceBands[0].value === alerts.length ? (
-                <p className="mt-3 text-[9px] text-text-muted">
+                <p className="mt-3 text-[11px] text-text-muted">
                   All {alerts.length} requests scored high confidence.
                 </p>
               ) : null}

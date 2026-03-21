@@ -40,7 +40,7 @@ vi.mock('@/components/dashboard/DashboardAlertAnalytics', () => ({
       )
     }
     // Render loading state if threshold is loading
-    if (thresholdState?.isLoading) {
+    if (thresholdState?.isPending) {
       return <div data-testid="threshold-loading">Loading confidence thresholds...</div>
     }
     // Render error if threshold state has error
@@ -80,6 +80,14 @@ const mockStats: DashboardStats = {
   allowed_count: 85,
   throttled_count: 15,
   avg_confidence: 0.72,
+  false_positive_rate: 0.8,
+  false_positive_count: 8,
+  high_alert_count: 500,
+  prev_high_alert_count: 123,
+        prev_total_requests: 900000,
+  prev_blocked_count: 280,
+  prev_allowed_count: 110,
+  prev_throttled_count: 10,
   activity_buckets: mockActivityBuckets,
   attack_distribution: {},
   top_source_ips: [],

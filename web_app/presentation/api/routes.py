@@ -15,6 +15,7 @@ Dependency rule:
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -111,11 +112,18 @@ async def get_stats(
     No window = all-time stats.
     """
     repository = TrafficLogRepository(db)
-    summary = await repository.get_stats_summary(window=window)
+    reference_time = datetime.now(timezone.utc)
+    summary = await repository.get_stats_summary(
+        window=window,
+        reference_time=reference_time,
+    )
     # Get real activity buckets from database for hero activity strip (graceful degradation)
     activity_buckets_list = []
     try:
-        activity_buckets = await repository.get_activity_buckets(window=window)
+        activity_buckets = await repository.get_activity_buckets(
+            window=window,
+            reference_time=reference_time,
+        )
         activity_buckets_list = [
             ActivityBucketSchema(
                 bucket_index=b.bucket_index,
@@ -158,6 +166,14 @@ async def get_stats(
         allowed_count=summary.allowed_count,
         throttled_count=summary.throttled_count,
         avg_confidence=summary.avg_confidence,
+        false_positive_rate=summary.false_positive_rate,
+        false_positive_count=summary.false_positive_count,
+        high_alert_count=summary.high_alert_count,
+        prev_high_alert_count=summary.prev_high_alert_count,
+        prev_total_requests=summary.prev_total_requests,
+        prev_blocked_count=summary.prev_blocked_count,
+        prev_allowed_count=summary.prev_allowed_count,
+        prev_throttled_count=summary.prev_throttled_count,
         activity_buckets=activity_buckets_list,
         attack_distribution=summary.attack_distribution,
         top_source_ips=top_source_ips_list,

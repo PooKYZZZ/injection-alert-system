@@ -34,7 +34,7 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
           <ScatterChart margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="#30363d"
+              stroke="var(--color-text-ghost)"
               vertical={false}
             />
             <XAxis
@@ -42,8 +42,8 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
               dataKey="bin_center"
               name="Mean confidence"
               domain={[0, 1]}
-              tick={{ fill: '#484f58', fontSize: 9 }}
-              axisLine={{ stroke: '#30363d' }}
+              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--color-text-ghost)' }}
               tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
             />
             <YAxis
@@ -51,15 +51,15 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
               dataKey="accuracy"
               name="Actual accuracy"
               domain={[0, 1]}
-              tick={{ fill: '#484f58', fontSize: 9 }}
-              axisLine={{ stroke: '#30363d' }}
+              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--color-text-ghost)' }}
               tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
             />
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
               contentStyle={{
                 backgroundColor: 'var(--color-bg-panel)',
-                border: '1px solid #30363d',
+                border: '1px solid var(--color-text-ghost)',
                 fontSize: '10px',
                 borderRadius: '4px',
               }}
@@ -72,12 +72,12 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
             <Scatter
               name="Model"
               data={bins}
-              fill="#7c3aed"
-              line={{ stroke: '#7c3aed', strokeWidth: 1.5 }}
+              fill="var(--color-accent-purple)"
+              line={{ stroke: 'var(--color-accent-purple)', strokeWidth: 1.5 }}
             />
             <ReferenceLine
               segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]}
-              stroke="#30363d"
+              stroke="var(--color-text-ghost)"
               strokeDasharray="4 4"
             />
           </ScatterChart>
@@ -90,3 +90,6 @@ export function ReliabilityDiagram({ bins, ece }: ReliabilityDiagramProps) {
     </>
   )
 }
+
+
+

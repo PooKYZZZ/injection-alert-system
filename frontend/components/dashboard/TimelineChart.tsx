@@ -10,8 +10,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import type { TooltipContentProps } from 'recharts'
-import { motion } from 'motion/react'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
 import type { ActivityBucket } from '@/features/stats/types'
 
@@ -20,57 +18,40 @@ export type TimeWindow = '1h' | '6h' | '24h' | '7d'
 interface TimelineChartProps {
   buckets: ActivityBucket[]
   timeWindow?: TimeWindow
-  isLoading?: boolean
+  isPending?: boolean
+  hasEvents?: boolean
+  consistencyWarning?: string | null
 }
 
-const SERIES = [
-  { key: 'allowed',   color: '#4ade80', label: 'allowed'   },
-  { key: 'blocked',   color: '#f87171', label: 'blocked'   },
-  { key: 'throttled', color: '#fbbf24', label: 'throttled' },
-] as const
-
-const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: ReadonlyArray<{ dataKey?: string | number; color?: string; name?: string | number; value?: string | number }>
+  label?: string | number
+}) {
   if (!active || !payload?.length) return null
+
+  const timestamp = typeof label === 'number' ? label : Number(label)
+  const displayLabel = Number.isFinite(timestamp)
+    ? new Date(timestamp).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : String(label)
+
   return (
-    <div
-      style={{
-        background: '#111827',
-        border: '1px solid #1e2a3d',
-        borderRadius: 6,
-        padding: '8px 12px',
-        fontSize: 11,
-        minWidth: 130,
-      }}
-    >
-      <p style={{ color: '#475569', marginBottom: 6, fontSize: 10 }}>{label}</p>
+    <div className="border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-2 py-1.5 text-[10px]">
+      <p className="mb-1 text-[11px] font-medium text-[var(--color-text-primary)]">{displayLabel}</p>
       {payload.map((entry) => (
-        <div
-          key={String(entry.dataKey)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}
-        >
-          <div
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: entry.color as string,
-              flexShrink: 0,
-            }}
-          />
-          <span style={{ color: '#94a3b8', textTransform: 'capitalize' }}>
-            {entry.name}
-          </span>
-          <span
-            style={{
-              color: entry.color as string,
-              fontWeight: 500,
-              marginLeft: 'auto',
-              paddingLeft: 12,
-            }}
-          >
-            {entry.value}
-          </span>
-        </div>
+        <p key={String(entry.dataKey)} style={{ color: entry.color as string }} className="text-[11px] leading-5">
+          {String(entry.name)} : {entry.value}
+        </p>
       ))}
     </div>
   )
@@ -79,9 +60,11 @@ const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
 export function TimelineChart({
   buckets,
   timeWindow = '24h',
-  isLoading = false,
+  isPending = false,
+  hasEvents,
+  consistencyWarning,
 }: TimelineChartProps) {
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="h-[140px] w-full">
         <LoadingSkeleton rows={4} />
@@ -110,27 +93,34 @@ export function TimelineChart({
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
   }
 
+  const inferredHasEvents = processedData.some(
+    (point) => (point.allowed ?? 0) + (point.blocked ?? 0) + (point.throttled ?? 0) > 0
+  )
+  const hasWindowDataMismatch = Boolean(consistencyWarning)
+  const isEmpty = hasEvents != null ? !hasEvents : !inferredHasEvents
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="h-[140px] w-full"
-    >
+    <div className="relative h-[140px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={processedData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
           <defs>
-            {SERIES.map(({ key, color }) => (
-              <linearGradient key={key} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={color} stopOpacity={0.08} />
-                <stop offset="95%" stopColor={color} stopOpacity={0}    />
-              </linearGradient>
-            ))}
+            <linearGradient id="gradBlocked" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--color-severity-high-accent)" stopOpacity={0.32} />
+              <stop offset="95%" stopColor="var(--color-severity-high-accent)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gradThrottled" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--color-accent-amber)" stopOpacity={0.32} />
+              <stop offset="95%" stopColor="var(--color-accent-amber)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gradAllowed" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--color-severity-safe-accent)" stopOpacity={0.32} />
+              <stop offset="95%" stopColor="var(--color-severity-safe-accent)" stopOpacity={0} />
+            </linearGradient>
           </defs>
 
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="#1e2a3d"
+            stroke="var(--color-text-ghost)"
             vertical={false}
             strokeOpacity={0.5}
           />
@@ -141,7 +131,7 @@ export function TimelineChart({
             scale="time"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: '#475569', fontSize: 10 }}
+            tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
             tickFormatter={formatXAxisTick}
             tickMargin={10}
             minTickGap={40}
@@ -149,42 +139,75 @@ export function TimelineChart({
           <YAxis
             axisLine={false}
             tickLine={false}
-            tick={{ fill: '#475569', fontSize: 10 }}
+            tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
             width={28}
             tickMargin={5}
           />
           <Tooltip
-            labelFormatter={(label) =>
-              typeof label === 'number'
-                ? new Date(label).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })
-                : label
-            }
-            content={CustomTooltip}
-            cursor={{ stroke: '#ffffff', strokeOpacity: 0.2, strokeWidth: 1, strokeDasharray: '3 3' }}
+            content={(props) => (
+              <CustomTooltip
+                active={props.active}
+                payload={props.payload as unknown as ReadonlyArray<{ dataKey?: string | number; color?: string; name?: string | number; value?: string | number }>}
+                label={props.label as string | number}
+              />
+            )}
+            cursor={{ stroke: 'var(--color-text-primary)', strokeOpacity: 0.2, strokeWidth: 1, strokeDasharray: '3 3' }}
           />
-
-          {SERIES.map(({ key, color, label }) => (
-            <Area
-              key={key}
-              type="monotone"
-              dataKey={key}
-              stroke={color}
-              strokeWidth={1.5}
-              fill={`url(#grad-${key})`}
-              fillOpacity={1}
-              name={label}
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 2, stroke: '#ffffff', fill: color }}
-              isAnimationActive={false}
-            />
-          ))}
+          {!isEmpty ? (
+            <>
+              <Area
+                type="monotone"
+                dataKey="allowed"
+                stroke="var(--color-severity-safe-accent)"
+                strokeWidth={1.5}
+                fill="url(#gradAllowed)"
+                fillOpacity={1}
+                name="allowed"
+                dot={false}
+                activeDot={{ r: 3, fill: 'var(--color-severity-safe-accent)' }}
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="blocked"
+                stroke="var(--color-severity-high-accent)"
+                strokeWidth={1.5}
+                fill="url(#gradBlocked)"
+                fillOpacity={1}
+                name="blocked"
+                dot={false}
+                activeDot={{ r: 3, fill: 'var(--color-severity-high-accent)' }}
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="throttled"
+                stroke="var(--color-accent-amber)"
+                strokeWidth={1.5}
+                fill="url(#gradThrottled)"
+                fillOpacity={1}
+                name="throttled"
+                dot={false}
+                activeDot={{ r: 3, fill: 'var(--color-accent-amber)' }}
+                isAnimationActive={false}
+              />
+            </>
+          ) : null}
         </AreaChart>
       </ResponsiveContainer>
-    </motion.div>
+      {hasWindowDataMismatch ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-[var(--color-bg-panel)]">
+          <p className="text-[11px] text-[var(--color-text-secondary)]">Data sync in progress</p>
+          <p className="text-[10px] text-[var(--color-text-muted)]">{consistencyWarning}</p>
+        </div>
+      ) : isEmpty ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-[var(--color-bg-panel)]">
+          <p className="text-[11px] text-text-muted">No events in this window</p>
+          <p className="text-[10px] text-text-muted">Traffic was quiet during this period</p>
+        </div>
+      ) : null}
+    </div>
   )
 }
+
+

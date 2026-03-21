@@ -250,6 +250,7 @@ describe('bff-client', () => {
           blocked_count: 4,
           allowed_count: 2,
           avg_confidence: 0.82,
+          prev_high_alert_count: 123,
           activity_buckets: [
             { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z' },
             { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z' },
@@ -272,6 +273,14 @@ describe('bff-client', () => {
         allowed_count: 2,
         throttled_count: 0,
         avg_confidence: 0.82,
+        false_positive_rate: 0,
+        false_positive_count: 0,
+        high_alert_count: 6,
+        prev_high_alert_count: 123,
+        prev_total_requests: null,
+        prev_blocked_count: null,
+        prev_allowed_count: null,
+        prev_throttled_count: null,
         activity_buckets: [
           { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z') },
           { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z') },
@@ -281,6 +290,155 @@ describe('bff-client', () => {
         top_targeted_paths: [],
       },
     })
+  })
+
+  it('propagates window parameter when fetching stats', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 0,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 0,
+          blocked_count: 0,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: null,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('6h')
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/stats?window=6h',
+      expect.any(Object)
+    )
+  })
+
+  it('sorts activity buckets by timestamp_start to keep timeline order stable', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 2,
+          counts_by_label: {
+            'SQL Injection': 1,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 1,
+          },
+          avg_inference_latency_ms: 3,
+          blocked_count: 1,
+          allowed_count: 1,
+          throttled_count: 0,
+          avg_confidence: 0.6,
+          activity_buckets: [
+            { bucket_index: 1, total_count: 1, blocked_count: 1, allowed_count: 0, throttled_count: 0, timestamp_start: '2026-03-18T13:00:00Z' },
+            { bucket_index: 0, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z' },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('24h')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.activity_buckets[0].timestamp_start).toEqual(new Date('2026-03-18T12:00:00Z'))
+    expect(result.data.activity_buckets[1].timestamp_start).toEqual(new Date('2026-03-18T13:00:00Z'))
+  })
+
+  it('returns UPSTREAM_ERROR when stats contain invalid bucket timestamp', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 1,
+          counts_by_label: {
+            'SQL Injection': 1,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 3,
+          blocked_count: 1,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: 0.9,
+          activity_buckets: [
+            {
+              bucket_index: 0,
+              total_count: 1,
+              blocked_count: 1,
+              allowed_count: 0,
+              throttled_count: 0,
+              timestamp_start: 'not-a-timestamp',
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('24h')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response contained invalid bucket timestamp at index 0: not-a-timestamp',
+      },
+    })
+  })
+
+  it('applies deterministic ordering when bucket timestamps are identical', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 2,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 2,
+          },
+          avg_inference_latency_ms: 1.5,
+          blocked_count: 0,
+          allowed_count: 2,
+          throttled_count: 0,
+          avg_confidence: 0.2,
+          activity_buckets: [
+            { bucket_index: 2, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z' },
+            { bucket_index: 1, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z' },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('24h')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.activity_buckets.map((bucket) => bucket.bucket_index)).toEqual([1, 2])
   })
 
   it('maps ml-health shape and preserves healthy/degraded semantics', async () => {

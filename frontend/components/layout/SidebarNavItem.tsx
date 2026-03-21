@@ -79,7 +79,7 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
       className={
         isActive
           ? 'group flex items-center gap-3 px-6 h-[40px] bg-sidebar-active border-l-[3px] border-primary text-white'
-          : 'group flex items-center gap-3 px-6 h-[40px] text-blue-100 hover:bg-[#264b82] hover:text-white border-l-[3px] border-transparent transition-colors'
+          : 'group flex items-center gap-3 px-6 h-[40px] text-blue-100 hover:bg-[var(--color-accent-blue-bg)] hover:text-white border-l-[3px] border-transparent transition-colors'
       }
     >
       <SidebarIcon icon={icon} />
@@ -92,3 +92,5 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
     </Link>
   )
 }
+
+

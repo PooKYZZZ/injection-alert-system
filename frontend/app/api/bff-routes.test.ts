@@ -57,7 +57,7 @@ describe('BFF route handlers', () => {
     authMock.mockResolvedValueOnce(null)
     const { GET } = await import('./stats/route')
 
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/stats'))
     const body = await response.json()
 
     expect(getStatsMock).not.toHaveBeenCalled()
@@ -71,7 +71,7 @@ describe('BFF route handlers', () => {
     authMock.mockResolvedValueOnce(null)
     const { GET } = await import('./ml-health/route')
 
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
     const body = await response.json()
 
     expect(getMlHealthMock).not.toHaveBeenCalled()
@@ -204,12 +204,30 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./stats/route')
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/stats'))
     const body = await response.json()
 
     expect(response.status).toBe(200)
     expect(body.total_requests).toBe(1234)
     expect(body.avg_inference_latency_ms).toBe(3.2)
+  })
+
+  it('stats route forwards window search param to BFF client', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getStatsMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        actionable_alerts: 0,
+        total_requests: 0,
+        avg_inference_latency_ms: 0,
+      },
+    })
+
+    const { GET } = await import('./stats/route')
+    const response = await GET(new NextRequest('http://localhost:3000/api/stats?window=7d'))
+
+    expect(response.status).toBe(200)
+    expect(getStatsMock).toHaveBeenCalledWith('7d')
   })
 
   it('ml-health route returns the frontend component contract shape', async () => {
@@ -233,7 +251,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./ml-health/route')
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -278,7 +296,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./stats/route')
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/stats'))
     const body = await response.json()
 
     expect(response.status).toBe(503)
@@ -302,7 +320,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./ml-health/route')
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
     const body = await response.json()
 
     expect(response.status).toBe(500)
@@ -342,7 +360,7 @@ describe('BFF route handlers', () => {
     authMock.mockResolvedValueOnce(null)
     const { GET } = await import('./stats/route')
 
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/stats'))
 
     // BFF client must NOT be called when auth fails
     expect(getStatsMock).not.toHaveBeenCalled()
@@ -379,7 +397,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./stats/route')
-    const response = await GET({} as never)
+    const response = await GET(new NextRequest('http://localhost:3000/api/stats'))
 
     expect(response.status).toBe(503)
     expect(response.headers.get('Retry-After')).toBe('30')

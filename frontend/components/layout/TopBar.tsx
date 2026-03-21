@@ -110,7 +110,7 @@ function TopBarContent({
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-[10px] font-medium text-emerald-400">Live</span>
               </div>
-              <span className="text-[10px] text-[#7d8590]">Last updated: just now</span>
+              <span className="text-[10px] text-[var(--color-text-secondary)]">Last updated: just now</span>
             </>
           ) : null}
         </div>
@@ -213,3 +213,5 @@ export function DashboardTopBar() {
 
   return <TopBar title={fallbackTitle} showSeverityControls={false} showSearch={false} />
 }
+
+

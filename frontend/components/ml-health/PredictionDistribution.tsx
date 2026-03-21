@@ -49,24 +49,24 @@ export function PredictionDistribution({
           <BarChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="#30363d"
+              stroke="var(--color-text-ghost)"
               vertical={false}
               opacity={0.3}
             />
             <XAxis
               dataKey="name"
-              tick={{ fill: '#484f58', fontSize: 8 }}
-              axisLine={{ stroke: '#30363d' }}
+              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--color-text-ghost)' }}
             />
             <YAxis
-              tick={{ fill: '#484f58', fontSize: 9 }}
-              axisLine={{ stroke: '#30363d' }}
+              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              axisLine={{ stroke: 'var(--color-text-ghost)' }}
               tickFormatter={(v) => `${v}%`}
             />
             <Tooltip
               contentStyle={{
                 backgroundColor: 'var(--color-bg-panel)',
-                border: '1px solid #30363d',
+                border: '1px solid var(--color-text-ghost)',
                 fontSize: '10px',
                 borderRadius: '4px',
               }}
@@ -74,7 +74,7 @@ export function PredictionDistribution({
             />
             <Bar
               dataKey="baseline"
-              fill="#30363d"
+              fill="var(--color-text-ghost)"
               radius={[2, 2, 0, 0]}
               name="Baseline %"
             />
@@ -82,16 +82,20 @@ export function PredictionDistribution({
               {data.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={entry.deviation > 8 ? '#f59e0b' : '#7c3aed'}
+                  fill={entry.deviation > 8 ? 'var(--color-accent-amber)' : 'var(--color-accent-purple)'}
                 />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 text-[9px] text-[var(--color-text-muted)]">
+      <div className="mt-2 text-[11px] text-[var(--color-text-muted)]">
         Deviation {'>'}8pp from baseline may indicate traffic shift.
       </div>
     </>
   )
 }
+
+
+
+

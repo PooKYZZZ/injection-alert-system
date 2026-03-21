@@ -61,9 +61,9 @@ function cn(...classes: (string | false | null | undefined)[]): string {
 }
 
 export default function MLHealthPage() {
-  const { data: health, isLoading, isError, refetch } = useMLHealth()
+  const { data: health, isPending, isError, refetch } = useMLHealth()
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -158,7 +158,7 @@ export default function MLHealthPage() {
                   Critical
                 </span>
               </div>
-              <div className="text-[9px] text-[var(--color-text-muted)]">
+              <div className="text-[11px] text-[var(--color-text-muted)]">
                 Warning if drift score {'>'} 0.05
               </div>
             </div>
@@ -268,3 +268,4 @@ export default function MLHealthPage() {
     </motion.div>
   )
 }
+
