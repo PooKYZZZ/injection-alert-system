@@ -9,10 +9,10 @@ interface SeverityBadgeProps {
 }
 
 const styles: Record<string, string> = {
-  HIGH: 'bg-[#2d1b1b] text-red-400',
-  MEDIUM: 'bg-[#2d2310] text-amber-400',
-  LOW: 'bg-[#1a2b1a] text-emerald-400',
-  BENIGN: 'bg-[#1c1c2e] text-[#6b7280]',
+  HIGH: 'bg-transparent border border-red-500/30 text-red-400',
+  MEDIUM: 'bg-transparent border border-amber-500/30 text-amber-400',
+  LOW: 'bg-transparent border border-emerald-500/30 text-emerald-400',
+  BENIGN: 'bg-transparent border border-[#30363d] text-[#7d8590]',
 }
 
 export function SeverityBadge({ severity, prediction }: SeverityBadgeProps) {
@@ -23,7 +23,7 @@ export function SeverityBadge({ severity, prediction }: SeverityBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border',
         styles[displaySeverity]
       )}
     >

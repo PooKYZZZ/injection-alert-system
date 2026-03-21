@@ -309,11 +309,11 @@ function AlertsTableContent({
                   <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[#7d8590]">
                     {formatTimeOnly(alert.timestamp)}
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-xs text-[#7d8590]">
+                  <td className="whitespace-nowrap p-3 font-mono text-xs text-blue-400">
                     {alert.source_ip ?? '—'}
                   </td>
                   <td
-                    className="max-w-[180px] truncate whitespace-nowrap p-3 font-mono text-xs text-[#e6edf3]"
+                    className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-[#e6edf3]"
                     title={alert.request_path ?? '—'}
                   >
                     {alert.request_path ?? '—'}

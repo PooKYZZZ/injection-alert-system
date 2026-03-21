@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { CheckSquare } from 'lucide-react'
 import { useTriageMutation } from '@/features/alerts/queries'
 import type { TriageStatus } from '@/features/alerts/types'
 
@@ -73,9 +74,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
         >
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[16px] text-blue-400">
-                check_box
-              </span>
+              <CheckSquare size={14} className="text-violet-400" />
               <span className="text-sm font-medium text-[#e6edf3]">
                 {selectedCount} selected
               </span>

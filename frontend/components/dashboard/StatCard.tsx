@@ -20,7 +20,7 @@ export function StatCard({
   borderColor,
   onClick,
 }: StatCardProps) {
-  const isAlert = borderColor === 'border-l-red-700'
+  const isAlert = borderColor?.includes('border-l-red-700')
 
   return (
     <motion.div

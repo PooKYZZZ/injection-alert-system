@@ -51,6 +51,8 @@ const BackendActivityBucketSchema = z.object({
   bucket_index: z.number(),
   total_count: z.number(),
   blocked_count: z.number(),
+  allowed_count: z.number(),
+  throttled_count: z.number(),
   timestamp_start: z.string(),
 })
 
@@ -109,7 +111,15 @@ const BackendMlHealthSchema = z.object({
   ece: z.number().nullable().optional(),
   per_class_f1: z.record(z.number()).optional(),
   calibration_bins: z.array(CalibrationBinSchema).optional(),
-  prediction_distribution: z.record(z.number()).optional(),
+  prediction_distribution: z
+    .union([
+      z.object({
+        baseline: z.record(z.number()),
+        current: z.record(z.number()),
+      }),
+      z.record(z.number()),
+    ])
+    .optional(),
 })
 
 function ok<T>(data: T): BffResult<T> {
@@ -264,6 +274,8 @@ function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardS
       bucket_index: b.bucket_index,
       total_count: b.total_count,
       blocked_count: b.blocked_count,
+      allowed_count: b.allowed_count,
+      throttled_count: b.throttled_count,
       timestamp_start: new Date(b.timestamp_start),
     })),
     attack_distribution: attackDistribution,
@@ -310,6 +322,25 @@ function normalizeMlHealth(
     driftStatus = null
   }
 
+  const rawPredictionDistribution = payload.prediction_distribution as unknown
+  const predictionDistribution: MLHealthData['prediction_distribution'] =
+    rawPredictionDistribution &&
+    typeof rawPredictionDistribution === 'object' &&
+    !Array.isArray(rawPredictionDistribution) &&
+    'baseline' in rawPredictionDistribution &&
+    'current' in rawPredictionDistribution
+      ? {
+          baseline: (rawPredictionDistribution as { baseline: Record<string, number> }).baseline,
+          current: (rawPredictionDistribution as { current: Record<string, number> }).current,
+        }
+      : {
+          baseline: {},
+          current:
+            (rawPredictionDistribution && typeof rawPredictionDistribution === 'object' && !Array.isArray(rawPredictionDistribution)
+              ? (rawPredictionDistribution as Record<string, number>)
+              : {}),
+        }
+
   return {
     model_version: payload.model_version,
     status: payload.loaded
@@ -332,7 +363,7 @@ function normalizeMlHealth(
     ece: payload.ece ?? null,
     per_class_f1: payload.per_class_f1 ?? {},
     calibration_bins: payload.calibration_bins ?? [],
-    prediction_distribution: payload.prediction_distribution ?? {},
+    prediction_distribution: predictionDistribution,
   }
 }
 
@@ -465,12 +496,13 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
   return normalizeAlert(upstream.data)
 }
 
-export async function getStats(): Promise<BffResult<DashboardStats>> {
+export async function getStats(window?: string): Promise<BffResult<DashboardStats>> {
   if (isMockMode()) {
     return ok(MOCK_STATS)
   }
 
-  const upstream = await fetchUpstream('/api/stats', BackendStatsSchema)
+  const path = window ? `/api/stats?window=${encodeURIComponent(window)}` : '/api/stats'
+  const upstream = await fetchUpstream(path, BackendStatsSchema)
   if (!upstream.ok) {
     return upstream
   }

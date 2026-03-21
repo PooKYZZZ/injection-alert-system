@@ -11,9 +11,9 @@ interface ActionLabelProps {
 }
 
 const styles: Record<AlertAction, string> = {
-  BLOCKED: 'bg-[#2d1b1b] text-red-400',
-  THROTTLED: 'bg-[#2d2310] text-amber-400',
-  ALLOWED: 'bg-[#0f2d1a] text-emerald-400',
+  BLOCKED: 'bg-transparent border border-red-500/30 text-red-400',
+  THROTTLED: 'bg-transparent border border-amber-500/30 text-amber-400',
+  ALLOWED: 'bg-transparent border border-emerald-500/30 text-emerald-400',
 }
 
 export function ActionLabel({ action }: ActionLabelProps) {
@@ -28,7 +28,7 @@ export function ActionLabel({ action }: ActionLabelProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border',
         styles[action]
       )}
     >

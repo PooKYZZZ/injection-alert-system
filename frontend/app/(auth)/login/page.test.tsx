@@ -52,7 +52,7 @@ describe('LoginPage', () => {
     render(<LoginPage />)
 
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
-    await user.click(screen.getByRole('button', { name: 'Login' }))
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByText('Invalid password. Please try again.')).toBeInTheDocument()
   })
@@ -65,11 +65,11 @@ describe('LoginPage', () => {
     render(<LoginPage />)
 
     await user.type(screen.getByLabelText('Password'), 'pw')
-    const button = screen.getByRole('button', { name: 'Login' })
+    const button = screen.getByRole('button', { name: 'Sign in' })
     await user.click(button)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Login' })).not.toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Sign in' })).not.toBeDisabled()
     })
 
     tracker.stop()
@@ -83,7 +83,7 @@ describe('LoginPage', () => {
     render(<LoginPage />)
 
     await user.type(screen.getByLabelText('Password'), 'pw')
-    await user.click(screen.getByRole('button', { name: 'Login' }))
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => {
       expect(

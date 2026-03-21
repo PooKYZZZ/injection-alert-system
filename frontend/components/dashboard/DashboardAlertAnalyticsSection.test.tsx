@@ -68,8 +68,8 @@ vi.mock('@/features/ml-health/queries', () => ({
 }))
 
 const mockActivityBuckets = [
-  { bucket_index: 0, total_count: 50, blocked_count: 5, timestamp_start: new Date() },
-  { bucket_index: 1, total_count: 45, blocked_count: 3, timestamp_start: new Date() },
+  { bucket_index: 0, total_count: 50, blocked_count: 5, allowed_count: 45, throttled_count: 0, timestamp_start: new Date() },
+  { bucket_index: 1, total_count: 45, blocked_count: 3, allowed_count: 42, throttled_count: 0, timestamp_start: new Date() },
 ]
 
 const mockStats: DashboardStats = {

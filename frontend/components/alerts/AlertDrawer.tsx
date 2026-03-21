@@ -267,9 +267,9 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     <h3 className="mb-3 text-[9px] font-semibold uppercase tracking-[0.09em] text-[#7d8590]">
                       Detection Timeline
                     </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 h-2 w-2 rounded-full bg-blue-400" />
+                    <div className="relative space-y-4 before:absolute before:inset-0 before:ml-[3px] before:h-full before:w-[1px] before:-translate-x-px before:bg-[#21262d]">
+                      <div className="relative flex items-start gap-3">
+                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-blue-400 ring-4 ring-[#0d1117]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-blue-400">Request Received</p>
                           <p className="mt-0.5 text-[10px] text-[#7d8590]">
@@ -277,8 +277,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 h-2 w-2 rounded-full bg-amber-500" />
+                      <div className="relative flex items-start gap-3">
+                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-amber-500 ring-4 ring-[#0d1117]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-amber-500">CRS Flagged</p>
                           <p className="mt-0.5 text-[10px] text-[#7d8590]">
@@ -289,8 +289,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 h-2 w-2 rounded-full bg-violet-400" />
+                      <div className="relative flex items-start gap-3">
+                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-violet-400 ring-4 ring-[#0d1117]" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-violet-400">ML Inference</p>
                           <p className="mt-0.5 text-[10px] text-[#7d8590]">
@@ -298,10 +298,10 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-3">
+                      <div className="relative flex items-start gap-3">
                         <div
                           className={cn(
-                            'mt-0.5 h-2 w-2 rounded-full',
+                            'relative z-10 mt-0.5 h-2 w-2 rounded-full ring-4 ring-[#0d1117]',
                             alert.action_taken === 'BLOCKED' ? 'bg-red-500' : 'bg-emerald-500'
                           )}
                         />

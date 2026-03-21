@@ -22,14 +22,18 @@ from datetime import datetime
 @dataclass
 class DriftMetrics:
     """Domain object representing ML model drift detection metrics.
-    
+
     drift_score is None when drift cannot be computed (insufficient data).
     drift_detected is False when drift_score is None.
     """
 
     drift_score: float | None  # 0.0-1.0 indicating severity, None if unavailable
-    drift_detected: bool  # True if drift exceeds threshold, False if not or if unavailable
-    recent_mean_confidence: float | None  # Mean confidence of recent window, None if unavailable
+    drift_detected: (
+        bool  # True if drift exceeds threshold, False if not or if unavailable
+    )
+    recent_mean_confidence: (
+        float | None
+    )  # Mean confidence of recent window, None if unavailable
     baseline_mean_confidence: float  # Mean confidence of baseline
     recent_sample_size: int  # Number of records in recent window
     baseline_sample_size: int  # Number of records in baseline
@@ -42,6 +46,8 @@ class ActivityBucket:
     bucket_index: int  # 0-23 for 24-hour period
     total_count: int  # Total requests in this bucket
     blocked_count: int  # Blocked requests in this bucket
+    allowed_count: int  # Allowed requests in this bucket
+    throttled_count: int  # Throttled requests in this bucket
     timestamp_start: datetime  # Start of this bucket's time window
 
 
@@ -85,6 +91,7 @@ class TrafficLogEntity:
 @dataclass
 class SourceIPSummary:
     """Domain object representing a source IP with request count and most recent action."""
+
     ip: str
     count: int
     action: Optional[str] = None
@@ -93,6 +100,7 @@ class SourceIPSummary:
 @dataclass
 class TargetPathSummary:
     """Domain object representing a targeted path with hit count."""
+
     path: str
     hits: int
 
@@ -173,7 +181,9 @@ class ITrafficLogRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_stats_summary(self) -> TrafficStatsSummary:
+    async def get_stats_summary(
+        self, window: Optional[str] = None
+    ) -> TrafficStatsSummary:
         """Return aggregate traffic stats with zero-safe defaults."""
         ...
 
@@ -191,12 +201,12 @@ class ITrafficLogRepository(ABC):
 
     @abstractmethod
     async def get_activity_buckets(
-        self, hours: int = 24, buckets: int = 24
+        self, window: Optional[str] = None, buckets: int = 24
     ) -> List["ActivityBucket"]:
         """Get bucketed activity counts for the hero activity strip.
 
         Args:
-            hours: Number of hours to look back (default 24)
+            window: Optional time window filter (1h, 6h, 24h, 7d). Defaults to 24h.
             buckets: Number of buckets to divide the time into (default 24)
 
         Returns:
@@ -217,7 +227,9 @@ class ITrafficLogRepository(ABC):
         ...
 
     @abstractmethod
-    async def list_recent(self, skip: int = 0, limit: int = 100) -> List[TrafficLogEntity]:
+    async def list_recent(
+        self, skip: int = 0, limit: int = 100
+    ) -> List[TrafficLogEntity]:
         """Retrieve recent traffic logs ordered by timestamp descending."""
         ...
 

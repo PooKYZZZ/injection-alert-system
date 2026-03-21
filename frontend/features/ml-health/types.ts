@@ -26,5 +26,5 @@ export interface MLHealthData {
   ece?: number | null
   per_class_f1?: Record<string, number>
   calibration_bins?: CalibrationBin[]
-  prediction_distribution?: Record<string, number>
+  prediction_distribution?: { baseline: Record<string, number>; current: Record<string, number> }
 }

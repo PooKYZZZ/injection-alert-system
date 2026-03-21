@@ -85,7 +85,7 @@ export default function DashboardPage() {
       label: 'High alerts',
       value: stats?.actionable_alerts ?? '—',
       secondaryColor: 'text-red-400',
-      borderColor: 'border-l-red-700',
+      borderColor: 'border-l-2 border-l-red-700',
     },
     {
       label: 'Blocked',
@@ -95,29 +95,33 @@ export default function DashboardPage() {
           ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
           : 'Calculating...',
       secondaryColor: 'text-violet-400',
+      borderColor: 'border-l-2 border-l-violet-700',
     },
     {
       label: 'Throttled',
       value: stats?.throttled_count ?? '—',
       secondaryColor: 'text-amber-400',
-      borderColor: 'border-l-amber-700',
+      borderColor: 'border-l-2 border-l-amber-700',
     },
     {
       label: 'Allowed',
       value: stats?.allowed_count ?? '—',
       secondary: 'Benign / LOW conf',
       secondaryColor: 'text-emerald-400',
+      borderColor: 'border-l-2 border-l-emerald-800',
     },
     {
       label: 'Avg ML confidence',
       value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
       secondaryColor: 'text-emerald-400',
+      borderColor: 'border-l-2 border-l-emerald-900',
     },
     {
       label: 'False Positive Rate',
       value: '—',
       secondary: 'Not available',
       secondaryColor: 'text-[#7d8590]',
+      borderColor: 'border-l-2 border-l-[#30363d]',
     },
   ]
 

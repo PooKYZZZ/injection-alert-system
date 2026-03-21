@@ -1,6 +1,16 @@
 'use client'
 
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { useMemo } from 'react'
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
+import type { TooltipContentProps } from 'recharts'
 import { motion } from 'motion/react'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
 import type { ActivityBucket } from '@/features/stats/types'
@@ -13,84 +23,166 @@ interface TimelineChartProps {
   isLoading?: boolean
 }
 
-function formatBucketTime(timestamp: Date): string {
-  const date = new Date(timestamp)
-  // Use UTC methods to avoid server/client timezone mismatch during Next.js hydration
-  const hours = date.getUTCHours()
-  const period = hours >= 12 ? 'pm' : 'am'
-  const displayHour = hours % 12 || 12
-  return `${displayHour}${period}`
+const SERIES = [
+  { key: 'allowed',   color: '#4ade80', label: 'allowed'   },
+  { key: 'blocked',   color: '#f87171', label: 'blocked'   },
+  { key: 'throttled', color: '#fbbf24', label: 'throttled' },
+] as const
+
+const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div
+      style={{
+        background: '#111827',
+        border: '1px solid #1e2a3d',
+        borderRadius: 6,
+        padding: '8px 12px',
+        fontSize: 11,
+        minWidth: 130,
+      }}
+    >
+      <p style={{ color: '#475569', marginBottom: 6, fontSize: 10 }}>{label}</p>
+      {payload.map((entry) => (
+        <div
+          key={String(entry.dataKey)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}
+        >
+          <div
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: entry.color as string,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ color: '#94a3b8', textTransform: 'capitalize' }}>
+            {entry.name}
+          </span>
+          <span
+            style={{
+              color: entry.color as string,
+              fontWeight: 500,
+              marginLeft: 'auto',
+              paddingLeft: 12,
+            }}
+          >
+            {entry.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
-export function TimelineChart({ buckets, timeWindow = '24h', isLoading = false }: TimelineChartProps) {
+export function TimelineChart({
+  buckets,
+  timeWindow = '24h',
+  isLoading = false,
+}: TimelineChartProps) {
   if (isLoading) {
     return (
-      <div className="h-[120px] w-full">
+      <div className="h-[140px] w-full">
         <LoadingSkeleton rows={4} />
       </div>
     )
   }
 
-  const data = buckets.map((bucket) => ({
-    time: formatBucketTime(bucket.timestamp_start),
-    total_count: bucket.total_count,
-    blocked_count: bucket.blocked_count,
-  }))
+  const processedData = useMemo(() => {
+    if (!buckets || buckets.length === 0) return []
+
+    return buckets
+      .map((bucket) => ({
+        timestampMs: new Date(bucket.timestamp_start).getTime(),
+        allowed: bucket.allowed_count || 0,
+        blocked: bucket.blocked_count || 0,
+        throttled: bucket.throttled_count || 0,
+      }))
+      .sort((a, b) => a.timestampMs - b.timestampMs)
+  }, [buckets])
+
+  const formatXAxisTick = (timestampMs: number) => {
+    const date = new Date(timestampMs)
+    if (timeWindow === '7d') {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="h-[120px] w-full"
+      className="h-[140px] w-full"
     >
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+        <AreaChart data={processedData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
           <defs>
-            <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.1} />
-              <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="colorBlocked" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f87171" stopOpacity={0.1} />
-              <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
-            </linearGradient>
+            {SERIES.map(({ key, color }) => (
+              <linearGradient key={key} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={color} stopOpacity={0.08} />
+                <stop offset="95%" stopColor={color} stopOpacity={0}    />
+              </linearGradient>
+            ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#30363d" vertical={false} />
+
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="#1e2a3d"
+            vertical={false}
+            strokeOpacity={0.5}
+          />
           <XAxis
-            dataKey="time"
-            axisLine={{ stroke: '#30363d' }}
+            dataKey="timestampMs"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            scale="time"
+            axisLine={false}
             tickLine={false}
-            tick={{ fill: '#484f58', fontSize: 10 }}
+            tick={{ fill: '#475569', fontSize: 10 }}
+            tickFormatter={formatXAxisTick}
+            tickMargin={10}
+            minTickGap={40}
           />
           <YAxis
-            axisLine={{ stroke: '#30363d' }}
+            axisLine={false}
             tickLine={false}
-            tick={{ fill: '#484f58', fontSize: 10 }}
+            tick={{ fill: '#475569', fontSize: 10 }}
+            width={28}
+            tickMargin={5}
           />
           <Tooltip
-            contentStyle={{ backgroundColor: '#161b22', border: '1px solid #30363d', fontSize: '11px' }}
-            itemStyle={{ fontSize: '11px' }}
-            labelStyle={{ color: '#8b949e', fontSize: '10px' }}
+            labelFormatter={(label) =>
+              typeof label === 'number'
+                ? new Date(label).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })
+                : label
+            }
+            content={CustomTooltip}
+            cursor={{ stroke: '#ffffff', strokeOpacity: 0.2, strokeWidth: 1, strokeDasharray: '3 3' }}
           />
-          <Area
-            type="monotone"
-            dataKey="total_count"
-            stroke="#38bdf8"
-            fillOpacity={1}
-            fill="url(#colorTotal)"
-            strokeWidth={1.5}
-            name="Total"
-          />
-          <Area
-            type="monotone"
-            dataKey="blocked_count"
-            stroke="#f87171"
-            fillOpacity={1}
-            fill="url(#colorBlocked)"
-            strokeWidth={1.5}
-            name="Blocked"
-          />
+
+          {SERIES.map(({ key, color, label }) => (
+            <Area
+              key={key}
+              type="monotone"
+              dataKey={key}
+              stroke={color}
+              strokeWidth={1.5}
+              fill={`url(#grad-${key})`}
+              fillOpacity={1}
+              name={label}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: '#ffffff', fill: color }}
+              isAnimationActive={false}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </motion.div>

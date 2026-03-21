@@ -2,6 +2,8 @@ export interface ActivityBucket {
   bucket_index: number
   total_count: number
   blocked_count: number
+  allowed_count: number
+  throttled_count: number
   timestamp_start: Date
 }
 

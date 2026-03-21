@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     )
     # dev-time default — source from artifact metadata in production
     model_version: str = "distilbert_v3_907k_cleaned_20260312_133755"
+    # Enable HTTP request preprocessing for model input (training-serving consistency)
+    enable_http_model_preprocessing: bool = True
 
     @model_validator(mode="after")
     def apply_environment_defaults(self) -> "Settings":

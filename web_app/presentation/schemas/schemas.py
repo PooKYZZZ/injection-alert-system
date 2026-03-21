@@ -17,25 +17,31 @@ TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_posit
 
 class PredictionRequest(BaseModel):
     """Request schema for prediction endpoint."""
+
     http_request: str = Field(..., description="HTTP request string to classify")
 
 
 class PredictionResponse(BaseModel):
     """Response schema for prediction endpoint."""
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "class_label": "SQL Injection",
                 "confidence": 0.92,
                 "confidence_level": "HIGH",
-                "action_taken": "BLOCKED"
+                "action_taken": "BLOCKED",
             }
         }
     )
     class_label: PredictionLabel = Field(..., description="Predicted class label")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
-    confidence_level: ConfidenceLevel = Field(..., description="Confidence level (LOW, MEDIUM, HIGH)")
-    action_taken: ActionTaken = Field(..., description="Action taken in response to the prediction")
+    confidence_level: ConfidenceLevel = Field(
+        ..., description="Confidence level (LOW, MEDIUM, HIGH)"
+    )
+    action_taken: ActionTaken = Field(
+        ..., description="Action taken in response to the prediction"
+    )
 
 
 class TriageIngestRequest(BaseModel):
@@ -62,13 +68,19 @@ class TriageIngestResponse(BaseModel):
 
 class FeedbackRequest(BaseModel):
     """Request schema for feedback endpoint."""
-    traffic_id: int = Field(..., description="ID of the traffic log to provide feedback for")
+
+    traffic_id: int = Field(
+        ..., description="ID of the traffic log to provide feedback for"
+    )
     correct_label: str = Field(..., description="The correct classification label")
-    analyst_email: str = Field(..., description="Email of the analyst providing feedback")
+    analyst_email: str = Field(
+        ..., description="Email of the analyst providing feedback"
+    )
 
 
 class AlertResponse(BaseModel):
     """Response schema for alerts endpoint."""
+
     model_config = ConfigDict(from_attributes=True)
     id: int
     timestamp: datetime
@@ -86,21 +98,37 @@ class AlertResponse(BaseModel):
 class ActivityBucketSchema(BaseModel):
     """Schema for activity bucket data in stats response."""
 
-    bucket_index: int = Field(default=0, ge=0, description="Bucket index (0-23 for 24-hour period)")
-    total_count: int = Field(default=0, ge=0, description="Total requests in this bucket")
-    blocked_count: int = Field(default=0, ge=0, description="Blocked requests in this bucket")
+    bucket_index: int = Field(
+        default=0, ge=0, description="Bucket index (0-23 for 24-hour period)"
+    )
+    total_count: int = Field(
+        default=0, ge=0, description="Total requests in this bucket"
+    )
+    blocked_count: int = Field(
+        default=0, ge=0, description="Blocked requests in this bucket"
+    )
+    allowed_count: int = Field(
+        default=0, ge=0, description="Allowed requests in this bucket"
+    )
+    throttled_count: int = Field(
+        default=0, ge=0, description="Throttled requests in this bucket"
+    )
     timestamp_start: datetime = Field(description="Start of this bucket's time window")
 
 
 class SourceIPSummarySchema(BaseModel):
     """Schema for source IP summary in stats response."""
+
     ip: str
     count: int = Field(default=0, ge=0)
-    action: Optional[str] = Field(default=None, description="Most recent action taken for this IP")
+    action: Optional[str] = Field(
+        default=None, description="Most recent action taken for this IP"
+    )
 
 
 class TargetPathSummarySchema(BaseModel):
     """Schema for targeted path summary in stats response."""
+
     path: str
     hits: int = Field(default=0, ge=0)
 
@@ -114,7 +142,8 @@ class StatsResponse(BaseModel):
     throttled_count: int = Field(default=0, ge=0)
     avg_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     activity_buckets: List[ActivityBucketSchema] = Field(
-        default_factory=list, description="Bucketed activity counts for hero activity strip"
+        default_factory=list,
+        description="Bucketed activity counts for hero activity strip",
     )
     attack_distribution: dict[str, int] = Field(
         default_factory=dict, description="Distribution of attacks by type"
@@ -129,14 +158,12 @@ class StatsResponse(BaseModel):
 
 class CalibrationBin(BaseModel):
     """Schema for calibration bin data in ML health response."""
+
     bin_idx: int = Field(description="Bin index")
     bin_center: float = Field(description="Mean confidence (bin center)")
     accuracy: float = Field(description="Empirical accuracy")
     confidence: float = Field(description="Average confidence in this bin")
     count: int = Field(description="Number of samples in this bin")
-
-
-
 
 
 class MLHealthResponse(BaseModel):
@@ -146,14 +173,24 @@ class MLHealthResponse(BaseModel):
     avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
     total_processed: int = Field(default=0, ge=0)
     drift_detected: bool = False
-    drift_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Drift score 0-1 indicating severity")
+    drift_score: Optional[float] = Field(
+        default=None, ge=0.0, le=1.0, description="Drift score 0-1 indicating severity"
+    )
     confidence_thresholds: dict[str, float] = Field(default_factory=dict)
     # Optional eval metadata fields - populated when eval artifacts exist
-    macro_f1: Optional[float] = Field(default=None, description="Macro F1 score from eval")
+    macro_f1: Optional[float] = Field(
+        default=None, description="Macro F1 score from eval"
+    )
     ece: Optional[float] = Field(default=None, description="Expected Calibration Error")
-    per_class_f1: dict[str, float] = Field(default_factory=dict, description="Per-class F1 scores")
-    calibration_bins: List[CalibrationBin] = Field(default_factory=list, description="Calibration bins for reliability diagram")
-    prediction_distribution: dict[str, int] = Field(default_factory=dict, description="Prediction distribution from eval")
+    per_class_f1: dict[str, float] = Field(
+        default_factory=dict, description="Per-class F1 scores"
+    )
+    calibration_bins: List[CalibrationBin] = Field(
+        default_factory=list, description="Calibration bins for reliability diagram"
+    )
+    prediction_distribution: dict[str, int] = Field(
+        default_factory=dict, description="Prediction distribution from eval"
+    )
 
 
 class AlertDetailResponse(BaseModel):
@@ -196,16 +233,18 @@ class AlertListResponse(BaseModel):
 
 class TriageUpdateRequest(BaseModel):
     """Request schema for updating alert triage status."""
+
     triage_status: Literal[
-        'new',
-        'in_review',
-        'escalated',
-        'resolved',
-        'false_positive',
+        "new",
+        "in_review",
+        "escalated",
+        "resolved",
+        "false_positive",
     ] = Field(..., description="Triage status to set on the alert")
 
 
 class HealthResponse(BaseModel):
     """Response schema for health check endpoint."""
+
     status: str
     database: str

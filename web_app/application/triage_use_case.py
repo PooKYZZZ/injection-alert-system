@@ -20,6 +20,7 @@ from typing import Protocol
 from starlette.concurrency import run_in_threadpool
 
 from web_app.application.http_parsing import parse_http_request_line
+from web_app.application.http_preprocessor import preprocess_http_request
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 
 
@@ -84,10 +85,12 @@ class TriageUseCase:
         classifier: IClassifier,
         repository: ITrafficLogRepository,
         stale_processing_timeout_seconds: int = 30,
+        enable_preprocessing: bool = True,
     ):
         self._classifier = classifier
         self._repository = repository
         self._stale_processing_timeout_seconds = stale_processing_timeout_seconds
+        self._enable_preprocessing = enable_preprocessing
 
     async def execute(
         self,
@@ -178,7 +181,16 @@ class TriageUseCase:
         if self._classifier is None or not getattr(self._classifier, "loaded", True):
             raise ModelNotReadyError("Model service is unavailable or not ready")
 
-        raw_result = await run_in_threadpool(self._classifier.predict, http_request)
+        # Preprocess HTTP request for model input (training-serving consistency)
+        # The raw http_request is still persisted verbatim; this only affects
+        # the text passed to the ML model.
+        model_input = (
+            preprocess_http_request(http_request)
+            if self._enable_preprocessing
+            else http_request
+        )
+
+        raw_result = await run_in_threadpool(self._classifier.predict, model_input)
         prediction = raw_result.get("prediction") or raw_result.get("class")
         confidence_level = (
             raw_result.get("confidence_level") or raw_result.get("confidence_tier")

@@ -251,8 +251,8 @@ describe('bff-client', () => {
           allowed_count: 2,
           avg_confidence: 0.82,
           activity_buckets: [
-            { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: '2026-03-18T12:00:00Z' },
-            { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: '2026-03-18T13:00:00Z' },
+            { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z' },
+            { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z' },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -273,8 +273,8 @@ describe('bff-client', () => {
         throttled_count: 0,
         avg_confidence: 0.82,
         activity_buckets: [
-          { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: new Date('2026-03-18T12:00:00Z') },
-          { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: new Date('2026-03-18T13:00:00Z') },
+          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z') },
+          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z') },
         ],
         attack_distribution: {},
         top_source_ips: [],
@@ -326,7 +326,48 @@ describe('bff-client', () => {
         ece: null,
         per_class_f1: {},
         calibration_bins: [],
-        prediction_distribution: {},
+        prediction_distribution: { baseline: {}, current: {} },
+      },
+    })
+  })
+
+  it('normalizes flat ml-health prediction_distribution payloads from backend', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          model_version: 'distilbert-v1',
+          loaded: true,
+          status: 'healthy',
+          avg_inference_latency_ms: 2.1,
+          total_processed: 8,
+          drift_detected: false,
+          drift_score: null,
+          confidence_thresholds: {
+            low: 0.5,
+            high: 0.8,
+          },
+          prediction_distribution: {
+            sqli: 3,
+            benign: 5,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getMlHealth } = await loadClient()
+    const result = await getMlHealth()
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.prediction_distribution).toEqual({
+      baseline: {},
+      current: {
+        sqli: 3,
+        benign: 5,
       },
     })
   })

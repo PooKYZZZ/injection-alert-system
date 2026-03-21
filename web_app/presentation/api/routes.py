@@ -18,11 +18,12 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.application.triage_use_case import TriageUseCase
+from web_app.config import get_settings
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
@@ -76,8 +77,13 @@ async def predict(
     This handler is thin: it delegates to TriageUseCase which coordinates
     ML inference, confidence-gated action, and persistence.
     """
+    settings = get_settings()
     repository = TrafficLogRepository(db)
-    use_case = TriageUseCase(classifier=model, repository=repository)
+    use_case = TriageUseCase(
+        classifier=model,
+        repository=repository,
+        enable_preprocessing=settings.enable_http_model_preprocessing,
+    )
 
     result = await use_case.execute(
         http_request=prediction_request.http_request,
@@ -100,7 +106,7 @@ async def get_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Return aggregate traffic statistics with zero-safe defaults.
-    
+
     Optional window parameter filters stats to the specified time period.
     No window = all-time stats.
     """
@@ -109,17 +115,19 @@ async def get_stats(
     # Get real activity buckets from database for hero activity strip (graceful degradation)
     activity_buckets_list = []
     try:
-        activity_buckets = await repository.get_activity_buckets(hours=24, buckets=24)
+        activity_buckets = await repository.get_activity_buckets(window=window)
         activity_buckets_list = [
             ActivityBucketSchema(
                 bucket_index=b.bucket_index,
                 total_count=b.total_count,
                 blocked_count=b.blocked_count,
+                allowed_count=b.allowed_count,
+                throttled_count=b.throttled_count,
                 timestamp_start=b.timestamp_start,
             )
             for b in activity_buckets
         ]
-    except DBAPIError as e:
+    except SQLAlchemyError as e:
         # Database not available or not initialized - return empty buckets
         logger.warning("Database unavailable while fetching activity buckets: %s", e)
 
@@ -172,7 +180,7 @@ async def get_ml_health(
         drift_metrics = await repository.get_drift_metrics(recent_window=100)
         drift_detected = drift_metrics.drift_detected
         drift_score = drift_metrics.drift_score
-    except DBAPIError as e:
+    except SQLAlchemyError as e:
         # Database not available - drift detection unavailable
         logger.warning("Database unavailable while computing drift metrics: %s", e)
 
@@ -230,8 +238,7 @@ async def get_alerts(
     )
     return AlertListResponse(
         items=[
-            AlertDetailResponse.model_validate(entity)
-            for entity in alert_page.items
+            AlertDetailResponse.model_validate(entity) for entity in alert_page.items
         ],
         total=alert_page.total,
         page=alert_page.page,

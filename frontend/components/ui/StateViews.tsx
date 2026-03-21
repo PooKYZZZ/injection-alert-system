@@ -106,11 +106,13 @@ export function EmptyState({ message = 'No results found', subtext }: EmptyState
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
-      className="flex flex-col items-center gap-2 py-8 text-[#7d8590]"
+      className="flex flex-col items-center justify-center w-full h-full min-h-[120px] rounded-lg border border-dashed border-[#30363d] bg-[#161b22]/50 p-6 text-center"
     >
-      <InboxIcon className="h-5 w-5" />
-      <span className="text-sm">{message}</span>
-      {subtext && <span className="text-xs">{subtext}</span>}
+      <svg className="w-6 h-6 text-[#484f58] mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+      </svg>
+      <p className="text-[11px] font-medium text-[#7d8590]">{message}</p>
+      {subtext && <p className="text-[10px] text-[#484f58] mt-1">{subtext}</p>}
     </motion.div>
   )
 }

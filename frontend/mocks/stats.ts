@@ -19,6 +19,12 @@ const MOCK_ACTIVITY_BUCKETS: ActivityBucket[] = (() => {
     19, 17, 16, 18, 21, 19, // 12-17
     16, 14, 11, 8, 5, 3, // 18-23
   ]
+  const throttledPattern = [
+    1, 0, 0, 0, 0, 0, // 0-5
+    1, 2, 3, 4, 5, 5, // 6-11
+    5, 4, 4, 5, 5, 5, // 12-17
+    4, 3, 2, 1, 1, 0, // 18-23
+  ]
 
   for (let i = 0; i < 24; i++) {
     const hour = new Date(baseDate.getTime() + i * 60 * 60 * 1000)
@@ -26,6 +32,8 @@ const MOCK_ACTIVITY_BUCKETS: ActivityBucket[] = (() => {
       bucket_index: i,
       total_count: pattern[i],
       blocked_count: blockedPattern[i],
+      allowed_count: pattern[i] - blockedPattern[i] - throttledPattern[i],
+      throttled_count: throttledPattern[i],
       timestamp_start: hour,
     })
   }

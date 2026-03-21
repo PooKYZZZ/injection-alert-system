@@ -283,7 +283,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         self, window: Optional[str] = None
     ) -> TrafficStatsSummary:
         """Return aggregate traffic stats with zero-safe defaults.
-        
+
         Args:
             window: Optional time window filter (1h, 6h, 24h, 7d). If None, returns all-time stats.
         """
@@ -307,8 +307,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 func.coalesce(func.avg(TrafficLog.inference_latency_ms), 0.0).label(
                     "avg_inference_latency_ms"
                 ),
-            )
-            .where(*summary_where)
+            ).where(*summary_where)
         )
         summary_row = summary_result.one()
 
@@ -322,11 +321,13 @@ class TrafficLogRepository(ITrafficLogRepository):
             .where(TrafficLog.confidence.isnot(None))
         )
         if cutoff_time:
-            confidence_query = confidence_query.where(TrafficLog.timestamp >= cutoff_time)
-        
+            confidence_query = confidence_query.where(
+                TrafficLog.timestamp >= cutoff_time
+            )
+
         confidence_result = await self._session.execute(confidence_query)
         confidence_row = confidence_result.one()
-        
+
         # Return None if no non-null confidence values exist
         avg_confidence = None
         if confidence_row.confidence_count and confidence_row.confidence_count > 0:
@@ -343,7 +344,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         if cutoff_time:
             counts_query = counts_query.where(TrafficLog.timestamp >= cutoff_time)
-        
+
         counts_result = await self._session.execute(counts_query)
         for prediction, count in counts_result.all():
             if prediction is None:
@@ -354,7 +355,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         blocked_count = 0
         allowed_count = 0
         throttled_count = 0
-        
+
         action_query = (
             select(
                 TrafficLog.action_taken,
@@ -365,7 +366,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         if cutoff_time:
             action_query = action_query.where(TrafficLog.timestamp >= cutoff_time)
-        
+
         action_result = await self._session.execute(action_query)
         for action_taken, count in action_result.all():
             if action_taken == "BLOCKED":
@@ -377,35 +378,39 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         # Get top source IPs with most recent action
         top_source_ips: List[SourceIPSummary] = []
-        
+
         # Subquery to get most recent action per IP
         latest_action_subquery = (
             select(
                 TrafficLog.source_ip,
                 TrafficLog.action_taken,
-                func.row_number().over(
+                func.row_number()
+                .over(
                     partition_by=TrafficLog.source_ip,
-                    order_by=TrafficLog.timestamp.desc()
-                ).label("rn")
+                    order_by=TrafficLog.timestamp.desc(),
+                )
+                .label("rn"),
             )
             .where(self._completed_or_legacy_clause())
             .where(TrafficLog.source_ip.isnot(None))
         )
         if cutoff_time:
-            latest_action_subquery = latest_action_subquery.where(TrafficLog.timestamp >= cutoff_time)
+            latest_action_subquery = latest_action_subquery.where(
+                TrafficLog.timestamp >= cutoff_time
+            )
         latest_action_subquery = latest_action_subquery.subquery()
-        
+
         # Get top IPs by count with their most recent action
         top_ips_query = (
             select(
                 TrafficLog.source_ip,
                 func.count(TrafficLog.id).label("request_count"),
-                latest_action_subquery.c.action_taken.label("latest_action")
+                latest_action_subquery.c.action_taken.label("latest_action"),
             )
             .join(
                 latest_action_subquery,
-                (TrafficLog.source_ip == latest_action_subquery.c.source_ip) &
-                (latest_action_subquery.c.rn == 1)
+                (TrafficLog.source_ip == latest_action_subquery.c.source_ip)
+                & (latest_action_subquery.c.rn == 1),
             )
             .where(self._completed_or_legacy_clause())
             .where(TrafficLog.source_ip.isnot(None))
@@ -415,20 +420,20 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         if cutoff_time:
             top_ips_query = top_ips_query.where(TrafficLog.timestamp >= cutoff_time)
-        
+
         top_ips_result = await self._session.execute(top_ips_query)
         for row in top_ips_result.all():
             top_source_ips.append(
                 SourceIPSummary(
                     ip=row.source_ip,
                     count=int(row.request_count),
-                    action=row.latest_action
+                    action=row.latest_action,
                 )
             )
 
         # Get top targeted paths
         top_targeted_paths: List[TargetPathSummary] = []
-        
+
         paths_query = (
             select(
                 TrafficLog.request_path,
@@ -442,19 +447,17 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         if cutoff_time:
             paths_query = paths_query.where(TrafficLog.timestamp >= cutoff_time)
-        
+
         paths_result = await self._session.execute(paths_query)
         for row in paths_result.all():
             top_targeted_paths.append(
-                TargetPathSummary(
-                    path=row.request_path,
-                    hits=int(row.hit_count)
-                )
+                TargetPathSummary(path=row.request_path, hits=int(row.hit_count))
             )
 
         # Attack distribution is counts_by_label filtered to attack types only
         attack_distribution = {
-            k: v for k, v in counts_by_label.items()
+            k: v
+            for k, v in counts_by_label.items()
             if k in ("SQL Injection", "Code Injection", "Other Attacks")
         }
 
@@ -500,7 +503,11 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         baseline_row = baseline_result.one()
 
-        baseline_avg = float(baseline_row.baseline_avg) if baseline_row.baseline_avg is not None else 0.0
+        baseline_avg = (
+            float(baseline_row.baseline_avg)
+            if baseline_row.baseline_avg is not None
+            else 0.0
+        )
         baseline_count = int(baseline_row.confidence_count or 0)
 
         if baseline_count < recent_window:
@@ -509,7 +516,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 drift_score=None,
                 drift_detected=False,
                 recent_mean_confidence=None,
-                baseline_mean_confidence=round(baseline_avg, 4) if baseline_avg > 0 else 0.0,
+                baseline_mean_confidence=round(baseline_avg, 4)
+                if baseline_avg > 0
+                else 0.0,
                 recent_sample_size=0,
                 baseline_sample_size=baseline_count,
             )
@@ -527,7 +536,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             .limit(recent_window)
             .subquery()
         )
-        
+
         recent_result = await self._session.execute(
             select(
                 func.avg(recent_subquery.c.confidence).label("recent_avg"),
@@ -535,8 +544,10 @@ class TrafficLogRepository(ITrafficLogRepository):
             )
         )
         recent_row = recent_result.one()
-        
-        recent_avg = float(recent_row.recent_avg) if recent_row.recent_avg is not None else 0.0
+
+        recent_avg = (
+            float(recent_row.recent_avg) if recent_row.recent_avg is not None else 0.0
+        )
         recent_count = int(recent_row.recent_count or 0)
 
         if recent_count < recent_window:
@@ -563,7 +574,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         # Compute drift score as relative change, clamped to 0-1 per schema
         raw_drift = abs(recent_avg - baseline_avg) / baseline_avg
         drift_score = min(1.0, max(0.0, round(raw_drift, 4)))
-        
+
         # Consider drift detected if score > 10% (simple threshold)
         drift_detected = drift_score > 0.10
 
@@ -577,7 +588,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
 
     async def get_activity_buckets(
-        self, hours: int = 24, buckets: int = 24
+        self, window: Optional[str] = None, buckets: int = 24
     ) -> List[ActivityBucket]:
         """Get bucketed activity counts for the hero activity strip.
 
@@ -585,11 +596,11 @@ class TrafficLogRepository(ITrafficLogRepository):
         Each bucket contains total_count and blocked_count.
 
         Args:
-            hours: Number of hours to look back (default 24)
+            window: Optional time window filter (1h, 6h, 24h, 7d). Defaults to 24h.
             buckets: Number of buckets to divide the time into (default 24)
         """
-        now = datetime.now(timezone.utc)
-        window_start = now - timedelta(hours=hours)
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        window_start = now - TIME_RANGE_DELTAS.get(window or "24h", TIME_RANGE_DELTAS["24h"])
 
         # Get all records in the time window
         result = await self._session.execute(
@@ -604,12 +615,13 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         # Initialize buckets
         bucket_data = [
-            {"total": 0, "blocked": 0}
+            {"total": 0, "blocked": 0, "allowed": 0, "throttled": 0}
             for _ in range(buckets)
         ]
 
         # Calculate time window per bucket in seconds
-        seconds_per_bucket = (hours * 3600) / buckets
+        window_hours = TIME_RANGE_DELTAS.get(window or "24h", TIME_RANGE_DELTAS["24h"]).total_seconds() / 3600
+        seconds_per_bucket = (window_hours * 3600) / buckets
 
         for record in records:
             timestamp = record.timestamp
@@ -628,13 +640,20 @@ class TrafficLogRepository(ITrafficLogRepository):
             bucket_data[bucket_idx]["total"] += 1
             if record.action_taken == "BLOCKED":
                 bucket_data[bucket_idx]["blocked"] += 1
+            elif record.action_taken == "ALLOWED":
+                bucket_data[bucket_idx]["allowed"] += 1
+            elif record.action_taken == "THROTTLED":
+                bucket_data[bucket_idx]["throttled"] += 1
 
         return [
             ActivityBucket(
                 bucket_index=i,
                 total_count=bucket_data[i]["total"],
                 blocked_count=bucket_data[i]["blocked"],
-                timestamp_start=window_start + timedelta(seconds=i * seconds_per_bucket),
+                allowed_count=bucket_data[i]["allowed"],
+                throttled_count=bucket_data[i]["throttled"],
+                timestamp_start=window_start
+                + timedelta(seconds=i * seconds_per_bucket),
             )
             for i in range(buckets)
         ]
@@ -698,7 +717,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             page_size=page_size,
         )
 
-    async def list_recent(self, skip: int = 0, limit: int = 100) -> List[TrafficLogEntity]:
+    async def list_recent(
+        self, skip: int = 0, limit: int = 100
+    ) -> List[TrafficLogEntity]:
         """Retrieve recent traffic logs ordered by timestamp descending."""
         result = await self._session.execute(
             select(TrafficLog)

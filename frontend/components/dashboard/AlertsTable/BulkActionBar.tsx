@@ -1,6 +1,7 @@
 'use client'
 
 import { useDashboardStore } from 'store/dashboardStore'
+import { CheckSquare } from 'lucide-react'
 
 interface DashboardStoreState {
   selectedAlertIds: Set<string>
@@ -13,7 +14,7 @@ export default function BulkActionBar() {
     <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border border-blue-200 rounded-sm">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[16px] text-blue-600">check_box</span>
+          <CheckSquare size={14} className="text-violet-400" />
           <span className="text-sm font-medium text-blue-700">
             {count} Selected
           </span>

@@ -35,8 +35,7 @@ export const MOCK_ML_HEALTH: MLHealthData = {
     { bin_idx: 9, bin_center: 0.95, accuracy: 0.96, confidence: 0.95, count: 4500 },
   ],
   prediction_distribution: {
-    sqli: 3420,
-    xss: 2850,
-    benign: 8920,
+    baseline: { sqli: 3200, xss: 2700, benign: 8500 },
+    current: { sqli: 3420, xss: 2850, benign: 8920 },
   },
 }

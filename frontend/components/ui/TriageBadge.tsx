@@ -8,30 +8,12 @@ interface TriageBadgeProps {
 }
 
 const TRIAGE_MAPPING: Record<string, { label: string; styles: string }> = {
-  null: {
-    label: 'New',
-    styles: 'bg-[#1c2433] text-blue-400 border-[#1f3a5c]',
-  },
-  new: {
-    label: 'New',
-    styles: 'bg-[#1c2433] text-blue-400 border-[#1f3a5c]',
-  },
-  in_review: {
-    label: 'In Review',
-    styles: 'bg-[#2d2310] text-amber-400 border-amber-900',
-  },
-  escalated: {
-    label: 'Escalated',
-    styles: 'bg-[#2d1b1b] text-red-400 border-red-900',
-  },
-  resolved: {
-    label: 'Resolved',
-    styles: 'bg-[#0f2d1a] text-emerald-400 border-emerald-900',
-  },
-  false_positive: {
-    label: 'False Positive',
-    styles: 'bg-[#1c1c2e] text-[#6b7280] border-[#30363d]',
-  },
+  null: { label: 'New', styles: 'bg-transparent text-blue-400 border-blue-500/30' },
+  new: { label: 'New', styles: 'bg-transparent text-blue-400 border-blue-500/30' },
+  in_review: { label: 'In Review', styles: 'bg-transparent text-amber-400 border-amber-500/30' },
+  escalated: { label: 'Escalated', styles: 'bg-transparent text-red-400 border-red-500/30' },
+  resolved: { label: 'Resolved', styles: 'bg-transparent text-emerald-400 border-emerald-500/30' },
+  false_positive: { label: 'False Positive', styles: 'bg-transparent text-[#7d8590] border-[#30363d]' },
 }
 
 export function TriageBadge({ triage_status }: TriageBadgeProps) {

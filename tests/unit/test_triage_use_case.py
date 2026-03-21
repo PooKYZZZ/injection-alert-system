@@ -207,7 +207,8 @@ async def test_triage_offloads_sync_predict_via_threadpool(
     )
 
     assert captured["func"] is mock_classifier.predict
-    assert captured["args"] == ("GET /health",)
+    # Preprocessing is applied: "GET /health" -> "get /health"
+    assert captured["args"] == ("get /health",)
     assert captured["kwargs"] == {}
     assert result == TriageResult(
         alert_id=1,
@@ -655,3 +656,116 @@ async def test_execute_handles_options_asterisk_form(
     assert saved_entity.request_method == "OPTIONS"
     assert saved_entity.request_path == "*"  # Asterisk-form returned as-is
     assert saved_entity.http_request == raw_http_request
+
+
+@pytest.mark.asyncio
+async def test_triage_preprocessing_enabled(mock_classifier, mock_repository):
+    """Test that preprocessing is applied when enable_preprocessing=True."""
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    captured_args = []
+    original_predict = mock_classifier.predict
+
+    def capture_predict(text):
+        captured_args.append(text)
+        return original_predict(text)
+
+    mock_classifier.predict = capture_predict
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,
+    )
+
+    await use_case.execute(
+        http_request="GET /search?q=1' UNION SELECT * FROM users-- HTTP/1.1",
+        source_ip="192.168.1.1",
+    )
+
+    # With preprocessing enabled, model receives lowercase canonicalized text
+    assert len(captured_args) == 1
+    # The preprocessed text should be lowercase
+    assert captured_args[0] == "get /search?q=1' union select * from users--"
+    # Should NOT be the raw HTTP request
+    assert "HTTP/1.1" not in captured_args[0]
+    assert "Host" not in captured_args[0]
+
+
+@pytest.mark.asyncio
+async def test_triage_preprocessing_disabled(mock_classifier, mock_repository):
+    """Test that raw HTTP is passed when enable_preprocessing=False."""
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    captured_args = []
+    original_predict = mock_classifier.predict
+
+    def capture_predict(text):
+        captured_args.append(text)
+        return original_predict(text)
+
+    mock_classifier.predict = capture_predict
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=False,
+    )
+
+    raw_request = "GET /search?q=1' UNION SELECT * FROM users-- HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_request,
+        source_ip="192.168.1.1",
+    )
+
+    # With preprocessing disabled, model receives raw HTTP request
+    assert len(captured_args) == 1
+    assert captured_args[0] == raw_request
+
+
+@pytest.mark.asyncio
+async def test_triage_raw_http_request_preserved_for_persistence(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that raw http_request is stored verbatim regardless of preprocessing.
+
+    The preprocessed text is ONLY for model input. The persisted record
+    must preserve the original raw HTTP for forensic evidence.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,  # Preprocessing enabled
+    )
+
+    raw_request = (
+        "GET /search?q=1' UNION SELECT password FROM admin-- HTTP/1.1\r\n"
+        "Host: target.example.com\r\n"
+        "User-Agent: Mozilla/5.0\r\n\r\n"
+    )
+    await use_case.execute(
+        http_request=raw_request,
+        source_ip="192.168.1.100",
+    )
+
+    # Verify the entity passed to save has raw http_request preserved
+    saved_entity = mock_repository.save.call_args[0][0]
+    assert saved_entity.http_request == raw_request
+    # http_request should be the exact raw input, not preprocessed
+    assert "Host: target.example.com" in saved_entity.http_request
+    assert "User-Agent: Mozilla/5.0" in saved_entity.http_request
