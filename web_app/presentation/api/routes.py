@@ -132,6 +132,8 @@ async def get_stats(
                 allowed_count=b.allowed_count,
                 throttled_count=b.throttled_count,
                 timestamp_start=b.timestamp_start,
+                timestamp_end=b.timestamp_end,
+                bucket_width_seconds=b.bucket_width_seconds,
             )
             for b in activity_buckets
         ]

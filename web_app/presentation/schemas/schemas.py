@@ -114,6 +114,12 @@ class ActivityBucketSchema(BaseModel):
         default=0, ge=0, description="Throttled requests in this bucket"
     )
     timestamp_start: datetime = Field(description="Start of this bucket's time window")
+    timestamp_end: Optional[datetime] = Field(
+        default=None, description="End of this bucket's time window"
+    )
+    bucket_width_seconds: Optional[int] = Field(
+        default=None, ge=1, description="Bucket width in seconds"
+    )
 
 
 class SourceIPSummarySchema(BaseModel):

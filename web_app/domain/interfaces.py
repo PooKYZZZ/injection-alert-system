@@ -49,6 +49,8 @@ class ActivityBucket:
     allowed_count: int  # Allowed requests in this bucket
     throttled_count: int  # Throttled requests in this bucket
     timestamp_start: datetime  # Start of this bucket's time window
+    timestamp_end: Optional[datetime] = None  # End of this bucket's time window
+    bucket_width_seconds: Optional[int] = None  # Width of bucket in seconds
 
 
 @dataclass

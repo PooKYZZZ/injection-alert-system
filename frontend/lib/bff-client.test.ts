@@ -252,8 +252,8 @@ describe('bff-client', () => {
           avg_confidence: 0.82,
           prev_high_alert_count: 123,
           activity_buckets: [
-            { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z' },
-            { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z' },
+            { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+            { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -282,8 +282,8 @@ describe('bff-client', () => {
         prev_allowed_count: null,
         prev_throttled_count: null,
         activity_buckets: [
-          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z') },
-          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z') },
+          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z'), timestamp_end: new Date('2026-03-18T13:00:00Z'), bucket_width_seconds: 3600 },
+          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z'), timestamp_end: new Date('2026-03-18T14:00:00Z'), bucket_width_seconds: 3600 },
         ],
         attack_distribution: {},
         top_source_ips: [],
@@ -341,8 +341,8 @@ describe('bff-client', () => {
           throttled_count: 0,
           avg_confidence: 0.6,
           activity_buckets: [
-            { bucket_index: 1, total_count: 1, blocked_count: 1, allowed_count: 0, throttled_count: 0, timestamp_start: '2026-03-18T13:00:00Z' },
-            { bucket_index: 0, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z' },
+            { bucket_index: 1, total_count: 1, blocked_count: 1, allowed_count: 0, throttled_count: 0, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
+            { bucket_index: 0, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -385,6 +385,7 @@ describe('bff-client', () => {
               allowed_count: 0,
               throttled_count: 0,
               timestamp_start: 'not-a-timestamp',
+              timestamp_end: '2026-03-18T13:00:00Z',
             },
           ],
         }),
@@ -422,8 +423,8 @@ describe('bff-client', () => {
           throttled_count: 0,
           avg_confidence: 0.2,
           activity_buckets: [
-            { bucket_index: 2, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z' },
-            { bucket_index: 1, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z' },
+            { bucket_index: 2, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+            { bucket_index: 1, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }

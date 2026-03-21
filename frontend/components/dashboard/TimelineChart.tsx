@@ -27,31 +27,58 @@ function CustomTooltip({
   active,
   payload,
   label,
+  timeWindow,
 }: {
   active?: boolean
-  payload?: ReadonlyArray<{ dataKey?: string | number; color?: string; name?: string | number; value?: string | number }>
+  payload?: ReadonlyArray<{
+    dataKey?: string | number
+    color?: string
+    name?: string | number
+    value?: string | number
+    payload?: { timestampEndMs?: number | null }
+  }>
   label?: string | number
+  timeWindow: TimeWindow
 }) {
   if (!active || !payload?.length) return null
 
-  const timestamp = typeof label === 'number' ? label : Number(label)
-  const displayLabel = Number.isFinite(timestamp)
-    ? new Date(timestamp).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      })
-    : String(label)
+  const timestampStart = typeof label === 'number' ? label : Number(label)
+  const timestampEnd = payload[0]?.payload?.timestampEndMs ?? null
+  const hasValidStart = Number.isFinite(timestampStart)
+  const hasValidEnd = typeof timestampEnd === 'number' && Number.isFinite(timestampEnd) && timestampEnd > timestampStart
+
+  const formatDateTime = (value: number) =>
+    new Date(value).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+
+  const displayLabel =
+    hasValidStart && hasValidEnd && timeWindow === '7d'
+      ? `${formatDateTime(timestampStart)} - ${new Date(timestampEnd).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })}`
+      : hasValidStart
+        ? formatDateTime(timestampStart)
+        : String(label)
 
   return (
-    <div className="border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-2 py-1.5 text-[10px]">
-      <p className="mb-1 text-[11px] font-medium text-[var(--color-text-primary)]">{displayLabel}</p>
+    <div className="w-[156px] border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-3 py-2">
+      <p className="mb-2 text-[11px] font-semibold text-[var(--color-text-primary)]">{displayLabel}</p>
       {payload.map((entry) => (
-        <p key={String(entry.dataKey)} style={{ color: entry.color as string }} className="text-[11px] leading-5">
-          {String(entry.name)} : {entry.value}
-        </p>
+        <div
+          key={String(entry.dataKey)}
+          className="grid grid-cols-[1fr_auto] items-center gap-2 text-[11px] leading-5 tabular-nums"
+          style={{ color: entry.color as string }}
+        >
+          <span className="truncate">{String(entry.name)}</span>
+          <span className="text-right font-medium">{entry.value}</span>
+        </div>
       ))}
     </div>
   )
@@ -76,12 +103,21 @@ export function TimelineChart({
     if (!buckets || buckets.length === 0) return []
 
     return buckets
-      .map((bucket) => ({
-        timestampMs: new Date(bucket.timestamp_start).getTime(),
-        allowed: bucket.allowed_count || 0,
-        blocked: bucket.blocked_count || 0,
-        throttled: bucket.throttled_count || 0,
-      }))
+      .map((bucket) => {
+        const timestampMs = new Date(bucket.timestamp_start).getTime()
+        const timestampEndMs = bucket.timestamp_end
+          ? new Date(bucket.timestamp_end).getTime()
+          : bucket.bucket_width_seconds
+            ? timestampMs + bucket.bucket_width_seconds * 1000
+            : null
+        return {
+          timestampMs,
+          timestampEndMs,
+          allowed: bucket.allowed_count || 0,
+          blocked: bucket.blocked_count || 0,
+          throttled: bucket.throttled_count || 0,
+        }
+      })
       .sort((a, b) => a.timestampMs - b.timestampMs)
   }, [buckets])
 
@@ -144,11 +180,19 @@ export function TimelineChart({
             tickMargin={5}
           />
           <Tooltip
+            offset={12}
             content={(props) => (
               <CustomTooltip
                 active={props.active}
-                payload={props.payload as unknown as ReadonlyArray<{ dataKey?: string | number; color?: string; name?: string | number; value?: string | number }>}
+                payload={props.payload as unknown as ReadonlyArray<{
+                  dataKey?: string | number
+                  color?: string
+                  name?: string | number
+                  value?: string | number
+                  payload?: { timestampEndMs?: number | null }
+                }>}
                 label={props.label as string | number}
+                timeWindow={timeWindow}
               />
             )}
             cursor={{ stroke: 'var(--color-text-primary)', strokeOpacity: 0.2, strokeWidth: 1, strokeDasharray: '3 3' }}
@@ -209,5 +253,3 @@ export function TimelineChart({
     </div>
   )
 }
-
-

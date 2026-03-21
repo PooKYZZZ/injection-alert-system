@@ -803,6 +803,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 throttled_count=bucket_data[i]["throttled"],
                 timestamp_start=window_start
                 + timedelta(seconds=i * seconds_per_bucket),
+                timestamp_end=window_start
+                + timedelta(seconds=(i + 1) * seconds_per_bucket),
+                bucket_width_seconds=seconds_per_bucket,
             )
             for i in range(buckets)
         ]

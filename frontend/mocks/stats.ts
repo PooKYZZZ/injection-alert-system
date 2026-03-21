@@ -35,6 +35,8 @@ const MOCK_ACTIVITY_BUCKETS: ActivityBucket[] = (() => {
       allowed_count: pattern[i] - blockedPattern[i] - throttledPattern[i],
       throttled_count: throttledPattern[i],
       timestamp_start: hour,
+      timestamp_end: new Date(hour.getTime() + 60 * 60 * 1000),
+      bucket_width_seconds: 3600,
     })
   }
   return buckets

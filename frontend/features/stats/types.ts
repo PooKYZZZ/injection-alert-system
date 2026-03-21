@@ -5,6 +5,8 @@ export interface ActivityBucket {
   allowed_count: number
   throttled_count: number
   timestamp_start: Date
+  timestamp_end?: Date | null
+  bucket_width_seconds?: number | null
 }
 
 import type { AlertAction } from '@/features/alerts/contract'

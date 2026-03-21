@@ -54,6 +54,8 @@ const BackendActivityBucketSchema = z.object({
   allowed_count: z.number(),
   throttled_count: z.number(),
   timestamp_start: z.string(),
+  timestamp_end: z.string().nullable().optional(),
+  bucket_width_seconds: z.number().nullable().optional(),
 })
 
 const BackendSourceIPSchema = z.object({
@@ -336,6 +338,16 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
       )
     }
 
+    const parsedTimestampEnd =
+      bucket.timestamp_end != null ? new Date(bucket.timestamp_end) : null
+    if (parsedTimestampEnd != null && Number.isNaN(parsedTimestampEnd.getTime())) {
+      return err(
+        502,
+        'UPSTREAM_ERROR',
+        `Upstream response contained invalid bucket end timestamp at index ${idx}: ${bucket.timestamp_end}`
+      )
+    }
+
     normalizedBuckets.push({
       bucket_index: bucket.bucket_index,
       total_count: bucket.total_count,
@@ -343,6 +355,8 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
       allowed_count: bucket.allowed_count,
       throttled_count: bucket.throttled_count,
       timestamp_start: parsedTimestamp,
+      timestamp_end: parsedTimestampEnd,
+      bucket_width_seconds: bucket.bucket_width_seconds ?? null,
       _originalIndex: idx,
     })
   }
