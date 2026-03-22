@@ -74,8 +74,6 @@ pnpm-debug.log*
 .kilocode/
 .serena/
 .copilot/
-.github/copilot-instructions.md
-AGENTS.md
 
 # Playwright E2E test artifacts
 frontend/e2e/screenshots/
@@ -129,19 +127,10 @@ ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
 .agents/
 .claude/
 .factory/
-.github/
 .playwright/
 .windsurf/
 Thumbs.db
-.kilocode/skills/enhanced-code-review/SKILL.md
-.kilocode/skills/ralph/SKILL.md
-.kilocode/skills/ralph/skill.yaml
-.kilocode/skills/security-audit/SKILL.md
-.kilocode/skills/security-audit/skill.yaml
-.kilocode/skills/teams/SKILL.md
-.kilocode/skills/teams/skill.yaml
 .github/copilot-instructions.md
-AGENTS.md
 .claude/skills/playwright-cli/SKILL.md
 .claude/skills/playwright-cli/references/request-mocking.md
 .claude/skills/playwright-cli/references/running-code.md
@@ -158,11 +147,9 @@ seed_demo.py
 sample_real_attacks.py
 seed_via_api.py
 frontend/.env.e2e.example
-frontend/package.json
 frontend/playwright.config.ts
 frontend/e2e/README.md
 frontend/e2e/website.spec.ts
-.agent\\
 skills-lock.json
 agent-tooling.md
 docs/skills.md
@@ -177,9 +164,4 @@ docs/project-ops/BATCH_3_5_7_DEPENDENCIES.md
 docs/DESIGN_SYSTEM.md
 docs/project-ops/AI_STUDIO_PORT_CHECKLIST.md
 docs/project-ops/DATA_AUDIT.md
-docs/project-ops/LIVING_CHECKLIST.md
-docs/project-ops/STATUS.md
 BACKEND_PROMPT_REFERENCE.md
-
-.github/
-.serena/
