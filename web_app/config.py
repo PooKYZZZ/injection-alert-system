@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     model_path: str
     model_registry_path: str = ""
-    api_secret_key: str
+    api_secret_key: str | None = None
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     is_development: bool = False

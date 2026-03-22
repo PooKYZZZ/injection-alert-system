@@ -69,43 +69,9 @@ const BackendTargetPathSchema = z.object({
   hits: z.number(),
 })
 
-type BackendSourceIp = {
-  ip: string
-  count: number
-  action?: string | null
-}
-
-type BackendTargetPath = {
-  path: string
-  hits: number
-}
-
-type BackendStatsPayload = {
-  total_requests: number
-  counts_by_label: {
-    'SQL Injection': number
-    'Code Injection': number
-    'Other Attacks': number
-    Normal: number
-  }
-  avg_inference_latency_ms: number
-  blocked_count: number
-  allowed_count: number
-  throttled_count?: number
-  avg_confidence: number | null
-  false_positive_rate?: number
-  false_positive_count?: number
-  high_alert_count?: number
-  prev_high_alert_count?: number | null
-  prev_total_requests?: number | null
-  prev_blocked_count?: number | null
-  prev_allowed_count?: number | null
-  prev_throttled_count?: number | null
-  activity_buckets: z.infer<typeof BackendActivityBucketSchema>[]
-  attack_distribution?: Record<string, number>
-  top_source_ips?: BackendSourceIp[]
-  top_targeted_paths?: BackendTargetPath[]
-}
+type BackendSourceIp = z.infer<typeof BackendSourceIPSchema>
+type BackendTargetPath = z.infer<typeof BackendTargetPathSchema>
+type BackendStatsPayload = z.infer<typeof BackendStatsSchema>
 
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
