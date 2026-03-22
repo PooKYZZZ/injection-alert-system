@@ -17,9 +17,10 @@ Dependency rule:
 from dataclasses import dataclass
 import asyncio
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional, List
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,6 +74,15 @@ class TrafficLogRepository(ITrafficLogRepository):
     @staticmethod
     def _resolve_window_delta(window: Optional[str]) -> timedelta:
         return TIME_RANGE_DELTAS.get(window or "24h", TIME_RANGE_DELTAS["24h"])
+
+    @staticmethod
+    def _resolve_timezone(timezone_name: Optional[str]) -> ZoneInfo:
+        if not timezone_name:
+            return ZoneInfo("UTC")
+        try:
+            return ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            return ZoneInfo("UTC")
 
     def _resolve_window_bounds(
         self,
@@ -161,6 +171,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "confidence_level": entity.confidence_level,
             "inference_latency_ms": entity.inference_latency_ms,
             "model_version": entity.model_version,
+            "lease_expires_at": entity.lease_expires_at,
+            "processing_owner_token": entity.processing_owner_token,
+            "processing_attempt": entity.processing_attempt,
             "action_taken": entity.action_taken,
             "analyst_label": entity.analyst_label,
             "labeled_at": entity.labeled_at,
@@ -197,6 +210,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             inference_latency_ms=orm_obj.inference_latency_ms,
             status=orm_obj.status,
             model_version=orm_obj.model_version,
+            lease_expires_at=orm_obj.lease_expires_at,
+            processing_owner_token=orm_obj.processing_owner_token,
+            processing_attempt=orm_obj.processing_attempt,
             action_taken=orm_obj.action_taken,
             analyst_label=orm_obj.analyst_label,
             labeled_at=orm_obj.labeled_at,
@@ -302,10 +318,97 @@ class TrafficLogRepository(ITrafficLogRepository):
         await self._session.commit()
         return (result.rowcount or 0) > 0
 
+    async def claim_or_reclaim_processing(
+        self,
+        entity: TrafficLogEntity,
+        *,
+        owner_token: str,
+        lease_expires_at: datetime,
+        now: datetime,
+    ) -> TrafficLogEntity | None:
+        """Claim a fresh PROCESSING row or reclaim a stale one atomically."""
+        if not entity.transaction_id:
+            raise ValueError("transaction_id is required to claim processing")
+
+        values = {
+            "transaction_id": entity.transaction_id,
+            "timestamp": entity.timestamp,
+            "source_ip": entity.source_ip,
+            "request_path": entity.request_path,
+            "request_method": entity.request_method,
+            "http_request": entity.http_request,
+            "crs_score": entity.crs_score,
+            "crs_rule_ids": entity.crs_rule_ids,
+            "status": "PROCESSING",
+            "lease_expires_at": lease_expires_at,
+            "processing_owner_token": owner_token,
+            "processing_attempt": 1,
+        }
+
+        dialect_name = self._session.bind.dialect.name if self._session.bind else ""
+        if dialect_name == "postgresql":
+            insert_stmt = postgresql_insert(TrafficLog).values(**values)
+        else:
+            insert_stmt = sqlite_insert(TrafficLog).values(**values)
+
+        result = await self._session.execute(
+            insert_stmt.on_conflict_do_nothing(
+                index_elements=[TrafficLog.transaction_id]
+            )
+        )
+        await self._session.commit()
+
+        existing = await self.get_by_transaction_id(entity.transaction_id)
+        if (
+            existing is not None
+            and existing.status == "PROCESSING"
+            and existing.processing_owner_token == owner_token
+        ):
+            return existing
+
+        update_stmt = (
+            update(TrafficLog)
+            .where(TrafficLog.transaction_id == entity.transaction_id)
+            .where(
+                and_(
+                    TrafficLog.status == "PROCESSING",
+                    TrafficLog.lease_expires_at.isnot(None),
+                    TrafficLog.lease_expires_at < now,
+                )
+            )
+            .values(
+                timestamp=entity.timestamp,
+                source_ip=entity.source_ip,
+                request_path=entity.request_path,
+                request_method=entity.request_method,
+                http_request=entity.http_request,
+                crs_score=entity.crs_score,
+                crs_rule_ids=entity.crs_rule_ids,
+                status="PROCESSING",
+                lease_expires_at=lease_expires_at,
+                processing_owner_token=owner_token,
+                processing_attempt=TrafficLog.processing_attempt + 1,
+            )
+        )
+        result = await self._session.execute(update_stmt)
+        await self._session.commit()
+
+        existing = await self.get_by_transaction_id(entity.transaction_id)
+        if (
+            existing is not None
+            and existing.status == "PROCESSING"
+            and existing.processing_owner_token == owner_token
+        ):
+            return existing
+        if existing is not None and existing.status == "COMPLETED":
+            return existing
+        return None
+
     async def complete_processing(
         self,
         transaction_id: str,
         *,
+        owner_token: str,
         prediction: str,
         confidence: float,
         confidence_level: str,
@@ -314,9 +417,13 @@ class TrafficLogRepository(ITrafficLogRepository):
         action_taken: str,
     ) -> TrafficLogEntity:
         """Complete a previously claimed PROCESSING row."""
-        await self._session.execute(
+        result = await self._session.execute(
             update(TrafficLog)
-            .where(TrafficLog.transaction_id == transaction_id)
+            .where(
+                TrafficLog.transaction_id == transaction_id,
+                TrafficLog.status == "PROCESSING",
+                TrafficLog.processing_owner_token == owner_token,
+            )
             .values(
                 prediction=prediction,
                 confidence=confidence,
@@ -325,9 +432,16 @@ class TrafficLogRepository(ITrafficLogRepository):
                 model_version=model_version,
                 action_taken=action_taken,
                 status="COMPLETED",
+                lease_expires_at=None,
+                processing_owner_token=None,
             )
         )
         await self._session.commit()
+        if (result.rowcount or 0) == 0:
+            existing = await self.get_by_transaction_id(transaction_id)
+            if existing is None:
+                raise RuntimeError("Completed traffic log could not be reloaded")
+            return existing
         completed = await self.get_by_transaction_id(transaction_id)
         if completed is None:
             raise RuntimeError("Completed traffic log could not be reloaded")
@@ -736,6 +850,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         window: Optional[str] = None,
         buckets: int = 24,
         reference_time: Optional[datetime] = None,
+        timezone_name: Optional[str] = None,
     ) -> List[ActivityBucket]:
         """Get bucketed activity counts for the hero activity strip.
 
@@ -750,6 +865,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             return []
 
         window_start, window_end, delta = self._resolve_window_bounds(window, reference_time)
+        local_tz = self._resolve_timezone(timezone_name)
 
         # Get all records in the time window
         result = await self._session.execute(
@@ -771,6 +887,7 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         window_seconds = int(delta.total_seconds())
         seconds_per_bucket = max(1, window_seconds // buckets)
+        window_start_local = window_start.astimezone(local_tz)
 
         for record in records:
             timestamp = record.timestamp
@@ -781,8 +898,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             if timestamp.tzinfo is None:
                 timestamp = timestamp.replace(tzinfo=timezone.utc)
 
+            local_timestamp = timestamp.astimezone(local_tz)
             # Calculate bucket index
-            seconds_since_start = (timestamp - window_start).total_seconds()
+            seconds_since_start = (local_timestamp - window_start_local).total_seconds()
             bucket_idx = int(seconds_since_start // seconds_per_bucket)
             bucket_idx = max(0, min(bucket_idx, buckets - 1))
 
@@ -801,10 +919,12 @@ class TrafficLogRepository(ITrafficLogRepository):
                 blocked_count=bucket_data[i]["blocked"],
                 allowed_count=bucket_data[i]["allowed"],
                 throttled_count=bucket_data[i]["throttled"],
-                timestamp_start=window_start
-                + timedelta(seconds=i * seconds_per_bucket),
-                timestamp_end=window_start
-                + timedelta(seconds=(i + 1) * seconds_per_bucket),
+                timestamp_start=(
+                    window_start_local + timedelta(seconds=i * seconds_per_bucket)
+                ).astimezone(timezone.utc),
+                timestamp_end=(
+                    window_start_local + timedelta(seconds=(i + 1) * seconds_per_bucket)
+                ).astimezone(timezone.utc),
                 bucket_width_seconds=seconds_per_bucket,
             )
             for i in range(buckets)

@@ -122,6 +122,17 @@ class ActivityBucketSchema(BaseModel):
     )
 
 
+class StatsQueryParameters(BaseModel):
+    """Query parameters for stats endpoints."""
+
+    window: Optional[Literal["1h", "6h", "24h", "7d"]] = Field(
+        default=None, description="Time window for stats"
+    )
+    timezone: Optional[str] = Field(
+        default=None, description="IANA timezone used for bucket boundaries"
+    )
+
+
 class SourceIPSummarySchema(BaseModel):
     """Schema for source IP summary in stats response."""
 

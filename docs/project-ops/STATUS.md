@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status  
 **Defense:** May 2026  
-**Last updated:** 2026-03-20
+**Last updated:** 2026-03-22
 
 ---
 
@@ -12,9 +12,9 @@
   - `#39` `fix: add reservation-first triage ingest`
   - `#38` `feat: implement internal authentication with bearer token for API endpoints`
   - `#37` `Codex/feat/backend read api batch`
-- Backend tests currently pass locally: `87 passed`
+- Backend tests currently pass locally: `168 passed`
 - Frontend typecheck currently passes locally: `npm run typecheck`
-- Frontend tests currently pass locally: `74 passed`
+- Frontend tests currently pass locally: `46 passed`
 - All frontend BFF tests pass:
   - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts`
 - Backend routes currently implemented:
@@ -30,9 +30,10 @@
   - `GET /api/health`
 - Triage ingest is reservation-first on `transaction_id`:
   - placeholder row inserted with `status="PROCESSING"`
-  - winner determined by `INSERT ... ON CONFLICT DO NOTHING` rowcount
-  - winner completes the row to `status="COMPLETED"` after inference
-  - loser returns existing completed data or a retriable response while processing is in flight
+  - winner determined by atomic claim-or-reclaim behavior on the reservation row
+  - expired leases can be reclaimed safely by a later request
+  - current owner completes the row to `status="COMPLETED"` after inference
+  - loser returns existing completed data or a conflict while processing is in flight
 - `PROCESSING` placeholder rows are excluded from normal alerts and stats reads
 - Frontend BFF current workspace state:
   - all five route handlers are wired through `frontend/lib/bff-client.ts`
@@ -74,9 +75,9 @@
 | `frontend/components/ml-health/ModelHeader.tsx` | Changed `value="Temp-scaled"` to `value="—"` |
 
 ### Validation Results
-- pytest: 87 passed ✓
+- pytest: 168 passed ✓
 - typecheck: PASSED ✓
-- vitest (full suite): 74 passed ✓
+- vitest (BFF slice): 46 passed ✓
 
 Full audit report: `docs/project-ops/DATA_AUDIT.md`
 
@@ -91,7 +92,7 @@ Full audit report: `docs/project-ops/DATA_AUDIT.md`
 - Data scripts still hardcode workstation-specific paths
 - Dashboard stats now include throttled_count, top_source_ips, top_targeted_paths, attack_distribution with window filtering
 - ML health now exposes optional eval metadata (macro_f1, ece, per_class_f1, calibration_bins, prediction_distribution) when model registry eval artifacts are present
-- Stale `PROCESSING` reservations return `503` with `Retry-After`, but there is no automatic reclamation path yet
+- `PROCESSING` reservations now use lease ownership fields (`lease_expires_at`, `processing_owner_token`, `processing_attempt`) and can be reclaimed on demand when expired
 - `app.state.model` remains a compatibility alias for `app.state.model_service`
 - `/api/alerts` now returns persisted records correctly - DB schema aligned
 

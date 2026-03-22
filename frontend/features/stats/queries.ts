@@ -15,14 +15,21 @@ import { DashboardStats } from './types'
 
 export const statsKeys = {
   all: ['stats'] as const,
-  stats: (window?: string) => ['stats', 'dashboard', { window }] as const,
+  stats: (window?: string, timezone?: string) => ['stats', 'dashboard', { window, timezone }] as const,
 }
 
-export function statsOptions(window?: string) {
+function getBrowserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
+export function statsOptions(window?: string, timezone = getBrowserTimeZone()) {
   return queryOptions<DashboardStats>({
-    queryKey: statsKeys.stats(window),
+    queryKey: statsKeys.stats(window, timezone),
     queryFn: async () => {
-      const url = window ? `/api/stats?window=${window}` : '/api/stats'
+      const params = new URLSearchParams()
+      if (window) params.set('window', window)
+      if (timezone) params.set('timezone', timezone)
+      const url = params.size > 0 ? `/api/stats?${params.toString()}` : '/api/stats'
       const r = await fetch(url)
       if (!r.ok) throw new Error(`/api/stats responded with ${r.status}`)
       return r.json()
@@ -33,4 +40,5 @@ export function statsOptions(window?: string) {
   })
 }
 
-export const useDashboardStats = (window?: string) => useQuery(statsOptions(window))
+export const useDashboardStats = (window?: string, timezone?: string) =>
+  useQuery(statsOptions(window, timezone))

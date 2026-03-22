@@ -4,11 +4,11 @@
 > Check off items as you complete them. Keep this file updated after every session.
 > This is your memory across sessions — never skip updating it.
 
-**Last updated:** 2026-03-20
+**Last updated:** 2026-03-22
 
 Status note:
 - This file is a working implementation checklist, not the live runtime source of truth.
-- Current test baseline: pytest 87 passed, vitest 74 passed, typecheck passed
+- Current test baseline: pytest 168 passed, vitest 46 passed, typecheck passed
 - Full audit report: `docs/project-ops/DATA_AUDIT.md`
 
 ---
@@ -25,9 +25,9 @@ Status note:
 ## Current Verified State (2026-03-20)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **87 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **168 passed**
 - Frontend: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run` → **74 passed**
+- Frontend BFF: `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **46 passed**
 
 ### Backend Routes (All Implemented)
 - `POST /api/predict` ✓
@@ -73,7 +73,7 @@ Status note:
 - PATCH `/api/alerts/{id}/triage` - OK, persists triage status
 
 ### Gap Items for Future Work
-1. Implement automatic reclamation of stale `PROCESSING` reservations (returns 503 + Retry-After)
+1. Keep the lease-based triage reclaim docs/checklist aligned with the implementation
 2. Add richer backend-native dashboard stats beyond BFF normalization
 3. Wire live Supabase deployment
 4. TrustedHostMiddleware / HTTPS redirect configuration

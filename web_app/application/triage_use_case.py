@@ -14,7 +14,8 @@ Dependency rule:
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from typing import Protocol
 
 from starlette.concurrency import run_in_threadpool
@@ -73,10 +74,6 @@ class TriageInProgressError(RuntimeError):
     """Raised when another request currently owns the transaction_id claim."""
 
 
-class TriageProcessingStaleError(RuntimeError):
-    """Raised when a PROCESSING reservation exceeded the stale timeout."""
-
-
 class TriageUseCase:
     """Coordinates deduplication, ML inference, action policy, and persistence."""
 
@@ -128,7 +125,11 @@ class TriageUseCase:
         return self._result_from_entity(saved)
 
     async def ingest(self, command: TriageIngestCommand) -> TriageResult:
-        claimed = await self._repository.claim_processing(
+        now = datetime.now(timezone.utc)
+        owner_token = uuid4().hex
+        lease_expires_at = now + timedelta(seconds=self._stale_processing_timeout_seconds)
+
+        authoritative = await self._repository.claim_or_reclaim_processing(
             TrafficLogEntity(
                 transaction_id=command.transaction_id,
                 timestamp=command.timestamp,
@@ -139,9 +140,12 @@ class TriageUseCase:
                 crs_score=command.crs_score,
                 crs_rule_ids=command.crs_rule_ids,
                 status="PROCESSING",
-            )
+            ),
+            owner_token=owner_token,
+            lease_expires_at=lease_expires_at,
+            now=now,
         )
-        if not claimed:
+        if authoritative is None:
             existing = await self._repository.get_by_transaction_id(command.transaction_id)
             if existing is None:
                 raise RuntimeError(
@@ -150,16 +154,15 @@ class TriageUseCase:
             if existing.status == "COMPLETED":
                 return self._result_from_entity(existing)
             if existing.status == "PROCESSING":
-                if self._is_stale(existing):
-                    raise TriageProcessingStaleError(
-                        "Triage reservation is stale; retry shortly"
-                    )
                 raise TriageInProgressError(
                     "Triage ingest is already processing for this transaction_id"
                 )
             raise RuntimeError(
                 f"Unsupported triage reservation status '{existing.status}' for transaction_id"
             )
+
+        if authoritative.status == "COMPLETED":
+            return self._result_from_entity(authoritative)
 
         prediction = await self._predict(command.http_request)
         action_taken = self._action_for(
@@ -168,6 +171,7 @@ class TriageUseCase:
         )
         saved = await self._repository.complete_processing(
             command.transaction_id,
+            owner_token=owner_token,
             prediction=prediction["prediction"],
             confidence=prediction["confidence"],
             confidence_level=prediction["confidence_level"],
@@ -229,15 +233,6 @@ class TriageUseCase:
         if command.request_body:
             parts.append(f"\nBody:\n{command.request_body}")
         return "".join(parts)
-
-    def _is_stale(self, entity: TrafficLogEntity) -> bool:
-        if entity.created_at is None:
-            return False
-        created_at = entity.created_at
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
-        age_seconds = (datetime.now(timezone.utc) - created_at).total_seconds()
-        return age_seconds > self._stale_processing_timeout_seconds
 
     @staticmethod
     def _result_from_entity(entity: TrafficLogEntity) -> TriageResult:

@@ -227,7 +227,27 @@ describe('BFF route handlers', () => {
     const response = await GET(new NextRequest('http://localhost:3000/api/stats?window=7d'))
 
     expect(response.status).toBe(200)
-    expect(getStatsMock).toHaveBeenCalledWith('7d')
+    expect(getStatsMock).toHaveBeenCalledWith('7d', undefined)
+  })
+
+  it('stats route forwards timezone search param to BFF client', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getStatsMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        actionable_alerts: 0,
+        total_requests: 0,
+        avg_inference_latency_ms: 0,
+      },
+    })
+
+    const { GET } = await import('./stats/route')
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/stats?window=24h&timezone=Asia/Manila')
+    )
+
+    expect(response.status).toBe(200)
+    expect(getStatsMock).toHaveBeenCalledWith('24h', 'Asia/Manila')
   })
 
   it('ml-health route returns the frontend component contract shape', async () => {

@@ -17,7 +17,6 @@ from web_app.application.triage_use_case import (
     ModelNotReadyError,
     TriageIngestCommand,
     TriageInProgressError,
-    TriageProcessingStaleError,
     TriageResult,
     TriageUseCase,
 )
@@ -38,7 +37,14 @@ def mock_repository():
     """Create a mock repository with async save."""
     repo = AsyncMock()
     repo.get_by_transaction_id.return_value = None
-    repo.claim_processing.return_value = True
+    repo.claim_or_reclaim_processing.return_value = TrafficLogEntity(
+        id=1,
+        transaction_id="txn-1",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        processing_owner_token="owner-token",
+        processing_attempt=1,
+    )
 
     async def save_side_effect(entity: TrafficLogEntity) -> TrafficLogEntity:
         entity.id = 1
@@ -58,6 +64,7 @@ def mock_repository():
         entity.model_version = kwargs["model_version"]
         entity.action_taken = kwargs["action_taken"]
         entity.status = status
+        entity.processing_owner_token = kwargs.get("owner_token", "owner-token")
         return entity
 
     entity = TrafficLogEntity(
@@ -239,7 +246,7 @@ async def test_ingest_returns_existing_alert_without_reinferring(
         action_taken="BLOCKED",
     )
     mock_repository.get_by_transaction_id.return_value = existing
-    mock_repository.claim_processing.return_value = False
+    mock_repository.claim_or_reclaim_processing.return_value = existing
 
     use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
     result = await use_case.ingest(
@@ -301,6 +308,14 @@ async def test_ingest_folds_headers_and_body_into_persisted_http_request(
         "inference_latency_ms": 5.5,
         "model_version": "test-model-v1",
     }
+    mock_repository.claim_or_reclaim_processing.return_value = TrafficLogEntity(
+        id=9,
+        transaction_id="txn-fold-1",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        processing_owner_token="owner-token",
+        processing_attempt=1,
+    )
 
     use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
     await use_case.ingest(
@@ -318,7 +333,7 @@ async def test_ingest_folds_headers_and_body_into_persisted_http_request(
         )
     )
 
-    saved_entity = mock_repository.claim_processing.call_args[0][0]
+    saved_entity = mock_repository.claim_or_reclaim_processing.call_args[0][0]
     assert "Headers:" in saved_entity.http_request
     assert "Host: example.test" in saved_entity.http_request
     assert "Body:\nusername=admin" in saved_entity.http_request
@@ -330,7 +345,7 @@ async def test_ingest_loser_with_processing_row_returns_in_progress(
     mock_classifier,
     mock_repository,
 ):
-    mock_repository.claim_processing.return_value = False
+    mock_repository.claim_or_reclaim_processing.return_value = None
     mock_repository.get_by_transaction_id.return_value = TrafficLogEntity(
         id=11,
         transaction_id="txn-processing",
@@ -354,23 +369,46 @@ async def test_ingest_loser_with_processing_row_returns_in_progress(
                 crs_score=8,
                 crs_rule_ids=["942100"],
             )
-        )
+    )
 
     mock_classifier.predict.assert_not_called()
 
-
 @pytest.mark.asyncio
-async def test_ingest_loser_with_stale_processing_row_returns_stale_error(
+async def test_ingest_reclaims_expired_processing_lease_and_completes(
     mock_classifier,
     mock_repository,
 ):
-    mock_repository.claim_processing.return_value = False
-    mock_repository.get_by_transaction_id.return_value = TrafficLogEntity(
+    """Expired lease is reclaimed and the new owner completes processing."""
+    claimed_row = TrafficLogEntity(
         id=12,
         transaction_id="txn-stale",
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=31),
+        created_at=datetime.now(timezone.utc),
         status="PROCESSING",
+        processing_owner_token="new-owner",
+        processing_attempt=2,
     )
+    completed_row = TrafficLogEntity(
+        id=12,
+        transaction_id="txn-stale",
+        created_at=datetime.now(timezone.utc),
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.97,
+        confidence_level="HIGH",
+        model_version="test-model-v1",
+        action_taken="BLOCKED",
+        processing_owner_token=None,
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = claimed_row
+    mock_repository.complete_processing.side_effect = None
+    mock_repository.complete_processing.return_value = completed_row
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.97,
+        "confidence_level": "HIGH",
+        "inference_latency_ms": 3.1,
+        "model_version": "test-model-v1",
+    }
 
     use_case = TriageUseCase(
         classifier=mock_classifier,
@@ -378,23 +416,25 @@ async def test_ingest_loser_with_stale_processing_row_returns_stale_error(
         stale_processing_timeout_seconds=30,
     )
 
-    with pytest.raises(TriageProcessingStaleError):
-        await use_case.ingest(
-            TriageIngestCommand(
-                transaction_id="txn-stale",
-                timestamp=datetime.now(timezone.utc),
-                source_ip="203.0.113.11",
-                request_method="POST",
-                request_uri="/login",
-                request_headers={"Host": "example.test"},
-                request_body="username=admin",
-                http_request="POST /login HTTP/1.1",
-                crs_score=8,
-                crs_rule_ids=["942100"],
-            )
+    result = await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-stale",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="203.0.113.11",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={"Host": "example.test"},
+            request_body="username=admin",
+            http_request="POST /login HTTP/1.1",
+            crs_score=8,
+            crs_rule_ids=["942100"],
         )
+    )
 
-    mock_classifier.predict.assert_not_called()
+    mock_classifier.predict.assert_called_once()
+    assert result.alert_id == 12
+    assert result.prediction == "SQL Injection"
+    assert result.action_taken == "BLOCKED"
 
 
 @pytest.mark.asyncio
@@ -422,11 +462,30 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
                 created_at=datetime.now(timezone.utc),
                 status="PROCESSING",
                 http_request=entity.http_request,
+                processing_owner_token="owner-token",
+                processing_attempt=1,
             )
             return True
 
-        async def complete_processing(self, transaction_id: str, **kwargs):
+        async def claim_or_reclaim_processing(self, entity, *, owner_token, lease_expires_at, now):
+            if self.claimed:
+                return None
+            self.claimed = True
+            self.completed = TrafficLogEntity(
+                id=1,
+                transaction_id=entity.transaction_id,
+                created_at=datetime.now(timezone.utc),
+                status="PROCESSING",
+                http_request=entity.http_request,
+                processing_owner_token=owner_token,
+                processing_attempt=1,
+                lease_expires_at=lease_expires_at,
+            )
+            return self.completed
+
+        async def complete_processing(self, transaction_id: str, *, owner_token: str, **kwargs):
             assert self.completed is not None
+            assert owner_token == self.completed.processing_owner_token
             self.completed.transaction_id = transaction_id
             self.completed.prediction = kwargs["prediction"]
             self.completed.confidence = kwargs["confidence"]
@@ -435,6 +494,7 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
             self.completed.model_version = kwargs["model_version"]
             self.completed.action_taken = kwargs["action_taken"]
             self.completed.status = "COMPLETED"
+            self.completed.processing_owner_token = None
             return self.completed
 
         async def get_by_id(self, traffic_id):

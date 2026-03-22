@@ -18,7 +18,14 @@ else:
 
 engine = create_async_engine(
     database_url,
-    echo=settings.is_development
+    echo=settings.is_development,
+    # Supabase transaction pooler (PgBouncer) is incompatible with asyncpg
+    # prepared statement caching. Disable it when using pooler endpoints.
+    connect_args=(
+        {"statement_cache_size": 0}
+        if ("pooler.supabase.com" in database_url or ":6543/" in database_url)
+        else {}
+    ),
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -60,6 +67,9 @@ class TrafficLog(Base):
     inference_latency_ms = Column(Float, nullable=True)
     status = Column(String(16), nullable=False, server_default="COMPLETED")
     model_version = Column(String(50), nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    processing_owner_token = Column(String(64), nullable=True)
+    processing_attempt = Column(Integer, nullable=False, server_default="0")
     action_taken = Column(String(50), nullable=True)
     analyst_label = Column(String(50), nullable=True)
     labeled_at = Column(DateTime, nullable=True)

@@ -50,7 +50,7 @@ export function TopSourceIPs({ ips, isPending = false }: TopSourceIPsProps) {
       {ips.map((item) => (
         <div
           key={item.ip}
-          className="flex items-center justify-between py-1 border-b border-[var(--color-text-ghost)] last:border-0 text-[11px]"
+          className="flex items-center justify-between py-3 border-b border-[var(--color-text-ghost)] last:border-0 text-[11px]"
         >
           <span className="font-mono text-violet-400">{item.ip}</span>
           <div className="flex items-center gap-2">

@@ -206,13 +206,14 @@ async def test_claim_processing_uses_transaction_id_reservation(
 
 
 @pytest.mark.asyncio
-async def test_complete_processing_updates_placeholder_row(
+async def test_claim_or_reclaim_processing_claims_fresh_row_and_sets_lease(
     repository: TrafficLogRepository,
 ):
-    await repository.claim_processing(
+    now = datetime.now(timezone.utc)
+    claimed = await repository.claim_or_reclaim_processing(
         TrafficLogEntity(
-            transaction_id="txn-complete-1",
-            timestamp=datetime.now(),
+            transaction_id="txn-lease-1",
+            timestamp=now,
             source_ip="198.51.100.12",
             request_path="/triage",
             request_method="POST",
@@ -220,11 +221,88 @@ async def test_complete_processing_updates_placeholder_row(
             crs_score=7,
             crs_rule_ids=["942100"],
             status="PROCESSING",
-        )
+        ),
+        owner_token="owner-1",
+        lease_expires_at=now + timedelta(seconds=30),
+        now=now,
+    )
+
+    assert claimed is not None
+    assert claimed.status == "PROCESSING"
+    assert claimed.processing_owner_token == "owner-1"
+    assert claimed.processing_attempt == 1
+    assert claimed.lease_expires_at is not None
+
+
+@pytest.mark.asyncio
+async def test_claim_or_reclaim_processing_reclaims_stale_row(
+    repository: TrafficLogRepository,
+):
+    stale_now = datetime.now(timezone.utc)
+    await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-reclaim-1",
+            timestamp=stale_now - timedelta(seconds=31),
+            source_ip="198.51.100.13",
+            request_path="/triage",
+            request_method="POST",
+            http_request="POST /triage HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        ),
+        owner_token="old-owner",
+        lease_expires_at=stale_now - timedelta(seconds=1),
+        now=stale_now - timedelta(seconds=1),
+    )
+
+    reclaimed = await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-reclaim-1",
+            timestamp=stale_now,
+            source_ip="198.51.100.13",
+            request_path="/triage",
+            request_method="POST",
+            http_request="POST /triage HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        ),
+        owner_token="new-owner",
+        lease_expires_at=stale_now + timedelta(seconds=30),
+        now=stale_now,
+    )
+
+    assert reclaimed is not None
+    assert reclaimed.processing_owner_token == "new-owner"
+    assert reclaimed.processing_attempt == 2
+
+
+@pytest.mark.asyncio
+async def test_complete_processing_updates_placeholder_row(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+    await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-complete-1",
+            timestamp=now,
+            source_ip="198.51.100.12",
+            request_path="/triage",
+            request_method="POST",
+            http_request="POST /triage HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        ),
+        owner_token="owner-complete",
+        lease_expires_at=now + timedelta(seconds=30),
+        now=now,
     )
 
     completed = await repository.complete_processing(
         "txn-complete-1",
+        owner_token="owner-complete",
         prediction="SQL Injection",
         confidence=0.98,
         confidence_level="HIGH",
@@ -236,6 +314,59 @@ async def test_complete_processing_updates_placeholder_row(
     assert completed.status == "COMPLETED"
     assert completed.prediction == "SQL Injection"
     assert completed.action_taken == "BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_complete_processing_rejects_late_owner(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+    await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-complete-late-1",
+            timestamp=now,
+            source_ip="198.51.100.14",
+            request_path="/triage",
+            request_method="POST",
+            http_request="POST /triage HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        ),
+        owner_token="owner-old",
+        lease_expires_at=now + timedelta(seconds=30),
+        now=now,
+    )
+    await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-complete-late-1",
+            timestamp=now + timedelta(seconds=31),
+            source_ip="198.51.100.14",
+            request_path="/triage",
+            request_method="POST",
+            http_request="POST /triage HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        ),
+        owner_token="owner-new",
+        lease_expires_at=now + timedelta(seconds=61),
+        now=now + timedelta(seconds=31),
+    )
+
+    completed = await repository.complete_processing(
+        "txn-complete-late-1",
+        owner_token="owner-old",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        inference_latency_ms=3.4,
+        model_version="test-model-v1",
+        action_taken="BLOCKED",
+    )
+
+    assert completed.processing_owner_token == "owner-new"
+    assert completed.status == "PROCESSING"
 
 
 @pytest.mark.asyncio

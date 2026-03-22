@@ -66,13 +66,13 @@ describe('bff-client', () => {
         page: '2',
         pageSize: '5',
         severity: 'HIGH',
-        window: '24h',
+        timeRange: '24h',
         search: '203.0.113.10',
       })
     )
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&search=203.0.113.10&window=24h',
+      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&search=203.0.113.10&time_range=24h',
       expect.objectContaining({
         cache: 'no-store',
         headers: {

@@ -107,7 +107,10 @@ function TopBarContent({
             <>
               <div className="h-4 w-px bg-border-light" />
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
                 <span className="text-[10px] font-medium text-emerald-400">Live</span>
               </div>
               <span className="text-[10px] text-[var(--color-text-secondary)]">Last updated: just now</span>

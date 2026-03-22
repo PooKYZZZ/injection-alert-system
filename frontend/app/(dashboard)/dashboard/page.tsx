@@ -97,77 +97,71 @@ export default function DashboardPage() {
 
   // Stat card values with honest fallback
   const statCards = [
-    {
-      label: 'High alerts',
-      value: stats?.actionable_alerts ?? '—',
+      {
+        label: 'High alerts',
+        value: stats?.actionable_alerts ?? '—',
       secondary:
         stats?.actionable_alerts === 0
           ? timeWindow
             ? 'No threats in this window'
             : 'No threats detected'
           : undefined,
-      secondaryColor: 'text-red-400',
-      borderColor: 'border-l-2 border-l-red-700',
-      previousValue: stats?.prev_high_alert_count ?? null,
-      hideDeltaWhenValueZero: true,
-      delay: 0,
+        secondaryColor: 'text-red-400',
+        previousValue: stats?.prev_high_alert_count ?? null,
+        hideDeltaWhenValueZero: true,
+        delay: 0,
     },
     {
       label: 'Blocked',
       value: stats?.blocked_count ?? '—',
-      secondary:
-        stats?.blocked_count != null && stats?.total_requests
-          ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
-          : 'No traffic in window',
-      secondaryColor: 'text-violet-400',
-      borderColor: 'border-l-2 border-l-violet-700',
-      previousValue: stats?.prev_blocked_count ?? null,
-      progressBar:
-        stats?.total_requests && stats.total_requests > 0
+        secondary:
+          stats?.blocked_count != null && stats?.total_requests
+            ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
+            : 'No traffic in window',
+        secondaryColor: 'text-violet-400',
+        previousValue: stats?.prev_blocked_count ?? null,
+        progressBar:
+          stats?.total_requests && stats.total_requests > 0
           ? (stats.blocked_count / stats.total_requests) * 100
           : undefined,
       delay: 0.05,
     },
     {
       label: 'Throttled',
-      value: stats?.throttled_count ?? '—',
-      secondaryColor: 'text-amber-400',
-      borderColor: 'border-l-2 border-l-amber-700',
-      previousValue: stats?.prev_throttled_count ?? null,
-      delay: 0.1,
-    },
+        value: stats?.throttled_count ?? '—',
+        secondaryColor: 'text-amber-400',
+        previousValue: stats?.prev_throttled_count ?? null,
+        delay: 0.1,
+      },
     {
       label: 'Allowed',
       value: stats?.allowed_count ?? '—',
-      secondary: 'Benign / LOW conf',
-      secondaryColor: 'text-emerald-400',
-      borderColor: 'border-l-2 border-l-emerald-800',
-      previousValue: stats?.prev_allowed_count ?? null,
-      deltaInverted: true,
-      delay: 0.15,
+        secondary: 'Benign / LOW conf',
+        secondaryColor: 'text-emerald-400',
+        previousValue: stats?.prev_allowed_count ?? null,
+        deltaInverted: true,
+        delay: 0.15,
     },
     {
       label: 'Avg ML confidence',
-      value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
-      secondary:
-        stats?.avg_confidence != null ? 'Model stable' : 'No traffic in window',
-      secondaryColor: 'text-emerald-400',
-      borderColor: 'border-l-2 border-l-emerald-900',
-      delay: 0.2,
-    },
+        value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
+        secondary:
+          stats?.avg_confidence != null ? 'Model stable' : 'No traffic in window',
+        secondaryColor: 'text-emerald-400',
+        delay: 0.2,
+      },
     {
       label: 'False Positive Rate',
       value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
-      secondary:
-        stats?.false_positive_rate == null
-          ? 'No data'
-          : stats.false_positive_rate > 0
-            ? 'Of total requests'
-            : 'Clean window',
-      secondaryColor: 'text-[var(--color-text-secondary)]',
-      borderColor: 'border-l-2 border-l-[var(--color-text-ghost)]',
-      delay: 0.25,
-    },
+        secondary:
+          stats?.false_positive_rate == null
+            ? 'No data'
+            : stats.false_positive_rate > 0
+              ? 'Of total requests'
+              : 'Clean window',
+        secondaryColor: 'text-[var(--color-text-secondary)]',
+        delay: 0.25,
+      },
   ]
 
   return (
@@ -180,16 +174,15 @@ export default function DashboardPage() {
       {/* Stats Row */}
       <div className="grid grid-cols-6 gap-2">
         {statCards.map((card, index) => (
-          <StatCard
-            key={card.label}
-            label={card.label}
-            value={card.value}
-            secondary={card.secondary ?? undefined}
-            secondaryColor={card.secondaryColor}
-            borderColor={card.borderColor}
-            previousValue={card.previousValue}
-            deltaInverted={card.deltaInverted}
-            progressBar={card.progressBar}
+            <StatCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              secondary={card.secondary ?? undefined}
+              secondaryColor={card.secondaryColor}
+              previousValue={card.previousValue}
+              deltaInverted={card.deltaInverted}
+              progressBar={card.progressBar}
             hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
             delay={card.delay}
           />
@@ -213,11 +206,11 @@ export default function DashboardPage() {
                 <button
                   key={win}
                   onClick={() => setTimeWindow(win)}
-                  className={cn(
-                    'text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer',
+                className={cn(
+                    'rounded px-3 py-1 text-xs font-medium transition-colors',
                     timeWindow === win
-                      ? 'bg-violet-600 border-violet-500 text-white'
-                      : 'bg-[var(--color-bg-panel)] border-[var(--color-text-ghost)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                      ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
+                      : 'text-[#7d8590] hover:bg-[#1e2a3d]/50 hover:text-[#e6edf3]'
                   )}
                 >
                   {win}
@@ -255,6 +248,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-4 gap-3">
         {/* Attack Type Panel */}
         <motion.div
+          key={`attack-type-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
@@ -268,6 +262,7 @@ export default function DashboardPage() {
 
         {/* ML Confidence Bands + Enforcement Map */}
         <motion.div
+          key={`ml-confidence-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
@@ -303,6 +298,7 @@ export default function DashboardPage() {
 
         {/* Top Source IPs */}
         <motion.div
+          key={`source-ips-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
@@ -316,6 +312,7 @@ export default function DashboardPage() {
 
         {/* Top Targeted Paths */}
         <motion.div
+          key={`targeted-paths-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
@@ -333,5 +330,3 @@ export default function DashboardPage() {
     </motion.div>
   )
 }
-
-

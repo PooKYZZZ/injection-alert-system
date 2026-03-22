@@ -544,6 +544,9 @@ def test_triage_processing_row_returns_409_with_retry_after(api_client):
                     crs_score=9,
                     crs_rule_ids=["942100"],
                     status="PROCESSING",
+                    lease_expires_at=datetime.now(timezone.utc) + timedelta(seconds=30),
+                    processing_owner_token="owner-old",
+                    processing_attempt=1,
                 )
             )
             await session.commit()
@@ -564,11 +567,12 @@ def test_triage_processing_row_returns_409_with_retry_after(api_client):
     assert service.predict_calls == 0
 
 
-def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
+def test_triage_expired_processing_lease_is_reclaimed_and_completes(api_client):
+    """An expired PROCESSING lease is reclaimed and completes successfully."""
     client, session_factory, init_tables = api_client
     import asyncio
 
-    async def _seed_stale_processing() -> None:
+    async def _seed_expired_processing() -> None:
         await init_tables()
         async with session_factory() as session:
             session.add(
@@ -583,11 +587,14 @@ def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
                     crs_score=9,
                     crs_rule_ids=["942100"],
                     status="PROCESSING",
+                    lease_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+                    processing_owner_token="owner-old",
+                    processing_attempt=1,
                 )
             )
             await session.commit()
 
-    asyncio.run(_seed_stale_processing())
+    asyncio.run(_seed_expired_processing())
     service = FakeTriageModelService()
     client.app.state.model_service = service
     client.app.state.model = service
@@ -598,9 +605,10 @@ def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
         headers=INTERNAL_HEADERS,
     )
 
-    assert response.status_code == 503
-    assert response.headers["Retry-After"] == "5"
-    assert service.predict_calls == 0
+    assert response.status_code == 200
+    assert response.json()["alert_id"] is not None
+    assert response.json()["prediction"] == "SQL Injection"
+    assert service.predict_calls == 1
 
 
 def test_processing_placeholder_rows_do_not_appear_in_alerts(api_client):

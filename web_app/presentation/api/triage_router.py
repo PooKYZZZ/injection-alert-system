@@ -6,7 +6,6 @@ from web_app.application.triage_use_case import (
     ModelNotReadyError,
     TriageIngestCommand,
     TriageInProgressError,
-    TriageProcessingStaleError,
     TriageUseCase,
 )
 from web_app.infrastructure.database import get_db
@@ -66,12 +65,6 @@ async def ingest_triage(
     except TriageInProgressError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-            headers={"Retry-After": "5"},
-        ) from exc
-    except TriageProcessingStaleError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
             headers={"Retry-After": "5"},
         ) from exc

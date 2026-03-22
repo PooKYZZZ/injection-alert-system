@@ -77,6 +77,9 @@ class TrafficLogEntity:
     inference_latency_ms: Optional[float] = None
     model_version: Optional[str] = None
     status: Optional[str] = None
+    lease_expires_at: Optional[datetime] = None
+    processing_owner_token: Optional[str] = None
+    processing_attempt: Optional[int] = None
     action_taken: Optional[str] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
@@ -163,10 +166,27 @@ class ITrafficLogRepository(ABC):
         ...
 
     @abstractmethod
+    async def claim_or_reclaim_processing(
+        self,
+        entity: TrafficLogEntity,
+        *,
+        owner_token: str,
+        lease_expires_at: datetime,
+        now: datetime,
+    ) -> TrafficLogEntity | None:
+        """Claim a new PROCESSING row or reclaim a stale one atomically.
+
+        Returns the authoritative row when the claim or reclaim succeeds.
+        Returns None when another live owner still holds the reservation.
+        """
+        ...
+
+    @abstractmethod
     async def complete_processing(
         self,
         transaction_id: str,
         *,
+        owner_token: str,
         prediction: str,
         confidence: float,
         confidence_level: str,

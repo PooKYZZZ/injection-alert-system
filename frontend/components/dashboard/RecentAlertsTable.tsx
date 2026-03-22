@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { ActionLabel } from '@/components/ui/ActionLabel'
@@ -69,29 +69,38 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-text-ghost)]">
-          {displayAlerts.map((alert) => (
-            <tr key={alert.alert_id} className="hover:bg-[var(--color-bg-base)] transition-colors">
-              <td className="p-2">
-                <input type="checkbox" className="accent-violet-600" />
-              </td>
-              <td className="p-2">
-                <TriageBadge triage_status={alert.triage_status ?? null} />
-              </td>
-              <td className="p-2">
-                <SeverityBadge severity={alert.confidence_level} prediction={alert.prediction} />
-              </td>
-              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
-              <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
-              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
-              <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
-              <td className="p-2">
-                <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
-              </td>
-              <td className="p-2">
-                <ActionLabel action={alert.action_taken} />
-              </td>
-            </tr>
-          ))}
+          <AnimatePresence initial={false}>
+            {displayAlerts.map((alert) => (
+              <motion.tr
+                key={alert.alert_id}
+                initial={{ opacity: 0, x: -8, backgroundColor: 'rgba(239, 68, 68, 0.08)' }}
+                animate={{ opacity: 1, x: 0, backgroundColor: 'rgba(239, 68, 68, 0)' }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="hover:bg-[var(--color-bg-base)] transition-colors"
+              >
+                <td className="p-2">
+                  <input type="checkbox" className="accent-violet-600" />
+                </td>
+                <td className="p-2">
+                  <TriageBadge triage_status={alert.triage_status ?? null} />
+                </td>
+                <td className="p-2">
+                  <SeverityBadge severity={alert.confidence_level} prediction={alert.prediction} />
+                </td>
+                <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
+                <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
+                <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
+                <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
+                <td className="p-2">
+                  <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
+                </td>
+                <td className="p-2">
+                  <ActionLabel action={alert.action_taken} />
+                </td>
+              </motion.tr>
+            ))}
+          </AnimatePresence>
         </tbody>
       </table>
     </motion.div>

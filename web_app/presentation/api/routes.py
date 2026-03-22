@@ -104,6 +104,9 @@ async def get_stats(
     window: Literal["1h", "6h", "24h", "7d"] | None = Query(
         default=None, description="Time window for stats (all-time if not specified)"
     ),
+    timezone_name: str | None = Query(
+        default=None, description="IANA timezone used for timeline buckets"
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Return aggregate traffic statistics with zero-safe defaults.
@@ -123,6 +126,7 @@ async def get_stats(
         activity_buckets = await repository.get_activity_buckets(
             window=window,
             reference_time=reference_time,
+            timezone_name=timezone_name,
         )
         activity_buckets_list = [
             ActivityBucketSchema(
