@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 
 interface TriageBadgeProps {
@@ -21,17 +20,14 @@ export function TriageBadge({ triage_status }: TriageBadgeProps) {
   const config = TRIAGE_MAPPING[key] ?? TRIAGE_MAPPING['null']
 
   return (
-    <motion.span
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.2 }}
+    <span
       className={cn(
         'inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium',
         config.styles
       )}
     >
       {config.label}
-    </motion.span>
+    </span>
   )
 }
 

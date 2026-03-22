@@ -38,11 +38,11 @@ This folder is the maintained documentation surface for the repository. It is in
 - `model_architecture_subsection.md`
   - Thesis subsection describing model selection rationale and citations.
 
-## Verified Repo State (2026-03-20)
+## Verified Repo State (2026-03-22)
 
-- Backend tests currently pass: **87 passed** (pytest)
+- Backend tests currently pass: **256 passed** (pytest)
 - Frontend typecheck currently passes: `npm run typecheck`
-- Frontend tests currently pass: **74 passed** (vitest)
+- Frontend tests currently pass: **102 passed** (vitest)
 - Current backend API surface includes:
   - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `PATCH /api/alerts/{id}/triage`, `GET /api/stats`, `GET /api/ml-health`
   - public: `POST /api/feedback`, `GET /health`, `GET /api/health`

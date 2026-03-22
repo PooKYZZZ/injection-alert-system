@@ -42,13 +42,13 @@ cd frontend
 npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 ```
 
-## Current Test Baseline (2026-03-20)
+## Current Test Baseline (2026-03-22)
 
 | Test Suite | Result |
 |------------|--------|
-| pytest | 87 passed |
+| pytest | 256 passed |
 | typecheck | PASSED |
-| vitest (full) | 74 passed |
+| vitest (full) | 102 passed |
 
 ## Architecture Guardrails
 

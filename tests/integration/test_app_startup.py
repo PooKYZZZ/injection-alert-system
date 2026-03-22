@@ -172,7 +172,6 @@ def test_startup_uses_mock_service_when_artifact_missing_in_testing(
     app = app_module.create_app()
     with TestClient(app):
         assert app.state.model_service is mock_service
-        assert app.state.model is mock_service
 
 
 def test_startup_stores_real_model_service_on_app_state(
@@ -203,7 +202,6 @@ def test_startup_stores_real_model_service_on_app_state(
     app = app_module.create_app()
     with TestClient(app):
         assert isinstance(app.state.model_service, FakeModelService)
-        assert app.state.model is app.state.model_service
 
 
 def test_ml_health_returns_degraded_when_mock_model_active(api_client):
@@ -464,7 +462,6 @@ def test_triage_valid_token_allows_ingest(api_client):
     asyncio.run(init_tables())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -484,7 +481,6 @@ def test_triage_returns_503_when_model_not_ready(api_client):
     asyncio.run(init_tables())
     service = FakeTriageModelService(loaded=False)
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -504,7 +500,6 @@ def test_triage_duplicate_ingest_is_idempotent(api_client):
     asyncio.run(init_tables())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     first = client.post(
         "/api/triage",
@@ -554,7 +549,6 @@ def test_triage_processing_row_returns_409_with_retry_after(api_client):
     asyncio.run(_seed_processing())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -597,7 +591,6 @@ def test_triage_expired_processing_lease_is_reclaimed_and_completes(api_client):
     asyncio.run(_seed_expired_processing())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",

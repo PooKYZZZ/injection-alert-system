@@ -6,8 +6,8 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 This repository is active, but it is not yet a full production deployment.
 
-- Backend tests currently pass: `123 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
-- Frontend tests: `40 passed` (run with `cd frontend && npx vitest run`)
+- Backend tests currently pass: `256 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
+- Frontend tests: `102 passed` (run with `cd frontend && npx vitest run`)
 - Frontend typecheck currently passes: `npm run typecheck`
 - The dashboard BFF routes for alerts, alert detail, stats, and ML health are wired to FastAPI in non-mock mode
 - Docker Compose, runnable ModSecurity wiring, and full Supabase/Redis integration are still in progress
@@ -159,7 +159,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 
 - Stale `PROCESSING` triage reservations return `503` with `Retry-After`; they are surfaced safely but not auto-reclaimed.
 - The dashboard still derives some stats and ML-health display fields in the BFF because backend payloads are intentionally thinner than the UI contract.
-- `app.state.model` remains as a compatibility alias for `app.state.model_service`.
+- 
 
 ## Documentation
 
@@ -169,7 +169,7 @@ curl -X POST "http://localhost:8000/api/predict" \
   - current architecture and planned gaps
 - [docs/SETUP.md](docs/SETUP.md)
   - local setup and environment guidance
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
   - contributor workflow and validation steps
 - [docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md](docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md)
   - dataset release note
@@ -196,7 +196,7 @@ This repository is maintained as part of Team 13's capstone work for the Injecti
 
 ## Contributing
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 At minimum, run:
 

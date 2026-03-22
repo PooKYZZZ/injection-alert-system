@@ -119,14 +119,6 @@ export function TimelineChart({
   hasEvents,
   consistencyWarning,
 }: TimelineChartProps) {
-  if (isPending) {
-    return (
-      <div className="h-[140px] w-full">
-        <LoadingSkeleton rows={4} />
-      </div>
-    )
-  }
-
   const processedData = useMemo(() => {
     if (!buckets || buckets.length === 0) return []
 
@@ -148,6 +140,14 @@ export function TimelineChart({
       })
       .sort((a, b) => a.timestampMs - b.timestampMs)
   }, [buckets])
+
+  if (isPending) {
+    return (
+      <div className="h-[140px] w-full">
+        <LoadingSkeleton rows={4} />
+      </div>
+    )
+  }
 
   const xAxisConfig = useMemo(() => {
     const formatTick = (timestampMs: number) => {

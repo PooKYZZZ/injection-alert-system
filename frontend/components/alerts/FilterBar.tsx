@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { FilterChip, ConfidencePill } from '@/components/ui/FilterChip'
@@ -26,6 +27,8 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+
   const currentSeverity = searchParams.get('severity') ?? 'ALL'
   const currentAction = searchParams.get('action') ?? 'ALL'
   const currentTriage = searchParams.get('triage_status') ?? 'ALL'
@@ -42,13 +45,18 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
 
   const hasActiveFilters = activeFilterCount > 0
 
-  function replaceWithParams(mutator: (params: URLSearchParams) => void) {
-    const params = new URLSearchParams(searchParams.toString())
-    mutator(params)
-    params.set('page', '1')
-    const query = params.toString()
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
-  }
+  const replaceWithParams = useCallback((mutator: (params: URLSearchParams) => void) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString())
+      mutator(params)
+      params.set('page', '1')
+      const query = params.toString()
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+    }, 150)
+  }, [router, pathname, searchParams])
 
   function cycleValue<T extends string>(current: string, cycle: readonly T[]): T {
     const index = cycle.indexOf(current as T)

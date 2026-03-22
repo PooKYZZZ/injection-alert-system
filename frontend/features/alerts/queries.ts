@@ -36,7 +36,7 @@ export function alertListOptions(filters: DashboardFilters) {
       if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
-    staleTime: 0,
+    staleTime: 5000,
   })
 }
 
@@ -67,7 +67,7 @@ export function alertListOptionsFromFilters(filters: AlertFilters) {
       if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
-    staleTime: 0,
+    staleTime: 5000,
   })
 }
 

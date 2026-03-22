@@ -2,7 +2,7 @@ import { PaginatedAlerts, Alert } from '@/features/alerts/types'
 
 const items: Alert[] = [
   {
-    alert_id: "ALT-1001",
+    alert_id: "1",
     timestamp: "2026-03-09T09:55:00.000Z",
     source_ip: "192.168.1.100",
     request_path: "/api/login",
@@ -21,7 +21,7 @@ const items: Alert[] = [
     source_intel: { ip: "192.168.1.100", country: "US", reputation_score: 10 }
   },
   {
-    alert_id: "ALT-1002",
+    alert_id: "2",
     timestamp: "2026-03-09T09:45:00.000Z",
     source_ip: "10.0.0.5",
     request_path: "/search",
@@ -35,7 +35,7 @@ const items: Alert[] = [
     triage_status: null,
   },
   {
-    alert_id: "ALT-1003",
+    alert_id: "3",
     timestamp: "2026-03-09T09:00:00.000Z",
     source_ip: "172.16.0.42",
     request_path: "/products",

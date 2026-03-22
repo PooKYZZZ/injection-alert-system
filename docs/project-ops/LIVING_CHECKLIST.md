@@ -8,7 +8,7 @@
 
 Status note:
 - This file is a working implementation checklist, not the live runtime source of truth.
-- Current test baseline: pytest 168 passed, vitest 46 passed, typecheck passed
+- Current test baseline: pytest 256 passed, vitest 102 passed, typecheck passed
 - Full audit report: `docs/project-ops/DATA_AUDIT.md`
 
 ---

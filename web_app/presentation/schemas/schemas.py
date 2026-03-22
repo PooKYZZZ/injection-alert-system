@@ -2,7 +2,7 @@ from typing import Literal, Optional
 from datetime import datetime, timezone
 from typing import List
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
 
 PredictionLabel = Literal[
     "SQL Injection",
@@ -18,7 +18,7 @@ TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_posit
 class PredictionRequest(BaseModel):
     """Request schema for prediction endpoint."""
 
-    http_request: str = Field(..., description="HTTP request string to classify")
+    http_request: str = Field(..., max_length=65536, description="HTTP request string to classify")
 
 
 class PredictionResponse(BaseModel):
@@ -73,7 +73,7 @@ class FeedbackRequest(BaseModel):
         ..., description="ID of the traffic log to provide feedback for"
     )
     correct_label: str = Field(..., description="The correct classification label")
-    analyst_email: str = Field(
+    analyst_email: EmailStr = Field(
         ..., description="Email of the analyst providing feedback"
     )
 

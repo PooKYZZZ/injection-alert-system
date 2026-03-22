@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,22 +57,22 @@ router = APIRouter()
 internal_router = APIRouter(dependencies=[internal_auth_dependency])
 
 
-def get_model(request: Request):
-    """Dependency that retrieves the singleton model from app.state."""
-    return request.app.state.model
-
-
 def get_model_service(request: Request):
     """Dependency that retrieves the singleton model service from app.state."""
     return request.app.state.model_service
+
+
+def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
+    """Dependency factory that creates a TrafficLogRepository instance."""
+    return TrafficLogRepository(db)
 
 
 @internal_router.post("/predict", response_model=PredictionResponse)
 async def predict(
     request: Request,
     prediction_request: PredictionRequest,
-    db: AsyncSession = Depends(get_db),
-    model=Depends(get_model),
+    model_service=Depends(get_model_service),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Classify an HTTP request as normal or injection attack.
 
@@ -80,9 +80,8 @@ async def predict(
     ML inference, confidence-gated action, and persistence.
     """
     settings = get_settings()
-    repository = TrafficLogRepository(db)
     use_case = TriageUseCase(
-        classifier=model,
+        classifier=model_service,
         repository=repository,
         enable_preprocessing=settings.enable_http_model_preprocessing,
     )
@@ -102,20 +101,20 @@ async def predict(
 
 @internal_router.get("/stats", response_model=StatsResponse)
 async def get_stats(
+    response: Response,
     window: Literal["1h", "6h", "24h", "7d"] | None = Query(
         default=None, description="Time window for stats (all-time if not specified)"
     ),
     timezone_name: str | None = Query(
         default=None, description="IANA timezone used for timeline buckets"
     ),
-    db: AsyncSession = Depends(get_db),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Return aggregate traffic statistics with zero-safe defaults.
 
     Optional window parameter filters stats to the specified time period.
     No window = all-time stats.
     """
-    repository = TrafficLogRepository(db)
     reference_time = datetime.now(timezone.utc)
     summary = await repository.get_stats_summary(
         window=window,
@@ -165,6 +164,8 @@ async def get_stats(
         for path in summary.top_targeted_paths
     ]
 
+    response.headers["Cache-Control"] = "public, max-age=5"
+
     return StatsResponse(
         total_requests=summary.total_requests,
         counts_by_label=summary.counts_by_label,
@@ -190,8 +191,9 @@ async def get_stats(
 
 @internal_router.get("/ml-health", response_model=MLHealthResponse)
 async def get_ml_health(
+    response: Response,
     model_service=Depends(get_model_service),
-    db: AsyncSession = Depends(get_db),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Return health information for the currently loaded model service."""
     # Get real drift metrics from database (graceful degradation for DB unavailability)
@@ -199,7 +201,6 @@ async def get_ml_health(
     drift_score: float | None = None
 
     try:
-        repository = TrafficLogRepository(db)
         drift_metrics = await repository.get_drift_metrics(recent_window=100)
         drift_detected = drift_metrics.drift_detected
         drift_score = drift_metrics.drift_score
@@ -209,6 +210,8 @@ async def get_ml_health(
 
     # Get eval metadata from model service (returns empty dict if not available)
     eval_metadata = model_service.eval_metadata
+
+    response.headers["Cache-Control"] = "public, max-age=5"
 
     return MLHealthResponse(
         model_version=model_service.model_version,
@@ -231,10 +234,9 @@ async def get_ml_health(
 @internal_router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)
 async def get_alert_by_id(
     alert_id: int,
-    db: AsyncSession = Depends(get_db),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Return a single alert by primary key or 404 when it does not exist."""
-    repository = TrafficLogRepository(db)
     entity = await repository.get_by_id(alert_id)
     if entity is None:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -244,10 +246,9 @@ async def get_alert_by_id(
 @internal_router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts(
     query: AlertQueryParams = Depends(),
-    db: AsyncSession = Depends(get_db),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Get list of traffic alerts with full filtering support."""
-    repository = TrafficLogRepository(db)
     alert_page = await repository.get_alert_list(
         page=query.page,
         page_size=query.page_size,
@@ -272,13 +273,12 @@ async def get_alerts(
     )
 
 
-@router.post("/feedback")
+@internal_router.post("/feedback")
 async def submit_feedback(
     feedback: FeedbackRequest,
-    db: AsyncSession = Depends(get_db),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Store analyst feedback/correction for a prediction."""
-    repository = TrafficLogRepository(db)
     use_case = FeedbackUseCase(repository=repository)
 
     result = await use_case.execute(
@@ -297,10 +297,9 @@ async def submit_feedback(
 async def update_alert_triage(
     alert_id: int,
     request: TriageUpdateRequest,
-    db: AsyncSession = Depends(get_db),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Update the triage status of an alert."""
-    repository = TrafficLogRepository(db)
     use_case = UpdateAlertTriageUseCase(repository=repository)
 
     try:

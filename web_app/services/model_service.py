@@ -281,7 +281,7 @@ class ModelService:
                 candidates.append(child)
 
         # Pick most recent by directory name (timestamp sort)
-        candidates.sort(key=lambda p: p.name, reverse=True)
+        candidates.sort(key=lambda p: p.parent.name, reverse=True)
         if not candidates:
             return {}
 

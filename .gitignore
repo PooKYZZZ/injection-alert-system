@@ -165,3 +165,11 @@ docs/DESIGN_SYSTEM.md
 docs/project-ops/AI_STUDIO_PORT_CHECKLIST.md
 docs/project-ops/DATA_AUDIT.md
 BACKEND_PROMPT_REFERENCE.md
+AGENTS.md
+CAPSTONE_CLIENT_STANDARD.md
+IMPLEMENTATION_PLAN.md
+MASTER_PROMPT.md
+PR_CHECKLIST.md
+RESEARCH_PROMPT.md
+Software Architect Reviews Capstone Plan.md
+.github/prompts/autonomous-plan-pr-checklist.prompt.md

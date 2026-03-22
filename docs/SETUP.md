@@ -74,7 +74,7 @@ MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_2
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-20, this passes with **123 backend tests**.
+As of 2026-03-22, this passes with **256 backend tests**.
 
 ### Start the backend
 
@@ -165,7 +165,7 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-03-20, full suite passes with **40 frontend tests**.
+As of 2026-03-22, full suite passes with **102 frontend tests**.
 
 ## 4. Current Frontend Data Reality
 

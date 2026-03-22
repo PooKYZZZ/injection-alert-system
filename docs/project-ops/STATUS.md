@@ -12,9 +12,9 @@
   - `#39` `fix: add reservation-first triage ingest`
   - `#38` `feat: implement internal authentication with bearer token for API endpoints`
   - `#37` `Codex/feat/backend read api batch`
-- Backend tests currently pass locally: `168 passed`
+- Backend tests currently pass locally: `256 passed`
 - Frontend typecheck currently passes locally: `npm run typecheck`
-- Frontend tests currently pass locally: `46 passed`
+- Frontend tests currently pass locally: `102 passed`
 - All frontend BFF tests pass:
   - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts`
 - Backend routes currently implemented:

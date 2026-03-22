@@ -1,24 +1,47 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime, JSON, MetaData
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.sql import func
 from datetime import datetime
 from typing import AsyncGenerator
 
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime, JSON, MetaData
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.sql import func
+
 from web_app.config import get_settings
+
+# Type alias for backward compatibility
+DatabaseSession = AsyncSession
 
 settings = get_settings()
 
-if "postgresql://" in settings.database_url and not settings.database_url.startswith("postgresql+asyncpg://"):
-    database_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://")
-elif settings.database_url.startswith("sqlite://") and not settings.database_url.startswith("sqlite+aiosqlite://"):
+if "postgresql://" in settings.database_url and not settings.database_url.startswith(
+    "postgresql+asyncpg://"
+):
+    database_url = settings.database_url.replace(
+        "postgresql://", "postgresql+asyncpg://"
+    )
+elif settings.database_url.startswith(
+    "sqlite://"
+) and not settings.database_url.startswith("sqlite+aiosqlite://"):
     database_url = settings.database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
 else:
     database_url = settings.database_url
 
+_pool_kwargs = {}
+if "sqlite" not in database_url:
+    _pool_kwargs = {
+        "pool_size": 20,
+        "max_overflow": 10,
+        "pool_timeout": 30,
+        "pool_recycle": 3600,
+        "pool_pre_ping": True,
+    }
+else:
+    _pool_kwargs = {"pool_pre_ping": True}
+
 engine = create_async_engine(
     database_url,
     echo=settings.is_development,
+    **_pool_kwargs,
     # Supabase transaction pooler (PgBouncer) is incompatible with asyncpg
     # prepared statement caching. Disable it when using pooler endpoints.
     connect_args=(
@@ -29,19 +52,20 @@ engine = create_async_engine(
 )
 
 AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False
+    bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
 )
 
-Base = declarative_base(metadata=MetaData(naming_convention={
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s",
-}))
+Base = declarative_base(
+    metadata=MetaData(
+        naming_convention={
+            "ix": "ix_%(column_0_label)s",
+            "uq": "uq_%(table_name)s_%(column_0_name)s",
+            "ck": "ck_%(table_name)s_%(constraint_name)s",
+            "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+            "pk": "pk_%(table_name)s",
+        }
+    )
+)
 
 
 class TrafficLog(Base):
@@ -51,8 +75,12 @@ class TrafficLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     transaction_id = Column(String(128), unique=True, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    timestamp = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     source_ip = Column(String(45), index=True)
     request_path = Column(String(512), nullable=True)
     request_method = Column(String(16), nullable=True)

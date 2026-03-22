@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from web_app.config import get_settings
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
@@ -22,6 +21,10 @@ def get_model_service(request: Request):
     return request.app.state.model_service
 
 
+def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
+    return TrafficLogRepository(db)
+
+
 @router.post(
     "/triage",
     response_model=TriageIngestResponse,
@@ -32,10 +35,9 @@ def get_model_service(request: Request):
 )
 async def ingest_triage(
     payload: TriageIngestRequest,
-    db: AsyncSession = Depends(get_db),
     model_service=Depends(get_model_service),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
-    repository = TrafficLogRepository(db)
     use_case = TriageUseCase(
         classifier=model_service,
         repository=repository,

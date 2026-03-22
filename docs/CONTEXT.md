@@ -17,16 +17,16 @@ The repository currently contains:
 
 This is not yet the finished 3-container PD1 demo stack. The codebase is still in a local integration and documentation-hardening phase.
 
-## Verified Status (2026-03-20)
+## Verified Status (2026-03-22)
 
-### Checks run on 2026-03-20
+### Checks run on 2026-03-22
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **87 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **256 passed**
 - Frontend types: `frontend\npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **74 passed**
+  - `cd frontend && npx vitest run` → **102 passed**
 
 ### Cloud baseline
 
@@ -108,5 +108,5 @@ Latest pushed work on `origin/master` includes:
 - The repo already has more backend startup work and frontend structure than older docs suggested.
 - The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets and working BFF-to-FastAPI wiring.
 - Stale `PROCESSING` reservations are surfaced safely but not automatically reclaimed.
-- `app.state.model` remains a compatibility alias for `app.state.model_service`.
+
 - Full audit findings in `docs/project-ops/DATA_AUDIT.md`.
