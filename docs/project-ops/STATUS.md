@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status  
 **Defense:** May 2026  
-**Last updated:** 2026-03-22
+**Last updated:** 2026-03-23
 
 ---
 
@@ -12,9 +12,10 @@
   - `#39` `fix: add reservation-first triage ingest`
   - `#38` `feat: implement internal authentication with bearer token for API endpoints`
   - `#37` `Codex/feat/backend read api batch`
-- Backend tests currently pass locally: `256 passed`
+- Backend tests currently pass locally: `259 passed`
 - Frontend typecheck currently passes locally: `npm run typecheck`
-- Frontend tests currently pass locally: `102 passed`
+- Frontend lint currently passes locally: `cd frontend && npm run lint`
+- Frontend tests currently pass locally: `107 passed`
 - All frontend BFF tests pass:
   - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts`
 - Backend routes currently implemented:

@@ -1,5 +1,5 @@
-import React from 'react'
 import { render, waitFor } from '@testing-library/react'
+import { type ComponentType, type ReactNode, useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MLHealthPage from './page'
@@ -10,11 +10,11 @@ const mockPredictionDistribution = vi.fn(({ countsByLabel }) => (
 ))
 
 vi.mock('next/dynamic', () => ({
-  default: (loader: () => Promise<React.ComponentType<any>>, options?: { loading?: () => React.ReactNode }) => {
+  default: (loader: () => Promise<ComponentType<{ countsByLabel?: unknown }>>, options?: { loading?: () => ReactNode }) => {
     return function DynamicComponent(props: Record<string, unknown>) {
-      const [LoadedComponent, setLoadedComponent] = React.useState<React.ComponentType<any> | null>(null)
+      const [LoadedComponent, setLoadedComponent] = useState<ComponentType<{ countsByLabel?: unknown }> | null>(null)
 
-      React.useEffect(() => {
+      useEffect(() => {
         let active = true
         loader().then((component) => {
           if (active) {
@@ -24,7 +24,7 @@ vi.mock('next/dynamic', () => ({
         return () => {
           active = false
         }
-      }, [loader])
+      }, [])
 
       if (LoadedComponent) {
         return <LoadedComponent {...props} />

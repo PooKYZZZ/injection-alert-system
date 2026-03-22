@@ -157,15 +157,15 @@ const BackendMlHealthSchema = z.object({
   // Optional eval metadata from model registry artifacts
   macro_f1: z.number().nullable().optional(),
   ece: z.number().nullable().optional(),
-  per_class_f1: z.record(z.number()).optional(),
+  per_class_f1: z.record(z.string(), z.number()).optional(),
   calibration_bins: z.array(CalibrationBinSchema).optional(),
   prediction_distribution: z
     .union([
       z.object({
-        baseline: z.record(z.number()),
-        current: z.record(z.number()),
+        baseline: z.record(z.string(), z.number()),
+        current: z.record(z.string(), z.number()),
       }),
-      z.record(z.number()),
+      z.record(z.string(), z.number()),
     ])
     .optional(),
 })

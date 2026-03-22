@@ -8,7 +8,7 @@ This document describes the current repository architecture. It distinguishes be
 
 ```mermaid
 flowchart LR
-    Browser["Browser"] --> Next["Next.js 15 App Router"]
+    Browser["Browser"] --> Next["Next.js 16 App Router"]
     Next --> BFF["Route Handlers / BFF"]
     BFF --> FastAPI["FastAPI API"]
     FastAPI --> Model["ModelService"]
@@ -68,7 +68,7 @@ This aligns with FastAPI's own guidance for larger applications: split routers a
 
 ### App structure
 
-- Framework: Next.js 15 App Router
+- Framework: Next.js 16 App Router
 - Auth: Auth.js credentials provider with JWT sessions
 - Data layer: TanStack Query + Zod
 - Client state: Zustand

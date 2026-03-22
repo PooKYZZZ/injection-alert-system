@@ -48,11 +48,15 @@ export function StatCard({
 
   useEffect(() => {
     if (prevValueRef.current !== value && typeof value === 'number') {
-      setFlash(true)
-      const timer = setTimeout(() => setFlash(false), 600)
+      const showTimer = setTimeout(() => setFlash(true), 0)
+      const hideTimer = setTimeout(() => setFlash(false), 600)
       prevValueRef.current = value
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(showTimer)
+        clearTimeout(hideTimer)
+      }
     }
+    prevValueRef.current = value
   }, [value])
 
   return (

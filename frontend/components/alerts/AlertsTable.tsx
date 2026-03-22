@@ -1,15 +1,14 @@
 'use client'
 
-import { useMemo, useState, Suspense } from 'react'
+import { useMemo, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
-import type { Alert, PaginatedAlerts, TriageStatus } from '@/features/alerts/types'
+import type { Alert } from '@/features/alerts/types'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
-import { cn } from '@/lib/utils'
-import { DEFAULT_ALERT_FILTERS, normalizeAlertSearchParams } from '@/lib/searchParams'
+import { normalizeAlertSearchParams } from '@/lib/searchParams'
 
 interface AlertsTableProps {
   selectedIds: string[]
@@ -197,11 +196,8 @@ function AlertsTableContent({
   const { data, isPending, isError, refetch } = useAlertsFromFilters(params)
   const alerts = data?.items ?? []
 
-  const [localSortBy, setLocalSortBy] = useState<SortColumn | null>(null)
-  const [localSortDir, setLocalSortDir] = useState<'asc' | 'desc'>('desc')
-
-  const currentSort = (params.sort_by as SortColumn) ?? localSortBy
-  const currentDir = params.sort_dir ?? localSortDir
+  const currentSort = (params.sort_by as SortColumn | undefined) ?? null
+  const currentDir = params.sort_dir ?? 'desc'
 
   const handleSort = (column: SortColumn) => {
     const newDir = currentSort === column && currentDir === 'desc' ? 'asc' : 'desc'
@@ -452,4 +448,3 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: Al
     </Suspense>
   )
 }
-

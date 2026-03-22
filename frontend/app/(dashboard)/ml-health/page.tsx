@@ -6,7 +6,7 @@ import { useMLHealth } from '@/features/ml-health/queries'
 import { ModelHeader } from '@/components/ml-health/ModelHeader'
 import { ConfidenceThresholds } from '@/components/ml-health/ConfidenceThresholds'
 import { LoadingSkeleton, ErrorState } from '@/components/ui/StateViews'
-import type { MLHealthData } from '@/features/ml-health/types'
+
 
 // Lazy-load Recharts components to avoid SSR hydration issues and reduce initial bundle
 const PerClassF1Chart = dynamic(

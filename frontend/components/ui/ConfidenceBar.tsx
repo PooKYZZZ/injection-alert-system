@@ -15,7 +15,7 @@ function getConfidenceColors(confidence: number): { text: string; bg: string } {
   return { text: 'text-emerald-400', bg: 'bg-emerald-600' }
 }
 
-export function ConfidenceBar({ confidence, prediction }: ConfidenceBarProps) {
+export function ConfidenceBar({ confidence, prediction: _prediction }: ConfidenceBarProps) {
   const value = Math.round(confidence * 100)
   const colors = getConfidenceColors(confidence)
 

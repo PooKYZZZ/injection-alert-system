@@ -141,14 +141,6 @@ export function TimelineChart({
       .sort((a, b) => a.timestampMs - b.timestampMs)
   }, [buckets])
 
-  if (isPending) {
-    return (
-      <div className="h-[140px] w-full">
-        <LoadingSkeleton rows={4} />
-      </div>
-    )
-  }
-
   const xAxisConfig = useMemo(() => {
     const formatTick = (timestampMs: number) => {
       const date = new Date(timestampMs)
@@ -183,6 +175,18 @@ export function TimelineChart({
     }
   }, [processedData, timeWindow])
 
+  const colorBlocked = useCSSColor('--color-severity-high-accent')
+  const colorThrottled = useCSSColor('--color-accent-amber')
+  const colorAllowed = useCSSColor('--color-severity-safe-accent')
+
+  if (isPending) {
+    return (
+      <div className="h-[140px] w-full">
+        <LoadingSkeleton rows={4} />
+      </div>
+    )
+  }
+
   const inferredHasEvents = processedData.some(
     (point) => (point.allowed ?? 0) + (point.blocked ?? 0) + (point.throttled ?? 0) > 0
   )
@@ -192,10 +196,6 @@ export function TimelineChart({
     timeWindow === '7d'
       ? { top: 5, right: 12, left: 0, bottom: 0 }
       : { top: 5, right: 5, left: -20, bottom: 0 }
-
-  const colorBlocked = useCSSColor('--color-severity-high-accent')
-  const colorThrottled = useCSSColor('--color-accent-amber')
-  const colorAllowed = useCSSColor('--color-severity-safe-accent')
 
   return (
     <div className="relative h-[140px] w-full">

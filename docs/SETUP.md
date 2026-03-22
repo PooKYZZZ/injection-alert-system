@@ -1,13 +1,13 @@
 # Local Setup
 
-Last updated: 2026-03-20
+Last updated: 2026-03-23
 
 This guide reflects the repo as it exists now. It supports local backend and frontend development. It does not assume Docker Compose, ModSecurity, Redis, or Supabase are already wired in this repository.
 
 ## Prerequisites
 
 - Windows PowerShell
-- Python 3.13+
+- Python 3.14+
 - Node.js 20+
 - npm
 
@@ -74,7 +74,7 @@ MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_2
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-22, this passes with **256 backend tests**.
+As of 2026-03-23, this passes with **259 backend tests**.
 
 ### Start the backend
 

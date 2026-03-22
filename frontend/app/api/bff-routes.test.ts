@@ -73,7 +73,7 @@ describe('BFF route handlers', () => {
     authMock.mockResolvedValueOnce(null)
     const { GET } = await import('./ml-health/route')
 
-    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
+    const response = await GET()
     const body = await response.json()
 
     expect(getMlHealthMock).not.toHaveBeenCalled()
@@ -293,7 +293,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./ml-health/route')
-    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
+    const response = await GET()
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -362,7 +362,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./ml-health/route')
-    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
+    const response = await GET()
     const body = await response.json()
 
     expect(response.status).toBe(500)

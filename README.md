@@ -6,9 +6,10 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 This repository is active, but it is not yet a full production deployment.
 
-- Backend tests currently pass: `256 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
-- Frontend tests: `102 passed` (run with `cd frontend && npx vitest run`)
+- Backend tests currently pass: `259 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
+- Frontend tests: `107 passed` (run with `cd frontend && npx vitest run`)
 - Frontend typecheck currently passes: `npm run typecheck`
+- Frontend lint currently passes: `cd frontend && npm run lint`
 - The dashboard BFF routes for alerts, alert detail, stats, and ML health are wired to FastAPI in non-mock mode
 - Docker Compose, runnable ModSecurity wiring, and full Supabase/Redis integration are still in progress
 
@@ -44,7 +45,7 @@ In the current repo, the application code, model-loading path, tests, and dashbo
   - `GET /api/stats`
   - `GET /api/ml-health`
   - `POST /api/feedback`
-- Next.js 15 dashboard app with Auth.js credentials authentication
+- Next.js 16 dashboard app with Auth.js credentials authentication
 - Route-handler BFF layer for dashboard data access
 - Runtime model loading through `web_app/services/model_service.py`
 - Staged model artifacts under `ml_model/model_registry/`
@@ -61,8 +62,8 @@ In the current repo, the application code, model-loading path, tests, and dashbo
 
 | Layer | Current stack |
 |---|---|
-| Frontend | Next.js 15, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
-| Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.13 |
+| Frontend | Next.js 16, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
+| Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.14 |
 | ML | PyTorch, Hugging Face Transformers |
 | Data | SQLite for tests and local development, PostgreSQL/Supabase as target production boundary |
 | Docs | Markdown in-repo docs under `docs/` |
@@ -89,7 +90,7 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 
 ### Prerequisites
 
-- Python 3.13+ (tested with 3.13.7)
+- Python 3.14+ (tested with 3.14.3)
 - Node.js 20+
 - npm
 - PowerShell or a compatible shell

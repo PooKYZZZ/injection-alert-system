@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-03-20  
+Updated: 2026-03-23  
 Defense: May 2026  
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -10,7 +10,7 @@ The repository currently contains:
 
 - A FastAPI backend built around a Clean Architecture split:
   - `domain -> application -> infrastructure -> presentation`
-- A Next.js 15 dashboard using the App Router, Auth.js credentials auth, route handlers, Zod, TanStack Query, and Zustand
+- A Next.js 16 dashboard using the App Router, Auth.js credentials auth, route handlers, Zod, TanStack Query, and Zustand
 - ML lifecycle assets under `ml_model/`, including staged transformer artifacts and an inference wrapper
 - Migration scaffolding and three migrations under `migrations/`
 - Documentation and academic deliverables under `docs/`
@@ -21,12 +21,13 @@ This is not yet the finished 3-container PD1 demo stack. The codebase is still i
 
 ### Checks run on 2026-03-22
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **256 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
 - Frontend types: `frontend\npm run typecheck` → **passed**
+- Frontend lint: `cd frontend && npm run lint` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **102 passed**
+  - `cd frontend && npx vitest run` → **107 passed**
 
 ### Cloud baseline
 

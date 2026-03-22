@@ -579,7 +579,7 @@ Install and run pip-audit:
 For each vulnerability reported, update the affected package to the patched version in `requirements.txt` and reinstall.
 
 **Constraints:**
-- Do not upgrade packages to versions incompatible with Python 3.10
+- Do not upgrade packages to versions incompatible with Python 3.14
 - Do not upgrade FastAPI to 1.x — the version constraint is `>=0.104,<1`
 - Do not upgrade Pydantic to v3 if it exists
 - Run pytest after each package update
@@ -617,7 +617,7 @@ Add to the `backend` job after the pytest step:
 ```
 
 **Constraints:**
-- Do not change Python version in CI (keep 3.10)
+- Do not change Python version in CI (keep 3.14)
 - Do not change Node version in CI (keep 20)
 - Do not add new CI jobs — add steps to existing jobs
 
@@ -648,7 +648,7 @@ cd frontend && npm audit --audit-level=high
 
 **What to implement:**
 Multi-stage is optional — single stage is fine for demo. Requirements:
-- Base: `python:3.10-slim`
+- Base: `python:3.14-slim`
 - Working dir: `/app`
 - Copy `requirements.txt` first (layer caching)
 - Run `pip install --no-cache-dir -r requirements.txt`
@@ -660,7 +660,7 @@ Multi-stage is optional — single stage is fine for demo. Requirements:
 - Do NOT copy `.env` into the image — env vars come from compose
 
 **Constraints:**
-- Python 3.10-slim base only
+- Python 3.14-slim base only
 - No `--reload` flag
 - Model artifacts must be in the image (not mounted)
 - `.env` must not be copied

@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
-import { ALERT_PREDICTION_VALUES, type AlertPrediction } from '@/features/alerts/contract'
+import { type AlertPrediction } from '@/features/alerts/contract'
 
 interface AttackTypePanelProps {
   countsByLabel: Partial<Record<AlertPrediction, number>>
