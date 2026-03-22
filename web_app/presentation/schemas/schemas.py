@@ -273,3 +273,48 @@ class HealthResponse(BaseModel):
 
     status: str
     database: str
+
+
+class AlertQueryParams(BaseModel):
+    """Query parameters for GET /alerts endpoint.
+
+    Uses extra="forbid" to reject unknown query parameters.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
+    page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]] = Field(
+        default=None, description="Filter by confidence level severity"
+    )
+    time_range: Optional[Literal["1h", "6h", "24h", "7d"]] = Field(
+        default=None, description="Time window filter"
+    )
+    search: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Search in source IP, path, method, payload",
+    )
+    action: Optional[ActionTaken] = Field(
+        default=None, description="Filter by action taken (BLOCKED, THROTTLED, ALLOWED)"
+    )
+    triage_status: Optional[TriageStatus] = Field(
+        default=None, description="Filter by triage status"
+    )
+    confidence_level: Optional[List[ConfidenceLevel]] = Field(
+        default=None,
+        description="Filter by confidence levels (multiple values supported)",
+    )
+    prediction: Optional[PredictionLabel] = Field(
+        default=None, description="Filter by prediction label"
+    )
+    source_ip: Optional[str] = Field(
+        default=None, description="Filter by exact source IP"
+    )
+    sort_by: Optional[Literal["timestamp", "confidence", "severity", "action"]] = Field(
+        default="timestamp", description="Sort field"
+    )
+    sort_dir: Optional[Literal["asc", "desc"]] = Field(
+        default="desc", description="Sort direction"
+    )

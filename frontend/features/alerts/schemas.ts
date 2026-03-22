@@ -39,7 +39,7 @@ export const AlertFiltersSchema = z.object({
   source_ip: z.string().optional(),
   search: z.string().max(200).optional(),
   window: z.enum(['1h', '6h', '24h', '7d']).optional(),
-  sort_by: z.enum(['timestamp', 'confidence', 'severity']).default('timestamp'),
+  sort_by: z.enum(['timestamp', 'confidence', 'severity', 'action']).default('timestamp'),
   sort_dir: z.enum(['asc', 'desc']).default('desc'),
 })
 

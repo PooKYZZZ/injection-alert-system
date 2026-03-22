@@ -2,7 +2,7 @@
 
 import { useMemo, useState, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useAlerts } from '@/features/alerts/queries'
+import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert, PaginatedAlerts, TriageStatus } from '@/features/alerts/types'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
@@ -179,14 +179,8 @@ function AlertsTableContent({
     [searchParams]
   )
 
-  // Convert AlertFilters to DashboardFilters for useAlerts
-  const dashboardFilters = useMemo(() => ({
-    severity: params.severity ?? 'ALL',
-    timeRange: (params.window as '1h' | '6h' | '24h' | '7d') ?? '24h',
-    search: params.search ?? '',
-  }), [params])
-
-  const { data, isPending, isError, refetch } = useAlerts(dashboardFilters)
+  // Use full AlertFilters for the alerts page (not down-converted to DashboardFilters)
+  const { data, isPending, isError, refetch } = useAlertsFromFilters(params)
   const alerts = data?.items ?? []
 
   const [localSortBy, setLocalSortBy] = useState<SortColumn | null>(null)
@@ -198,13 +192,10 @@ function AlertsTableContent({
   const handleSort = (column: SortColumn) => {
     const newDir = currentSort === column && currentDir === 'desc' ? 'asc' : 'desc'
 
-    const paramsObj = Object.fromEntries(searchParams.entries())
-    const newParams = new URLSearchParams({
-      ...paramsObj,
-      sort_by: column,
-      sort_dir: newDir,
-      page: '1',
-    })
+    const newParams = new URLSearchParams(searchParams.toString())
+    newParams.set('sort_by', column)
+    newParams.set('sort_dir', newDir)
+    newParams.set('page', '1')
 
     router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
   }
@@ -376,8 +367,8 @@ function AlertsTableContent({
             type="button"
             onClick={() => {
               const newPage = Math.max(1, (params.page ?? 1) - 1)
-              const paramsObj = Object.fromEntries(searchParams.entries())
-              const newParams = new URLSearchParams({ ...paramsObj, page: String(newPage) })
+              const newParams = new URLSearchParams(searchParams.toString())
+              newParams.set('page', String(newPage))
               router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
             }}
             disabled={params.page <= 1}
@@ -393,8 +384,8 @@ function AlertsTableContent({
             type="button"
             onClick={() => {
               const newPage = (params.page ?? 1) + 1
-              const paramsObj = Object.fromEntries(searchParams.entries())
-              const newParams = new URLSearchParams({ ...paramsObj, page: String(newPage) })
+              const newParams = new URLSearchParams(searchParams.toString())
+              newParams.set('page', String(newPage))
               router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
             }}
             disabled={data ? params.page * params.pageSize >= data.total : true}

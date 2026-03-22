@@ -96,11 +96,11 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 def create_app() -> FastAPI:
     """Application factory — the single place where FastAPI is configured."""
     settings = get_settings()
-    
+
     # Configure docs endpoint based on environment
     docs_url = "/docs" if settings.enable_api_docs else None
     redoc_url = "/redoc" if settings.enable_api_docs else None
-    
+
     app = FastAPI(
         title="Injection Alert Classification System",
         description="API for classifying HTTP requests as normal or injection attacks",
@@ -141,7 +141,3 @@ def create_app() -> FastAPI:
     app.add_api_route("/api/health", health_check, response_model=HealthResponse)
 
     return app
-
-
-# Module-level app instance used by uvicorn and TestClient
-app = create_app()

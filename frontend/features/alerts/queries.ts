@@ -5,7 +5,8 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query'
-import { toQueryString, DashboardFilters } from '@/lib/searchParams'
+import { toQueryString, toAlertQueryString, type DashboardFilters } from '@/lib/searchParams'
+import type { AlertFilters } from '@/features/alerts/schemas'
 import { Alert, PaginatedAlerts, TriageStatus } from './types'
 
 /*
@@ -56,6 +57,23 @@ export function alertDetailOptions(id: string | null) {
 export const useAlerts = (
   filters: DashboardFilters
 ): UseQueryResult<PaginatedAlerts, Error> => useQuery(alertListOptions(filters))
+
+export function alertListOptionsFromFilters(filters: AlertFilters) {
+  return queryOptions<PaginatedAlerts>({
+    queryKey: alertKeys.list(toAlertQueryString(filters)),
+    queryFn: async () => {
+      const url = `/api/alerts?${toAlertQueryString(filters)}`
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
+      return r.json()
+    },
+    staleTime: 0,
+  })
+}
+
+export const useAlertsFromFilters = (
+  filters: AlertFilters
+): UseQueryResult<PaginatedAlerts, Error> => useQuery(alertListOptionsFromFilters(filters))
 
 export const useAlert = (id: string | null): UseQueryResult<Alert, Error> =>
   useQuery(alertDetailOptions(id))

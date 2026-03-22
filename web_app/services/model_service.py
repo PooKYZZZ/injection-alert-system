@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ml_model.models.mock_model import MockInjectionClassifier
 from web_app.config import Settings
@@ -33,8 +33,7 @@ class ModelService:
         self._eval_metadata: dict[str, Any] = {}
 
         run_dir, was_inferred = self._resolve_run_directory(
-            settings,
-            Path(settings.model_registry_path).expanduser()
+            settings, Path(settings.model_registry_path).expanduser()
         )
         if was_inferred:
             logger.warning(
@@ -79,7 +78,13 @@ class ModelService:
         return instance
 
     def predict(self, payload: str) -> dict[str, Any]:
-        text = payload if isinstance(payload, str) else "" if payload is None else str(payload)
+        text = (
+            payload
+            if isinstance(payload, str)
+            else ""
+            if payload is None
+            else str(payload)
+        )
 
         if self._mock_classifier is not None:
             mock_result = self._mock_classifier.predict(text)
@@ -248,23 +253,35 @@ class ModelService:
         return self._eval_metadata.copy()
 
     def _load_eval_metadata(self, run_dir: Path) -> dict[str, Any]:
-        """Load evaluation metrics from model registry eval JSON if present."""
-        import json
+        """Load evaluation metrics from model registry calibrated eval JSON.
 
+        The eval pipeline produces files named
+        eval_results_{model}_{variant}.json (e.g. eval_results_distilbert_calibrated.json)
+        under run_dir/eval/{timestamp}/ directories.
+
+        Supported artifact keys:
+            macro_f1, ece, per_class (nested {f1, precision, recall, ...}),
+            calibration_bins (nested {bin, avg_conf, avg_acc, gap, count}),
+            operational.confidence_tiers ({HIGH/MEDIUM/LOW: {count, ...}}).
+        """
         eval_dir = run_dir / "eval"
         if not eval_dir.is_dir():
             return {}
 
-        # Find the most recent eval file (format: YYYYMMDD_HHMMSS_metrics.json)
-        candidates = sorted(
-            [
-                path
-                for path in eval_dir.iterdir()
-                if path.is_file() and path.name.endswith("_metrics.json")
-            ],
-            key=lambda p: p.name,
-            reverse=True,
-        )
+        # Find eval_results_{MODEL_KEY}_calibrated.json under eval subdirectories
+        # Layout: eval/{timestamp}/eval_results_{model}_calibrated.json
+        target_name = f"eval_results_{self.MODEL_KEY}_calibrated.json"
+        candidates: list[Path] = []
+        for child in eval_dir.iterdir():
+            if child.is_dir():
+                candidate = child / target_name
+                if candidate.is_file():
+                    candidates.append(candidate)
+            elif child.is_file() and child.name == target_name:
+                candidates.append(child)
+
+        # Pick most recent by directory name (timestamp sort)
+        candidates.sort(key=lambda p: p.name, reverse=True)
         if not candidates:
             return {}
 
@@ -274,34 +291,48 @@ class ModelService:
         except Exception:
             return {}
 
-        # Extract fields aligned with backend schema (MLHealthResponse)
         metadata: dict[str, Any] = {}
+
+        # Direct scalars
         if "macro_f1" in raw:
             metadata["macro_f1"] = float(raw["macro_f1"])
         if "ece" in raw:
             metadata["ece"] = float(raw["ece"])
-        if "per_class_f1" in raw and isinstance(raw["per_class_f1"], dict):
+
+        # per_class: { "SQL Injection": { f1: 0.97, precision: 0.95, ... }, ... }
+        # → per_class_f1: { "SQL Injection": 0.97, ... }
+        per_class = raw.get("per_class")
+        if isinstance(per_class, dict):
             metadata["per_class_f1"] = {
-                k: float(v) for k, v in raw["per_class_f1"].items()
+                cls_name: float(metrics["f1"])
+                for cls_name, metrics in per_class.items()
+                if isinstance(metrics, dict) and "f1" in metrics
             }
-        if "calibration_bins" in raw and isinstance(raw["calibration_bins"], list):
+
+        # calibration_bins: [{ bin: 0, avg_conf: 0.5, avg_acc: 0.8, gap: 0.01, count: 100 }, ...]
+        # → [{ bin_idx: 0, bin_center: 0.5, accuracy: 0.8, confidence: 0.5, count: 100 }, ...]
+        raw_bins = raw.get("calibration_bins")
+        if isinstance(raw_bins, list):
             metadata["calibration_bins"] = [
                 {
-                    "bin_idx": int(b.get("bin_idx", i)),
-                    "bin_center": float(b["bin_center"]),
-                    "accuracy": float(b["accuracy"]),
-                    "confidence": float(b["confidence"]),
-                    "count": int(b["count"]),
+                    "bin_idx": int(b.get("bin", i)),
+                    "bin_center": float(b.get("avg_conf", 0.0)),
+                    "accuracy": float(b.get("avg_acc", 0.0)),
+                    "confidence": float(b.get("avg_conf", 0.0)),
+                    "count": int(b.get("count", 0)),
                 }
-                for i, b in enumerate(raw["calibration_bins"])
+                for i, b in enumerate(raw_bins)
                 if isinstance(b, dict)
             ]
-        if "prediction_distribution" in raw and isinstance(
-            raw["prediction_distribution"], dict
-        ):
+
+        # prediction_distribution derived from per_class support (true distribution)
+        if isinstance(per_class, dict):
             metadata["prediction_distribution"] = {
-                k: int(v) for k, v in raw["prediction_distribution"].items()
+                cls_name: int(metrics["support"])
+                for cls_name, metrics in per_class.items()
+                if isinstance(metrics, dict) and "support" in metrics
             }
+
         return metadata
 
     @staticmethod

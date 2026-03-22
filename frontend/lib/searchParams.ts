@@ -49,6 +49,23 @@ export function toQueryString(filters: DashboardFilters): string {
   }).toString()
 }
 
+export function toAlertQueryString(filters: AlertFilters): string {
+  const params = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === null) continue
+
+    if (key === 'confidence_level' && Array.isArray(value)) {
+      for (const entry of value) params.append(key, String(entry))
+      continue
+    }
+
+    params.set(key, String(value))
+  }
+
+  return params.toString()
+}
+
 export const DEFAULT_ALERT_FILTERS: AlertFilters = {
   page: 1,
   pageSize: 20,

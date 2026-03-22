@@ -6,6 +6,7 @@
 from web_app.presentation.schemas.schemas import (
     ActivityBucketSchema,
     StatsQueryParameters,
+    AlertQueryParams,
     AlertResponse,
     AlertDetailResponse,
     AlertListResponse,
@@ -25,6 +26,7 @@ from web_app.presentation.schemas.schemas import (
 __all__ = [
     "ActivityBucketSchema",
     "StatsQueryParameters",
+    "AlertQueryParams",
     "AlertDetailResponse",
     "AlertListResponse",
     "PredictionRequest",

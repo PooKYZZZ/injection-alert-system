@@ -56,7 +56,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
         <thead>
           <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
             <th className="pb-2 text-left px-2">
-              <input type="checkbox" className="accent-violet-600" />
+              <input type="checkbox" className="accent-violet-600" aria-label="Select all alerts" />
             </th>
             <th className="pb-2 text-left px-2">Triage</th>
             <th className="pb-2 text-left px-2">Severity</th>
@@ -80,7 +80,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                 className="hover:bg-[var(--color-bg-base)] transition-colors"
               >
                 <td className="p-2">
-                  <input type="checkbox" className="accent-violet-600" />
+                  <input type="checkbox" className="accent-violet-600" aria-label={`Select alert ${alert.alert_id}`} />
                 </td>
                 <td className="p-2">
                   <TriageBadge triage_status={alert.triage_status ?? null} />

@@ -108,15 +108,15 @@ class TrafficLogRepository(ITrafficLogRepository):
         result = await self._session.execute(
             select(
                 func.count(TrafficLog.id).label("total_requests"),
-                func.count().filter(TrafficLog.action_taken == "BLOCKED").label(
-                    "blocked_count"
-                ),
-                func.count().filter(TrafficLog.action_taken == "ALLOWED").label(
-                    "allowed_count"
-                ),
-                func.count().filter(TrafficLog.action_taken == "THROTTLED").label(
-                    "throttled_count"
-                ),
+                func.count()
+                .filter(TrafficLog.action_taken == "BLOCKED")
+                .label("blocked_count"),
+                func.count()
+                .filter(TrafficLog.action_taken == "ALLOWED")
+                .label("allowed_count"),
+                func.count()
+                .filter(TrafficLog.action_taken == "THROTTLED")
+                .label("throttled_count"),
             ).where(*filters)
         )
         row = result.one()
@@ -143,7 +143,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             select(
                 TrafficLog.prediction,
                 func.count(TrafficLog.id).label("prediction_count"),
-            ).where(*filters).group_by(TrafficLog.prediction)
+            )
+            .where(*filters)
+            .group_by(TrafficLog.prediction)
         )
         for prediction, count in result.all():
             if prediction is None:
@@ -517,7 +519,11 @@ class TrafficLogRepository(ITrafficLogRepository):
             and previous_window_start is not None
             and window_end is not None
         ):
-            current_counts, previous_counts, previous_label_counts = await asyncio.gather(
+            (
+                current_counts,
+                previous_counts,
+                previous_label_counts,
+            ) = await asyncio.gather(
                 self._get_counts_for_range(window_start, window_end),
                 self._get_counts_for_range(previous_window_start, window_start),
                 self._get_label_counts_for_range(previous_window_start, window_start),
@@ -539,9 +545,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 TrafficLog.timestamp >= window_start
             )
         if window_end is not None:
-            confidence_query = confidence_query.where(
-                TrafficLog.timestamp < window_end
-            )
+            confidence_query = confidence_query.where(TrafficLog.timestamp < window_end)
 
         confidence_result = await self._session.execute(confidence_query)
         confidence_row = confidence_result.one()
@@ -662,13 +666,12 @@ class TrafficLogRepository(ITrafficLogRepository):
                 TargetPathSummary(path=row.request_path, hits=int(row.hit_count))
             )
 
-        false_positive_query = (
-            select(func.count(TrafficLog.id).label("false_positive_count"))
-            .where(
-                self._completed_or_legacy_clause(),
-                TrafficLog.action_taken == "ALLOWED",
-                TrafficLog.prediction != "Normal",
-            )
+        false_positive_query = select(
+            func.count(TrafficLog.id).label("false_positive_count")
+        ).where(
+            self._completed_or_legacy_clause(),
+            TrafficLog.action_taken == "ALLOWED",
+            TrafficLog.prediction != "Normal",
         )
         if window_start is not None:
             false_positive_query = false_positive_query.where(
@@ -698,7 +701,11 @@ class TrafficLogRepository(ITrafficLogRepository):
             count for label, count in counts_by_label.items() if label != "Normal"
         )
         prev_high_alert_count = (
-            sum(count for label, count in previous_label_counts.items() if label != "Normal")
+            sum(
+                count
+                for label, count in previous_label_counts.items()
+                if label != "Normal"
+            )
             if previous_label_counts
             else None
         )
@@ -864,7 +871,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         if buckets <= 0:
             return []
 
-        window_start, window_end, delta = self._resolve_window_bounds(window, reference_time)
+        window_start, window_end, delta = self._resolve_window_bounds(
+            window, reference_time
+        )
         local_tz = self._resolve_timezone(timezone_name)
 
         # Get all records in the time window
@@ -937,6 +946,13 @@ class TrafficLogRepository(ITrafficLogRepository):
         severity: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
+        action: Optional[str] = None,
+        triage_status: Optional[str] = None,
+        confidence_levels: Optional[List[str]] = None,
+        prediction: Optional[str] = None,
+        source_ip: Optional[str] = None,
+        sort_by: Optional[str] = "timestamp",
+        sort_dir: Optional[str] = "desc",
     ) -> TrafficLogPage:
         """Return a filtered, paginated alert list with deterministic ordering."""
         page = max(page, 1)
@@ -969,12 +985,48 @@ class TrafficLogRepository(ITrafficLogRepository):
                     )
                 )
 
+        # Action filter (BLOCKED, THROTTLED, ALLOWED)
+        if action:
+            stmt = stmt.where(TrafficLog.action_taken == action)
+
+        # Triage status filter
+        if triage_status:
+            stmt = stmt.where(TrafficLog.triage_status == triage_status)
+
+        # Confidence levels filter (multi-value)
+        if confidence_levels and len(confidence_levels) > 0:
+            stmt = stmt.where(TrafficLog.confidence_level.in_(confidence_levels))
+
+        # Prediction filter
+        if prediction:
+            stmt = stmt.where(TrafficLog.prediction == prediction)
+
+        # Source IP filter (exact match)
+        if source_ip:
+            stmt = stmt.where(TrafficLog.source_ip == source_ip)
+
         total_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self._session.execute(total_stmt)
         total = int(total_result.scalar_one() or 0)
 
+        # Deterministic ordering with stable tie-breakers
+        # Whitelist sortable columns - no dynamic SQL string interpolation
+        sort_column = TrafficLog.timestamp
+        if sort_by == "confidence":
+            sort_column = TrafficLog.confidence
+        elif sort_by == "severity":
+            sort_column = TrafficLog.confidence_level
+        elif sort_by == "action":
+            sort_column = TrafficLog.action_taken
+
+        # Handle sort direction safely
+        is_desc = sort_dir and sort_dir.lower() == "desc"
+
         stmt = (
-            stmt.order_by(TrafficLog.timestamp.desc(), TrafficLog.id.desc())
+            stmt.order_by(
+                sort_column.desc() if is_desc else sort_column.asc(),
+                TrafficLog.id.desc(),  # Stable tie-breaker
+            )
             .offset(offset)
             .limit(page_size)
         )

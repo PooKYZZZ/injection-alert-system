@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     model_registry_path: str = ""
     api_secret_key: str
     groq_api_key: str | None = None
-    allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    allowed_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
     is_development: bool = False
     enable_api_docs: bool = True
     confidence_low_threshold: float = 0.50

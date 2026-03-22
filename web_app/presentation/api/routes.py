@@ -38,6 +38,7 @@ from web_app.presentation.schemas import (
     ActivityBucketSchema,
     AlertDetailResponse,
     AlertListResponse,
+    AlertQueryParams,
     FeedbackRequest,
     MLHealthResponse,
     PredictionRequest,
@@ -242,21 +243,24 @@ async def get_alert_by_id(
 
 @internal_router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    severity: Literal["ALL", "LOW", "MEDIUM", "HIGH"] | None = Query(default=None),
-    time_range: Literal["1h", "6h", "24h", "7d"] | None = Query(default=None),
-    search: str | None = Query(default=None),
+    query: AlertQueryParams = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get list of traffic alerts with pagination."""
+    """Get list of traffic alerts with full filtering support."""
     repository = TrafficLogRepository(db)
     alert_page = await repository.get_alert_list(
-        page=page,
-        page_size=page_size,
-        severity=severity,
-        time_range=time_range,
-        search=search,
+        page=query.page,
+        page_size=query.page_size,
+        severity=query.severity,
+        time_range=query.time_range,
+        search=query.search,
+        action=query.action,
+        triage_status=query.triage_status,
+        confidence_levels=query.confidence_level,
+        prediction=query.prediction,
+        source_ip=query.source_ip,
+        sort_by=query.sort_by,
+        sort_dir=query.sort_dir,
     )
     return AlertListResponse(
         items=[

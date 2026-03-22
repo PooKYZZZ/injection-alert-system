@@ -255,6 +255,13 @@ class ITrafficLogRepository(ABC):
         severity: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
+        action: Optional[str] = None,
+        triage_status: Optional[str] = None,
+        confidence_levels: Optional[List[str]] = None,
+        prediction: Optional[str] = None,
+        source_ip: Optional[str] = None,
+        sort_by: Optional[str] = "timestamp",
+        sort_dir: Optional[str] = "desc",
     ) -> TrafficLogPage:
         """Return a filtered, paginated alert list."""
         ...
