@@ -64,7 +64,10 @@ def get_model_service(request: Request):
 
 def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
     """Dependency factory that creates a TrafficLogRepository instance."""
-    return TrafficLogRepository(db)
+    from web_app.infrastructure.database import database as db_module
+
+    session_factory = getattr(db_module, "AsyncSessionLocal", None)
+    return TrafficLogRepository(db, session_factory=session_factory)
 
 
 @internal_router.post("/predict", response_model=PredictionResponse)
@@ -102,11 +105,9 @@ async def predict(
 @internal_router.get("/stats", response_model=StatsResponse)
 async def get_stats(
     response: Response,
+    request: Request,
     window: Literal["1h", "6h", "24h", "7d"] | None = Query(
         default=None, description="Time window for stats (all-time if not specified)"
-    ),
-    timezone_name: str | None = Query(
-        default=None, description="IANA timezone used for timeline buckets"
     ),
     repository: TrafficLogRepository = Depends(get_repository),
 ):
@@ -116,6 +117,11 @@ async def get_stats(
     No window = all-time stats.
     """
     reference_time = datetime.now(timezone.utc)
+    timezone_name = (
+        request.query_params.get("timezone_name")
+        or request.query_params.get("timezone")
+        or None
+    )
     summary = await repository.get_stats_summary(
         window=window,
         reference_time=reference_time,
@@ -164,7 +170,7 @@ async def get_stats(
         for path in summary.top_targeted_paths
     ]
 
-    response.headers["Cache-Control"] = "public, max-age=5"
+    response.headers["Cache-Control"] = "private, max-age=5"
 
     return StatsResponse(
         total_requests=summary.total_requests,
@@ -211,7 +217,7 @@ async def get_ml_health(
     # Get eval metadata from model service (returns empty dict if not available)
     eval_metadata = model_service.eval_metadata
 
-    response.headers["Cache-Control"] = "public, max-age=5"
+    response.headers["Cache-Control"] = "private, max-age=5"
 
     return MLHealthResponse(
         model_version=model_service.model_version,

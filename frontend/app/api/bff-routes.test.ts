@@ -252,6 +252,26 @@ describe('BFF route handlers', () => {
     expect(getStatsMock).toHaveBeenCalledWith('24h', 'Asia/Manila')
   })
 
+  it('stats route forwards timezone_name search param to BFF client', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getStatsMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        actionable_alerts: 0,
+        total_requests: 0,
+        avg_inference_latency_ms: 0,
+      },
+    })
+
+    const { GET } = await import('./stats/route')
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/stats?window=24h&timezone_name=Asia/Manila')
+    )
+
+    expect(response.status).toBe(200)
+    expect(getStatsMock).toHaveBeenCalledWith('24h', 'Asia/Manila')
+  })
+
   it('ml-health route returns the frontend component contract shape', async () => {
     authMock.mockResolvedValueOnce({ user: { id: '1' } })
     getMlHealthMock.mockResolvedValueOnce({
@@ -478,6 +498,25 @@ describe('BFF route handlers', () => {
     const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
       method: 'PATCH',
       body: JSON.stringify({ triage_status: 'invalid_status' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(updateAlertTriageMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_REQUEST')
+  })
+
+  it('triage PATCH rejects malformed JSON with 400', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: '{"triage_status":',
     })
 
     const response = await PATCH(request, {

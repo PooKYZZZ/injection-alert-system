@@ -13,6 +13,7 @@ from web_app.presentation.app import create_app
 from web_app.presentation.api.routes import get_model_service
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database.database import TrafficLog
+from web_app.infrastructure.database import database as db_module
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 
@@ -114,11 +115,17 @@ def api_client():
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_model_service] = lambda: FakeModelHealthService()
 
+    original_session_factory = getattr(db_module, "AsyncSessionLocal", None)
+    db_module.AsyncSessionLocal = session_factory
+
     with TestClient(app) as test_client:
         yield test_client, session_factory, _init_tables
 
     app.dependency_overrides.clear()
+    if original_session_factory is not None:
+        db_module.AsyncSessionLocal = original_session_factory
     import asyncio
+
     asyncio.run(engine.dispose())
 
 
@@ -189,7 +196,9 @@ def test_startup_stores_real_model_service_on_app_state(
 
         @classmethod
         def create_mock(cls):
-            raise AssertionError("mock loader should not run for explicit artifact path")
+            raise AssertionError(
+                "mock loader should not run for explicit artifact path"
+            )
 
     monkeypatch.setattr(
         app_module,
@@ -237,6 +246,7 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
 def test_unknown_alert_id_returns_404(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -251,6 +261,7 @@ def test_unknown_alert_id_returns_404(api_client):
 def test_stats_returns_zeroed_response_for_empty_table(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -319,7 +330,10 @@ def test_alert_list_returns_pagination_shape(api_client):
     assert payload["page_size"] == 20
     assert isinstance(payload["items"], list)
     assert payload["items"][0]["id"] == 1
-    assert payload["items"][0]["payload_snippet"] == "POST /login username=admin' OR '1'='1"
+    assert (
+        payload["items"][0]["payload_snippet"]
+        == "POST /login username=admin' OR '1'='1"
+    )
     assert payload["items"][0]["crs_rule_ids"] == ["942100", "942110"]
     assert payload["items"][0]["analyst_label"] == "SQL Injection"
     assert payload["items"][0]["labeled_by"] == "analyst@lares.test"
@@ -386,6 +400,7 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
 def test_auth_missing_token_returns_401(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get("/api/stats")
@@ -397,6 +412,7 @@ def test_auth_missing_token_returns_401(api_client):
 def test_auth_wrong_scheme_returns_401(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -411,6 +427,7 @@ def test_auth_wrong_scheme_returns_401(api_client):
 def test_auth_invalid_token_returns_401(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -425,6 +442,7 @@ def test_auth_invalid_token_returns_401(api_client):
 def test_auth_valid_token_allows_access(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(

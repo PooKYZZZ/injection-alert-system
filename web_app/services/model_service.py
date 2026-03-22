@@ -288,7 +288,8 @@ class ModelService:
         metrics_path = candidates[0]
         try:
             raw = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            logger.warning("Failed to read eval metadata from %s", metrics_path)
             return {}
 
         metadata: dict[str, Any] = {}

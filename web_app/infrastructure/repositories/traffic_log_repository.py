@@ -36,6 +36,7 @@ from web_app.domain.interfaces import (
     TargetPathSummary,
 )
 from web_app.infrastructure.database.database import TrafficLog
+from web_app.infrastructure.database.database import AsyncSessionLocal
 
 CANONICAL_PREDICTION_LABELS = (
     "SQL Injection",
@@ -53,17 +54,24 @@ class _StatsCache:
     def __init__(self) -> None:
         self._store: dict[str, tuple[float, TrafficStatsSummary]] = {}
 
+    def _purge_expired(self) -> None:
+        now = datetime.now(timezone.utc).timestamp()
+        expired_keys = [
+            key for key, (expires, _) in self._store.items() if now > expires
+        ]
+        for key in expired_keys:
+            del self._store[key]
+
     def get(self, key: str) -> Optional[TrafficStatsSummary]:
+        self._purge_expired()
         entry = self._store.get(key)
         if entry is None:
             return None
-        expires, value = entry
-        if datetime.now(timezone.utc).timestamp() > expires:
-            del self._store[key]
-            return None
+        _, value = entry
         return value
 
     def set(self, key: str, value: TrafficStatsSummary) -> None:
+        self._purge_expired()
         self._store[key] = (
             datetime.now(timezone.utc).timestamp() + _STATS_CACHE_TTL_SECONDS,
             value,
@@ -84,8 +92,18 @@ TIME_RANGE_DELTAS = {
 class TrafficLogRepository(ITrafficLogRepository):
     """SQLAlchemy-backed repository for traffic log persistence."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, session_factory=None):
         self._session = session
+        self._session_factory = session_factory or AsyncSessionLocal
+
+    async def _with_own_session(self, coro_factory):
+        """Execute a coroutine factory with a fresh session from the factory.
+
+        Used by asyncio.gather to avoid concurrent session access on PostgreSQL.
+        The factory receives a session and returns a coroutine.
+        """
+        async with self._session_factory() as session:
+            return await coro_factory(session)
 
     @staticmethod
     def _completed_or_legacy_clause():
@@ -122,18 +140,36 @@ class TrafficLogRepository(ITrafficLogRepository):
         window_start = window_end - delta
         return window_start, window_end, delta
 
+    def _stats_cache_key(
+        self,
+        window: Optional[str],
+        reference_time: Optional[datetime],
+    ) -> str:
+        if window is None:
+            return f"stats:{id(self._session_factory)}:all"
+
+        normalized_reference_time = self._normalize_reference_time(
+            reference_time
+        ).replace(second=0, microsecond=0)
+        return (
+            f"stats:{id(self._session_factory)}:{window}:"
+            f"{normalized_reference_time.isoformat(timespec='minutes')}"
+        )
+
     async def _get_counts_for_range(
         self,
         start: Optional[datetime],
         end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> dict[str, int]:
+        s = session or self._session
         filters = [self._completed_or_legacy_clause()]
         if start is not None:
             filters.append(TrafficLog.timestamp >= start)
         if end is not None:
             filters.append(TrafficLog.timestamp < end)
 
-        result = await self._session.execute(
+        result = await s.execute(
             select(
                 func.count(TrafficLog.id).label("total_requests"),
                 func.count()
@@ -159,7 +195,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         self,
         start: Optional[datetime],
         end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> dict[str, int]:
+        s = session or self._session
         filters = [self._completed_or_legacy_clause()]
         if start is not None:
             filters.append(TrafficLog.timestamp >= start)
@@ -167,7 +205,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             filters.append(TrafficLog.timestamp < end)
 
         counts_by_label = {label: 0 for label in CANONICAL_PREDICTION_LABELS}
-        result = await self._session.execute(
+        result = await s.execute(
             select(
                 TrafficLog.prediction,
                 func.count(TrafficLog.id).label("prediction_count"),
@@ -507,13 +545,15 @@ class TrafficLogRepository(ITrafficLogRepository):
         self,
         window_start: Optional[datetime],
         window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ):
+        s = session or self._session
         summary_where = [self._completed_or_legacy_clause()]
         if window_start is not None:
             summary_where.append(TrafficLog.timestamp >= window_start)
         if window_end is not None:
             summary_where.append(TrafficLog.timestamp < window_end)
-        result = await self._session.execute(
+        result = await s.execute(
             select(
                 func.count(TrafficLog.id).label("total_requests"),
                 func.coalesce(func.avg(TrafficLog.inference_latency_ms), 0.0).label(
@@ -523,11 +563,64 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         return result.one()
 
+    async def _get_range_metrics(
+        self,
+        window_start: Optional[datetime],
+        window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
+    ):
+        s = session or self._session
+        filters = [self._completed_or_legacy_clause()]
+        if window_start is not None:
+            filters.append(TrafficLog.timestamp >= window_start)
+        if window_end is not None:
+            filters.append(TrafficLog.timestamp < window_end)
+
+        result = await s.execute(
+            select(
+                func.count(TrafficLog.id).label("total_requests"),
+                func.coalesce(func.avg(TrafficLog.inference_latency_ms), 0.0).label(
+                    "avg_inference_latency_ms"
+                ),
+                func.avg(TrafficLog.confidence).label("avg_confidence"),
+                func.count(TrafficLog.confidence).label("confidence_count"),
+                func.count().filter(TrafficLog.action_taken == "BLOCKED").label(
+                    "blocked_count"
+                ),
+                func.count().filter(TrafficLog.action_taken == "ALLOWED").label(
+                    "allowed_count"
+                ),
+                func.count().filter(TrafficLog.action_taken == "THROTTLED").label(
+                    "throttled_count"
+                ),
+                func.count().filter(
+                    and_(
+                        TrafficLog.action_taken == "ALLOWED",
+                        TrafficLog.prediction != "Normal",
+                    )
+                ).label("false_positive_count"),
+            ).where(*filters)
+        )
+        row = result.one()
+        avg_confidence = (
+            round(float(row.avg_confidence), 3)
+            if row.confidence_count and row.confidence_count > 0
+            else None
+        )
+        return row, avg_confidence, {
+            "total_requests": int(row.total_requests or 0),
+            "blocked_count": int(row.blocked_count or 0),
+            "allowed_count": int(row.allowed_count or 0),
+            "throttled_count": int(row.throttled_count or 0),
+        }, int(row.false_positive_count or 0)
+
     async def _get_avg_confidence(
         self,
         window_start: Optional[datetime],
         window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> Optional[float]:
+        s = session or self._session
         query = (
             select(
                 func.avg(TrafficLog.confidence).label("avg_confidence"),
@@ -540,7 +633,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             query = query.where(TrafficLog.timestamp >= window_start)
         if window_end is not None:
             query = query.where(TrafficLog.timestamp < window_end)
-        result = await self._session.execute(query)
+        result = await s.execute(query)
         row = result.one()
         if row.confidence_count and row.confidence_count > 0:
             return round(float(row.avg_confidence), 3)
@@ -550,7 +643,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         self,
         window_start: Optional[datetime],
         window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> dict[str, int]:
+        s = session or self._session
         counts_by_label = {label: 0 for label in CANONICAL_PREDICTION_LABELS}
         query = (
             select(
@@ -564,7 +659,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             query = query.where(TrafficLog.timestamp >= window_start)
         if window_end is not None:
             query = query.where(TrafficLog.timestamp < window_end)
-        result = await self._session.execute(query)
+        result = await s.execute(query)
         for prediction, count in result.all():
             if prediction is None:
                 continue
@@ -575,7 +670,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         self,
         window_start: Optional[datetime],
         window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> List[SourceIPSummary]:
+        s = session or self._session
         latest_action_subquery = (
             select(
                 TrafficLog.source_ip,
@@ -622,7 +719,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         if window_end is not None:
             top_ips_query = top_ips_query.where(TrafficLog.timestamp < window_end)
 
-        result = await self._session.execute(top_ips_query)
+        result = await s.execute(top_ips_query)
         return [
             SourceIPSummary(
                 ip=row.source_ip,
@@ -636,7 +733,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         self,
         window_start: Optional[datetime],
         window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> List[TargetPathSummary]:
+        s = session or self._session
         paths_query = (
             select(
                 TrafficLog.request_path,
@@ -653,7 +752,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         if window_end is not None:
             paths_query = paths_query.where(TrafficLog.timestamp < window_end)
 
-        result = await self._session.execute(paths_query)
+        result = await s.execute(paths_query)
         return [
             TargetPathSummary(path=row.request_path, hits=int(row.hit_count))
             for row in result.all()
@@ -663,7 +762,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         self,
         window_start: Optional[datetime],
         window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
     ) -> int:
+        s = session or self._session
         query = select(func.count(TrafficLog.id).label("false_positive_count")).where(
             self._completed_or_legacy_clause(),
             TrafficLog.action_taken == "ALLOWED",
@@ -673,7 +774,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             query = query.where(TrafficLog.timestamp >= window_start)
         if window_end is not None:
             query = query.where(TrafficLog.timestamp < window_end)
-        result = await self._session.execute(query)
+        result = await s.execute(query)
         return int(result.scalar_one() or 0)
 
     async def get_stats_summary(
@@ -686,9 +787,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         Args:
             window: Optional time window filter (1h, 6h, 24h, 7d). If None, returns all-time stats.
         """
-        cache_key = (
-            f"stats:{window}:{reference_time.isoformat() if reference_time else 'none'}"
-        )
+        cache_key = self._stats_cache_key(window, reference_time)
         cached = _stats_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -709,43 +808,70 @@ class TrafficLogRepository(ITrafficLogRepository):
             and window_end is not None
         ):
             (
-                summary_row,
-                avg_confidence,
+                current_metrics,
                 counts_by_label,
                 top_source_ips,
                 top_targeted_paths,
-                false_positive_count,
-                current_counts,
-                previous_counts,
+                previous_metrics,
                 previous_label_counts,
             ) = await asyncio.gather(
-                self._get_summary_row(window_start, window_end),
-                self._get_avg_confidence(window_start, window_end),
-                self._get_counts_by_label(window_start, window_end),
-                self._get_top_source_ips(window_start, window_end),
-                self._get_top_targeted_paths(window_start, window_end),
-                self._get_false_positive_count(window_start, window_end),
-                self._get_counts_for_range(window_start, window_end),
-                self._get_counts_for_range(previous_window_start, window_start),
-                self._get_label_counts_for_range(previous_window_start, window_start),
+                self._with_own_session(
+                    lambda s: self._get_range_metrics(
+                        window_start, window_end, session=s
+                    )
+                ),
+                self._with_own_session(
+                    lambda s: self._get_counts_by_label(
+                        window_start, window_end, session=s
+                    )
+                ),
+                self._with_own_session(
+                    lambda s: self._get_top_source_ips(
+                        window_start, window_end, session=s
+                    )
+                ),
+                self._with_own_session(
+                    lambda s: self._get_top_targeted_paths(
+                        window_start, window_end, session=s
+                    )
+                ),
+                self._with_own_session(
+                    lambda s: self._get_range_metrics(
+                        previous_window_start, window_start, session=s
+                    )
+                ),
+                self._with_own_session(
+                    lambda s: self._get_label_counts_for_range(
+                        previous_window_start, window_start, session=s
+                    )
+                ),
             )
+            summary_row, avg_confidence, current_counts, false_positive_count = (
+                current_metrics
+            )
+            previous_counts = previous_metrics[2]
         else:
             (
-                summary_row,
-                avg_confidence,
+                current_metrics,
                 counts_by_label,
                 top_source_ips,
                 top_targeted_paths,
-                false_positive_count,
-                current_counts,
             ) = await asyncio.gather(
-                self._get_summary_row(None, None),
-                self._get_avg_confidence(None, None),
-                self._get_counts_by_label(None, None),
-                self._get_top_source_ips(None, None),
-                self._get_top_targeted_paths(None, None),
-                self._get_false_positive_count(None, None),
-                self._get_counts_for_range(None, None),
+                self._with_own_session(
+                    lambda s: self._get_range_metrics(None, None, session=s)
+                ),
+                self._with_own_session(
+                    lambda s: self._get_counts_by_label(None, None, session=s)
+                ),
+                self._with_own_session(
+                    lambda s: self._get_top_source_ips(None, None, session=s)
+                ),
+                self._with_own_session(
+                    lambda s: self._get_top_targeted_paths(None, None, session=s)
+                ),
+            )
+            summary_row, avg_confidence, current_counts, false_positive_count = (
+                current_metrics
             )
             previous_counts = None
             previous_label_counts = None
@@ -1100,7 +1226,13 @@ class TrafficLogRepository(ITrafficLogRepository):
         if sort_by == "confidence":
             sort_column = TrafficLog.confidence
         elif sort_by == "severity":
-            sort_column = TrafficLog.confidence_level
+            # Rank severity explicitly so HIGH sorts ahead of MEDIUM and LOW.
+            sort_column = case(
+                (TrafficLog.confidence_level == "HIGH", 3),
+                (TrafficLog.confidence_level == "MEDIUM", 2),
+                (TrafficLog.confidence_level == "LOW", 1),
+                else_=0,
+            )
         elif sort_by == "action":
             sort_column = TrafficLog.action_taken
 

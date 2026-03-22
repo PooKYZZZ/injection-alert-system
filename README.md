@@ -157,9 +157,9 @@ curl -X POST "http://localhost:8000/api/predict" \
 
 ### Current limitations
 
-- Stale `PROCESSING` triage reservations return `503` with `Retry-After`; they are surfaced safely but not auto-reclaimed.
+- Stale `PROCESSING` triage reservations are automatically reclaimed via lease expiry (`lease_expires_at`); a later request can claim ownership when the lease has expired.
 - The dashboard still derives some stats and ML-health display fields in the BFF because backend payloads are intentionally thinner than the UI contract.
-- 
+
 
 ## Documentation
 

@@ -100,7 +100,7 @@ class TrafficLog(Base):
     processing_attempt = Column(Integer, nullable=False, server_default="0")
     action_taken = Column(String(50), nullable=True)
     analyst_label = Column(String(50), nullable=True)
-    labeled_at = Column(DateTime, nullable=True)
+    labeled_at = Column(DateTime(timezone=True), nullable=True)
     labeled_by = Column(String(100), nullable=True)
     triage_status = Column(String(32), nullable=True)
 

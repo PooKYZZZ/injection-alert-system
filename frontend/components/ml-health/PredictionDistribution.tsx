@@ -23,24 +23,44 @@ interface PredictionDistributionProps {
 export function PredictionDistribution({
   countsByLabel,
 }: PredictionDistributionProps) {
-  if (!countsByLabel) {
+  if (
+    !countsByLabel ||
+    (Object.keys(countsByLabel.baseline ?? {}).length === 0 &&
+      Object.keys(countsByLabel.current ?? {}).length === 0)
+  ) {
     return (
       <EmptyState
-        message="Distribution data not yet available from backend"
-        subtext="Connect ML eval metadata endpoint to populate this chart"
+        message="Prediction distribution data was not returned by the backend"
+        subtext="Model registry eval metadata may not include a distribution snapshot"
       />
     )
   }
 
+  // Compute totals for percentage conversion
+  const baselineTotal = Object.values(countsByLabel.baseline ?? {}).reduce(
+    (sum, v) => sum + v,
+    0
+  )
+  const currentTotal = Object.values(countsByLabel.current ?? {}).reduce(
+    (sum, v) => sum + v,
+    0
+  )
+
   // Map data using ALERT_PREDICTION_VALUES for consistent ordering and display
-  const data = ALERT_PREDICTION_VALUES.map((key) => ({
-    name: key,
-    baseline: countsByLabel.baseline[key] ?? 0,
-    current: countsByLabel.current[key] ?? 0,
-    deviation: Math.abs(
-      (countsByLabel.current[key] ?? 0) - (countsByLabel.baseline[key] ?? 0)
-    ),
-  }))
+  const data = ALERT_PREDICTION_VALUES.map((key) => {
+    const baselineCount = countsByLabel.baseline[key] ?? 0
+    const currentCount = countsByLabel.current[key] ?? 0
+    const baselinePct = baselineTotal > 0 ? (baselineCount / baselineTotal) * 100 : 0
+    const currentPct = currentTotal > 0 ? (currentCount / currentTotal) * 100 : 0
+    return {
+      name: key,
+      baseline: Math.round(baselinePct * 10) / 10,
+      current: Math.round(currentPct * 10) / 10,
+      baselineCount,
+      currentCount,
+      deviation: Math.abs(currentPct - baselinePct),
+    }
+  })
 
   return (
     <>

@@ -604,14 +604,17 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
   return normalizeAlert(upstream.data)
 }
 
-export async function getStats(window?: string, timezone?: string): Promise<BffResult<DashboardStats>> {
+export async function getStats(
+  window?: string,
+  timezoneName?: string
+): Promise<BffResult<DashboardStats>> {
   if (isMockMode()) {
     return ok(MOCK_STATS)
   }
 
   const query = new URLSearchParams()
   if (window) query.set('window', window)
-  if (timezone) query.set('timezone', timezone)
+  if (timezoneName) query.set('timezone_name', timezoneName)
   const path = query.size > 0 ? `/api/stats?${query.toString()}` : '/api/stats'
   const upstream = await fetchUpstream(path, BackendStatsSchema)
   if (!upstream.ok) {

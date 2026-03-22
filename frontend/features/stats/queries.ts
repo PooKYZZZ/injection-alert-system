@@ -4,9 +4,9 @@ import { DashboardStats } from './types'
 /*
  * QUERY FRESHNESS POLICY
  *
- * Stats: staleTime = 30_000 (30 second cache)
+ * Stats: staleTime = 15_000 (15 second cache)
  * - Rationale: Dashboard metrics are expensive aggregates.
- * - 30s cache balances freshness with performance.
+ * - 15s cache balances freshness with performance.
  * - Stats are system-wide aggregates, less time-critical than alerts.
  *
  * The stats query throws on non-2xx responses - errors propagate to UI.

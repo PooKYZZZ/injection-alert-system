@@ -20,9 +20,9 @@ def test_prediction_request_validation():
 
 
 def test_prediction_request_empty_string():
-    """Test PredictionRequest accepts empty strings"""
-    request = PredictionRequest(http_request="")
-    assert request.http_request == ""
+    """Test PredictionRequest rejects empty strings"""
+    with pytest.raises(Exception):
+        PredictionRequest(http_request="")
 
 
 def test_prediction_response_structure():
@@ -31,7 +31,7 @@ def test_prediction_response_structure():
         class_label="SQL Injection",
         confidence=0.92,
         confidence_level="HIGH",
-        action_taken="BLOCKED"
+        action_taken="BLOCKED",
     )
     assert response.class_label == "SQL Injection"
     assert response.confidence == 0.92
@@ -46,7 +46,7 @@ def test_prediction_response_confidence_range():
         class_label="Normal",
         confidence=0.5,
         confidence_level="MEDIUM",
-        action_taken="ALLOWED"
+        action_taken="ALLOWED",
     )
     assert response.confidence == 0.5
 
@@ -56,7 +56,7 @@ def test_prediction_response_confidence_range():
             class_label="Normal",
             confidence=-0.1,
             confidence_level="LOW",
-            action_taken="ALLOWED"
+            action_taken="ALLOWED",
         )
 
     # Confidence > 1 should fail
@@ -65,16 +65,14 @@ def test_prediction_response_confidence_range():
             class_label="Normal",
             confidence=1.5,
             confidence_level="HIGH",
-            action_taken="ALLOWED"
+            action_taken="ALLOWED",
         )
 
 
 def test_feedback_request_validation():
     """Test FeedbackRequest schema"""
     feedback = FeedbackRequest(
-        traffic_id=1,
-        correct_label="Normal",
-        analyst_email="security@example.com"
+        traffic_id=1, correct_label="Normal", analyst_email="security@example.com"
     )
     assert feedback.traffic_id == 1
     assert feedback.correct_label == "Normal"
@@ -83,6 +81,7 @@ def test_feedback_request_validation():
 def test_alert_response_structure():
     """Test AlertResponse includes all traffic log fields"""
     from datetime import datetime
+
     alert = AlertResponse(
         id=1,
         timestamp=datetime.now(),
@@ -91,7 +90,7 @@ def test_alert_response_structure():
         prediction="SQL Injection",
         confidence=0.88,
         confidence_level="HIGH",
-        action_taken="BLOCKED"
+        action_taken="BLOCKED",
     )
     assert alert.id == 1
     assert alert.source_ip == "192.168.1.1"
@@ -178,9 +177,7 @@ def test_alert_detail_response_converts_aware_labeled_at_to_utc_rfc3339():
         prediction="SQL Injection",
         confidence=0.92,
         confidence_level="HIGH",
-        labeled_at=datetime(
-            2026, 3, 15, 18, 5, tzinfo=timezone(timedelta(hours=8))
-        ),
+        labeled_at=datetime(2026, 3, 15, 18, 5, tzinfo=timezone(timedelta(hours=8))),
     )
 
     assert alert.model_dump(mode="json")["labeled_at"] == "2026-03-15T10:05:00Z"

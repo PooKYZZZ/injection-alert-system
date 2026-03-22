@@ -107,6 +107,6 @@ Latest pushed work on `origin/master` includes:
 - The active model artifact path is `ml_model/model_registry/`.
 - The repo already has more backend startup work and frontend structure than older docs suggested.
 - The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets and working BFF-to-FastAPI wiring.
-- Stale `PROCESSING` reservations are surfaced safely but not automatically reclaimed.
+- Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 
 - Full audit findings in `docs/project-ops/DATA_AUDIT.md`.

@@ -24,11 +24,25 @@ export async function PATCH(
       )
     }
 
-    const body = await request.json()
-    const triageStatus = body?.triage_status
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'INVALID_REQUEST',
+            message:
+              'Request body must be valid JSON and include a triage_status field.',
+          },
+        },
+        { status: 400 }
+      )
+    }
+    const triageStatus = body.triage_status
 
     if (
-      !triageStatus ||
+      typeof triageStatus !== 'string' ||
       !['new', 'in_review', 'escalated', 'resolved', 'false_positive'].includes(
         triageStatus
       )
@@ -45,7 +59,15 @@ export async function PATCH(
       )
     }
 
-    const result = await updateAlertTriage(id, triageStatus)
+    const result = await updateAlertTriage(
+      id,
+      triageStatus as
+        | 'new'
+        | 'in_review'
+        | 'escalated'
+        | 'resolved'
+        | 'false_positive'
+    )
     if (!result.ok) {
       return NextResponse.json(
         { error: result.error },

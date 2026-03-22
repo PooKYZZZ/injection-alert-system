@@ -23,8 +23,8 @@
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
-  - `GET /api/stats` (with window=1h|6h|24h|7d filtering and extended fields)
-  - `GET /api/ml-health` (with optional eval metadata: macro_f1, ece, per_class_f1, calibration_bins, prediction_distribution)
+  - `GET /api/stats` (with window=1h|6h|24h|7d filtering, activity buckets, top source IPs, top targeted paths, attack distribution)
+  - `GET /api/ml-health` (with eval metadata: macro_f1, ece, per_class_f1, calibration_bins, prediction_distribution)
   - `POST /api/feedback`
   - `GET /health`
   - `GET /api/health`
@@ -93,7 +93,7 @@ Full audit report: `docs/project-ops/DATA_AUDIT.md`
 - Dashboard stats now include throttled_count, top_source_ips, top_targeted_paths, attack_distribution with window filtering
 - ML health now exposes optional eval metadata (macro_f1, ece, per_class_f1, calibration_bins, prediction_distribution) when model registry eval artifacts are present
 - `PROCESSING` reservations now use lease ownership fields (`lease_expires_at`, `processing_owner_token`, `processing_attempt`) and can be reclaimed on demand when expired
-- `app.state.model` remains a compatibility alias for `app.state.model_service`
+- `app.state.model` alias has been removed; all routes use `app.state.model_service` directly
 - `/api/alerts` now returns persisted records correctly - DB schema aligned
 
 ## Operator notes

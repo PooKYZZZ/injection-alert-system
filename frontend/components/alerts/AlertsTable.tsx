@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, Suspense } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert, PaginatedAlerts, TriageStatus } from '@/features/alerts/types'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
@@ -18,6 +18,20 @@ interface AlertsTableProps {
 }
 
 type SortColumn = 'timestamp' | 'confidence' | 'severity' | 'action'
+
+function searchParamsToRecord(
+  searchParams: ReadonlyURLSearchParams
+): Record<string, string | string[]> {
+  const normalized: Record<string, string | string[]> = {}
+
+  for (const key of new Set(Array.from(searchParams.keys()))) {
+    const values = searchParams.getAll(key)
+    if (values.length === 0) continue
+    normalized[key] = values.length === 1 ? values[0] : values
+  }
+
+  return normalized
+}
 
 const ALERT_TABLE_COLUMNS = [
   { key: 'triage', label: 'Triage', sortable: true },
@@ -175,7 +189,7 @@ function AlertsTableContent({
   const searchParams = useSearchParams()
 
   const params = useMemo(
-    () => normalizeAlertSearchParams(searchParams as unknown as Record<string, string | string[] | undefined>),
+    () => normalizeAlertSearchParams(searchParamsToRecord(searchParams)),
     [searchParams]
   )
 
@@ -438,6 +452,4 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: Al
     </Suspense>
   )
 }
-
-
 

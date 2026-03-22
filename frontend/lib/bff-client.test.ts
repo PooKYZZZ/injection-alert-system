@@ -324,6 +324,38 @@ describe('bff-client', () => {
     )
   })
 
+  it('propagates timezone_name parameter when fetching stats', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 0,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 0,
+          blocked_count: 0,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: null,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('6h', 'Asia/Manila')
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/stats?window=6h&timezone_name=Asia%2FManila',
+      expect.any(Object)
+    )
+  })
+
   it('sorts activity buckets by timestamp_start to keep timeline order stable', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
