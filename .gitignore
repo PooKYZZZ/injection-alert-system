@@ -173,3 +173,5 @@ PR_CHECKLIST.md
 RESEARCH_PROMPT.md
 Software Architect Reviews Capstone Plan.md
 .github/prompts/autonomous-plan-pr-checklist.prompt.md
+ml_model/model_registry/eval/20260323_120547/
+ml_model/model_registry/staging/electra_v3_907k_cleaned_20260323_110723/
