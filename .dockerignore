@@ -1,0 +1,17 @@
+.env
+.env.local
+.env*.local
+.venv/
+node_modules/
+.git/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.next/
+frontend/.next/
+frontend/node_modules/
+frontend/.env.local
+docs/
+data/
+*.db
