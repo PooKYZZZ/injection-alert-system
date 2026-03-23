@@ -4,11 +4,11 @@
 > Check off items as you complete them. Keep this file updated after every session.
 > This is your memory across sessions — never skip updating it.
 
-**Last updated:** 2026-03-22
+**Last updated:** 2026-03-23
 
 Status note:
 - This file is a working implementation checklist, not the live runtime source of truth.
-- Current test baseline: pytest 168 passed, vitest 46 passed, typecheck passed
+- Current test baseline: pytest 259 passed, vitest 107 passed, typecheck passed, lint passed
 - Full audit report: `docs/project-ops/DATA_AUDIT.md`
 
 ---
@@ -22,12 +22,14 @@ Status note:
 
 ---
 
-## Current Verified State (2026-03-20)
+## Current Verified State (2026-03-23)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **168 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
 - Frontend: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **46 passed**
+- Frontend lint: `cd frontend && npm run lint` → **PASSED**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes (All Implemented)
 - `POST /api/predict` ✓
@@ -93,7 +95,7 @@ cd frontend && npm run typecheck
 cd frontend && npx vitest run
 
 # BFF-focused tests
-cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 
 # Start backend
 uvicorn web_app.presentation.app:create_app --reload

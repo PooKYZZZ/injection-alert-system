@@ -6,7 +6,7 @@ import { useMLHealth } from '@/features/ml-health/queries'
 import { ModelHeader } from '@/components/ml-health/ModelHeader'
 import { ConfidenceThresholds } from '@/components/ml-health/ConfidenceThresholds'
 import { LoadingSkeleton, ErrorState } from '@/components/ui/StateViews'
-import type { MLHealthData } from '@/features/ml-health/types'
+
 
 // Lazy-load Recharts components to avoid SSR hydration issues and reduce initial bundle
 const PerClassF1Chart = dynamic(
@@ -98,9 +98,8 @@ export default function MLHealthPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-2">
-        {/* Macro F1 — not in BFF yet */}
+        {/* Macro F1 and ECE come from optional backend eval metadata */}
         <HealthStat label="Macro F1" value={health.macro_f1 != null ? health.macro_f1.toFixed(3) : '—'} sub={health.macro_f1 != null ? 'Test set · v3.1.0' : 'Not yet available'} valueColor="text-violet-400" />
-        {/* ECE — not in BFF yet */}
         <HealthStat label="ECE (calibration)" value={health.ece != null ? health.ece.toFixed(3) : '—'} sub={health.ece != null ? 'After temp scaling' : 'Not yet available'} valueColor="text-emerald-400" />
         {/* Avg latency — real data */}
         <HealthStat
@@ -202,7 +201,7 @@ export default function MLHealthPage() {
                 Current session vs baseline
               </span>
             </div>
-            <PredictionDistribution countsByLabel={null} />
+            <PredictionDistribution countsByLabel={health.prediction_distribution ?? null} />
           </motion.div>
 
           <motion.div

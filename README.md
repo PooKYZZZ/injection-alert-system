@@ -6,9 +6,10 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 This repository is active, but it is not yet a full production deployment.
 
-- Backend tests currently pass: `123 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
-- Frontend tests: `40 passed` (run with `cd frontend && npx vitest run`)
+- Backend tests currently pass: `259 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
+- Frontend tests: `107 passed` (run with `cd frontend && npx vitest run`)
 - Frontend typecheck currently passes: `npm run typecheck`
+- Frontend lint currently passes: `cd frontend && npm run lint`
 - The dashboard BFF routes for alerts, alert detail, stats, and ML health are wired to FastAPI in non-mock mode
 - Docker Compose, runnable ModSecurity wiring, and full Supabase/Redis integration are still in progress
 
@@ -44,7 +45,7 @@ In the current repo, the application code, model-loading path, tests, and dashbo
   - `GET /api/stats`
   - `GET /api/ml-health`
   - `POST /api/feedback`
-- Next.js 15 dashboard app with Auth.js credentials authentication
+- Next.js 16 dashboard app with Auth.js credentials authentication
 - Route-handler BFF layer for dashboard data access
 - Runtime model loading through `web_app/services/model_service.py`
 - Staged model artifacts under `ml_model/model_registry/`
@@ -61,8 +62,8 @@ In the current repo, the application code, model-loading path, tests, and dashbo
 
 | Layer | Current stack |
 |---|---|
-| Frontend | Next.js 15, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
-| Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.13 |
+| Frontend | Next.js 16, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
+| Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.14 |
 | ML | PyTorch, Hugging Face Transformers |
 | Data | SQLite for tests and local development, PostgreSQL/Supabase as target production boundary |
 | Docs | Markdown in-repo docs under `docs/` |
@@ -89,7 +90,7 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 
 ### Prerequisites
 
-- Python 3.13+ (tested with 3.13.7)
+- Python 3.14+ (tested with 3.14.3)
 - Node.js 20+
 - npm
 - PowerShell or a compatible shell
@@ -151,15 +152,15 @@ curl -X POST "http://localhost:8000/api/predict" \
 ### Current auth split
 
 - Frontend dashboard routes under `frontend/app/(dashboard)/` are session-protected.
-- `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
 - Next.js BFF handlers under `frontend/app/api/alerts`, `frontend/app/api/stats`, and `frontend/app/api/ml-health` also call `auth()` and return `401` without a session.
 - Backend internal data routes use `Authorization: Bearer <API_SECRET_KEY>` via the Next.js BFF client.
 
 ### Current limitations
 
-- Stale `PROCESSING` triage reservations return `503` with `Retry-After`; they are surfaced safely but not auto-reclaimed.
+- Stale `PROCESSING` triage reservations are automatically reclaimed via lease expiry (`lease_expires_at`); a later request can claim ownership when the lease has expired.
 - The dashboard still derives some stats and ML-health display fields in the BFF because backend payloads are intentionally thinner than the UI contract.
-- `app.state.model` remains as a compatibility alias for `app.state.model_service`.
+
 
 ## Documentation
 
@@ -169,7 +170,7 @@ curl -X POST "http://localhost:8000/api/predict" \
   - current architecture and planned gaps
 - [docs/SETUP.md](docs/SETUP.md)
   - local setup and environment guidance
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
   - contributor workflow and validation steps
 - [docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md](docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md)
   - dataset release note
@@ -196,7 +197,7 @@ This repository is maintained as part of Team 13's capstone work for the Injecti
 
 ## Contributing
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 At minimum, run:
 
@@ -209,7 +210,10 @@ cd frontend
 npm run typecheck
 
 # Frontend BFF tests (optional)
-npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+
+# Frontend production build
+npm run build
 ```
 
 ## License

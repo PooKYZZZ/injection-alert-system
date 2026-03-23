@@ -2,7 +2,7 @@
 
 import { NAV_ITEMS } from '@/lib/constants'
 import Image from 'next/image'
-import { SidebarIcon, SidebarNavItem } from './SidebarNavItem'
+import { SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
@@ -21,7 +21,7 @@ function getInitials(name: string): string {
   return initials || 'U'
 }
 
-export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
+export function Sidebar({ displayName }: SidebarProps) {
   const resolvedName = displayName?.trim() || 'SOC Analyst'
   const initials = getInitials(resolvedName)
   const handleLogout = () => signOut({ callbackUrl: '/login' })

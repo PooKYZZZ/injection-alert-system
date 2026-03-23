@@ -95,7 +95,7 @@ class TriageUseCase:
         source_ip: str,
     ) -> TriageResult:
         """Legacy execute path used by the existing prediction endpoint.
-        
+
         Now parses structured request metadata (method, path) from the raw HTTP
         request string to enable analytics like top_targeted_paths.
         """
@@ -104,10 +104,10 @@ class TriageUseCase:
             prediction=prediction["prediction"],
             confidence_level=prediction["confidence_level"],
         )
-        
+
         # Parse structured request metadata from raw HTTP request
         parsed = parse_http_request_line(http_request)
-        
+
         saved = await self._repository.save(
             TrafficLogEntity(
                 source_ip=source_ip,
@@ -127,7 +127,9 @@ class TriageUseCase:
     async def ingest(self, command: TriageIngestCommand) -> TriageResult:
         now = datetime.now(timezone.utc)
         owner_token = uuid4().hex
-        lease_expires_at = now + timedelta(seconds=self._stale_processing_timeout_seconds)
+        lease_expires_at = now + timedelta(
+            seconds=self._stale_processing_timeout_seconds
+        )
 
         authoritative = await self._repository.claim_or_reclaim_processing(
             TrafficLogEntity(
@@ -146,7 +148,9 @@ class TriageUseCase:
             now=now,
         )
         if authoritative is None:
-            existing = await self._repository.get_by_transaction_id(command.transaction_id)
+            existing = await self._repository.get_by_transaction_id(
+                command.transaction_id
+            )
             if existing is None:
                 raise RuntimeError(
                     "transaction_id claim was lost but the existing row could not be loaded"
@@ -196,17 +200,31 @@ class TriageUseCase:
 
         raw_result = await run_in_threadpool(self._classifier.predict, model_input)
         prediction = raw_result.get("prediction") or raw_result.get("class")
-        confidence_level = (
-            raw_result.get("confidence_level") or raw_result.get("confidence_tier")
+        confidence_level = raw_result.get("confidence_level") or raw_result.get(
+            "confidence_tier"
         )
         model_version = raw_result.get("model_version") or getattr(
             self._classifier,
             "model_version",
             None,
         )
+        try:
+            confidence = float(raw_result.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        # Fail-safe: if model output is missing required fields, default to
+        # LOW confidence which triggers ALLOWED (least disruptive). This avoids
+        # both fail-open (letting attacks through at HIGH) and fail-closed
+        # (blocking legitimate traffic at UNKNOWN).
+        if not prediction:
+            prediction = "Normal"
+        if not confidence_level:
+            confidence_level = "LOW"
+
         return {
             "prediction": prediction,
-            "confidence": float(raw_result["confidence"]),
+            "confidence": confidence,
             "confidence_level": confidence_level,
             "inference_latency_ms": raw_result.get("inference_latency_ms"),
             "model_version": model_version,

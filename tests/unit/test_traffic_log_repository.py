@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from web_app.domain.interfaces import TrafficLogEntity
 from web_app.infrastructure.database.database import Base
+from web_app.infrastructure.repositories import traffic_log_repository as repo_module
 from web_app.infrastructure.repositories.traffic_log_repository import (
+    _StatsCache,
     TrafficLogRepository,
 )
 
@@ -23,13 +25,22 @@ async def repository() -> TrafficLogRepository:
         await conn.run_sync(Base.metadata.create_all)
 
     async with session_factory() as session:
-        yield TrafficLogRepository(session)
+        yield TrafficLogRepository(session, session_factory=session_factory)
 
     await engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+def clear_stats_cache():
+    repo_module._stats_cache._store.clear()
+    yield
+    repo_module._stats_cache._store.clear()
+
+
 @pytest.mark.asyncio
-async def test_get_stats_summary_returns_zero_safe_defaults(repository: TrafficLogRepository):
+async def test_get_stats_summary_returns_zero_safe_defaults(
+    repository: TrafficLogRepository,
+):
     summary = await repository.get_stats_summary()
 
     assert summary.total_requests == 0
@@ -637,3 +648,105 @@ async def test_seven_day_bucket_boundaries_are_deterministic(
         assert (
             buckets[idx].timestamp_start - buckets[idx - 1].timestamp_start
         ) == expected_step
+
+
+@pytest.mark.asyncio
+async def test_get_alert_list_sorts_by_severity_rank(
+    repository: TrafficLogRepository,
+):
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-severity-high",
+            timestamp=datetime(2026, 3, 21, 12, 0, tzinfo=timezone.utc),
+            source_ip="198.51.100.40",
+            request_path="/high",
+            request_method="GET",
+            http_request="GET /high",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="HIGH",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-severity-low",
+            timestamp=datetime(2026, 3, 21, 12, 0, tzinfo=timezone.utc),
+            source_ip="198.51.100.41",
+            request_path="/low",
+            request_method="GET",
+            http_request="GET /low",
+            prediction="Normal",
+            confidence=0.25,
+            confidence_level="LOW",
+            inference_latency_ms=2.0,
+            action_taken="ALLOWED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-severity-medium",
+            timestamp=datetime(2026, 3, 21, 12, 0, tzinfo=timezone.utc),
+            source_ip="198.51.100.42",
+            request_path="/medium",
+            request_method="GET",
+            http_request="GET /medium",
+            prediction="Code Injection",
+            confidence=0.55,
+            confidence_level="MEDIUM",
+            inference_latency_ms=2.0,
+            action_taken="THROTTLED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=10,
+        sort_by="severity",
+        sort_dir="desc",
+        time_range="7d",
+    )
+
+    assert [item.confidence_level for item in page.items] == [
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_stats_summary_reuses_cache_for_same_minute_reference_time(
+    repository: TrafficLogRepository,
+):
+    original_with_own_session = repository._with_own_session
+    call_count = 0
+
+    async def counting_with_own_session(coro_factory):
+        nonlocal call_count
+        call_count += 1
+        return await original_with_own_session(coro_factory)
+
+    repository._with_own_session = counting_with_own_session  # type: ignore[assignment]
+
+    first = await repository.get_stats_summary(
+        window="24h",
+        reference_time=datetime(2026, 3, 22, 12, 34, 5, tzinfo=timezone.utc),
+    )
+    second = await repository.get_stats_summary(
+        window="24h",
+        reference_time=datetime(2026, 3, 22, 12, 34, 55, tzinfo=timezone.utc),
+    )
+
+    assert first == second
+    assert call_count == 6
+
+
+def test_stats_cache_purges_expired_entries_when_setting_new_values():
+    cache = _StatsCache()
+    cache._store["expired"] = (datetime.now(timezone.utc).timestamp() - 1, object())
+
+    cache.set("fresh", object())
+
+    assert "expired" not in cache._store
+    assert cache.get("fresh") is not None

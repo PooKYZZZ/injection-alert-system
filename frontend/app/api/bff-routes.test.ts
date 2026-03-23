@@ -6,6 +6,7 @@ const getAlertsMock = vi.fn()
 const getAlertDetailMock = vi.fn()
 const getStatsMock = vi.fn()
 const getMlHealthMock = vi.fn()
+const updateAlertTriageMock = vi.fn()
 
 vi.mock('@/auth', () => ({
   auth: authMock,
@@ -16,6 +17,7 @@ vi.mock('@/lib/bff-client', () => ({
   getAlertDetail: getAlertDetailMock,
   getStats: getStatsMock,
   getMlHealth: getMlHealthMock,
+  updateAlertTriage: updateAlertTriageMock,
 }))
 
 describe('BFF route handlers', () => {
@@ -71,7 +73,7 @@ describe('BFF route handlers', () => {
     authMock.mockResolvedValueOnce(null)
     const { GET } = await import('./ml-health/route')
 
-    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
+    const response = await GET()
     const body = await response.json()
 
     expect(getMlHealthMock).not.toHaveBeenCalled()
@@ -250,6 +252,26 @@ describe('BFF route handlers', () => {
     expect(getStatsMock).toHaveBeenCalledWith('24h', 'Asia/Manila')
   })
 
+  it('stats route forwards timezone_name search param to BFF client', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    getStatsMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        actionable_alerts: 0,
+        total_requests: 0,
+        avg_inference_latency_ms: 0,
+      },
+    })
+
+    const { GET } = await import('./stats/route')
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/stats?window=24h&timezone_name=Asia/Manila')
+    )
+
+    expect(response.status).toBe(200)
+    expect(getStatsMock).toHaveBeenCalledWith('24h', 'Asia/Manila')
+  })
+
   it('ml-health route returns the frontend component contract shape', async () => {
     authMock.mockResolvedValueOnce({ user: { id: '1' } })
     getMlHealthMock.mockResolvedValueOnce({
@@ -271,7 +293,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./ml-health/route')
-    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
+    const response = await GET()
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -340,7 +362,7 @@ describe('BFF route handlers', () => {
     })
 
     const { GET } = await import('./ml-health/route')
-    const response = await GET(new NextRequest('http://localhost:3000/api/ml-health'))
+    const response = await GET()
     const body = await response.json()
 
     expect(response.status).toBe(500)
@@ -421,5 +443,179 @@ describe('BFF route handlers', () => {
 
     expect(response.status).toBe(503)
     expect(response.headers.get('Retry-After')).toBe('30')
+  })
+
+  // --- Triage PATCH endpoint tests ---
+
+  it('triage PATCH rejects unauthenticated request', async () => {
+    authMock.mockResolvedValueOnce(null)
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'in_review' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(updateAlertTriageMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(401)
+    expect(body).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+    })
+  })
+
+  it('triage PATCH accepts valid triage_status and returns 200', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    updateAlertTriageMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alert_id: '1', triage_status: 'in_review' },
+    })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'in_review' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.triage_status).toBe('in_review')
+    expect(updateAlertTriageMock).toHaveBeenCalledWith('1', 'in_review')
+  })
+
+  it('triage PATCH rejects invalid triage_status with 400', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'invalid_status' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(updateAlertTriageMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_REQUEST')
+  })
+
+  it('triage PATCH rejects malformed JSON with 400', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: '{"triage_status":',
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(updateAlertTriageMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_REQUEST')
+  })
+
+  it('triage PATCH rejects non-numeric alert ID with 400', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/abc/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'in_review' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: 'abc' }),
+    })
+    const body = await response.json()
+
+    expect(updateAlertTriageMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_ID')
+  })
+
+  it('triage PATCH propagates 401 from upstream as INTERNAL_SERVICE_AUTH_FAILED', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    updateAlertTriageMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      error: {
+        code: 'INTERNAL_SERVICE_AUTH_FAILED',
+        message: 'Internal service authentication failed.',
+      },
+    })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'in_review' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(body.error.code).toBe('INTERNAL_SERVICE_AUTH_FAILED')
+  })
+
+  it('triage PATCH propagates 404 from upstream as NOT_FOUND', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    updateAlertTriageMock.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Requested resource was not found.',
+      },
+    })
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/999/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'resolved' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '999' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(404)
+    expect(body.error.code).toBe('NOT_FOUND')
+  })
+
+  it('triage PATCH returns 500 for unhandled exceptions', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    updateAlertTriageMock.mockRejectedValueOnce(new Error('Unexpected failure'))
+    const { PATCH } = await import('./alerts/[id]/triage/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+      method: 'PATCH',
+      body: JSON.stringify({ triage_status: 'in_review' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.error.code).toBe('INTERNAL_ERROR')
   })
 })

@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { AnimatePresence, motion } from 'motion/react'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { ActionLabel } from '@/components/ui/ActionLabel'
@@ -38,12 +37,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
   const displayAlerts = alerts.slice(0, 4)
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4"
-    >
+    <div className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
           Recent alerts
@@ -69,41 +63,35 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-text-ghost)]">
-          <AnimatePresence initial={false}>
-            {displayAlerts.map((alert) => (
-              <motion.tr
-                key={alert.alert_id}
-                initial={{ opacity: 0, x: -8, backgroundColor: 'rgba(239, 68, 68, 0.08)' }}
-                animate={{ opacity: 1, x: 0, backgroundColor: 'rgba(239, 68, 68, 0)' }}
-                exit={{ opacity: 0, x: 8 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                className="hover:bg-[var(--color-bg-base)] transition-colors"
-              >
-                <td className="p-2">
-                  <input type="checkbox" className="accent-violet-600" aria-label={`Select alert ${alert.alert_id}`} />
-                </td>
-                <td className="p-2">
-                  <TriageBadge triage_status={alert.triage_status ?? null} />
-                </td>
-                <td className="p-2">
-                  <SeverityBadge severity={alert.confidence_level} prediction={alert.prediction} />
-                </td>
-                <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
-                <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
-                <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
-                <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
-                <td className="p-2">
-                  <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
-                </td>
-                <td className="p-2">
-                  <ActionLabel action={alert.action_taken} />
-                </td>
-              </motion.tr>
-            ))}
-          </AnimatePresence>
+          {displayAlerts.map((alert) => (
+            <tr
+              key={alert.alert_id}
+              className="hover:bg-[var(--color-bg-base)] transition-colors"
+            >
+              <td className="p-2">
+                <input type="checkbox" className="accent-violet-600" aria-label={`Select alert ${alert.alert_id}`} />
+              </td>
+              <td className="p-2">
+                <TriageBadge triage_status={alert.triage_status ?? null} />
+              </td>
+              <td className="p-2">
+                <SeverityBadge severity={alert.confidence_level} prediction={alert.prediction} />
+              </td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
+              <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
+              <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
+              <td className="p-2">
+                <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
+              </td>
+              <td className="p-2">
+                <ActionLabel action={alert.action_taken} />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
-    </motion.div>
+    </div>
   )
 }
 

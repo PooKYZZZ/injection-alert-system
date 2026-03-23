@@ -2,8 +2,9 @@
 
 import { useMemo } from 'react'
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -21,6 +22,29 @@ interface TimelineChartProps {
   isPending?: boolean
   hasEvents?: boolean
   consistencyWarning?: string | null
+}
+
+interface TooltipEntry {
+  dataKey?: string | number
+  color?: string
+  name?: string | number
+  value?: string | number
+  payload?: { timestampEndMs?: number | null }
+}
+
+export function dedupeTooltipPayload(payload: ReadonlyArray<TooltipEntry>): TooltipEntry[] {
+  const seen = new Map<string | number, TooltipEntry>()
+  const passthrough: TooltipEntry[] = []
+
+  for (const entry of payload) {
+    if (entry.dataKey == null) {
+      passthrough.push(entry)
+      continue
+    }
+    seen.set(entry.dataKey, entry)
+  }
+
+  return [...passthrough, ...seen.values()]
 }
 
 export function buildUniqueDayTicks(timestamps: number[]): number[] {
@@ -53,16 +77,12 @@ function CustomTooltip({
   label,
 }: {
   active?: boolean
-  payload?: ReadonlyArray<{
-    dataKey?: string | number
-    color?: string
-    name?: string | number
-    value?: string | number
-    payload?: { timestampEndMs?: number | null }
-  }>
+  payload?: ReadonlyArray<TooltipEntry>
   label?: string | number
 }) {
   if (!active || !payload?.length) return null
+
+  const uniquePayload = dedupeTooltipPayload(payload)
 
   const timestampStart = typeof label === 'number' ? label : Number(label)
   const timestampEnd = payload[0]?.payload?.timestampEndMs ?? null
@@ -98,7 +118,7 @@ function CustomTooltip({
   return (
     <div className="w-[170px] rounded-md border border-[#30363d] bg-[rgba(13,17,23,0.82)] px-2.5 py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.5)] backdrop-blur-md">
       <p className="mb-1.5 border-b border-[#30363d] pb-1 text-[10px] font-medium text-[#7d8590]">{displayLabel}</p>
-      {payload.map((entry) => (
+      {uniquePayload.map((entry) => (
         <div
           key={String(entry.dataKey)}
           className="grid grid-cols-[1fr_auto] items-center gap-2 py-0.5 text-[11px] leading-4 tabular-nums"
@@ -119,14 +139,6 @@ export function TimelineChart({
   hasEvents,
   consistencyWarning,
 }: TimelineChartProps) {
-  if (isPending) {
-    return (
-      <div className="h-[140px] w-full">
-        <LoadingSkeleton rows={4} />
-      </div>
-    )
-  }
-
   const processedData = useMemo(() => {
     if (!buckets || buckets.length === 0) return []
 
@@ -168,20 +180,26 @@ export function TimelineChart({
     }
 
     const uniqueDayTicks = buildUniqueDayTicks(processedData.map((point) => point.timestampMs))
-    const firstTick = uniqueDayTicks[0]
-    const lastTick = uniqueDayTicks[uniqueDayTicks.length - 1]
-    const defaultEdgePaddingMs = 12 * 60 * 60 * 1000
-    const perDaySpacing =
-      uniqueDayTicks.length > 1 ? Math.max(1, (lastTick - firstTick) / (uniqueDayTicks.length - 1)) : defaultEdgePaddingMs
-    const edgePaddingMs = Math.max(defaultEdgePaddingMs, Math.floor(perDaySpacing / 2))
 
     return {
       tickFormatter: formatTick,
       ticks: uniqueDayTicks,
       interval: 0,
-      domain: [firstTick - edgePaddingMs, lastTick + edgePaddingMs] as [number, number],
+      domain: ['dataMin', 'dataMax'] as [string, string],
     }
   }, [processedData, timeWindow])
+
+  const colorBlocked = useCSSColor('--color-severity-high-accent')
+  const colorThrottled = useCSSColor('--color-accent-amber')
+  const colorAllowed = useCSSColor('--color-severity-safe-accent')
+
+  if (isPending) {
+    return (
+      <div className="h-[140px] w-full">
+        <LoadingSkeleton rows={4} />
+      </div>
+    )
+  }
 
   const inferredHasEvents = processedData.some(
     (point) => (point.allowed ?? 0) + (point.blocked ?? 0) + (point.throttled ?? 0) > 0
@@ -190,28 +208,24 @@ export function TimelineChart({
   const isEmpty = hasEvents != null ? !hasEvents : !inferredHasEvents
   const chartMargin =
     timeWindow === '7d'
-      ? { top: 5, right: 12, left: 0, bottom: 0 }
+      ? { top: 5, right: 5, left: -20, bottom: 0 }
       : { top: 5, right: 5, left: -20, bottom: 0 }
-
-  const colorBlocked = useCSSColor('--color-severity-high-accent')
-  const colorThrottled = useCSSColor('--color-accent-amber')
-  const colorAllowed = useCSSColor('--color-severity-safe-accent')
 
   return (
     <div className="relative h-[140px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={processedData} margin={chartMargin}>
+        <ComposedChart data={processedData} margin={chartMargin}>
           <defs>
             <linearGradient id="gradBlocked" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={colorBlocked} stopOpacity={0.12} />
+              <stop offset="5%" stopColor={colorBlocked} stopOpacity={0.05} />
               <stop offset="95%" stopColor={colorBlocked} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradThrottled" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={colorThrottled} stopOpacity={0.12} />
+              <stop offset="5%" stopColor={colorThrottled} stopOpacity={0.05} />
               <stop offset="95%" stopColor={colorThrottled} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradAllowed" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={colorAllowed} stopOpacity={0.12} />
+              <stop offset="5%" stopColor={colorAllowed} stopOpacity={0.05} />
               <stop offset="95%" stopColor={colorAllowed} stopOpacity={0} />
             </linearGradient>
           </defs>
@@ -265,51 +279,81 @@ export function TimelineChart({
               <Area
                 type="monotone"
                 dataKey="blocked"
-                stroke={colorBlocked}
-                strokeWidth={1.5}
+                stroke="transparent"
                 fill="url(#gradBlocked)"
                 fillOpacity={1}
                 name="blocked"
                 dot={false}
-                activeDot={{ r: 3, fill: colorBlocked }}
-                isAnimationActive={true}
-                animationDuration={600}
+                isAnimationActive
+                animationDuration={550}
                 animationEasing="ease-out"
                 connectNulls={false}
               />
               <Area
                 type="monotone"
                 dataKey="throttled"
-                stroke={colorThrottled}
-                strokeWidth={1.5}
+                stroke="transparent"
                 fill="url(#gradThrottled)"
                 fillOpacity={1}
                 name="throttled"
                 dot={false}
-                activeDot={{ r: 3, fill: colorThrottled }}
-                isAnimationActive={true}
-                animationDuration={600}
+                isAnimationActive
+                animationDuration={550}
                 animationEasing="ease-out"
                 connectNulls={false}
               />
               <Area
                 type="monotone"
                 dataKey="allowed"
-                stroke={colorAllowed}
-                strokeWidth={1.5}
+                stroke="transparent"
                 fill="url(#gradAllowed)"
                 fillOpacity={1}
                 name="allowed"
                 dot={false}
-                activeDot={{ r: 3, fill: colorAllowed }}
-                isAnimationActive={true}
-                animationDuration={600}
+                isAnimationActive
+                animationDuration={550}
                 animationEasing="ease-out"
                 connectNulls={false}
               />
+              <Line
+                type="monotone"
+                dataKey="blocked"
+                stroke={colorBlocked}
+                strokeWidth={2.25}
+                dot={false}
+                activeDot={{ r: 4, fill: colorBlocked, stroke: '#0f172a', strokeWidth: 2 }}
+                connectNulls={false}
+                isAnimationActive
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Line
+                type="monotone"
+                dataKey="throttled"
+                stroke={colorThrottled}
+                strokeWidth={2.25}
+                dot={false}
+                activeDot={{ r: 4, fill: colorThrottled, stroke: '#0f172a', strokeWidth: 2 }}
+                connectNulls={false}
+                isAnimationActive
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Line
+                type="monotone"
+                dataKey="allowed"
+                stroke={colorAllowed}
+                strokeWidth={2.25}
+                dot={false}
+                activeDot={{ r: 4, fill: colorAllowed, stroke: '#0f172a', strokeWidth: 2 }}
+                connectNulls={false}
+                isAnimationActive
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </>
           ) : null}
-        </AreaChart>
+        </ComposedChart>
       </ResponsiveContainer>
       {hasWindowDataMismatch ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">

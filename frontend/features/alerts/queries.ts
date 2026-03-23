@@ -12,10 +12,10 @@ import { Alert, PaginatedAlerts, TriageStatus } from './types'
 /*
  * QUERY FRESHNESS POLICY
  *
- * Alerts: staleTime = 0 (always refetch on mount)
- * - Rationale: Security alerts are time-critical. Analysts need the latest data.
+ * Alerts: staleTime = 5000 (5 second cache)
+ * - Rationale: Security alerts are time-critical. Analysts need fresh data.
  * - Alerts are the primary working surface for triage decisions.
- * - No local caching - each mount triggers a fresh fetch.
+ * - Short caching keeps refetches responsive without hammering the BFF.
  *
  * The alerts query throws on non-2xx responses - errors propagate to UI.
  * No placeholderData or fake success states are used.
@@ -36,7 +36,7 @@ export function alertListOptions(filters: DashboardFilters) {
       if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
-    staleTime: 0,
+    staleTime: 5000,
   })
 }
 
@@ -67,7 +67,7 @@ export function alertListOptionsFromFilters(filters: AlertFilters) {
       if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
-    staleTime: 0,
+    staleTime: 5000,
   })
 }
 
@@ -102,11 +102,11 @@ export function useTriageMutation() {
       // 1. Cancel outgoing refetches to prevent race conditions
       await queryClient.cancelQueries({ queryKey: alertKeys.all })
       // 2. Snapshot all list queries and the detail query for rollback
-      const previousLists = new Map<string, PaginatedAlerts | undefined>()
+      const previousLists = new Map<ReadonlyArray<string>, PaginatedAlerts | undefined>()
       queryClient.getQueriesData<PaginatedAlerts>({ queryKey: alertKeys.all })
         .forEach(([queryKey, data]) => {
           if (queryKey[1] === 'list') {
-            previousLists.set(queryKey.join('|'), data)
+            previousLists.set(queryKey as ReadonlyArray<string>, data)
           }
         })
       const previousDetail = queryClient.getQueryData<Alert>(
@@ -133,10 +133,9 @@ export function useTriageMutation() {
       return { previousLists, previousDetail }
     },
     onError: (_err, variables, context) => {
-      // Rollback on failure - restore all list queries
+      // Rollback on failure - restore all list queries using original keys
       if (context?.previousLists) {
-        context.previousLists.forEach((data, keyStr) => {
-          const queryKey = keyStr.split('|') as string[]
+        context.previousLists.forEach((data, queryKey) => {
           queryClient.setQueryData(queryKey, data)
         })
       }

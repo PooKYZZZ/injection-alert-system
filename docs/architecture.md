@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-03-20
+Last updated: 2026-03-22
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -8,7 +8,7 @@ This document describes the current repository architecture. It distinguishes be
 
 ```mermaid
 flowchart LR
-    Browser["Browser"] --> Next["Next.js 15 App Router"]
+    Browser["Browser"] --> Next["Next.js 16 App Router"]
     Next --> BFF["Route Handlers / BFF"]
     BFF --> FastAPI["FastAPI API"]
     FastAPI --> Model["ModelService"]
@@ -68,7 +68,7 @@ This aligns with FastAPI's own guidance for larger applications: split routers a
 
 ### App structure
 
-- Framework: Next.js 15 App Router
+- Framework: Next.js 16 App Router
 - Auth: Auth.js credentials provider with JWT sessions
 - Data layer: TanStack Query + Zod
 - Client state: Zustand
@@ -141,8 +141,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 
 ## Current limitations
 
-- `PROCESSING` placeholder rows are hidden from normal alerts and stats reads, but stale reservations are only surfaced with `503` and `Retry-After`; there is no auto-reclaim path yet.
-- `app.state.model` remains as a compatibility alias for `app.state.model_service`.
+- `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
 - `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
 - `/api/alerts` returns persisted records correctly

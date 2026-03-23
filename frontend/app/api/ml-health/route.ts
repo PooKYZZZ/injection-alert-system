@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getMlHealth } from '@/lib/bff-client'
 
-export async function GET(_request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   try {
     const session = await auth()
     if (!session) {

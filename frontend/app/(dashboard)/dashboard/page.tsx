@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
-import Link from 'next/link'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -173,7 +172,7 @@ export default function DashboardPage() {
     >
       {/* Stats Row */}
       <div className="grid grid-cols-6 gap-2">
-        {statCards.map((card, index) => (
+        {statCards.map((card) => (
             <StatCard
               key={card.label}
               label={card.label}

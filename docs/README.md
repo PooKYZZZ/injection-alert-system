@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-03-20
+Last updated: 2026-03-23
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, and academic deliverables.
 
@@ -23,6 +23,8 @@ This folder is the maintained documentation surface for the repository. It is in
   - Compact context block for AI-assisted development sessions.
 - `project-ops/LIVING_CHECKLIST.md`
   - Ongoing backend checklist and session handoff material.
+- `PR_CHECKLIST_python314-upgrade.md`
+  - Summary and verification checklist for the Python 3.14 / latest-compatible upgrade branch.
 - `project-ops/DATA_AUDIT.md`
   - Full database-to-frontend audit findings (2026-03-20).
 
@@ -38,11 +40,12 @@ This folder is the maintained documentation surface for the repository. It is in
 - `model_architecture_subsection.md`
   - Thesis subsection describing model selection rationale and citations.
 
-## Verified Repo State (2026-03-20)
+## Verified Repo State (2026-03-22)
 
-- Backend tests currently pass: **87 passed** (pytest)
+- Backend tests currently pass: **259 passed** (pytest)
 - Frontend typecheck currently passes: `npm run typecheck`
-- Frontend tests currently pass: **74 passed** (vitest)
+- Frontend lint currently passes: `cd frontend && npm run lint`
+- Frontend tests currently pass: **107 passed** (vitest)
 - Current backend API surface includes:
   - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `PATCH /api/alerts/{id}/triage`, `GET /api/stats`, `GET /api/ml-health`
   - public: `POST /api/feedback`, `GET /health`, `GET /api/health`

@@ -13,8 +13,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const timeWindow = request.nextUrl.searchParams.get('window') ?? undefined
-    const timezone = request.nextUrl.searchParams.get('timezone') ?? undefined
-    const result = await getStats(timeWindow, timezone)
+    const timezoneName =
+      request.nextUrl.searchParams.get('timezone_name') ??
+      request.nextUrl.searchParams.get('timezone') ??
+      undefined
+    const result = await getStats(timeWindow, timezoneName)
     if (!result.ok) {
       const response = NextResponse.json({ error: result.error }, { status: result.status })
       if (result.retryAfter) {

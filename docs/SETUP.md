@@ -1,13 +1,13 @@
 # Local Setup
 
-Last updated: 2026-03-20
+Last updated: 2026-03-23
 
 This guide reflects the repo as it exists now. It supports local backend and frontend development. It does not assume Docker Compose, ModSecurity, Redis, or Supabase are already wired in this repository.
 
 ## Prerequisites
 
 - Windows PowerShell
-- Python 3.13+
+- Python 3.14+
 - Node.js 20+
 - npm
 
@@ -74,7 +74,7 @@ MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_2
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-20, this passes with **123 backend tests**.
+As of 2026-03-23, this passes with **259 backend tests**.
 
 ### Start the backend
 
@@ -128,7 +128,7 @@ NEXT_PUBLIC_APP_VERSION=0.0.0-LOCAL
 
 Notes:
 
-- `AUTH_SECRET` is the Auth.js signing secret.
+- `AUTH_SECRET` is the Auth.js signing secret. Keep `NEXTAUTH_SECRET` unset to avoid split secret sources.
 - The login flow currently checks a password only.
 - `SOC_DEMO_PASSWORD` is preferred. The code also falls back to `DEMO_PASSWORD`, then `demo1234` in development.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
@@ -155,7 +155,7 @@ As of 2026-03-20, typecheck passes cleanly.
 
 ```powershell
 cd frontend
-npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 ```
 
 ### Run full frontend test suite
@@ -165,7 +165,14 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-03-20, full suite passes with **40 frontend tests**.
+As of 2026-03-23, full suite passes with **107 frontend tests**.
+
+### Validate production build
+
+```powershell
+cd frontend
+npm run build
+```
 
 ## 4. Current Frontend Data Reality
 
@@ -196,7 +203,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/login` is the public sign-in page.
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check.
-- `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
 - All five BFF handlers also call `auth()` and return `401` without a session.
 
 ## 5. What This Setup Does Not Cover

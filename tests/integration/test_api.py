@@ -134,13 +134,14 @@ def test_feedback_endpoint(client):
                 "correct_label": "Normal",
                 "analyst_email": "test@example.com",
             },
+            headers=INTERNAL_HEADERS,
         )
         assert feedback_response.status_code == 200
 
 
 def test_model_singleton_injection(client):
-    """Test that the model is injected from app.state, not instantiated per-request."""
+    """Test that the model service is injected from app.state, not instantiated per-request."""
     app_instance = client.app
-    assert hasattr(app_instance.state, "model"), (
-        "Model should be loaded on app.state during lifespan"
+    assert hasattr(app_instance.state, "model_service"), (
+        "Model service should be loaded on app.state during lifespan"
     )

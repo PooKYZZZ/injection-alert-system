@@ -281,14 +281,15 @@ class ModelService:
                 candidates.append(child)
 
         # Pick most recent by directory name (timestamp sort)
-        candidates.sort(key=lambda p: p.name, reverse=True)
+        candidates.sort(key=lambda p: p.parent.name, reverse=True)
         if not candidates:
             return {}
 
         metrics_path = candidates[0]
         try:
             raw = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            logger.warning("Failed to read eval metadata from %s", metrics_path)
             return {}
 
         metadata: dict[str, Any] = {}

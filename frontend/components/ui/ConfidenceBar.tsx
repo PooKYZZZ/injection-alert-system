@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import type { AlertPrediction } from '@/features/alerts/contract'
 
@@ -16,7 +15,7 @@ function getConfidenceColors(confidence: number): { text: string; bg: string } {
   return { text: 'text-emerald-400', bg: 'bg-emerald-600' }
 }
 
-export function ConfidenceBar({ confidence, prediction }: ConfidenceBarProps) {
+export function ConfidenceBar({ confidence, prediction: _prediction }: ConfidenceBarProps) {
   const value = Math.round(confidence * 100)
   const colors = getConfidenceColors(confidence)
 
@@ -26,11 +25,9 @@ export function ConfidenceBar({ confidence, prediction }: ConfidenceBarProps) {
         {value}%
       </span>
       <div className="h-1 w-12 overflow-hidden rounded-full bg-[var(--color-bg-base)]">
-        <motion.div
+        <div
           className={cn('h-full', colors.bg)}
-          initial={{ width: 0 }}
-          animate={{ width: `${value}%` }}
-          transition={{ duration: 0.2 }}
+          style={{ width: `${value}%` }}
         />
       </div>
     </div>
