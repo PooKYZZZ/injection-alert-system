@@ -124,10 +124,11 @@ def create_app() -> FastAPI:
         )
 
     # Starlette applies middleware in reverse registration order.
-    # Register security headers before body size checks so the body limit
-    # middleware becomes the earliest custom decision point for requests.
-    app.add_middleware(SecurityHeadersMiddleware)
+    # Register the body limit middleware first so the security headers
+    # middleware becomes the outermost custom layer and can post-process
+    # every response, including early 400/413 responses from body limits.
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # --- API router ---
     app.include_router(api_router, prefix="/api")

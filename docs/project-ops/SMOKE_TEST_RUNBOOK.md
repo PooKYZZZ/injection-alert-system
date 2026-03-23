@@ -3,7 +3,9 @@
 **Last updated:** 2026-03-23
 **Audience:** Any teammate with zero prior context.
 
-This runbook walks through starting the full Docker stack, seeding demo data, verifying every dashboard page loads, and confirming that a triage update persists to Supabase.
+This runbook walks through starting the current repo Docker stack, seeding demo data, verifying every dashboard page loads, and confirming that a triage update persists through the real `triage_status` contract.
+
+> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, while backend and ModSecurity stay internal to the compose network.
 
 ---
 
@@ -57,7 +59,7 @@ For example: `docker compose logs backend`
 ## Step 3 — Verify Backend Health
 
 ```powershell
-curl http://localhost:8000/health
+docker compose exec backend curl -f http://localhost:8000/health
 ```
 
 **Expected response (HTTP 200):**
@@ -69,7 +71,7 @@ curl http://localhost:8000/health
 Also verify the API health endpoint:
 
 ```powershell
-curl http://localhost:8000/api/health
+docker compose exec backend curl -f http://localhost:8000/api/health
 ```
 
 **Expected response (HTTP 200):**
@@ -78,30 +80,21 @@ curl http://localhost:8000/api/health
 {"status": "ok"}
 ```
 
-> **Note:** The ModSecurity container exposes port 8080 internally but is mapped to host port 80. The backend is only reachable through ModSecurity at `http://localhost:80` in the Docker stack. If you need direct backend access for seeding, use `docker compose exec backend` (see Step 4).
+> **Note:** The backend is not published to the host in the current compose file. Use `docker compose exec backend ...` for direct backend checks from the host machine.
 
 ---
 
 ## Step 4 — Seed Demo Data
 
-Run the seed script inside the backend container:
+This repository does not currently track a demo-seeding script. If you already
+have a local utility for generating demo alerts, run it now using the backend
+container or your own local setup.
 
-```powershell
-docker compose exec backend python seed_demo.py
-```
+**Expected output:** The running system should end up with a small set of alert
+rows so the dashboard and triage flow have data to show.
 
-**Expected output:** The script sends ~35 demo payloads (SQL injection, command injection, path traversal, normal traffic, etc.) through the prediction API. Each payload prints a prediction, confidence, and action. The final summary should show `Successful` equal to the total processed, with `Failed` at 0.
-
-If `seed_demo.py` cannot reach the backend from outside Docker, run it locally instead:
-
-```powershell
-# In a separate terminal, from the repo root
-.venv\Scripts\Activate.ps1
-$env:API_SECRET_KEY = "local-dev-secret"
-python seed_demo.py http://localhost:8000
-```
-
-> **Note:** `seed_demo.py` reads `API_SECRET_KEY` from the environment. It defaults to `http://127.0.0.1:8000`. If running locally against the Docker stack, pass the correct URL or set `API_BASE_URL`.
+> **Note:** Keep this step optional. The rest of the runbook should still work
+> if the database already contains alert rows.
 
 ---
 
@@ -175,41 +168,25 @@ Go to `http://localhost:3000/alerts` and note the ID of any alert row (e.g., cli
 
 ### 9b. PATCH the triage status
 
-Use PowerShell to send a triage update. Replace `<ALERT_ID>` with the actual alert ID:
+Use PowerShell to send a triage update directly inside the backend container. Replace `<ALERT_ID>` with the actual alert ID:
 
 ```powershell
-$headers = @{
-    "Content-Type" = "application/json"
-    "Authorization" = "Bearer local-dev-secret"
-}
-
-$body = @{
-    status = "CONFIRMED"
-    analyst_notes = "smoke test triage update"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "http://localhost:8000/api/alerts/<ALERT_ID>/triage" -Method Patch -Headers $headers -Body $body
+docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{"triage_status":"in_review"}'
 ```
 
-> **Note:** If running through ModSecurity (port 80), use `http://localhost:80/api/alerts/<ALERT_ID>/triage` instead. If ModSecurity blocks the PATCH request, use the backend directly via `docker compose exec backend` or port-forward:
-
-```powershell
-# Alternative: exec into backend container and curl from inside
-docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{"status":"CONFIRMED","analyst_notes":"smoke test"}'
-```
+> **Note:** The browser path still goes through the Next.js BFF. This direct backend call is only for smoke verification because the backend is internal to the compose network.
 
 ### 9c. Verify the update persisted
 
 Query the same alert to confirm the triage status changed:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/api/alerts/<ALERT_ID>" -Headers @{"Authorization" = "Bearer local-dev-secret"}
+docker compose exec backend curl -s http://localhost:8000/api/alerts/<ALERT_ID> -H "Authorization: Bearer local-dev-secret"
 ```
 
 **What to check:**
 
-- [ ] The response includes `"status": "CONFIRMED"` (or the status you set).
-- [ ] `analyst_notes` contains `"smoke test triage update"`.
+- [ ] The response includes `"triage_status": "in_review"` (or the status you set).
 - [ ] The `labeled_at` field is populated with a recent timestamp.
 
 ### 9d. Verify in the dashboard UI
@@ -244,8 +221,8 @@ docker compose up --build -d
 docker compose ps
 
 # 3. Backend health
-curl http://localhost:8000/health
-curl http://localhost:8000/api/health
+docker compose exec backend curl -f http://localhost:8000/health
+docker compose exec backend curl -f http://localhost:8000/api/health
 
 # 4. Seed demo data (inside container)
 docker compose exec backend python seed_demo.py
@@ -258,12 +235,10 @@ docker compose exec backend python seed_demo.py
 #    - http://localhost:3000/ml-health
 
 # 7. Triage update (replace <ALERT_ID>)
-$headers = @{ "Content-Type" = "application/json"; "Authorization" = "Bearer local-dev-secret" }
-$body = @{ status = "CONFIRMED"; analyst_notes = "smoke test triage update" } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8000/api/alerts/<ALERT_ID>/triage" -Method Patch -Headers $headers -Body $body
+docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{\"triage_status\":\"in_review\"}'
 
 # 8. Verify persistence
-Invoke-RestMethod -Uri "http://localhost:8000/api/alerts/<ALERT_ID>" -Headers @{"Authorization" = "Bearer local-dev-secret"}
+docker compose exec backend curl -s http://localhost:8000/api/alerts/<ALERT_ID> -H "Authorization: Bearer local-dev-secret"
 
 # 9. Stop stack
 docker compose down
@@ -290,14 +265,15 @@ Common causes:
 - Check `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
 - Check `INTERNAL_API_KEY` matches `API_SECRET_KEY` in `.env`.
 
-### seed_demo.py fails with connection error
+### Seeding utility fails with connection error
 
 - Ensure the backend container is running: `docker compose ps`.
-- If running locally (outside Docker), use the correct URL: `http://localhost:8000` (through ModSecurity) or check port mapping.
+- If you are using a local seeding utility, run it against the backend container
+  or adjust it to match the current compose networking.
 
 ### Triage PATCH is blocked by ModSecurity
 
-- ModSecurity may reject PATCH requests depending on CRS rules. Use the backend container directly:
+- In the current compose file, ModSecurity is internal-only. If the BFF-mediated PATCH fails, use the backend container directly:
 
 ```powershell
 docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{"status":"CONFIRMED","analyst_notes":"smoke test"}'

@@ -2,11 +2,12 @@
 web_app/presentation/middleware/security_headers.py
 
 Security headers middleware — stamps browser-hardening headers on every
-outgoing FastAPI response.
+outgoing FastAPI response, including early responses returned by inner
+presentation-layer middleware.
 
 Architectural role:
   - Presentation-layer middleware (Starlette BaseHTTPMiddleware)
-  - Second middleware in the stack, after body_limit and before CORS
+  - Outermost custom middleware in the stack, wrapping body_limit and CORS
 
 Dependency rule:
   - No imports from application/, infrastructure/, or domain layers

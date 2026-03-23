@@ -17,6 +17,10 @@ def test_body_limit_rejects_oversized_content_length() -> None:
     assert response.json() == {
         "detail": "Request body too large. Maximum allowed size is 1 MB."
     }
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 def test_body_limit_rejects_non_numeric_content_length_with_client_error() -> None:
@@ -31,6 +35,10 @@ def test_body_limit_rejects_non_numeric_content_length_with_client_error() -> No
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid Content-Length header."}
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 def test_request_without_content_length_reaches_route_handler() -> None:
@@ -42,13 +50,13 @@ def test_request_without_content_length_reaches_route_handler() -> None:
     assert response.status_code == 405
 
 
-def test_body_limit_is_the_outermost_custom_middleware() -> None:
+def test_security_headers_middleware_is_the_outermost_custom_middleware() -> None:
     app = create_app()
 
     names = [mw.cls.__name__ for mw in app.user_middleware]
 
     assert names[:3] == [
-        "BodySizeLimitMiddleware",
         "SecurityHeadersMiddleware",
+        "BodySizeLimitMiddleware",
         "CORSMiddleware",
     ]

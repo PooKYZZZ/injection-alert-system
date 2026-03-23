@@ -1,15 +1,19 @@
-import NextAuth from 'next-auth'
+import NextAuth, { type NextAuthRequest } from 'next-auth'
 import { NextResponse } from 'next/server'
-import type { NextMiddleware, NextRequest, NextFetchEvent } from 'next/server'
+import type { NextFetchEvent, NextRequest } from 'next/server'
 import { authConfig } from './auth.config'
 
 const { auth } = NextAuth(authConfig)
 
-const handler = auth((req) => {
-  void req
-}) as unknown as NextMiddleware
+const handler = auth((req: NextAuthRequest, event: NextFetchEvent) => {
+  void req.auth
+  void event
+})
 
-export default async (req: NextRequest, event: NextFetchEvent) => {
+export default async function middleware(
+  req: NextRequest,
+  event: NextFetchEvent
+): Promise<Response> {
   const result = await handler(req, event)
   if (result instanceof Response) {
     result.headers.set('X-Content-Type-Options', 'nosniff')

@@ -3,10 +3,12 @@ web_app/presentation/middleware/body_limit.py
 
 Body size limit middleware — rejects requests with Content-Length exceeding 1 MB
 before the request body is read, returning HTTP 413 with a JSON error body.
+Requests without Content-Length are allowed through and must rely on edge-layer
+body-size enforcement for complete protection.
 
 Architectural role:
   - Presentation-layer middleware (Starlette BaseHTTPMiddleware)
-  - First middleware in the stack, before CORS and security headers
+  - Inner presentation-layer middleware wrapped by security headers and CORS
 
 Dependency rule:
   - No imports from application/, infrastructure/, or domain layers

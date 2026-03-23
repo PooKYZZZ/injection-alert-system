@@ -175,10 +175,11 @@ Create `next.config.ts` with:
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
+  Content-Security-Policy (development): default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
+  Content-Security-Policy (production): default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
   ```
 
-Use static CSP — do NOT use nonces (forces full SSR).
+Use environment-aware static CSP — do NOT use nonces (forces full SSR).
 Do not add Strict-Transport-Security (local HTTP).
 Export as `const nextConfig: NextConfig = {...}` with `export default nextConfig`.
 
@@ -250,7 +251,7 @@ npx vitest run
 
 ---
 
-### Task 1.8 — Validate timezone param in bff-client.ts
+### Task 1.8 — Align AGENTS.md with current runtime truth
 
 **Status:** `[x]`
 **Branch:** `fix/agents-md-accuracy`
@@ -424,7 +425,7 @@ Three services:
 
 `modsecurity`:
 - image: `owasp/modsecurity-crs:nginx-alpine`
-- ports: `["80:80"]`
+- expose: `["80"]`
 - environment: `BACKEND=http://backend:8000`, `PARANOIA=1`, `ALLOWED_METHODS=GET POST PATCH`
 - depends_on: backend
 
@@ -441,12 +442,14 @@ Three services:
 - depends_on: backend
 
 Backend MUST use `expose` not `ports` — not reachable from host.
+ModSecurity is internal-only in this repo variant so the browser boundary remains
+`Browser -> Next.js Route Handler -> FastAPI`.
 
 **Verify:**
 ```powershell
 docker compose up --build -d
 Start-Sleep 5
-curl http://localhost:80/health
+docker compose exec backend curl -f http://localhost:8000/health
 curl http://localhost:3000
 docker compose down
 ```
@@ -459,11 +462,8 @@ docker compose down
 **Branch:** `feat/docker-e2e`
 
 **What to implement:**
-Run seed_demo.py against the Docker stack:
-```powershell
-$env:API_SECRET_KEY = "your-key-from-.env"
-.venv\Scripts\python.exe seed_demo.py
-```
+Run your local demo-seeding utility or otherwise ensure the Docker stack has
+sample alert rows available.
 
 Then verify rows appeared in Supabase.
 
@@ -497,9 +497,9 @@ docker compose down
 Step-by-step runbook covering:
 - Starting Docker stack
 - Confirming all containers running
-- Running seed_demo.py
+- Using a repo-tracked or clearly optional local seeding path
 - Verifying dashboard, alerts, ml-health pages load
-- Verifying triage update persists to Supabase
+- Verifying triage update persists using the real `triage_status` contract
 - All commands in copy-pasteable PowerShell
 
 A teammate with zero context must be able to follow it without asking questions.
@@ -537,7 +537,7 @@ Panel-facing demo script covering:
 [ ] npx vitest run → 122+ passed
 [ ] npm run build → pass
 [ ] docker compose up --build → exits 0
-[ ] seed_demo.py → exits 0 against Docker stack
+[ ] demo seeding utility or equivalent smoke data path works against Docker stack
 [ ] STATUS.md reflects final verified state
 [ ] SECURITY_AUDIT.md findings marked RESOLVED or DEFERRED
 [ ] AGENTS.md accurately describes current infra
