@@ -38,10 +38,12 @@ async def ingest_triage(
     model_service=Depends(get_model_service),
     repository: TrafficLogRepository = Depends(get_repository),
 ):
+    settings = get_settings()
     use_case = TriageUseCase(
         classifier=model_service,
         repository=repository,
-        stale_processing_timeout_seconds=get_settings().stale_processing_timeout_seconds,
+        stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
+        enable_preprocessing=settings.enable_http_model_preprocessing,
     )
 
     try:

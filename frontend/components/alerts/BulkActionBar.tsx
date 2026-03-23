@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { CheckSquare } from 'lucide-react'
 import { useTriageMutation } from '@/features/alerts/queries'
@@ -17,8 +17,17 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
   const [summary, setSummary] = useState<string | null>(null)
   const { mutateAsync } = useTriageMutation()
   const [isProcessing, setIsProcessing] = useState(false)
+  const summaryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selectedCount = selectedIds.size
+
+  useEffect(() => {
+    return () => {
+      if (summaryTimeoutRef.current) {
+        clearTimeout(summaryTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleBulkTriage = async (status: TriageStatus) => {
     if (selectedCount === 0 || isProcessing) return
@@ -59,7 +68,10 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
     }
 
     // Clear summary after 3 seconds
-    setTimeout(() => setSummary(null), 3000)
+    if (summaryTimeoutRef.current) {
+      clearTimeout(summaryTimeoutRef.current)
+    }
+    summaryTimeoutRef.current = setTimeout(() => setSummary(null), 3000)
   }
 
   return (

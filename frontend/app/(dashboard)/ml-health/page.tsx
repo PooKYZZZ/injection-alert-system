@@ -250,10 +250,15 @@ export default function MLHealthPage() {
             transition={{ duration: 0.3, delay: 0.15 }}
             className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
-                Confidence indicator
-              </span>
+            <div className="flex items-center justify-between mb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
+                  Confidence indicator
+                </span>
+                <span className="rounded-full border border-amber-800/60 bg-amber-950/40 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                  Simulated
+                </span>
+              </div>
               <span className="text-[10px] text-[var(--color-text-muted)]">Derived from drift score</span>
             </div>
             <ConfidenceDriftChart driftData={(() => {
@@ -267,4 +272,3 @@ export default function MLHealthPage() {
     </motion.div>
   )
 }
-

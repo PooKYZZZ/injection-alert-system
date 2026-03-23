@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { type ComponentType, type ReactNode, useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -126,5 +126,12 @@ describe('MLHealthPage', () => {
         },
       },
     })
+  })
+
+  it('labels the confidence indicator as simulated', async () => {
+    render(<MLHealthPage />)
+
+    expect((await screen.findAllByText('Simulated')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Derived from drift score')).length).toBeGreaterThan(0)
   })
 })

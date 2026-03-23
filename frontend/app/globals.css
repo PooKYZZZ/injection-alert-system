@@ -67,7 +67,6 @@
   --color-primary-dark: var(--color-accent-purple-bg);
   --color-background-main: var(--color-bg-page);
   --color-surface-light: var(--color-bg-panel);
-  --color-border-light: var(--color-text-ghost);
   --color-text-main: var(--color-text-primary);
   --color-status-high: var(--color-severity-high-accent);
   --color-status-medium: var(--color-severity-blocked-accent);
