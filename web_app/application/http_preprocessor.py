@@ -103,8 +103,13 @@ def parse_raw_http(raw_http: str) -> tuple[str, str, str]:
     request_line = re.sub(r"\s+HTTP/[\d.]+\s*$", "", request_line, flags=re.IGNORECASE)
 
     parts = request_line.split(" ", 1)
-    method = parts[0] if len(parts) >= 1 else ""
-    path = parts[1] if len(parts) >= 2 else ""
+    if len(parts) < 2:
+        return "", "", ""
+
+    method = parts[0].strip()
+    path = parts[1].strip()
+    if not method or not path:
+        return "", "", ""
 
     return method, path, body.strip()
 
@@ -129,6 +134,8 @@ def preprocess_http_request(raw_http: str) -> str:
         predict on empty input which produces a baseline "Normal" result).
     """
     method, path, body = parse_raw_http(raw_http)
+    if not method or not path:
+        return ""
 
     canonical_method = canonicalize_text(method)
     canonical_path = canonicalize_text(path)

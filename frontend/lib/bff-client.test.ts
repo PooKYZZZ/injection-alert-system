@@ -356,6 +356,44 @@ describe('bff-client', () => {
     )
   })
 
+  it('sets a timeout signal for triage mutation requests', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          timestamp: '2026-03-15T00:00:00Z',
+          source_ip: '203.0.113.10',
+          request_path: '/login',
+          request_method: 'POST',
+          payload_snippet: "username=admin' OR '1'='1",
+          prediction: 'SQL Injection',
+          confidence: 0.91,
+          confidence_level: 'HIGH',
+          action_taken: 'BLOCKED',
+          crs_score: 9,
+          crs_rule_ids: ['942100', '942110'],
+          analyst_label: 'SQL Injection',
+          labeled_at: '2026-03-15T00:05:00Z',
+          labeled_by: 'analyst@lares.test',
+          triage_status: 'in_review',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { updateAlertTriage } = await loadClient()
+    const result = await updateAlertTriage('7', 'in_review')
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/alerts/7/triage',
+      expect.objectContaining({
+        method: 'PATCH',
+        signal: expect.any(AbortSignal),
+      })
+    )
+  })
+
   it('sorts activity buckets by timestamp_start to keep timeline order stable', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

@@ -68,7 +68,12 @@ export function buildUniqueDayTicks(timestamps: number[]): number[] {
 
 function useCSSColor(variable: string): string {
   if (typeof window === 'undefined') return '#888888'
-  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
+    return value || '#888888'
+  } catch {
+    return '#888888'
+  }
 }
 
 function CustomTooltip({

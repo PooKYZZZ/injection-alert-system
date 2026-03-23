@@ -77,13 +77,13 @@ export default function DashboardAlertAnalyticsSection() {
 
   return (
     <QueryErrorResetBoundary>
-      {() => (
+      {({ reset }) => (
         <div className="flex flex-col gap-4">
           <MetricCards
             stats={stats}
             statsPending={statsPending}
             statsError={statsError}
-            onRetry={() => window.location.reload()}
+            onRetry={reset}
           />
           <div style={{ maxHeight: '56px', overflow: 'hidden' }}>
             <HeroActivityStrip

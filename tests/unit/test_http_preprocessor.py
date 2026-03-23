@@ -128,13 +128,20 @@ class TestParseRawHttp:
         assert parse_raw_http("   ") == ("", "", "")
 
     def test_malformed_request_line(self):
-        """Malformed request line returns whatever is parsed (no validation)."""
-        # The preprocessor doesn't validate HTTP methods, it just splits
+        """Malformed request line still splits when both method and path exist."""
         raw = "not a valid request"
         method, path, body = parse_raw_http(raw)
         assert method == "not"
         assert path == "a valid request"
         assert body == ""
+
+    def test_method_only_returns_empty_parts(self):
+        """Request lines missing a path should fail safely."""
+        assert parse_raw_http("GET") == ("", "", "")
+
+    def test_blank_path_returns_empty_parts(self):
+        """Blank path after trimming should fail safely."""
+        assert parse_raw_http("GET   HTTP/1.1") == ("", "", "")
 
     def test_only_headers_no_body(self):
         """Request with headers but no body marker."""
@@ -239,6 +246,14 @@ class TestPreprocessHttpRequest:
         assert preprocess_http_request("") == ""
         assert preprocess_http_request(None) == ""
         assert preprocess_http_request("not http at all") == "not http at all"
+
+    def test_method_only_input_returns_empty(self):
+        """Method-only inputs should fail safely before model inference."""
+        assert preprocess_http_request("GET") == ""
+
+    def test_blank_path_input_returns_empty(self):
+        """Blank request paths should fail safely before model inference."""
+        assert preprocess_http_request("GET   HTTP/1.1") == ""
 
     def test_preserves_sql_operators(self):
         """SQL operators like quotes and dashes are preserved."""

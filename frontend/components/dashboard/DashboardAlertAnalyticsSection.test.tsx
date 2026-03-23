@@ -1,6 +1,6 @@
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSearchParams } from 'next/navigation'
 
@@ -11,6 +11,17 @@ import * as mlHealthQueries from '@/features/ml-health/queries'
 import type { DashboardStats } from '@/features/stats/types'
 import type { PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
+
+const queryResetMock = vi.fn()
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+  return {
+    ...actual,
+    QueryErrorResetBoundary: ({ children }: { children: (props: { reset: () => void }) => React.ReactNode }) =>
+      <>{children({ reset: queryResetMock })}</>,
+  }
+})
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -199,6 +210,7 @@ describe('DashboardAlertAnalyticsSection', () => {
       isPending: false,
       isError: false,
     })
+    queryResetMock.mockReset()
   })
 
   afterEach(() => {
@@ -284,6 +296,22 @@ describe('DashboardAlertAnalyticsSection', () => {
 
     // Alerts should still work - we verify useAlerts was called with filters
     expect(useAlertsMock).toHaveBeenCalled()
+  })
+
+  it('uses query reset retry for metric-card errors instead of hard reload', async () => {
+    const Wrapper = createWrapper()
+
+    useDashboardStatsMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: new Error('Stats API failed'),
+    })
+
+    render(<DashboardAlertAnalyticsSection />, { wrapper: Wrapper })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Retry' })[0])
+
+    expect(queryResetMock).toHaveBeenCalledTimes(1)
   })
 
   it('uses ML health for thresholds when available', async () => {

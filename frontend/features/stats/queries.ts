@@ -36,7 +36,6 @@ export function statsOptions(window?: string, timezone = getBrowserTimeZone()) {
     },
     staleTime: 15_000,
     refetchInterval: 15_000,
-    placeholderData: (previousData) => previousData,
   })
 }
 

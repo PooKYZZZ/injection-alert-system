@@ -6,104 +6,68 @@
 
 ---
 
-## Current verified repo state
+## Current Verified Repo State
 
-- Remote `origin/master` currently includes:
-  - `#39` `fix: add reservation-first triage ingest`
-  - `#38` `feat: implement internal authentication with bearer token for API endpoints`
-  - `#37` `Codex/feat/backend read api batch`
-- Backend tests currently pass locally: `259 passed`
-- Frontend typecheck currently passes locally: `npm run typecheck`
-- Frontend lint currently passes locally: `cd frontend && npm run lint`
-- Frontend tests currently pass locally: `107 passed`
-- Frontend production build currently passes locally: `cd frontend && npm run build`
-- All frontend BFF tests pass:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts`
-- Backend routes currently implemented:
+- Active integration branch used for final checks: `frontend-adaptation`
+- Python runtime target: `3.14+`
+- Local venv currently recreated and verified on: `Python 3.14.3`
+- Frontend runtime: Next.js `16.2.1`, React `19.2.4`, TypeScript `5.9`, Zod `4.3.6`
+- Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
+- Model/runtime artifacts boundary: `ml_model/model_registry/`
+
+### Latest local verification results
+
+- Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
+- App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
+- Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
+- Frontend BFF-focused tests:
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend production build: `cd frontend && npm run build` → **pass**
+
+### Current API/BFF state
+
+- Implemented backend routes:
   - `POST /api/predict`
   - `POST /api/triage`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
-  - `GET /api/stats` (with window=1h|6h|24h|7d filtering, activity buckets, top source IPs, top targeted paths, attack distribution)
-  - `GET /api/ml-health` (with eval metadata: macro_f1, ece, per_class_f1, calibration_bins, prediction_distribution)
+  - `GET /api/stats`
+  - `GET /api/ml-health`
   - `POST /api/feedback`
   - `GET /health`
   - `GET /api/health`
-- Triage ingest is reservation-first on `transaction_id`:
-  - placeholder row inserted with `status="PROCESSING"`
-  - winner determined by atomic claim-or-reclaim behavior on the reservation row
-  - expired leases can be reclaimed safely by a later request
-  - current owner completes the row to `status="COMPLETED"` after inference
-  - loser returns existing completed data or a conflict while processing is in flight
-- `PROCESSING` placeholder rows are excluded from normal alerts and stats reads
-- Frontend BFF current workspace state:
-  - all five route handlers are wired through `frontend/lib/bff-client.ts`
-  - `USE_MOCK_API` is the single centralized server-only mock toggle
-  - missing `FASTAPI_BASE_URL` or `INTERNAL_API_KEY` in non-mock mode returns structured `BFF_MISCONFIGURED`
-  - all five handlers require an Auth.js session and return `401` without one
-- Current auth split:
-  - protected backend routes: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `GET /api/stats`, `GET /api/ml-health`
-  - public backend routes: `POST /api/feedback`, `GET /health`, `GET /api/health`
-- Docker Compose, runnable ModSecurity wiring, and full Supabase or Redis integration are not in the repo yet
+- Reservation-first triage flow is active (`PROCESSING` placeholders, lease reclaim support, winner/loser behavior).
+- `PROCESSING` rows are excluded from normal alerts and stats reads.
+- Frontend boundary remains:
+  - `Browser -> Next.js route handlers/BFF -> FastAPI`
+- Route protection and proxy entrypoint:
+  - Auth checks are enforced in BFF handlers.
+  - Next.js edge entrypoint now uses `frontend/proxy.ts` (not `middleware.ts`).
 
-## 2026-03-20 Database-to-Frontend Audit Findings
+---
 
-### Database State
-- DB file: `injection_alerts.db` (local SQLite)
-- Migration status: 3 migrations exist (head: `20260319_000003`), DB has tables but no version stamp
-- `/api/stats` returns real data: 18 total requests, BLOCKED=12, THROTTLED=3, ALLOWED=3
-- `triage_status` column exists and is nullable
+## Important Notes For Operators
 
-### Backend Endpoint Verification
-| Endpoint | Status | Notes |
-|---|---|---|
-| GET /api/alerts | OK | Returns persisted records |
-| GET /api/stats | EXISTS | Shape correct, real data |
-| GET /api/ml-health | EXISTS | Shape correct, eval fields null (no eval artifacts) |
-| GET /api/alerts/{id} | OK | Returns alert detail |
-| PATCH /api/alerts/{id}/triage | OK | Persists triage status |
+- CI may show four checks on branch updates because both `push` and `pull_request` workflows run for frontend and backend.
+- The backend CI failure on Python 3.14 (`api_secret_key` required) is fixed by allowing an empty default in `web_app/config.py`, aligned with existing auth-bypass behavior in development-only scenarios.
+- `requirements.train.txt` is laptop/training-only and should not be treated as required for CI/backend runtime verification.
 
-### BFF Layer Audit
-- `USE_MOCK_API = false` - BFF is hitting real FastAPI, no mock data leaking
-- Auth boundary: all 5 BFF handlers call `auth()` before data fetch ✓
-- CalibrationBin schema: correct field names (`bin_center`, `accuracy`) ✓
-- Multi-select confidence_level: correct end-to-end (FilterBar uses `delete()` + `append()`) ✓
+---
 
-### Hardcoded Values Fixed
-| File | Fix |
-|---|---|
-| `frontend/app/(dashboard)/dashboard/page.tsx` | Removed derived claims: `'↑ +3 vs prev 6h'`, `'50–80% confidence'`, `'↓ Model stable'` |
-| `frontend/components/ml-health/ModelHeader.tsx` | Changed `value="Temp-scaled"` to `value="—"` |
+## Open Gaps (Current, Not Historical)
 
-### Validation Results
-- pytest: 168 passed ✓
-- typecheck: PASSED ✓
-- vitest (BFF slice): 46 passed ✓
+- Docker Compose + runnable ModSecurity integration is still not implemented.
+- Live Supabase operational hardening steps (RLS policy operations) remain outside automated repo verification.
+- Some legacy planning docs under `docs/project-ops/` were stale and have been replaced by the current compact plan/task docs.
 
-Full audit report: `docs/project-ops/DATA_AUDIT.md`
+---
 
-## Open implementation gaps
+## Source-of-Truth Docs
 
-- The reservation-first triage flow still depends on applied DB migrations for:
-  - `created_at`
-  - `status`
-  - nullable result columns on placeholder rows
-- The backend still uses async SQLAlchemy locally and is not fully wired to live Supabase behavior
-- Some docs and prompts still need cleanup to remove stale verification commands and old partial-mock descriptions
-- Data scripts still hardcode workstation-specific paths
-- Dashboard stats now include throttled_count, top_source_ips, top_targeted_paths, attack_distribution with window filtering
-- ML health now exposes optional eval metadata (macro_f1, ece, per_class_f1, calibration_bins, prediction_distribution) when model registry eval artifacts are present
-- `PROCESSING` reservations now use lease ownership fields (`lease_expires_at`, `processing_owner_token`, `processing_attempt`) and can be reclaimed on demand when expired
-- `app.state.model` alias has been removed; all routes use `app.state.model_service` directly
-- `/api/alerts` now returns persisted records correctly - DB schema aligned
-
-## Operator notes
-
-- Canonical implementation docs live in:
-  - `docs/CONTEXT.md`
-  - `docs/architecture.md`
-  - `docs/SETUP.md`
-- Full audit findings in: `docs/project-ops/DATA_AUDIT.md`
-- Treat cloud `origin/master` as the pushed baseline and this working tree as the latest local integration state.
-- This file is intentionally shorter than the old root status file and should stay focused on current operator truth, not future planning prose.
+- Implementation snapshot: `docs/CONTEXT.md`
+- Architecture boundaries: `docs/architecture.md`
+- Local setup: `docs/SETUP.md`
+- Operator plan: `docs/project-ops/IMPLEMENTATION_PLAN.md`
+- Operator task list: `docs/project-ops/TASKS.md`

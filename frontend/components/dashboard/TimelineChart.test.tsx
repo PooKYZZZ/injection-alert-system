@@ -115,6 +115,44 @@ describe('TimelineChart', () => {
     vi.clearAllMocks()
   })
 
+  it('falls back to a safe color when css variables resolve empty', () => {
+    const getComputedStyleSpy = vi
+      .spyOn(window, 'getComputedStyle')
+      .mockReturnValue({
+        getPropertyValue: () => '',
+      } as unknown as CSSStyleDeclaration)
+
+    const { container } = render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+    const lineNodes = Array.from(container.querySelectorAll('[data-testid="Line"]'))
+
+    expect(lineNodes).toHaveLength(3)
+    for (const node of lineNodes) {
+      const props = JSON.parse(node.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+      expect(props.stroke).toBe('#888888')
+    }
+
+    getComputedStyleSpy.mockRestore()
+  })
+
+  it('falls back to a safe color when css lookup throws', () => {
+    const getComputedStyleSpy = vi
+      .spyOn(window, 'getComputedStyle')
+      .mockImplementation(() => {
+        throw new Error('styles unavailable')
+      })
+
+    const { container } = render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+    const lineNodes = Array.from(container.querySelectorAll('[data-testid="Line"]'))
+
+    expect(lineNodes).toHaveLength(3)
+    for (const node of lineNodes) {
+      const props = JSON.parse(node.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+      expect(props.stroke).toBe('#888888')
+    }
+
+    getComputedStyleSpy.mockRestore()
+  })
+
   it.each(['1h', '6h', '24h', '7d'] as const)(
     'renders a composed line-over-area chart for %s',
     (timeWindow) => {

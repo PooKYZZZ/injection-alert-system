@@ -673,6 +673,7 @@ export async function updateAlertTriage(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ triage_status: status }),
+        signal: AbortSignal.timeout(30_000),
       }
     )
   } catch {

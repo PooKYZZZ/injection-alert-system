@@ -192,11 +192,13 @@ class TriageUseCase:
         # Preprocess HTTP request for model input (training-serving consistency)
         # The raw http_request is still persisted verbatim; this only affects
         # the text passed to the ML model.
-        model_input = (
-            preprocess_http_request(http_request)
-            if self._enable_preprocessing
-            else http_request
-        )
+        model_input = http_request
+        if self._enable_preprocessing:
+            preprocessed = preprocess_http_request(http_request)
+            # Preserve legacy endpoint behavior for payload-only inputs while
+            # still using canonicalized text when a valid HTTP request is present.
+            if preprocessed:
+                model_input = preprocessed
 
         raw_result = await run_in_threadpool(self._classifier.predict, model_input)
         prediction = raw_result.get("prediction") or raw_result.get("class")
