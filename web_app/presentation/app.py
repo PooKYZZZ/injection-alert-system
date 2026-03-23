@@ -26,6 +26,7 @@ from web_app.infrastructure.database import init_db
 from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.health import health_check
+from web_app.presentation.middleware.body_limit import BodySizeLimitMiddleware
 from web_app.presentation.schemas import HealthResponse
 from web_app.services.model_service import ModelService
 
@@ -97,6 +98,9 @@ def create_app() -> FastAPI:
         redoc_url=redoc_url,
         openapi_url="/openapi.json" if settings.enable_api_docs else None,
     )
+
+    # --- Body size limit middleware (first in stack) ---
+    app.add_middleware(BodySizeLimitMiddleware)
 
     # --- CORS middleware ---
     # In production/staging, use more restrictive CORS settings
