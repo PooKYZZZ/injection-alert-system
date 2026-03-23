@@ -16,8 +16,9 @@
 - Frontend typecheck currently passes locally: `npm run typecheck`
 - Frontend lint currently passes locally: `cd frontend && npm run lint`
 - Frontend tests currently pass locally: `107 passed`
+- Frontend production build currently passes locally: `cd frontend && npm run build`
 - All frontend BFF tests pass:
-  - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts`
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts`
 - Backend routes currently implemented:
   - `POST /api/predict`
   - `POST /api/triage`

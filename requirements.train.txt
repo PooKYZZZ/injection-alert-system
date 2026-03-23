@@ -21,6 +21,7 @@ seaborn==0.13.2
 tensorboard==2.20.0
 torch==2.10.0
 transformers==5.3.0
+tqdm==4.67.1
 
 # Note: `notebook`, `datasets`, and the Hugging Face `evaluate` package were not
 # present in the current .venv freeze and are not imported by the checked-in notebooks.

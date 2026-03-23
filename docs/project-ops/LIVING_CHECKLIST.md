@@ -25,10 +25,11 @@ Status note:
 ## Current Verified State (2026-03-23)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **168 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
 - Frontend: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **46 passed**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes (All Implemented)
 - `POST /api/predict` ✓
@@ -94,7 +95,7 @@ cd frontend && npm run typecheck
 cd frontend && npx vitest run
 
 # BFF-focused tests
-cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 
 # Start backend
 uvicorn web_app.presentation.app:create_app --reload

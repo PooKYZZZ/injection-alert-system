@@ -152,7 +152,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 ### Current auth split
 
 - Frontend dashboard routes under `frontend/app/(dashboard)/` are session-protected.
-- `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
 - Next.js BFF handlers under `frontend/app/api/alerts`, `frontend/app/api/stats`, and `frontend/app/api/ml-health` also call `auth()` and return `401` without a session.
 - Backend internal data routes use `Authorization: Bearer <API_SECRET_KEY>` via the Next.js BFF client.
 
@@ -210,7 +210,10 @@ cd frontend
 npm run typecheck
 
 # Frontend BFF tests (optional)
-npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+
+# Frontend production build
+npm run build
 ```
 
 ## License

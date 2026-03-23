@@ -25,7 +25,7 @@ This is not yet the finished 3-container PD1 demo stack. The codebase is still i
 - Frontend types: `frontend\npm run typecheck` → **passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Focused frontend BFF tests:
-  - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
   - `cd frontend && npx vitest run` → **107 passed**
 
@@ -64,7 +64,7 @@ Latest pushed work on `origin/master` includes:
 - Authentication is implemented with Auth.js credentials auth
 - Demo login uses a password-only credentials flow
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
-- `frontend/middleware.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
 - Current BFF status in the working tree:
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client
   - `frontend/app/api/alerts/route.ts` proxies to FastAPI in non-mock mode
