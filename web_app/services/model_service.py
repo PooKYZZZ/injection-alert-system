@@ -212,10 +212,6 @@ class ModelService:
             "inference_latency_ms": round(float(inference_latency_ms), 3),
             "model_version": self.model_version,
         }
-        # TODO: Remove these compatibility aliases once TriageUseCase consumes
-        # prediction/confidence_tier directly.
-        response["class"] = prediction
-        response["confidence_level"] = confidence_tier
         return response
 
     def _record_inference(self, inference_latency_ms: float) -> None:
@@ -288,7 +284,7 @@ class ModelService:
         metrics_path = candidates[0]
         try:
             raw = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        except json.JSONDecodeError, OSError, UnicodeDecodeError:
             logger.warning("Failed to read eval metadata from %s", metrics_path)
             return {}
 

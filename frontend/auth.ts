@@ -28,7 +28,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    maxAge: 8 * 60 * 60, // 8 hours
+  },
   callbacks: {
     jwt({ token, user }) {
       // On initial sign-in `user` is populated; on subsequent calls only `token` is.
