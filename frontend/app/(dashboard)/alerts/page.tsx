@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { FilterBar } from '@/components/alerts/FilterBar'
-import { AlertsPageClient } from '@/components/alerts/AlertsPageClient'
+import { AlertsPageClientOnly } from '@/components/alerts/AlertsPageClientOnly'
 
 export default function AlertsPage() {
   return (
@@ -8,7 +8,7 @@ export default function AlertsPage() {
       <Suspense fallback={null}>
         <FilterBar />
       </Suspense>
-      <AlertsPageClient />
+      <AlertsPageClientOnly />
     </main>
   )
 }

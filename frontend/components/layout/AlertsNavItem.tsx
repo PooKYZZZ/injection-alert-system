@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useAlerts } from '@/features/alerts/queries'
+import { DEFAULT_FILTERS } from '@/lib/searchParams'
 import { SidebarNavItem } from './SidebarNavItem'
 
 interface AlertsNavItemProps {
@@ -10,25 +11,14 @@ interface AlertsNavItemProps {
 }
 
 export function AlertsNavItem({ href, icon, label }: AlertsNavItemProps) {
-  const [count, setCount] = useState<number | undefined>(undefined)
+  const { data } = useAlerts(DEFAULT_FILTERS)
 
-  useEffect(() => {
-    let mounted = true
-    const fetchCount = async () => {
-      try {
-        const res = await fetch('/api/alerts')
-        if (!res.ok) return
-        const data = await res.json()
-        if (mounted && typeof data?.total === 'number') setCount(data.total)
-      } catch {
-        // ignore
-      }
-    }
-    void fetchCount()
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  return <SidebarNavItem href={href} icon={icon} label={label} badge={count} />
+  return (
+    <SidebarNavItem
+      href={href}
+      icon={icon}
+      label={label}
+      badge={typeof data?.total === 'number' ? data.total : undefined}
+    />
+  )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, Suspense } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
@@ -183,9 +183,14 @@ function AlertsTableContent({
   onSelectionChange,
   onAlertClick,
 }: AlertsTableProps) {
+  const [isHydrated, setIsHydrated] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const params = useMemo(
     () => normalizeAlertSearchParams(searchParamsToRecord(searchParams)),
@@ -247,6 +252,8 @@ function AlertsTableContent({
   )
 
   const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const canGoPrev = params.page > 1
+  const canGoNext = !!data && params.page * params.pageSize < data.total
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
@@ -361,50 +368,73 @@ function AlertsTableContent({
       </div>
 
       {/* Pagination footer */}
-      <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
-        <p className="text-xs text-[var(--color-text-secondary)]">
-          {data ? (
-            <>
-              Showing {(params.page - 1) * params.pageSize + 1}–
-              {Math.min(params.page * params.pageSize, data.total)} of {data.total} alerts
-            </>
-          ) : (
-            'Loading...'
-          )}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const newPage = Math.max(1, (params.page ?? 1) - 1)
-              const newParams = new URLSearchParams(searchParams.toString())
-              newParams.set('page', String(newPage))
-              router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
-            }}
-            disabled={params.page <= 1}
-            className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            ← Prev
-          </button>
-          <span className="text-xs text-[var(--color-text-secondary)]">
-            Page {params.page}
-            {data ? ` of ${Math.ceil(data.total / params.pageSize)}` : ''}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              const newPage = (params.page ?? 1) + 1
-              const newParams = new URLSearchParams(searchParams.toString())
-              newParams.set('page', String(newPage))
-              router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
-            }}
-            disabled={data ? params.page * params.pageSize >= data.total : true}
-            className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Next →
-          </button>
+      {!isHydrated ? (
+        <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+          <p className="text-xs text-[var(--color-text-secondary)]">Loading...</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled
+              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ← Prev
+            </button>
+            <span className="text-xs text-[var(--color-text-secondary)]">Page 1</span>
+            <button
+              type="button"
+              disabled
+              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next →
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {data ? (
+              <>
+                Showing {(params.page - 1) * params.pageSize + 1}–
+                {Math.min(params.page * params.pageSize, data.total)} of {data.total} alerts
+              </>
+            ) : (
+              'Loading...'
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const newPage = Math.max(1, (params.page ?? 1) - 1)
+                const newParams = new URLSearchParams(searchParams.toString())
+                newParams.set('page', String(newPage))
+                router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
+              }}
+              disabled={!canGoPrev}
+              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ← Prev
+            </button>
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              Page {params.page}
+              {data ? ` of ${Math.ceil(data.total / params.pageSize)}` : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const newPage = (params.page ?? 1) + 1
+                const newParams = new URLSearchParams(searchParams.toString())
+                newParams.set('page', String(newPage))
+                router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
+              }}
+              disabled={!canGoNext}
+              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
