@@ -12,30 +12,25 @@ The repository currently contains:
   - `domain -> application -> infrastructure -> presentation`
 - A Next.js 16 dashboard using the App Router, Auth.js credentials auth, route handlers, Zod, TanStack Query, and Zustand
 - ML lifecycle assets under `ml_model/`, including staged transformer artifacts and an inference wrapper
-- Migration scaffolding and three migrations under `migrations/`
+- Migration scaffolding and the current migration set under `migrations/`
 - Documentation and academic deliverables under `docs/`
+- A live Supabase-backed PostgreSQL runtime path for application data
 
-This is not yet the finished 3-container PD1 demo stack. The codebase is still in a local integration and documentation-hardening phase.
+This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase is in a post-merge documentation-hardening phase with the current app and Supabase runtime path already live.
 
-## Verified Status (2026-03-22)
+## Verified Status (2026-03-23)
 
-### Checks run on 2026-03-22
+### Checks run on 2026-03-23
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
-- Frontend types: `frontend\npm run typecheck` → **passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
+- Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **107 passed**
-
-### Cloud baseline
-
-Latest pushed work on `origin/master` includes:
-
-- `#39` reservation-first `POST /api/triage` ingest
-- `#38` shared internal bearer-token auth for internal API routes
-- `#37` backend read APIs for alerts, alert detail, stats, and ML health
+  - `cd frontend && npx vitest run` → **122 passed**
+- Frontend build:
+  - `cd frontend && npm run build` → **passed**
 
 ### Backend
 
@@ -46,9 +41,9 @@ Latest pushed work on `origin/master` includes:
     - `POST /api/triage`
     - `GET /api/alerts`
     - `GET /api/alerts/{id}`
-    - `PATCH /api/alerts/{id}/triage` (NEW)
-    - `GET /api/stats` (window filtering)
-    - `GET /api/ml-health` (eval metadata optional)
+    - `PATCH /api/alerts/{id}/triage`
+    - `GET /api/stats`
+    - `GET /api/ml-health`
   - Public backend endpoints:
     - `POST /api/feedback`
     - `GET /health`
@@ -65,14 +60,15 @@ Latest pushed work on `origin/master` includes:
 - Demo login uses a password-only credentials flow
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
+- Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`
 - Current BFF status in the working tree:
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client
   - `frontend/app/api/alerts/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/alerts/[id]/route.ts` proxies to FastAPI in non-mock mode
-  - `frontend/app/api/alerts/[id]/triage/route.ts` handles PATCH triage (NEW)
+  - `frontend/app/api/alerts/[id]/triage/route.ts` handles PATCH triage
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode
-  - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false** - hitting real FastAPI)
+  - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**)
   - all five handlers apply the same existing session auth pattern via `auth()`
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
@@ -81,18 +77,10 @@ Latest pushed work on `origin/master` includes:
 ### Database
 
 - Runtime database access uses async SQLAlchemy
-- Local SQLite DB at `injection_alerts.db`
-- Current row counts: 18 total, BLOCKED=12, THROTTLED=3, ALLOWED=3
 - Tests currently use SQLite
-- Supabase remains the target production database boundary, but the repo is not yet wired to a live Supabase deployment path
-
-### 2026-03-20 Audit Findings
-
-- BFF layer verified: auth boundary correct, CalibrationBin schema correct, multi-select params correct
-- Hardcoded values fixed:
-  - Dashboard: removed `'↑ +3 vs prev 6h'`, `'50–80% confidence'`, `'↓ Model stable'`
-  - ML Health: changed `value="Temp-scaled"` to `value="—"`
-- Verified: `/api/alerts` returns persisted records correctly
+- Isolated local work can still use SQLite if desired
+- The app runtime is wired to a Supabase-backed PostgreSQL boundary
+- Supabase policy and operational hardening steps are still partly external to repo automation
 
 ## Not Yet Implemented
 
@@ -100,14 +88,11 @@ Latest pushed work on `origin/master` includes:
 - Dockerfiles for frontend and backend
 - Runnable ModSecurity or CRS config under the repo
 - Redis-backed enforcement and review queue behavior
-- Confirmed Supabase RLS enforcement in runtime code
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 
 ## Important Truths To Keep Straight
 
 - The active model artifact path is `ml_model/model_registry/`.
 - The repo already has more backend startup work and frontend structure than older docs suggested.
-- The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets and working BFF-to-FastAPI wiring.
+- The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets, working BFF-to-FastAPI wiring, and a live Supabase-backed data boundary.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
-
-- Full audit findings in `docs/project-ops/DATA_AUDIT.md`.

@@ -1,23 +1,25 @@
 # Injection Alert System
 
-Injection Alert System is an academic capstone project for SQL injection detection and analyst triage. The repository combines a FastAPI backend, a Next.js dashboard, and transformer-based ML artifacts for a hybrid WAF-plus-ML workflow.
+Injection Alert System is an academic capstone project for SQL injection detection and analyst triage. The repository combines a FastAPI backend, a Next.js dashboard, transformer-based ML artifacts, and a Supabase-backed app runtime for a hybrid WAF-plus-ML workflow.
 
 ## Status
 
-This repository is active, but it is not yet a full production deployment.
+This repository is active and deployable in its current app-plus-BFF form, but it is not yet the full Docker/ModSecurity/Redis local stack.
 
-- Backend tests currently pass: `259 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
-- Frontend tests: `107 passed` (run with `cd frontend && npx vitest run`)
-- Frontend typecheck currently passes: `npm run typecheck`
+- Backend tests currently pass: `264 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
+- Frontend tests currently pass: `122 passed` (run with `cd frontend && npx vitest run`)
+- Frontend typecheck currently passes: `cd frontend && npm run typecheck`
 - Frontend lint currently passes: `cd frontend && npm run lint`
-- The dashboard BFF routes for alerts, alert detail, stats, and ML health are wired to FastAPI in non-mock mode
-- Docker Compose, runnable ModSecurity wiring, and full Supabase/Redis integration are still in progress
+- Frontend build currently passes: `cd frontend && npm run build`
+- The dashboard BFF routes for alerts, alert detail, triage, stats, and ML health are wired to FastAPI in non-mock mode
+- Supabase is the active hosted database boundary for the app runtime
+- Docker Compose, runnable ModSecurity wiring, and Redis-backed enforcement are still in progress
 
 If you need the current implementation truth rather than the thesis target architecture, start with [docs/CONTEXT.md](docs/CONTEXT.md) and [docs/architecture.md](docs/architecture.md).
 
 ## What The Project Does
 
-The target system is a CRS-first security workflow:
+The current system boundary is:
 
 ```text
 Browser -> Next.js route handlers -> FastAPI -> model service -> database
@@ -30,7 +32,7 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
-In the current repo, the application code, model-loading path, tests, and dashboard shell are present, but the full WAF deployment path is not wired end to end yet.
+In the current repo, the application code, model-loading path, tests, dashboard shell, and Supabase-backed runtime path are present, but the full WAF deployment path is not wired end to end yet.
 
 ## Current Repository Scope
 
@@ -42,6 +44,7 @@ In the current repo, the application code, model-loading path, tests, and dashbo
   - `POST /api/triage`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
+  - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
   - `POST /api/feedback`
@@ -50,13 +53,13 @@ In the current repo, the application code, model-loading path, tests, and dashbo
 - Runtime model loading through `web_app/services/model_service.py`
 - Staged model artifacts under `ml_model/model_registry/`
 - Alembic scaffolding and the current triage-processing migration set
+- Hosted PostgreSQL/Supabase runtime boundary for application data
 
 ### Not fully implemented yet
 
 - End-to-end ModSecurity or CRS bridge
 - Docker Compose based local stack
 - Redis-backed enforcement state
-- Fully wired Supabase production boundary
 
 ## Tech Stack
 
@@ -65,7 +68,7 @@ In the current repo, the application code, model-loading path, tests, and dashbo
 | Frontend | Next.js 16, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
 | Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.14 |
 | ML | PyTorch, Hugging Face Transformers |
-| Data | SQLite for tests and local development, PostgreSQL/Supabase as target production boundary |
+| Data | SQLite for tests and isolated local work, PostgreSQL/Supabase as the active hosted runtime boundary |
 | Docs | Markdown in-repo docs under `docs/` |
 
 ## Repository Layout
@@ -97,20 +100,45 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 
 ### Backend
 
+If you are using **Command Prompt (`cmd.exe`)**:
+
+```cmd
+py -3.14 -m venv .venv
+call .\.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+python -m pytest -q
+python -m uvicorn web_app.presentation.app:create_app --reload
+```
+
+If you are using **PowerShell**:
+
 ```powershell
-python -m venv .venv
-.venv\Scripts\pip.exe install -r requirements.txt
+py -3.14 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m pytest -q
-uvicorn web_app.presentation.app:create_app --reload
+.venv\Scripts\python.exe -m uvicorn web_app.presentation.app:create_app --reload
 ```
 
 Before starting the backend, create a root `.env` file using the current variable guidance in [docs/SETUP.md](docs/SETUP.md).
 
 ### Frontend
 
+If you are using **Command Prompt (`cmd.exe`)**:
+
+```cmd
+cd frontend
+npm install
+npm run lint
+npm run typecheck
+npm run dev
+```
+
+If you are using **PowerShell**:
+
 ```powershell
 cd frontend
 npm install
+npm run lint
 npm run typecheck
 npm run dev
 ```
@@ -142,6 +170,7 @@ curl -X POST "http://localhost:8000/api/predict" \
   - `POST /api/triage`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
+  - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
 - Public backend endpoints:
@@ -155,12 +184,12 @@ curl -X POST "http://localhost:8000/api/predict" \
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
 - Next.js BFF handlers under `frontend/app/api/alerts`, `frontend/app/api/stats`, and `frontend/app/api/ml-health` also call `auth()` and return `401` without a session.
 - Backend internal data routes use `Authorization: Bearer <API_SECRET_KEY>` via the Next.js BFF client.
+- Local `next start` validation also requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
 
 ### Current limitations
 
 - Stale `PROCESSING` triage reservations are automatically reclaimed via lease expiry (`lease_expires_at`); a later request can claim ownership when the lease has expired.
 - The dashboard still derives some stats and ML-health display fields in the BFF because backend payloads are intentionally thinner than the UI contract.
-
 
 ## Documentation
 
@@ -172,17 +201,17 @@ curl -X POST "http://localhost:8000/api/predict" \
   - local setup and environment guidance
 - [CONTRIBUTING.md](CONTRIBUTING.md)
   - contributor workflow and validation steps
-- [docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md](docs/DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md)
-  - dataset release note
-- [docs/DATASET_BASELINE_SR_BH_v3.1.0.md](docs/DATASET_BASELINE_SR_BH_v3.1.0.md)
-  - dataset baseline and training metadata
+- [docs/CURRENT_SYSTEM_STATE.md](docs/CURRENT_SYSTEM_STATE.md)
+  - detailed runtime and UI snapshot
+- [docs/README.md](docs/README.md)
+  - docs index
 
 ## Support
 
 - For local setup and environment questions, start with [docs/SETUP.md](docs/SETUP.md)
 - For implementation status and known gaps, use [docs/CONTEXT.md](docs/CONTEXT.md)
 - For architecture questions, use [docs/architecture.md](docs/architecture.md)
-- For contribution workflow, use [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- For contribution workflow, use [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Development Notes
 
@@ -205,14 +234,12 @@ At minimum, run:
 # Backend tests
 .venv\Scripts\python.exe -m pytest -q
 
-# Frontend typecheck
+# Frontend quality gates
 cd frontend
+npm run lint
 npm run typecheck
-
-# Frontend BFF tests (optional)
 npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
-
-# Frontend production build
+npx vitest run
 npm run build
 ```
 

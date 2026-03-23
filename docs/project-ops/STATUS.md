@@ -8,21 +8,24 @@
 
 ## Current Verified Repo State
 
-- Active integration branch used for final checks: `frontend-adaptation`
+- Active branch baseline: `master`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.1`, React `19.2.4`, TypeScript `5.9`, Zod `4.3.6`
 - Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
+- Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
+- Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 
 ### Current API/BFF state
@@ -44,23 +47,24 @@
   - `Browser -> Next.js route handlers/BFF -> FastAPI`
 - Route protection and proxy entrypoint:
   - Auth checks are enforced in BFF handlers.
-  - Next.js edge entrypoint now uses `frontend/proxy.ts` (not `middleware.ts`).
+  - Next.js edge entrypoint uses `frontend/proxy.ts`.
+  - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
 
 ---
 
 ## Important Notes For Operators
 
 - CI may show four checks on branch updates because both `push` and `pull_request` workflows run for frontend and backend.
-- The backend CI failure on Python 3.14 (`api_secret_key` required) is fixed by allowing an empty default in `web_app/config.py`, aligned with existing auth-bypass behavior in development-only scenarios.
 - `requirements.train.txt` is laptop/training-only and should not be treated as required for CI/backend runtime verification.
+- Supabase is now part of the current runtime truth. Do not document it as merely planned.
 
 ---
 
 ## Open Gaps (Current, Not Historical)
 
 - Docker Compose + runnable ModSecurity integration is still not implemented.
-- Live Supabase operational hardening steps (RLS policy operations) remain outside automated repo verification.
-- Some legacy planning docs under `docs/project-ops/` were stale and have been replaced by the current compact plan/task docs.
+- Redis-backed enforcement and queue behavior is still not implemented in the repo runtime.
+- Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
 
 ---
 
@@ -69,5 +73,5 @@
 - Implementation snapshot: `docs/CONTEXT.md`
 - Architecture boundaries: `docs/architecture.md`
 - Local setup: `docs/SETUP.md`
-- Operator plan: `docs/project-ops/IMPLEMENTATION_PLAN.md`
-- Operator task list: `docs/project-ops/TASKS.md`
+- Detailed current-state snapshot: `docs/CURRENT_SYSTEM_STATE.md`
+- Operator checklist: `docs/project-ops/LIVING_CHECKLIST.md`

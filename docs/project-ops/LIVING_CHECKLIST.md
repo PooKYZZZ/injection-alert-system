@@ -1,84 +1,59 @@
-# PD1 Backend — Living Task Checklist
+# Living Checklist
 > Location: `docs/project-ops/LIVING_CHECKLIST.md`
-> Paste this alongside the Context Block at the start of every new AI session.
-> Check off items as you complete them. Keep this file updated after every session.
-> This is your memory across sessions — never skip updating it.
+> Keep this file updated after every meaningful implementation or verification session.
+> This is a working checklist, not the full runtime source of truth.
 
 **Last updated:** 2026-03-23
 
 Status note:
-- This file is a working implementation checklist, not the live runtime source of truth.
-- Current test baseline: pytest 259 passed, vitest 107 passed, typecheck passed, lint passed
-- Full audit report: `docs/project-ops/DATA_AUDIT.md`
-
----
-
-## How to Use This File
-
-1. After every session, open this file and check off what you completed
-2. Paste the updated checklist into the next AI session alongside the context block
-3. The AI reads your checklist and knows exactly where you left off
-4. Never start a session without an up-to-date checklist
+- Current test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed
+- Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 
 ---
 
 ## Current Verified State (2026-03-23)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
-- Frontend: `cd frontend && npm run typecheck` → **PASSED**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
+- Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
-### Backend Routes (All Implemented)
+### Backend Routes
 - `POST /api/predict` ✓
-- `POST /api/triage` ✓ (reservation-first)
+- `POST /api/triage` ✓
 - `GET /api/alerts` ✓
 - `GET /api/alerts/{id}` ✓
 - `PATCH /api/alerts/{id}/triage` ✓
-- `GET /api/stats` ✓ (window filtering)
-- `GET /api/ml-health` ✓ (eval metadata optional)
+- `GET /api/stats` ✓
+- `GET /api/ml-health` ✓
 - `POST /api/feedback` ✓
 - `GET /health` ✓
 - `GET /api/health` ✓
 
-### Frontend BFF Routes (All Implemented)
-- `frontend/app/api/alerts/route.ts` ✓
-- `frontend/app/api/alerts/[id]/route.ts` ✓
-- `frontend/app/api/alerts/[id]/triage/route.ts` ✓ (NEW - PATCH triage)
-- `frontend/app/api/stats/route.ts` ✓
-- `frontend/app/api/ml-health/route.ts` ✓
-
-### BFF Status
+### Frontend/BFF Truths
 - `USE_MOCK_API` is the single centralized server-only mock toggle ✓
-- All handlers require Auth.js session ✓
-- CalibrationBin schema uses `bin_center` and `accuracy` ✓
-- Multi-select confidence_level correctly uses `getAll()` + `append()` ✓
+- All BFF handlers require Auth.js session ✓
+- `frontend/proxy.ts` is the active edge entrypoint ✓
+- Local `next start` validation requires `AUTH_TRUST_HOST=true` ✓
+- Transport contract values remain `BLOCKED`, `THROTTLED`, `ALLOWED` ✓
 
-### Hardcoded Values Fixed (2026-03-20 Audit)
-- `dashboard/page.tsx`: Removed hardcoded derived claims
-- `ModelHeader.tsx`: Fixed hardcoded calibration claim
+### Data Boundary
+- App runtime uses Supabase-backed PostgreSQL ✓
+- Tests use SQLite ✓
+- Async SQLAlchemy remains the only DB access path ✓
 
 ---
 
-## 2026-03-20 Database-to-Frontend Audit Summary
+## Open Backlog
 
-### Database State
-- DB: SQLite at `injection_alerts.db`
-- Total rows: 18
-- BLOCKED: 12, THROTTLED: 3, ALLOWED: 3
-
-### Endpoint Status (Verified)
-- `/api/alerts` - OK, returns persisted records
-- `/api/alerts/{id}` - OK, returns alert detail
-- PATCH `/api/alerts/{id}/triage` - OK, persists triage status
-
-### Gap Items for Future Work
-1. Keep the lease-based triage reclaim docs/checklist aligned with the implementation
-2. Add richer backend-native dashboard stats beyond BFF normalization
-3. Wire live Supabase deployment
-4. TrustedHostMiddleware / HTTPS redirect configuration
+- [ ] Docker Compose based local stack
+- [ ] Runnable ModSecurity + CRS bridge
+- [ ] Redis-backed enforcement or review-queue state
+- [ ] Repo-managed export and verification of Supabase policy / RLS state
+- [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
 
 ---
 
@@ -88,17 +63,20 @@ Status note:
 # Backend tests
 .venv\Scripts\python.exe -m pytest -q
 
-# Frontend typecheck
-cd frontend && npm run typecheck
-
-# Full frontend tests
-cd frontend && npx vitest run
+# Frontend lint + typecheck
+cd frontend && npm run lint && npm run typecheck
 
 # BFF-focused tests
 cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 
+# Full frontend tests
+cd frontend && npx vitest run
+
+# Frontend build
+cd frontend && npm run build
+
 # Start backend
-uvicorn web_app.presentation.app:create_app --reload
+.venv\Scripts\python.exe -m uvicorn web_app.presentation.app:create_app --reload
 
 # Start frontend
 cd frontend && npm run dev

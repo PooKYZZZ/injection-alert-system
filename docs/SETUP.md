@@ -2,7 +2,7 @@
 
 Last updated: 2026-03-23
 
-This guide reflects the repo as it exists now. It supports local backend and frontend development. It does not assume Docker Compose, ModSecurity, Redis, or Supabase are already wired in this repository.
+This guide reflects the repo as it exists now. It supports local backend and frontend development against the current app runtime. It does not assume Docker Compose, ModSecurity, or Redis are already wired in this repository.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ cd injection-alert-system
 ### Create a virtual environment
 
 ```powershell
-python -m venv .venv
+py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
@@ -32,15 +32,15 @@ If PowerShell blocks activation, either adjust execution policy for the current 
 ### Install Python dependencies
 
 ```powershell
-.venv\Scripts\pip.exe install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 ### Create `.env`
 
-The backend currently reads settings from `.env`. A minimal local development file looks like this:
+The backend currently reads settings from `.env`. Use your current Supabase PostgreSQL connection string for normal app runtime work. A minimal local development file looks like this:
 
 ```dotenv
-DATABASE_URL=sqlite+aiosqlite:///./dev.db
+DATABASE_URL=postgresql+asyncpg://postgres:<password>@<project-ref>.supabase.co:6543/postgres
 APP_ENV=development
 LOG_LEVEL=INFO
 MODEL_PATH=ml_model/models/mock_model.py
@@ -62,6 +62,7 @@ Notes:
 - If `MODEL_REGISTRY_PATH` is empty or missing in development, startup falls back to the mock model service with a warning.
 - `CONFIDENCE_LOW_THRESHOLD`, `CONFIDENCE_HIGH_THRESHOLD`, and `STALE_PROCESSING_TIMEOUT_SECONDS` are supported env overrides with locked current defaults.
 - `MAX_SEQ_LEN`, `TEMPERATURE`, `LABEL_NAMES`, and `MODEL_VERSION` are also accepted by settings, but the repo currently relies on their defaults unless you are doing targeted backend or artifact validation work.
+- SQLite is still fine for isolated local testing, but it is no longer the primary runtime path documented for the app.
 - If you want the real staged model, use an explicit run directory such as:
 
 ```dotenv
@@ -74,12 +75,12 @@ MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_2
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-23, this passes with **259 backend tests**.
+As of 2026-03-23, this passes with **264 backend tests**.
 
 ### Start the backend
 
 ```powershell
-uvicorn web_app.presentation.app:create_app --reload
+.venv\Scripts\python.exe -m uvicorn web_app.presentation.app:create_app --reload
 ```
 
 Backend entrypoint:
@@ -94,9 +95,9 @@ Current API surface:
   - `POST /api/triage`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
-  - `PATCH /api/alerts/{id}/triage` (NEW)
-  - `GET /api/stats` (with window=1h|6h|24h|7d filtering and extended fields)
-  - `GET /api/ml-health` (with optional eval metadata)
+  - `PATCH /api/alerts/{id}/triage`
+  - `GET /api/stats`
+  - `GET /api/ml-health`
 - Public backend endpoints:
   - `POST /api/feedback`
   - `GET /health`
@@ -117,6 +118,7 @@ Use a local file with the variables the current frontend actually reads:
 
 ```dotenv
 AUTH_SECRET=replace-me
+AUTH_TRUST_HOST=true
 SOC_DEMO_PASSWORD=demo1234
 DEMO_PASSWORD=
 FASTAPI_BASE_URL=http://localhost:8000
@@ -129,6 +131,7 @@ NEXT_PUBLIC_APP_VERSION=0.0.0-LOCAL
 Notes:
 
 - `AUTH_SECRET` is the Auth.js signing secret. Keep `NEXTAUTH_SECRET` unset to avoid split secret sources.
+- `AUTH_TRUST_HOST=true` is required for local `next start` validation so Auth.js trusts the local host.
 - The login flow currently checks a password only.
 - `SOC_DEMO_PASSWORD` is preferred. The code also falls back to `DEMO_PASSWORD`, then `demo1234` in development.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
@@ -142,14 +145,15 @@ cd frontend
 npm run dev
 ```
 
-### Validate types
+### Validate types and lint
 
 ```powershell
 cd frontend
+npm run lint
 npm run typecheck
 ```
 
-As of 2026-03-20, typecheck passes cleanly.
+As of 2026-03-23, both pass cleanly.
 
 ### Run focused frontend BFF tests
 
@@ -165,7 +169,7 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-03-23, full suite passes with **107 frontend tests**.
+As of 2026-03-23, full suite passes with **122 frontend tests**.
 
 ### Validate production build
 
@@ -213,27 +217,10 @@ The following are not yet available as runnable repo-level setup paths:
 - `docker compose up --build`
 - ModSecurity + CRS local runtime
 - Redis-backed review queue or enforcement state
-- Live Supabase wiring
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
-- Automatic reclamation of stale `PROCESSING` triage rows
+- Automatic repo-managed export of Supabase policies and operational guardrails
 
-## 6. 2026-03-20 Audit Findings
-
-Full audit report available at: `docs/project-ops/DATA_AUDIT.md`
-
-### Hardcoded Values Fixed
-- Dashboard page: removed hardcoded derived claims (`'↑ +3 vs prev 6h'`, `'50–80% confidence'`, `'↓ Model stable'`)
-- ML Health ModelHeader: changed `value="Temp-scaled"` to `value="—"`
-
-### BFF Layer Verified
-- Auth boundary correct: all 5 handlers call `auth()` before data fetch
-- CalibrationBin schema correct: uses `bin_center` and `accuracy` field names
-- Multi-select confidence_level correct: uses `delete()` + `append()` not `get()` + `set()`
-
-### Verified Status
-- `/api/alerts` returns persisted records correctly
-
-## 7. Troubleshooting
+## 6. Troubleshooting
 
 ### Backend starts with a mock model unexpectedly
 
@@ -255,8 +242,10 @@ Re-run:
 ```powershell
 .venv\Scripts\python.exe -m pytest -q
 cd frontend
+npm run lint
 npm run typecheck
 npx vitest run
+npm run build
 ```
 
 If those outputs change, update this file and `docs/CONTEXT.md` in the same change.

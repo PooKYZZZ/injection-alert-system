@@ -1,6 +1,6 @@
 # Contributing
 
-Last updated: 2026-03-20
+Last updated: 2026-03-23
 
 This repo follows a docs-as-code workflow. Keep documentation, code, and validation steps aligned in the same change set.
 
@@ -23,11 +23,10 @@ Run the checks that match the area you touched:
 
 # Frontend
 cd frontend
+npm run lint
 npm run typecheck
-
-# Frontend tests (full suite)
-cd frontend
 npx vitest run
+npm run build
 ```
 
 Optional but recommended when relevant:
@@ -39,16 +38,18 @@ python -m ruff check .
 
 # Frontend tests (focused BFF tests)
 cd frontend
-npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 ```
 
-## Current Test Baseline (2026-03-22)
+## Current Test Baseline (2026-03-23)
 
 | Test Suite | Result |
 |------------|--------|
-| pytest | 256 passed |
+| pytest | 264 passed |
+| lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 102 passed |
+| vitest (full) | 122 passed |
+| build | PASSED |
 
 ## Architecture Guardrails
 

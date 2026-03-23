@@ -2,9 +2,11 @@
 
 **Date:** February 09, 2026
 
-> Status note (2026-03-14): This file is preserved as an academic feasibility and design document.
-> It intentionally includes planned capabilities and target architecture. For current repo truth,
-> use `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`.
+> Status note (2026-03-23): This file is preserved as an academic feasibility and design document.
+> It intentionally includes planned capabilities and target architecture. Several items described
+> below are now partially or fully implemented in the repository, including the FastAPI backend,
+> the Next.js dashboard/BFF layer, and the Supabase-backed runtime database path. For current repo
+> truth, use `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`.
 
 ---
 
@@ -147,8 +149,8 @@ To design and implement a confidence-calibrated deep learning triage system that
 - Proposed web-application scope for the study:
   - FastAPI backend with RESTful endpoints for single-request prediction, alert retrieval, analyst feedback capture, aggregate statistics, and optional explanation services
   - Additional endpoints such as batch prediction, statistics, and explanation generation are design targets for the full platform and should not be interpreted as all being implemented in the current repository snapshot
-- Integrate a cloud-managed Supabase (PostgreSQL) database, or an equivalent PostgreSQL deployment, for traffic logging and analyst feedback using fields such as timestamp, source IP, HTTP request, prediction, confidence, confidence level, action taken, and analyst label
-- Implement a Next.js 15 and TypeScript dashboard spanning multiple analyst and administrative views for alert review, system monitoring, and operational oversight
+- Integrate a cloud-managed Supabase (PostgreSQL) database, or an equivalent PostgreSQL deployment, for traffic logging and analyst feedback using fields such as timestamp, source IP, HTTP request, prediction, confidence, confidence level, action taken, and analyst label. In the current repository snapshot, the app runtime already uses a Supabase-backed PostgreSQL boundary.
+- Implement a Next.js and TypeScript dashboard spanning multiple analyst and administrative views for alert review, system monitoring, and operational oversight. In the current repository snapshot, the dashboard and BFF layer already exist, though the broader target-state platform described here remains larger than the current implementation.
 - Enforce a frontend security architecture leveraging Next.js API route handlers to proxy all browser requests to backend services and optional LLM providers, ensuring the browser never communicates directly with internal ML or database services
 - Implement role-based access control (Analyst and Admin roles) using NextAuth.js v5 with JWTs securely stored in httpOnly cookies
 - Mitigate DOM-based cross-site scripting (XSS) risks by rendering intercepted attack payloads exclusively within safe code formatting blocks (`<pre><code>`) rather than allowing raw DOM insertion
@@ -222,7 +224,7 @@ The operational value of confidence-tiered alert response is supported by prior 
   - Integrate with OWASP ModSecurity v3.0+ and OWASP Core Rule Set (CRS) v4.x
   - Develop a log bridge to parse ModSecurity audit logs and feed flagged HTTP requests to the ML model
   - Implement hybrid enforcement logic where CRS anomaly scores trigger the triage pipeline and ML confidence determines mitigation intensity
-  - Target deployment architecture uses Docker Compose on Ubuntu with a three-service layout in which ModSecurity and Nginx are the sole internet-facing entry point, proxying traffic to FastAPI and Next.js services on internal networks
+  - Target deployment architecture uses Docker Compose on Ubuntu with a three-service layout in which ModSecurity and Nginx are the sole internet-facing entry point, proxying traffic to FastAPI and Next.js services on internal networks. This remains target-state architecture and is not yet fully present in the current repository.
 
 ### 6. Retraining Pipeline
 - Implement 20-day automated retraining pipeline:
@@ -246,7 +248,7 @@ This is further supported by security-specific research demonstrating that ML-ba
 ### 7. Deployment Automation and Response Orchestration
 - Proposed deployment automation scope:
   - Develop pre-written Ansible playbooks for infrastructure tasks
-  - Initial Ubuntu VM provisioning and Docker Compose environment setup (three-container stack: ModSecurity + Nginx + OWASP CRS, FastAPI + PyTorch models, Next.js 15 frontend) — replacing manual service-by-service installation
+  - Initial Ubuntu VM provisioning and Docker Compose environment setup (three-container stack: ModSecurity + Nginx + OWASP CRS, FastAPI + PyTorch models, Next.js frontend) — replacing manual service-by-service installation
   - Temporary IP blocking/unblocking operations (time-bounded, auto-expiring)
   - Rate-limiting adjustments
   - Service restarts and configuration changes

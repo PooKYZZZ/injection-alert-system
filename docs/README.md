@@ -2,7 +2,7 @@
 
 Last updated: 2026-03-23
 
-This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, and academic deliverables.
+This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
 ## Use This Folder By Purpose
 
@@ -13,20 +13,22 @@ This folder is the maintained documentation surface for the repository. It is in
   - Current system structure, request flow, active boundaries, and known gaps.
 - `SETUP.md`
   - Honest local setup instructions for the repo in its current state.
-- `CONTRIBUTING.md`
+- `CURRENT_SYSTEM_STATE.md`
+  - Detailed snapshot of pages, contracts, and runtime behavior.
+- `DESIGN_SYSTEM.md`
+  - Frontend token, pattern, and styling guidance.
+- `agent-tooling.md`
+  - Repo-maintained MCP and CLI routing guidance.
+- `../CONTRIBUTING.md`
   - Workflow, guardrails, and validation steps for contributors.
 
 ### Operator docs
 - `project-ops/STATUS.md`
   - Team and implementation status notes for current operator workflows.
-- `project-ops/CONTEXT_BLOCK.md`
-  - Compact context block for AI-assisted development sessions.
 - `project-ops/LIVING_CHECKLIST.md`
-  - Ongoing backend checklist and session handoff material.
-- `PR_CHECKLIST_python314-upgrade.md`
-  - Summary and verification checklist for the Python 3.14 / latest-compatible upgrade branch.
-- `project-ops/DATA_AUDIT.md`
-  - Full database-to-frontend audit findings (2026-03-20).
+  - Ongoing implementation checklist and handoff material.
+- `project-ops/README.md`
+  - Entry point for the operator-doc subset.
 
 ### Dataset and ML baseline
 - `DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md`
@@ -40,18 +42,19 @@ This folder is the maintained documentation surface for the repository. It is in
 - `model_architecture_subsection.md`
   - Thesis subsection describing model selection rationale and citations.
 
-## Verified Repo State (2026-03-22)
+## Verified Repo State (2026-03-23)
 
-- Backend tests currently pass: **259 passed** (pytest)
-- Frontend typecheck currently passes: `npm run typecheck`
+- Backend tests currently pass: **264 passed** (pytest)
 - Frontend lint currently passes: `cd frontend && npm run lint`
-- Frontend tests currently pass: **107 passed** (vitest)
+- Frontend typecheck currently passes: `cd frontend && npm run typecheck`
+- Frontend tests currently pass: **122 passed** (vitest)
+- Frontend production build currently passes: `cd frontend && npm run build`
 - Current backend API surface includes:
   - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `PATCH /api/alerts/{id}/triage`, `GET /api/stats`, `GET /api/ml-health`
   - public: `POST /api/feedback`, `GET /health`, `GET /api/health`
 - The Next.js dashboard BFF is wired for alerts, alert detail, triage, stats, and ML health through `frontend/lib/bff-client.ts`
 - USE_MOCK_API=false (hitting real FastAPI)
-- Hardcoded values audit completed: derived claims removed from dashboard, calibration claim fixed in ML health
+- Supabase is the active hosted PostgreSQL boundary for the app runtime
 - Docker Compose, Dockerfiles, and runnable ModSecurity wiring are not in the repo yet
 
 ## Documentation Rules For This Repo
@@ -61,4 +64,3 @@ This folder is the maintained documentation surface for the repository. It is in
 - Keep setup, architecture, and status separate so each file has one job.
 - Preserve academic documents, but mark them clearly when they are design artifacts instead of runtime truth.
 - Keep operator docs separate from user-facing implementation docs.
-- `docs/checklists/` is intentionally left out of this refresh and should be treated separately.
