@@ -356,6 +356,42 @@ describe('bff-client', () => {
     )
   })
 
+  it.each([
+    'UTC',
+    'Etc/GMT+8',
+    'America/Argentina/Buenos_Aires',
+  ])('forwards valid timezone_name %s', async (zone) => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 0,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 0,
+          blocked_count: 0,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: null,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('6h', zone)
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:8000/api/stats?window=6h&timezone_name=${encodeURIComponent(zone)}`,
+      expect.any(Object)
+    )
+  })
+
   it('sets a timeout signal for triage mutation requests', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
