@@ -178,6 +178,15 @@ function err<T>(status: number, code: string, message: string, retryAfter?: stri
   return { ok: false, status, error: { code, message }, retryAfter }
 }
 
+function isValidTimeZone(timeZone: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function parseAlertId(alertId: string): BffResult<number> {
   const trimmedId = alertId.trim()
   if (!/^[1-9]\d*$/.test(trimmedId)) {
@@ -614,7 +623,9 @@ export async function getStats(
 
   const query = new URLSearchParams()
   if (window) query.set('window', window)
-  if (timezoneName) query.set('timezone_name', timezoneName)
+  if (timezoneName && isValidTimeZone(timezoneName)) {
+    query.set('timezone_name', timezoneName)
+  }
   const path = query.size > 0 ? `/api/stats?${query.toString()}` : '/api/stats'
   const upstream = await fetchUpstream(path, BackendStatsSchema)
   if (!upstream.ok) {

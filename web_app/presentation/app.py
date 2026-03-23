@@ -26,6 +26,10 @@ from web_app.infrastructure.database import init_db
 from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.health import health_check
+from web_app.presentation.middleware.body_limit import BodySizeLimitMiddleware
+from web_app.presentation.middleware.security_headers import (
+    SecurityHeadersMiddleware,
+)
 from web_app.presentation.schemas import HealthResponse
 from web_app.services.model_service import ModelService
 
@@ -106,7 +110,7 @@ def create_app() -> FastAPI:
             CORSMiddleware,
             allow_origins=settings.allowed_origins,
             allow_credentials=True,
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+            allow_methods=["GET", "POST", "PATCH"],
             allow_headers=["Authorization", "Content-Type"],
         )
     else:
@@ -118,6 +122,13 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Starlette applies middleware in reverse registration order.
+    # Register the body limit middleware first so the security headers
+    # middleware becomes the outermost custom layer and can post-process
+    # every response, including early 400/413 responses from body limits.
+    app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # --- API router ---
     app.include_router(api_router, prefix="/api")

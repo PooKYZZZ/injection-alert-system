@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AlertsTable } from './AlertsTable'
@@ -56,6 +56,20 @@ afterEach(() => {
 })
 
 describe('AlertsTable', () => {
+  it('shows pagination controls after hydration without a mount-only effect', async () => {
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Page 1 of 0')).toBeInTheDocument()
+    })
+  })
+
   it('normalizes ReadonlyURLSearchParams before requesting alerts', async () => {
     const searchParams = new URLSearchParams()
     searchParams.set('severity', 'HIGH')

@@ -1,0 +1,544 @@
+# TASKS.md — Injection Alert System
+# Atomic Task List for Autonomous Agent Execution
+
+**Last updated:** 2026-03-23
+**Baseline:** 264 backend tests, 122 frontend tests, master branch
+**Edge entrypoint:** frontend/proxy.ts (NOT middleware.ts)
+**DB file:** web_app/infrastructure/database/database.py
+
+---
+
+## Agent instructions
+
+```
+1. Read AGENTS.md → STATUS.md → IMPLEMENTATION_PLAN.md first
+2. Find the first [ ] task in the current phase
+3. Read the full task block before touching any file
+4. Implement exactly as described
+5. Run every verify command — all must pass
+6. Update this file: [ ] → [x]
+7. Update docs/project-ops/STATUS.md
+8. Commit on fix/<scope> or feat/<scope> branch
+9. Start a NEW agent conversation for the next task
+```
+
+**Status legend:**
+```
+[ ]  Not started
+[~]  In progress
+[x]  Done — all verify commands passed
+[!]  Blocked — reason noted below the task
+```
+
+**Rule: Never mark [x] unless ALL verify commands pass.**
+**Rule: Never start Phase N+1 until all Phase N tasks are [x].**
+
+---
+
+## Phase 1 — Security Hardening
+
+---
+
+### Task 1.1 — Create body size limit middleware
+
+**Status:** `[x]`
+**Branch:** `fix/body-size-limit`
+**Security finding:** S-01
+**Files to create:** `web_app/presentation/middleware/body_limit.py`
+**Files to edit:** `web_app/presentation/app.py`
+
+**What to implement:**
+Create a Starlette `BaseHTTPMiddleware` in `body_limit.py` that checks the
+`Content-Length` header on every incoming request. If the value exceeds
+1_048_576 bytes (1MB), return HTTP 413 with a JSON error body before the
+request body is read. If `Content-Length` is absent, allow through.
+
+Register in `create_app()` as the FIRST middleware, before CORS and security
+headers. Use `app.add_middleware(BodySizeLimitMiddleware)`.
+
+Do not use any new pip packages — Starlette's `BaseHTTPMiddleware` is already
+available via FastAPI.
+
+**Acceptance:**
+- File exists at correct path
+- Registered first in create_app()
+- POST with Content-Length: 2000000 returns 413
+- Normal requests under 1MB pass through
+
+**Verify:**
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+```
+264+ passed, 0 failed.
+
+---
+
+### Task 1.2 — Create security headers middleware
+
+**Status:** `[x]`
+**Branch:** `fix/fastapi-security-headers`
+**Security finding:** S-02
+**Files to create:** `web_app/presentation/middleware/security_headers.py`
+**Files to edit:** `web_app/presentation/app.py`
+
+**What to implement:**
+Create a Starlette `BaseHTTPMiddleware` that stamps these headers on every
+outgoing FastAPI response:
+```
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+
+Register in `create_app()` AFTER body_limit, BEFORE CORS.
+Do not add Strict-Transport-Security (local HTTP).
+Do not use any new pip packages.
+
+**Verify:**
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+```
+264+ passed, 0 failed.
+
+---
+
+### Task 1.3 — Fix CORS allowed methods in production
+
+**Status:** `[x]`
+**Branch:** `fix/cors-methods`
+**Security finding:** S-03
+**Files to edit:** `web_app/presentation/app.py`
+
+**What to implement:**
+Line 109 in app.py currently shows:
+```python
+allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+```
+
+Change ONLY the production/staging block to:
+```python
+allow_methods=["GET", "POST", "PATCH"],
+```
+
+Do not touch the development block (line 118, `allow_methods=["*"]`).
+
+**Verify:**
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+```
+
+---
+
+### Task 1.4 — Remove ModelService dead alias
+
+**Status:** `[x]`
+**Branch:** `fix/remove-model-alias`
+**Security finding:** S-05
+**Files to edit:** `web_app/services/model_service.py`
+
+**What to implement:**
+Line 217 currently has:
+```python
+response["class"] = prediction
+response["confidence_level"] = confidence_tier
+```
+And a TODO comment above them.
+
+Before removing: confirm `triage_use_case.py` uses `raw_result.get("prediction")`
+and `raw_result.get("confidence_level") or raw_result.get("confidence_tier")`.
+If it does, remove both alias lines and the TODO comment.
+
+The canonical fields `prediction` and `confidence_tier` in the response dict
+must remain untouched.
+
+**Verify:**
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+```
+
+---
+
+### Task 1.5 — Create frontend/next.config.ts
+
+**Status:** `[x]`
+**Branch:** `fix/next-config`
+**Security finding:** S-06
+**Files to create:** `frontend/next.config.ts`
+
+**What to implement:**
+Create `next.config.ts` with:
+- `poweredByHeader: false`
+- `headers()` async function with `source: '/(.*)'` applying to all routes:
+  ```
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy (development): default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
+  Content-Security-Policy (production): default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
+  ```
+
+Use environment-aware static CSP — do NOT use nonces (forces full SSR).
+Do not add Strict-Transport-Security (local HTTP).
+Export as `const nextConfig: NextConfig = {...}` with `export default nextConfig`.
+
+**Verify:**
+```powershell
+cd frontend
+npm run typecheck
+npm run build
+npx vitest run
+```
+All must pass.
+
+---
+
+### Task 1.6 — Add security headers to proxy.ts
+
+**Status:** `[x]`
+**Branch:** `fix/proxy-security-headers`
+**Security finding:** S-07
+**Files to edit:** `frontend/proxy.ts`
+
+**IMPORTANT:** Edit `proxy.ts` ONLY. Do NOT touch or create middleware.ts.
+The edge entrypoint is proxy.ts.
+
+**What to implement:**
+Wrap the existing NextAuth logic to also stamp security headers on every
+response before returning:
+```
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+```
+
+Get the response from the NextAuth handler, set headers on it, return it.
+Do not break the existing redirect to /login.
+Do not change the matcher config.
+
+**Verify:**
+```powershell
+cd frontend
+npm run typecheck
+npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
+```
+
+---
+
+### Task 1.7 — Set session maxAge in auth.ts
+
+**Status:** `[x]`
+**Branch:** `fix/session-max-age`
+**Security finding:** S-08
+**Files to edit:** `frontend/auth.ts`
+
+**What to implement:**
+No `maxAge` is currently set. Find the session config and add it:
+```ts
+session: {
+  strategy: 'jwt',
+  maxAge: 8 * 60 * 60, // 8 hours
+}
+```
+Do not change strategy. Do not add updateAge. Do not change callbacks.
+
+**Verify:**
+```powershell
+cd frontend
+npm run typecheck
+npx vitest run
+```
+
+---
+
+### Task 1.8 — Align AGENTS.md with current runtime truth
+
+**Status:** `[x]`
+**Branch:** `fix/agents-md-accuracy`
+**Security finding:** S-10
+**Files to edit:** `AGENTS.md` (repo root, only if needed)
+
+**What to implement:**
+Read AGENTS.md. Check if it still describes Supabase as "planned" or
+"not yet implemented". If it does, update to accurately state:
+- Supabase PostgreSQL is the live production database
+- Connected via PgBouncer transaction pooler (port 6543)
+- Docker Compose, ModSecurity, and Redis are not yet implemented
+
+If AGENTS.md already says this correctly, mark [x] with no changes needed.
+
+**Verify:**
+Read file and confirm. No automated gate required.
+
+---
+
+## Phase 2 — Dependency Audit
+
+---
+
+### Task 2.1 — Run npm audit and fix high/critical CVEs
+
+**Status:** `[x]`
+**Branch:** `fix/npm-audit`
+**Security finding:** S-14
+**Files potentially edited:** `frontend/package.json`, `frontend/package-lock.json`
+
+**What to implement:**
+```powershell
+cd frontend
+npm audit --audit-level=high
+```
+
+If vulnerabilities found, run `npm audit fix`.
+Do NOT run `npm audit fix --force`.
+Only fix high and critical severity — ignore moderate and low.
+
+**Verify:**
+```powershell
+cd frontend
+npm audit --audit-level=high
+npm run typecheck
+npx vitest run
+```
+
+---
+
+### Task 2.2 — Run pip-audit and fix vulnerabilities
+
+**Status:** `[x]`
+**Branch:** `fix/pip-audit`
+**Security finding:** S-15
+**Files potentially edited:** `requirements.txt`
+
+**What to implement:**
+```powershell
+.venv\Scripts\pip.exe install pip-audit
+.venv\Scripts\python.exe -m pip_audit -r requirements.txt
+```
+
+For each vulnerability, update the package in `requirements.txt`.
+Do not upgrade FastAPI to 1.x.
+Do not upgrade to Python 3.14 incompatible versions.
+
+**Verify:**
+```powershell
+.venv\Scripts\python.exe -m pip_audit -r requirements.txt
+.venv\Scripts\python.exe -m pytest -q
+```
+
+---
+
+### Task 2.3 — Add audit steps to CI pipeline
+
+**Status:** `[x]`
+**Branch:** `fix/ci-audit`
+**Files to edit:** `.github/workflows/ci.yml`
+
+**What to implement:**
+Add to the `frontend` job after the typecheck step:
+```yaml
+- run: npm audit --audit-level=high
+  working-directory: frontend
+```
+
+Add to the `backend` job after the pytest step:
+```yaml
+- run: pip install pip-audit
+- run: pip-audit -r requirements.txt
+```
+
+Do not change Python or Node versions. Do not add new jobs.
+
+**Verify:**
+```powershell
+cd frontend && npm audit --audit-level=high
+.venv\Scripts\python.exe -m pip_audit -r requirements.txt
+```
+
+---
+
+## Phase 3 — Docker
+
+---
+
+### Task 3.1 — Write FastAPI Dockerfile
+
+**Status:** `[x]`
+**Branch:** `feat/docker-backend`
+**Files to create:** `Dockerfile` (repo root)
+
+**What to implement:**
+Single-stage Dockerfile:
+- Base: `python:3.14-slim`
+- WORKDIR `/app`
+- COPY `requirements.txt` first (layer cache)
+- RUN `pip install --no-cache-dir -r requirements.txt`
+- COPY rest of project source
+- COPY `ml_model/model_registry/ ml_model/model_registry/`
+- EXPOSE 8000
+- CMD: `["uvicorn", "web_app.presentation.app:create_app", "--host", "0.0.0.0", "--port", "8000"]`
+- No `--reload` flag
+- Do NOT COPY `.env`
+
+**Verify:**
+```powershell
+docker build -t injection-backend .
+```
+Must exit 0.
+
+---
+
+### Task 3.2 — Write Next.js Dockerfile
+
+**Status:** `[x]`
+**Branch:** `feat/docker-frontend`
+**Files to create:** `frontend/Dockerfile`
+
+**What to implement:**
+Single-stage Dockerfile:
+- Base: `node:20-alpine`
+- WORKDIR `/app`
+- COPY `package.json` and `package-lock.json` first
+- RUN `npm ci`
+- COPY rest of frontend source
+- RUN `npm run build`
+- EXPOSE 3000
+- CMD: `["npm", "start"]`
+- Do NOT COPY `.env.local`
+
+**Verify:**
+```powershell
+docker build -t injection-frontend ./frontend
+```
+Must exit 0.
+
+---
+
+### Task 3.3 — Write docker-compose.yml
+
+**Status:** `[x]`
+**Branch:** `feat/docker-compose`
+**Files to create:** `docker-compose.yml` (repo root)
+
+**What to implement:**
+Three services:
+
+`modsecurity`:
+- image: `owasp/modsecurity-crs:nginx-alpine`
+- expose: `["80"]`
+- environment: `BACKEND=http://backend:8000`, `PARANOIA=1`, `ALLOWED_METHODS=GET POST PATCH`
+- depends_on: backend
+
+`backend`:
+- build: `.`
+- expose: `["8000"]` — NOT ports
+- env_file: `.env`
+
+`frontend`:
+- build: `./frontend`
+- ports: `["3000:3000"]`
+- env_file: `frontend/.env.local`
+- environment: `FASTAPI_BASE_URL=http://backend:8000`
+- depends_on: backend
+
+Backend MUST use `expose` not `ports` — not reachable from host.
+ModSecurity is internal-only in this repo variant so the browser boundary remains
+`Browser -> Next.js Route Handler -> FastAPI`.
+
+**Verify:**
+```powershell
+docker compose up --build -d
+Start-Sleep 5
+docker compose exec backend curl -f http://localhost:8000/health
+curl http://localhost:3000
+docker compose down
+```
+
+---
+
+### Task 3.4 — Verify full stack end-to-end
+
+**Status:** `[ ]`
+**Branch:** `feat/docker-e2e`
+
+**What to implement:**
+Run your local demo-seeding utility or otherwise ensure the Docker stack has
+sample alert rows available.
+
+Then verify rows appeared in Supabase.
+
+**Verify:**
+```powershell
+.venv\Scripts\python.exe -c "
+import asyncio, sqlalchemy
+from web_app.infrastructure.database.database import engine
+async def test():
+    async with engine.begin() as conn:
+        r = await conn.execute(sqlalchemy.text('SELECT COUNT(*) FROM traffic_logs'))
+        print('Row count:', r.scalar())
+asyncio.run(test())
+"
+docker compose down
+```
+
+---
+
+## Phase 4 — Demo Prep
+
+---
+
+### Task 4.1 — Write smoke test runbook
+
+**Status:** `[ ]`
+**Branch:** `feat/smoke-test-runbook`
+**Files to create:** `docs/project-ops/SMOKE_TEST_RUNBOOK.md`
+
+**What to implement:**
+Step-by-step runbook covering:
+- Starting Docker stack
+- Confirming all containers running
+- Using a repo-tracked or clearly optional local seeding path
+- Verifying dashboard, alerts, ml-health pages load
+- Verifying triage update persists using the real `triage_status` contract
+- All commands in copy-pasteable PowerShell
+
+A teammate with zero context must be able to follow it without asking questions.
+
+---
+
+### Task 4.2 — Write demo runbook
+
+**Status:** `[ ]`
+**Branch:** `feat/demo-runbook`
+**Files to create:** `docs/project-ops/DEMO_RUNBOOK.md`
+
+**What to implement:**
+Panel-facing demo script covering:
+- Pre-demo checklist
+- Dashboard walkthrough (what to say for each metric card)
+- Alerts page walkthrough (confidence tiers, triage demo)
+- ML health page walkthrough (F1, ECE, calibration)
+- Cloudflare Tunnel command: `cloudflared tunnel --url http://localhost:3000`
+- Panel Q&A answers for:
+  - Redis: "Planned post-defense, in-memory sufficient for single instance"
+  - ModSecurity: "Running as container, OWASP CRS PARANOIA=1, CRS-first then ML"
+  - RLS: "Enabled on traffic_logs with service role bypass policy"
+  - False positive rate: "Visible on dashboard, tracked via analyst feedback"
+- Deliverable in under 10 minutes
+
+---
+
+## All Phases Done — Final Checklist
+
+```
+[ ] All 16 tasks above marked [x]
+[ ] pytest -q → 264+ passed
+[ ] npm run typecheck → pass
+[ ] npx vitest run → 122+ passed
+[ ] npm run build → pass
+[ ] docker compose up --build → exits 0
+[ ] demo seeding utility or equivalent smoke data path works against Docker stack
+[ ] STATUS.md reflects final verified state
+[ ] SECURITY_AUDIT.md findings marked RESOLVED or DEFERRED
+[ ] AGENTS.md accurately describes current infra
+```

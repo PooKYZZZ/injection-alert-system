@@ -178,4 +178,6 @@ ml_model/model_registry/staging/electra_v3_907k_cleaned_20260323_110723/
 docs/superpowers/plans/
 docs/project-ops/SECURITY_AUDIT.md
 docs/project-ops/TASKS.md
-docs/project-ops/TASKS.md
+
+
+frontend/next-env.d.ts
