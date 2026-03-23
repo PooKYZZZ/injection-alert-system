@@ -25,6 +25,8 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: pytest -q
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +41,8 @@ jobs:
       - run: npm run lint
         working-directory: frontend
       - run: npm run typecheck
+        working-directory: frontend
+      - run: npm audit --audit-level=high
         working-directory: frontend
       - run: npx vitest run
         working-directory: frontend

@@ -1,0 +1,29 @@
+services:
+  modsecurity:
+    image: owasp/modsecurity-crs:nginx-alpine
+    ports:
+      - "80:80"
+    environment:
+      BACKEND: http://backend:8000
+      PARANOIA: 1
+      ALLOWED_METHODS: GET POST PATCH
+    depends_on:
+      - backend
+
+  backend:
+    build: .
+    expose:
+      - "8000"
+    env_file:
+      - .env
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - frontend/.env.local
+    environment:
+      FASTAPI_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
