@@ -18,11 +18,21 @@ export default async function middleware(
   if (result instanceof Response) {
     result.headers.set('X-Content-Type-Options', 'nosniff')
     result.headers.set('X-Frame-Options', 'DENY')
+    result.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    result.headers.set(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=()'
+    )
     return result
   }
   const nextResponse = NextResponse.next()
   nextResponse.headers.set('X-Content-Type-Options', 'nosniff')
   nextResponse.headers.set('X-Frame-Options', 'DENY')
+  nextResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  nextResponse.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=()'
+  )
   return nextResponse
 }
 

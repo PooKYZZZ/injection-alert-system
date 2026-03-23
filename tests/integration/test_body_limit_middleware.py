@@ -20,7 +20,9 @@ def test_body_limit_rejects_oversized_content_length() -> None:
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
-    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+    assert response.headers["permissions-policy"] == (
+        "camera=(), microphone=(), geolocation=(), payment=()"
+    )
 
 
 def test_body_limit_rejects_non_numeric_content_length_with_client_error() -> None:
@@ -38,7 +40,9 @@ def test_body_limit_rejects_non_numeric_content_length_with_client_error() -> No
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
-    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+    assert response.headers["permissions-policy"] == (
+        "camera=(), microphone=(), geolocation=(), payment=()"
+    )
 
 
 def test_request_without_content_length_reaches_route_handler() -> None:
