@@ -64,15 +64,15 @@ describe('bff-client', () => {
     const result = await getAlerts(
       new URLSearchParams({
         page: '2',
-        page_size: '5',
+        pageSize: '5',
         severity: 'HIGH',
-        time_range: '24h',
+        timeRange: '24h',
         search: '203.0.113.10',
       })
     )
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&time_range=24h&search=203.0.113.10',
+      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&search=203.0.113.10&time_range=24h',
       expect.objectContaining({
         cache: 'no-store',
         headers: {
@@ -101,6 +101,7 @@ describe('bff-client', () => {
             analyst_label: 'SQL Injection',
             labeled_at: '2026-03-15T00:05:00Z',
             labeled_by: 'analyst@lares.test',
+            triage_status: null,
           },
         ],
         total: 12,
@@ -158,10 +159,12 @@ describe('bff-client', () => {
             confidence: 0.12,
             confidence_level: 'LOW',
             action_taken: null,
+            crs_score: undefined,
             crs_rule_ids: null,
             analyst_label: null,
             labeled_at: null,
             labeled_by: null,
+            triage_status: null,
           },
         ],
         total: 1,
@@ -247,9 +250,10 @@ describe('bff-client', () => {
           blocked_count: 4,
           allowed_count: 2,
           avg_confidence: 0.82,
+          prev_high_alert_count: 123,
           activity_buckets: [
-            { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: '2026-03-18T12:00:00Z' },
-            { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: '2026-03-18T13:00:00Z' },
+            { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+            { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -267,13 +271,245 @@ describe('bff-client', () => {
         avg_inference_latency_ms: 4.5,
         blocked_count: 4,
         allowed_count: 2,
+        throttled_count: 0,
         avg_confidence: 0.82,
+        false_positive_rate: 0,
+        false_positive_count: 0,
+        high_alert_count: 6,
+        prev_high_alert_count: 123,
+        prev_total_requests: null,
+        prev_blocked_count: null,
+        prev_allowed_count: null,
+        prev_throttled_count: null,
         activity_buckets: [
-          { bucket_index: 0, total_count: 10, blocked_count: 2, timestamp_start: new Date('2026-03-18T12:00:00Z') },
-          { bucket_index: 1, total_count: 15, blocked_count: 3, timestamp_start: new Date('2026-03-18T13:00:00Z') },
+          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z'), timestamp_end: new Date('2026-03-18T13:00:00Z'), bucket_width_seconds: 3600 },
+          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z'), timestamp_end: new Date('2026-03-18T14:00:00Z'), bucket_width_seconds: 3600 },
         ],
+        attack_distribution: {},
+        top_source_ips: [],
+        top_targeted_paths: [],
       },
     })
+  })
+
+  it('propagates window parameter when fetching stats', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 0,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 0,
+          blocked_count: 0,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: null,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('6h')
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/stats?window=6h',
+      expect.any(Object)
+    )
+  })
+
+  it('propagates timezone_name parameter when fetching stats', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 0,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 0,
+          blocked_count: 0,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: null,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('6h', 'Asia/Manila')
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/stats?window=6h&timezone_name=Asia%2FManila',
+      expect.any(Object)
+    )
+  })
+
+  it('sets a timeout signal for triage mutation requests', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 7,
+          timestamp: '2026-03-15T00:00:00Z',
+          source_ip: '203.0.113.10',
+          request_path: '/login',
+          request_method: 'POST',
+          payload_snippet: "username=admin' OR '1'='1",
+          prediction: 'SQL Injection',
+          confidence: 0.91,
+          confidence_level: 'HIGH',
+          action_taken: 'BLOCKED',
+          crs_score: 9,
+          crs_rule_ids: ['942100', '942110'],
+          analyst_label: 'SQL Injection',
+          labeled_at: '2026-03-15T00:05:00Z',
+          labeled_by: 'analyst@lares.test',
+          triage_status: 'in_review',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { updateAlertTriage } = await loadClient()
+    const result = await updateAlertTriage('7', 'in_review')
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/alerts/7/triage',
+      expect.objectContaining({
+        method: 'PATCH',
+        signal: expect.any(AbortSignal),
+      })
+    )
+  })
+
+  it('sorts activity buckets by timestamp_start to keep timeline order stable', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 2,
+          counts_by_label: {
+            'SQL Injection': 1,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 1,
+          },
+          avg_inference_latency_ms: 3,
+          blocked_count: 1,
+          allowed_count: 1,
+          throttled_count: 0,
+          avg_confidence: 0.6,
+          activity_buckets: [
+            { bucket_index: 1, total_count: 1, blocked_count: 1, allowed_count: 0, throttled_count: 0, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
+            { bucket_index: 0, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('24h')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.activity_buckets[0].timestamp_start).toEqual(new Date('2026-03-18T12:00:00Z'))
+    expect(result.data.activity_buckets[1].timestamp_start).toEqual(new Date('2026-03-18T13:00:00Z'))
+  })
+
+  it('returns UPSTREAM_ERROR when stats contain invalid bucket timestamp', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 1,
+          counts_by_label: {
+            'SQL Injection': 1,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 0,
+          },
+          avg_inference_latency_ms: 3,
+          blocked_count: 1,
+          allowed_count: 0,
+          throttled_count: 0,
+          avg_confidence: 0.9,
+          activity_buckets: [
+            {
+              bucket_index: 0,
+              total_count: 1,
+              blocked_count: 1,
+              allowed_count: 0,
+              throttled_count: 0,
+              timestamp_start: 'not-a-timestamp',
+              timestamp_end: '2026-03-18T13:00:00Z',
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('24h')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response contained invalid bucket timestamp at index 0: not-a-timestamp',
+      },
+    })
+  })
+
+  it('applies deterministic ordering when bucket timestamps are identical', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 2,
+          counts_by_label: {
+            'SQL Injection': 0,
+            'Code Injection': 0,
+            'Other Attacks': 0,
+            Normal: 2,
+          },
+          avg_inference_latency_ms: 1.5,
+          blocked_count: 0,
+          allowed_count: 2,
+          throttled_count: 0,
+          avg_confidence: 0.2,
+          activity_buckets: [
+            { bucket_index: 2, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+            { bucket_index: 1, total_count: 1, blocked_count: 0, allowed_count: 1, throttled_count: 0, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats('24h')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.activity_buckets.map((bucket) => bucket.bucket_index)).toEqual([1, 2])
   })
 
   it('maps ml-health shape and preserves healthy/degraded semantics', async () => {
@@ -314,6 +550,53 @@ describe('bff-client', () => {
           medium: 0.65,
           high: 0.8,
         },
+        // Optional eval metadata defaults when not provided
+        macro_f1: null,
+        ece: null,
+        per_class_f1: {},
+        calibration_bins: [],
+        prediction_distribution: { baseline: {}, current: {} },
+      },
+    })
+  })
+
+  it('normalizes flat ml-health prediction_distribution payloads from backend', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          model_version: 'distilbert-v1',
+          loaded: true,
+          status: 'healthy',
+          avg_inference_latency_ms: 2.1,
+          total_processed: 8,
+          drift_detected: false,
+          drift_score: null,
+          confidence_thresholds: {
+            low: 0.5,
+            high: 0.8,
+          },
+          prediction_distribution: {
+            sqli: 3,
+            benign: 5,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getMlHealth } = await loadClient()
+    const result = await getMlHealth()
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.prediction_distribution).toEqual({
+      baseline: {},
+      current: {
+        sqli: 3,
+        benign: 5,
       },
     })
   })

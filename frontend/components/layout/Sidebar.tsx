@@ -2,7 +2,7 @@
 
 import { NAV_ITEMS } from '@/lib/constants'
 import Image from 'next/image'
-import { SidebarIcon, SidebarNavItem } from './SidebarNavItem'
+import { SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
@@ -21,11 +21,8 @@ function getInitials(name: string): string {
   return initials || 'U'
 }
 
-export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
-  const plannedLabels = new Set(['Traffic', 'Mitigation Log', 'Audit Trail'])
-  const activeItems = NAV_ITEMS.filter((item) => !plannedLabels.has(item.label))
-  const plannedItems = NAV_ITEMS.filter((item) => plannedLabels.has(item.label))
-  const resolvedName = displayName?.trim() || 'Authenticated User'
+export function Sidebar({ displayName }: SidebarProps) {
+  const resolvedName = displayName?.trim() || 'SOC Analyst'
   const initials = getInitials(resolvedName)
   const handleLogout = () => signOut({ callbackUrl: '/login' })
 
@@ -44,7 +41,7 @@ export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
       </div>
 
       <nav className="flex flex-1 flex-col overflow-y-auto bg-bg-panel py-4">
-        {activeItems.map((item) =>
+        {NAV_ITEMS.map((item) =>
           item.href === '/alerts' ? (
             <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
           ) : (
@@ -57,36 +54,14 @@ export function Sidebar({ displayName, secondaryLabel }: SidebarProps) {
             />
           )
         )}
-
-        {plannedItems.length > 0 ? (
-          <div className="mt-4 px-4">
-            <div className="border-t border-border-light pt-4">
-              <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
-                Planned
-              </p>
-              <div className="mt-2 flex flex-col gap-0.5">
-                {plannedItems.map((item) => (
-                  <div
-                    key={item.href}
-                    aria-disabled="true"
-                    className="pointer-events-none flex h-[40px] select-none items-center gap-3 rounded-sm border-l-[3px] border-transparent px-4 text-text-ghost opacity-70"
-                  >
-                    <SidebarIcon icon={item.icon} />
-                    <span className="flex-1 text-sm font-medium">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
       </nav>
 
       <div className="bg-bg-panel">
-        <div className="border-t border-[#1a2236]">
+        <div className="border-t border-border-light">
           <MLHealthWidget />
         </div>
 
-        <div className="flex items-center gap-3 border-t border-[#1a2236] bg-bg-panel px-4 py-3">
+        <div className="flex items-center gap-3 border-t border-border-light bg-bg-panel px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded bg-accent-blue-bg">
             <span className="text-xs font-bold text-accent-blue">{initials}</span>
           </div>

@@ -3,6 +3,7 @@ import 'server-only'
 import { z } from 'zod'
 import { AlertSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
 import type { Alert, PaginatedAlerts } from '@/features/alerts/types'
+import type { AlertAction } from '@/features/alerts/contract'
 import type { MLHealthData } from '@/features/ml-health/types'
 import type { DashboardStats } from '@/features/stats/types'
 import { MOCK_ALERTS } from '@/mocks/alerts'
@@ -34,6 +35,9 @@ const BackendAlertSchema = z.object({
   analyst_label: z.string().nullable().optional(),
   labeled_at: z.string().nullable().optional(),
   labeled_by: z.string().nullable().optional(),
+  triage_status: z.enum([
+    'new', 'in_review', 'escalated', 'resolved', 'false_positive'
+  ]).nullable().optional(),
 })
 
 const BackendPaginatedAlertsSchema = z.object({
@@ -47,8 +51,61 @@ const BackendActivityBucketSchema = z.object({
   bucket_index: z.number(),
   total_count: z.number(),
   blocked_count: z.number(),
+  allowed_count: z.number(),
+  throttled_count: z.number(),
   timestamp_start: z.string(),
+  timestamp_end: z.string().nullable().optional(),
+  bucket_width_seconds: z.number().nullable().optional(),
 })
+
+const BackendSourceIPSchema = z.object({
+  ip: z.string(),
+  count: z.number(),
+  action: z.string().nullable().optional(),
+})
+
+const BackendTargetPathSchema = z.object({
+  path: z.string(),
+  hits: z.number(),
+})
+
+type BackendSourceIp = {
+  ip: string
+  count: number
+  action?: string | null
+}
+
+type BackendTargetPath = {
+  path: string
+  hits: number
+}
+
+type BackendStatsPayload = {
+  total_requests: number
+  counts_by_label: {
+    'SQL Injection': number
+    'Code Injection': number
+    'Other Attacks': number
+    Normal: number
+  }
+  avg_inference_latency_ms: number
+  blocked_count: number
+  allowed_count: number
+  throttled_count?: number
+  avg_confidence: number | null
+  false_positive_rate?: number
+  false_positive_count?: number
+  high_alert_count?: number
+  prev_high_alert_count?: number | null
+  prev_total_requests?: number | null
+  prev_blocked_count?: number | null
+  prev_allowed_count?: number | null
+  prev_throttled_count?: number | null
+  activity_buckets: z.infer<typeof BackendActivityBucketSchema>[]
+  attack_distribution?: Record<string, number>
+  top_source_ips?: BackendSourceIp[]
+  top_targeted_paths?: BackendTargetPath[]
+}
 
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
@@ -61,8 +118,28 @@ const BackendStatsSchema = z.object({
   avg_inference_latency_ms: z.number(),
   blocked_count: z.number(),
   allowed_count: z.number(),
+  throttled_count: z.number().optional(),
   avg_confidence: z.number().nullable(),
+  false_positive_rate: z.number().optional(),
+  false_positive_count: z.number().optional(),
+  high_alert_count: z.number().optional(),
+  prev_high_alert_count: z.number().nullable().optional(),
+  prev_total_requests: z.number().nullable().optional(),
+  prev_blocked_count: z.number().nullable().optional(),
+  prev_allowed_count: z.number().nullable().optional(),
+  prev_throttled_count: z.number().nullable().optional(),
   activity_buckets: z.array(BackendActivityBucketSchema),
+  attack_distribution: z.record(z.string(), z.number()).optional(),
+  top_source_ips: z.array(BackendSourceIPSchema).default([]),
+  top_targeted_paths: z.array(BackendTargetPathSchema).default([]),
+})
+
+const CalibrationBinSchema = z.object({
+  bin_idx: z.number(),
+  bin_center: z.number(),
+  accuracy: z.number(),
+  confidence: z.number(),
+  count: z.number(),
 })
 
 const BackendMlHealthSchema = z.object({
@@ -77,6 +154,20 @@ const BackendMlHealthSchema = z.object({
     low: z.number().optional(),
     high: z.number().optional(),
   }),
+  // Optional eval metadata from model registry artifacts
+  macro_f1: z.number().nullable().optional(),
+  ece: z.number().nullable().optional(),
+  per_class_f1: z.record(z.string(), z.number()).optional(),
+  calibration_bins: z.array(CalibrationBinSchema).optional(),
+  prediction_distribution: z
+    .union([
+      z.object({
+        baseline: z.record(z.string(), z.number()),
+        current: z.record(z.string(), z.number()),
+      }),
+      z.record(z.string(), z.number()),
+    ])
+    .optional(),
 })
 
 function ok<T>(data: T): BffResult<T> {
@@ -176,6 +267,7 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     analyst_label: alert.analyst_label ?? null,
     labeled_at: alert.labeled_at ?? null,
     labeled_by: alert.labeled_by ?? null,
+    triage_status: alert.triage_status ?? null,
   })
 }
 
@@ -199,26 +291,104 @@ function normalizeAlertList(
   })
 }
 
-function normalizeStats(payload: z.infer<typeof BackendStatsSchema>): DashboardStats {
+function normalizeAlertAction(value: string | null | undefined): AlertAction | null {
+  if (value === 'BLOCKED' || value === 'THROTTLED' || value === 'ALLOWED') {
+    return value
+  }
+  return null
+}
+
+type NormalizedBucket = DashboardStats['activity_buckets'][number] & {
+  _originalIndex: number
+}
+
+function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats> {
   const actionableAlerts =
     (payload.counts_by_label['SQL Injection'] ?? 0) +
     (payload.counts_by_label['Code Injection'] ?? 0) +
     (payload.counts_by_label['Other Attacks'] ?? 0)
 
-  return {
+  // Normalize new fields with safe defaults for staged rollout
+  const throttledCount = payload.throttled_count ?? 0
+  const attackDistribution = payload.attack_distribution ?? {}
+  const topSourceIps = (payload.top_source_ips ?? []).map((ip) => ({
+    ip: ip.ip,
+    count: ip.count,
+    action: normalizeAlertAction(ip.action),
+  }))
+  const topTargetedPaths = (payload.top_targeted_paths ?? []).map((path) => ({
+    path: path.path,
+    hits: path.hits,
+  }))
+  const highAlertCount =
+    payload.high_alert_count ??
+    Object.entries(payload.counts_by_label)
+      .filter(([label]) => label !== 'Normal')
+      .reduce((sum, [, count]) => sum + count, 0)
+
+  const normalizedBuckets: NormalizedBucket[] = []
+  for (let idx = 0; idx < payload.activity_buckets.length; idx += 1) {
+    const bucket = payload.activity_buckets[idx]
+    const parsedTimestamp = new Date(bucket.timestamp_start)
+    if (Number.isNaN(parsedTimestamp.getTime())) {
+      return err(
+        502,
+        'UPSTREAM_ERROR',
+        `Upstream response contained invalid bucket timestamp at index ${idx}: ${bucket.timestamp_start}`
+      )
+    }
+
+    const parsedTimestampEnd =
+      bucket.timestamp_end != null ? new Date(bucket.timestamp_end) : null
+    if (parsedTimestampEnd != null && Number.isNaN(parsedTimestampEnd.getTime())) {
+      return err(
+        502,
+        'UPSTREAM_ERROR',
+        `Upstream response contained invalid bucket end timestamp at index ${idx}: ${bucket.timestamp_end}`
+      )
+    }
+
+    normalizedBuckets.push({
+      bucket_index: bucket.bucket_index,
+      total_count: bucket.total_count,
+      blocked_count: bucket.blocked_count,
+      allowed_count: bucket.allowed_count,
+      throttled_count: bucket.throttled_count,
+      timestamp_start: parsedTimestamp,
+      timestamp_end: parsedTimestampEnd,
+      bucket_width_seconds: bucket.bucket_width_seconds ?? null,
+      _originalIndex: idx,
+    })
+  }
+
+  normalizedBuckets.sort(
+    (a, b) =>
+      a.timestamp_start.getTime() - b.timestamp_start.getTime() ||
+      a.bucket_index - b.bucket_index ||
+      a._originalIndex - b._originalIndex
+  )
+
+  return ok({
     actionable_alerts: actionableAlerts,
     total_requests: payload.total_requests,
     avg_inference_latency_ms: payload.avg_inference_latency_ms,
     blocked_count: payload.blocked_count,
     allowed_count: payload.allowed_count,
+    throttled_count: throttledCount,
     avg_confidence: payload.avg_confidence,
-    activity_buckets: payload.activity_buckets.map((b) => ({
-      bucket_index: b.bucket_index,
-      total_count: b.total_count,
-      blocked_count: b.blocked_count,
-      timestamp_start: new Date(b.timestamp_start),
-    })),
-  }
+    false_positive_rate: payload.false_positive_rate ?? 0,
+    false_positive_count: payload.false_positive_count ?? 0,
+    high_alert_count: highAlertCount,
+    prev_high_alert_count: payload.prev_high_alert_count ?? null,
+    prev_total_requests: payload.prev_total_requests ?? null,
+    prev_blocked_count: payload.prev_blocked_count ?? null,
+    prev_allowed_count: payload.prev_allowed_count ?? null,
+    prev_throttled_count: payload.prev_throttled_count ?? null,
+    activity_buckets: normalizedBuckets.map(({ _originalIndex: _, ...bucket }) => bucket),
+    attack_distribution: attackDistribution,
+    top_source_ips: topSourceIps,
+    top_targeted_paths: topTargetedPaths,
+  })
 }
 
 function normalizeMlHealth(
@@ -259,6 +429,25 @@ function normalizeMlHealth(
     driftStatus = null
   }
 
+  const rawPredictionDistribution = payload.prediction_distribution as unknown
+  const predictionDistribution: MLHealthData['prediction_distribution'] =
+    rawPredictionDistribution &&
+    typeof rawPredictionDistribution === 'object' &&
+    !Array.isArray(rawPredictionDistribution) &&
+    'baseline' in rawPredictionDistribution &&
+    'current' in rawPredictionDistribution
+      ? {
+          baseline: (rawPredictionDistribution as { baseline: Record<string, number> }).baseline,
+          current: (rawPredictionDistribution as { current: Record<string, number> }).current,
+        }
+      : {
+          baseline: {},
+          current:
+            (rawPredictionDistribution && typeof rawPredictionDistribution === 'object' && !Array.isArray(rawPredictionDistribution)
+              ? (rawPredictionDistribution as Record<string, number>)
+              : {}),
+        }
+
   return {
     model_version: payload.model_version,
     status: payload.loaded
@@ -273,9 +462,15 @@ function normalizeMlHealth(
     traffic_processed: payload.total_processed,
     thresholds: {
       low: low ?? null,
-      medium,
+      medium: medium ?? null,
       high: high ?? null,
     },
+    // Optional eval metadata from model registry artifacts
+    macro_f1: payload.macro_f1 ?? null,
+    ece: payload.ece ?? null,
+    per_class_f1: payload.per_class_f1 ?? {},
+    calibration_bins: payload.calibration_bins ?? [],
+    prediction_distribution: predictionDistribution,
   }
 }
 
@@ -344,6 +539,21 @@ async function fetchUpstream<T>(
   return normalizeWithSchema(schema, payload)
 }
 
+const PARAM_MAP: Record<string, string> = {
+  page: 'page',
+  pageSize: 'page_size',
+  severity: 'severity',
+  action: 'action',
+  triage_status: 'triage_status',
+  prediction: 'prediction',
+  source_ip: 'source_ip',
+  search: 'search',
+  window: 'time_range',
+  timeRange: 'time_range',
+  sort_by: 'sort_by',
+  sort_dir: 'sort_dir',
+}
+
 export async function getAlerts(
   searchParams: URLSearchParams
 ): Promise<BffResult<PaginatedAlerts>> {
@@ -352,11 +562,14 @@ export async function getAlerts(
   }
 
   const query = new URLSearchParams()
-  for (const key of ['page', 'page_size', 'severity', 'time_range', 'search']) {
-    const value = searchParams.get(key)
-    if (value) {
-      query.set(key, value)
-    }
+
+  for (const [frontendKey, backendKey] of Object.entries(PARAM_MAP)) {
+    const value = searchParams.get(frontendKey)
+    if (value) query.set(backendKey, value)
+  }
+
+  for (const value of searchParams.getAll('confidence_level')) {
+    if (value) query.append('confidence_level', value)
   }
 
   const path = query.size > 0 ? `/api/alerts?${query.toString()}` : '/api/alerts'
@@ -391,17 +604,24 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
   return normalizeAlert(upstream.data)
 }
 
-export async function getStats(): Promise<BffResult<DashboardStats>> {
+export async function getStats(
+  window?: string,
+  timezoneName?: string
+): Promise<BffResult<DashboardStats>> {
   if (isMockMode()) {
     return ok(MOCK_STATS)
   }
 
-  const upstream = await fetchUpstream('/api/stats', BackendStatsSchema)
+  const query = new URLSearchParams()
+  if (window) query.set('window', window)
+  if (timezoneName) query.set('timezone_name', timezoneName)
+  const path = query.size > 0 ? `/api/stats?${query.toString()}` : '/api/stats'
+  const upstream = await fetchUpstream(path, BackendStatsSchema)
   if (!upstream.ok) {
     return upstream
   }
 
-  return ok(normalizeStats(upstream.data))
+  return normalizeStats(upstream.data)
 }
 
 export async function getMlHealth(): Promise<BffResult<MLHealthData>> {
@@ -415,4 +635,86 @@ export async function getMlHealth(): Promise<BffResult<MLHealthData>> {
   }
 
   return ok(normalizeMlHealth(upstream.data))
+}
+
+export async function updateAlertTriage(
+  alertId: string,
+  status: 'new' | 'in_review' | 'escalated' | 'resolved' | 'false_positive'
+): Promise<BffResult<Alert>> {
+  if (isMockMode()) {
+    // Find the matching alert in MOCK_ALERTS
+    const match = MOCK_ALERTS.items.find((item) => item.alert_id === alertId)
+    if (!match) {
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    }
+    // Update in-memory
+    match.triage_status = status
+    return validateMockData(AlertSchema, match)
+  }
+
+  const parsedId = parseAlertId(alertId)
+  if (!parsedId.ok) {
+    return parsedId
+  }
+
+  const config = getUpstreamConfig()
+  if (!config.ok) {
+    return config
+  }
+
+  let response: Response
+  try {
+    response = await fetch(
+      `${config.data.baseUrl}/api/alerts/${parsedId.data}/triage`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${config.data.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ triage_status: status }),
+        signal: AbortSignal.timeout(30_000),
+      }
+    )
+  } catch {
+    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      return err(
+        500,
+        'INTERNAL_SERVICE_AUTH_FAILED',
+        'Internal service authentication failed.'
+      )
+    }
+
+    if (response.status === 404) {
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    }
+
+    if (response.status >= 500) {
+      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.')
+    }
+
+    return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.')
+  }
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+  }
+
+  const parsed = BackendAlertSchema.safeParse(payload)
+  if (!parsed.success) {
+    return err(
+      502,
+      'UPSTREAM_ERROR',
+      'Upstream response did not match expected shape.'
+    )
+  }
+
+  return normalizeAlert(parsed.data)
 }

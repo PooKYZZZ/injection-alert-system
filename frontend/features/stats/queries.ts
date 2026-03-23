@@ -4,9 +4,9 @@ import { DashboardStats } from './types'
 /*
  * QUERY FRESHNESS POLICY
  *
- * Stats: staleTime = 30_000 (30 second cache)
+ * Stats: staleTime = 15_000 (15 second cache)
  * - Rationale: Dashboard metrics are expensive aggregates.
- * - 30s cache balances freshness with performance.
+ * - 15s cache balances freshness with performance.
  * - Stats are system-wide aggregates, less time-critical than alerts.
  *
  * The stats query throws on non-2xx responses - errors propagate to UI.
@@ -15,19 +15,29 @@ import { DashboardStats } from './types'
 
 export const statsKeys = {
   all: ['stats'] as const,
-  stats: () => ['stats', 'dashboard'] as const,
+  stats: (window?: string, timezone?: string) => ['stats', 'dashboard', { window, timezone }] as const,
 }
 
-export function statsOptions() {
+function getBrowserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
+export function statsOptions(window?: string, timezone = getBrowserTimeZone()) {
   return queryOptions<DashboardStats>({
-    queryKey: statsKeys.stats(),
+    queryKey: statsKeys.stats(window, timezone),
     queryFn: async () => {
-      const r = await fetch('/api/stats')
+      const params = new URLSearchParams()
+      if (window) params.set('window', window)
+      if (timezone) params.set('timezone', timezone)
+      const url = params.size > 0 ? `/api/stats?${params.toString()}` : '/api/stats'
+      const r = await fetch(url)
       if (!r.ok) throw new Error(`/api/stats responded with ${r.status}`)
       return r.json()
     },
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
   })
 }
 
-export const useDashboardStats = () => useQuery(statsOptions())
+export const useDashboardStats = (window?: string, timezone?: string) =>
+  useQuery(statsOptions(window, timezone))

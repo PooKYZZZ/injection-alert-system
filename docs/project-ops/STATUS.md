@@ -2,64 +2,72 @@
 
 **Scope:** operator-only session status  
 **Defense:** May 2026  
-**Last updated:** 2026-03-15
+**Last updated:** 2026-03-23
 
 ---
 
-## Current verified repo state
+## Current Verified Repo State
 
-- Remote `origin/master` currently includes:
-  - `#39` `fix: add reservation-first triage ingest`
-  - `#38` `feat: implement internal authentication with bearer token for API endpoints`
-  - `#37` `Codex/feat/backend read api batch`
-- Backend tests currently pass locally: `84 passed`
-- Frontend typecheck currently passes locally: `npm run typecheck`
-- Focused frontend BFF tests currently pass locally:
-  - `cd frontend && npx vitest run app/api/bff-routes.test.ts lib/bff-client.test.ts`
-- Backend routes currently implemented:
+- Active integration branch used for final checks: `frontend-adaptation`
+- Python runtime target: `3.14+`
+- Local venv currently recreated and verified on: `Python 3.14.3`
+- Frontend runtime: Next.js `16.2.1`, React `19.2.4`, TypeScript `5.9`, Zod `4.3.6`
+- Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
+- Model/runtime artifacts boundary: `ml_model/model_registry/`
+
+### Latest local verification results
+
+- Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **259 passed**
+- App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
+- Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
+- Frontend BFF-focused tests:
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend production build: `cd frontend && npm run build` → **pass**
+
+### Current API/BFF state
+
+- Implemented backend routes:
   - `POST /api/predict`
   - `POST /api/triage`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
+  - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
   - `POST /api/feedback`
   - `GET /health`
   - `GET /api/health`
-- Triage ingest is reservation-first on `transaction_id`:
-  - placeholder row inserted with `status="PROCESSING"`
-  - winner determined by `INSERT ... ON CONFLICT DO NOTHING` rowcount
-  - winner completes the row to `status="COMPLETED"` after inference
-  - loser returns existing completed data or a retriable response while processing is in flight
-- `PROCESSING` placeholder rows are excluded from normal alerts and stats reads
-- Frontend BFF current workspace state:
-  - all four route handlers are wired through `frontend/lib/bff-client.ts`
-  - `USE_MOCK_API` is the single centralized server-only mock toggle
-  - missing `FASTAPI_BASE_URL` or `INTERNAL_API_KEY` in non-mock mode returns structured `BFF_MISCONFIGURED`
-  - all four handlers require an Auth.js session and return `401` without one
-- Current auth split:
-  - protected backend routes: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `GET /api/stats`, `GET /api/ml-health`
-  - public backend routes: `POST /api/feedback`, `GET /health`, `GET /api/health`
-- Docker Compose, runnable ModSecurity wiring, and full Supabase or Redis integration are not in the repo yet
+- Reservation-first triage flow is active (`PROCESSING` placeholders, lease reclaim support, winner/loser behavior).
+- `PROCESSING` rows are excluded from normal alerts and stats reads.
+- Frontend boundary remains:
+  - `Browser -> Next.js route handlers/BFF -> FastAPI`
+- Route protection and proxy entrypoint:
+  - Auth checks are enforced in BFF handlers.
+  - Next.js edge entrypoint now uses `frontend/proxy.ts` (not `middleware.ts`).
 
-## Open implementation gaps
+---
 
-- The reservation-first triage flow still depends on applied DB migrations for:
-  - `created_at`
-  - `status`
-  - nullable result columns on placeholder rows
-- The backend still uses async SQLAlchemy locally and is not fully wired to live Supabase behavior
-- Some docs and prompts still need cleanup to remove stale verification commands and old partial-mock descriptions
-- Data scripts still hardcode workstation-specific paths
-- Dashboard stats and ML health still rely on some BFF-side normalization because backend payloads are thinner than the frontend dashboard contract
-- Stale `PROCESSING` reservations return `503` with `Retry-After`, but there is no automatic reclamation path yet
-- `app.state.model` remains a compatibility alias for `app.state.model_service`
+## Important Notes For Operators
 
-## Operator notes
+- CI may show four checks on branch updates because both `push` and `pull_request` workflows run for frontend and backend.
+- The backend CI failure on Python 3.14 (`api_secret_key` required) is fixed by allowing an empty default in `web_app/config.py`, aligned with existing auth-bypass behavior in development-only scenarios.
+- `requirements.train.txt` is laptop/training-only and should not be treated as required for CI/backend runtime verification.
 
-- Canonical implementation docs live in:
-  - `docs/CONTEXT.md`
-  - `docs/architecture.md`
-  - `docs/SETUP.md`
-- Treat cloud `origin/master` as the pushed baseline and this working tree as the latest local integration state.
-- This file is intentionally shorter than the old root status file and should stay focused on current operator truth, not future planning prose.
+---
+
+## Open Gaps (Current, Not Historical)
+
+- Docker Compose + runnable ModSecurity integration is still not implemented.
+- Live Supabase operational hardening steps (RLS policy operations) remain outside automated repo verification.
+- Some legacy planning docs under `docs/project-ops/` were stale and have been replaced by the current compact plan/task docs.
+
+---
+
+## Source-of-Truth Docs
+
+- Implementation snapshot: `docs/CONTEXT.md`
+- Architecture boundaries: `docs/architecture.md`
+- Local setup: `docs/SETUP.md`
+- Operator plan: `docs/project-ops/IMPLEMENTATION_PLAN.md`
+- Operator task list: `docs/project-ops/TASKS.md`

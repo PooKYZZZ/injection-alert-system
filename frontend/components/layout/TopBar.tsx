@@ -20,33 +20,37 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (severity === 'ALL') {
     return isActive
       ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
-      : `${base} border-[#243050] bg-transparent text-text-muted`
+      : `${base} border-border-light bg-transparent text-text-muted`
   }
 
   if (severity === 'HIGH') {
     return isActive
-      ? `${base} border-[#5c2020] bg-[#1a0a0a] text-[#f87171]`
-      : `${base} border-[#3a1515] bg-transparent text-[#f87171]`
+      ? `${base} border-severity-high-border bg-severity-high-bg text-severity-high-text`
+      : `${base} border-border-light bg-transparent text-severity-high-text`
   }
 
   if (severity === 'MEDIUM') {
     return isActive
-      ? `${base} border-[#4a3a10] bg-[#1a1500] text-[#facc15]`
-      : `${base} border-[#2e2a10] bg-transparent text-[#facc15]`
+      ? `${base} border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text`
+      : `${base} border-border-light bg-transparent text-accent-yellow`
   }
 
-  return `${base} border-[#243050] bg-transparent text-text-muted`
+  return `${base} border-border-light bg-transparent text-text-muted`
 }
 
 interface TopBarProps {
   title: string
-  showAlertControls?: boolean
+  showSeverityControls?: boolean
+  showSearch?: boolean
+  showLiveStatus?: boolean
   searchPlaceholder?: string
 }
 
 function TopBarContent({
   title,
-  showAlertControls = true,
+  showSeverityControls = true,
+  showSearch = true,
+  showLiveStatus = false,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
 }: TopBarProps) {
   const pathname = usePathname()
@@ -96,9 +100,25 @@ function TopBarContent({
   return (
     <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-bg-panel px-6 shadow-subtle">
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
 
-        {showAlertControls ? (
+          {showLiveStatus ? (
+            <>
+              <div className="h-4 w-px bg-border-light" />
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-[10px] font-medium text-emerald-400">Live</span>
+              </div>
+              <span className="text-[10px] text-[var(--color-text-secondary)]">Last updated: just now</span>
+            </>
+          ) : null}
+        </div>
+
+        {showSeverityControls ? (
           <>
             <div className="h-4 w-px bg-border-light" />
             <div className="flex items-center gap-1.5">
@@ -118,7 +138,7 @@ function TopBarContent({
         ) : null}
       </div>
 
-      {showAlertControls ? (
+      {showSearch ? (
         <div className="flex items-center gap-6">
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -166,7 +186,15 @@ export function DashboardTopBar() {
   const pathname = usePathname()
 
   if (pathname === '/dashboard') {
-    return <TopBar title="Dashboard" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} />
+    return (
+      <TopBar
+        title="Dashboard"
+        showSeverityControls={false}
+        showSearch={true}
+        showLiveStatus={true}
+        searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
+      />
+    )
   }
 
   if (pathname === '/alerts') {
@@ -174,7 +202,7 @@ export function DashboardTopBar() {
   }
 
   if (pathname === '/ml-health') {
-    return <TopBar title="ML Health" showAlertControls={false} />
+    return <TopBar title="ML Health" showSeverityControls={false} showSearch={false} />
   }
 
   const fallbackTitle =
@@ -186,5 +214,7 @@ export function DashboardTopBar() {
       .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
       .join(' ') ?? 'Dashboard'
 
-  return <TopBar title={fallbackTitle} showAlertControls={false} />
+  return <TopBar title={fallbackTitle} showSeverityControls={false} showSearch={false} />
 }
+
+

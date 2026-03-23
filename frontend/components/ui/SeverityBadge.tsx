@@ -1,45 +1,35 @@
-import { cva, type VariantProps } from 'class-variance-authority'
-import type { AlertPrediction } from '@/features/alerts/contract'
+'use client'
+
 import { cn } from '@/lib/utils'
+import type { AlertPrediction } from '@/features/alerts/contract'
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-  {
-    variants: {
-      severity: {
-        BENIGN:
-          'border-severity-benign-border bg-severity-benign-bg text-severity-benign-text',
-        HIGH:
-          'border-severity-high-border bg-severity-high-bg text-severity-high-text',
-        MEDIUM:
-          'border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text',
-        LOW:
-          'border-severity-benign-border bg-severity-benign-bg text-severity-benign-text',
-      },
-    },
-  }
-)
-
-type SeverityBadgeProps = VariantProps<typeof badgeVariants> & {
-  needsReview?: boolean
+interface SeverityBadgeProps {
+  severity: 'HIGH' | 'MEDIUM' | 'LOW'
   prediction?: AlertPrediction
 }
 
-export function SeverityBadge({ severity, needsReview, prediction }: SeverityBadgeProps) {
-  const displaySeverity =
-    prediction === 'Normal' ? 'BENIGN' : (severity ?? 'LOW')
-  const label = prediction === 'Normal' ? 'Benign' : displaySeverity
+const styles: Record<string, string> = {
+  HIGH: 'bg-transparent border border-red-500/30 text-red-400',
+  MEDIUM: 'bg-transparent border border-amber-500/30 text-amber-400',
+  LOW: 'bg-transparent border border-emerald-500/30 text-emerald-400',
+  BENIGN: 'bg-transparent border border-[var(--color-text-ghost)] text-[var(--color-text-secondary)]',
+}
+
+export function SeverityBadge({ severity, prediction }: SeverityBadgeProps) {
+  const isBenign = prediction === 'Normal'
+  const displaySeverity = isBenign ? 'BENIGN' : severity
+  const label = isBenign ? 'Benign' : severity
 
   return (
-    <div className="inline-flex flex-col items-start gap-0.5">
-      <span className={cn(badgeVariants({ severity: displaySeverity }))}>
-        {label}
-      </span>
-      {needsReview && (
-        <span className="inline-flex items-center rounded-full border border-severity-blocked-border bg-severity-blocked-bg px-2 py-0.5 text-[10px] font-medium text-severity-blocked-text">
-          Needs Review
-        </span>
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border',
+        styles[displaySeverity]
       )}
-    </div>
+    >
+      {label}
+    </span>
   )
 }
+
+

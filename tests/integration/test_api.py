@@ -1,12 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
-from web_app.presentation.app import app
+from web_app.presentation.app import create_app
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 
 
 @pytest.fixture
 def client():
+    app = create_app()
     with TestClient(app) as test_client:
         yield test_client
 
@@ -131,12 +132,16 @@ def test_feedback_endpoint(client):
             json={
                 "traffic_id": traffic_id,
                 "correct_label": "Normal",
-                "analyst_email": "test@example.com"
-            }
+                "analyst_email": "test@example.com",
+            },
+            headers=INTERNAL_HEADERS,
         )
         assert feedback_response.status_code == 200
 
 
 def test_model_singleton_injection(client):
-    """Test that the model is injected from app.state, not instantiated per-request."""
-    assert hasattr(app.state, "model"), "Model should be loaded on app.state during lifespan"
+    """Test that the model service is injected from app.state, not instantiated per-request."""
+    app_instance = client.app
+    assert hasattr(app_instance.state, "model_service"), (
+        "Model service should be loaded on app.state during lifespan"
+    )

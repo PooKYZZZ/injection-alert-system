@@ -8,6 +8,7 @@ interface MetricCardsProps {
   stats: DashboardStats | undefined
   statsPending: boolean
   statsError: Error | null
+  onRetry?: () => void
 }
 
 interface MetricCardProps {
@@ -61,7 +62,7 @@ function MetricCardSkeleton() {
   )
 }
 
-export default function MetricCards({ stats, statsPending, statsError }: MetricCardsProps) {
+export default function MetricCards({ stats, statsPending, statsError, onRetry }: MetricCardsProps) {
   if (statsPending) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -77,6 +78,15 @@ export default function MetricCards({ stats, statsPending, statsError }: MetricC
       <div className="rounded-lg border border-severity-high-border bg-severity-high-bg p-4">
         <p className="text-sm font-medium text-severity-high-text">Unable to load dashboard metrics.</p>
         <p className="mt-1 text-xs text-text-secondary">{statsError.message}</p>
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 rounded border border-severity-high-border bg-severity-high-bg px-3 py-1 text-[11px] font-medium text-text-primary transition-colors hover:border-severity-high-accent"
+          >
+            Retry
+          </button>
+        ) : null}
       </div>
     )
   }

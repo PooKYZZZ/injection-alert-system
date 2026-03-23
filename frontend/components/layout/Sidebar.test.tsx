@@ -37,7 +37,7 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
     expect(screen.getByText('WAF-ML Security Dashboard')).toBeInTheDocument()
-    expect(screen.getByText('Authenticated User')).toBeInTheDocument()
+    expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
   })
 
   it('renders provided identity values', () => {

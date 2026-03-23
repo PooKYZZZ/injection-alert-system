@@ -7,8 +7,8 @@ import MetricCards from './MetricCards'
 import type { DashboardStats, ActivityBucket } from '@/features/stats/types'
 
 const sampleActivityBuckets: ActivityBucket[] = [
-  { bucket_index: 0, total_count: 50, blocked_count: 5, timestamp_start: new Date() },
-  { bucket_index: 1, total_count: 45, blocked_count: 3, timestamp_start: new Date() },
+  { bucket_index: 0, total_count: 50, blocked_count: 5, allowed_count: 45, throttled_count: 0, timestamp_start: new Date() },
+  { bucket_index: 1, total_count: 45, blocked_count: 3, allowed_count: 42, throttled_count: 0, timestamp_start: new Date() },
 ]
 
 const sampleStats: DashboardStats = {
@@ -17,8 +17,20 @@ const sampleStats: DashboardStats = {
   avg_inference_latency_ms: 3.4,
   blocked_count: 89,
   allowed_count: 23,
+  throttled_count: 12,
   avg_confidence: 0.78,
+  false_positive_rate: 1.25,
+  false_positive_count: 104,
+  high_alert_count: 145,
+  prev_high_alert_count: 123,
+        prev_total_requests: 7600000,
+  prev_blocked_count: 81,
+  prev_allowed_count: 20,
+  prev_throttled_count: 10,
   activity_buckets: sampleActivityBuckets,
+  attack_distribution: {},
+  top_source_ips: [],
+  top_targeted_paths: [],
 }
 
 afterEach(() => {

@@ -5,6 +5,8 @@
 #
 from web_app.presentation.schemas.schemas import (
     ActivityBucketSchema,
+    StatsQueryParameters,
+    AlertQueryParams,
     AlertResponse,
     AlertDetailResponse,
     AlertListResponse,
@@ -13,13 +15,18 @@ from web_app.presentation.schemas.schemas import (
     MLHealthResponse,
     PredictionRequest,
     PredictionResponse,
+    SourceIPSummarySchema,
     StatsResponse,
+    TargetPathSummarySchema,
     TriageIngestRequest,
     TriageIngestResponse,
+    TriageUpdateRequest,
 )
 
 __all__ = [
     "ActivityBucketSchema",
+    "StatsQueryParameters",
+    "AlertQueryParams",
     "AlertDetailResponse",
     "AlertListResponse",
     "PredictionRequest",
@@ -27,8 +34,11 @@ __all__ = [
     "FeedbackRequest",
     "AlertResponse",
     "HealthResponse",
+    "SourceIPSummarySchema",
     "StatsResponse",
+    "TargetPathSummarySchema",
     "MLHealthResponse",
     "TriageIngestRequest",
     "TriageIngestResponse",
+    "TriageUpdateRequest",
 ]

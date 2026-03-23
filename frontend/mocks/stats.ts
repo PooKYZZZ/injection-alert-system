@@ -19,6 +19,12 @@ const MOCK_ACTIVITY_BUCKETS: ActivityBucket[] = (() => {
     19, 17, 16, 18, 21, 19, // 12-17
     16, 14, 11, 8, 5, 3, // 18-23
   ]
+  const throttledPattern = [
+    1, 0, 0, 0, 0, 0, // 0-5
+    1, 2, 3, 4, 5, 5, // 6-11
+    5, 4, 4, 5, 5, 5, // 12-17
+    4, 3, 2, 1, 1, 0, // 18-23
+  ]
 
   for (let i = 0; i < 24; i++) {
     const hour = new Date(baseDate.getTime() + i * 60 * 60 * 1000)
@@ -26,7 +32,11 @@ const MOCK_ACTIVITY_BUCKETS: ActivityBucket[] = (() => {
       bucket_index: i,
       total_count: pattern[i],
       blocked_count: blockedPattern[i],
+      allowed_count: pattern[i] - blockedPattern[i] - throttledPattern[i],
+      throttled_count: throttledPattern[i],
       timestamp_start: hour,
+      timestamp_end: new Date(hour.getTime() + 60 * 60 * 1000),
+      bucket_width_seconds: 3600,
     })
   }
   return buckets
@@ -38,6 +48,31 @@ export const MOCK_STATS: DashboardStats = {
   avg_inference_latency_ms: 3.4,
   blocked_count: 89,
   allowed_count: 23,
+  throttled_count: 12,
   avg_confidence: 0.78,
+  false_positive_rate: 1.25,
+  false_positive_count: 104,
+  high_alert_count: 145,
+  prev_high_alert_count: 123,
+  prev_total_requests: 7600000,
+  prev_blocked_count: 81,
+  prev_allowed_count: 20,
+  prev_throttled_count: 10,
   activity_buckets: MOCK_ACTIVITY_BUCKETS,
+  attack_distribution: {
+    'SQL Injection': 45,
+    'Code Injection': 8,
+    'Other Attacks': 12,
+    'Normal': 3,
+  },
+  top_source_ips: [
+    { ip: '192.168.1.14', count: 7, action: 'BLOCKED' },
+    { ip: '10.0.0.45', count: 4, action: 'BLOCKED' },
+    { ip: '172.16.0.7', count: 3, action: 'THROTTLED' },
+  ],
+  top_targeted_paths: [
+    { path: '/api/login', hits: 6 },
+    { path: '/admin/query', hits: 4 },
+    { path: '/api/users', hits: 3 },
+  ],
 }

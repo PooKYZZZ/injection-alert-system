@@ -1,6 +1,6 @@
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSearchParams } from 'next/navigation'
 
@@ -11,6 +11,17 @@ import * as mlHealthQueries from '@/features/ml-health/queries'
 import type { DashboardStats } from '@/features/stats/types'
 import type { PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
+
+const queryResetMock = vi.fn()
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+  return {
+    ...actual,
+    QueryErrorResetBoundary: ({ children }: { children: (props: { reset: () => void }) => React.ReactNode }) =>
+      <>{children({ reset: queryResetMock })}</>,
+  }
+})
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -40,7 +51,7 @@ vi.mock('@/components/dashboard/DashboardAlertAnalytics', () => ({
       )
     }
     // Render loading state if threshold is loading
-    if (thresholdState?.isLoading) {
+    if (thresholdState?.isPending) {
       return <div data-testid="threshold-loading">Loading confidence thresholds...</div>
     }
     // Render error if threshold state has error
@@ -68,8 +79,8 @@ vi.mock('@/features/ml-health/queries', () => ({
 }))
 
 const mockActivityBuckets = [
-  { bucket_index: 0, total_count: 50, blocked_count: 5, timestamp_start: new Date() },
-  { bucket_index: 1, total_count: 45, blocked_count: 3, timestamp_start: new Date() },
+  { bucket_index: 0, total_count: 50, blocked_count: 5, allowed_count: 45, throttled_count: 0, timestamp_start: new Date() },
+  { bucket_index: 1, total_count: 45, blocked_count: 3, allowed_count: 42, throttled_count: 0, timestamp_start: new Date() },
 ]
 
 const mockStats: DashboardStats = {
@@ -78,8 +89,20 @@ const mockStats: DashboardStats = {
   avg_inference_latency_ms: 5.2,
   blocked_count: 320,
   allowed_count: 85,
+  throttled_count: 15,
   avg_confidence: 0.72,
+  false_positive_rate: 0.8,
+  false_positive_count: 8,
+  high_alert_count: 500,
+  prev_high_alert_count: 123,
+        prev_total_requests: 900000,
+  prev_blocked_count: 280,
+  prev_allowed_count: 110,
+  prev_throttled_count: 10,
   activity_buckets: mockActivityBuckets,
+  attack_distribution: {},
+  top_source_ips: [],
+  top_targeted_paths: [],
 }
 
 const mockAlertsPage1: PaginatedAlerts = {
@@ -187,6 +210,7 @@ describe('DashboardAlertAnalyticsSection', () => {
       isPending: false,
       isError: false,
     })
+    queryResetMock.mockReset()
   })
 
   afterEach(() => {
@@ -272,6 +296,22 @@ describe('DashboardAlertAnalyticsSection', () => {
 
     // Alerts should still work - we verify useAlerts was called with filters
     expect(useAlertsMock).toHaveBeenCalled()
+  })
+
+  it('uses query reset retry for metric-card errors instead of hard reload', async () => {
+    const Wrapper = createWrapper()
+
+    useDashboardStatsMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: new Error('Stats API failed'),
+    })
+
+    render(<DashboardAlertAnalyticsSection />, { wrapper: Wrapper })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Retry' })[0])
+
+    expect(queryResetMock).toHaveBeenCalledTimes(1)
   })
 
   it('uses ML health for thresholds when available', async () => {

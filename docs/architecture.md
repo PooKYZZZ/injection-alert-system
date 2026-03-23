@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-03-15
+Last updated: 2026-03-22
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -8,7 +8,7 @@ This document describes the current repository architecture. It distinguishes be
 
 ```mermaid
 flowchart LR
-    Browser["Browser"] --> Next["Next.js 15 App Router"]
+    Browser["Browser"] --> Next["Next.js 16 App Router"]
     Next --> BFF["Route Handlers / BFF"]
     BFF --> FastAPI["FastAPI API"]
     FastAPI --> Model["ModelService"]
@@ -42,15 +42,16 @@ This aligns with FastAPI's own guidance for larger applications: split routers a
 - App factory: `web_app.presentation.app:create_app`
 - Lifespan startup initializes the database and loads `ModelService`
 
-### Current routes
+### Current routes (2026-03-20)
 
 - Protected by backend bearer auth:
   - `POST /api/predict`
-  - `POST /api/triage`
+  - `POST /api/triage` (reservation-first)
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
-  - `GET /api/stats`
-  - `GET /api/ml-health`
+  - `PATCH /api/alerts/{id}/triage` (NEW)
+  - `GET /api/stats` (with window filtering)
+  - `GET /api/ml-health` (with optional eval metadata)
 - Public backend endpoints:
   - `POST /api/feedback`
   - `GET /health`
@@ -67,7 +68,7 @@ This aligns with FastAPI's own guidance for larger applications: split routers a
 
 ### App structure
 
-- Framework: Next.js 15 App Router
+- Framework: Next.js 16 App Router
 - Auth: Auth.js credentials provider with JWT sessions
 - Data layer: TanStack Query + Zod
 - Client state: Zustand
@@ -84,13 +85,24 @@ This remains the correct direction for the project. Browser-to-FastAPI direct ca
 
 Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
-### Current BFF status
+### Current BFF status (2026-03-20)
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
-- `frontend/app/api/alerts/route.ts`, `frontend/app/api/alerts/[id]/route.ts`, `frontend/app/api/stats/route.ts`, and `frontend/app/api/ml-health/route.ts` call FastAPI in non-mock mode.
-- Those four handlers all require a valid Auth.js session via `auth()`.
-- `USE_MOCK_API` is the single centralized server-only mock toggle for those handlers.
+- All five route handlers wired:
+  - `frontend/app/api/alerts/route.ts` (GET list)
+  - `frontend/app/api/alerts/[id]/route.ts` (GET detail)
+  - `frontend/app/api/alerts/[id]/triage/route.ts` (PATCH triage) - **NEW**
+  - `frontend/app/api/stats/route.ts`
+  - `frontend/app/api/ml-health/route.ts`
+- Those five handlers all require a valid Auth.js session via `auth()`.
+- `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false** - hitting real FastAPI).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
+
+### BFF Layer Verification (2026-03-20 Audit)
+
+- Auth boundary: all 5 handlers call `auth()` before data fetch ✓
+- CalibrationBin schema: correct field names (`bin_center`, `accuracy`) ✓
+- Multi-select confidence_level: correct end-to-end (`getAll()` + `append()`) ✓
 
 ## Data and Persistence
 
@@ -98,11 +110,13 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 
 - Async SQLAlchemy is the persistence layer today
 - The ORM model is `TrafficLog`
+- Local SQLite: `injection_alerts.db` with 18 rows (BLOCKED=12, THROTTLED=3, ALLOWED=3)
 - Fields currently include:
-  - transaction metadata
+  - transaction metadata (transaction_id, created_at, status)
   - request metadata
   - prediction and confidence
   - inference latency
+  - triage_status (nullable)
   - analyst feedback metadata
 
 ### Current environment reality
@@ -127,13 +141,22 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 
 ## Current limitations
 
-- `PROCESSING` placeholder rows are hidden from normal alerts and stats reads, but stale reservations are only surfaced with `503` and `Retry-After`; there is no auto-reclaim path yet.
-- `app.state.model` remains as a compatibility alias for `app.state.model_service`.
+- `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
 - `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
+- `/api/alerts` returns persisted records correctly
+
+## 2026-03-20 Audit Findings
+
+Full audit report: `docs/project-ops/DATA_AUDIT.md`
+
+### Hardcoded Values Fixed
+- Dashboard: removed derived claims from stat cards
+- ML Health: fixed calibration claim display
 
 ## Architecture Notes For Future Edits
 
 - Do not document planned infrastructure as shipped behavior.
 - Keep the live path names exact. Runtime artifacts live under `ml_model/model_registry/`.
 - Keep setup docs and architecture docs synchronized with the route handlers and tests, not with older planning files.
+- Test baseline: pytest 87 passed, vitest 74 passed, typecheck passed

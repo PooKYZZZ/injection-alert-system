@@ -22,14 +22,18 @@ from datetime import datetime
 @dataclass
 class DriftMetrics:
     """Domain object representing ML model drift detection metrics.
-    
+
     drift_score is None when drift cannot be computed (insufficient data).
     drift_detected is False when drift_score is None.
     """
 
     drift_score: float | None  # 0.0-1.0 indicating severity, None if unavailable
-    drift_detected: bool  # True if drift exceeds threshold, False if not or if unavailable
-    recent_mean_confidence: float | None  # Mean confidence of recent window, None if unavailable
+    drift_detected: (
+        bool  # True if drift exceeds threshold, False if not or if unavailable
+    )
+    recent_mean_confidence: (
+        float | None
+    )  # Mean confidence of recent window, None if unavailable
     baseline_mean_confidence: float  # Mean confidence of baseline
     recent_sample_size: int  # Number of records in recent window
     baseline_sample_size: int  # Number of records in baseline
@@ -42,7 +46,11 @@ class ActivityBucket:
     bucket_index: int  # 0-23 for 24-hour period
     total_count: int  # Total requests in this bucket
     blocked_count: int  # Blocked requests in this bucket
+    allowed_count: int  # Allowed requests in this bucket
+    throttled_count: int  # Throttled requests in this bucket
     timestamp_start: datetime  # Start of this bucket's time window
+    timestamp_end: Optional[datetime] = None  # End of this bucket's time window
+    bucket_width_seconds: Optional[int] = None  # Width of bucket in seconds
 
 
 @dataclass
@@ -69,10 +77,14 @@ class TrafficLogEntity:
     inference_latency_ms: Optional[float] = None
     model_version: Optional[str] = None
     status: Optional[str] = None
+    lease_expires_at: Optional[datetime] = None
+    processing_owner_token: Optional[str] = None
+    processing_attempt: Optional[int] = None
     action_taken: Optional[str] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+    triage_status: Optional[str] = None
 
     @property
     def payload_snippet(self) -> str:
@@ -82,13 +94,42 @@ class TrafficLogEntity:
 
 
 @dataclass
+class SourceIPSummary:
+    """Domain object representing a source IP with request count and most recent action."""
+
+    ip: str
+    count: int
+    action: Optional[str] = None
+
+
+@dataclass
+class TargetPathSummary:
+    """Domain object representing a targeted path with hit count."""
+
+    path: str
+    hits: int
+
+
+@dataclass
 class TrafficStatsSummary:
     total_requests: int = 0
     counts_by_label: dict[str, int] = field(default_factory=dict)
     avg_inference_latency_ms: float = 0.0
     blocked_count: int = 0
     allowed_count: int = 0
+    throttled_count: int = 0
     avg_confidence: Optional[float] = None
+    false_positive_rate: float = 0.0
+    false_positive_count: int = 0
+    high_alert_count: int = 0
+    prev_high_alert_count: Optional[int] = None
+    prev_total_requests: Optional[int] = None
+    prev_blocked_count: Optional[int] = None
+    prev_allowed_count: Optional[int] = None
+    prev_throttled_count: Optional[int] = None
+    attack_distribution: dict[str, int] = field(default_factory=dict)
+    top_source_ips: List[SourceIPSummary] = field(default_factory=list)
+    top_targeted_paths: List[TargetPathSummary] = field(default_factory=list)
 
 
 @dataclass
@@ -125,10 +166,27 @@ class ITrafficLogRepository(ABC):
         ...
 
     @abstractmethod
+    async def claim_or_reclaim_processing(
+        self,
+        entity: TrafficLogEntity,
+        *,
+        owner_token: str,
+        lease_expires_at: datetime,
+        now: datetime,
+    ) -> TrafficLogEntity | None:
+        """Claim a new PROCESSING row or reclaim a stale one atomically.
+
+        Returns the authoritative row when the claim or reclaim succeeds.
+        Returns None when another live owner still holds the reservation.
+        """
+        ...
+
+    @abstractmethod
     async def complete_processing(
         self,
         transaction_id: str,
         *,
+        owner_token: str,
         prediction: str,
         confidence: float,
         confidence_level: str,
@@ -153,7 +211,9 @@ class ITrafficLogRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_stats_summary(self) -> TrafficStatsSummary:
+    async def get_stats_summary(
+        self, window: Optional[str] = None, reference_time: Optional[datetime] = None
+    ) -> TrafficStatsSummary:
         """Return aggregate traffic stats with zero-safe defaults."""
         ...
 
@@ -171,12 +231,15 @@ class ITrafficLogRepository(ABC):
 
     @abstractmethod
     async def get_activity_buckets(
-        self, hours: int = 24, buckets: int = 24
+        self,
+        window: Optional[str] = None,
+        buckets: int = 24,
+        reference_time: Optional[datetime] = None,
     ) -> List["ActivityBucket"]:
         """Get bucketed activity counts for the hero activity strip.
 
         Args:
-            hours: Number of hours to look back (default 24)
+            window: Optional time window filter (1h, 6h, 24h, 7d). Defaults to 24h.
             buckets: Number of buckets to divide the time into (default 24)
 
         Returns:
@@ -192,12 +255,21 @@ class ITrafficLogRepository(ABC):
         severity: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
+        action: Optional[str] = None,
+        triage_status: Optional[str] = None,
+        confidence_levels: Optional[List[str]] = None,
+        prediction: Optional[str] = None,
+        source_ip: Optional[str] = None,
+        sort_by: Optional[str] = "timestamp",
+        sort_dir: Optional[str] = "desc",
     ) -> TrafficLogPage:
         """Return a filtered, paginated alert list."""
         ...
 
     @abstractmethod
-    async def list_recent(self, skip: int = 0, limit: int = 100) -> List[TrafficLogEntity]:
+    async def list_recent(
+        self, skip: int = 0, limit: int = 100
+    ) -> List[TrafficLogEntity]:
         """Retrieve recent traffic logs ordered by timestamp descending."""
         ...
 
@@ -210,4 +282,13 @@ class ITrafficLogRepository(ABC):
         labeled_at: datetime,
     ) -> Optional[TrafficLogEntity]:
         """Update analyst feedback on a traffic log. Returns None if not found."""
+        ...
+
+    @abstractmethod
+    async def update_triage_status(
+        self,
+        traffic_id: int,
+        triage_status: str,
+    ) -> Optional[TrafficLogEntity]:
+        """Update triage status on a traffic log. Returns None if not found."""
         ...

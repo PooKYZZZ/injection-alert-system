@@ -1,20 +1,45 @@
 # WAF-ML SOC Dashboard - Runtime dependencies
 # Usage: pip install -r requirements.txt
-# Runtime - FastAPI backend + ML inference
-# Updated 2026-03-13 to use installable PyPI-compatible ranges
+# Updated 2026-03-23 with exact versions from working environment
 
-fastapi>=0.104,<1
-uvicorn[standard]>=0.24,<1
-pydantic>=2,<3
-pydantic-settings>=2,<3
-python-dotenv>=1,<2
-SQLAlchemy>=2,<3
-alembic>=1.12,<2
-asyncpg>=0.28,<1
-aiosqlite>=0.19,<1
-httpx>=0.25,<1
-pytest>=7.4,<10
-pytest-asyncio>=0.23,<2
-numpy>=1.24,<3
-transformers>=4.35,<5
-torch>=2.1,<3
+# Core Web Framework
+fastapi==0.135.1
+uvicorn[standard]==0.42.0
+starlette==0.52.1
+
+# Data Validation & Settings
+pydantic==2.12.5
+pydantic-settings==2.13.1
+python-dotenv==1.2.2
+email-validator==2.3.0
+
+# Database (async SQLAlchemy)
+SQLAlchemy==2.0.48
+alembic==1.18.4
+asyncpg==0.31.0
+aiosqlite==0.22.1
+
+# HTTP Client
+httpx==0.28.1
+
+# Security
+python-multipart==0.0.22
+
+# Testing
+pytest==9.0.2
+pytest-asyncio==1.3.0
+
+# ML Inference (needed for model service, not training)
+torch==2.10.0
+transformers==5.3.0
+tokenizers==0.22.2
+numpy==2.4.3
+
+# Utilities
+click==8.3.1
+h11==0.16.0
+typing-extensions==4.15.0
+certifi==2026.2.25
+idna==3.11
+urllib3==2.6.3
+tzdata==2025.3

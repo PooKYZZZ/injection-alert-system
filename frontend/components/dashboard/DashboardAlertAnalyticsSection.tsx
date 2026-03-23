@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useState, useCallback } from 'react'
+import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import MetricCards from '@/components/dashboard/MetricCards'
 import HeroActivityStrip from '@/components/dashboard/HeroActivityStrip'
 import { useAlerts } from '@/features/alerts/queries'
@@ -63,7 +64,7 @@ export default function DashboardAlertAnalyticsSection() {
   const alertsErrorMessage = alertsError instanceof Error ? alertsError : null
 
   // ML health query for threshold source of truth
-  const { data: mlHealthData, isPending: mlHealthPending, isError: mlHealthError } = useMLHealth()
+  const { data: mlHealthData, isPending: mlHealthPending, isError: mlHealthError, refetch: refetchMlHealth } = useMLHealth()
 
   // Presentational fallback: only apply when we know data exists but items is missing
   // This is a legitimate presentation fallback, NOT a contract-masking one
@@ -75,34 +76,48 @@ export default function DashboardAlertAnalyticsSection() {
   }, [])
 
   return (
-    <div className="flex flex-col gap-4">
-      <MetricCards stats={stats} statsPending={statsPending} statsError={statsError} />
-      <div style={{ maxHeight: '56px', overflow: 'hidden' }}>
-        <HeroActivityStrip
-          activityBuckets={stats?.activity_buckets}
-          alerts={alerts}
-          isLoading={alertsPending}
-          onDataSourceDetected={handleHeroDataSourceDetected}
-        />
-      </div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
-          Security overview
-        </span>
-        <span className="text-[10px] italic text-text-muted">
-          {heroStripDbBacked ? 'Real-time activity from database.' : 'Derived from loaded alerts.'}
-        </span>
-      </div>
-      <DashboardAlertAnalytics
-        alerts={alerts}
-        alertsPending={alertsPending}
-        alertsError={alertsErrorMessage}
-        thresholdState={{
-          thresholds: mlHealthData?.thresholds ?? null,
-          isLoading: mlHealthPending,
-          isError: mlHealthError,
-        }}
-      />
-    </div>
+    <QueryErrorResetBoundary>
+      {({ reset }) => (
+        <div className="flex flex-col gap-4">
+          <MetricCards
+            stats={stats}
+            statsPending={statsPending}
+            statsError={statsError}
+            onRetry={reset}
+          />
+          <div style={{ maxHeight: '56px', overflow: 'hidden' }}>
+            <HeroActivityStrip
+              activityBuckets={stats?.activity_buckets}
+              alerts={alerts}
+              isPending={alertsPending}
+              onDataSourceDetected={handleHeroDataSourceDetected}
+            />
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-muted">
+              Security overview
+            </span>
+            <span className="text-[11px] italic text-text-muted">
+              {heroStripDbBacked ? 'Real-time activity from database.' : 'Derived from loaded alerts.'}
+            </span>
+          </div>
+          <DashboardAlertAnalytics
+            alerts={alerts}
+            alertsPending={alertsPending}
+            alertsError={alertsErrorMessage}
+            onRetryAlerts={() => window.location.reload()}
+            thresholdState={{
+              thresholds: mlHealthData?.thresholds ?? null,
+              isPending: mlHealthPending,
+              isError: mlHealthError,
+              onRetry: () => {
+                void refetchMlHealth()
+              },
+            }}
+          />
+        </div>
+      )}
+    </QueryErrorResetBoundary>
   )
 }
+

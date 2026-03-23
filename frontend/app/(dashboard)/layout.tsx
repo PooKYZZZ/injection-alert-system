@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import type { ReactNode } from 'react'
 import { getSession } from '@/lib/auth-session'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { DashboardTopBar } from '@/components/layout/TopBar'
@@ -6,7 +7,7 @@ import { DashboardTopBar } from '@/components/layout/TopBar'
 export default async function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   const session = await getSession()
   if (!session) redirect('/login')

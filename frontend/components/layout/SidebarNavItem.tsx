@@ -1,5 +1,6 @@
 'use client'
 
+import { AnimatePresence, motion } from 'motion/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -79,16 +80,26 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
       className={
         isActive
           ? 'group flex items-center gap-3 px-6 h-[40px] bg-sidebar-active border-l-[3px] border-primary text-white'
-          : 'group flex items-center gap-3 px-6 h-[40px] text-blue-100 hover:bg-[#264b82] hover:text-white border-l-[3px] border-transparent transition-colors'
+          : 'group flex items-center gap-3 px-6 h-[40px] text-blue-100 hover:bg-[var(--color-accent-blue-bg)] hover:text-white border-l-[3px] border-transparent transition-colors'
       }
-    >
-      <SidebarIcon icon={icon} />
-      <span className="text-sm font-medium flex-1">{label}</span>
-      {badge !== undefined && (
-        <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-sm">
-          {badge}
-        </span>
-      )}
+      >
+        <SidebarIcon icon={icon} />
+        <span className="text-sm font-medium flex-1">{label}</span>
+        {badge !== undefined && (
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={badge}
+              initial={{ scale: 1.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+              className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+            >
+              {badge}
+            </motion.span>
+          </AnimatePresence>
+        )}
     </Link>
   )
 }
+
+

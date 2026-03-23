@@ -13,6 +13,7 @@ from web_app.presentation.app import create_app
 from web_app.presentation.api.routes import get_model_service
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database.database import TrafficLog
+from web_app.infrastructure.database import database as db_module
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 
@@ -41,6 +42,7 @@ class FakeModelHealthService:
         avg_inference_latency_ms: float = 0.0,
         total_processed: int = 0,
         confidence_thresholds: dict[str, float] | None = None,
+        eval_metadata: dict[str, object] | None = None,
     ):
         self.model_version = model_version
         self.loaded = loaded
@@ -51,6 +53,7 @@ class FakeModelHealthService:
             "low": 0.5,
             "high": 0.8,
         }
+        self.eval_metadata = eval_metadata or {}
 
 
 class FakeTriageModelService(FakeModelHealthService):
@@ -112,11 +115,17 @@ def api_client():
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_model_service] = lambda: FakeModelHealthService()
 
+    original_session_factory = getattr(db_module, "AsyncSessionLocal", None)
+    db_module.AsyncSessionLocal = session_factory
+
     with TestClient(app) as test_client:
         yield test_client, session_factory, _init_tables
 
     app.dependency_overrides.clear()
+    if original_session_factory is not None:
+        db_module.AsyncSessionLocal = original_session_factory
     import asyncio
+
     asyncio.run(engine.dispose())
 
 
@@ -170,7 +179,6 @@ def test_startup_uses_mock_service_when_artifact_missing_in_testing(
     app = app_module.create_app()
     with TestClient(app):
         assert app.state.model_service is mock_service
-        assert app.state.model is mock_service
 
 
 def test_startup_stores_real_model_service_on_app_state(
@@ -188,7 +196,9 @@ def test_startup_stores_real_model_service_on_app_state(
 
         @classmethod
         def create_mock(cls):
-            raise AssertionError("mock loader should not run for explicit artifact path")
+            raise AssertionError(
+                "mock loader should not run for explicit artifact path"
+            )
 
     monkeypatch.setattr(
         app_module,
@@ -201,7 +211,6 @@ def test_startup_stores_real_model_service_on_app_state(
     app = app_module.create_app()
     with TestClient(app):
         assert isinstance(app.state.model_service, FakeModelService)
-        assert app.state.model is app.state.model_service
 
 
 def test_ml_health_returns_degraded_when_mock_model_active(api_client):
@@ -225,12 +234,19 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
             "low": 0.5,
             "high": 0.8,
         },
+        # Optional eval metadata defaults when not available
+        "macro_f1": None,
+        "ece": None,
+        "per_class_f1": {},
+        "calibration_bins": [],
+        "prediction_distribution": {},
     }
 
 
 def test_unknown_alert_id_returns_404(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -245,6 +261,7 @@ def test_unknown_alert_id_returns_404(api_client):
 def test_stats_returns_zeroed_response_for_empty_table(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -313,7 +330,10 @@ def test_alert_list_returns_pagination_shape(api_client):
     assert payload["page_size"] == 20
     assert isinstance(payload["items"], list)
     assert payload["items"][0]["id"] == 1
-    assert payload["items"][0]["payload_snippet"] == "POST /login username=admin' OR '1'='1"
+    assert (
+        payload["items"][0]["payload_snippet"]
+        == "POST /login username=admin' OR '1'='1"
+    )
     assert payload["items"][0]["crs_rule_ids"] == ["942100", "942110"]
     assert payload["items"][0]["analyst_label"] == "SQL Injection"
     assert payload["items"][0]["labeled_by"] == "analyst@lares.test"
@@ -380,6 +400,7 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
 def test_auth_missing_token_returns_401(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get("/api/stats")
@@ -391,6 +412,7 @@ def test_auth_missing_token_returns_401(api_client):
 def test_auth_wrong_scheme_returns_401(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -405,6 +427,7 @@ def test_auth_wrong_scheme_returns_401(api_client):
 def test_auth_invalid_token_returns_401(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -419,6 +442,7 @@ def test_auth_invalid_token_returns_401(api_client):
 def test_auth_valid_token_allows_access(api_client):
     client, _, init_tables = api_client
     import asyncio
+
     asyncio.run(init_tables())
 
     response = client.get(
@@ -456,7 +480,6 @@ def test_triage_valid_token_allows_ingest(api_client):
     asyncio.run(init_tables())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -476,7 +499,6 @@ def test_triage_returns_503_when_model_not_ready(api_client):
     asyncio.run(init_tables())
     service = FakeTriageModelService(loaded=False)
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -496,7 +518,6 @@ def test_triage_duplicate_ingest_is_idempotent(api_client):
     asyncio.run(init_tables())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     first = client.post(
         "/api/triage",
@@ -536,6 +557,9 @@ def test_triage_processing_row_returns_409_with_retry_after(api_client):
                     crs_score=9,
                     crs_rule_ids=["942100"],
                     status="PROCESSING",
+                    lease_expires_at=datetime.now(timezone.utc) + timedelta(seconds=30),
+                    processing_owner_token="owner-old",
+                    processing_attempt=1,
                 )
             )
             await session.commit()
@@ -543,7 +567,6 @@ def test_triage_processing_row_returns_409_with_retry_after(api_client):
     asyncio.run(_seed_processing())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -556,11 +579,12 @@ def test_triage_processing_row_returns_409_with_retry_after(api_client):
     assert service.predict_calls == 0
 
 
-def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
+def test_triage_expired_processing_lease_is_reclaimed_and_completes(api_client):
+    """An expired PROCESSING lease is reclaimed and completes successfully."""
     client, session_factory, init_tables = api_client
     import asyncio
 
-    async def _seed_stale_processing() -> None:
+    async def _seed_expired_processing() -> None:
         await init_tables()
         async with session_factory() as session:
             session.add(
@@ -575,14 +599,16 @@ def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
                     crs_score=9,
                     crs_rule_ids=["942100"],
                     status="PROCESSING",
+                    lease_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+                    processing_owner_token="owner-old",
+                    processing_attempt=1,
                 )
             )
             await session.commit()
 
-    asyncio.run(_seed_stale_processing())
+    asyncio.run(_seed_expired_processing())
     service = FakeTriageModelService()
     client.app.state.model_service = service
-    client.app.state.model = service
 
     response = client.post(
         "/api/triage",
@@ -590,9 +616,10 @@ def test_triage_stale_processing_row_returns_503_with_retry_after(api_client):
         headers=INTERNAL_HEADERS,
     )
 
-    assert response.status_code == 503
-    assert response.headers["Retry-After"] == "5"
-    assert service.predict_calls == 0
+    assert response.status_code == 200
+    assert response.json()["alert_id"] is not None
+    assert response.json()["prediction"] == "SQL Injection"
+    assert service.predict_calls == 1
 
 
 def test_processing_placeholder_rows_do_not_appear_in_alerts(api_client):

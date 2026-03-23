@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getStats } from '@/lib/bff-client'
 
-export async function GET(_request: NextRequest): Promise<Response> {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
     const session = await auth()
     if (!session) {
@@ -12,7 +12,12 @@ export async function GET(_request: NextRequest): Promise<Response> {
       )
     }
 
-    const result = await getStats()
+    const timeWindow = request.nextUrl.searchParams.get('window') ?? undefined
+    const timezoneName =
+      request.nextUrl.searchParams.get('timezone_name') ??
+      request.nextUrl.searchParams.get('timezone') ??
+      undefined
+    const result = await getStats(timeWindow, timezoneName)
     if (!result.ok) {
       const response = NextResponse.json({ error: result.error }, { status: result.status })
       if (result.retryAfter) {

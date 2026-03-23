@@ -18,15 +18,14 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.config import get_settings
-from web_app.infrastructure.database import TrafficLog, get_db, init_db
+from web_app.infrastructure.database import init_db
 from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
+from web_app.presentation.health import health_check
 from web_app.presentation.schemas import HealthResponse
 from web_app.services.model_service import ModelService
 
@@ -76,41 +75,49 @@ async def lifespan(app: FastAPI):
         model_service = ModelService.create_mock()
 
     app.state.model_service = model_service
-    # Preserve the legacy dependency until routes are migrated to model_service.
-    app.state.model = app.state.model_service
     yield
     # ── Shutdown ──────────────────────────────────────────────────────────────
     # add any cleanup here if needed
 
 
-async def health_check(db: AsyncSession = Depends(get_db)):
-    """Health check endpoint with database connectivity probe."""
-    try:
-        result = await db.execute(select(TrafficLog.id).limit(1))
-        result.first()
-        return HealthResponse(status="healthy", database="connected")
-    except Exception:
-        return HealthResponse(status="unhealthy", database="disconnected")
-
-
 def create_app() -> FastAPI:
     """Application factory — the single place where FastAPI is configured."""
     settings = get_settings()
+
+    # Configure docs endpoint based on environment
+    docs_url = "/docs" if settings.enable_api_docs else None
+    redoc_url = "/redoc" if settings.enable_api_docs else None
+
     app = FastAPI(
         title="Injection Alert Classification System",
         description="API for classifying HTTP requests as normal or injection attacks",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url=docs_url,
+        redoc_url=redoc_url,
+        openapi_url="/openapi.json" if settings.enable_api_docs else None,
     )
 
     # --- CORS middleware ---
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # In production/staging, use more restrictive CORS settings
+    if settings.is_production or settings.is_staging:
+        # Production: be more restrictive - only allow explicitly configured origins
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.allowed_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+            allow_headers=["Authorization", "Content-Type"],
+        )
+    else:
+        # Development: allow more flexibility for local development
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.allowed_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     # --- API router ---
     app.include_router(api_router, prefix="/api")
@@ -121,7 +128,3 @@ def create_app() -> FastAPI:
     app.add_api_route("/api/health", health_check, response_model=HealthResponse)
 
     return app
-
-
-# Module-level app instance used by uvicorn and TestClient
-app = create_app()

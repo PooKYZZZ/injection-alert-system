@@ -17,7 +17,6 @@ from web_app.application.triage_use_case import (
     ModelNotReadyError,
     TriageIngestCommand,
     TriageInProgressError,
-    TriageProcessingStaleError,
     TriageResult,
     TriageUseCase,
 )
@@ -38,7 +37,14 @@ def mock_repository():
     """Create a mock repository with async save."""
     repo = AsyncMock()
     repo.get_by_transaction_id.return_value = None
-    repo.claim_processing.return_value = True
+    repo.claim_or_reclaim_processing.return_value = TrafficLogEntity(
+        id=1,
+        transaction_id="txn-1",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        processing_owner_token="owner-token",
+        processing_attempt=1,
+    )
 
     async def save_side_effect(entity: TrafficLogEntity) -> TrafficLogEntity:
         entity.id = 1
@@ -58,6 +64,7 @@ def mock_repository():
         entity.model_version = kwargs["model_version"]
         entity.action_taken = kwargs["action_taken"]
         entity.status = status
+        entity.processing_owner_token = kwargs.get("owner_token", "owner-token")
         return entity
 
     entity = TrafficLogEntity(
@@ -207,7 +214,8 @@ async def test_triage_offloads_sync_predict_via_threadpool(
     )
 
     assert captured["func"] is mock_classifier.predict
-    assert captured["args"] == ("GET /health",)
+    # Preprocessing is applied: "GET /health" -> "get /health"
+    assert captured["args"] == ("get /health",)
     assert captured["kwargs"] == {}
     assert result == TriageResult(
         alert_id=1,
@@ -238,7 +246,7 @@ async def test_ingest_returns_existing_alert_without_reinferring(
         action_taken="BLOCKED",
     )
     mock_repository.get_by_transaction_id.return_value = existing
-    mock_repository.claim_processing.return_value = False
+    mock_repository.claim_or_reclaim_processing.return_value = existing
 
     use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
     result = await use_case.ingest(
@@ -300,6 +308,14 @@ async def test_ingest_folds_headers_and_body_into_persisted_http_request(
         "inference_latency_ms": 5.5,
         "model_version": "test-model-v1",
     }
+    mock_repository.claim_or_reclaim_processing.return_value = TrafficLogEntity(
+        id=9,
+        transaction_id="txn-fold-1",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        processing_owner_token="owner-token",
+        processing_attempt=1,
+    )
 
     use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
     await use_case.ingest(
@@ -317,7 +333,7 @@ async def test_ingest_folds_headers_and_body_into_persisted_http_request(
         )
     )
 
-    saved_entity = mock_repository.claim_processing.call_args[0][0]
+    saved_entity = mock_repository.claim_or_reclaim_processing.call_args[0][0]
     assert "Headers:" in saved_entity.http_request
     assert "Host: example.test" in saved_entity.http_request
     assert "Body:\nusername=admin" in saved_entity.http_request
@@ -329,7 +345,7 @@ async def test_ingest_loser_with_processing_row_returns_in_progress(
     mock_classifier,
     mock_repository,
 ):
-    mock_repository.claim_processing.return_value = False
+    mock_repository.claim_or_reclaim_processing.return_value = None
     mock_repository.get_by_transaction_id.return_value = TrafficLogEntity(
         id=11,
         transaction_id="txn-processing",
@@ -353,23 +369,46 @@ async def test_ingest_loser_with_processing_row_returns_in_progress(
                 crs_score=8,
                 crs_rule_ids=["942100"],
             )
-        )
+    )
 
     mock_classifier.predict.assert_not_called()
 
-
 @pytest.mark.asyncio
-async def test_ingest_loser_with_stale_processing_row_returns_stale_error(
+async def test_ingest_reclaims_expired_processing_lease_and_completes(
     mock_classifier,
     mock_repository,
 ):
-    mock_repository.claim_processing.return_value = False
-    mock_repository.get_by_transaction_id.return_value = TrafficLogEntity(
+    """Expired lease is reclaimed and the new owner completes processing."""
+    claimed_row = TrafficLogEntity(
         id=12,
         transaction_id="txn-stale",
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=31),
+        created_at=datetime.now(timezone.utc),
         status="PROCESSING",
+        processing_owner_token="new-owner",
+        processing_attempt=2,
     )
+    completed_row = TrafficLogEntity(
+        id=12,
+        transaction_id="txn-stale",
+        created_at=datetime.now(timezone.utc),
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.97,
+        confidence_level="HIGH",
+        model_version="test-model-v1",
+        action_taken="BLOCKED",
+        processing_owner_token=None,
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = claimed_row
+    mock_repository.complete_processing.side_effect = None
+    mock_repository.complete_processing.return_value = completed_row
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.97,
+        "confidence_level": "HIGH",
+        "inference_latency_ms": 3.1,
+        "model_version": "test-model-v1",
+    }
 
     use_case = TriageUseCase(
         classifier=mock_classifier,
@@ -377,23 +416,25 @@ async def test_ingest_loser_with_stale_processing_row_returns_stale_error(
         stale_processing_timeout_seconds=30,
     )
 
-    with pytest.raises(TriageProcessingStaleError):
-        await use_case.ingest(
-            TriageIngestCommand(
-                transaction_id="txn-stale",
-                timestamp=datetime.now(timezone.utc),
-                source_ip="203.0.113.11",
-                request_method="POST",
-                request_uri="/login",
-                request_headers={"Host": "example.test"},
-                request_body="username=admin",
-                http_request="POST /login HTTP/1.1",
-                crs_score=8,
-                crs_rule_ids=["942100"],
-            )
+    result = await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-stale",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="203.0.113.11",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={"Host": "example.test"},
+            request_body="username=admin",
+            http_request="POST /login HTTP/1.1",
+            crs_score=8,
+            crs_rule_ids=["942100"],
         )
+    )
 
-    mock_classifier.predict.assert_not_called()
+    mock_classifier.predict.assert_called_once()
+    assert result.alert_id == 12
+    assert result.prediction == "SQL Injection"
+    assert result.action_taken == "BLOCKED"
 
 
 @pytest.mark.asyncio
@@ -421,11 +462,30 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
                 created_at=datetime.now(timezone.utc),
                 status="PROCESSING",
                 http_request=entity.http_request,
+                processing_owner_token="owner-token",
+                processing_attempt=1,
             )
             return True
 
-        async def complete_processing(self, transaction_id: str, **kwargs):
+        async def claim_or_reclaim_processing(self, entity, *, owner_token, lease_expires_at, now):
+            if self.claimed:
+                return None
+            self.claimed = True
+            self.completed = TrafficLogEntity(
+                id=1,
+                transaction_id=entity.transaction_id,
+                created_at=datetime.now(timezone.utc),
+                status="PROCESSING",
+                http_request=entity.http_request,
+                processing_owner_token=owner_token,
+                processing_attempt=1,
+                lease_expires_at=lease_expires_at,
+            )
+            return self.completed
+
+        async def complete_processing(self, transaction_id: str, *, owner_token: str, **kwargs):
             assert self.completed is not None
+            assert owner_token == self.completed.processing_owner_token
             self.completed.transaction_id = transaction_id
             self.completed.prediction = kwargs["prediction"]
             self.completed.confidence = kwargs["confidence"]
@@ -434,6 +494,7 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
             self.completed.model_version = kwargs["model_version"]
             self.completed.action_taken = kwargs["action_taken"]
             self.completed.status = "COMPLETED"
+            self.completed.processing_owner_token = None
             return self.completed
 
         async def get_by_id(self, traffic_id):
@@ -498,3 +559,273 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
     assert classifier.calls == 1
     assert first.alert_id == second.alert_id == 1
     assert first.prediction == second.prediction == "SQL Injection"
+
+
+@pytest.mark.asyncio
+async def test_execute_parses_http_request_for_method_and_path(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that execute() parses the raw http_request to extract method and path.
+    
+    This verifies the end-to-end flow: raw HTTP request -> parse -> persist.
+    The parsed method and path should be stored in the database.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+        "inference_latency_ms": 3.5,
+        "model_version": "test-model-v1",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    # This raw HTTP request should be parsed to extract method and path
+    raw_http_request = "POST /api/login?redirect=home HTTP/1.1\nHost: example.com\n\nusername=admin"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="192.168.1.50",
+    )
+
+    # Verify the entity passed to save has parsed method and path
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    # Method should be extracted and uppercased
+    assert saved_entity.request_method == "POST"
+    # Path should have query string stripped
+    assert saved_entity.request_method is not None
+    assert saved_entity.request_path is not None
+
+
+@pytest.mark.asyncio
+async def test_execute_parses_get_request(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that GET requests with query strings are parsed correctly."""
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.99,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    raw_http_request = "GET /users?id=123&sort=name HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="10.0.0.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    assert saved_entity.request_method == "GET"
+    assert saved_entity.request_path == "/users"  # Query string stripped
+
+
+@pytest.mark.asyncio
+async def test_execute_preserves_none_when_parsing_fails(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that malformed HTTP request results in None values, not errors."""
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.50,
+        "confidence_level": "LOW",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    # Malformed request - no valid HTTP method
+    raw_http_request = "not a valid http request"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="127.0.0.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    # Parsing fails gracefully - None values stored
+    assert saved_entity.request_method is None
+    assert saved_entity.request_path is None
+
+
+@pytest.mark.asyncio
+async def test_execute_handles_connect_authority_form_correctly(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that CONNECT method with authority-form (host:port) returns None for path.
+    
+    RFC 7230 defines authority-form as: CONNECT example.com:443 HTTP/1.1
+    This is used for HTTP tunneling. The parser should reject this, not treat
+    it as a path. The raw http_request is still stored for forensics.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.99,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    # CONNECT request with authority-form (no path)
+    raw_http_request = "CONNECT example.com:443 HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="192.168.1.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    # CONNECT method is valid, but authority-form has no path
+    assert saved_entity.request_method == "CONNECT"
+    assert saved_entity.request_path is None  # Authority-form explicitly rejected
+    # Raw request is preserved for forensics
+    assert saved_entity.http_request == raw_http_request
+
+
+@pytest.mark.asyncio
+async def test_execute_handles_options_asterisk_form(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that OPTIONS method with asterisk-form (*) returns * as path.
+    
+    RFC 7230 defines asterisk-form as: OPTIONS * HTTP/1.1
+    This is used to query server capabilities. The parser should return '*' as path.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "Normal",
+        "confidence": 0.99,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    
+    raw_http_request = "OPTIONS * HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_http_request,
+        source_ip="192.168.1.1",
+    )
+
+    saved_entity = mock_repository.save.call_args[0][0]
+    
+    assert saved_entity.request_method == "OPTIONS"
+    assert saved_entity.request_path == "*"  # Asterisk-form returned as-is
+    assert saved_entity.http_request == raw_http_request
+
+
+@pytest.mark.asyncio
+async def test_triage_preprocessing_enabled(mock_classifier, mock_repository):
+    """Test that preprocessing is applied when enable_preprocessing=True."""
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    captured_args = []
+    original_predict = mock_classifier.predict
+
+    def capture_predict(text):
+        captured_args.append(text)
+        return original_predict(text)
+
+    mock_classifier.predict = capture_predict
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,
+    )
+
+    await use_case.execute(
+        http_request="GET /search?q=1' UNION SELECT * FROM users-- HTTP/1.1",
+        source_ip="192.168.1.1",
+    )
+
+    # With preprocessing enabled, model receives lowercase canonicalized text
+    assert len(captured_args) == 1
+    # The preprocessed text should be lowercase
+    assert captured_args[0] == "get /search?q=1' union select * from users--"
+    # Should NOT be the raw HTTP request
+    assert "HTTP/1.1" not in captured_args[0]
+    assert "Host" not in captured_args[0]
+
+
+@pytest.mark.asyncio
+async def test_triage_preprocessing_disabled(mock_classifier, mock_repository):
+    """Test that raw HTTP is passed when enable_preprocessing=False."""
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    captured_args = []
+    original_predict = mock_classifier.predict
+
+    def capture_predict(text):
+        captured_args.append(text)
+        return original_predict(text)
+
+    mock_classifier.predict = capture_predict
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=False,
+    )
+
+    raw_request = "GET /search?q=1' UNION SELECT * FROM users-- HTTP/1.1"
+    await use_case.execute(
+        http_request=raw_request,
+        source_ip="192.168.1.1",
+    )
+
+    # With preprocessing disabled, model receives raw HTTP request
+    assert len(captured_args) == 1
+    assert captured_args[0] == raw_request
+
+
+@pytest.mark.asyncio
+async def test_triage_raw_http_request_preserved_for_persistence(
+    mock_classifier,
+    mock_repository,
+):
+    """Test that raw http_request is stored verbatim regardless of preprocessing.
+
+    The preprocessed text is ONLY for model input. The persisted record
+    must preserve the original raw HTTP for forensic evidence.
+    """
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,  # Preprocessing enabled
+    )
+
+    raw_request = (
+        "GET /search?q=1' UNION SELECT password FROM admin-- HTTP/1.1\r\n"
+        "Host: target.example.com\r\n"
+        "User-Agent: Mozilla/5.0\r\n\r\n"
+    )
+    await use_case.execute(
+        http_request=raw_request,
+        source_ip="192.168.1.100",
+    )
+
+    # Verify the entity passed to save has raw http_request preserved
+    saved_entity = mock_repository.save.call_args[0][0]
+    assert saved_entity.http_request == raw_request
+    # http_request should be the exact raw input, not preprocessed
+    assert "Host: target.example.com" in saved_entity.http_request
+    assert "User-Agent: Mozilla/5.0" in saved_entity.http_request

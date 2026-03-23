@@ -30,10 +30,10 @@ class ModelService:
         self._total_inference_latency_ms = 0.0
         self._confidence_low_threshold = float(settings.confidence_low_threshold)
         self._confidence_high_threshold = float(settings.confidence_high_threshold)
+        self._eval_metadata: dict[str, Any] = {}
 
         run_dir, was_inferred = self._resolve_run_directory(
-            settings,
-            Path(settings.model_registry_path).expanduser()
+            settings, Path(settings.model_registry_path).expanduser()
         )
         if was_inferred:
             logger.warning(
@@ -54,6 +54,7 @@ class ModelService:
         self.tokenizer = tokenizer
         self.temperature = float(loaded_temperature or TEMPERATURE)
         self.model_version = self._derive_model_version(run_dir)
+        self._eval_metadata = self._load_eval_metadata(run_dir)
 
     @classmethod
     def create_mock(cls) -> "ModelService":
@@ -73,10 +74,17 @@ class ModelService:
         instance._total_inference_latency_ms = 0.0
         instance._confidence_low_threshold = cls.DEFAULT_CONFIDENCE_LOW_THRESHOLD
         instance._confidence_high_threshold = cls.DEFAULT_CONFIDENCE_HIGH_THRESHOLD
+        instance._eval_metadata = {}
         return instance
 
     def predict(self, payload: str) -> dict[str, Any]:
-        text = payload if isinstance(payload, str) else "" if payload is None else str(payload)
+        text = (
+            payload
+            if isinstance(payload, str)
+            else ""
+            if payload is None
+            else str(payload)
+        )
 
         if self._mock_classifier is not None:
             mock_result = self._mock_classifier.predict(text)
@@ -238,6 +246,95 @@ class ModelService:
             "low": self._confidence_low_threshold,
             "high": self._confidence_high_threshold,
         }
+
+    @property
+    def eval_metadata(self) -> dict[str, Any]:
+        """Evaluation metrics from model registry artifact (macro_f1, ece, per_class_f1, etc.)."""
+        return self._eval_metadata.copy()
+
+    def _load_eval_metadata(self, run_dir: Path) -> dict[str, Any]:
+        """Load evaluation metrics from model registry calibrated eval JSON.
+
+        The eval pipeline produces files named
+        eval_results_{model}_{variant}.json (e.g. eval_results_distilbert_calibrated.json)
+        under run_dir/eval/{timestamp}/ directories.
+
+        Supported artifact keys:
+            macro_f1, ece, per_class (nested {f1, precision, recall, ...}),
+            calibration_bins (nested {bin, avg_conf, avg_acc, gap, count}),
+            operational.confidence_tiers ({HIGH/MEDIUM/LOW: {count, ...}}).
+        """
+        eval_dir = run_dir / "eval"
+        if not eval_dir.is_dir():
+            return {}
+
+        # Find eval_results_{MODEL_KEY}_calibrated.json under eval subdirectories
+        # Layout: eval/{timestamp}/eval_results_{model}_calibrated.json
+        target_name = f"eval_results_{self.MODEL_KEY}_calibrated.json"
+        candidates: list[Path] = []
+        for child in eval_dir.iterdir():
+            if child.is_dir():
+                candidate = child / target_name
+                if candidate.is_file():
+                    candidates.append(candidate)
+            elif child.is_file() and child.name == target_name:
+                candidates.append(child)
+
+        # Pick most recent by directory name (timestamp sort)
+        candidates.sort(key=lambda p: p.parent.name, reverse=True)
+        if not candidates:
+            return {}
+
+        metrics_path = candidates[0]
+        try:
+            raw = json.loads(metrics_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            logger.warning("Failed to read eval metadata from %s", metrics_path)
+            return {}
+
+        metadata: dict[str, Any] = {}
+
+        # Direct scalars
+        if "macro_f1" in raw:
+            metadata["macro_f1"] = float(raw["macro_f1"])
+        if "ece" in raw:
+            metadata["ece"] = float(raw["ece"])
+
+        # per_class: { "SQL Injection": { f1: 0.97, precision: 0.95, ... }, ... }
+        # → per_class_f1: { "SQL Injection": 0.97, ... }
+        per_class = raw.get("per_class")
+        if isinstance(per_class, dict):
+            metadata["per_class_f1"] = {
+                cls_name: float(metrics["f1"])
+                for cls_name, metrics in per_class.items()
+                if isinstance(metrics, dict) and "f1" in metrics
+            }
+
+        # calibration_bins: [{ bin: 0, avg_conf: 0.5, avg_acc: 0.8, gap: 0.01, count: 100 }, ...]
+        # → [{ bin_idx: 0, bin_center: 0.5, accuracy: 0.8, confidence: 0.5, count: 100 }, ...]
+        raw_bins = raw.get("calibration_bins")
+        if isinstance(raw_bins, list):
+            metadata["calibration_bins"] = [
+                {
+                    "bin_idx": int(b.get("bin", i)),
+                    "bin_center": float(b.get("avg_conf", 0.0)),
+                    "accuracy": float(b.get("avg_acc", 0.0)),
+                    "confidence": float(b.get("avg_conf", 0.0)),
+                    "count": int(b.get("count", 0)),
+                }
+                for i, b in enumerate(raw_bins)
+                if isinstance(b, dict)
+            ]
+
+        # prediction_distribution derived from per_class support (true distribution)
+        if isinstance(per_class, dict):
+            metadata["prediction_distribution"] = {
+                cls_name: int(metrics["support"])
+                for cls_name, metrics in per_class.items()
+                if isinstance(metrics, dict) and "support" in metrics
+            }
+
+        return metadata
 
     @staticmethod
     def _confidence_tier_for(confidence: float) -> str:

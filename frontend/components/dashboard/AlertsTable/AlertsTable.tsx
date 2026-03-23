@@ -188,7 +188,7 @@ function AlertsTableShell({
   return (
     <div className="overflow-hidden rounded-lg border border-border-light bg-bg-panel shadow-subtle">
       <div className="flex items-start justify-between gap-4 border-b border-border-light p-4">
-        <h2 className="text-[9px] font-semibold uppercase tracking-[0.09em] text-text-muted">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-muted">
           Alerts
         </h2>
         {selectedIds.length > 0 ? <BulkActionBar /> : null}
@@ -312,8 +312,9 @@ function AlertsTableContent() {
   }, [])
 
   useEffect(() => {
+    const timeouts = savingTimeoutsRef.current
     return () => {
-      Object.values(savingTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId))
+      Object.values(timeouts).forEach((timeoutId) => clearTimeout(timeoutId))
     }
   }, [])
 
@@ -599,3 +600,4 @@ export default function AlertsTable() {
     </Suspense>
   )
 }
+

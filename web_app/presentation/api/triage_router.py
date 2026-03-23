@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from web_app.config import get_settings
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
     TriageIngestCommand,
     TriageInProgressError,
-    TriageProcessingStaleError,
     TriageUseCase,
 )
 from web_app.infrastructure.database import get_db
@@ -23,6 +21,10 @@ def get_model_service(request: Request):
     return request.app.state.model_service
 
 
+def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
+    return TrafficLogRepository(db)
+
+
 @router.post(
     "/triage",
     response_model=TriageIngestResponse,
@@ -33,14 +35,15 @@ def get_model_service(request: Request):
 )
 async def ingest_triage(
     payload: TriageIngestRequest,
-    db: AsyncSession = Depends(get_db),
     model_service=Depends(get_model_service),
+    repository: TrafficLogRepository = Depends(get_repository),
 ):
-    repository = TrafficLogRepository(db)
+    settings = get_settings()
     use_case = TriageUseCase(
         classifier=model_service,
         repository=repository,
-        stale_processing_timeout_seconds=get_settings().stale_processing_timeout_seconds,
+        stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
+        enable_preprocessing=settings.enable_http_model_preprocessing,
     )
 
     try:
@@ -66,12 +69,6 @@ async def ingest_triage(
     except TriageInProgressError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-            headers={"Retry-After": "5"},
-        ) from exc
-    except TriageProcessingStaleError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
             headers={"Retry-After": "5"},
         ) from exc

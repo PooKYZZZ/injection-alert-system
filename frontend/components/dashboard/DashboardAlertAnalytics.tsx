@@ -6,14 +6,16 @@ import type { ConfidenceThresholds } from '@/features/ml-health/types'
 
 interface ThresholdState {
   thresholds: ConfidenceThresholds | null
-  isLoading: boolean
+  isPending: boolean
   isError: boolean
+  onRetry?: () => void
 }
 
 interface DashboardAlertAnalyticsProps {
   alerts: Alert[]
   alertsPending: boolean
   alertsError?: Error | null
+  onRetryAlerts?: () => void
   thresholdState: ThresholdState
 }
 
@@ -148,25 +150,26 @@ export default function DashboardAlertAnalytics({
   alerts,
   alertsPending,
   alertsError,
+  onRetryAlerts,
   thresholdState,
 }: DashboardAlertAnalyticsProps) {
-  const { thresholds, isLoading, isError } = thresholdState
+  const { thresholds, isPending, isError, onRetry } = thresholdState
 
   // Threshold source of truth: ML health contract
   // Use explicit thresholds from ML health, or show unavailable state
-  const { highThreshold, mediumThreshold, thresholdsAvailable } = useMemo(() => {
+  const { highThreshold, lowThreshold, thresholdsAvailable } = useMemo(() => {
     // Thresholds must come from ML health contract - no fallback inference from alerts
-    if (!thresholds || thresholds.high === null || thresholds.medium === null) {
+    if (!thresholds || thresholds.high === null || thresholds.low === null) {
       return {
         highThreshold: null,
-        mediumThreshold: null,
+        lowThreshold: null,
         thresholdsAvailable: false,
       }
     }
 
     return {
       highThreshold: thresholds.high,
-      mediumThreshold: thresholds.medium,
+      lowThreshold: thresholds.low,
       thresholdsAvailable: true,
     }
   }, [thresholds])
@@ -214,7 +217,7 @@ export default function DashboardAlertAnalytics({
 
   const confidenceBands = useMemo(() => {
     // If thresholds are not available, show empty/unavailable state
-    if (!thresholdsAvailable || highThreshold === null || mediumThreshold === null) {
+    if (!thresholdsAvailable || highThreshold === null || lowThreshold === null) {
       return null
     }
 
@@ -222,7 +225,7 @@ export default function DashboardAlertAnalytics({
     for (const alert of alerts) {
       if (alert.confidence > highThreshold) {
         counts.high += 1
-      } else if (alert.confidence >= mediumThreshold) {
+      } else if (alert.confidence >= lowThreshold) {
         counts.medium += 1
       } else {
         counts.low += 1
@@ -230,14 +233,14 @@ export default function DashboardAlertAnalytics({
     }
 
     const highPct = Math.round(highThreshold * 100)
-    const mediumPct = Math.round(mediumThreshold * 100)
+    const lowPct = Math.round(lowThreshold * 100)
 
     return [
       { label: `High > ${highPct}%`, value: counts.high, colorClassName: 'bg-accent-purple' },
-      { label: `Medium ${mediumPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
-      { label: `Low < ${mediumPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
+      { label: `Medium ${lowPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
+      { label: `Low < ${lowPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
     ]
-  }, [alerts, highThreshold, mediumThreshold, thresholdsAvailable])
+  }, [alerts, highThreshold, lowThreshold, thresholdsAvailable])
 
   if (alertsPending) {
     return <DashboardAlertAnalyticsSkeleton />
@@ -248,6 +251,15 @@ export default function DashboardAlertAnalytics({
       <div className="rounded-lg border border-severity-high-border bg-severity-high-bg p-4">
         <p className="text-sm font-medium text-severity-high-text">Failed to load dashboard analytics.</p>
         <p className="mt-1 text-xs text-text-secondary">{alertsError.message}</p>
+        {onRetryAlerts ? (
+          <button
+            type="button"
+            onClick={onRetryAlerts}
+            className="mt-3 rounded border border-severity-high-border bg-severity-high-bg px-3 py-1 text-[11px] font-medium text-text-primary transition-colors hover:border-severity-high-accent"
+          >
+            Retry
+          </button>
+        ) : null}
       </div>
     )
   }
@@ -316,13 +328,20 @@ export default function DashboardAlertAnalytics({
           title="ML Confidence Bands"
           description="Confidence score distribution using backend ML-health thresholds."
         >
-          {isLoading ? (
+          {isPending ? (
             <div role="status" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
               Loading confidence thresholds...
             </div>
           ) : isError ? (
-            <div role="alert" className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
-              Unable to load confidence thresholds.
+            <div role="alert" className="flex min-h-44 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-light px-4 text-center text-sm text-text-secondary">
+              <span>Unable to load confidence thresholds.</span>
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded border border-border-light bg-bg-elevated px-3 py-1 text-[11px] font-medium text-text-primary transition-colors hover:border-severity-high-accent"
+              >
+                Retry
+              </button>
             </div>
           ) : thresholdsAvailable && confidenceBands ? (
             <>
@@ -332,7 +351,7 @@ export default function DashboardAlertAnalytics({
                 showStub
               />
               {alerts.length > 0 && confidenceBands[0].value === alerts.length ? (
-                <p className="mt-3 text-[9px] text-text-muted">
+                <p className="mt-3 text-[11px] text-text-muted">
                   All {alerts.length} requests scored high confidence.
                 </p>
               ) : null}
