@@ -614,7 +614,9 @@ export async function getStats(
 
   const query = new URLSearchParams()
   if (window) query.set('window', window)
-  if (timezoneName) query.set('timezone_name', timezoneName)
+  if (timezoneName && /^[A-Za-z]+\/[A-Za-z_]+$/.test(timezoneName)) {
+    query.set('timezone_name', timezoneName)
+  }
   const path = query.size > 0 ? `/api/stats?${query.toString()}` : '/api/stats'
   const upstream = await fetchUpstream(path, BackendStatsSchema)
   if (!upstream.ok) {
