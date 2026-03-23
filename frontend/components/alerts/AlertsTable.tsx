@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, Suspense } from 'react'
+import { useMemo, useSyncExternalStore, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
@@ -183,14 +183,14 @@ function AlertsTableContent({
   onSelectionChange,
   onAlertClick,
 }: AlertsTableProps) {
-  const [isHydrated, setIsHydrated] = useState(false)
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
 
   const params = useMemo(
     () => normalizeAlertSearchParams(searchParamsToRecord(searchParams)),
