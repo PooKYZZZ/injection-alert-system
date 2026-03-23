@@ -27,6 +27,9 @@ from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.health import health_check
 from web_app.presentation.middleware.body_limit import BodySizeLimitMiddleware
+from web_app.presentation.middleware.security_headers import (
+    SecurityHeadersMiddleware,
+)
 from web_app.presentation.schemas import HealthResponse
 from web_app.services.model_service import ModelService
 
@@ -101,6 +104,9 @@ def create_app() -> FastAPI:
 
     # --- Body size limit middleware (first in stack) ---
     app.add_middleware(BodySizeLimitMiddleware)
+
+    # --- Security headers middleware (second in stack) ---
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # --- CORS middleware ---
     # In production/staging, use more restrictive CORS settings
