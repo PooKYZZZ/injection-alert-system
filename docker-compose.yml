@@ -15,15 +15,36 @@ services:
     expose:
       - "8000"
     env_file:
-      - .env
+      - path: .env
+        required: false
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
     env_file:
-      - frontend/.env.local
+      - path: frontend/.env.local
+        required: false
     environment:
       FASTAPI_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+
+  bridge:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    command:
+      [
+        "python",
+        "scripts/waf_audit_bridge.py",
+        "--input",
+        "/fixtures/waf_event.jsonl",
+        "--endpoint",
+        "http://backend:8000/api/internal/waf-events",
+      ]
+    volumes:
+      - ./scripts/fixtures/waf_event.jsonl:/fixtures/waf_event.jsonl:ro
     depends_on:
       - backend
