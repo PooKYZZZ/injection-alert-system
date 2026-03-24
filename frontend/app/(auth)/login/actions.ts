@@ -1,10 +1,30 @@
 'use server'
 
 import { signIn } from '@/auth'
+import { AuthError } from 'next-auth'
 
-export async function loginAction(password: string): Promise<void> {
-  await signIn('credentials', {
-    password,
-    redirectTo: '/dashboard'
-  })
+export type LoginResult =
+  | { ok: true }
+  | { ok: false; code: 'INVALID_CREDENTIALS' | 'SERVER_ERROR' }
+
+export async function loginAction(password: string): Promise<LoginResult> {
+  try {
+    await signIn('credentials', {
+      password,
+      redirectTo: '/dashboard'
+    })
+
+    return { ok: true }
+  } catch (error) {
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      throw error
+    }
+
+    if (error instanceof AuthError && error.type === 'CredentialsSignin') {
+      return { ok: false, code: 'INVALID_CREDENTIALS' }
+    }
+
+    console.error('Login failed unexpectedly', error)
+    return { ok: false, code: 'SERVER_ERROR' }
+  }
 }

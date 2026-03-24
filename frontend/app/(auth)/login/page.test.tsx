@@ -9,7 +9,6 @@ vi.mock('next-auth', () => ({
 
 import LoginPage from './page'
 import { loginAction } from './actions'
-import { AuthError } from 'next-auth'
 
 vi.mock('./actions', () => ({
   loginAction: vi.fn(),
@@ -45,21 +44,32 @@ describe('LoginPage', () => {
     expect(passwordInput).toHaveAttribute('id', 'password')
   })
 
-  it('shows error message on AuthError', async () => {
+  it('shows incorrect password message on invalid credentials', async () => {
     const user = userEvent.setup()
-    mockedLoginAction.mockRejectedValue(new AuthError('CredentialsSignin'))
+    mockedLoginAction.mockResolvedValue({ ok: false, code: 'INVALID_CREDENTIALS' })
 
     render(<LoginPage />)
 
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Invalid password. Please try again.')).toBeInTheDocument()
+    expect(await screen.findByText('Incorrect password')).toBeInTheDocument()
   })
 
-  it('button is re-enabled after non-AuthError rejection (pending reset test)', async () => {
+  it('shows fallback message on unexpected sign-in failure', async () => {
     const user = userEvent.setup()
-    const tracker = captureNodeUnhandledRejections()
+    mockedLoginAction.mockResolvedValue({ ok: false, code: 'SERVER_ERROR' })
+
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByText('Unable to sign in right now')).toBeInTheDocument()
+  })
+
+  it('button is re-enabled after thrown non-redirect error', async () => {
+    const user = userEvent.setup()
     mockedLoginAction.mockRejectedValue(new Error('Unexpected failure'))
 
     render(<LoginPage />)
@@ -68,11 +78,11 @@ describe('LoginPage', () => {
     const button = screen.getByRole('button', { name: 'Sign in' })
     await user.click(button)
 
+    expect(await screen.findByText('Unable to sign in right now')).toBeInTheDocument()
+
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Sign in' })).not.toBeDisabled()
     })
-
-    tracker.stop()
   })
 
   it('does not swallow NEXT_REDIRECT error', async () => {
@@ -93,7 +103,7 @@ describe('LoginPage', () => {
       ).toBe(true)
     })
 
-    expect(screen.queryByText('Invalid password. Please try again.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Incorrect password')).not.toBeInTheDocument()
 
     tracker.stop()
   })

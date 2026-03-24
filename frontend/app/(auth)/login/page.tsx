@@ -1,32 +1,35 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthError } from 'next-auth'
 import { Shield, Lock, Activity } from 'lucide-react'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
 
   const handleSubmit = async () => {
-    setError(false)
+    setErrorMessage(null)
     setPending(true)
 
     try {
-      await loginAction(password)
+      const result = await loginAction(password)
+
+      if (!result.ok) {
+        setErrorMessage(
+          result.code === 'INVALID_CREDENTIALS'
+            ? 'Incorrect password'
+            : 'Unable to sign in right now'
+        )
+      }
     } catch (e) {
       if (e instanceof Error && e.message === 'NEXT_REDIRECT') {
         throw e
       }
 
-      if (e instanceof AuthError) {
-        setError(true)
-        return
-      }
-      throw e
+      setErrorMessage('Unable to sign in right now')
     } finally {
       setPending(false)
     }
@@ -79,10 +82,10 @@ export default function LoginPage() {
             <h2 className="text-[22px] font-semibold" style={{ color: 'var(--color-text-primary)' }}>Sign in</h2>
             <p className="mt-1 text-[13px]" style={{ color: 'var(--color-text-secondary)' }}>Enter your access password to continue</p>
           </div>
-          {error && (
+          {errorMessage && (
             <div className="mb-5 px-3 py-2.5 rounded-lg flex items-center gap-2 text-[12px]" style={{ background: 'rgba(45,27,27,0.8)', border: '1px solid var(--color-severity-high-border)', color: 'var(--color-severity-high-text)' }}>
               <Lock size={12} />
-              Invalid password. Please try again.
+              {errorMessage}
             </div>
           )}
           <div className="mb-4">
