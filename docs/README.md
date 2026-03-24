@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-03-23
+Last updated: 2026-03-24
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
@@ -55,7 +55,10 @@ This folder is the maintained documentation surface for the repository. It is in
 - The Next.js dashboard BFF is wired for alerts, alert detail, triage, stats, and ML health through `frontend/lib/bff-client.ts`
 - USE_MOCK_API=false (hitting real FastAPI)
 - Supabase is the active hosted PostgreSQL boundary for the app runtime
-- Docker Compose, Dockerfiles, and runnable ModSecurity wiring are not in the repo yet
+- Dockerfiles and `docker-compose.yml` are present for local smoke testing
+- The local Compose stack currently publishes the frontend on `localhost:3000`
+- The backend and ModSecurity stay internal to the Compose network
+- ModSecurity is internally wired to the backend, but it is not yet the browser-facing runtime boundary
 
 ## Documentation Rules For This Repo
 

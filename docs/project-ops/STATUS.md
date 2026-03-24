@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status  
 **Defense:** May 2026  
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-24
 
 ---
 
@@ -62,7 +62,7 @@
 
 ## Open Gaps (Current, Not Historical)
 
-- Docker Compose + runnable ModSecurity integration is still not implemented.
+- Docker Compose exists, but ModSecurity is not yet the browser-facing runtime boundary.
 - Redis-backed enforcement and queue behavior is still not implemented in the repo runtime.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
 

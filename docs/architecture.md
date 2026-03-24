@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-03-23
+Last updated: 2026-03-24
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -17,7 +17,7 @@ flowchart LR
     DB --> Supabase["Supabase PostgreSQL"]
 
     SQLite["SQLite (tests / isolated local work)"] -. optional .-> DB
-    ModSec["ModSecurity + CRS"] -. planned .-> FastAPI
+    ModSec["ModSecurity + CRS (internal Compose path)"] -. internal only .-> FastAPI
     Redis["Redis 7"] -. planned .-> FastAPI
 ```
 
@@ -116,10 +116,15 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Model configs live under `config/models/`
 - Current runtime defaults align with the DistilBERT staging path and the locked confidence thresholds
 
+## What Is Present But Not Yet The Primary Runtime Path
+
+- A local `docker-compose.yml`
+- Backend and frontend Dockerfiles
+- An internal Compose ModSecurity + OWASP CRS bridge to the backend
+
 ## What Is Planned, Not Implemented
 
-- Docker Compose based local stack
-- Runnable ModSecurity + OWASP CRS bridge
+- ModSecurity as the browser-facing runtime boundary
 - Redis-backed IP blocklist, rate-limit state, and low-confidence queue
 - Full repo-managed export and automation of Supabase policy state
 

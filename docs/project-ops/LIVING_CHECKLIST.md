@@ -3,7 +3,7 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-24
 
 Status note:
 - Current test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed
@@ -49,8 +49,8 @@ Status note:
 
 ## Open Backlog
 
-- [ ] Docker Compose based local stack
-- [ ] Runnable ModSecurity + CRS bridge
+- [ ] Put ModSecurity in the real browser-facing path without violating `Browser -> Next.js -> FastAPI`
+- [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
 - [ ] Repo-managed export and verification of Supabase policy / RLS state
 - [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
