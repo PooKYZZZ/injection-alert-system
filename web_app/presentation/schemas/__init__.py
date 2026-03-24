@@ -22,6 +22,9 @@ from web_app.presentation.schemas.schemas import (
     TriageIngestResponse,
     TriageUpdateRequest,
 )
+from web_app.presentation.schemas.waf_ingest import (
+    WafIngestRequest,
+)
 
 __all__ = [
     "ActivityBucketSchema",
@@ -41,4 +44,5 @@ __all__ = [
     "TriageIngestRequest",
     "TriageIngestResponse",
     "TriageUpdateRequest",
+    "WafIngestRequest",
 ]
