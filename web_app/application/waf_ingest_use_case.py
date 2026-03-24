@@ -38,6 +38,7 @@ class WafIngestUseCase:
         *,
         transaction_id: str,
         timestamp: datetime,
+        ingest_source: str = "modsec_audit_bridge",
         source_ip: str,
         request_method: str,
         request_path: str,
@@ -65,9 +66,6 @@ class WafIngestUseCase:
             sanitized_headers = sanitized.get("request_headers") or {}
             sanitized_body = sanitized.get("sanitized_body") or ""
 
-        if sanitized_body:
-            http_request = f"{http_request}\n\n{sanitized_body}"
-
         command = TriageIngestCommand(
             transaction_id=transaction_id,
             timestamp=timestamp,
@@ -75,10 +73,13 @@ class WafIngestUseCase:
             request_method=request_method,
             request_uri=request_path,
             request_headers=sanitized_headers,
-            request_body="",
+            request_body=sanitized_body,
             http_request=http_request,
             crs_score=crs_score,
             crs_rule_ids=crs_rule_ids,
+            ingest_source=ingest_source,
+            matched_rule_messages=matched_rule_messages,
+            matched_rule_tags=matched_rule_tags,
         )
 
         return await self._triage.ingest(command)

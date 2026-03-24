@@ -234,6 +234,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "http_request": entity.http_request,
             "crs_score": entity.crs_score,
             "crs_rule_ids": entity.crs_rule_ids,
+            "ingest_source": entity.ingest_source,
+            "matched_rule_messages": entity.matched_rule_messages,
+            "matched_rule_tags": entity.matched_rule_tags,
             "prediction": entity.prediction,
             "confidence": entity.confidence,
             "confidence_level": entity.confidence_level,
@@ -272,6 +275,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             http_request=orm_obj.http_request,
             crs_score=orm_obj.crs_score,
             crs_rule_ids=orm_obj.crs_rule_ids,
+            ingest_source=orm_obj.ingest_source,
+            matched_rule_messages=orm_obj.matched_rule_messages,
+            matched_rule_tags=orm_obj.matched_rule_tags,
             prediction=orm_obj.prediction,
             confidence=orm_obj.confidence,
             confidence_level=orm_obj.confidence_level,
@@ -317,6 +323,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "http_request": entity.http_request,
             "crs_score": entity.crs_score,
             "crs_rule_ids": entity.crs_rule_ids,
+            "ingest_source": entity.ingest_source,
+            "matched_rule_messages": entity.matched_rule_messages,
+            "matched_rule_tags": entity.matched_rule_tags,
             "prediction": entity.prediction,
             "confidence": entity.confidence,
             "confidence_level": entity.confidence_level,
@@ -369,6 +378,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "http_request": entity.http_request,
             "crs_score": entity.crs_score,
             "crs_rule_ids": entity.crs_rule_ids,
+            "ingest_source": entity.ingest_source,
+            "matched_rule_messages": entity.matched_rule_messages,
+            "matched_rule_tags": entity.matched_rule_tags,
             "status": "PROCESSING",
         }
 
@@ -407,6 +419,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "http_request": entity.http_request,
             "crs_score": entity.crs_score,
             "crs_rule_ids": entity.crs_rule_ids,
+            "ingest_source": entity.ingest_source,
+            "matched_rule_messages": entity.matched_rule_messages,
+            "matched_rule_tags": entity.matched_rule_tags,
             "status": "PROCESSING",
             "lease_expires_at": lease_expires_at,
             "processing_owner_token": owner_token,
@@ -452,6 +467,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 http_request=entity.http_request,
                 crs_score=entity.crs_score,
                 crs_rule_ids=entity.crs_rule_ids,
+                ingest_source=entity.ingest_source,
+                matched_rule_messages=entity.matched_rule_messages,
+                matched_rule_tags=entity.matched_rule_tags,
                 status="PROCESSING",
                 lease_expires_at=lease_expires_at,
                 processing_owner_token=owner_token,
@@ -584,21 +602,23 @@ class TrafficLogRepository(ITrafficLogRepository):
                 ),
                 func.avg(TrafficLog.confidence).label("avg_confidence"),
                 func.count(TrafficLog.confidence).label("confidence_count"),
-                func.count().filter(TrafficLog.action_taken == "BLOCKED").label(
-                    "blocked_count"
-                ),
-                func.count().filter(TrafficLog.action_taken == "ALLOWED").label(
-                    "allowed_count"
-                ),
-                func.count().filter(TrafficLog.action_taken == "THROTTLED").label(
-                    "throttled_count"
-                ),
-                func.count().filter(
+                func.count()
+                .filter(TrafficLog.action_taken == "BLOCKED")
+                .label("blocked_count"),
+                func.count()
+                .filter(TrafficLog.action_taken == "ALLOWED")
+                .label("allowed_count"),
+                func.count()
+                .filter(TrafficLog.action_taken == "THROTTLED")
+                .label("throttled_count"),
+                func.count()
+                .filter(
                     and_(
                         TrafficLog.action_taken == "ALLOWED",
                         TrafficLog.prediction != "Normal",
                     )
-                ).label("false_positive_count"),
+                )
+                .label("false_positive_count"),
             ).where(*filters)
         )
         row = result.one()
@@ -607,12 +627,17 @@ class TrafficLogRepository(ITrafficLogRepository):
             if row.confidence_count and row.confidence_count > 0
             else None
         )
-        return row, avg_confidence, {
-            "total_requests": int(row.total_requests or 0),
-            "blocked_count": int(row.blocked_count or 0),
-            "allowed_count": int(row.allowed_count or 0),
-            "throttled_count": int(row.throttled_count or 0),
-        }, int(row.false_positive_count or 0)
+        return (
+            row,
+            avg_confidence,
+            {
+                "total_requests": int(row.total_requests or 0),
+                "blocked_count": int(row.blocked_count or 0),
+                "allowed_count": int(row.allowed_count or 0),
+                "throttled_count": int(row.throttled_count or 0),
+            },
+            int(row.false_positive_count or 0),
+        )
 
     async def _get_avg_confidence(
         self,

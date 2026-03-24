@@ -48,6 +48,9 @@ class TriageIngestCommand:
     http_request: str
     crs_score: int
     crs_rule_ids: list[str]
+    ingest_source: str | None = None
+    matched_rule_messages: list[str] | None = None
+    matched_rule_tags: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,9 @@ class TriageUseCase:
                 http_request=self._build_persisted_http_request(command),
                 crs_score=command.crs_score,
                 crs_rule_ids=command.crs_rule_ids,
+                ingest_source=command.ingest_source,
+                matched_rule_messages=command.matched_rule_messages,
+                matched_rule_tags=command.matched_rule_tags,
                 status="PROCESSING",
             ),
             owner_token=owner_token,
@@ -212,7 +218,7 @@ class TriageUseCase:
         )
         try:
             confidence = float(raw_result.get("confidence", 0.0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             confidence = 0.0
 
         # Fail-safe: if model output is missing required fields, default to

@@ -127,6 +127,42 @@ async def test_get_by_transaction_id_returns_entity(
 
 
 @pytest.mark.asyncio
+async def test_save_and_reload_preserves_waf_metadata(
+    repository: TrafficLogRepository,
+):
+    saved = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-waf-meta-1",
+            source_ip="203.0.113.10",
+            request_path="/login",
+            request_method="POST",
+            http_request="POST /login HTTP/1.1",
+            crs_score=12,
+            crs_rule_ids=["942100", "949110"],
+            ingest_source="modsec_audit_bridge",
+            matched_rule_messages=["SQL Injection Attack Detected via libinjection"],
+            matched_rule_tags=["attack-sqli", "paranoia-level/1"],
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            action_taken="BLOCKED",
+        )
+    )
+
+    reloaded = await repository.get_by_transaction_id("txn-waf-meta-1")
+
+    assert reloaded is not None
+    assert reloaded.id == saved.id
+    assert reloaded.crs_score == 12
+    assert reloaded.crs_rule_ids == ["942100", "949110"]
+    assert reloaded.ingest_source == "modsec_audit_bridge"
+    assert reloaded.matched_rule_messages == [
+        "SQL Injection Attack Detected via libinjection"
+    ]
+    assert reloaded.matched_rule_tags == ["attack-sqli", "paranoia-level/1"]
+
+
+@pytest.mark.asyncio
 async def test_get_alert_list_preserves_filtered_total_when_page_is_empty(
     repository: TrafficLogRepository,
 ):

@@ -17,7 +17,7 @@ def test_traffic_log_model_creation():
         prediction="Normal",
         confidence=0.95,
         confidence_level="HIGH",
-        action_taken="ALLOWED"
+        action_taken="ALLOWED",
     )
     session.add(log)
     session.commit()
@@ -45,7 +45,7 @@ def test_traffic_log_has_all_required_fields():
         confidence_level="HIGH",
         action_taken="BLOCKED",
         analyst_label="False Positive",
-        labeled_by="analyst@example.com"
+        labeled_by="analyst@example.com",
     )
     session.add(log)
     session.commit()
@@ -73,3 +73,38 @@ def test_traffic_log_orm_column_types():
     assert hasattr(TrafficLog, "analyst_label")
     assert hasattr(TrafficLog, "labeled_at")
     assert hasattr(TrafficLog, "labeled_by")
+    assert hasattr(TrafficLog, "ingest_source")
+    assert hasattr(TrafficLog, "matched_rule_messages")
+    assert hasattr(TrafficLog, "matched_rule_tags")
+
+
+def test_traffic_log_persists_waf_metadata_columns():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    log = TrafficLog(
+        source_ip="203.0.113.10",
+        http_request="POST /login HTTP/1.1",
+        crs_score=10,
+        crs_rule_ids=["942100"],
+        ingest_source="modsec_audit_bridge",
+        matched_rule_messages=["SQL Injection Attack Detected via libinjection"],
+        matched_rule_tags=["attack-sqli"],
+        prediction="SQL Injection",
+        confidence=0.9,
+        confidence_level="HIGH",
+        action_taken="BLOCKED",
+    )
+    session.add(log)
+    session.commit()
+
+    retrieved = session.query(TrafficLog).filter_by(id=log.id).first()
+
+    assert retrieved is not None
+    assert retrieved.ingest_source == "modsec_audit_bridge"
+    assert retrieved.matched_rule_messages == [
+        "SQL Injection Attack Detected via libinjection"
+    ]
+    assert retrieved.matched_rule_tags == ["attack-sqli"]
