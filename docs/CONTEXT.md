@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-03-23  
+Updated: 2026-03-24  
 Defense: May 2026  
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -16,17 +16,17 @@ The repository currently contains:
 - Documentation and academic deliverables under `docs/`
 - A live Supabase-backed PostgreSQL runtime path for application data
 
-This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase is in a post-merge documentation-hardening phase with the current app and Supabase runtime path already live.
+This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase now includes Dockerfiles and a `docker-compose.yml` for local smoke work, but the browser-facing runtime path is still the Next.js BFF path, not a completed ModSecurity-fronted deployment.
 
-## Verified Status (2026-03-23)
+## Verified Status (2026-03-24)
 
-### Checks run on 2026-03-23
+### Checks run on 2026-03-24
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
+- Backend tests: `python3 -m pytest -q` → **294 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **74 passed**
 - Full frontend suite:
   - `cd frontend && npx vitest run` → **122 passed**
 - Frontend build:
@@ -39,6 +39,7 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
   - Protected by backend bearer auth:
     - `POST /api/predict`
     - `POST /api/triage`
+    - `POST /api/internal/waf-events`
     - `GET /api/alerts`
     - `GET /api/alerts/{id}`
     - `PATCH /api/alerts/{id}/triage`
@@ -52,6 +53,7 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
 - In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
 - Internal backend routes are protected by bearer-token auth using `API_SECRET_KEY`
+- WAF ingress now uses a dedicated internal route (`POST /api/internal/waf-events`) and delegates to the existing triage policy path.
 
 ### Frontend
 
@@ -73,6 +75,7 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
     - `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
+  - alert normalization includes optional WAF evidence metadata fields (`ingest_source`, `matched_rule_messages`, `matched_rule_tags`)
 
 ### Database
 
@@ -82,11 +85,16 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
 - The app runtime is wired to a Supabase-backed PostgreSQL boundary
 - Supabase policy and operational hardening steps are still partly external to repo automation
 
-## Not Yet Implemented
+## Present But Not Yet The Primary Runtime
 
 - Root `docker-compose.yml`
 - Dockerfiles for frontend and backend
-- Runnable ModSecurity or CRS config under the repo
+- Internal Compose ModSecurity wiring that proxies to `backend`
+- Compose bridge service and fixture path for WAF ingest smoke verification (`scripts/waf_audit_bridge.py`)
+
+## Not Yet Implemented
+
+- ModSecurity as the browser-facing runtime boundary
 - Redis-backed enforcement and review queue behavior
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 
@@ -94,5 +102,5 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
 
 - The active model artifact path is `ml_model/model_registry/`.
 - The repo already has more backend startup work and frontend structure than older docs suggested.
-- The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets, working BFF-to-FastAPI wiring, and a live Supabase-backed data boundary.
+- The repo is not yet an end-to-end WAF deployment. It is a documented application codebase with ML assets, working BFF-to-FastAPI wiring, a live Supabase-backed data boundary, and a local Docker smoke path.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.

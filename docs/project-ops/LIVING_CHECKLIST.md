@@ -3,10 +3,10 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-24
 
 Status note:
-- Current test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 294 passed, focused vitest 74 passed, typecheck passed, lint passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 
 ---
@@ -14,10 +14,10 @@ Status note:
 ## Current Verified State (2026-03-23)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
+- Backend: `python3 -m pytest -q` → **294 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **74 passed**
 - Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
@@ -30,6 +30,7 @@ Status note:
 - `GET /api/stats` ✓
 - `GET /api/ml-health` ✓
 - `POST /api/feedback` ✓
+- `POST /api/internal/waf-events` ✓
 - `GET /health` ✓
 - `GET /api/health` ✓
 
@@ -49,11 +50,22 @@ Status note:
 
 ## Open Backlog
 
-- [ ] Docker Compose based local stack
-- [ ] Runnable ModSecurity + CRS bridge
+- [ ] Put ModSecurity in the real browser-facing path without violating `Browser -> Next.js -> FastAPI`
 - [ ] Redis-backed enforcement or review-queue state
 - [ ] Repo-managed export and verification of Supabase policy / RLS state
 - [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
+
+---
+
+## WAF Ingest Slice (Phase 1)
+
+- [x] Internal WAF ingest schema and sanitization path
+- [x] WAF ingest use case integrated with existing triage policy (`BLOCKED`, `THROTTLED`, `ALLOWED`)
+- [x] WAF metadata persisted in `traffic_logs` (`ingest_source`, `matched_rule_messages`, `matched_rule_tags`)
+- [x] Internal endpoint `POST /api/internal/waf-events` with bearer auth
+- [x] BFF normalization extended to carry WAF metadata
+- [x] Analyst alerts table verified to render CRS score and compact rule IDs
+- [x] Bridge script + compose bridge service added for local smoke wiring
 
 ---
 

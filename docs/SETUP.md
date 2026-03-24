@@ -1,8 +1,8 @@
 # Local Setup
 
-Last updated: 2026-03-23
+Last updated: 2026-03-24
 
-This guide reflects the repo as it exists now. It supports local backend and frontend development against the current app runtime. It does not assume Docker Compose, ModSecurity, or Redis are already wired in this repository.
+This guide reflects the repo as it exists now. It supports both direct local development and a Docker-based smoke path. Docker Compose and ModSecurity now exist in the repo, but the browser-facing runtime boundary still remains `Browser -> Next.js -> FastAPI`, not `Browser -> ModSecurity -> FastAPI`.
 
 ## Prerequisites
 
@@ -93,6 +93,7 @@ Current API surface:
 - Protected by backend bearer auth:
   - `POST /api/predict`
   - `POST /api/triage`
+  - `POST /api/internal/waf-events`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
@@ -214,11 +215,111 @@ So the current local dashboard can run fully against the backend, with optional 
 
 The following are not yet available as runnable repo-level setup paths:
 
-- `docker compose up --build`
-- ModSecurity + CRS local runtime
+- ModSecurity as the browser-facing runtime boundary
 - Redis-backed review queue or enforcement state
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
+
+## 5A. Docker Smoke Setup
+
+### Required files
+
+- Root `.env`
+- `frontend/.env.local`
+
+Those files are mounted into the containers via `docker-compose.yml`.
+
+### Start the stack
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+Expected services:
+
+- `frontend`
+- `backend`
+- `modsecurity`
+- `bridge`
+
+### Current Docker network truth
+
+- `frontend` is published on `http://localhost:3000`
+- `backend` is internal only
+- `modsecurity` is internal only
+- `frontend` talks to `backend` using `FASTAPI_BASE_URL=http://backend:8000`
+- `modsecurity` proxies to `backend` using `BACKEND=http://backend:8000`
+
+This means:
+
+- Browser path today: `Browser -> frontend -> backend`
+- Internal ModSecurity path today: `modsecurity -> backend`
+- WAF ingest bridge path today: `bridge -> backend (/api/internal/waf-events)`
+
+ModSecurity is connected to the backend, but it is not currently in front of browser traffic.
+
+### WAF ingest bridge smoke check
+
+The bridge reads JSON-lines events (fixture included at `scripts/fixtures/waf_event.jsonl`) and posts sanitized payloads to the internal ingest endpoint.
+
+```powershell
+docker compose logs bridge
+```
+
+Expected bridge output pattern:
+
+- `bridge summary: total=... success=... failed=...`
+
+Direct local unit validation without Compose:
+
+```powershell
+python3 -m pytest tests/scripts/test_waf_audit_bridge.py -q
+python3 -m pytest tests/integration/test_waf_ingest_route.py -q
+```
+
+Important phase-1 limitation:
+
+- This is detect-and-forward ingest only. No live blocking or throttling is enforced by the bridge.
+
+### Backend health checks in Docker
+
+The backend image does not include `curl`, so use Python from inside the container:
+
+```powershell
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+```
+
+### Frontend smoke check
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://localhost:3000 | Select-Object -ExpandProperty StatusCode
+```
+
+Expected result: `200`
+
+### Running the demo seeder
+
+The repo does track `seed_demo.py`, but it currently targets `http://127.0.0.1:8000`.
+
+Implications:
+
+- From the host machine, it will fail against Docker because the backend is not published to host port `8000`
+- From inside the `backend` container, it talks directly to FastAPI and bypasses ModSecurity
+- It does not currently exercise the ModSecurity path
+
+To run it against the backend container directly:
+
+```powershell
+docker compose exec backend python seed_demo.py
+```
+
+### Stop the stack
+
+```powershell
+docker compose down
+```
 
 ## 6. Troubleshooting
 
