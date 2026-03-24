@@ -218,7 +218,7 @@ class TriageUseCase:
         )
         try:
             confidence = float(raw_result.get("confidence", 0.0))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             confidence = 0.0
 
         # Fail-safe: if model output is missing required fields, default to
@@ -250,10 +250,13 @@ class TriageUseCase:
     def _build_persisted_http_request(command: TriageIngestCommand) -> str:
         # Retention decision: request_headers and request_body are accepted for
         # ingest fidelity but folded into the single http_request column.
+        # Persist the path-only request line so WAF query strings are not stored
+        # in analyst-facing evidence while the classifier can still score them.
+        request_line = f"{command.request_method} {command.request_uri} HTTP/1.1"
         header_lines = "\n".join(
             f"{key}: {value}" for key, value in command.request_headers.items()
         )
-        parts = [command.http_request]
+        parts = [request_line]
         if header_lines:
             parts.append(f"\nHeaders:\n{header_lines}")
         if command.request_body:

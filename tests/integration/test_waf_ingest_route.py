@@ -133,3 +133,51 @@ def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     )
 
     assert response.status_code == 422
+
+
+def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-lookup-1"
+    ingest_response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=INTERNAL_HEADERS,
+    )
+    assert ingest_response.status_code == 200
+
+    response = client.get(
+        "/api/internal/waf-events/waf-txn-lookup-1",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is True
+    assert body["transaction_id"] == "waf-txn-lookup-1"
+    assert body["alert_id"] is not None
+    assert body["ingest_source"] == "modsec_audit_bridge"
+
+
+def test_waf_ingest_lookup_returns_not_found_for_unknown_transaction_id(
+    waf_api_client,
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.get(
+        "/api/internal/waf-events/waf-txn-missing",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["found"] is False
+    assert body["transaction_id"] == "waf-txn-missing"
+    assert body["alert_id"] is None

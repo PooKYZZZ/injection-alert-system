@@ -54,6 +54,7 @@ from web_app.presentation.schemas import (
     TriageIngestResponse,
     TriageUpdateRequest,
     WafIngestRequest,
+    WafIngestLookupResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,39 @@ async def ingest_waf_event(
         confidence_level=result.confidence_level,
         action_taken=result.action_taken,
         model_version=result.model_version,
+    )
+
+
+@internal_router.get(
+    "/internal/waf-events/{transaction_id}",
+    response_model=WafIngestLookupResponse,
+)
+async def get_waf_ingest_by_transaction_id(
+    transaction_id: str,
+    repository: TrafficLogRepository = Depends(get_repository),
+):
+    entity = await repository.get_by_transaction_id(transaction_id)
+    if entity is None:
+        return WafIngestLookupResponse(
+            found=False,
+            transaction_id=transaction_id,
+        )
+
+    return WafIngestLookupResponse(
+        found=True,
+        transaction_id=transaction_id,
+        alert_id=entity.id,
+        status=entity.status,
+        prediction=entity.prediction,
+        confidence=entity.confidence,
+        confidence_level=entity.confidence_level,
+        action_taken=entity.action_taken,
+        ingest_source=entity.ingest_source,
+        crs_score=entity.crs_score,
+        crs_rule_ids=entity.crs_rule_ids,
+        matched_rule_messages=entity.matched_rule_messages,
+        matched_rule_tags=entity.matched_rule_tags,
+        timestamp=entity.timestamp,
     )
 
 

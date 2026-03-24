@@ -97,6 +97,9 @@ async def test_ingest_builds_http_request_from_structured_fields():
     http_request_arg = classifier.predict.call_args[0][0]
     assert "post" in http_request_arg.lower()
     assert "/api/login" in http_request_arg
+    saved_entity = repository.claim_or_reclaim_processing.call_args[0][0]
+    assert "debug=true" not in saved_entity.http_request
+    assert "POST /api/login HTTP/1.1" in saved_entity.http_request
 
 
 @pytest.mark.asyncio

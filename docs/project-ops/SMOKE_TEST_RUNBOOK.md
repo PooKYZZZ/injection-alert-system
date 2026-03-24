@@ -1,9 +1,9 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-24
 **Audience:** Any teammate with zero prior context.
 
-This runbook walks through starting the current repo Docker stack, seeding demo data, verifying every dashboard page loads, and confirming that a triage update persists through the real `triage_status` contract.
+This runbook walks through starting the current repo Docker stack, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
 > **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, while backend and ModSecurity stay internal to the compose network.
 
@@ -58,8 +58,10 @@ For example: `docker compose logs backend`
 
 ## Step 3 — Verify Backend Health
 
+The backend image does not include `curl`, so use Python inside the container:
+
 ```powershell
-docker compose exec backend curl -f http://localhost:8000/health
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
 ```
 
 **Expected response (HTTP 200):**
@@ -71,7 +73,7 @@ docker compose exec backend curl -f http://localhost:8000/health
 Also verify the API health endpoint:
 
 ```powershell
-docker compose exec backend curl -f http://localhost:8000/api/health
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 ```
 
 **Expected response (HTTP 200):**
@@ -84,17 +86,23 @@ docker compose exec backend curl -f http://localhost:8000/api/health
 
 ---
 
-## Step 4 — Seed Demo Data
+## Step 4 — Optional Demo Data Seeding
 
-This repository does not currently track a demo-seeding script. If you already
-have a local utility for generating demo alerts, run it now using the backend
-container or your own local setup.
+This repository does track `seed_demo.py`, but it targets `127.0.0.1:8000`.
 
-**Expected output:** The running system should end up with a small set of alert
-rows so the dashboard and triage flow have data to show.
+That means:
 
-> **Note:** Keep this step optional. The rest of the runbook should still work
-> if the database already contains alert rows.
+- running it on the host will fail in Docker mode because backend is not host-published
+- running it inside the backend container will hit FastAPI directly
+- it will not exercise the ModSecurity path
+
+If you want to seed directly into the backend container:
+
+```powershell
+docker compose exec backend python seed_demo.py
+```
+
+Treat this step as optional. The rest of the runbook still works if the database already contains alert rows.
 
 ---
 
@@ -109,6 +117,8 @@ http://localhost:3000/login
 Enter the demo password (the value of `SOC_DEMO_PASSWORD` from your `frontend/.env.local`; the default is `demo1234`).
 
 You should be redirected to the dashboard.
+
+If the login button appears unresponsive or the dashboard remains on skeletons, rebuild and restart the frontend container. The production CSP must allow inline scripts for Next.js hydration.
 
 ---
 
@@ -221,10 +231,10 @@ docker compose up --build -d
 docker compose ps
 
 # 3. Backend health
-docker compose exec backend curl -f http://localhost:8000/health
-docker compose exec backend curl -f http://localhost:8000/api/health
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 
-# 4. Seed demo data (inside container)
+# 4. Optional demo data seeding (inside container)
 docker compose exec backend python seed_demo.py
 
 # 5. Open browser to http://localhost:3000/login and log in
@@ -268,13 +278,12 @@ Common causes:
 ### Seeding utility fails with connection error
 
 - Ensure the backend container is running: `docker compose ps`.
-- If you are using a local seeding utility, run it against the backend container
-  or adjust it to match the current compose networking.
+- `seed_demo.py` targets `127.0.0.1:8000`, so it must be run inside the backend container in Docker mode.
+- If you want to test the ModSecurity path, do not use `seed_demo.py` unchanged.
 
-### Triage PATCH is blocked by ModSecurity
+### ModSecurity routing expectation
 
-- In the current compose file, ModSecurity is internal-only. If the BFF-mediated PATCH fails, use the backend container directly:
-
-```powershell
-docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{"status":"CONFIRMED","analyst_notes":"smoke test"}'
-```
+- In the current compose file, ModSecurity is internal-only.
+- Browser traffic on `localhost:3000` does not pass through ModSecurity.
+- ModSecurity does proxy to `backend` inside the Compose network.
+- Direct backend container calls are valid for smoke verification, but they bypass ModSecurity.

@@ -275,6 +275,23 @@ class TriageUpdateRequest(BaseModel):
     ] = Field(..., description="Triage status to set on the alert")
 
 
+class WafIngestLookupResponse(BaseModel):
+    found: bool
+    transaction_id: str
+    alert_id: int | None = None
+    status: str | None = None
+    prediction: str | None = None
+    confidence: float | None = None
+    confidence_level: ConfidenceLevel | None = None
+    action_taken: ActionTaken | None = None
+    ingest_source: str | None = None
+    crs_score: int | None = None
+    crs_rule_ids: list[str] | None = None
+    matched_rule_messages: list[str] | None = None
+    matched_rule_tags: list[str] | None = None
+    timestamp: datetime | None = None
+
+
 class HealthResponse(BaseModel):
     """Response schema for health check endpoint."""
 
