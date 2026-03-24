@@ -3,6 +3,8 @@ services:
     image: owasp/modsecurity-crs:nginx-alpine
     expose:
       - "80"
+    ports:
+      - "8088:8080"
     environment:
       BACKEND: http://backend:8000
       PARANOIA: 1
@@ -12,18 +14,45 @@ services:
 
   backend:
     build: .
+    command:
+      [
+        "sh",
+        "-c",
+        "alembic upgrade head && uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+      ]
     expose:
       - "8000"
     env_file:
-      - .env
+      - path: .env
+        required: true
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
     env_file:
-      - frontend/.env.local
+      - path: frontend/.env.local
+        required: false
     environment:
       FASTAPI_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+
+  bridge:
+    build: .
+    env_file:
+      - path: .env
+        required: true
+    command:
+      [
+        "python",
+        "scripts/waf_audit_bridge.py",
+        "--input",
+        "/fixtures/waf_event.jsonl",
+        "--endpoint",
+        "http://backend:8000/api/internal/waf-events",
+      ]
+    volumes:
+      - ./scripts/fixtures/waf_event.jsonl:/fixtures/waf_event.jsonl:ro
     depends_on:
       - backend

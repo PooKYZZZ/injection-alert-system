@@ -167,4 +167,46 @@ describe('AlertsTable', () => {
     await vi.advanceTimersByTimeAsync(250)
     expect(screen.queryByRole('button', { name: /^Save$/i })).not.toBeInTheDocument()
   })
+
+  it('shows CRS score and compact rule IDs when WAF evidence is present', async () => {
+    mockedUseAlerts.mockReturnValue(
+      buildQueryResult({
+        data: {
+          items: [sampleAlert],
+          total: 1,
+          page: 1,
+          pageSize: 25,
+        },
+      })
+    )
+
+    render(<AlertsTable />)
+
+    expect(await screen.findByText('8.50')).toBeInTheDocument()
+    expect(screen.getByText('942100')).toBeInTheDocument()
+  })
+
+  it('renders alerts without WAF evidence fields', async () => {
+    mockedUseAlerts.mockReturnValue(
+      buildQueryResult({
+        data: {
+          items: [
+            {
+              ...sampleAlert,
+              alert_id: 'alert-2',
+              crs_score: undefined,
+              crs_rule_ids: null,
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 25,
+        },
+      })
+    )
+
+    render(<AlertsTable />)
+
+    expect(await screen.findByText('SQL Injection')).toBeInTheDocument()
+  })
 })

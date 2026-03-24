@@ -23,7 +23,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.application.feedback_use_case import FeedbackUseCase
-from web_app.application.triage_use_case import TriageUseCase
+from web_app.application.triage_use_case import (
+    ModelNotReadyError,
+    TriageInProgressError,
+    TriageUseCase,
+)
+from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
@@ -46,7 +51,10 @@ from web_app.presentation.schemas import (
     SourceIPSummarySchema,
     StatsResponse,
     TargetPathSummarySchema,
+    TriageIngestResponse,
     TriageUpdateRequest,
+    WafIngestRequest,
+    WafIngestLookupResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,6 +107,97 @@ async def predict(
         confidence=result.confidence,
         confidence_level=result.confidence_level,
         action_taken=result.action_taken,
+    )
+
+
+@internal_router.post(
+    "/internal/waf-events",
+    response_model=TriageIngestResponse,
+    responses={
+        409: {
+            "description": "WAF ingest is already processing for this transaction_id"
+        },
+        503: {"description": "Model service is unavailable or not ready"},
+    },
+)
+async def ingest_waf_event(
+    payload: WafIngestRequest,
+    model_service=Depends(get_model_service),
+    repository: TrafficLogRepository = Depends(get_repository),
+):
+    settings = get_settings()
+    use_case = WafIngestUseCase(
+        classifier=model_service,
+        repository=repository,
+        stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
+        enable_preprocessing=settings.enable_http_model_preprocessing,
+    )
+
+    try:
+        result = await use_case.execute(
+            transaction_id=payload.transaction_id,
+            timestamp=payload.timestamp,
+            ingest_source=payload.ingest_source,
+            source_ip=payload.source_ip,
+            request_method=payload.request_method,
+            request_path=payload.request_path,
+            query_string=payload.query_string,
+            request_headers=payload.request_headers,
+            sanitized_body=payload.sanitized_body or "",
+            crs_score=payload.crs_score,
+            crs_rule_ids=payload.crs_rule_ids,
+            matched_rule_messages=payload.matched_rule_messages,
+            matched_rule_tags=payload.matched_rule_tags,
+        )
+    except ModelNotReadyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TriageInProgressError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers={"Retry-After": "5"},
+        ) from exc
+
+    return TriageIngestResponse(
+        alert_id=result.alert_id,
+        prediction=result.prediction,
+        confidence=result.confidence,
+        confidence_level=result.confidence_level,
+        action_taken=result.action_taken,
+        model_version=result.model_version,
+    )
+
+
+@internal_router.get(
+    "/internal/waf-events/{transaction_id}",
+    response_model=WafIngestLookupResponse,
+)
+async def get_waf_ingest_by_transaction_id(
+    transaction_id: str,
+    repository: TrafficLogRepository = Depends(get_repository),
+):
+    entity = await repository.get_by_transaction_id(transaction_id)
+    if entity is None:
+        return WafIngestLookupResponse(
+            found=False,
+            transaction_id=transaction_id,
+        )
+
+    return WafIngestLookupResponse(
+        found=True,
+        transaction_id=transaction_id,
+        alert_id=entity.id,
+        status=entity.status,
+        prediction=entity.prediction,
+        confidence=entity.confidence,
+        confidence_level=entity.confidence_level,
+        action_taken=entity.action_taken,
+        ingest_source=entity.ingest_source,
+        crs_score=entity.crs_score,
+        crs_rule_ids=entity.crs_rule_ids,
+        matched_rule_messages=entity.matched_rule_messages,
+        matched_rule_tags=entity.matched_rule_tags,
+        timestamp=entity.timestamp,
     )
 
 

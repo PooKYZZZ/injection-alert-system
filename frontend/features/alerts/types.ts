@@ -34,6 +34,9 @@ export interface Alert {
   triage_status?: TriageStatus | null
   crs_score?: number
   crs_rule_ids?: string[] | null
+  ingest_source?: string | null
+  matched_rule_messages?: string[] | null
+  matched_rule_tags?: string[] | null
   analyst_label?: string | null
   labeled_at?: string | null
   labeled_by?: string | null

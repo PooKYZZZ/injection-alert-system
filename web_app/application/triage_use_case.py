@@ -48,6 +48,9 @@ class TriageIngestCommand:
     http_request: str
     crs_score: int
     crs_rule_ids: list[str]
+    ingest_source: str | None = None
+    matched_rule_messages: list[str] | None = None
+    matched_rule_tags: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,9 @@ class TriageUseCase:
                 http_request=self._build_persisted_http_request(command),
                 crs_score=command.crs_score,
                 crs_rule_ids=command.crs_rule_ids,
+                ingest_source=command.ingest_source,
+                matched_rule_messages=command.matched_rule_messages,
+                matched_rule_tags=command.matched_rule_tags,
                 status="PROCESSING",
             ),
             owner_token=owner_token,
@@ -244,10 +250,13 @@ class TriageUseCase:
     def _build_persisted_http_request(command: TriageIngestCommand) -> str:
         # Retention decision: request_headers and request_body are accepted for
         # ingest fidelity but folded into the single http_request column.
+        # Persist the path-only request line so WAF query strings are not stored
+        # in analyst-facing evidence while the classifier can still score them.
+        request_line = f"{command.request_method} {command.request_uri} HTTP/1.1"
         header_lines = "\n".join(
             f"{key}: {value}" for key, value in command.request_headers.items()
         )
-        parts = [command.http_request]
+        parts = [request_line]
         if header_lines:
             parts.append(f"\nHeaders:\n{header_lines}")
         if command.request_body:

@@ -71,6 +71,9 @@ class TrafficLogEntity:
     http_request: str = ""
     crs_score: Optional[int] = None
     crs_rule_ids: Optional[list[str]] = None
+    ingest_source: Optional[str] = None
+    matched_rule_messages: Optional[list[str]] = None
+    matched_rule_tags: Optional[list[str]] = None
     prediction: Optional[str] = None
     confidence: Optional[float] = None
     confidence_level: Optional[str] = None
