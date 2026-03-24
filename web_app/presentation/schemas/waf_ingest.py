@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -12,9 +13,7 @@ class WafIngestRequest(BaseModel):
     transaction_id: str = Field(
         ..., min_length=1, max_length=128, description="Unique transaction ID for dedup"
     )
-    timestamp: str = Field(
-        ..., max_length=64, description="ISO 8601 timestamp of the event"
-    )
+    timestamp: datetime = Field(..., description="ISO 8601 timestamp of the event")
     source_ip: str = Field(
         ..., min_length=1, max_length=45, description="Source IP address"
     )

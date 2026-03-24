@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -68,7 +66,7 @@ def _waf_payload() -> dict:
     return {
         "ingest_source": "modsec_audit_bridge",
         "transaction_id": "waf-txn-001",
-        "timestamp": datetime(2026, 3, 24, 10, 0, 0, tzinfo=timezone.utc).isoformat(),
+        "timestamp": "2026-03-24T10:00:00Z",
         "source_ip": "203.0.113.10",
         "request_method": "POST",
         "request_path": "/login",
@@ -125,6 +123,24 @@ def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
 
     invalid_payload = _waf_payload()
     invalid_payload.pop("transaction_id")
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=invalid_payload,
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 422
+
+
+def test_waf_ingest_invalid_timestamp_returns_422(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    invalid_payload = _waf_payload()
+    invalid_payload["timestamp"] = "not-a-timestamp"
 
     response = client.post(
         "/api/internal/waf-events",

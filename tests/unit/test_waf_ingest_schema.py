@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -19,8 +21,26 @@ def test_accepts_minimal_valid_waf_event():
     parsed = WafIngestRequest.model_validate(payload)
 
     assert parsed.transaction_id == "tx-123"
+    assert isinstance(parsed.timestamp, datetime)
+    assert parsed.timestamp.isoformat() == "2026-03-24T10:00:00+00:00"
     assert parsed.crs_rule_ids == ["942100"]
     assert parsed.crs_score == 8
+
+
+def test_rejects_invalid_timestamp_format():
+    with pytest.raises(ValidationError):
+        WafIngestRequest.model_validate(
+            {
+                "ingest_source": "modsec_audit_bridge",
+                "transaction_id": "tx-bad-ts",
+                "timestamp": "not-a-timestamp",
+                "source_ip": "203.0.113.10",
+                "request_method": "GET",
+                "request_path": "/login",
+                "crs_score": 8,
+                "crs_rule_ids": ["942100"],
+            }
+        )
 
 
 def test_rejects_missing_transaction_id():

@@ -24,7 +24,7 @@ services:
       - "8000"
     env_file:
       - path: .env
-        required: false
+        required: true
 
   frontend:
     build: ./frontend
@@ -42,7 +42,7 @@ services:
     build: .
     env_file:
       - path: .env
-        required: false
+        required: true
     command:
       [
         "python",

@@ -134,14 +134,9 @@ async def ingest_waf_event(
     )
 
     try:
-        timestamp = datetime.fromisoformat(payload.timestamp.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="Invalid timestamp format") from exc
-
-    try:
         result = await use_case.execute(
             transaction_id=payload.transaction_id,
-            timestamp=timestamp,
+            timestamp=payload.timestamp,
             ingest_source=payload.ingest_source,
             source_ip=payload.source_ip,
             request_method=payload.request_method,
