@@ -16,12 +16,10 @@ from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 
-DEFAULT_HELDOUT_JSON = Path(
-    r"G:\Documents\PDDDD\injection-alert-system\data\processed\v3_907k_cleaned\sample_exports\heldout_test_15.json"
-)
-DEFAULT_QUARANTINE_JSON = Path(
-    r"G:\Documents\PDDDD\injection-alert-system\data\processed\v3_907k_cleaned\sample_exports\quarantine_15.json"
-)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SAMPLES_ROOT = REPO_ROOT / "data" / "processed" / "v3_907k_cleaned" / "sample_exports"
+DEFAULT_HELDOUT_JSON = DEFAULT_SAMPLES_ROOT / "heldout_test_15.json"
+DEFAULT_QUARANTINE_JSON = DEFAULT_SAMPLES_ROOT / "quarantine_15.json"
 DEFAULT_REPORT_ROOT = Path("reports/modsecurity-replay")
 REPLAY_HEADER_NAME = "X-Replay-Tx"
 

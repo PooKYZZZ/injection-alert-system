@@ -17,7 +17,7 @@ flowchart LR
     DB --> Supabase["Supabase PostgreSQL"]
 
     SQLite["SQLite (tests / isolated local work)"] -. optional .-> DB
-    ModSec["ModSecurity + CRS (internal Compose path)"] -. internal only .-> FastAPI
+    ModSec["ModSecurity + CRS (host replay path localhost:8088)"] -. replay path .-> FastAPI
     Redis["Redis 7"] -. planned .-> FastAPI
 ```
 
@@ -151,4 +151,4 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Do not document planned infrastructure as shipped behavior.
 - Keep the live path names exact. Runtime artifacts live under `ml_model/model_registry/`.
 - Keep setup docs and architecture docs synchronized with the route handlers and tests, not with older planning files.
-- Test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed.
+- Test baseline: pytest 294 passed, vitest 122 passed, typecheck passed, lint passed, build passed.

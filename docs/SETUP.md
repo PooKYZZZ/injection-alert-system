@@ -247,14 +247,14 @@ Expected services:
 
 - `frontend` is published on `http://localhost:3000`
 - `backend` is internal only
-- `modsecurity` is internal only
+- `modsecurity` is published on `http://localhost:8088` for replay and smoke testing
 - `frontend` talks to `backend` using `FASTAPI_BASE_URL=http://backend:8000`
 - `modsecurity` proxies to `backend` using `BACKEND=http://backend:8000`
 
 This means:
 
 - Browser path today: `Browser -> frontend -> backend`
-- Internal ModSecurity path today: `modsecurity -> backend`
+- Host replay path today: `localhost:8088 -> modsecurity -> backend`
 - WAF ingest bridge path today: `bridge -> backend (/api/internal/waf-events)`
 
 ModSecurity is connected to the backend, but it is not currently in front of browser traffic.

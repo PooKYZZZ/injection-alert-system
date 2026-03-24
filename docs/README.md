@@ -44,7 +44,7 @@ This folder is the maintained documentation surface for the repository. It is in
 
 ## Verified Repo State (2026-03-23)
 
-- Backend tests currently pass: **264 passed** (pytest)
+- Backend tests currently pass: **294 passed** (pytest)
 - Frontend lint currently passes: `cd frontend && npm run lint`
 - Frontend typecheck currently passes: `cd frontend && npm run typecheck`
 - Frontend tests currently pass: **122 passed** (vitest)
@@ -57,8 +57,8 @@ This folder is the maintained documentation surface for the repository. It is in
 - Supabase is the active hosted PostgreSQL boundary for the app runtime
 - Dockerfiles and `docker-compose.yml` are present for local smoke testing
 - The local Compose stack currently publishes the frontend on `localhost:3000`
-- The backend and ModSecurity stay internal to the Compose network
-- ModSecurity is internally wired to the backend, but it is not yet the browser-facing runtime boundary
+- The backend stays internal to the Compose network
+- ModSecurity is exposed on `localhost:8088` for replay/smoke testing, and it is not the browser-facing runtime boundary
 
 ## Documentation Rules For This Repo
 

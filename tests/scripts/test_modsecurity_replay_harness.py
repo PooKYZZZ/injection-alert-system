@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from scripts.modsecurity_replay_harness import (
+    DEFAULT_HELDOUT_JSON,
+    DEFAULT_QUARANTINE_JSON,
     build_report_rows,
     build_waf_ingest_payload,
     detect_modsecurity_events,
@@ -9,6 +11,13 @@ from scripts.modsecurity_replay_harness import (
     normalize_sample_row,
     write_reports,
 )
+
+
+def test_default_sample_paths_resolve_under_repo_data_directory():
+    expected_root = Path(__file__).resolve().parents[2] / "data" / "processed" / "v3_907k_cleaned" / "sample_exports"
+
+    assert DEFAULT_HELDOUT_JSON == expected_root / "heldout_test_15.json"
+    assert DEFAULT_QUARANTINE_JSON == expected_root / "quarantine_15.json"
 
 
 def test_load_default_samples_combines_two_exports(tmp_path: Path):

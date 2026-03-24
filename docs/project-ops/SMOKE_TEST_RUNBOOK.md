@@ -5,7 +5,7 @@
 
 This runbook walks through starting the current repo Docker stack, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
-> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, while backend and ModSecurity stay internal to the compose network.
+> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, backend stays internal to the compose network, and ModSecurity is exposed on `localhost:8088` for replay/smoke testing.
 
 ---
 
@@ -283,7 +283,7 @@ Common causes:
 
 ### ModSecurity routing expectation
 
-- In the current compose file, ModSecurity is internal-only.
-- Browser traffic on `localhost:3000` does not pass through ModSecurity.
-- ModSecurity does proxy to `backend` inside the Compose network.
+- In the current compose file, ModSecurity is host-reachable at `localhost:8088`.
+- Browser traffic on `localhost:3000` still does not pass through ModSecurity.
+- ModSecurity proxies to `backend` inside the Compose network.
 - Direct backend container calls are valid for smoke verification, but they bypass ModSecurity.
