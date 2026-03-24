@@ -18,15 +18,15 @@ The repository currently contains:
 
 This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase now includes Dockerfiles and a `docker-compose.yml` for local smoke work, but the browser-facing runtime path is still the Next.js BFF path, not a completed ModSecurity-fronted deployment.
 
-## Verified Status (2026-03-24)
+## Verified Status (2026-03-23)
 
-### Checks run on 2026-03-24
+### Checks run on 2026-03-23
 
-- Backend tests: `python3 -m pytest -q` → **294 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **74 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
   - `cd frontend && npx vitest run` → **122 passed**
 - Frontend build:
@@ -39,7 +39,6 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
   - Protected by backend bearer auth:
     - `POST /api/predict`
     - `POST /api/triage`
-    - `POST /api/internal/waf-events`
     - `GET /api/alerts`
     - `GET /api/alerts/{id}`
     - `PATCH /api/alerts/{id}/triage`
@@ -53,7 +52,6 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
 - In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
 - Internal backend routes are protected by bearer-token auth using `API_SECRET_KEY`
-- WAF ingress now uses a dedicated internal route (`POST /api/internal/waf-events`) and delegates to the existing triage policy path.
 
 ### Frontend
 
@@ -75,7 +73,6 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
     - `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
-  - alert normalization includes optional WAF evidence metadata fields (`ingest_source`, `matched_rule_messages`, `matched_rule_tags`)
 
 ### Database
 
@@ -90,7 +87,6 @@ This is not yet the finished Docker/ModSecurity/Redis local stack. The codebase 
 - Root `docker-compose.yml`
 - Dockerfiles for frontend and backend
 - Internal Compose ModSecurity wiring that proxies to `backend`
-- Compose bridge service and fixture path for WAF ingest smoke verification (`scripts/waf_audit_bridge.py`)
 
 ## Not Yet Implemented
 

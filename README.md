@@ -4,7 +4,7 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 ## Status
 
-This repository is active and deployable in its current app-plus-BFF form, but it is not yet the full Docker/ModSecurity/Redis local stack.
+This repository is active and deployable in its current app-plus-BFF form. It now includes Dockerfiles and a `docker-compose.yml` for local smoke testing, but it is still not the finished Docker/ModSecurity/Redis local deployment target described in older planning material.
 
 - Backend tests currently pass: `264 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
 - Frontend tests currently pass: `122 passed` (run with `cd frontend && npx vitest run`)
@@ -13,7 +13,9 @@ This repository is active and deployable in its current app-plus-BFF form, but i
 - Frontend build currently passes: `cd frontend && npm run build`
 - The dashboard BFF routes for alerts, alert detail, triage, stats, and ML health are wired to FastAPI in non-mock mode
 - Supabase is the active hosted database boundary for the app runtime
-- Docker Compose, runnable ModSecurity wiring, and Redis-backed enforcement are still in progress
+- Docker Compose and local container smoke paths exist
+- ModSecurity is wired internally to the backend in Compose, but it is not yet the browser-facing entrypoint
+- Redis-backed enforcement is still in progress
 
 If you need the current implementation truth rather than the thesis target architecture, start with [docs/CONTEXT.md](docs/CONTEXT.md) and [docs/architecture.md](docs/architecture.md).
 
@@ -32,7 +34,7 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
-In the current repo, the application code, model-loading path, tests, dashboard shell, and Supabase-backed runtime path are present, but the full WAF deployment path is not wired end to end yet.
+In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, and a Docker smoke setup are present, but the full WAF deployment path is not wired end to end yet.
 
 ## Current Repository Scope
 
@@ -57,8 +59,8 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 
 ### Not fully implemented yet
 
-- End-to-end ModSecurity or CRS bridge
-- Docker Compose based local stack
+- End-to-end browser traffic through ModSecurity
+- A fully authoritative local ModSecurity-fronted runtime
 - Redis-backed enforcement state
 
 ## Tech Stack
@@ -144,6 +146,24 @@ npm run dev
 ```
 
 Before starting the frontend, create `frontend/.env.local` using the current variable guidance in [docs/SETUP.md](docs/SETUP.md).
+
+### Docker smoke setup
+
+The repo also supports a local Docker smoke path:
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+Important constraints:
+
+- The frontend is published on `http://localhost:3000`
+- The backend is internal to the Compose network and is not published to the host
+- ModSecurity is internal to the Compose network and proxies to `backend`, but it is not currently the browser-facing path
+- The active browser path remains `Browser -> Next.js -> FastAPI`
+
+For the current container workflow, use [docs/SETUP.md](docs/SETUP.md) and [docs/project-ops/SMOKE_TEST_RUNBOOK.md](docs/project-ops/SMOKE_TEST_RUNBOOK.md).
 
 ## Usage
 

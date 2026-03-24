@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildContentSecurityPolicy } from './next.config'
 
 describe('buildContentSecurityPolicy', () => {
-  it('omits unsafe script directives in production', () => {
+  it('keeps inline scripts enabled in production without eval', () => {
     const csp = buildContentSecurityPolicy('production')
 
     expect(csp).toContain("default-src 'self'")

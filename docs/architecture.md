@@ -17,7 +17,7 @@ flowchart LR
     DB --> Supabase["Supabase PostgreSQL"]
 
     SQLite["SQLite (tests / isolated local work)"] -. optional .-> DB
-    ModSec["ModSecurity + CRS (host replay path localhost:8088)"] -. replay path .-> FastAPI
+    ModSec["ModSecurity + CRS (internal Compose path)"] -. internal only .-> FastAPI
     Redis["Redis 7"] -. planned .-> FastAPI
 ```
 
@@ -46,7 +46,6 @@ The backend follows the intended Clean Architecture split:
 - Protected by backend bearer auth:
   - `POST /api/predict`
   - `POST /api/triage`
-  - `POST /api/internal/waf-events`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
@@ -83,16 +82,6 @@ Browser -> Next.js Route Handler -> FastAPI
 
 This remains the correct direction for the project. Browser-to-FastAPI direct calls are not part of the intended architecture.
 
-### WAF ingest data-plane (phase 1)
-
-The repository now includes a separate SOC-oriented ingest lane for WAF-derived suspicious traffic evidence:
-
-```text
-ModSecurity audit event -> waf_audit_bridge.py -> POST /api/internal/waf-events -> WafIngestUseCase/TriageUseCase -> traffic_logs -> Next.js BFF dashboard views
-```
-
-This lane is detect-and-forward only in this phase. It does not make ModSecurity the browser-facing UI boundary and it does not implement live network enforcement.
-
 Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
 ### Current BFF status (2026-03-23)
@@ -107,7 +96,6 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Those five handlers all require a valid Auth.js session via `auth()`.
 - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
-- Alert payload normalization now carries optional WAF evidence metadata (`ingest_source`, `matched_rule_messages`, `matched_rule_tags`) without breaking older payloads.
 - `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes.
 
 ## Data and Persistence
@@ -151,4 +139,4 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Do not document planned infrastructure as shipped behavior.
 - Keep the live path names exact. Runtime artifacts live under `ml_model/model_registry/`.
 - Keep setup docs and architecture docs synchronized with the route handlers and tests, not with older planning files.
-- Test baseline: pytest 294 passed, vitest 122 passed, typecheck passed, lint passed, build passed.
+- Test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed.

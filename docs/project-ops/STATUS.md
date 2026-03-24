@@ -19,12 +19,12 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `python3 -m pytest -q` → **294 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **74 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
 - Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 
@@ -39,11 +39,9 @@
   - `GET /api/stats`
   - `GET /api/ml-health`
   - `POST /api/feedback`
-  - `POST /api/internal/waf-events`
   - `GET /health`
   - `GET /api/health`
 - Reservation-first triage flow is active (`PROCESSING` placeholders, lease reclaim support, winner/loser behavior).
-- WAF ingest vertical slice is active: bridge payload -> internal route -> ML triage -> `traffic_logs` persistence.
 - `PROCESSING` rows are excluded from normal alerts and stats reads.
 - Frontend boundary remains:
   - `Browser -> Next.js route handlers/BFF -> FastAPI`
@@ -64,7 +62,7 @@
 
 ## Open Gaps (Current, Not Historical)
 
-- Docker Compose includes a bridge service for WAF ingest smoke flow, but ModSecurity is not yet the browser-facing runtime boundary.
+- Docker Compose exists, but ModSecurity is not yet the browser-facing runtime boundary.
 - Redis-backed enforcement and queue behavior is still not implemented in the repo runtime.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
 

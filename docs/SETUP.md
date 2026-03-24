@@ -93,7 +93,6 @@ Current API surface:
 - Protected by backend bearer auth:
   - `POST /api/predict`
   - `POST /api/triage`
-  - `POST /api/internal/waf-events`
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
@@ -241,46 +240,21 @@ Expected services:
 - `frontend`
 - `backend`
 - `modsecurity`
-- `bridge`
 
 ### Current Docker network truth
 
 - `frontend` is published on `http://localhost:3000`
 - `backend` is internal only
-- `modsecurity` is published on `http://localhost:8088` for replay and smoke testing
+- `modsecurity` is internal only
 - `frontend` talks to `backend` using `FASTAPI_BASE_URL=http://backend:8000`
 - `modsecurity` proxies to `backend` using `BACKEND=http://backend:8000`
 
 This means:
 
 - Browser path today: `Browser -> frontend -> backend`
-- Host replay path today: `localhost:8088 -> modsecurity -> backend`
-- WAF ingest bridge path today: `bridge -> backend (/api/internal/waf-events)`
+- Internal ModSecurity path today: `modsecurity -> backend`
 
 ModSecurity is connected to the backend, but it is not currently in front of browser traffic.
-
-### WAF ingest bridge smoke check
-
-The bridge reads JSON-lines events (fixture included at `scripts/fixtures/waf_event.jsonl`) and posts sanitized payloads to the internal ingest endpoint.
-
-```powershell
-docker compose logs bridge
-```
-
-Expected bridge output pattern:
-
-- `bridge summary: total=... success=... failed=...`
-
-Direct local unit validation without Compose:
-
-```powershell
-python3 -m pytest tests/scripts/test_waf_audit_bridge.py -q
-python3 -m pytest tests/integration/test_waf_ingest_route.py -q
-```
-
-Important phase-1 limitation:
-
-- This is detect-and-forward ingest only. No live blocking or throttling is enforced by the bridge.
 
 ### Backend health checks in Docker
 
