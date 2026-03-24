@@ -6,7 +6,7 @@ export function buildContentSecurityPolicy(
   const isDevelopment = nodeEnv === 'development'
   const scriptSrc = isDevelopment
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-    : "script-src 'self'"
+    : "script-src 'self' 'unsafe-inline'"
 
   return [
     "default-src 'self'",

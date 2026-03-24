@@ -7,8 +7,7 @@ describe('buildContentSecurityPolicy', () => {
     const csp = buildContentSecurityPolicy('production')
 
     expect(csp).toContain("default-src 'self'")
-    expect(csp).toContain("script-src 'self'")
-    expect(csp).not.toContain("script-src 'self' 'unsafe-eval' 'unsafe-inline'")
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'")
     expect(csp).not.toContain("'unsafe-eval'")
   })
 
