@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 import json
 import os
 import sys
+import time
 from typing import Any, TextIO
+import urllib.error
 import urllib.request
 from urllib.parse import urljoin
 from uuid import uuid4
@@ -14,6 +16,8 @@ from uuid import uuid4
 _SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie"}
 _SENSITIVE_SUBSTRINGS = ("token", "secret", "key", "credential")
 _MAX_BODY_LENGTH = 1024
+_RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
+_RETRYABLE_ERRNOS = {61, 111, 10061}
 
 
 def _redact_headers(headers: dict[str, Any]) -> dict[str, str]:
@@ -196,12 +200,77 @@ def post_event(
         return int(response.status)
 
 
+def _is_retryable_exception(exc: Exception) -> bool:
+    if not isinstance(exc, urllib.error.URLError):
+        return False
+
+    reason = exc.reason
+    if isinstance(reason, ConnectionRefusedError):
+        return True
+
+    if isinstance(reason, TimeoutError):
+        return True
+
+    if isinstance(reason, OSError) and getattr(reason, "errno", None) in _RETRYABLE_ERRNOS:
+        return True
+
+    if isinstance(reason, str) and "connection refused" in reason.lower():
+        return True
+
+    return False
+
+
+def _post_event_with_retry(
+    payload: dict[str, Any],
+    *,
+    endpoint: str,
+    api_secret: str,
+    timeout: int,
+    max_retries: int,
+    retry_delay_seconds: float,
+) -> int:
+    attempts = max_retries + 1
+
+    for attempt in range(1, attempts + 1):
+        try:
+            status = post_event(
+                payload,
+                endpoint=endpoint,
+                api_secret=api_secret,
+                timeout=timeout,
+            )
+
+            if status in _RETRYABLE_STATUS_CODES and attempt < attempts:
+                print(
+                    "bridge retry: "
+                    f"attempt={attempt}/{attempts} status={status} "
+                    f"transaction_id={payload.get('transaction_id')}"
+                )
+                time.sleep(retry_delay_seconds)
+                continue
+
+            return status
+        except Exception as exc:  # noqa: BLE001
+            if _is_retryable_exception(exc) and attempt < attempts:
+                print(
+                    "bridge retry: "
+                    f"attempt={attempt}/{attempts} error={exc} "
+                    f"transaction_id={payload.get('transaction_id')}"
+                )
+                time.sleep(retry_delay_seconds)
+                continue
+
+            raise
+
+
 def run_bridge(
     *,
     input_stream: TextIO,
     endpoint: str,
     api_secret: str,
     timeout: int,
+    max_retries: int = 20,
+    retry_delay_seconds: float = 2.0,
 ) -> tuple[int, int, int]:
     total = 0
     success = 0
@@ -218,11 +287,13 @@ def run_bridge(
             if not isinstance(event, dict):
                 raise ValueError("event line must be a JSON object")
             payload = normalize_event(event)
-            status = post_event(
+            status = _post_event_with_retry(
                 payload,
                 endpoint=endpoint,
                 api_secret=api_secret,
                 timeout=timeout,
+                max_retries=max_retries,
+                retry_delay_seconds=retry_delay_seconds,
             )
             if 200 <= status < 300:
                 success += 1
@@ -262,6 +333,18 @@ def main() -> int:
     )
     parser.add_argument("--timeout", type=int, default=10, help="HTTP timeout seconds")
     parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=20,
+        help="Retries for transient connection/5xx errors",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=2.0,
+        help="Delay between retries in seconds",
+    )
+    parser.add_argument(
         "--api-secret",
         default=None,
         help="Internal API secret (defaults to API_SECRET_KEY env var)",
@@ -283,6 +366,8 @@ def main() -> int:
             endpoint=endpoint,
             api_secret=api_secret,
             timeout=args.timeout,
+            max_retries=max(0, args.max_retries),
+            retry_delay_seconds=max(0.0, args.retry_delay),
         )
     else:
         with open(args.input, "r", encoding="utf-8") as handle:
@@ -291,6 +376,8 @@ def main() -> int:
                 endpoint=endpoint,
                 api_secret=api_secret,
                 timeout=args.timeout,
+                max_retries=max(0, args.max_retries),
+                retry_delay_seconds=max(0.0, args.retry_delay),
             )
 
     print(f"bridge summary: total={total} success={success} failed={failed}")

@@ -1,5 +1,6 @@
 from io import StringIO
 import json
+from urllib.error import URLError
 
 from scripts.waf_audit_bridge import normalize_event, post_event, run_bridge
 
@@ -141,4 +142,41 @@ def test_run_bridge_reads_json_lines_and_counts_successes(monkeypatch):
         timeout=10,
     )
 
+    assert totals == (1, 1, 0)
+
+
+def test_run_bridge_retries_transient_connection_failure(monkeypatch):
+    lines = StringIO(
+        json.dumps(
+            {
+                "transaction_id": "tx-retry",
+                "timestamp": "2026-03-24T10:00:00Z",
+                "source_ip": "203.0.113.10",
+                "request_method": "GET",
+                "request_path": "/login",
+                "crs_score": 8,
+                "crs_rule_ids": ["942100"],
+            }
+        )
+    )
+
+    attempts = {"count": 0}
+
+    def _flaky_post(payload, endpoint, api_secret, timeout):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise URLError(ConnectionRefusedError("connection refused"))
+        return 200
+
+    monkeypatch.setattr("scripts.waf_audit_bridge.post_event", _flaky_post)
+    totals = run_bridge(
+        input_stream=lines,
+        endpoint="http://backend:8000/api/internal/waf-events",
+        api_secret="test-secret",
+        timeout=10,
+        max_retries=2,
+        retry_delay_seconds=0,
+    )
+
+    assert attempts["count"] == 2
     assert totals == (1, 1, 0)
