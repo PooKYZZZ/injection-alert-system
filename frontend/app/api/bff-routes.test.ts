@@ -7,6 +7,7 @@ const getAlertDetailMock = vi.fn()
 const getStatsMock = vi.fn()
 const getMlHealthMock = vi.fn()
 const updateAlertTriageMock = vi.fn()
+const updateAlertActionMock = vi.fn()
 
 vi.mock('@/auth', () => ({
   auth: authMock,
@@ -18,6 +19,7 @@ vi.mock('@/lib/bff-client', () => ({
   getStats: getStatsMock,
   getMlHealth: getMlHealthMock,
   updateAlertTriage: updateAlertTriageMock,
+  updateAlertAction: updateAlertActionMock,
 }))
 
 describe('BFF route handlers', () => {
@@ -617,5 +619,47 @@ describe('BFF route handlers', () => {
 
     expect(response.status).toBe(500)
     expect(body.error.code).toBe('INTERNAL_ERROR')
+  })
+
+  it('action PATCH accepts valid action_taken and returns 200', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    updateAlertActionMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alert_id: '1', action_taken: 'BLOCKED' },
+    })
+    const { PATCH } = await import('./alerts/[id]/action/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/action', {
+      method: 'PATCH',
+      body: JSON.stringify({ action_taken: 'BLOCKED' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.action_taken).toBe('BLOCKED')
+    expect(updateAlertActionMock).toHaveBeenCalledWith('1', 'BLOCKED')
+  })
+
+  it('action PATCH rejects invalid action_taken with 400', async () => {
+    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    const { PATCH } = await import('./alerts/[id]/action/route')
+
+    const request = new NextRequest('http://localhost:3000/api/alerts/1/action', {
+      method: 'PATCH',
+      body: JSON.stringify({ action_taken: 'INVALID' }),
+    })
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const body = await response.json()
+
+    expect(updateAlertActionMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_REQUEST')
   })
 })

@@ -291,8 +291,8 @@ describe('bff-client', () => {
         prev_allowed_count: null,
         prev_throttled_count: null,
         activity_buckets: [
-          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z'), timestamp_end: new Date('2026-03-18T13:00:00Z'), bucket_width_seconds: 3600 },
-          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z'), timestamp_end: new Date('2026-03-18T14:00:00Z'), bucket_width_seconds: 3600 },
+          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
         ],
         attack_distribution: {},
         top_source_ips: [],
@@ -508,8 +508,8 @@ describe('bff-client', () => {
       return
     }
 
-    expect(result.data.activity_buckets[0].timestamp_start).toEqual(new Date('2026-03-18T12:00:00Z'))
-    expect(result.data.activity_buckets[1].timestamp_start).toEqual(new Date('2026-03-18T13:00:00Z'))
+    expect(result.data.activity_buckets[0].timestamp_start).toBe('2026-03-18T12:00:00Z')
+    expect(result.data.activity_buckets[1].timestamp_start).toBe('2026-03-18T13:00:00Z')
   })
 
   it('returns UPSTREAM_ERROR when stats contain invalid bucket timestamp', async () => {

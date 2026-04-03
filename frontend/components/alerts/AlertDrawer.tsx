@@ -2,12 +2,11 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
+import { useEffect, useState } from 'react'
 import type { Alert, TriageStatus } from '@/features/alerts/types'
-import { SeverityBadge } from '@/components/ui/SeverityBadge'
-import { ActionLabel } from '@/components/ui/ActionLabel'
-import { TriageBadge } from '@/components/ui/TriageBadge'
 import { ALERT_DISPLAY_ACTION_ALIASES } from '@/features/alerts/contract'
-import { useTriageMutation } from '@/features/alerts/queries'
+import type { AlertAction } from '@/features/alerts/contract'
+import { useTriageMutation, useActionMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
 
 interface AlertDrawerProps {
@@ -15,12 +14,11 @@ interface AlertDrawerProps {
   onClose: () => void
 }
 
-function formatUtcTimestamp(timestamp: string | null | undefined): string {
+function formatAlertTimestamp(timestamp: string | null | undefined): string {
   if (!timestamp) return '—'
   const parsed = new Date(timestamp)
   if (Number.isNaN(parsed.getTime())) return timestamp
   return parsed.toLocaleString('en-US', {
-    timeZone: 'UTC',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -30,44 +28,107 @@ function formatUtcTimestamp(timestamp: string | null | undefined): string {
   })
 }
 
+function formatTriageLabel(status: TriageStatus | null | undefined): string {
+  switch (status) {
+    case 'in_review':
+      return 'In Review'
+    case 'escalated':
+      return 'Escalated'
+    case 'resolved':
+      return 'Resolved'
+    case 'false_positive':
+      return 'False Positive'
+    case 'new':
+    case null:
+    case undefined:
+      return 'New'
+    default:
+      return status
+  }
+}
+
+function formatCrsScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '—'
+  return score.toFixed(2)
+}
+
 export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
   const {
     mutate,
     isPending,
-    variables,
     isError,
   } = useTriageMutation()
 
-  // Display optimistic status while mutation is pending
-  const displayStatus = isPending && variables?.id === alert?.alert_id
-    ? variables.status
-    : (alert?.triage_status ?? null)
+  const [displayStatus, setDisplayStatus] = useState<TriageStatus | null>(
+    alert?.triage_status ?? null
+  )
+  const [displayAction, setDisplayAction] = useState<AlertAction | null>(
+    alert?.action_taken ?? null
+  )
+
+  useEffect(() => {
+    setDisplayStatus(alert?.triage_status ?? null)
+    setDisplayAction(alert?.action_taken ?? null)
+  }, [alert?.alert_id, alert?.triage_status, alert?.action_taken])
 
   const handleVerdictClick = (status: TriageStatus) => {
     if (alert && !isPending) {
-      mutate({ id: alert.alert_id, status })
+      const previousStatus = displayStatus
+      setDisplayStatus(status)
+      mutate(
+        { id: alert.alert_id, status },
+        {
+          onError: () => {
+            setDisplayStatus(previousStatus)
+          },
+          onSuccess: (updatedAlert) => {
+            setDisplayStatus(updatedAlert.triage_status ?? status)
+          },
+        }
+      )
     }
   }
 
-  const topShapValues =
-    alert?.shap_values && alert.shap_values.length > 0
-      ? [...alert.shap_values]
-          .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
-          .slice(0, 5)
-      : []
-  const maxContribution = Math.max(...topShapValues.map((item) => Math.abs(item.contribution)), 1)
+  const {
+    mutate: mutateAction,
+    isPending: isActionPending,
+    isError: isActionError,
+  } = useActionMutation()
+
+  const handleActionClick = (action: AlertAction) => {
+    if (alert && !isActionPending) {
+      const previousAction = displayAction
+      setDisplayAction(action)
+      mutateAction(
+        { id: alert.alert_id, action },
+        {
+          onError: () => {
+            setDisplayAction(previousAction)
+          },
+          onSuccess: (updatedAlert) => {
+            setDisplayAction(updatedAlert.action_taken ?? action)
+          },
+        }
+      )
+    }
+  }
+
+  const triageLabel = formatTriageLabel(displayStatus)
+  const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
+  const confidenceLabel = alert ? `${Math.round(alert.confidence * 100)}% (${alert.confidence_level})` : '—'
+  const crsRuleIds = alert?.crs_rule_ids?.length ? alert.crs_rule_ids.join(', ') : '—'
 
   return (
     <Dialog.Root open={!!alert} onOpenChange={(open) => !open && onClose()}>
       <AnimatePresence>
         {alert && (
           <Dialog.Portal forceMount>
-            {/* Backdrop */}
+            {/* Backdrop (low-opacity so page remains visible) */}
             <Dialog.Overlay asChild>
               <motion.div
-                className="fixed inset-0 z-20 bg-black/40 backdrop-blur-[1px]"
+                className="fixed inset-0 z-20 bg-black/10"
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: 0.1 }}
                 exit={{ opacity: 0 }}
               />
             </Dialog.Overlay>
@@ -85,29 +146,49 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 <Dialog.Title className="sr-only">
                   Alert detail for {alert.prediction}
                 </Dialog.Title>
+                {/* Hidden description to satisfy Radix accessibility warnings */}
+                <Dialog.Description className="sr-only">
+                  Details for {alert.prediction} — {formatAlertTimestamp(alert.timestamp)}. Contains summary details, WAF evidence, captured request data, analyst actions, and intervention controls.
+                </Dialog.Description>
 
                 {/* Header */}
                 <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] p-4">
-                  <div className="min-w-0">
-                    <h2 className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {alert.prediction}
-                    </h2>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] text-[var(--color-text-secondary)]">
-                        {formatUtcTimestamp(alert.timestamp)}
+                  <div className="min-w-0 space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+                      Summary Header
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[16px] font-semibold text-[var(--color-text-primary)]">
+                        {alert.prediction}
                       </span>
-                      <SeverityBadge
-                        severity={alert.confidence_level}
-                        prediction={alert.prediction}
-                      />
-                      <ActionLabel action={alert.action_taken} />
-                      {displayStatus && <TriageBadge triage_status={displayStatus} />}
-                      {isError && (
-                        <span className="text-[11px] text-red-400">
-                          Update failed — please retry
-                        </span>
-                      )}
+                      <span className="rounded-full border border-blue-500/30 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-blue-400">
+                        {triageLabel}
+                      </span>
+                      <span
+                        className={cn(
+                          'rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em]',
+                          displayAction === 'BLOCKED'
+                            ? 'border-red-500/30 text-red-400'
+                            : displayAction === 'THROTTLED'
+                              ? 'border-amber-500/30 text-amber-400'
+                              : displayAction === 'ALLOWED'
+                                ? 'border-emerald-500/30 text-emerald-400'
+                                : 'border-[var(--color-text-ghost)] text-[var(--color-text-secondary)]'
+                        )}
+                      >
+                        {displayAction ? ALERT_DISPLAY_ACTION_ALIASES[displayAction] : 'No Action'}
+                      </span>
                     </div>
+                    {isError && (
+                      <span className="block text-[11px] text-red-400">
+                        Triage update failed. Please retry.
+                      </span>
+                    )}
+                    {isActionError && (
+                      <span className="block text-[11px] text-red-400">
+                        Intervention update failed. Please retry.
+                      </span>
+                    )}
                   </div>
                   <Dialog.Close asChild>
                     <button
@@ -133,229 +214,62 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-4">
-                  {/* Verdict buttons */}
-                  <section className="mb-6">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
-                      Triage Verdict
+                <div className="flex-1 overflow-hidden p-3">
+                  <div className="grid content-start gap-3">
+                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      Core Details
                     </h3>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleVerdictClick('false_positive')}
-                        className={cn(
-                          'rounded border px-3 py-1.5 text-xs font-medium transition-colors',
-                          displayStatus === 'false_positive'
-                            ? 'border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] text-[var(--color-text-primary)]'
-                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)]',
-                          isPending && 'opacity-50 cursor-not-allowed'
-                        )}
-                      >
-                        {isPending && variables?.status === 'false_positive' ? (
-                          <span className="inline-flex items-center gap-1">
-                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                fill="none"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                            Updating...
-                          </span>
-                        ) : (
-                          'False Positive'
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleVerdictClick('escalated')}
-                        className={cn(
-                          'rounded border px-3 py-1.5 text-xs font-medium transition-colors',
-                          displayStatus === 'escalated'
-                            ? 'border-red-800 bg-red-950/50 text-red-400'
-                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)]',
-                          isPending && 'opacity-50 cursor-not-allowed'
-                        )}
-                      >
-                        {isPending && variables?.status === 'escalated' ? (
-                          <span className="inline-flex items-center gap-1">
-                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                fill="none"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                            Updating...
-                          </span>
-                        ) : (
-                          'Escalate'
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleVerdictClick('resolved')}
-                        className={cn(
-                          'rounded border px-3 py-1.5 text-xs font-medium transition-colors',
-                          displayStatus === 'resolved'
-                            ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400'
-                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)]',
-                          isPending && 'opacity-50 cursor-not-allowed'
-                        )}
-                      >
-                        {isPending && variables?.status === 'resolved' ? (
-                          <span className="inline-flex items-center gap-1">
-                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                fill="none"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                            Updating...
-                          </span>
-                        ) : (
-                          'Resolve'
-                        )}
-                      </button>
-                    </div>
+                    <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Time
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {formatAlertTimestamp(alert.timestamp)}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Source IP
+                      </dt>
+                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
+                        {alert.source_ip ?? '—'}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Request
+                      </dt>
+                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">
+                        {requestLine}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Confidence
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {confidenceLabel}
+                      </dd>
+                    </dl>
                   </section>
 
-                  {/* Detection Timeline */}
-                  <section className="mb-6">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
-                      Detection Timeline
+                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      WAF Evidence
                     </h3>
-                    <div className="relative space-y-4 before:absolute before:inset-0 before:ml-[3px] before:h-full before:w-[1px] before:-translate-x-px before:bg-[var(--color-text-ghost)]">
-                      <div className="relative flex items-start gap-3">
-                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-blue-400 ring-4 ring-[var(--color-bg-base)]" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-blue-400">Request Received</p>
-                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                            {alert.request_method} {alert.request_path}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="relative flex items-start gap-3">
-                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-amber-500 ring-4 ring-[var(--color-bg-base)]" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-amber-500">CRS Flagged</p>
-                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                            Score:{' '}
-                            {alert.crs_score !== null && alert.crs_score !== undefined
-                              ? alert.crs_score.toFixed(2)
-                              : '—'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="relative flex items-start gap-3">
-                        <div className="relative z-10 mt-0.5 h-2 w-2 rounded-full bg-violet-400 ring-4 ring-[var(--color-bg-base)]" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-violet-400">ML Inference</p>
-                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                            {alert.prediction} · {Math.round(alert.confidence * 100)}% confidence
-                          </p>
-                        </div>
-                      </div>
-                      <div className="relative flex items-start gap-3">
-                        <div
-                          className={cn(
-                            'relative z-10 mt-0.5 h-2 w-2 rounded-full ring-4 ring-[var(--color-bg-base)]',
-                            alert.action_taken === 'BLOCKED' ? 'bg-red-500' : 'bg-emerald-500'
-                          )}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={cn(
-                              'text-xs font-medium',
-                              alert.action_taken === 'BLOCKED' ? 'text-red-400' : 'text-emerald-400'
-                            )}
-                          >
-                            Action Taken
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                            {alert.action_taken
-                              ? ALERT_DISPLAY_ACTION_ALIASES[alert.action_taken]
-                              : '—'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        CRS Score
+                      </dt>
+                      <dd className="text-amber-400">{formatCrsScore(alert.crs_score)}</dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Rule IDs
+                      </dt>
+                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">{crsRuleIds}</dd>
+                    </dl>
                   </section>
 
-                  {/* Explainability (SHAP) */}
-                  <section className="mb-6">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
-                      Explainability
+                  <section>
+                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      Captured Request
                     </h3>
-                    {topShapValues.length > 0 ? (
-                      <div className="space-y-2">
-                        {topShapValues.map((item) => (
-                          <div
-                            key={item.feature_name}
-                            className="grid grid-cols-[100px_1fr_48px] items-center gap-2"
-                          >
-                            <span className="truncate font-mono text-[10px] text-[var(--color-text-secondary)]">
-                              {item.feature_name}
-                            </span>
-                            <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-panel)]">
-                              <div
-                                className="h-full rounded-full bg-violet-500"
-                                style={{
-                                  width: `${(Math.abs(item.contribution) / maxContribution) * 100}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-right font-mono text-[10px] tabular-nums text-[var(--color-text-secondary)]">
-                              {item.contribution.toFixed(3)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-3 py-2 text-[10px] text-[var(--color-text-secondary)]">
-                        No explainability data available.
-                      </p>
-                    )}
-                  </section>
-
-                  {/* Captured Payload */}
-                  <section className="mb-6">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
-                      Captured Payload
-                    </h3>
-                    <div className="overflow-hidden rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
-                      <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.8] text-[var(--color-text-secondary)]">
+                    <div className="max-h-40 overflow-auto rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)]">
+                      <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.6] text-[var(--color-text-secondary)]">
                         <span className="text-amber-400">{alert.request_method ?? '—'}</span>{' '}
                         <span className="text-red-400">{alert.request_path ?? '—'}</span>{' '}
                         <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
@@ -374,78 +288,145 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     </div>
                   </section>
 
-                  {/* Source */}
                   <section>
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-secondary)]">
-                      Source
-                    </h3>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                          Source IP
-                        </p>
-                        <p className="font-mono text-sm text-[var(--color-text-secondary)]">
-                          {alert.source_ip ?? '—'}
-                        </p>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          Analyst Actions
+                        </h3>
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleVerdictClick('resolved')}
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                              displayStatus === 'resolved'
+                                ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400'
+                                : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                              isPending && 'cursor-not-allowed opacity-50'
+                            )}
+                          >
+                            <span>Resolve</span>
+                            {isPending && displayStatus === 'resolved' ? <span>Updating...</span> : <span>→</span>}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleVerdictClick('false_positive')}
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                              displayStatus === 'false_positive'
+                                ? 'border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] text-[var(--color-text-primary)]'
+                                : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                              isPending && 'cursor-not-allowed opacity-50'
+                            )}
+                          >
+                            <span>False Positive</span>
+                            {isPending && displayStatus === 'false_positive' ? <span>Updating...</span> : <span>→</span>}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleVerdictClick('escalated')}
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                              displayStatus === 'escalated'
+                                ? 'border-red-800 bg-red-950/50 text-red-400'
+                                : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                              isPending && 'cursor-not-allowed opacity-50'
+                            )}
+                          >
+                            <span>Escalate</span>
+                            {isPending && displayStatus === 'escalated' ? <span>Updating...</span> : <span>→</span>}
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                          Request Method
-                        </p>
-                        <p className="text-sm text-[var(--color-text-primary)]">{alert.request_method ?? '—'}</p>
+
+                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          Intervene
+                        </h3>
+                        <div className="flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isActionPending}
+                        onClick={() => handleActionClick('BLOCKED')}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                          displayAction === 'BLOCKED'
+                            ? 'border-red-500/30 bg-red-950/5 text-red-400'
+                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                          isActionPending && 'cursor-not-allowed opacity-50'
+                        )}
+                      >
+                        {isActionPending && displayAction === 'BLOCKED' ? (
+                          <>
+                            <span>{ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
+                            <span>Applying...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
+                            <span>→</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isActionPending}
+                        onClick={() => handleActionClick('THROTTLED')}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                          displayAction === 'THROTTLED'
+                            ? 'border-amber-500/30 bg-amber-950/5 text-amber-400'
+                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                          isActionPending && 'cursor-not-allowed opacity-50'
+                        )}
+                      >
+                        {isActionPending && displayAction === 'THROTTLED' ? (
+                          <>
+                            <span>{ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
+                            <span>Applying...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
+                            <span>→</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isActionPending}
+                        onClick={() => handleActionClick('ALLOWED')}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                          displayAction === 'ALLOWED'
+                            ? 'border-emerald-500/30 bg-emerald-950/5 text-emerald-400'
+                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                          isActionPending && 'cursor-not-allowed opacity-50'
+                        )}
+                      >
+                        {isActionPending && displayAction === 'ALLOWED' ? (
+                          <>
+                            <span>{ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
+                            <span>Applying...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
+                            <span>→</span>
+                          </>
+                        )}
+                      </button>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                          Request Path
-                        </p>
-                        <p className="break-all text-sm text-[var(--color-text-primary)]">
-                          {alert.request_path ?? '—'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                          CRS Score
-                        </p>
-                        <p className="text-sm text-amber-400">
-                          {alert.crs_score !== null && alert.crs_score !== undefined
-                            ? alert.crs_score.toFixed(2)
-                            : '—'}
-                        </p>
-                      </div>
-                      {alert.source_intel && (
-                        <>
-                          {alert.source_intel.asn && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                                ASN
-                              </p>
-                              <p className="text-sm text-[var(--color-text-secondary)]">{alert.source_intel.asn}</p>
-                            </div>
-                          )}
-                          {alert.source_intel.country && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                                Country
-                              </p>
-                              <p className="text-sm text-[var(--color-text-secondary)]">
-                                {alert.source_intel.country}
-                              </p>
-                            </div>
-                          )}
-                          {alert.source_intel.reputation_score !== undefined && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                                Reputation
-                              </p>
-                              <p className="text-sm text-[var(--color-text-secondary)]">
-                                {alert.source_intel.reputation_score.toFixed(1)}
-                              </p>
-                            </div>
-                          )}
-                        </>
-                      )}
                     </div>
                   </section>
+                  </div>
                 </div>
               </motion.div>
             </Dialog.Content>

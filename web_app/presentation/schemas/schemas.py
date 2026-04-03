@@ -275,6 +275,16 @@ class TriageUpdateRequest(BaseModel):
     ] = Field(..., description="Triage status to set on the alert")
 
 
+class ActionUpdateRequest(BaseModel):
+    """Request schema for updating alert action_taken."""
+
+    action_taken: Literal[
+        "BLOCKED",
+        "THROTTLED",
+        "ALLOWED",
+    ] = Field(..., description="Action to set on the alert")
+
+
 class WafIngestLookupResponse(BaseModel):
     found: bool
     transaction_id: str

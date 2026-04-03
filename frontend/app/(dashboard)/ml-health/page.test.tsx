@@ -1,85 +1,55 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import { type ComponentType, type ReactNode, useEffect, useState } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MLHealthPage from './page'
 import { useMLHealth } from '@/features/ml-health/queries'
 
-const mockPredictionDistribution = vi.fn(({ countsByLabel }) => (
-  <div data-testid="prediction-distribution" data-counts={JSON.stringify(countsByLabel)} />
-))
-
-vi.mock('next/dynamic', () => ({
-  default: (loader: () => Promise<ComponentType<{ countsByLabel?: unknown }>>, options?: { loading?: () => ReactNode }) => {
-    return function DynamicComponent(props: Record<string, unknown>) {
-      const [LoadedComponent, setLoadedComponent] = useState<ComponentType<{ countsByLabel?: unknown }> | null>(null)
-
-      useEffect(() => {
-        let active = true
-        loader().then((component) => {
-          if (active) {
-            setLoadedComponent(() => component)
-          }
-        })
-        return () => {
-          active = false
-        }
-      }, [])
-
-      if (LoadedComponent) {
-        return <LoadedComponent {...props} />
-      }
-
-      return options?.loading ? <>{options.loading()}</> : null
-    }
-  },
-}))
-
 vi.mock('@/features/ml-health/queries', () => ({
   useMLHealth: vi.fn(),
 }))
 
-vi.mock('@/components/ml-health/ModelHeader', () => ({
-  ModelHeader: () => <div data-testid="model-header" />,
-}))
-
-vi.mock('@/components/ml-health/ConfidenceThresholds', () => ({
-  ConfidenceThresholds: () => <div data-testid="confidence-thresholds" />,
-}))
-
 vi.mock('@/components/ui/StateViews', () => ({
-  LoadingSkeleton: () => <div data-testid="loading-skeleton" />,
-  ErrorState: () => <div data-testid="error-state" />,
+  LoadingSkeleton: ({ rows }: { rows: number }) => <div data-testid="loading-skeleton">rows:{rows}</div>,
+  ErrorState: ({ message }: { message: string }) => <div data-testid="error-state">{message}</div>,
 }))
 
-vi.mock('@/components/ml-health/PerClassF1Chart', () => ({
-  PerClassF1Chart: () => <div data-testid="per-class-f1" />,
+vi.mock('motion/react', () => ({
+  motion: new Proxy({}, { get: () => 'div' }),
+  AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('@/components/ml-health/ReliabilityDiagram', () => ({
-  ReliabilityDiagram: () => <div data-testid="reliability-diagram" />,
-}))
+vi.mock('recharts', () => {
+  const MockChart = () => <div data-testid="chart-mock" />
 
-vi.mock('@/components/ml-health/ConfidenceDriftChart', () => ({
-  ConfidenceDriftChart: () => <div data-testid="confidence-drift" />,
-}))
-
-vi.mock('@/components/ml-health/PredictionDistribution', () => ({
-  PredictionDistribution: mockPredictionDistribution,
-}))
+  return {
+    ResponsiveContainer: () => <div data-testid="chart-container" />,
+    AreaChart: MockChart,
+    Area: () => <div />,
+    CartesianGrid: () => <div />,
+    LineChart: MockChart,
+    Line: () => <div />,
+    ReferenceLine: () => <div />,
+    ScatterChart: MockChart,
+    Scatter: () => <div />,
+    Tooltip: () => <div />,
+    XAxis: () => <div />,
+    YAxis: () => <div />,
+  }
+})
 
 const mockedUseMLHealth = vi.mocked(useMLHealth)
 
 beforeEach(() => {
   mockedUseMLHealth.mockReturnValue({
     data: {
-      model_version: 'distilbert-v1',
+      model_version: 'distilbert_cleaned_120k_20260324',
       status: 'HEALTHY',
-      latency_ms: 2.5,
+      latency_ms: 32.5,
       latency_trend: null,
-      drift_score: null,
+      drift_score: 0.034,
       drift_status: 'NORMAL',
-      traffic_processed: 44,
+      traffic_processed: 1440,
       thresholds: {
         low: 0.5,
         medium: 0.65,
@@ -91,47 +61,72 @@ beforeEach(() => {
       calibration_bins: [],
       prediction_distribution: {
         baseline: {
-          'SQL Injection': 2,
-          Normal: 8,
+          'SQL Injection': 20,
+          Normal: 80,
         },
         current: {
-          'SQL Injection': 3,
-          Normal: 7,
+          'SQL Injection': 24,
+          Normal: 76,
         },
       },
     },
     isPending: false,
     isError: false,
     refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useMLHealth>)
-  })
+  } as unknown as ReturnType<typeof useMLHealth>)
+})
 
 describe('MLHealthPage', () => {
-  it('passes prediction_distribution data through to the chart', async () => {
+  it('renders the redesigned overview workspace', () => {
     render(<MLHealthPage />)
 
-    await waitFor(() => {
-      expect(mockPredictionDistribution).toHaveBeenCalled()
-    })
-
-    expect(mockPredictionDistribution.mock.calls[0]?.[0]).toMatchObject({
-      countsByLabel: {
-        baseline: {
-          'SQL Injection': 2,
-          Normal: 8,
-        },
-        current: {
-          'SQL Injection': 3,
-          Normal: 7,
-        },
-      },
-    })
+    expect(screen.getAllByText('distilbert_cleaned_120k_20260324').length).toBeGreaterThan(0)
+    expect(screen.getByPlaceholderText('Search metrics...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
+    expect(screen.getByText('Detection Impact · Block Rate vs Request Volume')).toBeInTheDocument()
+    expect(screen.getByText('Top Risks by Class')).toBeInTheDocument()
+    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
   })
 
-  it('labels the confidence indicator as simulated', async () => {
+  it('switches into diagnostics and shows tab-specific content', () => {
     render(<MLHealthPage />)
 
-    expect((await screen.findAllByText('Simulated')).length).toBeGreaterThan(0)
-    expect((await screen.findAllByText('Derived from drift score')).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Diagnostics' })[0])
+
+    expect(screen.getByRole('button', { name: 'Performance' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Drift' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Calibration' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Policy' })).toBeInTheDocument()
+    expect(screen.getByText('Inference Latency — p50 and p95 vs target')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
+
+    expect(screen.getByText('Active Policy — Strict Enforcement v2.4')).toBeInTheDocument()
+    expect(screen.getByText('Policy Outcomes by Window')).toBeInTheDocument()
+  })
+
+  it('renders loading and error states from the workspace component', () => {
+    mockedUseMLHealth.mockReturnValueOnce({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useMLHealth>)
+
+    const { rerender } = render(<MLHealthPage />)
+
+    expect(screen.getByTestId('loading-skeleton')).toHaveTextContent('rows:10')
+
+    mockedUseMLHealth.mockReturnValueOnce({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useMLHealth>)
+
+    rerender(<MLHealthPage />)
+
+    expect(screen.getByTestId('error-state')).toHaveTextContent('Failed to load ML health data')
   })
 })

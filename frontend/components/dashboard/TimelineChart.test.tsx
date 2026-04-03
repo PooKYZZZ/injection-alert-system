@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildUniqueDayTicks, dedupeTooltipPayload, TimelineChart } from './TimelineChart'
+import { buildUniqueDayTicks, buildYAxisMax, dedupeTooltipPayload, TimelineChart } from './TimelineChart'
 
 vi.mock('recharts', async () => {
   const React = await import('react')
@@ -26,6 +26,7 @@ vi.mock('recharts', async () => {
     ComposedChart: passthrough('ComposedChart'),
     Area: passthrough('Area'),
     Line: passthrough('Line'),
+    ReferenceLine: passthrough('ReferenceLine'),
     XAxis: passthrough('XAxis'),
     YAxis: passthrough('YAxis'),
     CartesianGrid: passthrough('CartesianGrid'),
@@ -115,6 +116,14 @@ describe('TimelineChart', () => {
     vi.clearAllMocks()
   })
 
+  it('uses 60 as the default y-axis ceiling and rounds up when data exceeds it', () => {
+    expect(buildYAxisMax(0)).toBe(60)
+    expect(buildYAxisMax(58)).toBe(60)
+    expect(buildYAxisMax(60)).toBe(60)
+    expect(buildYAxisMax(61)).toBe(70)
+    expect(buildYAxisMax(104)).toBe(110)
+  })
+
   it('falls back to a safe color when css variables resolve empty', () => {
     const getComputedStyleSpy = vi
       .spyOn(window, 'getComputedStyle')
@@ -164,10 +173,13 @@ describe('TimelineChart', () => {
       const areaNodes = Array.from(container.querySelectorAll('[data-testid="Area"]'))
       const lineNodes = Array.from(container.querySelectorAll('[data-testid="Line"]'))
       const xAxis = container.querySelector('[data-testid="XAxis"]')
+      const yAxis = container.querySelector('[data-testid="YAxis"]')
+      const referenceLines = Array.from(container.querySelectorAll('[data-testid="ReferenceLine"]'))
 
       expect(composedChart).not.toBeNull()
       expect(areaNodes).toHaveLength(3)
       expect(lineNodes).toHaveLength(3)
+      expect(referenceLines).toHaveLength(2)
 
       expect(areaNodes.map((node) => JSON.parse(node.getAttribute('data-props') ?? '{}').dataKey)).toEqual([
         'blocked',
@@ -181,6 +193,9 @@ describe('TimelineChart', () => {
       ])
 
       const xAxisProps = JSON.parse(xAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+      const yAxisProps = JSON.parse(yAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+      expect(yAxisProps.domain).toEqual([0, 60])
+      expect(yAxisProps.ticks).toEqual([0, 30, 60])
       if (timeWindow === '7d') {
         expect(Array.isArray(xAxisProps.ticks)).toBe(true)
         expect((xAxisProps.ticks as number[]).length).toBeGreaterThan(0)
@@ -191,6 +206,23 @@ describe('TimelineChart', () => {
       }
     }
   )
+
+  it('extends the y-axis above 60 when the series data exceeds the baseline', () => {
+    const tallBuckets = [
+      {
+        ...buckets[0],
+        blocked_count: 87,
+        total_count: 87,
+      },
+    ]
+
+    const { container } = render(<TimelineChart buckets={tallBuckets} timeWindow="24h" />)
+    const yAxis = container.querySelector('[data-testid="YAxis"]')
+    const yAxisProps = JSON.parse(yAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+
+    expect(yAxisProps.domain).toEqual([0, 90])
+    expect(yAxisProps.ticks).toEqual([0, 30, 60, 90])
+  })
 
   it('deduplicates tooltip payload entries by series key', () => {
     const deduped = dedupeTooltipPayload([

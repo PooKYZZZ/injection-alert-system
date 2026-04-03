@@ -2,10 +2,8 @@
 
 import { useMemo, useSyncExternalStore, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
-import { useAlertsFromFilters } from '@/features/alerts/queries'
+import { useAlertsFromFilters, useTriageMutation } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
-import { SeverityBadge } from '@/components/ui/SeverityBadge'
-import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { normalizeAlertSearchParams } from '@/lib/searchParams'
@@ -14,6 +12,7 @@ interface AlertsTableProps {
   selectedIds: string[]
   onSelectionChange: (ids: string[]) => void
   onAlertClick: (alert: Alert) => void
+  activeAlertId?: string
 }
 
 type SortColumn = 'timestamp' | 'confidence' | 'severity' | 'action'
@@ -34,14 +33,13 @@ function searchParamsToRecord(
 
 const ALERT_TABLE_COLUMNS = [
   { key: 'triage', label: 'Triage', sortable: true },
-  { key: 'severity', label: 'Severity', sortable: true },
   { key: 'timestamp', label: 'Timestamp', sortable: true },
   { key: 'source_ip', label: 'Source IP', sortable: false },
-  { key: 'target_path', label: 'Target path', sortable: false },
-  { key: 'crs_score', label: 'CRS score', sortable: true },
-  { key: 'attack_type', label: 'Attack type', sortable: false },
+  { key: 'target_path', label: 'Request', sortable: false },
+  { key: 'attack_type', label: 'Prediction', sortable: false },
   { key: 'confidence', label: 'Confidence', sortable: true },
-  { key: 'action', label: 'Action', sortable: true },
+  { key: 'action', label: 'Action Taken', sortable: true },
+  { key: 'crs_score', label: 'CRS Score', sortable: false },
 ] as const
 
 function formatTimeOnly(timestamp: string): string {
@@ -51,6 +49,49 @@ function formatTimeOnly(timestamp: string): string {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function formatRelativeTime(timestamp: string): string {
+  const now = Date.now()
+  const then = new Date(timestamp).getTime()
+  if (Number.isNaN(then)) return '—'
+  const diff = Math.max(0, Math.floor((now - then) / 1000)) // seconds
+
+  const minutes = Math.floor(diff / 60)
+  if (minutes < 1) return `${Math.max(0, diff)}s ago`
+  if (minutes < 60) return `${minutes}min${minutes === 1 ? '' : 's'} ago`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}hr${hours === 1 ? '' : 's'} ago`
+
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}day${days === 1 ? '' : 's'} ago`
+
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}month${months === 1 ? '' : 's'} ago`
+
+  const years = Math.floor(days / 365)
+  return `${years}year${years === 1 ? '' : 's'} ago`
+}
+
+function formatCrsScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '—'
+  return score.toFixed(2)
+}
+
+function getConfidenceTextColor(confidence: number): string {
+  const value = Math.round(confidence * 100)
+  if (value >= 80) return 'text-emerald-200'
+  if (value >= 50) return 'text-amber-200'
+  return 'text-blue-200'
+}
+
+function formatConfidence(confidence: number, level: string): string {
+  return `${Math.round(confidence * 100)}% (${level})`
+}
+
+function isNewTriageStatus(status: Alert['triage_status']): boolean {
+  return status === 'new' || status == null
 }
 
 function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
@@ -182,6 +223,7 @@ function AlertsTableContent({
   selectedIds,
   onSelectionChange,
   onAlertClick,
+  activeAlertId,
 }: AlertsTableProps) {
   const isHydrated = useSyncExternalStore(
     () => () => {},
@@ -199,6 +241,7 @@ function AlertsTableContent({
 
   // Use full AlertFilters for the alerts page (not down-converted to DashboardFilters)
   const { data, isPending, isError, refetch } = useAlertsFromFilters(params)
+  const { mutate: updateTriage } = useTriageMutation()
   const alerts = data?.items ?? []
 
   const currentSort = (params.sort_by as SortColumn | undefined) ?? null
@@ -231,6 +274,16 @@ function AlertsTableContent({
     }
   }
 
+  const handleRowClick = (alert: Alert) => {
+    if (isNewTriageStatus(alert.triage_status)) {
+      updateTriage({ id: alert.alert_id, status: 'in_review' })
+      onAlertClick({ ...alert, triage_status: 'in_review' })
+      return
+    }
+
+    onAlertClick(alert)
+  }
+
   const handleClearFilters = () => {
     const paramsToKeep = ['page']
     const newParams = new URLSearchParams()
@@ -246,6 +299,7 @@ function AlertsTableContent({
     params.severity !== 'ALL' ||
     params.action !== undefined ||
     params.triage_status !== undefined ||
+    params.prediction !== undefined ||
     params.window !== undefined ||
     (params.confidence_level && params.confidence_level.length > 0) ||
     (params.search && params.search.length > 0)
@@ -266,7 +320,7 @@ function AlertsTableContent({
                   type="checkbox"
                   checked={alerts.length > 0 && selectedIds.length === alerts.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                  className="h-4 w-4 cursor-pointer rounded accent-blue-500 border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                   aria-label="Select all alerts"
                 />
               </th>
@@ -293,53 +347,57 @@ function AlertsTableContent({
               alerts.map((alert) => (
                 <tr
                   key={alert.alert_id}
-                  className="group cursor-pointer transition-colors duration-100 hover:bg-[var(--color-bg-panel)]"
-                  onClick={() => onAlertClick(alert)}
+                  className={
+                    `group cursor-pointer transition-colors duration-100 hover:bg-[var(--color-bg-panel)]` +
+                    (alert.alert_id === (typeof activeAlertId !== 'undefined' ? activeAlertId : undefined)
+                      ? ' bg-[var(--color-bg-panel)] ring-1 ring-blue-500/30'
+                      : '')
+                  }
+                  onClick={() => handleRowClick(alert)}
                 >
                   <td className="p-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedIdsSet.has(alert.alert_id)}
                       onChange={() => handleSelectOne(alert.alert_id)}
-                      className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                      className="h-4 w-4 cursor-pointer rounded accent-blue-500 border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                       aria-label={`Select alert ${alert.alert_id}`}
                     />
                   </td>
                   <td className="p-3">
                     <TriageBadge triage_status={alert.triage_status ?? null} />
                   </td>
-                  <td className="p-3">
-                    <SeverityBadge
-                      severity={alert.confidence_level}
-                      prediction={alert.prediction}
-                    />
+                  <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-primary)]">
+                    <div>{formatTimeOnly(alert.timestamp)}</div>
+                    <div className="text-xs text-[var(--color-text-muted)]">
+                      {formatRelativeTime(alert.timestamp)}
+                    </div>
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-secondary)]">
-                    {formatTimeOnly(alert.timestamp)}
-                  </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-xs text-blue-400">
+                  <td className="whitespace-nowrap p-3 font-mono text-xs text-white-400">
                     {alert.source_ip ?? '—'}
                   </td>
                   <td
-                    className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-[var(--color-text-primary)]"
+                    className={
+                      `w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 text-xs ` +
+                      (alert.request_path?.trim().startsWith('•')
+                        ? 'font-normal text-[var(--color-text-secondary)]'
+                        : 'font-mono text-xs text-[var(--color-text-secondary)]')
+                    }
                     title={alert.request_path ?? '—'}
                   >
                     {alert.request_path ?? '—'}
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-xs tabular-nums text-[var(--color-text-secondary)]">
-                    {alert.crs_score !== null && alert.crs_score !== undefined
-                      ? alert.crs_score.toFixed(2)
-                      : '—'}
-                  </td>
                   <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
-                    <ConfidenceBar
-                      confidence={alert.confidence}
-                      prediction={alert.prediction}
-                    />
+                    <span className={`font-mono text-xs ${getConfidenceTextColor(alert.confidence)}`}>
+                      {formatConfidence(alert.confidence, alert.confidence_level)}
+                    </span>
                   </td>
                   <td className="p-3">
-                    <ActionLabel action={alert.action_taken} />
+                    <ActionLabel action={alert.action_taken} bordered={false} />
+                  </td>
+                  <td className="p-3 font-mono text-xs text-white-100">
+                    {formatCrsScore(alert.crs_score)}
                   </td>
                   <td className="p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -439,7 +497,7 @@ function AlertsTableContent({
   )
 }
 
-export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: AlertsTableProps) {
+export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick, activeAlertId }: AlertsTableProps) {
   return (
     <Suspense
       fallback={
@@ -474,6 +532,7 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick }: Al
         selectedIds={selectedIds}
         onSelectionChange={onSelectionChange}
         onAlertClick={onAlertClick}
+        activeAlertId={activeAlertId}
       />
     </Suspense>
   )

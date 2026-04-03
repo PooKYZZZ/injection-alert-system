@@ -1226,8 +1226,13 @@ class TrafficLogRepository(ITrafficLogRepository):
             stmt = stmt.where(TrafficLog.action_taken == action)
 
         # Triage status filter
+        # The frontend uses `triage_status=new` to mean "untriaged" (NULL in DB).
+        # Interpret 'new' as SQL NULL match; otherwise compare string equality.
         if triage_status:
-            stmt = stmt.where(TrafficLog.triage_status == triage_status)
+            if triage_status == 'new':
+                stmt = stmt.where(TrafficLog.triage_status.is_(None))
+            else:
+                stmt = stmt.where(TrafficLog.triage_status == triage_status)
 
         # Confidence levels filter (multi-value)
         if confidence_levels and len(confidence_levels) > 0:
@@ -1332,6 +1337,24 @@ class TrafficLogRepository(ITrafficLogRepository):
             return None
 
         orm_obj.triage_status = triage_status
+        await self._session.commit()
+        await self._session.refresh(orm_obj)
+        return self._orm_to_entity(orm_obj)
+
+    async def update_action_taken(
+        self,
+        traffic_id: int,
+        action_taken: str,
+    ) -> Optional[TrafficLogEntity]:
+        """Update action_taken on a traffic log. Returns None if not found."""
+        result = await self._session.execute(
+            select(TrafficLog).filter(TrafficLog.id == traffic_id)
+        )
+        orm_obj = result.scalars().first()
+        if orm_obj is None:
+            return None
+
+        orm_obj.action_taken = action_taken
         await self._session.commit()
         await self._session.refresh(orm_obj)
         return self._orm_to_entity(orm_obj)

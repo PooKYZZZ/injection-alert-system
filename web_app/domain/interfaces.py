@@ -295,3 +295,12 @@ class ITrafficLogRepository(ABC):
     ) -> Optional[TrafficLogEntity]:
         """Update triage status on a traffic log. Returns None if not found."""
         ...
+
+    @abstractmethod
+    async def update_action_taken(
+        self,
+        traffic_id: int,
+        action_taken: str,
+    ) -> Optional[TrafficLogEntity]:
+        """Update action_taken on a traffic log. Returns None if not found."""
+        ...

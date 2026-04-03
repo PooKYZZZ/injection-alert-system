@@ -38,15 +38,13 @@ const TRIAGE_STATUS_OPTIONS: TriageStatus[] = ['New', 'In Progress', 'Closed']
 
 type AlertColumnKey =
   | 'triageStatus'
-  | 'confidenceLevel'
   | 'timestamp'
   | 'sourceIp'
-  | 'crsScore'
   | 'targetPath'
-  | 'ruleIds'
   | 'attackType'
   | 'mlConfidence'
   | 'action'
+  | 'crsScore'
 
 interface AlertTableColumn {
   key: AlertColumnKey
@@ -54,16 +52,14 @@ interface AlertTableColumn {
 }
 
 const ALERT_TABLE_COLUMNS: readonly AlertTableColumn[] = [
-  { key: 'triageStatus', header: 'Triage Status' },
-  { key: 'confidenceLevel', header: 'Threat Severity' },
-  { key: 'timestamp', header: 'Timestamp ▼' },
+  { key: 'triageStatus', header: 'Triage' },
+  { key: 'timestamp', header: 'Timestamp' },
   { key: 'sourceIp', header: 'Source IP' },
+  { key: 'targetPath', header: 'Request' },
+  { key: 'attackType', header: 'Prediction' },
+  { key: 'mlConfidence', header: 'Confidence' },
+  { key: 'action', header: 'Action Taken' },
   { key: 'crsScore', header: 'CRS Score' },
-  { key: 'targetPath', header: 'Target Path' },
-  { key: 'ruleIds', header: 'Rule IDs' },
-  { key: 'attackType', header: 'Attack Type' },
-  { key: 'mlConfidence', header: 'ML Confidence' },
-  { key: 'action', header: 'Action' },
 ] as const
 
 const FOCUS_RING_CLASS =
@@ -72,12 +68,6 @@ const CHECKBOX_CLASS = cn(
   'h-4 w-4 cursor-pointer rounded border-border-light bg-bg-panel text-primary',
   FOCUS_RING_CLASS
 )
-
-function formatRuleIds(ruleIds: string[] | null | undefined): string {
-  if (!ruleIds || ruleIds.length === 0) return '—'
-  if (ruleIds.length === 1) return ruleIds[0]
-  return `${ruleIds[0]} +${ruleIds.length - 1}`
-}
 
 function formatTimeOnly(timestamp: string): string {
   const parsed = new Date(timestamp)
@@ -318,10 +308,7 @@ function AlertsTableContent() {
     }
   }, [])
 
-  const hasRuleIdsColumn = alerts.some((alert) => (alert.crs_rule_ids?.length ?? 0) > 0)
-  const visibleColumns = ALERT_TABLE_COLUMNS.filter(
-    (column) => column.key !== 'ruleIds' || hasRuleIdsColumn
-  )
+  const visibleColumns = ALERT_TABLE_COLUMNS
   const columnCount = visibleColumns.length + 1
 
   const updateTriage = (alertId: string) => {
@@ -360,11 +347,9 @@ function AlertsTableContent() {
         alerts={[]}
         selectAll={selectAll}
         clearSelection={clearSelection}
-        columns={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds')}
+        columns={ALERT_TABLE_COLUMNS}
       >
-        <AlertsTableSkeletonRows
-          columnCount={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds').length + 1}
-        />
+        <AlertsTableSkeletonRows columnCount={ALERT_TABLE_COLUMNS.length + 1} />
       </AlertsTableShell>
     )
   }
@@ -493,15 +478,6 @@ function AlertsTableContent() {
                           </button>
                         </td>
                       )
-                    case 'confidenceLevel':
-                      return (
-                        <td key={column.key} className="p-3">
-                          <SeverityBadge
-                            severity={alert.confidence_level}
-                            prediction={alert.prediction}
-                          />
-                        </td>
-                      )
                     case 'timestamp':
                       return (
                         <td
@@ -537,15 +513,6 @@ function AlertsTableContent() {
                           className="w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 font-mono text-xs text-text-primary"
                         >
                           {alert.request_path ?? '—'}
-                        </td>
-                      )
-                    case 'ruleIds':
-                      return (
-                        <td
-                          key={column.key}
-                          className="whitespace-nowrap p-3 font-mono text-xs text-text-secondary"
-                        >
-                          {formatRuleIds(alert.crs_rule_ids)}
                         </td>
                       )
                     case 'attackType':
@@ -588,11 +555,9 @@ export default function AlertsTable() {
           alerts={[]}
           selectAll={() => undefined}
           clearSelection={() => undefined}
-          columns={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds')}
+          columns={ALERT_TABLE_COLUMNS}
         >
-          <AlertsTableSkeletonRows
-            columnCount={ALERT_TABLE_COLUMNS.filter((column) => column.key !== 'ruleIds').length + 1}
-          />
+          <AlertsTableSkeletonRows columnCount={ALERT_TABLE_COLUMNS.length + 1} />
         </AlertsTableShell>
       }
     >

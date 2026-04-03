@@ -123,6 +123,16 @@ ml_model/model_registry/staging/**/tokenizer.json
 ml_model/model_registry/staging/**/tokenizer_config.json
 ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
 
+# Packaged serving artifacts under web_app - keep source code, ignore generated model assets
+web_app/model.safetensors
+web_app/tokenizer.json
+web_app/tokenizer_config.json
+web_app/config_used.json
+web_app/eval_report.json
+web_app/training_log.json
+web_app/serving_manifest.json
+web_app/git_hash.txt
+
 # Ignore AI agent and tool directories
 .agent/
 .agents/

@@ -138,8 +138,8 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
             disabled={isProcessing}
             className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[14px]">close</span>
-            Clear selection
+            <span className="material-symbols-outlined text-[14px]"></span>
+            Clear Selection
           </button>
         </motion.div>
       )}

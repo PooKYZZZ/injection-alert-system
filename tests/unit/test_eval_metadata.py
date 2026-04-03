@@ -310,6 +310,26 @@ class TestEvalMetadata:
         metadata = mock_service._load_eval_metadata(temp_run_dir)
         assert metadata["macro_f1"] == 0.95
 
+    def test_packaged_eval_report_is_used_when_eval_dir_missing(
+        self, mock_service, temp_run_dir
+    ):
+        """Test that packaged eval_report.json populates ML health metadata."""
+        eval_data = {
+            "SQL Injection": {"f1-score": 0.99, "support": 8975},
+            "Normal": {"f1-score": 0.98, "support": 3658},
+            "macro avg": {"f1-score": 0.9885, "support": 19505},
+            "accuracy": 0.9925,
+        }
+
+        eval_file = temp_run_dir / "eval_report.json"
+        eval_file.write_text(json.dumps(eval_data), encoding="utf-8")
+
+        metadata = mock_service._load_eval_metadata(temp_run_dir)
+
+        assert metadata["macro_f1"] == pytest.approx(0.9885)
+        assert metadata["per_class_f1"]["SQL Injection"] == pytest.approx(0.99)
+        assert metadata["prediction_distribution"]["SQL Injection"] == 8975
+
 
 class TestEvalMetadataProperty:
     """Test cases for the eval_metadata property on ModelService."""

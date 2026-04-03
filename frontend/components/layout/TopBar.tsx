@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useRef } from 'react'
+import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { SeverityFilter } from '@/lib/searchParams'
 
@@ -44,6 +45,7 @@ interface TopBarProps {
   showSearch?: boolean
   showLiveStatus?: boolean
   searchPlaceholder?: string
+  showNewIndicator?: boolean
 }
 
 function TopBarContent({
@@ -52,6 +54,7 @@ function TopBarContent({
   showSearch = true,
   showLiveStatus = false,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
+  showNewIndicator = false,
 }: TopBarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -135,6 +138,11 @@ function TopBarContent({
               ))}
             </div>
           </>
+        ) : showNewIndicator ? (
+          <div className="flex items-center gap-5">
+            <div className="h-4 w-px bg-border-light" />
+            <NewAlertIndicator />
+          </div>
         ) : null}
       </div>
 
@@ -174,6 +182,39 @@ function TopBarContent({
   )
 }
 
+function NewAlertIndicator() {
+  const { data: newAlerts } = useAlertsFromFilters({
+    page: 1,
+    pageSize: 1,
+    triage_status: 'new',
+    sort_by: 'timestamp',
+    sort_dir: 'desc',
+  })
+  const { data: inReviewAlerts } = useAlertsFromFilters({
+    page: 1,
+    pageSize: 1,
+    triage_status: 'in_review',
+    sort_by: 'timestamp',
+    sort_dir: 'desc',
+  })
+
+  const newCount = newAlerts?.total ?? 0
+  const inReviewCount = inReviewAlerts?.total ?? 0
+
+  return (
+    <div className="flex items-center gap-5">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-[var(--color-text-secondary)]">NEW:</span>
+        <span className="text-sm font-semibold text-blue-500">{newCount}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-[var(--color-text-secondary)]">IN REVIEW:</span>
+        <span className="text-sm font-semibold text-amber-400">{inReviewCount}</span>
+      </div>
+    </div>
+  )
+}
+
 export function TopBar(props: TopBarProps) {
   return (
     <Suspense fallback={<header className="h-16 flex-shrink-0 border-b border-border-light bg-bg-panel" />}>
@@ -198,7 +239,7 @@ export function DashboardTopBar() {
   }
 
   if (pathname === '/alerts') {
-    return <TopBar title="Alerts" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} />
+    return <TopBar title="Alerts" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} showSeverityControls={false} showNewIndicator={true} />
   }
 
   if (pathname === '/ml-health') {

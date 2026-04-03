@@ -8,6 +8,27 @@ import {
 import { toQueryString, toAlertQueryString, type DashboardFilters } from '@/lib/searchParams'
 import type { AlertFilters } from '@/features/alerts/schemas'
 import { Alert, PaginatedAlerts, TriageStatus } from './types'
+// Client-side redirect helper for auth failures
+function redirectToSignIn(detail?: { retryArgs?: unknown }) {
+  if (typeof window === 'undefined') return
+  const callback = encodeURIComponent(window.location.href)
+  // Open sign-in in a new tab so the analyst doesn't lose context
+  try {
+    window.open(`/login?callbackUrl=${callback}`, '_blank')
+  } catch {
+    // Fallback to navigatation if popup blocked
+    window.location.assign(`/login?callbackUrl=${callback}`)
+  }
+
+  // Notify any React toast listener to show a sign-in toast with optional retry args
+  try {
+    const ev = new CustomEvent('show-signin-toast', { detail })
+    window.dispatchEvent(ev)
+  } catch {
+    // ignore
+  }
+}
+import type { AlertAction } from './contract'
 
 /*
  * QUERY FRESHNESS POLICY
@@ -148,6 +169,66 @@ export function useTriageMutation() {
     },
     onSettled: () => {
       // Always invalidate to ensure eventual consistency
+      queryClient.invalidateQueries({ queryKey: alertKeys.all })
+    },
+  })
+}
+
+export function useActionMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: AlertAction }): Promise<Alert> => {
+      const response = await fetch(`/api/alerts/${id}/action`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_taken: action }),
+      })
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Redirect user to sign-in page when unauthenticated
+          redirectToSignIn({ retryArgs: { id, action } })
+        }
+        throw new Error(`PATCH failed: ${response.status}`)
+      }
+      return response.json()
+    },
+    onMutate: async ({ id, action }) => {
+      await queryClient.cancelQueries({ queryKey: alertKeys.all })
+      const previousLists = new Map<ReadonlyArray<string>, PaginatedAlerts | undefined>()
+      queryClient.getQueriesData<PaginatedAlerts>({ queryKey: alertKeys.all })
+        .forEach(([queryKey, data]) => {
+          if (queryKey[1] === 'list') {
+            previousLists.set(queryKey as ReadonlyArray<string>, data)
+          }
+        })
+      const previousDetail = queryClient.getQueryData<Alert>(alertKeys.detail(id))
+
+      queryClient.setQueriesData<PaginatedAlerts>({ queryKey: alertKeys.all }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          items: old.items.map((a) => (a.alert_id === id ? { ...a, action_taken: action } : a)),
+        }
+      })
+
+      queryClient.setQueryData<Alert>(alertKeys.detail(id), (old) => {
+        if (!old) return old
+        return { ...old, action_taken: action }
+      })
+
+      return { previousLists, previousDetail }
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach((data, queryKey) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(alertKeys.detail(variables.id), context.previousDetail)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: alertKeys.all })
     },
   })

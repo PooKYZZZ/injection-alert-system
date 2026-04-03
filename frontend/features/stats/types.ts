@@ -4,8 +4,8 @@ export interface ActivityBucket {
   blocked_count: number
   allowed_count: number
   throttled_count: number
-  timestamp_start: Date
-  timestamp_end?: Date | null
+  timestamp_start: string | Date
+  timestamp_end?: string | Date | null
   bucket_width_seconds?: number | null
 }
 

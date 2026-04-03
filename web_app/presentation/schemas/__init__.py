@@ -21,6 +21,7 @@ from web_app.presentation.schemas.schemas import (
     TriageIngestRequest,
     TriageIngestResponse,
     TriageUpdateRequest,
+    ActionUpdateRequest,
     WafIngestLookupResponse,
 )
 from web_app.presentation.schemas.waf_ingest import (
@@ -45,6 +46,7 @@ __all__ = [
     "TriageIngestRequest",
     "TriageIngestResponse",
     "TriageUpdateRequest",
+    "ActionUpdateRequest",
     "WafIngestLookupResponse",
     "WafIngestRequest",
 ]

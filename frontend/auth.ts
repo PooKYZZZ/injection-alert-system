@@ -1,11 +1,22 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { authConfig } from './auth.config'
+// In Next.js, environment variables from .env* are loaded by Next at runtime/build.
+// Avoid importing "dotenv" in frontend/shared code since it is a Node-only module
+// and will break when bundled for the browser. Rely on `process.env` instead.
+
+// Ensure the secret is defined in the auth configuration (do not log secrets)
+const authOptions = {
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? 'default-secret-key',
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  // Override providers with the full Node-runtime implementation that includes authorize().
-  // The spread above contributes `pages`; this key shadows the edge-safe providers array.
+
+  // ✅ REQUIRED: Fixes "MissingSecret" error
+  secret: authOptions.secret,
+
+  // Override providers with full Node runtime implementation
   providers: [
     Credentials({
       name: 'Credentials',
@@ -16,34 +27,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const demoPassword =
           process.env.SOC_DEMO_PASSWORD ??
           process.env.DEMO_PASSWORD ??
-          (process.env.NODE_ENV === 'development' ? 'demo1234' : undefined)
+          (process.env.NODE_ENV === 'development' ? 'demo1234' : undefined);
+
         if (
           typeof credentials?.password === 'string' &&
           credentials.password.length > 0 &&
           credentials.password === demoPassword
         ) {
-          return { id: '1', name: 'SOC Analyst', email: 'soc@example.com' }
+          return {
+            id: '1',
+            name: 'SOC Analyst',
+            email: 'soc@example.com',
+          };
         }
-        return null
+
+        return null;
       },
     }),
   ],
+
   session: {
     strategy: 'jwt',
     maxAge: 8 * 60 * 60, // 8 hours
   },
+
   callbacks: {
     jwt({ token, user }) {
-      // On initial sign-in `user` is populated; on subsequent calls only `token` is.
-      if (user?.id) token.id = user.id
-      return token
+      if (user?.id) token.id = user.id;
+      return token;
     },
     session({ session, token }) {
-      // token.id is typed as `unknown` by TypeScript because DefaultJWT carries a
-      // Record<string, unknown> index signature that widens augmented properties in
-      // this callback context. The typeof guard narrows it to string without a cast.
-      if (typeof token.id === 'string') session.user.id = token.id
-      return session
+      if (typeof token.id === 'string') {
+        session.user.id = token.id;
+      }
+      return session;
     },
   },
 })

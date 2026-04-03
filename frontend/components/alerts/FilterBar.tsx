@@ -3,9 +3,11 @@
 import { useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
-import { FilterChip, ConfidencePill } from '@/components/ui/FilterChip'
 import { TRIAGE_STATUS_VALUES } from '@/features/alerts/schemas'
-import { ALERT_SEVERITY_VALUES, ALERT_ACTION_TAKEN_VALUES } from '@/features/alerts/contract'
+import {
+  ALERT_SEVERITY_VALUES,
+  ALERT_ACTION_TAKEN_VALUES,
+} from '@/features/alerts/contract'
 
 interface FilterBarProps {
   filteredCount?: number
@@ -16,11 +18,39 @@ const ACTION_CYCLE = ['ALL', ...ALERT_ACTION_TAKEN_VALUES] as const
 const TRIAGE_CYCLE = ['ALL', ...TRIAGE_STATUS_VALUES] as const
 const WINDOW_CYCLE = ['ALL', '1h', '6h', '24h', '7d'] as const
 
-const CONFIDENCE_LEVELS = [
-  { value: 'HIGH', label: 'High >80%' },
-  { value: 'MEDIUM', label: 'Med 50–80%' },
-  { value: 'LOW', label: 'Low <50%' },
-] as const
+type SeverityValue = (typeof SEVERITY_CYCLE)[number]
+type ActionValue = (typeof ACTION_CYCLE)[number]
+type TriageValue = (typeof TRIAGE_CYCLE)[number]
+type WindowValue = (typeof WINDOW_CYCLE)[number]
+
+function FilterSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: readonly T[]
+  onChange: (value: T) => void
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] px-2 py-1.5">
+      <span className="text-[10px] leading-none text-[var(--color-text-secondary)]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="w-[96px] min-w-0 bg-transparent text-[11px] font-medium text-[var(--color-text-primary)] outline-none"
+      >
+        {options.map((option) => (
+          <option key={option} value={option} className="bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
 
 export function FilterBar({ filteredCount }: FilterBarProps) {
   const router = useRouter()
@@ -33,14 +63,11 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
   const currentAction = searchParams.get('action') ?? 'ALL'
   const currentTriage = searchParams.get('triage_status') ?? 'ALL'
   const currentWindow = searchParams.get('window') ?? 'ALL'
-  const currentConfidence = searchParams.getAll('confidence_level')
-
   const activeFilterCount = [
     currentSeverity !== 'ALL',
     currentAction !== 'ALL',
     currentTriage !== 'ALL',
     currentWindow !== 'ALL',
-    currentConfidence.length > 0,
   ].filter(Boolean).length
 
   const hasActiveFilters = activeFilterCount > 0
@@ -58,15 +85,8 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     }, 150)
   }, [router, pathname, searchParams])
 
-  function cycleValue<T extends string>(current: string, cycle: readonly T[]): T {
-    const index = cycle.indexOf(current as T)
-    const nextIndex = (index + 1) % cycle.length
-    return cycle[nextIndex]
-  }
-
-  function handleSeverityClick() {
+  function handleSeverityChange(next: SeverityValue) {
     replaceWithParams((params) => {
-      const next = cycleValue(currentSeverity, SEVERITY_CYCLE)
       if (next === 'ALL') {
         params.delete('severity')
       } else {
@@ -75,9 +95,8 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     })
   }
 
-  function handleActionClick() {
+  function handleActionChange(next: ActionValue) {
     replaceWithParams((params) => {
-      const next = cycleValue(currentAction, ACTION_CYCLE)
       if (next === 'ALL') {
         params.delete('action')
       } else {
@@ -86,9 +105,8 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     })
   }
 
-  function handleTriageClick() {
+  function handleTriageChange(next: TriageValue) {
     replaceWithParams((params) => {
-      const next = cycleValue(currentTriage, TRIAGE_CYCLE)
       if (next === 'ALL') {
         params.delete('triage_status')
       } else {
@@ -97,9 +115,8 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     })
   }
 
-  function handleWindowClick() {
+  function handleWindowChange(next: WindowValue) {
     replaceWithParams((params) => {
-      const next = cycleValue(currentWindow, WINDOW_CYCLE)
       if (next === 'ALL') {
         params.delete('window')
       } else {
@@ -108,18 +125,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     })
   }
 
-  function handleConfidenceToggle(value: string) {
-    replaceWithParams((params) => {
-      params.delete('confidence_level')
-      const isCurrentlySelected = currentConfidence.includes(value)
-      const newValues = isCurrentlySelected
-        ? currentConfidence.filter((v) => v !== value)
-        : [...currentConfidence, value]
-      for (const v of newValues) {
-        params.append('confidence_level', v)
-      }
-    })
-  }
+  
 
   function handleClearAll() {
     replaceWithParams((params) => {
@@ -127,7 +133,6 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
       params.delete('action')
       params.delete('triage_status')
       params.delete('window')
-      params.delete('confidence_level')
     })
   }
 
@@ -137,29 +142,32 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-3 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3"
     >
-      {/* Row 1: Filter chips */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[var(--color-text-secondary)]">Filter:</span>
-          <FilterChip
-            label={`Severity: ${currentSeverity}`}
-            active={currentSeverity !== 'ALL'}
-            onClick={handleSeverityClick}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="pt-2 text-[11px] font-medium text-[var(--color-text-secondary)]">Filters:</span>
+          <FilterSelect
+            label="Triage"
+            value={currentTriage as TriageValue}
+            options={TRIAGE_CYCLE}
+            onChange={handleTriageChange}
           />
-          <FilterChip
-            label={`Action: ${currentAction}`}
-            active={currentAction !== 'ALL'}
-            onClick={handleActionClick}
+          <FilterSelect
+            label="Time Window"
+            value={currentWindow as WindowValue}
+            options={WINDOW_CYCLE}
+            onChange={handleWindowChange}
           />
-          <FilterChip
-            label={`Triage: ${currentTriage}`}
-            active={currentTriage !== 'ALL'}
-            onClick={handleTriageClick}
+          <FilterSelect
+            label="Action Taken"
+            value={currentAction as ActionValue}
+            options={ACTION_CYCLE}
+            onChange={handleActionChange}
           />
-          <FilterChip
-            label={`Window: ${currentWindow}`}
-            active={currentWindow !== 'ALL'}
-            onClick={handleWindowClick}
+          <FilterSelect
+            label="Confidence"
+            value={currentSeverity as SeverityValue}
+            options={SEVERITY_CYCLE}
+            onChange={handleSeverityChange}
           />
         </div>
 
@@ -187,19 +195,6 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             </span>
           )}
         </div>
-      </div>
-
-      {/* Row 2: Confidence pills */}
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] text-[var(--color-text-secondary)]">Confidence:</span>
-        {CONFIDENCE_LEVELS.map(({ value, label }) => (
-          <ConfidencePill
-            key={value}
-            label={label}
-            active={currentConfidence.includes(value)}
-            onClick={() => handleConfidenceToggle(value)}
-          />
-        ))}
       </div>
     </motion.div>
   )
