@@ -97,12 +97,12 @@ export default function DashboardPage() {
   // Stat card values with honest fallback
   const statCards = [
       {
-        label: 'High alerts',
-        value: stats?.actionable_alerts ?? '—',
+        label: 'High-confidence alerts',
+        value: stats?.high_alert_count ?? '—',
       valueColor: 'text-emerald-500',
       valueFlashColor: 'text-red-200',
       secondary:
-        stats?.actionable_alerts === 0
+        stats?.high_alert_count === 0
           ? timeWindow
             ? 'No threats in this window'
             : 'No threats detected'

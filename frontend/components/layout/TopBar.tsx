@@ -114,9 +114,9 @@ function TopBarContent({
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 </span>
-                <span className="text-[10px] font-medium text-emerald-400">Live</span>
+                <span className="text-[10px] font-medium text-emerald-400">Snapshot</span>
               </div>
-              <span className="text-[10px] text-[var(--color-text-secondary)]">Last updated: just now</span>
+              <span className="text-[10px] text-[var(--color-text-secondary)]">Reported in latest refresh</span>
             </>
           ) : null}
         </div>
@@ -257,5 +257,4 @@ export function DashboardTopBar() {
 
   return <TopBar title={fallbackTitle} showSeverityControls={false} showSearch={false} />
 }
-
 

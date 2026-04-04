@@ -77,19 +77,22 @@ beforeEach(() => {
 })
 
 describe('MLHealthPage', () => {
-  it('renders the redesigned overview workspace', () => {
+  it('renders the overview with snapshot-first ML health sections', () => {
     render(<MLHealthPage />)
 
     expect(screen.getAllByText('distilbert_cleaned_120k_20260324').length).toBeGreaterThan(0)
-    expect(screen.getByPlaceholderText('Search metrics...')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search metrics...')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Detection Impact · Block Rate vs Request Volume')).toBeInTheDocument()
-    expect(screen.getByText('Top Risks by Class')).toBeInTheDocument()
-    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+    expect(screen.getByText('Policy Bands (configured thresholds)')).toBeInTheDocument()
+    expect(screen.getByText('Prediction Distribution Snapshot')).toBeInTheDocument()
+    expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
+    expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
   })
 
-  it('switches into diagnostics and shows tab-specific content', () => {
+  it('switches into diagnostics and shows policy details with explicit derived labeling', () => {
     render(<MLHealthPage />)
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Diagnostics' })[0])
@@ -98,12 +101,12 @@ describe('MLHealthPage', () => {
     expect(screen.getByRole('button', { name: 'Drift' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Calibration' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Policy' })).toBeInTheDocument()
-    expect(screen.getByText('Inference Latency — p50 and p95 vs target')).toBeInTheDocument()
+    expect(screen.getByText('Performance Snapshot')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
 
-    expect(screen.getByText('Active Policy — Strict Enforcement v2.4')).toBeInTheDocument()
-    expect(screen.getByText('Policy Outcomes by Window')).toBeInTheDocument()
+    expect(screen.getByText('Policy decision bands')).toBeInTheDocument()
+    expect(screen.getAllByText('Threshold-based policy bands from configured confidence thresholds.').length).toBeGreaterThan(0)
   })
 
   it('renders loading and error states from the workspace component', () => {
