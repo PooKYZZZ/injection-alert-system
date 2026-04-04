@@ -1,64 +1,62 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
+import type { ReactNode } from 'react'
 
-type ToastState = {
+type SignInToastContextValue = {
   visible: boolean
-  retryArgs?: unknown
+  showSignInToast: () => void
+  hideSignInToast: () => void
+}
+
+const SignInToastContext = createContext<SignInToastContextValue | null>(null)
+
+export function SignInToastProvider({ children }: { children: ReactNode }) {
+  const [visible, setVisible] = useState(false)
+
+  return (
+    <SignInToastContext.Provider
+      value={{
+        visible,
+        showSignInToast: () => setVisible(true),
+        hideSignInToast: () => setVisible(false),
+      }}
+    >
+      {children}
+    </SignInToastContext.Provider>
+  )
+}
+
+export function useSignInToast() {
+  const context = useContext(SignInToastContext)
+  if (!context) {
+    throw new Error('useSignInToast must be used within SignInToastProvider')
+  }
+  return context
 }
 
 export default function SignInToast() {
-  const [state, setState] = useState<ToastState>({ visible: false })
+  const { visible, hideSignInToast } = useSignInToast()
 
-  useEffect(() => {
-    function onShow(e: any) {
-      setState({ visible: true, retryArgs: e?.detail?.retryArgs })
-    }
-    window.addEventListener('show-signin-toast', onShow as EventListener)
-    return () => window.removeEventListener('show-signin-toast', onShow as EventListener)
-  }, [])
-
-  if (!state.visible) return null
-
-  function handleRetry() {
-    ;(async () => {
-      try {
-        const ra: any = state.retryArgs
-        if (!ra?.id) {
-          // nothing to retry
-          setState({ visible: false })
-          return
-        }
-        const res = await fetch(`/api/alerts/${ra.id}/action`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action_taken: ra.action }),
-        })
-        if (res.ok) {
-          try { window.dispatchEvent(new CustomEvent('action-retry-success', { detail: { id: ra.id } })) } catch {}
-        } else {
-          if (res.status === 401) {
-            const callback = encodeURIComponent(window.location.href)
-            try { window.open(`/login?callbackUrl=${callback}`, '_blank') } catch { window.location.assign(`/login?callbackUrl=${callback}`) }
-          }
-        }
-      } catch {}
-      setState({ visible: false })
-    })()
-  }
+  if (!visible) return null
 
   function handleClose() {
-    setState({ visible: false })
+    hideSignInToast()
   }
 
   function handleSignIn() {
+    const loginUrl = '/login'
+
     try {
-      const callback = encodeURIComponent(window.location.href)
-      window.open(`/login?callbackUrl=${callback}`, '_blank')
+      const popup = window.open(loginUrl, '_blank')
+      if (!popup) {
+        window.location.assign(loginUrl)
+      }
     } catch {
-      window.location.assign(`/login?callbackUrl=${encodeURIComponent(window.location.href)}`)
+      window.location.assign(loginUrl)
     }
-    setState({ visible: false })
+
+    hideSignInToast()
   }
 
   return (
@@ -67,11 +65,10 @@ export default function SignInToast() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Sign in required</div>
-            <div style={{ fontSize: 13, opacity: 0.9 }}>A login tab was opened so you can sign in without losing context.</div>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>Please sign in, then retry the action from the alert panel.</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleSignIn} style={{ background: '#2563EB', color: 'white', border: 'none', padding: '8px 10px', borderRadius: 6, cursor: 'pointer' }}>Sign in</button>
-            <button onClick={handleRetry} style={{ background: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.12)', padding: '8px 10px', borderRadius: 6, cursor: 'pointer' }}>Retry</button>
             <button onClick={handleClose} aria-label="close" style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}>×</button>
           </div>
         </div>

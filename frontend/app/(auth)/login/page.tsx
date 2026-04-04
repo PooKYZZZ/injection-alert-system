@@ -115,7 +115,11 @@ export default function LoginPage() {
               </div>
             )}
 
+            <label htmlFor="password" className="sr-only">
+              Password
+            </label>
             <input
+              id="password"
               type="password"
               placeholder="Enter your password"
               value={password}
