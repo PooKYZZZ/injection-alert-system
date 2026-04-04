@@ -12,6 +12,10 @@ Model weight files are not committed to this repository due to file size.
 3. Confirm this path exists after extraction:
    `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755/`
 
+4. Set `.env` to the real runtime model boundary:
+   `MODEL_REGISTRY_PATH=ml_model/model_registry`
+   (or set an explicit run directory under `ml_model/model_registry/staging/`)
+
 ## Running without the model
 
 The backend will start in mock mode automatically if model files are missing.
