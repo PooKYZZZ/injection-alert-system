@@ -88,7 +88,7 @@ export function StatCard({
             : (valueColor ?? (deltaIsGood
                 ? 'text-emerald-400'
                 : delta
-                  ? 'text-emerald-400'
+                  ? 'text-red-400'
                   : 'text-[var(--color-text-primary)]'))
         )}
       >
