@@ -229,7 +229,6 @@ function normalizeWithSchema<T>(
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.error('[BFF] Upstream schema mismatch:', parsed.error, payload)
     }
 
@@ -537,7 +536,6 @@ async function fetchUpstream<T>(
       upstreamBody = undefined
     }
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.error('[BFF] Upstream returned non-OK status', response.status, path, upstreamBody)
     }
 
@@ -619,7 +617,6 @@ export async function getAlerts(
   const path = query.size > 0 ? `/api/alerts?${query.toString()}` : '/api/alerts'
 
   if (process.env.NODE_ENV === 'development') {
-    // eslint-disable-next-line no-console
     console.log('[BFF] upstream path ->', path)
   }
 
@@ -813,7 +810,6 @@ export async function updateAlertAction(
   }
 
   if (process.env.NODE_ENV === 'development') {
-    // eslint-disable-next-line no-console
     console.log('[BFF] updateAlertAction upstream path ->', `${config.data.baseUrl}/api/alerts/${parsedId.data}/action`)
   }
 
@@ -825,7 +821,6 @@ export async function updateAlertAction(
       } catch {
         upstreamBody = undefined
       }
-      // eslint-disable-next-line no-console
       console.error('[BFF] updateAlertAction upstream non-OK', response.status, upstreamBody)
     }
     if (response.status === 401 || response.status === 403) {

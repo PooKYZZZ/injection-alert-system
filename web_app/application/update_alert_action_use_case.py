@@ -8,13 +8,19 @@ Architectural role:
 """
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Final, Literal, Optional
 
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 
-AlertAction = Literal['BLOCKED', 'THROTTLED', 'ALLOWED']
+ALERT_ACTION_VALUES: Final[tuple[str, str, str]] = (
+    "BLOCKED",
+    "THROTTLED",
+    "ALLOWED",
+)
 
-VALID_ALERT_ACTIONS = {'BLOCKED', 'THROTTLED', 'ALLOWED'}
+AlertAction = Literal[*ALERT_ACTION_VALUES]
+
+VALID_ALERT_ACTIONS: Final[frozenset[AlertAction]] = frozenset(ALERT_ACTION_VALUES)
 
 
 @dataclass(frozen=True)

@@ -5,16 +5,16 @@ import { authConfig } from './auth.config'
 // Avoid importing "dotenv" in frontend/shared code since it is a Node-only module
 // and will break when bundled for the browser. Rely on `process.env` instead.
 
-// Ensure the secret is defined in the auth configuration (do not log secrets)
-const authOptions = {
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? 'default-secret-key',
-};
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
+if (!authSecret) {
+  throw new Error('AUTH_SECRET or NEXTAUTH_SECRET must be set')
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
 
-  // ✅ REQUIRED: Fixes "MissingSecret" error
-  secret: authOptions.secret,
+  // Require explicit env-driven auth secret configuration.
+  secret: authSecret,
 
   // Override providers with full Node runtime implementation
   providers: [

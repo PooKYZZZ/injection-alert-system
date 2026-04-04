@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import { ALERT_ACTION_TAKEN_VALUES, type AlertAction } from '@/features/alerts/contract'
 import { updateAlertAction } from '@/lib/bff-client'
 
 export async function PATCH(
@@ -9,7 +10,6 @@ export async function PATCH(
   try {
     // Dev logging: capture incoming request for debugging
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.log('[API] PATCH /api/alerts/[id]/action request received')
     }
     const session = await auth()
@@ -46,12 +46,11 @@ export async function PATCH(
 
     const actionTaken = body.action_taken
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.log('[API] action_taken:', actionTaken, 'for id', id)
     }
     if (
       typeof actionTaken !== 'string' ||
-      !['BLOCKED', 'THROTTLED', 'ALLOWED'].includes(actionTaken)
+      !ALERT_ACTION_TAKEN_VALUES.includes(actionTaken as AlertAction)
     ) {
       return NextResponse.json(
         {
@@ -64,10 +63,9 @@ export async function PATCH(
       )
     }
 
-    const result = await updateAlertAction(id, actionTaken as 'BLOCKED' | 'THROTTLED' | 'ALLOWED')
+    const result = await updateAlertAction(id, actionTaken as AlertAction)
     if (!result.ok) {
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
         console.error('[API] updateAlertAction failed', result)
       }
       return NextResponse.json({ error: result.error }, { status: result.status })

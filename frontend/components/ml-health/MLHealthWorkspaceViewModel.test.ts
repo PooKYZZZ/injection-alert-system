@@ -1,0 +1,87 @@
+import { describe, expect, it } from 'vitest'
+
+import { buildMLHealthViewModel, buildPolicyBands, deriveHealthTone } from './MLHealthWorkspaceViewModel'
+import type { MLHealthData } from '@/features/ml-health/types'
+
+const baseHealth: MLHealthData = {
+  model_version: 'distilbert_cleaned_120k_20260324',
+  status: 'HEALTHY',
+  latency_ms: 32.5,
+  latency_trend: null,
+  drift_score: 0.034,
+  drift_status: 'NORMAL',
+  traffic_processed: 1440,
+  thresholds: {
+    low: 0.5,
+    medium: 0.65,
+    high: 0.8,
+  },
+  macro_f1: 0.91,
+  ece: 0.04,
+  per_class_f1: {
+    'SQL Injection': 0.9,
+    XSS: 0.84,
+  },
+  calibration_bins: [],
+  prediction_distribution: {
+    baseline: {
+      'SQL Injection': 20,
+      Normal: 80,
+    },
+    current: {
+      'SQL Injection': 24,
+      Normal: 76,
+    },
+  },
+}
+
+describe('MLHealthWorkspace.view-model', () => {
+  it('derives warning tone when serving is degraded or drift warning is reported', () => {
+    expect(deriveHealthTone({ ...baseHealth, status: 'DEGRADED' })).toBe('warning')
+    expect(deriveHealthTone({ ...baseHealth, drift_status: 'WARNING' })).toBe('warning')
+  })
+
+  it('builds policy bands from configured thresholds', () => {
+    const bands = buildPolicyBands(baseHealth)
+
+    expect(bands).toHaveLength(3)
+    expect(bands[0]).toMatchObject({ label: 'Low confidence', action: 'allow', rangeLabel: '0%-50%' })
+    expect(bands[1]).toMatchObject({ label: 'Medium confidence', action: 'throttle', rangeLabel: '50%-80%' })
+    expect(bands[2]).toMatchObject({ label: 'High confidence', action: 'block', rangeLabel: '80%-100%' })
+  })
+
+  it('uses explicit fallback text when drift score and calibration error are missing', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      drift_score: null,
+      ece: null,
+      calibration_bins: [],
+    })
+
+    expect(viewModel.driftScoreDisplay).toBe('Not reported')
+    expect(viewModel.eceDisplay).toBe('Not reported')
+    expect(viewModel.calibrationSummary).toBe('Expected calibration error not reported in this snapshot.')
+  })
+
+  it('marks policy ranges as not configured when thresholds are missing', () => {
+    const bands = buildPolicyBands({
+      ...baseHealth,
+      thresholds: {
+        low: null,
+        medium: null,
+        high: null,
+      },
+    })
+
+    expect(bands[0]?.rangeLabel).toBe('Not configured')
+    expect(bands[1]?.rangeLabel).toBe('Not configured')
+    expect(bands[2]?.rangeLabel).toBe('Not configured')
+  })
+
+  it('does not expose guessed deployment or parameter metadata', () => {
+    const viewModel = buildMLHealthViewModel(baseHealth)
+
+    expect('deployedAt' in viewModel).toBe(false)
+    expect('paramCount' in viewModel).toBe(false)
+  })
+})

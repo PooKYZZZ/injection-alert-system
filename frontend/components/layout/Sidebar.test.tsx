@@ -1,5 +1,5 @@
 import React from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,11 +51,17 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'Log out' })).toHaveAttribute('aria-label', 'Log out')
   })
 
-  it('clicking logout calls signOut with correct callbackUrl', async () => {
+  it('opens confirmation dialog and signs out only after confirm', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
 
     await user.click(screen.getByRole('button', { name: 'Log out' }))
+    expect(signOut).not.toHaveBeenCalled()
+
+    const dialog = await screen.findByRole('dialog')
+    const confirmLogoutButton = within(dialog).getByRole('button', { name: 'Log out' })
+
+    await user.click(confirmLogoutButton)
 
     expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/login' })
   })

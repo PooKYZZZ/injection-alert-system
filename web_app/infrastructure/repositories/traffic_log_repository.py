@@ -1227,6 +1227,7 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         # Triage status filter
         # The frontend uses `triage_status=new` to mean "untriaged" (NULL in DB).
+        # Contract note: the DB does not persist literal "new"; untriaged rows use NULL.
         # Interpret 'new' as SQL NULL match; otherwise compare string equality.
         if triage_status:
             if triage_status == 'new':

@@ -8,26 +8,7 @@ import {
 import { toQueryString, toAlertQueryString, type DashboardFilters } from '@/lib/searchParams'
 import type { AlertFilters } from '@/features/alerts/schemas'
 import { Alert, PaginatedAlerts, TriageStatus } from './types'
-// Client-side redirect helper for auth failures
-function redirectToSignIn(detail?: { retryArgs?: unknown }) {
-  if (typeof window === 'undefined') return
-  const callback = encodeURIComponent(window.location.href)
-  // Open sign-in in a new tab so the analyst doesn't lose context
-  try {
-    window.open(`/login?callbackUrl=${callback}`, '_blank')
-  } catch {
-    // Fallback to navigatation if popup blocked
-    window.location.assign(`/login?callbackUrl=${callback}`)
-  }
-
-  // Notify any React toast listener to show a sign-in toast with optional retry args
-  try {
-    const ev = new CustomEvent('show-signin-toast', { detail })
-    window.dispatchEvent(ev)
-  } catch {
-    // ignore
-  }
-}
+import { useSignInToast } from '@/components/SignInToast'
 import type { AlertAction } from './contract'
 
 /*
@@ -176,6 +157,7 @@ export function useTriageMutation() {
 
 export function useActionMutation() {
   const queryClient = useQueryClient()
+  const { showSignInToast } = useSignInToast()
   return useMutation({
     mutationFn: async ({ id, action }: { id: string; action: AlertAction }): Promise<Alert> => {
       const response = await fetch(`/api/alerts/${id}/action`, {
@@ -185,8 +167,7 @@ export function useActionMutation() {
       })
       if (!response.ok) {
         if (response.status === 401) {
-          // Redirect user to sign-in page when unauthenticated
-          redirectToSignIn({ retryArgs: { id, action } })
+          showSignInToast()
         }
         throw new Error(`PATCH failed: ${response.status}`)
       }
@@ -228,7 +209,7 @@ export function useActionMutation() {
         queryClient.setQueryData(alertKeys.detail(variables.id), context.previousDetail)
       }
     },
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: alertKeys.all })
     },
   })

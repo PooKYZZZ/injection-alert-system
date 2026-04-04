@@ -50,9 +50,6 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
       <table className="w-full text-[11px] border-collapse">
         <thead>
           <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
-            <th className="pb-2 text-left px-2">
-              <input type="checkbox" className="accent-violet-600" aria-label="Select all alerts" />
-            </th>
             <th className="pb-2 text-left px-2">Triage</th>
             <th className="pb-2 text-left px-2">Timestamp</th>
             <th className="pb-2 text-left px-2">Source IP</th>
@@ -69,9 +66,6 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
               key={alert.alert_id}
               className="hover:bg-[var(--color-bg-base)] transition-colors"
             >
-              <td className="p-2">
-                <input type="checkbox" className="accent-violet-600" aria-label={`Select alert ${alert.alert_id}`} />
-              </td>
               <td className="p-2">
                 <TriageBadge triage_status={alert.triage_status ?? null} />
               </td>

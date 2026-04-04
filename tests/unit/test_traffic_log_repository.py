@@ -690,10 +690,12 @@ async def test_seven_day_bucket_boundaries_are_deterministic(
 async def test_get_alert_list_sorts_by_severity_rank(
     repository: TrafficLogRepository,
 ):
+    now = datetime.now(timezone.utc)
+
     await repository.save(
         TrafficLogEntity(
             transaction_id="txn-severity-high",
-            timestamp=datetime(2026, 3, 21, 12, 0, tzinfo=timezone.utc),
+            timestamp=now - timedelta(minutes=3),
             source_ip="198.51.100.40",
             request_path="/high",
             request_method="GET",
@@ -708,7 +710,7 @@ async def test_get_alert_list_sorts_by_severity_rank(
     await repository.save(
         TrafficLogEntity(
             transaction_id="txn-severity-low",
-            timestamp=datetime(2026, 3, 21, 12, 0, tzinfo=timezone.utc),
+            timestamp=now - timedelta(minutes=2),
             source_ip="198.51.100.41",
             request_path="/low",
             request_method="GET",
@@ -723,7 +725,7 @@ async def test_get_alert_list_sorts_by_severity_rank(
     await repository.save(
         TrafficLogEntity(
             transaction_id="txn-severity-medium",
-            timestamp=datetime(2026, 3, 21, 12, 0, tzinfo=timezone.utc),
+            timestamp=now - timedelta(minutes=1),
             source_ip="198.51.100.42",
             request_path="/medium",
             request_method="GET",

@@ -2,7 +2,6 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
-import { useEffect, useState } from 'react'
 import type { Alert, TriageStatus } from '@/features/alerts/types'
 import { ALERT_DISPLAY_ACTION_ALIASES } from '@/features/alerts/contract'
 import type { AlertAction } from '@/features/alerts/contract'
@@ -59,33 +58,9 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
     isError,
   } = useTriageMutation()
 
-  const [displayStatus, setDisplayStatus] = useState<TriageStatus | null>(
-    alert?.triage_status ?? null
-  )
-  const [displayAction, setDisplayAction] = useState<AlertAction | null>(
-    alert?.action_taken ?? null
-  )
-
-  useEffect(() => {
-    setDisplayStatus(alert?.triage_status ?? null)
-    setDisplayAction(alert?.action_taken ?? null)
-  }, [alert?.alert_id, alert?.triage_status, alert?.action_taken])
-
   const handleVerdictClick = (status: TriageStatus) => {
     if (alert && !isPending) {
-      const previousStatus = displayStatus
-      setDisplayStatus(status)
-      mutate(
-        { id: alert.alert_id, status },
-        {
-          onError: () => {
-            setDisplayStatus(previousStatus)
-          },
-          onSuccess: (updatedAlert) => {
-            setDisplayStatus(updatedAlert.triage_status ?? status)
-          },
-        }
-      )
+      mutate({ id: alert.alert_id, status })
     }
   }
 
@@ -97,21 +72,12 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
   const handleActionClick = (action: AlertAction) => {
     if (alert && !isActionPending) {
-      const previousAction = displayAction
-      setDisplayAction(action)
-      mutateAction(
-        { id: alert.alert_id, action },
-        {
-          onError: () => {
-            setDisplayAction(previousAction)
-          },
-          onSuccess: (updatedAlert) => {
-            setDisplayAction(updatedAlert.action_taken ?? action)
-          },
-        }
-      )
+      mutateAction({ id: alert.alert_id, action })
     }
   }
+
+  const displayStatus = alert?.triage_status ?? null
+  const displayAction = alert?.action_taken ?? null
 
   const triageLabel = formatTriageLabel(displayStatus)
   const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
