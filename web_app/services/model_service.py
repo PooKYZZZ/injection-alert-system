@@ -14,6 +14,8 @@ TEMPERATURE = 0.596868
 class ModelService:
     MODEL_KEY = "distilbert"
     CHECKPOINT_NAME = f"best_{MODEL_KEY}_ckpt.pt"
+    PACKAGED_MANIFEST_NAME = "serving_manifest.json"
+    PACKAGED_EVAL_REPORT_NAME = "eval_report.json"
     MOCK_MODEL_VERSION = "mock-model-service"
     DEFAULT_CONFIDENCE_LOW_THRESHOLD = 0.50
     DEFAULT_CONFIDENCE_HIGH_THRESHOLD = 0.80
@@ -135,7 +137,7 @@ class ModelService:
                 f"MODEL_REGISTRY_PATH '{registry_path}' must be a directory"
             )
 
-        if cls._is_run_directory(registry_path):
+        if cls._is_artifact_directory(registry_path):
             return registry_path, False
 
         staging_dir = registry_path
@@ -175,7 +177,29 @@ class ModelService:
         )
 
     @classmethod
+    def _is_packaged_artifact_directory(cls, path: Path) -> bool:
+        return path.is_dir() and (
+            (path / cls.PACKAGED_MANIFEST_NAME).exists()
+            or ((path / "config.json").exists() and (path / "tokenizer.json").exists())
+        )
+
+    @classmethod
+    def _is_artifact_directory(cls, path: Path) -> bool:
+        return cls._is_run_directory(path) or cls._is_packaged_artifact_directory(path)
+
+    @classmethod
     def _derive_model_version(cls, run_dir: Path) -> str:
+        manifest_path = run_dir / cls.PACKAGED_MANIFEST_NAME
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                manifest = {}
+            for key in ("model_version", "run_dir_name", "artifact_version"):
+                value = manifest.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+
         config_path = run_dir / "config_used.json"
         if config_path.exists():
             try:
@@ -260,50 +284,76 @@ class ModelService:
             calibration_bins (nested {bin, avg_conf, avg_acc, gap, count}),
             operational.confidence_tiers ({HIGH/MEDIUM/LOW: {count, ...}}).
         """
-        eval_dir = run_dir / "eval"
-        if not eval_dir.is_dir():
+        metrics_path = self._find_eval_metrics_path(run_dir)
+        if metrics_path is None:
             return {}
 
-        # Find eval_results_{MODEL_KEY}_calibrated.json under eval subdirectories
-        # Layout: eval/{timestamp}/eval_results_{model}_calibrated.json
-        target_name = f"eval_results_{self.MODEL_KEY}_calibrated.json"
-        candidates: list[Path] = []
-        for child in eval_dir.iterdir():
-            if child.is_dir():
-                candidate = child / target_name
-                if candidate.is_file():
-                    candidates.append(candidate)
-            elif child.is_file() and child.name == target_name:
-                candidates.append(child)
-
-        # Pick most recent by directory name (timestamp sort)
-        candidates.sort(key=lambda p: p.parent.name, reverse=True)
-        if not candidates:
-            return {}
-
-        metrics_path = candidates[0]
         try:
             raw = json.loads(metrics_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             logger.warning("Failed to read eval metadata from %s", metrics_path)
             return {}
 
+        return self._extract_eval_metadata(raw)
+
+    def _find_eval_metrics_path(self, run_dir: Path) -> Path | None:
+        eval_dir = run_dir / "eval"
+        if eval_dir.is_dir():
+            target_name = f"eval_results_{self.MODEL_KEY}_calibrated.json"
+            candidates: list[Path] = []
+            for child in eval_dir.iterdir():
+                if child.is_dir():
+                    candidate = child / target_name
+                    if candidate.is_file():
+                        candidates.append(candidate)
+                elif child.is_file() and child.name == target_name:
+                    candidates.append(child)
+
+            candidates.sort(key=lambda p: p.parent.name, reverse=True)
+            if candidates:
+                return candidates[0]
+
+        packaged_report = run_dir / self.PACKAGED_EVAL_REPORT_NAME
+        if packaged_report.is_file():
+            return packaged_report
+
+        return None
+
+    def _extract_eval_metadata(self, raw: dict[str, Any]) -> dict[str, Any]:
         metadata: dict[str, Any] = {}
 
-        # Direct scalars
-        if "macro_f1" in raw:
-            metadata["macro_f1"] = float(raw["macro_f1"])
-        if "ece" in raw:
+        macro_f1 = raw.get("macro_f1")
+        if macro_f1 is None:
+            macro_avg = raw.get("macro avg")
+            if isinstance(macro_avg, dict):
+                macro_f1 = macro_avg.get("f1") or macro_avg.get("f1-score")
+        if macro_f1 is not None:
+            metadata["macro_f1"] = float(macro_f1)
+
+        if "ece" in raw and raw.get("ece") is not None:
             metadata["ece"] = float(raw["ece"])
 
-        # per_class: { "SQL Injection": { f1: 0.97, precision: 0.95, ... }, ... }
-        # → per_class_f1: { "SQL Injection": 0.97, ... }
         per_class = raw.get("per_class")
+        if not isinstance(per_class, dict):
+            per_class = {
+                label: metrics
+                for label, metrics in raw.items()
+                if label not in {"accuracy", "macro avg", "weighted avg", "ece", "macro_f1", "calibration_bins", "temperature"}
+                and isinstance(metrics, dict)
+            }
+
         if isinstance(per_class, dict):
             metadata["per_class_f1"] = {
-                cls_name: float(metrics["f1"])
+                cls_name: float(metrics.get("f1", metrics.get("f1-score")))
                 for cls_name, metrics in per_class.items()
-                if isinstance(metrics, dict) and "f1" in metrics
+                if isinstance(metrics, dict)
+                and metrics.get("f1", metrics.get("f1-score")) is not None
+            }
+
+            metadata["prediction_distribution"] = {
+                cls_name: int(metrics["support"])
+                for cls_name, metrics in per_class.items()
+                if isinstance(metrics, dict) and "support" in metrics
             }
 
         # calibration_bins: [{ bin: 0, avg_conf: 0.5, avg_acc: 0.8, gap: 0.01, count: 100 }, ...]
@@ -321,14 +371,6 @@ class ModelService:
                 for i, b in enumerate(raw_bins)
                 if isinstance(b, dict)
             ]
-
-        # prediction_distribution derived from per_class support (true distribution)
-        if isinstance(per_class, dict):
-            metadata["prediction_distribution"] = {
-                cls_name: int(metrics["support"])
-                for cls_name, metrics in per_class.items()
-                if isinstance(metrics, dict) and "support" in metrics
-            }
 
         return metadata
 

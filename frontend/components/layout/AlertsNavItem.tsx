@@ -1,7 +1,7 @@
 'use client'
 
-import { useAlerts } from '@/features/alerts/queries'
-import { DEFAULT_FILTERS } from '@/lib/searchParams'
+import { useAlertsFromFilters } from '@/features/alerts/queries'
+import { DEFAULT_ALERT_FILTERS } from '@/lib/searchParams'
 import { SidebarNavItem } from './SidebarNavItem'
 
 interface AlertsNavItemProps {
@@ -11,7 +11,7 @@ interface AlertsNavItemProps {
 }
 
 export function AlertsNavItem({ href, icon, label }: AlertsNavItemProps) {
-  const { data } = useAlerts(DEFAULT_FILTERS)
+  const { data } = useAlertsFromFilters(DEFAULT_ALERT_FILTERS)
 
   return (
     <SidebarNavItem

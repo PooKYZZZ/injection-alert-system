@@ -4,6 +4,8 @@ from typing import List
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
 
+from web_app.application.update_alert_action_use_case import AlertAction
+
 PredictionLabel = Literal[
     "SQL Injection",
     "Code Injection",
@@ -11,7 +13,7 @@ PredictionLabel = Literal[
     "Normal",
 ]
 ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH"]
-ActionTaken = Literal["BLOCKED", "THROTTLED", "ALLOWED"]
+ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
 
 
@@ -275,6 +277,12 @@ class TriageUpdateRequest(BaseModel):
     ] = Field(..., description="Triage status to set on the alert")
 
 
+class ActionUpdateRequest(BaseModel):
+    """Request schema for updating alert action_taken."""
+
+    action_taken: ActionTaken = Field(..., description="Action to set on the alert")
+
+
 class WafIngestLookupResponse(BaseModel):
     found: bool
     transaction_id: str
@@ -324,7 +332,8 @@ class AlertQueryParams(BaseModel):
         default=None, description="Filter by action taken (BLOCKED, THROTTLED, ALLOWED)"
     )
     triage_status: Optional[TriageStatus] = Field(
-        default=None, description="Filter by triage status"
+        default=None,
+        description="Filter by triage status; 'new' maps to untriaged rows (NULL in DB)",
     )
     confidence_level: Optional[List[ConfidenceLevel]] = Field(
         default=None,

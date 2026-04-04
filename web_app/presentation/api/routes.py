@@ -39,8 +39,13 @@ from web_app.application.update_alert_triage_use_case import (
     UpdateAlertTriageUseCase,
     InvalidTriageStatusError,
 )
+from web_app.application.update_alert_action_use_case import (
+    UpdateAlertActionUseCase,
+    InvalidAlertActionError,
+)
 from web_app.presentation.schemas import (
     ActivityBucketSchema,
+    ActionUpdateRequest,
     AlertDetailResponse,
     AlertListResponse,
     AlertQueryParams,
@@ -413,6 +418,29 @@ async def update_alert_triage(
             triage_status=request.triage_status,
         )
     except InvalidTriageStatusError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not result.success:
+        raise HTTPException(status_code=404, detail=result.message)
+
+    return AlertDetailResponse.model_validate(result.alert)
+
+
+@internal_router.patch("/alerts/{alert_id}/action", response_model=AlertDetailResponse)
+async def update_alert_action(
+    alert_id: int,
+    request: ActionUpdateRequest,
+    repository: TrafficLogRepository = Depends(get_repository),
+):
+    """Update the action_taken of an alert."""
+    use_case = UpdateAlertActionUseCase(repository=repository)
+
+    try:
+        result = await use_case.execute(
+            alert_id=alert_id,
+            action_taken=request.action_taken,
+        )
+    except InvalidAlertActionError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if not result.success:

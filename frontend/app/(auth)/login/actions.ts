@@ -7,11 +7,14 @@ export type LoginResult =
   | { ok: true }
   | { ok: false; code: 'INVALID_CREDENTIALS' | 'SERVER_ERROR' }
 
+const LOGIN_REDIRECT_TO = '/dashboard'
+
 export async function loginAction(password: string): Promise<LoginResult> {
   try {
     await signIn('credentials', {
       password,
-      redirectTo: '/dashboard'
+      // This action intentionally redirects only to the dashboard.
+      redirectTo: LOGIN_REDIRECT_TO
     })
 
     return { ok: true }

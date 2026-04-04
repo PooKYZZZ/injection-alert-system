@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
-import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { TriageBadge } from '@/components/ui/TriageBadge'
@@ -14,15 +13,17 @@ interface RecentAlertsTableProps {
 }
 
 function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp)
-  // Use UTC methods to avoid server/client timezone mismatch during Next.js hydration
-  const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })
-  const day = date.getUTCDate()
-  const hours = date.getUTCHours()
-  const minutes = date.getUTCMinutes().toString().padStart(2, '0')
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const displayHour = hours % 12 || 12
-  return `${month} ${day}, ${displayHour}:${minutes} ${period}`
+  const parsed = new Date(timestamp)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function formatCrsScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '—'
+  return score.toFixed(2)
 }
 
 export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
@@ -49,17 +50,14 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
       <table className="w-full text-[11px] border-collapse">
         <thead>
           <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
-            <th className="pb-2 text-left px-2">
-              <input type="checkbox" className="accent-violet-600" aria-label="Select all alerts" />
-            </th>
             <th className="pb-2 text-left px-2">Triage</th>
-            <th className="pb-2 text-left px-2">Severity</th>
             <th className="pb-2 text-left px-2">Timestamp</th>
             <th className="pb-2 text-left px-2">Source IP</th>
-            <th className="pb-2 text-left px-2">Target path</th>
-            <th className="pb-2 text-left px-2">Attack type</th>
-            <th className="pb-2 text-left px-2">ML confidence</th>
-            <th className="pb-2 text-left px-2">Action</th>
+            <th className="pb-2 text-left px-2">Request</th>
+            <th className="pb-2 text-left px-2">Prediction</th>
+            <th className="pb-2 text-left px-2">Confidence</th>
+            <th className="pb-2 text-left px-2">Action Taken</th>
+            <th className="pb-2 text-left px-2">CRS Score</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-text-ghost)]">
@@ -69,13 +67,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
               className="hover:bg-[var(--color-bg-base)] transition-colors"
             >
               <td className="p-2">
-                <input type="checkbox" className="accent-violet-600" aria-label={`Select alert ${alert.alert_id}`} />
-              </td>
-              <td className="p-2">
                 <TriageBadge triage_status={alert.triage_status ?? null} />
-              </td>
-              <td className="p-2">
-                <SeverityBadge severity={alert.confidence_level} prediction={alert.prediction} />
               </td>
               <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
               <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
@@ -85,8 +77,9 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                 <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
               </td>
               <td className="p-2">
-                <ActionLabel action={alert.action_taken} />
+                <ActionLabel action={alert.action_taken} bordered={false} />
               </td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</td>
             </tr>
           ))}
         </tbody>

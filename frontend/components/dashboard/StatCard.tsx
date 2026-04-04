@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 interface StatCardProps {
   label: string
   value: string | number
+  valueColor?: string
+  valueFlashColor?: string
   secondary?: string
   secondaryColor?: string
   previousValue?: number | null
@@ -28,6 +30,8 @@ function computeDelta(current: number, previous: number | null | undefined) {
 export function StatCard({
   label,
   value,
+  valueColor,
+  valueFlashColor,
   secondary,
   secondaryColor = 'text-[var(--color-text-secondary)]',
   previousValue,
@@ -39,6 +43,7 @@ export function StatCard({
 }: StatCardProps) {
   const delta = typeof value === 'number' ? computeDelta(value, previousValue) : null
   const showDelta = !(hideDeltaWhenValueZero && typeof value === 'number' && value === 0)
+  const isZeroValue = typeof value === 'number' && value === 0
   const deltaIsGood =
     delta != null &&
     ((delta.direction === 'down' && !deltaInverted) ||
@@ -66,8 +71,8 @@ export function StatCard({
       transition={{ duration: 0.3, ease: 'easeOut', delay }}
       onClick={onClick}
       className={cn(
-        'flex flex-col gap-1 rounded-xl border border-[#1e2a3d] bg-[#0c1120] p-4 transition-all',
-        onClick && 'cursor-pointer hover:border-violet-500/30 hover:bg-[#0c1120]/85'
+        'flex flex-col gap-1 rounded-xl border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-4 transition-all',
+        onClick && 'cursor-pointer hover:border-[var(--color-accent-blue-bg)] hover:bg-[var(--color-bg-elevated)]'
       )}
     >
       <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
@@ -76,15 +81,15 @@ export function StatCard({
       <div
         className={cn(
           'text-[28px] font-semibold tracking-tight leading-none transition-colors duration-300',
-          flash
-            ? deltaIsGood
-              ? 'text-emerald-200'
-              : 'text-red-200'
-            : deltaIsGood
-              ? 'text-emerald-400'
-              : delta
-                ? 'text-red-400'
-                : 'text-[var(--color-text-primary)]'
+          isZeroValue
+            ? 'text-[var(--color-text-primary)]'
+            : flash
+            ? (valueFlashColor ?? valueColor ?? (deltaIsGood ? 'text-emerald-200' : 'text-red-200'))
+            : (valueColor ?? (deltaIsGood
+                ? 'text-emerald-400'
+                : delta
+                  ? 'text-red-400'
+                  : 'text-[var(--color-text-primary)]'))
         )}
       >
         {typeof value === 'number' ? (

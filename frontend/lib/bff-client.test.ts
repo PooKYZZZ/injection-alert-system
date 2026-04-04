@@ -244,6 +244,51 @@ describe('bff-client', () => {
     })
   })
 
+  it('preserves upstream 404 as NOT_FOUND when updating alert action', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
+
+    const { updateAlertAction } = await loadClient()
+    const result = await updateAlertAction('99', 'BLOCKED')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 404,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Requested resource was not found.',
+      },
+    })
+  })
+
+  it('returns 502 UPSTREAM_ERROR when action update payload fails schema validation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 1,
+          timestamp: '2026-03-15T00:00:00Z',
+          payload_snippet: 'payload',
+          prediction: 'SQL Injection',
+          confidence: 0.9,
+          confidence_level: 'HIGH',
+          action_taken: 'NOT_A_REAL_ACTION',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { updateAlertAction } = await loadClient()
+    const result = await updateAlertAction('1', 'BLOCKED')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+  })
+
   it('maps stats and preserves total_requests', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
@@ -291,8 +336,8 @@ describe('bff-client', () => {
         prev_allowed_count: null,
         prev_throttled_count: null,
         activity_buckets: [
-          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: new Date('2026-03-18T12:00:00Z'), timestamp_end: new Date('2026-03-18T13:00:00Z'), bucket_width_seconds: 3600 },
-          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: new Date('2026-03-18T13:00:00Z'), timestamp_end: new Date('2026-03-18T14:00:00Z'), bucket_width_seconds: 3600 },
+          { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
+          { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
         ],
         attack_distribution: {},
         top_source_ips: [],
@@ -508,8 +553,8 @@ describe('bff-client', () => {
       return
     }
 
-    expect(result.data.activity_buckets[0].timestamp_start).toEqual(new Date('2026-03-18T12:00:00Z'))
-    expect(result.data.activity_buckets[1].timestamp_start).toEqual(new Date('2026-03-18T13:00:00Z'))
+    expect(result.data.activity_buckets[0].timestamp_start).toBe('2026-03-18T12:00:00Z')
+    expect(result.data.activity_buckets[1].timestamp_start).toBe('2026-03-18T13:00:00Z')
   })
 
   it('returns UPSTREAM_ERROR when stats contain invalid bucket timestamp', async () => {

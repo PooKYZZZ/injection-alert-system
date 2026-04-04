@@ -36,6 +36,7 @@ export function AlertsPageClient() {
         selectedIds={[...selectedIds]}
         onSelectionChange={handleSelectionChange}
         onAlertClick={handleAlertClick}
+        activeAlertId={selectedAlert?.alert_id}
       />
       <AlertDrawer
         alert={selectedAlert}

@@ -5,6 +5,7 @@ import {
   ComposedChart,
   Area,
   Line,
+  ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -74,6 +75,11 @@ function useCSSColor(variable: string): string {
   } catch {
     return '#888888'
   }
+}
+
+export function buildYAxisMax(maxValue: number): number {
+  if (!Number.isFinite(maxValue) || maxValue <= 60) return 60
+  return Math.ceil(maxValue / 10) * 10
 }
 
 function CustomTooltip({
@@ -197,6 +203,19 @@ export function TimelineChart({
   const colorBlocked = useCSSColor('--color-severity-high-accent')
   const colorThrottled = useCSSColor('--color-accent-amber')
   const colorAllowed = useCSSColor('--color-severity-safe-accent')
+  const maxSeriesValue = useMemo(
+    () =>
+      processedData.reduce(
+        (maxValue, point) => Math.max(maxValue, point.allowed, point.blocked, point.throttled),
+        0
+      ),
+    [processedData]
+  )
+  const yAxisMax = useMemo(() => buildYAxisMax(maxSeriesValue), [maxSeriesValue])
+  const yAxisTicks = useMemo(
+    () => (yAxisMax > 60 ? [0, 30, 60, yAxisMax] : [0, 30, 60]),
+    [yAxisMax]
+  )
 
   if (isPending) {
     return (
@@ -213,8 +232,8 @@ export function TimelineChart({
   const isEmpty = hasEvents != null ? !hasEvents : !inferredHasEvents
   const chartMargin =
     timeWindow === '7d'
-      ? { top: 5, right: 5, left: -20, bottom: 0 }
-      : { top: 5, right: 5, left: -20, bottom: 0 }
+      ? { top: 5, right: 5, left: 8, bottom: 0 }
+      : { top: 5, right: 5, left: 8, bottom: 0 }
 
   return (
     <div className="relative h-[140px] w-full">
@@ -256,11 +275,28 @@ export function TimelineChart({
             minTickGap={40}
           />
           <YAxis
+            orientation="left"
+            mirror={false}
             axisLine={false}
             tickLine={false}
+            domain={[0, yAxisMax]}
+            ticks={yAxisTicks}
+            allowDecimals={false}
             tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
-            width={28}
+            width={34}
             tickMargin={5}
+          />
+          <ReferenceLine
+            y={30}
+            stroke="var(--color-text-muted)"
+            strokeOpacity={0.4}
+            strokeDasharray="4 4"
+          />
+          <ReferenceLine
+            y={60}
+            stroke="var(--color-text-muted)"
+            strokeOpacity={0.5}
+            strokeDasharray="4 4"
           />
           <Tooltip
             offset={12}

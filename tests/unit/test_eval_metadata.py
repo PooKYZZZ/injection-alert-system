@@ -191,26 +191,18 @@ class TestEvalMetadata:
         eval_dir.mkdir()
         eval_file = eval_dir / "eval_results_distilbert_calibrated.json"
         eval_file.write_text('{"macro_f1": null, "ece": 0.05}')
-        try:
-            metadata = mock_service._load_eval_metadata(temp_run_dir)
-            # If it returns, macro_f1 should not be present (None filtered)
-            assert metadata.get("macro_f1") is None or "macro_f1" not in metadata
-            assert metadata.get("ece", None) in (0.05, None) or True  # graceful handling
-        except (TypeError, ValueError):
-            pass  # null values correctly rejected
+        metadata = mock_service._load_eval_metadata(temp_run_dir)
+        assert "macro_f1" not in metadata
+        assert metadata["ece"] == 0.05
 
     def test_malformed_json_wrong_types(self, mock_service, temp_run_dir):
-        """Test that wrong types in JSON don't crash the loader."""
+        """Test that wrong numeric types are rejected clearly."""
         eval_dir = temp_run_dir / "eval"
         eval_dir.mkdir()
         eval_file = eval_dir / "eval_results_distilbert_calibrated.json"
         eval_file.write_text('{"macro_f1": "not a number", "ece": "also not a number"}')
-        try:
-            metadata = mock_service._load_eval_metadata(temp_run_dir)
-            # If it returns, wrong types should be filtered out
-            assert metadata.get("macro_f1", None) in (None, "not a number") or True
-        except (TypeError, ValueError):
-            pass  # wrong types correctly rejected
+        with pytest.raises(ValueError):
+            mock_service._load_eval_metadata(temp_run_dir)
 
     def test_calibration_bins_transformed_correctly(self, mock_service, temp_run_dir):
         """Test that calibration bins are transformed to correct schema."""
@@ -309,6 +301,26 @@ class TestEvalMetadata:
 
         metadata = mock_service._load_eval_metadata(temp_run_dir)
         assert metadata["macro_f1"] == 0.95
+
+    def test_packaged_eval_report_is_used_when_eval_dir_missing(
+        self, mock_service, temp_run_dir
+    ):
+        """Test that packaged eval_report.json populates ML health metadata."""
+        eval_data = {
+            "SQL Injection": {"f1-score": 0.99, "support": 8975},
+            "Normal": {"f1-score": 0.98, "support": 3658},
+            "macro avg": {"f1-score": 0.9885, "support": 19505},
+            "accuracy": 0.9925,
+        }
+
+        eval_file = temp_run_dir / "eval_report.json"
+        eval_file.write_text(json.dumps(eval_data), encoding="utf-8")
+
+        metadata = mock_service._load_eval_metadata(temp_run_dir)
+
+        assert metadata["macro_f1"] == pytest.approx(0.9885)
+        assert metadata["per_class_f1"]["SQL Injection"] == pytest.approx(0.99)
+        assert metadata["prediction_distribution"]["SQL Injection"] == 8975
 
 
 class TestEvalMetadataProperty:

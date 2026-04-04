@@ -45,7 +45,7 @@ export function MLConfidenceBands({
         <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
           <div
             className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${total > 0 ? (high / total) * 100 : 0}%`, background: 'var(--color-accent-purple)' }}
+            style={{ width: `${total > 0 ? (high / total) * 100 : 0}%`, background: 'var(--color-severity-high-accent)' }}
           />
         </div>
         <div className="flex items-center justify-end gap-2 tabular-nums">

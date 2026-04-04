@@ -2,8 +2,8 @@ import 'server-only'
 
 import { z } from 'zod'
 import { AlertSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
+import { ALERT_ACTION_TAKEN_VALUES, type AlertAction } from '@/features/alerts/contract'
 import type { Alert, PaginatedAlerts } from '@/features/alerts/types'
-import type { AlertAction } from '@/features/alerts/contract'
 import type { MLHealthData } from '@/features/ml-health/types'
 import type { DashboardStats } from '@/features/stats/types'
 import { MOCK_ALERTS } from '@/mocks/alerts'
@@ -29,7 +29,7 @@ const BackendAlertSchema = z.object({
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
   confidence: z.number(),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-  action_taken: z.enum(['BLOCKED', 'THROTTLED', 'ALLOWED']).nullable().optional(),
+  action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
@@ -228,6 +228,10 @@ function normalizeWithSchema<T>(
 ): BffResult<T> {
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[BFF] Upstream schema mismatch:', parsed.error, payload)
+    }
+
     return err(
       502,
       'UPSTREAM_ERROR',
@@ -307,13 +311,17 @@ function normalizeAlertList(
 }
 
 function normalizeAlertAction(value: string | null | undefined): AlertAction | null {
-  if (value === 'BLOCKED' || value === 'THROTTLED' || value === 'ALLOWED') {
-    return value
+  if (
+    typeof value === 'string' &&
+    ALERT_ACTION_TAKEN_VALUES.includes(value as AlertAction)
+  ) {
+    return value as AlertAction
   }
   return null
 }
 
 type NormalizedBucket = DashboardStats['activity_buckets'][number] & {
+  _sortTimestampMs: number
   _originalIndex: number
 }
 
@@ -369,16 +377,17 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
       blocked_count: bucket.blocked_count,
       allowed_count: bucket.allowed_count,
       throttled_count: bucket.throttled_count,
-      timestamp_start: parsedTimestamp,
-      timestamp_end: parsedTimestampEnd,
+      timestamp_start: bucket.timestamp_start,
+      timestamp_end: bucket.timestamp_end ?? null,
       bucket_width_seconds: bucket.bucket_width_seconds ?? null,
+      _sortTimestampMs: parsedTimestamp.getTime(),
       _originalIndex: idx,
     })
   }
 
   normalizedBuckets.sort(
     (a, b) =>
-      a.timestamp_start.getTime() - b.timestamp_start.getTime() ||
+      a._sortTimestampMs - b._sortTimestampMs ||
       a.bucket_index - b.bucket_index ||
       a._originalIndex - b._originalIndex
   )
@@ -399,7 +408,9 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
     prev_blocked_count: payload.prev_blocked_count ?? null,
     prev_allowed_count: payload.prev_allowed_count ?? null,
     prev_throttled_count: payload.prev_throttled_count ?? null,
-    activity_buckets: normalizedBuckets.map(({ _originalIndex: _, ...bucket }) => bucket),
+    activity_buckets: normalizedBuckets.map(
+      ({ _sortTimestampMs: _, _originalIndex: __, ...bucket }) => bucket
+    ),
     attack_distribution: attackDistribution,
     top_source_ips: topSourceIps,
     top_targeted_paths: topTargetedPaths,
@@ -517,6 +528,17 @@ async function fetchUpstream<T>(
   }
 
   if (!response.ok) {
+    // Attempt to log upstream error body for easier debugging in development
+    let upstreamBody: string | undefined
+    try {
+      upstreamBody = await response.text()
+    } catch {
+      upstreamBody = undefined
+    }
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[BFF] Upstream returned non-OK status', response.status, path, upstreamBody)
+    }
+
     // Route handlers enforce auth before calling BFF client, so upstream 401/403
     // indicates an internal auth failure (e.g., invalid, expired, or unauthorized
     // INTERNAL_API_KEY). Map to INTERNAL_SERVICE_AUTH_FAILED to accurately reflect
@@ -583,11 +605,21 @@ export async function getAlerts(
     if (value) query.set(backendKey, value)
   }
 
+  // Forward triage_status values (including 'new') directly to upstream.
+  // Previously we attempted to omit the param for 'new' which caused the
+  // upstream to return unexpected results; send the explicit value so the
+  // backend can apply its intended filtering logic.
+
   for (const value of searchParams.getAll('confidence_level')) {
     if (value) query.append('confidence_level', value)
   }
 
   const path = query.size > 0 ? `/api/alerts?${query.toString()}` : '/api/alerts'
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[BFF] upstream path ->', path)
+  }
+
   const upstream = await fetchUpstream(path, BackendPaginatedAlertsSchema)
   if (!upstream.ok) {
     return upstream
@@ -698,6 +730,99 @@ export async function updateAlertTriage(
   }
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      return err(
+        500,
+        'INTERNAL_SERVICE_AUTH_FAILED',
+        'Internal service authentication failed.'
+      )
+    }
+
+    if (response.status === 404) {
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    }
+
+    if (response.status >= 500) {
+      return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.')
+    }
+
+    return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.')
+  }
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+  }
+
+  const parsed = BackendAlertSchema.safeParse(payload)
+  if (!parsed.success) {
+    return err(
+      502,
+      'UPSTREAM_ERROR',
+      'Upstream response did not match expected shape.'
+    )
+  }
+
+  return normalizeAlert(parsed.data)
+}
+
+export async function updateAlertAction(
+  alertId: string,
+  action: AlertAction
+): Promise<BffResult<Alert>> {
+  if (isMockMode()) {
+    const match = MOCK_ALERTS.items.find((item) => item.alert_id === alertId)
+    if (!match) {
+      return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    }
+    match.action_taken = action
+    return validateMockData(AlertSchema, match)
+  }
+
+  const parsedId = parseAlertId(alertId)
+  if (!parsedId.ok) {
+    return parsedId
+  }
+
+  const config = getUpstreamConfig()
+  if (!config.ok) {
+    return config
+  }
+
+  let response: Response
+  try {
+    response = await fetch(
+      `${config.data.baseUrl}/api/alerts/${parsedId.data}/action`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${config.data.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action_taken: action }),
+        signal: AbortSignal.timeout(30_000),
+      }
+    )
+  } catch {
+    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[BFF] updateAlertAction upstream path ->', `${config.data.baseUrl}/api/alerts/${parsedId.data}/action`)
+  }
+
+  if (!response.ok) {
+    if (process.env.NODE_ENV === 'development') {
+      let upstreamBody: string | undefined
+      try {
+        upstreamBody = await response.text()
+      } catch {
+        upstreamBody = undefined
+      }
+      console.error('[BFF] updateAlertAction upstream non-OK', response.status, upstreamBody)
+    }
     if (response.status === 401 || response.status === 403) {
       return err(
         500,

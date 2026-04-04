@@ -97,10 +97,12 @@ export default function DashboardPage() {
   // Stat card values with honest fallback
   const statCards = [
       {
-        label: 'High alerts',
-        value: stats?.actionable_alerts ?? '—',
+        label: 'High-confidence alerts',
+        value: stats?.high_alert_count ?? '—',
+      valueColor: 'text-emerald-500',
+      valueFlashColor: 'text-red-200',
       secondary:
-        stats?.actionable_alerts === 0
+        stats?.high_alert_count === 0
           ? timeWindow
             ? 'No threats in this window'
             : 'No threats detected'
@@ -113,6 +115,8 @@ export default function DashboardPage() {
     {
       label: 'Blocked',
       value: stats?.blocked_count ?? '—',
+        valueColor: 'text-red-500',
+        valueFlashColor: 'text-red-200',
         secondary:
           stats?.blocked_count != null && stats?.total_requests
             ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
@@ -128,6 +132,8 @@ export default function DashboardPage() {
     {
       label: 'Throttled',
         value: stats?.throttled_count ?? '—',
+        valueColor: 'text-amber-400',
+        valueFlashColor: 'text-amber-200',
         secondaryColor: 'text-amber-400',
         previousValue: stats?.prev_throttled_count ?? null,
         delay: 0.1,
@@ -177,6 +183,8 @@ export default function DashboardPage() {
               key={card.label}
               label={card.label}
               value={card.value}
+              valueColor={card.valueColor}
+              valueFlashColor={card.valueFlashColor}
               secondary={card.secondary ?? undefined}
               secondaryColor={card.secondaryColor}
               previousValue={card.previousValue}

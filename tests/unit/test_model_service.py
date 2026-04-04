@@ -23,6 +23,18 @@ def _make_run_dir(base_dir: Path, name: str) -> Path:
     return run_dir
 
 
+def _make_packaged_dir(base_dir: Path, name: str = "distillbert") -> Path:
+    package_dir = base_dir / name
+    package_dir.mkdir(parents=True, exist_ok=True)
+    (package_dir / "serving_manifest.json").write_text(
+        '{"model_version":"distilbert_v3_907k_cleaned_20260312_133755"}',
+        encoding="utf-8",
+    )
+    (package_dir / "config.json").write_text("{}", encoding="utf-8")
+    (package_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
+    return package_dir
+
+
 def test_confidence_tier_boundaries_are_locked():
     assert ModelService._confidence_tier_for(0.49) == "LOW"
     assert ModelService._confidence_tier_for(0.50) == "MEDIUM"
@@ -78,3 +90,20 @@ def test_explicit_run_directory_does_not_drift(
     service = ModelService(_make_settings(pinned_run, "production"))
 
     assert service.model_version == pinned_run.name
+
+
+def test_packaged_artifact_directory_is_accepted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    packaged_dir = _make_packaged_dir(tmp_path)
+
+    monkeypatch.setattr(
+        ModelService,
+        "_load_run_artifacts",
+        lambda self, run_dir: (object(), object(), 0.596868),
+    )
+
+    service = ModelService(_make_settings(packaged_dir, "production"))
+
+    assert service.model_version == "distilbert_v3_907k_cleaned_20260312_133755"
