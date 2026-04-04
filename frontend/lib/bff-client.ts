@@ -2,8 +2,8 @@ import 'server-only'
 
 import { z } from 'zod'
 import { AlertSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
+import { ALERT_ACTION_TAKEN_VALUES, type AlertAction } from '@/features/alerts/contract'
 import type { Alert, PaginatedAlerts } from '@/features/alerts/types'
-import type { AlertAction } from '@/features/alerts/contract'
 import type { MLHealthData } from '@/features/ml-health/types'
 import type { DashboardStats } from '@/features/stats/types'
 import { MOCK_ALERTS } from '@/mocks/alerts'
@@ -29,7 +29,7 @@ const BackendAlertSchema = z.object({
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
   confidence: z.number(),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-  action_taken: z.enum(['BLOCKED', 'THROTTLED', 'ALLOWED']).nullable().optional(),
+  action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
@@ -312,8 +312,11 @@ function normalizeAlertList(
 }
 
 function normalizeAlertAction(value: string | null | undefined): AlertAction | null {
-  if (value === 'BLOCKED' || value === 'THROTTLED' || value === 'ALLOWED') {
-    return value
+  if (
+    typeof value === 'string' &&
+    ALERT_ACTION_TAKEN_VALUES.includes(value as AlertAction)
+  ) {
+    return value as AlertAction
   }
   return null
 }
@@ -406,7 +409,9 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
     prev_blocked_count: payload.prev_blocked_count ?? null,
     prev_allowed_count: payload.prev_allowed_count ?? null,
     prev_throttled_count: payload.prev_throttled_count ?? null,
-    activity_buckets: normalizedBuckets.map(({ _originalIndex: _, ...bucket }) => bucket),
+    activity_buckets: normalizedBuckets.map(
+      ({ _sortTimestampMs: _, _originalIndex: __, ...bucket }) => bucket
+    ),
     attack_distribution: attackDistribution,
     top_source_ips: topSourceIps,
     top_targeted_paths: topTargetedPaths,

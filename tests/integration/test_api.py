@@ -145,3 +145,55 @@ def test_model_singleton_injection(client):
     assert hasattr(app_instance.state, "model_service"), (
         "Model service should be loaded on app.state during lifespan"
     )
+
+
+def test_update_alert_action_returns_404_for_missing_alert(client):
+    """PATCH action route should map missing alert result to HTTP 404."""
+    response = client.patch(
+        "/api/alerts/999999/action",
+        json={"action_taken": "BLOCKED"},
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 404
+
+
+def test_update_alert_action_rejects_invalid_action_value(client):
+    """PATCH action route should reject invalid action enum values."""
+    client.post(
+        "/api/predict",
+        json={"http_request": "GET /api/test"},
+        headers=INTERNAL_HEADERS,
+    )
+    alerts_response = client.get("/api/alerts", headers=INTERNAL_HEADERS)
+    alert_id = alerts_response.json()["items"][0]["id"]
+
+    response = client.patch(
+        f"/api/alerts/{alert_id}/action",
+        json={"action_taken": "INVALID_ACTION"},
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_alert_action_updates_existing_alert(client):
+    """PATCH action route should update action_taken for an existing alert."""
+    client.post(
+        "/api/predict",
+        json={"http_request": "GET /api/profile"},
+        headers=INTERNAL_HEADERS,
+    )
+    alerts_response = client.get("/api/alerts", headers=INTERNAL_HEADERS)
+    alert_id = alerts_response.json()["items"][0]["id"]
+
+    response = client.patch(
+        f"/api/alerts/{alert_id}/action",
+        json={"action_taken": "ALLOWED"},
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == alert_id
+    assert payload["action_taken"] == "ALLOWED"

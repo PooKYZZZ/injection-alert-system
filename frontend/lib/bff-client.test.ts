@@ -244,6 +244,51 @@ describe('bff-client', () => {
     })
   })
 
+  it('preserves upstream 404 as NOT_FOUND when updating alert action', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
+
+    const { updateAlertAction } = await loadClient()
+    const result = await updateAlertAction('99', 'BLOCKED')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 404,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Requested resource was not found.',
+      },
+    })
+  })
+
+  it('returns 502 UPSTREAM_ERROR when action update payload fails schema validation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 1,
+          timestamp: '2026-03-15T00:00:00Z',
+          payload_snippet: 'payload',
+          prediction: 'SQL Injection',
+          confidence: 0.9,
+          confidence_level: 'HIGH',
+          action_taken: 'NOT_A_REAL_ACTION',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { updateAlertAction } = await loadClient()
+    const result = await updateAlertAction('1', 'BLOCKED')
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+  })
+
   it('maps stats and preserves total_requests', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
