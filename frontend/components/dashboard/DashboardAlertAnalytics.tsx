@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import type { Alert } from '@/features/alerts/types'
 import type { ConfidenceThresholds } from '@/features/ml-health/types'
 
@@ -28,6 +29,7 @@ interface ChartPanelProps {
 interface DistributionRow {
   label: string
   value: number
+  color?: string
   colorClassName?: string
   labelClassName?: string
 }
@@ -100,6 +102,77 @@ function HorizontalBars({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function DistributionPieChart({
+  rows,
+  emptyMessage,
+}: {
+  rows: DistributionRow[]
+  emptyMessage: string
+}) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0)
+
+  if (rows.length === 0 || total === 0) {
+    return <EmptyChartState message={emptyMessage} />
+  }
+
+  return (
+    <div className="flex min-h-36 items-center gap-4">
+      <div className="h-36 min-w-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={rows}
+              dataKey="value"
+              nameKey="label"
+              innerRadius={36}
+              outerRadius={54}
+              paddingAngle={2}
+              stroke="var(--color-bg-panel)"
+              strokeWidth={2}
+            >
+              {rows.map((row) => (
+                <Cell key={row.label} fill={row.color ?? 'var(--color-accent-blue)'} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                border: '1px solid #30363d',
+                borderRadius: '0.375rem',
+                backgroundColor: 'rgba(13,17,23,0.82)',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+                backdropFilter: 'blur(12px)',
+              }}
+              itemStyle={{ color: '#f0f6fc', fontSize: '11px' }}
+              labelStyle={{ color: '#7d8590', fontSize: '10px', marginBottom: '4px' }}
+              formatter={(value: number, name: string) => {
+                const percentage = total > 0 ? Math.round((value / total) * 100) : 0
+                return [`${value} (${percentage}%)`, name]
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-2.5">
+        {rows.map((row) => {
+          const percentage = total > 0 ? Math.round((row.value / total) * 100) : 0
+
+          return (
+            <div key={row.label} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: row.color ?? 'var(--color-accent-blue)' }}
+              />
+              <span className="truncate text-xs text-text-primary">{row.label}</span>
+              <span className="text-xs tabular-nums text-text-secondary">{row.value} · {percentage}%</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -196,6 +269,12 @@ export default function DashboardAlertAnalytics({
   const predictionDistribution = useMemo(() => {
     return buildDistribution(alerts, (alert) => alert.prediction, 6).map((row) => ({
       ...row,
+      color:
+        row.label === 'Normal'
+          ? 'var(--color-text-muted)'
+          : row.label === 'SQL Injection'
+            ? 'var(--color-accent-purple)'
+            : 'var(--color-severity-high-accent)',
       colorClassName:
         row.label === 'Normal'
           ? 'bg-slate-700'
@@ -308,7 +387,7 @@ export default function DashboardAlertAnalytics({
           title="Attack Type Distribution"
           description="Prediction labels across the currently loaded alerts."
         >
-          <HorizontalBars
+          <DistributionPieChart
             rows={predictionDistribution}
             emptyMessage="No prediction labels are available in the current loaded alerts."
           />

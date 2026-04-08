@@ -1,7 +1,6 @@
 export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
   { label: 'Alerts', href: '/alerts', icon: 'notifications' },
-  { label: 'ML Health', href: '/ml-health', icon: 'monitor_heart' },
 ] as const
 
 export const SYSTEM_NAV_ITEMS = [] as const

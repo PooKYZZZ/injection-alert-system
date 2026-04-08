@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import SignInToast, { SignInToastProvider } from '@/components/SignInToast'
+import { ThemeProvider } from '@/components/theme/ThemeProvider'
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -20,12 +21,14 @@ export function Providers({ children }: { children: ReactNode }) {
   )
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SignInToastProvider>
-        {children}
-        <SignInToast />
-      </SignInToastProvider>
-      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <SignInToastProvider>
+          {children}
+          <SignInToast />
+        </SignInToastProvider>
+        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
