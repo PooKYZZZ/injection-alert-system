@@ -1,6 +1,6 @@
 'use client'
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { cn } from '@/lib/utils'
 import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
 import { type AlertPrediction } from '@/features/alerts/contract'
 
@@ -42,64 +42,32 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
   }
 
   return (
-    <div className="flex min-h-[220px] flex-col items-center gap-3">
-      <div className="h-[196px] w-full max-w-[260px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={entries}
-              dataKey="count"
-              nameKey="label"
-              innerRadius={52}
-              outerRadius={78}
-              paddingAngle={2}
-              stroke="var(--color-bg-panel)"
-              strokeWidth={2}
-            >
-              {entries.map(({ label }) => (
-                <Cell key={label} fill={colorMap[label]} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                border: '1px solid #30363d',
-                borderRadius: '0.375rem',
-                backgroundColor: 'rgba(13,17,23,0.82)',
-                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(12px)',
-              }}
-              itemStyle={{ color: '#f0f6fc', fontSize: '11px' }}
-              labelStyle={{ color: '#7d8590', fontSize: '10px', marginBottom: '4px' }}
-              formatter={(value, name) => {
-                const numericValue = typeof value === 'number' ? value : Number(value ?? 0)
-                const percentage = total > 0 ? Math.round((numericValue / total) * 100) : 0
-                return [`${numericValue} (${percentage}%)`, String(name ?? '')]
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
+    <div className="flex flex-col gap-2">
+      {entries.map(({ label, count }) => {
+        const percentage = total > 0 ? (count / total) * 100 : 0
 
-      <div className="grid w-full grid-cols-2 gap-x-4 gap-y-2.5">
-        {entries.map(({ label, count }) => {
-          const percentage = total > 0 ? Math.round((count / total) * 100) : 0
-
-          return (
-            <div key={label} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: colorMap[label] }}
+        return (
+          <div key={label} className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
+            <span className="text-[11px] text-[var(--color-text-secondary)] truncate">
+              {label}
+            </span>
+            <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
+              <div
+                className={cn('h-full rounded-full transition-all duration-500')}
+                style={{ width: `${percentage}%`, background: colorMap[label] }}
               />
-              <span className="truncate text-[11px] text-[var(--color-text-secondary)]">
-                {label}
+            </div>
+            <div className="flex items-center justify-end gap-2 tabular-nums">
+              <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-right">
+                {count}
               </span>
-              <span className="text-[11px] text-[var(--color-text-muted)] tabular-nums text-right">
-                {count} · {percentage}%
+              <span className="text-[11px] text-[var(--color-text-muted)] text-right">
+                {Math.round(percentage)}%
               </span>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

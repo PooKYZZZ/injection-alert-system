@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useRef } from 'react'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { SeverityFilter } from '@/lib/searchParams'
-import { ThemeToggleButton } from './ThemeToggleButton'
 
 const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
@@ -175,7 +174,6 @@ function TopBarContent({
               className="w-64 rounded-md border border-border-light bg-bg-elevated py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel"
             />
           </div>
-          <ThemeToggleButton />
         </div>
       ) : (
         <div className="w-64" aria-hidden="true" />

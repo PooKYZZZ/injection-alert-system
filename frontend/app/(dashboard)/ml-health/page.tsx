@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { MLHealthWorkspace } from '@/components/ml-health/MLHealthWorkspace'
 
 export default function MLHealthPage() {
-  redirect('/dashboard')
+  return <MLHealthWorkspace />
 }

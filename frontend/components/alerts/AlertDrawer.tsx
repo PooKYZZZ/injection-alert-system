@@ -107,7 +107,6 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
-                style={{ zoom: 1 }}
               >
                 {/* Visually hidden title for screen readers */}
                 <Dialog.Title className="sr-only">
@@ -181,9 +180,9 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-2.5">
-                  <div className="grid content-start gap-2.5">
-                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-2.5">
+                <div className="flex-1 overflow-hidden p-3">
+                  <div className="grid content-start gap-3">
+                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Core Details
                     </h3>
@@ -215,7 +214,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     </dl>
                   </section>
 
-                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-2.5">
+                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       WAF Evidence
                     </h3>
@@ -235,7 +234,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Captured Request
                     </h3>
-                    <div className="max-h-32 overflow-auto rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)]">
+                    <div className="max-h-40 overflow-auto rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)]">
                       <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.6] text-[var(--color-text-secondary)]">
                         <span className="text-amber-400">{alert.request_method ?? '—'}</span>{' '}
                         <span className="text-red-400">{alert.request_path ?? '—'}</span>{' '}
@@ -256,8 +255,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                   </section>
 
                   <section>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-2.5">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Analyst Actions
                         </h3>
@@ -310,7 +309,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-2.5">
+                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Intervene
                         </h3>

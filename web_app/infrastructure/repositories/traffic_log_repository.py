@@ -1226,11 +1226,16 @@ class TrafficLogRepository(ITrafficLogRepository):
             stmt = stmt.where(TrafficLog.action_taken == action)
 
         # Triage status filter
-        # The frontend uses `triage_status=new` to mean "untriaged" (NULL in DB).
-        # Interpret 'new' as SQL NULL match; otherwise compare string equality.
+        # Keep `triage_status=new` compatible with both legacy NULL rows and
+        # rows where the literal string "new" has been persisted.
         if triage_status:
             if triage_status == 'new':
-                stmt = stmt.where(TrafficLog.triage_status.is_(None))
+                stmt = stmt.where(
+                    or_(
+                        TrafficLog.triage_status.is_(None),
+                        TrafficLog.triage_status == 'new',
+                    )
+                )
             else:
                 stmt = stmt.where(TrafficLog.triage_status == triage_status)
 

@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
+import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
 
 interface SidebarProps {
@@ -31,7 +32,7 @@ export function Sidebar({ displayName }: SidebarProps) {
   return (
     <Dialog.Root open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
       <>
-        <aside className="flex h-full w-[250px] flex-shrink-0 flex-col border-r border-border-light bg-bg-base">
+        <aside className="flex h-full w-[260px] flex-shrink-0 flex-col border-r border-border-light bg-bg-base">
           <div className="flex h-20 flex-col justify-center border-b border-border-light bg-bg-panel px-6">
             <div className="mb-1 flex items-center gap-2">
               <Image src="/logo.png" alt="logo" width={32} height={32} className="h-8 w-8" />
@@ -39,7 +40,7 @@ export function Sidebar({ displayName }: SidebarProps) {
                 CyberTrace
               </h1>
             </div>
-            <p className="pl-9 text-[11px] font-medium tracking-wide text-text-secondary">
+            <p className="pl-9 text-[12px] font-medium tracking-wide text-text-secondary">
               WAF-ML Security Dashboard
             </p>
           </div>
@@ -61,6 +62,10 @@ export function Sidebar({ displayName }: SidebarProps) {
           </nav>
 
           <div className="bg-bg-panel">
+            <div className="border-t border-border-light">
+              <MLHealthWidget />
+            </div>
+
             <div className="flex items-center gap-3 border-t border-border-light bg-bg-panel px-4 py-3">
               <div className="flex h-8 w-8 items-center justify-center rounded bg-accent-blue-bg">
                 <span className="text-xs font-bold text-accent-blue">{initials}</span>

@@ -1,8 +1,7 @@
 'use client'
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '@/lib/utils'
-import { EmptyState, LoadingSkeleton } from '@/components/ui/StateViews'
+import { LoadingSkeleton } from '@/components/ui/StateViews'
 import type { AlertAction } from '@/features/alerts/contract'
 
 export interface SourceIPSummary {
@@ -28,100 +27,47 @@ const actionLabels: Record<AlertAction, string> = {
   ALLOWED: 'Allowed',
 }
 
-const ipSliceColors = [
-  'var(--color-severity-high-accent)',
-  'var(--color-accent-blue)',
-  'var(--color-accent-purple)',
-  'var(--color-severity-blocked-accent)',
-  'var(--color-severity-safe-accent)',
-  'var(--color-accent-cyan)',
-  'var(--color-accent-yellow)',
-  'var(--color-severity-benign-accent)',
-]
-
 export function TopSourceIPs({ ips, isPending = false }: TopSourceIPsProps) {
   if (isPending) {
     return <LoadingSkeleton rows={4} />
   }
 
   if (ips.length === 0) {
-    return <EmptyState message="No source IPs in this window" subtext="IPs appear when blocked or throttled traffic is detected" />
+    return (
+      <div className="flex flex-col items-center justify-center py-6 gap-2">
+        <p className="text-[11px] font-medium text-[var(--color-text-secondary)]">
+          No source IPs in this window
+        </p>
+        <p className="text-[10px] text-[var(--color-text-muted)] text-center max-w-[160px] leading-relaxed">
+          IPs appear when blocked or throttled traffic is detected
+        </p>
+      </div>
+    )
   }
 
-  const total = ips.reduce((sum, item) => sum + item.count, 0)
-
   return (
-    <div className="flex min-h-[220px] flex-col items-center gap-3">
-      <div className="h-[196px] w-full max-w-[260px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={ips}
-              dataKey="count"
-              nameKey="ip"
-              innerRadius={52}
-              outerRadius={78}
-              paddingAngle={2}
-              stroke="var(--color-bg-panel)"
-              strokeWidth={2}
-            >
-              {ips.map((item, index) => (
-                <Cell
-                  key={item.ip}
-                  fill={ipSliceColors[index % ipSliceColors.length]}
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                border: '1px solid #30363d',
-                borderRadius: '0.375rem',
-                backgroundColor: 'rgba(13,17,23,0.82)',
-                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(12px)',
-              }}
-              itemStyle={{ color: '#f0f6fc', fontSize: '11px' }}
-              labelStyle={{ color: '#7d8590', fontSize: '10px', marginBottom: '4px' }}
-              formatter={(value, name) => {
-                const numericValue = typeof value === 'number' ? value : Number(value ?? 0)
-                const percentage = total > 0 ? Math.round((numericValue / total) * 100) : 0
-                return [`${numericValue} (${percentage}%)`, String(name ?? '')]
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid w-full gap-2.5">
-        {ips.map((item, index) => {
-          const percentage = total > 0 ? Math.round((item.count / total) * 100) : 0
-
-          return (
-            <div key={item.ip} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-[11px]">
+    <div className="flex flex-col gap-1.5">
+      {ips.map((item) => (
+        <div
+          key={item.ip}
+          className="flex items-center justify-between py-3 border-b border-[var(--color-text-ghost)] last:border-0 text-[11px]"
+        >
+          <span className="font-mono text-violet-400">{item.ip}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{item.count}</span>
+            {item.action && statusStyles[item.action as AlertAction] && (
               <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: ipSliceColors[index % ipSliceColors.length] }}
-              />
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-mono text-[var(--color-text-secondary)]">{item.ip}</span>
-                {item.action ? (
-                  <span
-                    className={cn(
-                      'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                      statusStyles[item.action]
-                    )}
-                  >
-                    {actionLabels[item.action]}
-                  </span>
-                ) : null}
-              </div>
-              <span className="tabular-nums text-[var(--color-text-muted)] text-right">
-                {item.count} · {percentage}%
+                className={cn(
+                  'text-[11px] px-1.5 py-0.5 rounded-full font-medium',
+                  statusStyles[item.action as AlertAction]
+                )}
+              >
+                {actionLabels[item.action as AlertAction]}
               </span>
-            </div>
-          )
-        })}
-      </div>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
