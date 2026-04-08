@@ -788,3 +788,140 @@ def test_stats_cache_purges_expired_entries_when_setting_new_values():
 
     assert "expired" not in cache._store
     assert cache.get("fresh") is not None
+
+
+@pytest.mark.asyncio
+async def test_get_alert_list_triage_new_includes_null_and_literal_new(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-triage-null",
+            timestamp=now - timedelta(minutes=3),
+            source_ip="198.51.100.201",
+            request_path="/triage/null",
+            request_method="GET",
+            http_request="GET /triage/null",
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+            triage_status=None,
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-triage-literal-new",
+            timestamp=now - timedelta(minutes=2),
+            source_ip="198.51.100.202",
+            request_path="/triage/new",
+            request_method="GET",
+            http_request="GET /triage/new",
+            prediction="SQL Injection",
+            confidence=0.92,
+            confidence_level="HIGH",
+            inference_latency_ms=2.1,
+            action_taken="BLOCKED",
+            triage_status="new",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-triage-investigating",
+            timestamp=now - timedelta(minutes=1),
+            source_ip="198.51.100.203",
+            request_path="/triage/investigating",
+            request_method="GET",
+            http_request="GET /triage/investigating",
+            prediction="SQL Injection",
+            confidence=0.93,
+            confidence_level="HIGH",
+            inference_latency_ms=2.2,
+            action_taken="BLOCKED",
+            triage_status="investigating",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=20,
+        time_range="7d",
+        triage_status="new",
+    )
+
+    assert page.total == 2
+    assert {item.transaction_id for item in page.items} == {
+        "txn-triage-null",
+        "txn-triage-literal-new",
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_alert_list_triage_non_new_filters_by_exact_status(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-triage2-null",
+            timestamp=now - timedelta(minutes=3),
+            source_ip="198.51.100.211",
+            request_path="/triage2/null",
+            request_method="GET",
+            http_request="GET /triage2/null",
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+            triage_status=None,
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-triage2-new",
+            timestamp=now - timedelta(minutes=2),
+            source_ip="198.51.100.212",
+            request_path="/triage2/new",
+            request_method="GET",
+            http_request="GET /triage2/new",
+            prediction="SQL Injection",
+            confidence=0.92,
+            confidence_level="HIGH",
+            inference_latency_ms=2.1,
+            action_taken="BLOCKED",
+            triage_status="new",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-triage2-investigating",
+            timestamp=now - timedelta(minutes=1),
+            source_ip="198.51.100.213",
+            request_path="/triage2/investigating",
+            request_method="GET",
+            http_request="GET /triage2/investigating",
+            prediction="SQL Injection",
+            confidence=0.93,
+            confidence_level="HIGH",
+            inference_latency_ms=2.2,
+            action_taken="BLOCKED",
+            triage_status="investigating",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=20,
+        time_range="7d",
+        triage_status="investigating",
+    )
+
+    assert page.total == 1
+    assert [item.transaction_id for item in page.items] == [
+        "txn-triage2-investigating"
+    ]
