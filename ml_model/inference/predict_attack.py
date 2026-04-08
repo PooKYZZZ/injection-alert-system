@@ -27,6 +27,13 @@ MODEL_IDS = {
 MANIFEST_NAME = "serving_manifest.json"
 
 
+def _is_packaged_artifact_dir(path: Path) -> bool:
+    return path.is_dir() and (
+        (path / MANIFEST_NAME).exists()
+        or ((path / "config.json").exists() and (path / "tokenizer.json").exists())
+    )
+
+
 def _discover_latest_run(staging_dir: Path, model_key: str) -> Path:
     candidates = [
         run_dir for run_dir in staging_dir.iterdir()
@@ -39,6 +46,8 @@ def _discover_latest_run(staging_dir: Path, model_key: str) -> Path:
 
 
 def _resolve_run_dir(staging_dir: Path, model_key: str) -> Path:
+    if _is_packaged_artifact_dir(staging_dir):
+        return staging_dir
     if staging_dir.name.startswith(model_key + "_"):
         return staging_dir
     return _discover_latest_run(staging_dir, model_key)

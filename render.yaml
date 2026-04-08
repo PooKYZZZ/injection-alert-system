@@ -1,0 +1,62 @@
+services:
+  - type: web
+    name: cybertrace-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MODEL_PATH
+        value: ml_model/model_registry
+      - key: MODEL_REGISTRY_PATH
+        value: ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      - key: API_SECRET_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: CONFIDENCE_LOW_THRESHOLD
+        value: "0.50"
+      - key: CONFIDENCE_HIGH_THRESHOLD
+        value: "0.80"
+      - key: STALE_PROCESSING_TIMEOUT_SECONDS
+        value: "30"
+      - key: MAX_SEQ_LEN
+        value: "128"
+      - key: TEMPERATURE
+        value: "0.596868"
+
+  - type: web
+    name: cybertrace-frontend
+    runtime: docker
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: AUTH_SECRET
+        sync: false
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: SOC_DEMO_PASSWORD
+        sync: false
+      - key: DEMO_PASSWORD
+        value: ""
+      - key: FASTAPI_BASE_URL
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: USE_MOCK_API
+        value: "false"
+      - key: NEXT_PUBLIC_APP_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_VERSION
+        value: 1.0.0
