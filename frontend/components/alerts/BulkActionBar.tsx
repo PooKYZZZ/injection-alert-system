@@ -86,7 +86,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
         >
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <CheckSquare size={14} className="text-violet-400" />
+              <CheckSquare size={14} className="text-accent-purple" />
               <span className="text-sm font-medium text-[var(--color-text-primary)]">
                 {selectedCount} selected
               </span>
@@ -105,7 +105,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('escalated')}
-                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-red-800 hover:bg-red-950/30 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-severity-high-border hover:bg-severity-high-bg hover:text-severity-high-text disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Escalate'}
               </button>
@@ -113,7 +113,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('resolved')}
-                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-emerald-800 hover:bg-emerald-950/30 hover:text-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-severity-safe-border hover:bg-severity-safe-bg hover:text-severity-safe-text disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Resolve'}
               </button>
@@ -123,8 +123,8 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
               <span
                 className={`text-xs ${
                   summary.includes('failed')
-                    ? 'text-red-400'
-                    : 'text-emerald-400'
+                    ? 'text-severity-high-text'
+                    : 'text-severity-safe-text'
                 }`}
               >
                 {summary}

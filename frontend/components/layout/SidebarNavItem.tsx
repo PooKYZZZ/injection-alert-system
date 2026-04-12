@@ -92,7 +92,7 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
               initial={{ scale: 1.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-              className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+              className="rounded-full bg-severity-high-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
             >
               {badge}
             </motion.span>

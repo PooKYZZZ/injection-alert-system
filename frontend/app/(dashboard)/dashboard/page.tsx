@@ -99,15 +99,15 @@ export default function DashboardPage() {
       {
         label: 'High-confidence alerts',
         value: stats?.high_alert_count ?? '—',
-      valueColor: 'text-emerald-500',
-      valueFlashColor: 'text-red-200',
+      valueColor: 'text-severity-safe-text',
+      valueFlashColor: 'text-[var(--color-delta-good-strong)]',
       secondary:
         stats?.high_alert_count === 0
           ? timeWindow
             ? 'No threats in this window'
             : 'No threats detected'
           : undefined,
-        secondaryColor: 'text-red-400',
+        secondaryColor: 'text-severity-safe-text',
         previousValue: stats?.prev_high_alert_count ?? null,
         hideDeltaWhenValueZero: true,
         delay: 0,
@@ -115,13 +115,13 @@ export default function DashboardPage() {
     {
       label: 'Blocked',
       value: stats?.blocked_count ?? '—',
-        valueColor: 'text-red-500',
-        valueFlashColor: 'text-red-200',
+        valueColor: 'text-severity-high-text',
+        valueFlashColor: 'text-[var(--color-delta-bad-strong)]',
         secondary:
           stats?.blocked_count != null && stats?.total_requests
             ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
             : 'No traffic in window',
-        secondaryColor: 'text-violet-400',
+        secondaryColor: 'text-accent-purple',
         previousValue: stats?.prev_blocked_count ?? null,
         progressBar:
           stats?.total_requests && stats.total_requests > 0
@@ -132,9 +132,9 @@ export default function DashboardPage() {
     {
       label: 'Throttled',
         value: stats?.throttled_count ?? '—',
-        valueColor: 'text-amber-400',
-        valueFlashColor: 'text-amber-200',
-        secondaryColor: 'text-amber-400',
+        valueColor: 'text-severity-blocked-text',
+        valueFlashColor: 'text-severity-blocked-accent',
+        secondaryColor: 'text-severity-blocked-text',
         previousValue: stats?.prev_throttled_count ?? null,
         delay: 0.1,
       },
@@ -142,7 +142,7 @@ export default function DashboardPage() {
       label: 'Allowed',
       value: stats?.allowed_count ?? '—',
         secondary: 'Benign / LOW conf',
-        secondaryColor: 'text-emerald-400',
+        secondaryColor: 'text-severity-safe-text',
         previousValue: stats?.prev_allowed_count ?? null,
         deltaInverted: true,
         delay: 0.15,
@@ -152,7 +152,8 @@ export default function DashboardPage() {
         value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
         secondary:
           stats?.avg_confidence != null ? 'Model stable' : 'No traffic in window',
-        secondaryColor: 'text-emerald-400',
+        valueColor: '',
+        secondaryColor: '',
         delay: 0.2,
       },
     {
@@ -174,7 +175,7 @@ export default function DashboardPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="flex flex-col gap-3 p-4"
+      className="dashboard-soft-purple flex flex-col gap-3 p-4"
     >
       {/* Stats Row */}
       <div className="grid grid-cols-6 gap-2">
@@ -216,8 +217,8 @@ export default function DashboardPage() {
                 className={cn(
                     'rounded px-3 py-1 text-xs font-medium transition-colors',
                     timeWindow === win
-                      ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
-                      : 'text-[#7d8590] hover:bg-[#1e2a3d]/50 hover:text-[#e6edf3]'
+                      ? 'bg-accent-purple-bg text-accent-purple ring-1 ring-inset ring-accent-purple/30'
+                      : 'text-text-muted hover:bg-accent-blue-bg hover:text-text-primary'
                   )}
                 >
                   {win}
@@ -287,11 +288,11 @@ export default function DashboardPage() {
 
           <div className="mt-4 pt-3 border-t border-[var(--color-text-ghost)] flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
+              <span className="text-[10px] font-bold text-accent-purple uppercase tracking-widest">
                 ML Enforcement Map
               </span>
-              <div className="h-1 w-8 bg-violet-500/30 rounded-full overflow-hidden">
-                <div className="h-full bg-violet-500 w-2/3" />
+              <div className="h-1 w-8 rounded-full overflow-hidden bg-accent-purple-bg">
+                <div className="h-full w-2/3 bg-accent-purple" />
               </div>
             </div>
             <MLEnforcementMap

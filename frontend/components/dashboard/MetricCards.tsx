@@ -16,7 +16,9 @@ interface MetricCardProps {
   value: string | number
   subtitle?: string
   className?: string
+  labelClassName?: string
   valueClassName?: string
+  subtitleClassName?: string
   style?: CSSProperties
   unavailable?: boolean
 }
@@ -26,26 +28,28 @@ function MetricCard({
   value,
   subtitle = 'System-wide',
   className,
+  labelClassName,
   valueClassName,
+  subtitleClassName,
   style,
   unavailable = false,
 }: MetricCardProps) {
   return (
     <div
       className={cn(
-        'border border-border-light bg-bg-panel p-4',
+        'rounded-lg border border-border-light bg-bg-panel p-4',
         className,
         unavailable && 'opacity-60'
       )}
       style={style}
     >
-      <p className="text-label font-semibold uppercase tracking-[0.07em] text-text-muted">
+      <p className={cn('text-label font-semibold uppercase tracking-[0.07em] text-text-muted', labelClassName)}>
         {label}
       </p>
       <div className={cn('mt-3 text-kpi font-medium leading-none text-text-primary', valueClassName)}>
         {unavailable ? '—' : value}
       </div>
-      <p className="mt-3 text-[10px] italic text-text-muted">
+      <p className={cn('mt-3 text-[10px] italic text-text-muted', subtitleClassName)}>
         {unavailable ? 'Not available from stats' : subtitle}
       </p>
     </div>
@@ -104,33 +108,43 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
       <MetricCard
         label="High Alerts"
         value={stats.actionable_alerts}
-        className="border-l-2 border-l-severity-high-accent bg-severity-high-bg"
+        className="border-severity-high-border bg-severity-high-bg"
+        labelClassName="text-severity-high-text"
         valueClassName="text-severity-high-text"
-        style={{ borderRadius: '0 8px 8px 0' }}
+        subtitleClassName="text-severity-high-text/0"
       />
       <MetricCard
         label="Blocked"
         value={stats.blocked_count}
-        className="rounded-lg"
+        className="border-severity-high-border bg-severity-high-bg"
+        labelClassName="text-severity-high-text"
         valueClassName="text-severity-high-text"
+        subtitleClassName="text-severity-high-text/80"
       />
       <MetricCard
         label="Allowed"
         value={stats.allowed_count}
-        className="rounded-lg"
-        valueClassName="text-severity-medium-text"
+        className="border-severity-safe-border bg-severity-safe-bg"
+        labelClassName="text-severity-safe-text"
+        valueClassName="text-severity-safe-text"
+        subtitleClassName="text-severity-safe-text/80"
       />
       <MetricCard
         label="Avg ML Confidence"
         value={stats.avg_confidence !== null ? `${(stats.avg_confidence * 100).toFixed(0)}%` : '—'}
         unavailable={stats.avg_confidence === null}
-        className="rounded-lg"
+        className="border-accent-purple bg-accent-purple-bg"
+        labelClassName="text-accent-purple"
         valueClassName="text-accent-purple"
+        subtitleClassName="text-accent-purple/80"
       />
       <MetricCard
         label="Total Requests"
         value={stats.total_requests}
-        className="rounded-lg"
+        className="border-accent-blue bg-accent-blue-bg"
+        labelClassName="text-accent-blue"
+        valueClassName="text-accent-blue"
+        subtitleClassName="text-accent-blue/80"
       />
     </div>
   )

@@ -148,9 +148,11 @@ function DistributionPieChart({
               }}
               itemStyle={{ color: '#f0f6fc', fontSize: '11px' }}
               labelStyle={{ color: '#7d8590', fontSize: '10px', marginBottom: '4px' }}
-              formatter={(value: number, name: string) => {
-                const percentage = total > 0 ? Math.round((value / total) * 100) : 0
-                return [`${value} (${percentage}%)`, name]
+              formatter={(value, name) => {
+                const numericValue = typeof value === 'number' ? value : Number(value ?? 0)
+                const label = typeof name === 'string' ? name : String(name ?? '')
+                const percentage = total > 0 ? Math.round((numericValue / total) * 100) : 0
+                return [`${numericValue} (${percentage}%)`, label]
               }}
             />
           </PieChart>

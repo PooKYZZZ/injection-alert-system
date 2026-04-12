@@ -84,11 +84,11 @@ export function StatCard({
           isZeroValue
             ? 'text-[var(--color-text-primary)]'
             : flash
-            ? (valueFlashColor ?? valueColor ?? (deltaIsGood ? 'text-emerald-200' : 'text-red-200'))
+            ? (valueFlashColor ?? valueColor ?? (deltaIsGood ? 'text-[var(--color-delta-good-strong)]' : 'text-[var(--color-delta-bad-strong)]'))
             : (valueColor ?? (deltaIsGood
-                ? 'text-emerald-400'
+                ? 'text-[var(--color-delta-good)]'
                 : delta
-                  ? 'text-red-400'
+                  ? 'text-[var(--color-delta-bad)]'
                   : 'text-[var(--color-text-primary)]'))
         )}
       >
@@ -102,7 +102,7 @@ export function StatCard({
         <div
           className={cn(
             'text-[10px] font-medium whitespace-nowrap overflow-hidden text-ellipsis',
-            deltaIsGood ? 'text-emerald-500/80' : 'text-red-500/80'
+            deltaIsGood ? 'text-[var(--color-delta-good)]' : 'text-[var(--color-delta-bad)]'
           )}
         >
           {delta.direction === 'up' ? '↑' : '↓'} {delta.diff} vs prev

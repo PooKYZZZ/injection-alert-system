@@ -81,9 +81,9 @@ function formatCrsScore(score: number | null | undefined): string {
 
 function getConfidenceTextColor(confidence: number): string {
   const value = Math.round(confidence * 100)
-  if (value >= 80) return 'text-emerald-200'
-  if (value >= 50) return 'text-amber-200'
-  return 'text-blue-200'
+  if (value >= 80) return 'text-severity-safe-text'
+  if (value >= 50) return 'text-severity-blocked-text'
+  return 'text-accent-blue'
 }
 
 function formatConfidence(confidence: number, level: string): string {
@@ -166,7 +166,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <tr>
       <td colSpan={10} className="p-8 text-center">
-        <p className="text-sm font-medium text-red-400">Unable to load alerts.</p>
+        <p className="text-sm font-medium text-severity-high-text">Unable to load alerts.</p>
         <button
           type="button"
           onClick={onRetry}
@@ -210,7 +210,7 @@ function SortHeader({
       >
         {column.label}
         {isActive ? (
-          <span className="text-blue-400">{isAsc ? '↑' : '↓'}</span>
+          <span className="text-accent-blue">{isAsc ? '↑' : '↓'}</span>
         ) : (
           <span className="text-[var(--color-text-muted)]">↕</span>
         )}
@@ -320,7 +320,7 @@ function AlertsTableContent({
                   type="checkbox"
                   checked={alerts.length > 0 && selectedIds.length === alerts.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded accent-blue-500 border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                  className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-accent-blue accent-[var(--color-accent-blue)] focus:ring-2 focus:ring-accent-blue focus:ring-offset-0"
                   aria-label="Select all alerts"
                 />
               </th>
@@ -350,7 +350,7 @@ function AlertsTableContent({
                   className={
                     `group cursor-pointer transition-colors duration-100 hover:bg-[var(--color-bg-panel)]` +
                     (alert.alert_id === (typeof activeAlertId !== 'undefined' ? activeAlertId : undefined)
-                      ? ' bg-[var(--color-bg-panel)] ring-1 ring-blue-500/30'
+                      ? ' bg-[var(--color-bg-panel)] ring-1 ring-accent-blue/30'
                       : '')
                   }
                   onClick={() => handleRowClick(alert)}
@@ -360,7 +360,7 @@ function AlertsTableContent({
                       type="checkbox"
                       checked={selectedIdsSet.has(alert.alert_id)}
                       onChange={() => handleSelectOne(alert.alert_id)}
-                      className="h-4 w-4 cursor-pointer rounded accent-blue-500 border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                      className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-accent-blue accent-[var(--color-accent-blue)] focus:ring-2 focus:ring-accent-blue focus:ring-offset-0"
                       aria-label={`Select alert ${alert.alert_id}`}
                     />
                   </td>
@@ -373,7 +373,7 @@ function AlertsTableContent({
                       {formatRelativeTime(alert.timestamp)}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-xs text-white-400">
+                  <td className="whitespace-nowrap p-3 font-mono text-xs text-[var(--color-text-secondary)]">
                     {alert.source_ip ?? '—'}
                   </td>
                   <td
@@ -396,7 +396,7 @@ function AlertsTableContent({
                   <td className="p-3">
                     <ActionLabel action={alert.action_taken} bordered={false} />
                   </td>
-                  <td className="p-3 font-mono text-xs text-white-100">
+                  <td className="p-3 font-mono text-xs text-[var(--color-text-secondary)]">
                     {formatCrsScore(alert.crs_score)}
                   </td>
                   <td className="p-3 opacity-0 group-hover:opacity-100 transition-opacity">

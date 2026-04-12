@@ -17,9 +17,9 @@ interface TopSourceIPsProps {
 }
 
 const statusStyles: Record<AlertAction, string> = {
-  BLOCKED: 'bg-[var(--color-severity-high-bg)] text-red-400',
-  THROTTLED: 'bg-[var(--color-severity-blocked-bg)] text-amber-400',
-  ALLOWED: 'bg-[var(--color-severity-safe-bg)] text-emerald-400',
+  BLOCKED: 'bg-[var(--color-severity-high-bg)] text-severity-high-text',
+  THROTTLED: 'bg-[var(--color-severity-blocked-bg)] text-severity-blocked-text',
+  ALLOWED: 'bg-[var(--color-severity-safe-bg)] text-severity-safe-text',
 }
 
 const actionLabels: Record<AlertAction, string> = {

@@ -12,15 +12,15 @@ interface ActionLabelProps {
 }
 
 const styles: Record<AlertAction, string> = {
-  BLOCKED: 'bg-transparent text-red-400',
-  THROTTLED: 'bg-transparent text-amber-400',
-  ALLOWED: 'bg-transparent text-emerald-400',
+  BLOCKED: 'bg-transparent text-severity-high-text',
+  THROTTLED: 'bg-transparent text-severity-blocked-text',
+  ALLOWED: 'bg-transparent text-severity-safe-text',
 }
 
 const borderedStyles: Record<AlertAction, string> = {
-  BLOCKED: 'border border-red-500/30',
-  THROTTLED: 'border border-amber-500/30',
-  ALLOWED: 'border border-emerald-500/30',
+  BLOCKED: 'border border-severity-high-border/30',
+  THROTTLED: 'border border-severity-blocked-border/30',
+  ALLOWED: 'border border-severity-safe-border/30',
 }
 
 export function ActionLabel({ action, bordered = true }: ActionLabelProps) {

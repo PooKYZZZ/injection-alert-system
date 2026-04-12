@@ -80,7 +80,7 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
         </ResponsiveContainer>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-x-4 gap-y-2.5">
+      <div className="flex w-full flex-col gap-2.5">
         {entries.map(({ label, count }) => {
           const percentage = total > 0 ? Math.round((count / total) * 100) : 0
 

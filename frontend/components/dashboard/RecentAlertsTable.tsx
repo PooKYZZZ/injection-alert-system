@@ -43,7 +43,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
         <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
           Recent alerts
         </span>
-        <Link href="/alerts" className="text-[11px] text-blue-400 hover:underline">
+        <Link href="/alerts" className="text-[11px] text-accent-blue hover:underline">
           View all →
         </Link>
       </div>
@@ -70,7 +70,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                 <TriageBadge triage_status={alert.triage_status ?? null} />
               </td>
               <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
-              <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</td>
               <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
               <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
               <td className="p-2">

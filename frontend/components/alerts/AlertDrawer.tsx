@@ -1,6 +1,7 @@
 'use client'
 
 import * as Dialog from '@radix-ui/react-dialog'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { Alert, TriageStatus } from '@/features/alerts/types'
 import { ALERT_DISPLAY_ACTION_ALIASES } from '@/features/alerts/contract'
@@ -52,14 +53,29 @@ function formatCrsScore(score: number | null | undefined): string {
 }
 
 export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
+  const [optimisticStatus, setOptimisticStatus] = useState<TriageStatus | null>(null)
+  const [optimisticAction, setOptimisticAction] = useState<AlertAction | null>(null)
+
   const {
     mutate,
     isPending,
     isError,
   } = useTriageMutation()
 
+  useEffect(() => {
+    setOptimisticStatus(alert?.triage_status ?? null)
+    setOptimisticAction(alert?.action_taken ?? null)
+  }, [alert?.alert_id, alert?.triage_status, alert?.action_taken])
+
+  useEffect(() => {
+    if (isError) {
+      setOptimisticStatus(alert?.triage_status ?? null)
+    }
+  }, [alert?.triage_status, isError])
+
   const handleVerdictClick = (status: TriageStatus) => {
     if (alert && !isPending) {
+      setOptimisticStatus(status)
       mutate({ id: alert.alert_id, status })
     }
   }
@@ -70,14 +86,21 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
     isError: isActionError,
   } = useActionMutation()
 
+  useEffect(() => {
+    if (isActionError) {
+      setOptimisticAction(alert?.action_taken ?? null)
+    }
+  }, [alert?.action_taken, isActionError])
+
   const handleActionClick = (action: AlertAction) => {
     if (alert && !isActionPending) {
+      setOptimisticAction(action)
       mutateAction({ id: alert.alert_id, action })
     }
   }
 
-  const displayStatus = alert?.triage_status ?? null
-  const displayAction = alert?.action_taken ?? null
+  const displayStatus = optimisticStatus
+  const displayAction = optimisticAction
 
   const triageLabel = formatTriageLabel(displayStatus)
   const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
@@ -128,18 +151,18 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       <span className="text-[16px] font-semibold text-[var(--color-text-primary)]">
                         {alert.prediction}
                       </span>
-                      <span className="rounded-full border border-blue-500/30 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-blue-400">
+                      <span className="rounded-full border border-accent-blue px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-accent-blue">
                         {triageLabel}
                       </span>
                       <span
                         className={cn(
                           'rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em]',
                           displayAction === 'BLOCKED'
-                            ? 'border-red-500/30 text-red-400'
+                            ? 'border-severity-high-border text-severity-high-text'
                             : displayAction === 'THROTTLED'
-                              ? 'border-amber-500/30 text-amber-400'
+                              ? 'border-severity-blocked-border text-severity-blocked-text'
                               : displayAction === 'ALLOWED'
-                                ? 'border-emerald-500/30 text-emerald-400'
+                                ? 'border-severity-safe-border text-severity-safe-text'
                                 : 'border-[var(--color-text-ghost)] text-[var(--color-text-secondary)]'
                         )}
                       >
@@ -147,12 +170,12 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       </span>
                     </div>
                     {isError && (
-                      <span className="block text-[11px] text-red-400">
+                      <span className="block text-[11px] text-severity-high-text">
                         Triage update failed. Please retry.
                       </span>
                     )}
                     {isActionError && (
-                      <span className="block text-[11px] text-red-400">
+                      <span className="block text-[11px] text-severity-high-text">
                         Intervention update failed. Please retry.
                       </span>
                     )}
@@ -161,7 +184,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     <button
                       type="button"
                       aria-label="Close alert detail"
-                      className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue"
                     >
                       <svg
                         width="14"
@@ -181,7 +204,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-2.5">
+                <div className="flex-1 overflow-y-auto bg-bg-page p-2.5">
                   <div className="grid content-start gap-2.5">
                   <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-2.5">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -197,7 +220,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Source IP
                       </dt>
-                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
+                      <dd className="font-mono text-[11px] text-[var(--color-text-secondary)]">
                         {alert.source_ip ?? '—'}
                       </dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -223,7 +246,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         CRS Score
                       </dt>
-                      <dd className="text-amber-400">{formatCrsScore(alert.crs_score)}</dd>
+                      <dd className="text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Rule IDs
                       </dt>
@@ -237,14 +260,14 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     </h3>
                     <div className="max-h-32 overflow-auto rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)]">
                       <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.6] text-[var(--color-text-secondary)]">
-                        <span className="text-amber-400">{alert.request_method ?? '—'}</span>{' '}
-                        <span className="text-red-400">{alert.request_path ?? '—'}</span>{' '}
+                        <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
+                        <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
                         <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
                         {'\n'}
-                        <span className="text-blue-400">Host</span>:{' '}
+                        <span className="text-accent-blue">Host</span>:{' '}
                         <span className="text-[var(--color-text-secondary)]">dashboard.local</span>
                         {'\n'}
-                        <span className="text-blue-400">Source-IP</span>:{' '}
+                        <span className="text-accent-blue">Source-IP</span>:{' '}
                         <span className="text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</span>
                         {'\n'}
                         {'\n'}
@@ -269,7 +292,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             className={cn(
                               'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                               displayStatus === 'resolved'
-                                ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400'
+                                ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
                                 : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
                               isPending && 'cursor-not-allowed opacity-50'
                             )}
@@ -299,7 +322,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             className={cn(
                               'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                               displayStatus === 'escalated'
-                                ? 'border-red-800 bg-red-950/50 text-red-400'
+                                ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
                                 : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
                               isPending && 'cursor-not-allowed opacity-50'
                             )}
@@ -322,7 +345,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                           displayAction === 'BLOCKED'
-                            ? 'border-red-500/30 bg-red-950/5 text-red-400'
+                            ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
                             : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
                           isActionPending && 'cursor-not-allowed opacity-50'
                         )}
@@ -347,7 +370,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                           displayAction === 'THROTTLED'
-                            ? 'border-amber-500/30 bg-amber-950/5 text-amber-400'
+                            ? 'border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text'
                             : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
                           isActionPending && 'cursor-not-allowed opacity-50'
                         )}
@@ -372,7 +395,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                           displayAction === 'ALLOWED'
-                            ? 'border-emerald-500/30 bg-emerald-950/5 text-emerald-400'
+                            ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
                             : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
                           isActionPending && 'cursor-not-allowed opacity-50'
                         )}

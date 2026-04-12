@@ -176,7 +176,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             <motion.span
               key={activeFilterCount}
               animate={{ scale: [1.2, 1] }}
-              className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-[10px] font-medium text-white"
+              className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent-blue px-1.5 text-[10px] font-medium text-white"
             >
               {activeFilterCount}
             </motion.span>
@@ -184,7 +184,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           {hasActiveFilters && (
             <button
               onClick={handleClearAll}
-              className="text-[11px] text-blue-400 hover:text-blue-300"
+              className="text-[11px] text-accent-blue transition-colors hover:text-primary"
             >
               Clear all
             </button>

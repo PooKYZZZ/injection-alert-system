@@ -110,12 +110,12 @@ function TopBarContent({
           {showLiveStatus ? (
             <>
               <div className="h-4 w-px bg-border-light" />
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-1.5 rounded-full border border-severity-safe-border bg-severity-safe-bg px-2 py-0.5">
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-severity-safe-text opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-severity-safe-accent" />
                 </span>
-                <span className="text-[10px] font-medium text-emerald-400">Snapshot</span>
+                <span className="text-[10px] font-medium text-severity-safe-text">Snapshot</span>
               </div>
               <span className="text-[10px] text-[var(--color-text-secondary)]">Reported in latest refresh</span>
             </>
@@ -207,11 +207,11 @@ function NewAlertIndicator() {
     <div className="flex items-center gap-5">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">NEW:</span>
-        <span className="text-sm font-semibold text-blue-500">{newCount}</span>
+        <span className="text-sm font-semibold text-accent-blue">{newCount}</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">IN REVIEW:</span>
-        <span className="text-sm font-semibold text-amber-400">{inReviewCount}</span>
+        <span className="text-sm font-semibold text-severity-blocked-text">{inReviewCount}</span>
       </div>
     </div>
   )
