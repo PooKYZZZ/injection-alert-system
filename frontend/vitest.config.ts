@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./setupTests.ts'],
+    pool: 'threads',
     // Required: login page tests deliberately rethrow NEXT_REDIRECT as an
     // unhandled rejection to verify the error propagates correctly.
     dangerouslyIgnoreUnhandledErrors: true,
