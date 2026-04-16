@@ -192,3 +192,10 @@ docs/project-ops/TASKS.md
 
 
 frontend/next-env.d.ts
+ml_model/notebooks/
+docs/audit/2026-04-12-evidence-gathering-standards-brief.md
+docs/audit/2026-04-12-final-confirmatory-artifact-critique.md
+docs/audit/2026-04-13-torchlight2-steam-multiplayer-mod-stack-audit.md
+docs/audit/2026-04-15-sensitivity-method-comparison-fresh-research-notes.md
+docs/audit/FINAL_EVALUATION_NOTEBOOK_FACT_CHECK_ROUND2.md
+docs/research/2026-04-15-option-1-gate-design-research.md
