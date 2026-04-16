@@ -9,11 +9,6 @@ from statistics import mean
 
 import numpy as np
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS_ROOT = (
@@ -154,6 +149,18 @@ class GatePolicy:
         self.preferred_max_normal_false_positive_rate = preferred_max_normal_false_positive_rate
         self.operational_max_inference_time_ms = operational_max_inference_time_ms
         self.zero_pass_behavior = zero_pass_behavior
+
+
+def _get_matplotlib_pyplot():
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        raise SystemExit("matplotlib is required to generate plots.") from exc
+
+    return plt
 
 
 def now_utc_iso() -> str:
@@ -989,6 +996,7 @@ def plot_ranked_lollipop(
     option_results: list[dict[str, object]],
     output_path: Path,
 ) -> Path:
+    plt = _get_matplotlib_pyplot()
     model_keys = core_data["model_keys"]
     model_labels = core_data["model_labels"]
 
@@ -1031,6 +1039,7 @@ def plot_metric_heatmap(
     core_data: dict[str, object],
     output_path: Path,
 ) -> Path:
+    plt = _get_matplotlib_pyplot()
     model_keys = core_data["model_keys"]
     model_labels = core_data["model_labels"]
     metric_names = core_data["metric_names"]
@@ -1095,6 +1104,7 @@ def plot_latency_vs_recall_pareto(
     core_data: dict[str, object],
     output_path: Path,
 ) -> Path:
+    plt = _get_matplotlib_pyplot()
     model_keys = core_data["model_keys"]
     model_labels = core_data["model_labels"]
     raw_metrics = core_data["raw_metrics"]
@@ -1143,6 +1153,7 @@ def plot_error_bars_across_seeds(
     core_data: dict[str, object],
     output_path: Path,
 ) -> Path:
+    plt = _get_matplotlib_pyplot()
     model_keys = core_data["model_keys"]
     model_labels = core_data["model_labels"]
     seed_error_metrics = core_data["seed_error_metrics"]
@@ -1192,6 +1203,7 @@ def plot_profile_radar(
     subtitle: str | None = None,
     legend_labels: dict[str, str] | None = None,
 ) -> Path:
+    plt = _get_matplotlib_pyplot()
     theta = np.linspace(0.0, 2 * np.pi, len(axis_names), endpoint=False)
     closed_theta = np.append(theta, theta[0])
 
