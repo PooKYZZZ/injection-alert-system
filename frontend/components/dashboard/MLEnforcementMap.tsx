@@ -44,7 +44,7 @@ export function MLEnforcementMap({
       <div className="flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-high-accent" />
-          <span className="text-[var(--color-text-secondary)]">HIGH CONF</span>
+          <span className="text-[var(--color-accent-analytic)]">HIGH CONF</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{high}</span>
@@ -53,7 +53,7 @@ export function MLEnforcementMap({
           </span>
         </div>
       </div>
-      <div className="h-1 bg-[var(--color-text-ghost)] rounded-full overflow-hidden">
+      <div className="h-1 overflow-hidden rounded-full bg-[var(--color-border-light)]">
         <div className="h-full bg-severity-high-accent" style={{ width: `${total > 0 ? (high / total) * 100 : 0}%` }} />
       </div>
 
@@ -61,7 +61,7 @@ export function MLEnforcementMap({
       <div className="flex items-center justify-between text-[10px] mt-1">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-blocked-accent" />
-          <span className="text-[var(--color-text-secondary)]">MED CONF</span>
+          <span className="text-[var(--color-accent-analytic)]">MED CONF</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{medium}</span>
@@ -70,7 +70,7 @@ export function MLEnforcementMap({
           </span>
         </div>
       </div>
-      <div className="h-1 bg-[var(--color-text-ghost)] rounded-full overflow-hidden">
+      <div className="h-1 overflow-hidden rounded-full bg-[var(--color-border-light)]">
         <div className="h-full bg-severity-blocked-accent" style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%` }} />
       </div>
 
@@ -78,7 +78,7 @@ export function MLEnforcementMap({
       <div className="flex items-center justify-between text-[10px] mt-1">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-safe-accent" />
-          <span className="text-[var(--color-text-secondary)]">LOW CONF</span>
+          <span className="text-[var(--color-accent-analytic)]">LOW CONF</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{low}</span>
@@ -87,7 +87,7 @@ export function MLEnforcementMap({
           </span>
         </div>
       </div>
-      <div className="h-1 bg-[var(--color-text-ghost)] rounded-full overflow-hidden">
+      <div className="h-1 overflow-hidden rounded-full bg-[var(--color-border-light)]">
         <div className="h-full bg-severity-safe-accent" style={{ width: `${total > 0 ? (low / total) * 100 : 0}%` }} />
       </div>
 

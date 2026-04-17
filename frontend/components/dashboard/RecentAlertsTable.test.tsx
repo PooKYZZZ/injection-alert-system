@@ -25,11 +25,18 @@ afterEach(() => {
 
 describe('RecentAlertsTable', () => {
   it('renders a read-only preview without selection controls', () => {
-    render(<RecentAlertsTable alerts={[sampleAlert]} />)
+    const { container } = render(<RecentAlertsTable alerts={[sampleAlert]} />)
 
     expect(screen.getByText('Recent alerts')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /View all/i })).toHaveAttribute('href', '/alerts')
+    const viewAllLink = screen.getByRole('link', { name: /View all/i })
+
+    expect(viewAllLink).toHaveAttribute('href', '/alerts')
+    expect(viewAllLink).toHaveClass('text-[var(--color-accent-analytic)]')
     expect(screen.getByText('SQL Injection')).toBeInTheDocument()
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+
+    const tableCard = container.firstElementChild
+    expect(tableCard).not.toBeNull()
+    expect(tableCard).toHaveClass('bg-bg-card')
   })
 })

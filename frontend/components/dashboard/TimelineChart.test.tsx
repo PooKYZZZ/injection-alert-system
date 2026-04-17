@@ -224,6 +224,22 @@ describe('TimelineChart', () => {
     expect(yAxisProps.ticks).toEqual([0, 30, 60, 90])
   })
 
+  it('uses set1 neutral border and soft text tokens for chart chrome', () => {
+    const { container } = render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+
+    const grid = container.querySelector('[data-testid="CartesianGrid"]')
+    const xAxis = container.querySelector('[data-testid="XAxis"]')
+    const yAxis = container.querySelector('[data-testid="YAxis"]')
+
+    const gridProps = JSON.parse(grid?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+    const xAxisProps = JSON.parse(xAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+    const yAxisProps = JSON.parse(yAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+
+    expect(gridProps.stroke).toBe('var(--color-border-light)')
+    expect((xAxisProps.tick as { fill?: string } | undefined)?.fill).toBe('var(--color-text-soft)')
+    expect((yAxisProps.tick as { fill?: string } | undefined)?.fill).toBe('var(--color-text-soft)')
+  })
+
   it('deduplicates tooltip payload entries by series key', () => {
     const deduped = dedupeTooltipPayload([
       { dataKey: 'blocked', name: 'blocked', value: 10, color: 'red' },

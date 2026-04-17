@@ -104,8 +104,8 @@ export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSo
         height: '56px',
         minHeight: '56px',
         maxHeight: '56px',
-        background: 'var(--color-bg-panel)',
-        border: '1px solid var(--color-text-ghost)',
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border-light)',
         borderRadius: '8px',
         padding: '8px 14px 6px',
         display: 'flex',
@@ -127,7 +127,7 @@ export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSo
         </span>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {[
-            { color: 'var(--color-accent-blue)', label: 'Loaded records' },
+            { color: 'var(--color-chart-steel)', label: 'Loaded records' },
             { color: 'var(--color-severity-high-accent)', label: 'Blocked' },
           ].map(({ color, label }) => (
             <span key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: 'var(--color-text-muted)' }}>
@@ -156,7 +156,7 @@ export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSo
           <polyline
             points={allPoints}
             fill="none"
-            stroke="var(--color-accent-blue)"
+            stroke="var(--color-chart-steel)"
             strokeWidth="4"
             strokeLinecap="round"
             strokeLinejoin="round"

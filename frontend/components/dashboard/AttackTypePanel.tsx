@@ -10,10 +10,10 @@ interface AttackTypePanelProps {
 }
 
 const colorMap: Record<AlertPrediction, string> = {
-  'SQL Injection': 'var(--color-accent-purple)',
-  'Code Injection': 'var(--color-severity-high-accent)',
-  'Other Attacks': 'var(--color-severity-blocked-accent)',
-  'Normal': 'var(--color-text-muted)',
+  'SQL Injection': 'var(--color-chart-bronze)',
+  'Code Injection': 'var(--color-chart-steel)',
+  'Other Attacks': 'var(--color-chart-neutral)',
+  'Normal': 'var(--color-severity-safe-accent)',
 }
 
 const labelOrder: AlertPrediction[] = [
@@ -62,14 +62,14 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
             </Pie>
             <Tooltip
               contentStyle={{
-                border: '1px solid #30363d',
+                border: '1px solid var(--color-border-light)',
                 borderRadius: '0.375rem',
-                backgroundColor: 'rgba(13,17,23,0.82)',
+                backgroundColor: 'var(--color-bg-card)',
                 boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
                 backdropFilter: 'blur(12px)',
               }}
-              itemStyle={{ color: '#f0f6fc', fontSize: '11px' }}
-              labelStyle={{ color: '#7d8590', fontSize: '10px', marginBottom: '4px' }}
+              itemStyle={{ color: 'var(--color-text-primary)', fontSize: '11px' }}
+              labelStyle={{ color: 'var(--color-text-soft)', fontSize: '10px', marginBottom: '4px' }}
               formatter={(value, name) => {
                 const numericValue = typeof value === 'number' ? value : Number(value ?? 0)
                 const percentage = total > 0 ? Math.round((numericValue / total) * 100) : 0
