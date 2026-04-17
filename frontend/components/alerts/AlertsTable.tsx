@@ -81,9 +81,9 @@ function formatCrsScore(score: number | null | undefined): string {
 
 function getConfidenceTextColor(confidence: number): string {
   const value = Math.round(confidence * 100)
-  if (value >= 80) return 'text-severity-safe-text'
+  if (value >= 80) return 'text-severity-high-text'
   if (value >= 50) return 'text-severity-blocked-text'
-  return 'text-accent-blue'
+  return 'text-severity-safe-text'
 }
 
 function formatConfidence(confidence: number, level: string): string {
@@ -98,7 +98,7 @@ function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
   return (
     <>
       {Array.from({ length: rowCount }).map((_, index) => (
-        <tr key={index} aria-hidden="true" className="border-b border-[var(--color-text-ghost)]">
+        <tr key={index} aria-hidden="true" className="border-b border-border-light">
           <td className="p-3">
             <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
@@ -152,7 +152,7 @@ function EmptyState({
           <button
             type="button"
             onClick={onClearFilters}
-            className="mt-3 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)]"
+            className="mt-3 rounded-md border border-border-light bg-bg-inset px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:border-primary hover:text-accent-purple"
           >
             Clear filters
           </button>
@@ -170,7 +170,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)]"
+          className="mt-3 rounded-md border border-border-light bg-bg-inset px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:border-severity-high-border hover:text-severity-high-text"
         >
           Retry
         </button>
@@ -210,7 +210,7 @@ function SortHeader({
       >
         {column.label}
         {isActive ? (
-          <span className="text-accent-blue">{isAsc ? '↑' : '↓'}</span>
+          <span className="text-accent-purple">{isAsc ? '↑' : '↓'}</span>
         ) : (
           <span className="text-[var(--color-text-muted)]">↕</span>
         )}
@@ -310,17 +310,17 @@ function AlertsTableContent({
   const canGoNext = !!data && params.page * params.pageSize < data.total
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
+    <div className="overflow-hidden rounded-lg border border-border-light bg-bg-card">
       <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-[var(--color-bg-panel)]">
-            <tr className="border-b border-[var(--color-text-ghost)]">
+          <thead className="sticky top-0 z-10 bg-bg-card">
+            <tr className="border-b border-border-light">
               <th className="w-10 p-3">
                 <input
                   type="checkbox"
                   checked={alerts.length > 0 && selectedIds.length === alerts.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-accent-blue accent-[var(--color-accent-blue)] focus:ring-2 focus:ring-accent-blue focus:ring-offset-0"
+                  className="h-4 w-4 cursor-pointer rounded border-border-light bg-bg-card text-accent-purple accent-[var(--color-primary)] focus:ring-2 focus:ring-accent-purple focus:ring-offset-0"
                   aria-label="Select all alerts"
                 />
               </th>
@@ -336,7 +336,7 @@ function AlertsTableContent({
               <th className="w-12 p-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--color-text-ghost)]">
+          <tbody className="divide-y divide-border-light">
             {isPending ? (
               <AlertsTableSkeletonRows />
             ) : isError ? (
@@ -348,9 +348,9 @@ function AlertsTableContent({
                 <tr
                   key={alert.alert_id}
                   className={
-                    `group cursor-pointer transition-colors duration-100 hover:bg-[var(--color-bg-panel)]` +
+                    `group cursor-pointer transition-colors duration-100 hover:bg-bg-inset` +
                     (alert.alert_id === (typeof activeAlertId !== 'undefined' ? activeAlertId : undefined)
-                      ? ' bg-[var(--color-bg-panel)] ring-1 ring-accent-blue/30'
+                      ? ' bg-bg-inset ring-1 ring-primary/30'
                       : '')
                   }
                   onClick={() => handleRowClick(alert)}
@@ -360,7 +360,7 @@ function AlertsTableContent({
                       type="checkbox"
                       checked={selectedIdsSet.has(alert.alert_id)}
                       onChange={() => handleSelectOne(alert.alert_id)}
-                      className="h-4 w-4 cursor-pointer rounded border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-accent-blue accent-[var(--color-accent-blue)] focus:ring-2 focus:ring-accent-blue focus:ring-offset-0"
+                      className="h-4 w-4 cursor-pointer rounded border-border-light bg-bg-card text-accent-purple accent-[var(--color-primary)] focus:ring-2 focus:ring-accent-purple focus:ring-offset-0"
                       aria-label={`Select alert ${alert.alert_id}`}
                     />
                   </td>
@@ -381,7 +381,7 @@ function AlertsTableContent({
                       `w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 text-xs ` +
                       (alert.request_path?.trim().startsWith('•')
                         ? 'font-normal text-[var(--color-text-secondary)]'
-                        : 'font-mono text-xs text-[var(--color-text-secondary)]')
+                        : 'font-mono text-xs text-[var(--color-accent-analytic)]')
                     }
                     title={alert.request_path ?? '—'}
                   >
@@ -402,7 +402,7 @@ function AlertsTableContent({
                   <td className="p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)]"
+                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] hover:bg-bg-inset hover:text-[var(--color-text-primary)]"
                       aria-label={`View details for alert ${alert.alert_id}`}
                     >
                       <svg
@@ -427,13 +427,13 @@ function AlertsTableContent({
 
       {/* Pagination footer */}
       {!isHydrated ? (
-        <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+        <div className="flex items-center justify-between border-t border-border-light px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">Loading...</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               ← Prev
             </button>
@@ -441,14 +441,14 @@ function AlertsTableContent({
             <button
               type="button"
               disabled
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next →
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+        <div className="flex items-center justify-between border-t border-border-light px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">
             {data ? (
               <>
@@ -469,7 +469,7 @@ function AlertsTableContent({
                 router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
               }}
               disabled={!canGoPrev}
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-primary transition-colors hover:border-primary hover:text-accent-purple disabled:cursor-not-allowed disabled:opacity-50"
             >
               ← Prev
             </button>
@@ -486,7 +486,7 @@ function AlertsTableContent({
                 router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
               }}
               disabled={!canGoNext}
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-primary transition-colors hover:border-primary hover:text-accent-purple disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next →
             </button>
@@ -501,11 +501,11 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick, acti
   return (
     <Suspense
       fallback={
-        <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
+        <div className="overflow-hidden rounded-lg border border-border-light bg-bg-card">
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[var(--color-bg-panel)]">
-                <tr className="border-b border-[var(--color-text-ghost)]">
+              <thead className="sticky top-0 z-10 bg-bg-card">
+                <tr className="border-b border-border-light">
                   <th className="w-10 p-3">
                     <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
                   </th>

@@ -70,4 +70,16 @@ describe('BulkActionBar', () => {
     })
     expect(screen.queryByText('1 alert updated')).not.toBeInTheDocument()
   })
+
+  it('uses set1 card shell tokens for the bulk action container', () => {
+    const onClearSelection = vi.fn()
+    const { container } = render(
+      <BulkActionBar selectedIds={new Set(['1'])} onClearSelection={onClearSelection} />
+    )
+
+    const wrapper = container.firstElementChild
+    expect(wrapper).not.toBeNull()
+    expect(wrapper).toHaveClass('bg-bg-card')
+    expect(wrapper).toHaveClass('border-border-light')
+  })
 })

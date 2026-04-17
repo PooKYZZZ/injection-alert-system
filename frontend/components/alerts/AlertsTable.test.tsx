@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AlertsTable } from './AlertsTable'
@@ -58,6 +58,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
 })
 
@@ -205,5 +206,49 @@ describe('AlertsTable', () => {
         triage_status: 'in_review',
       })
     )
+  })
+
+  it('uses semantic confidence color and set1 selected-row accent styling', async () => {
+    mockedUseAlertsFromFilters.mockReturnValue({
+      ...buildQueryResult(),
+      data: {
+        items: [
+          {
+            alert_id: '55',
+            timestamp: '2026-04-03T10:00:00.000Z',
+            source_ip: '10.0.0.5',
+            request_path: '/admin',
+            request_method: 'POST',
+            payload_snippet: 'payload',
+            prediction: 'SQL Injection',
+            confidence: 0.92,
+            confidence_level: 'HIGH',
+            action_taken: 'BLOCKED',
+            triage_status: 'in_review',
+            crs_score: 9,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+        activeAlertId="55"
+      />
+    )
+
+    const rowLabel = await screen.findByLabelText('Select alert 55')
+    const activeRow = rowLabel.closest('tr')
+    const confidenceText = screen.getAllByText('92% (HIGH)')[0]
+
+    expect(activeRow).not.toBeNull()
+    expect(activeRow).toHaveClass('ring-primary/30')
+    expect(confidenceText).toHaveClass('text-severity-high-text')
   })
 })
