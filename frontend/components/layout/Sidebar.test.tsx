@@ -46,6 +46,23 @@ describe('Sidebar', () => {
     expect(screen.queryByText('soc@example.com')).not.toBeInTheDocument()
   })
 
+  it('uses set1 shell styling for the analyst identity badge', () => {
+    render(<Sidebar displayName="SOC Analyst" />)
+
+    const initials = screen.getByText('SA')
+    const initialsContainer = initials.closest('div')
+
+    expect(initialsContainer).toHaveClass('bg-surface-card')
+    expect(initials).toHaveClass('text-accent-action')
+  })
+
+  it('uses semantic shell surfaces on sidebar chrome', () => {
+    render(<Sidebar />)
+
+    const sidebar = screen.getByRole('complementary')
+    expect(sidebar).toHaveClass('bg-surface-shell')
+  })
+
   it('logout button has aria-label="Log out"', () => {
     render(<Sidebar />)
     expect(screen.getByRole('button', { name: 'Log out' })).toHaveAttribute('aria-label', 'Log out')

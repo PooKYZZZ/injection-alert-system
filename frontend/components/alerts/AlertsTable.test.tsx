@@ -206,4 +206,43 @@ describe('AlertsTable', () => {
       })
     )
   })
+
+  it('renders the request column with readable two-line request evidence', async () => {
+    mockedUseAlertsFromFilters.mockReturnValue({
+      ...buildQueryResult(),
+      data: {
+        items: [
+          {
+            alert_id: '99',
+            timestamp: '2026-04-03T10:00:00.000Z',
+            source_ip: '10.0.0.3',
+            request_path: '/api/v1/auth/login?redirect=%2Fadmin%2Fusers',
+            request_method: 'POST',
+            payload_snippet: "username=admin' OR '1'='1",
+            prediction: 'SQL Injection',
+            confidence: 0.88,
+            confidence_level: 'HIGH',
+            action_taken: 'BLOCKED',
+            triage_status: 'in_review',
+            crs_score: 10,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    const requestLine = await screen.findByText('POST /api/v1/auth/login?redirect=%2Fadmin%2Fusers')
+    expect(requestLine).toHaveClass('text-[var(--color-accent-analytic)]')
+    expect(screen.getByText("username=admin' OR '1'='1")).toBeInTheDocument()
+  })
 })

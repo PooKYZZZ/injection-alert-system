@@ -79,11 +79,23 @@ function formatCrsScore(score: number | null | undefined): string {
   return score.toFixed(2)
 }
 
+function formatRequestHeadline(alert: Alert): string {
+  const path = alert.request_path?.trim()
+  if (!path) return '—'
+  const method = alert.request_method?.trim()
+  return method ? `${method.toUpperCase()} ${path}` : path
+}
+
+function formatPayloadEvidence(snippet: string | null | undefined): string {
+  const normalized = snippet?.trim()
+  return normalized && normalized.length > 0 ? normalized : 'No payload snippet'
+}
+
 function getConfidenceTextColor(confidence: number): string {
   const value = Math.round(confidence * 100)
-  if (value >= 80) return 'text-emerald-200'
-  if (value >= 50) return 'text-amber-200'
-  return 'text-blue-200'
+  if (value >= 80) return 'text-severity-high-text'
+  if (value >= 50) return 'text-severity-blocked-text'
+  return 'text-[var(--color-accent-analytic)]'
 }
 
 function formatConfidence(confidence: number, level: string): string {
@@ -98,36 +110,36 @@ function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
   return (
     <>
       {Array.from({ length: rowCount }).map((_, index) => (
-        <tr key={index} aria-hidden="true" className="border-b border-[var(--color-text-ghost)]">
+        <tr key={index} aria-hidden="true" className="border-b border-surface-border">
           <td className="p-3">
-            <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-4 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-5 w-16 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-5 w-16 rounded-full bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-5 w-12 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-5 w-12 rounded-full bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-16 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-16 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-24 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-24 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-20 truncate rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-20 truncate rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-14 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-14 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-20 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-20 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-4 w-20 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-4 w-20 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
           <td className="p-3">
-            <div className="h-5 w-14 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+            <div className="h-5 w-14 rounded-full bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
           </td>
         </tr>
       ))}
@@ -152,7 +164,7 @@ function EmptyState({
           <button
             type="button"
             onClick={onClearFilters}
-            className="mt-3 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)]"
+            className="mt-3 rounded-md border border-surface-border bg-surface-inset px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-surface-inset"
           >
             Clear filters
           </button>
@@ -170,7 +182,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)]"
+          className="mt-3 rounded-md border border-surface-border bg-surface-inset px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-surface-inset"
         >
           Retry
         </button>
@@ -210,7 +222,7 @@ function SortHeader({
       >
         {column.label}
         {isActive ? (
-          <span className="text-blue-400">{isAsc ? '↑' : '↓'}</span>
+          <span className="text-action-accent">{isAsc ? '↑' : '↓'}</span>
         ) : (
           <span className="text-[var(--color-text-muted)]">↕</span>
         )}
@@ -310,17 +322,18 @@ function AlertsTableContent({
   const canGoNext = !!data && params.page * params.pageSize < data.total
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
+    <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
       <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-[var(--color-bg-panel)]">
-            <tr className="border-b border-[var(--color-text-ghost)]">
+          <thead className="sticky top-0 z-10 bg-surface-panel">
+            <tr className="border-b border-surface-border">
               <th className="w-10 p-3">
                 <input
                   type="checkbox"
                   checked={alerts.length > 0 && selectedIds.length === alerts.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded accent-blue-500 border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                  className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
+                  style={{ accentColor: 'var(--color-action-accent)' }}
                   aria-label="Select all alerts"
                 />
               </th>
@@ -348,9 +361,9 @@ function AlertsTableContent({
                 <tr
                   key={alert.alert_id}
                   className={
-                    `group cursor-pointer transition-colors duration-100 hover:bg-[var(--color-bg-panel)]` +
+                    `group cursor-pointer transition-colors duration-100 hover:bg-surface-inset` +
                     (alert.alert_id === (typeof activeAlertId !== 'undefined' ? activeAlertId : undefined)
-                      ? ' bg-[var(--color-bg-panel)] ring-1 ring-blue-500/30'
+                      ? ' bg-surface-inset ring-1 ring-action-border'
                       : '')
                   }
                   onClick={() => handleRowClick(alert)}
@@ -360,7 +373,8 @@ function AlertsTableContent({
                       type="checkbox"
                       checked={selectedIdsSet.has(alert.alert_id)}
                       onChange={() => handleSelectOne(alert.alert_id)}
-                      className="h-4 w-4 cursor-pointer rounded accent-blue-500 border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                      className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
+                      style={{ accentColor: 'var(--color-action-accent)' }}
                       aria-label={`Select alert ${alert.alert_id}`}
                     />
                   </td>
@@ -373,19 +387,24 @@ function AlertsTableContent({
                       {formatRelativeTime(alert.timestamp)}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-xs text-white-400">
+                  <td className="whitespace-nowrap p-3 font-mono text-xs text-[var(--color-accent-analytic)]">
                     {alert.source_ip ?? '—'}
                   </td>
-                  <td
-                    className={
-                      `w-[200px] max-w-[200px] overflow-hidden truncate whitespace-nowrap p-3 text-xs ` +
-                      (alert.request_path?.trim().startsWith('•')
-                        ? 'font-normal text-[var(--color-text-secondary)]'
-                        : 'font-mono text-xs text-[var(--color-text-secondary)]')
-                    }
-                    title={alert.request_path ?? '—'}
-                  >
-                    {alert.request_path ?? '—'}
+                  <td className="w-[260px] max-w-[260px] p-3 align-top">
+                    <div className="flex max-w-[260px] flex-col gap-0.5">
+                      <span
+                        className="truncate font-mono text-[11px] text-[var(--color-accent-analytic)]"
+                        title={formatRequestHeadline(alert)}
+                      >
+                        {formatRequestHeadline(alert)}
+                      </span>
+                      <span
+                        className="truncate text-[10px] text-[var(--color-text-soft)]"
+                        title={formatPayloadEvidence(alert.payload_snippet)}
+                      >
+                        {formatPayloadEvidence(alert.payload_snippet)}
+                      </span>
+                    </div>
                   </td>
                   <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
@@ -396,13 +415,13 @@ function AlertsTableContent({
                   <td className="p-3">
                     <ActionLabel action={alert.action_taken} bordered={false} />
                   </td>
-                  <td className="p-3 font-mono text-xs text-white-100">
+                  <td className="p-3 font-mono text-xs text-[var(--color-text-secondary)]">
                     {formatCrsScore(alert.crs_score)}
                   </td>
                   <td className="p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)]"
+                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] hover:bg-surface-border hover:text-[var(--color-text-primary)]"
                       aria-label={`View details for alert ${alert.alert_id}`}
                     >
                       <svg
@@ -427,13 +446,13 @@ function AlertsTableContent({
 
       {/* Pagination footer */}
       {!isHydrated ? (
-        <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+        <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">Loading...</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               ← Prev
             </button>
@@ -441,14 +460,14 @@ function AlertsTableContent({
             <button
               type="button"
               disabled
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next →
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between border-t border-[var(--color-text-ghost)] px-4 py-3">
+        <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">
             {data ? (
               <>
@@ -469,7 +488,7 @@ function AlertsTableContent({
                 router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
               }}
               disabled={!canGoPrev}
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-surface-inset disabled:cursor-not-allowed disabled:opacity-50"
             >
               ← Prev
             </button>
@@ -486,7 +505,7 @@ function AlertsTableContent({
                 router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
               }}
               disabled={!canGoNext}
-              className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-text-ghost)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-[var(--color-text-primary)] transition-colors hover:bg-surface-inset disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next →
             </button>
@@ -501,13 +520,13 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick, acti
   return (
     <Suspense
       fallback={
-        <div className="overflow-hidden rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)]">
+        <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[var(--color-bg-panel)]">
-                <tr className="border-b border-[var(--color-text-ghost)]">
+              <thead className="sticky top-0 z-10 bg-surface-panel">
+                <tr className="border-b border-surface-border">
                   <th className="w-10 p-3">
-                    <div className="h-4 w-4 rounded bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                    <div className="h-4 w-4 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
                   </th>
                   {ALERT_TABLE_COLUMNS.map((column) => (
                     <th

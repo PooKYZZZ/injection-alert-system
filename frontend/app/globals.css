@@ -2,58 +2,70 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@theme{
+@theme {
   /* Font tokens */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Background depth layers */
-  --color-bg-base: #111315;
-  --color-bg-page: #202124;
-  --color-bg-panel: #171616;
-  --color-bg-elevated: #1f2022;
-  --color-bg-inset: #121314;
+  /* Set 1 semantic surfaces */
+  --color-surface-page: var(--theme-bg-page);
+  --color-surface-shell: var(--theme-bg-shell);
+  --color-surface-panel: var(--theme-bg-panel);
+  --color-surface-card: var(--theme-bg-card);
+  --color-surface-inset: var(--theme-bg-inset);
+  --color-surface-border: var(--theme-border-default);
 
-  /* Text hierarchy */
-  --color-text-primary: #e8eaed;
-  --color-text-secondary: #9aa0a6;
-  --color-text-muted: #80868b;
-  --color-text-ghost: #3c4043;
+  /* Set 1 text and accents */
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-soft: var(--theme-text-soft);
+  --color-text-muted: var(--color-text-soft);
+  --color-text-ghost: var(--theme-text-ghost);
+  --color-accent-action: var(--theme-accent-action);
+  --color-accent-analytic: var(--theme-accent-analytic);
 
-  /* Severity — HIGH threat */
-  --color-severity-high-bg: #140d0d;
-  --color-severity-high-border: #5c2020;
-  --color-severity-high-accent: #ef4444;
-  --color-severity-high-text: #f87171;
+  /* Set 1 semantic statuses */
+  --color-status-danger: var(--theme-status-danger);
+  --color-status-warning: var(--theme-status-warning);
+  --color-status-success: var(--theme-status-success);
+  --color-status-info: var(--theme-status-info);
 
-  /* Severity — Blocked/warning */
-  --color-severity-blocked-bg: #14100a;
-  --color-severity-blocked-border: #5c3a0a;
-  --color-severity-blocked-accent: #f97316;
-  --color-severity-blocked-text: #fb923c;
+  /* Legacy severity aliases */
+  --color-severity-high-bg: var(--theme-severity-high-bg);
+  --color-severity-high-border: var(--theme-severity-high-border);
+  --color-severity-high-accent: var(--color-status-danger);
+  --color-severity-high-text: var(--color-status-danger);
 
-  /* Severity — Allowed/safe */
-  --color-severity-safe-bg: #0f1a0a;
-  --color-severity-safe-border: #1a4a2a;
-  --color-severity-safe-accent: #4ade80;
-  --color-severity-safe-text: #4ade80;
+  --color-severity-blocked-bg: var(--theme-severity-blocked-bg);
+  --color-severity-blocked-border: var(--theme-severity-blocked-border);
+  --color-severity-blocked-accent: var(--color-status-warning);
+  --color-severity-blocked-text: var(--color-status-warning);
 
-  /* Severity — Benign/normal */
-  --color-severity-benign-bg: #111827;
-  --color-severity-benign-border: #2d3748;
-  --color-severity-benign-accent: #475569;
-  --color-severity-benign-text: #64748b;
+  --color-severity-safe-bg: var(--theme-severity-safe-bg);
+  --color-severity-safe-border: var(--theme-severity-safe-border);
+  --color-severity-safe-accent: var(--color-status-success);
+  --color-severity-safe-text: var(--color-status-success);
 
-  /* Accents */
-  --color-accent-blue: #8ab4f8;
-  --color-accent-blue-bg: #253448;
-  --color-accent-purple: #4c1d95;
-  --color-accent-dpurple: #2e1065;
-  --color-accent-purple-bg: #2d1060;
-  --color-accent-amber: #f97316;
-  --color-accent-amber-bg: #3d2a0a;
-  --color-accent-cyan: #38bdf8;
-  --color-accent-yellow: #facc15;
+  --color-severity-benign-bg: var(--theme-severity-benign-bg);
+  --color-severity-benign-border: var(--theme-severity-benign-border);
+  --color-severity-benign-accent: var(--color-status-info);
+  --color-severity-benign-text: var(--color-status-info);
+
+  /* Charts */
+  --color-chart-primary: var(--color-accent-action);
+  --color-chart-secondary: var(--color-accent-analytic);
+  --color-chart-tertiary: var(--theme-chart-tertiary);
+
+  /* Legacy accent aliases */
+  --color-accent-blue: var(--color-accent-analytic);
+  --color-accent-blue-bg: var(--color-surface-inset);
+  --color-accent-purple: var(--color-accent-action);
+  --color-accent-dpurple: var(--color-accent-action);
+  --color-accent-purple-bg: var(--color-surface-inset);
+  --color-accent-amber: var(--color-status-warning);
+  --color-accent-amber-bg: var(--theme-severity-blocked-bg);
+  --color-accent-cyan: var(--color-accent-analytic);
+  --color-accent-yellow: var(--color-status-warning);
 
   /* Typography scale */
   --font-size-kpi: 28px;
@@ -61,43 +73,120 @@
   --font-size-micro: 10px;
 
   /* Legacy aliases for existing utilities */
-  --color-border-light: var(--color-text-ghost);
+  --color-bg-base: var(--color-surface-shell);
+  --color-bg-page: var(--color-surface-page);
+  --color-bg-panel: var(--color-surface-panel);
+  --color-bg-elevated: var(--color-surface-card);
+  --color-bg-inset: var(--color-surface-inset);
+  --color-border-light: var(--color-surface-border);
   --color-sidebar-bg: var(--color-bg-base);
   --color-sidebar-active: var(--color-bg-elevated);
-  --color-primary: var(--color-accent-purple);
-  --color-primary-dark: var(--color-accent-purple-bg);
+  --color-primary: var(--color-accent-action);
+  --color-primary-dark: var(--color-accent-action);
   --color-background-main: var(--color-bg-page);
   --color-surface-light: var(--color-bg-panel);
   --color-text-main: var(--color-text-primary);
-  --color-status-high: var(--color-severity-high-accent);
-  --color-status-medium: var(--color-severity-blocked-accent);
-  --color-status-low: var(--color-severity-benign-accent);
-  --color-status-blocked: var(--color-severity-high-accent);
-  --color-status-throttled: var(--color-severity-blocked-text);
-  --color-status-ratelimited: var(--color-severity-benign-text);
+  --color-status-high: var(--color-status-danger);
+  --color-status-medium: var(--color-status-warning);
+  --color-status-low: var(--color-status-info);
+  --color-status-blocked: var(--color-status-danger);
+  --color-status-throttled: var(--color-status-warning);
+  --color-status-ratelimited: var(--color-status-info);
   --color-status-logged: var(--color-text-secondary);
 
   /* Semantic helpers */
-  --color-chart-blocked: var(--color-severity-high-accent);
-  --color-chart-throttled: var(--color-severity-blocked-accent);
-  --color-chart-allowed: var(--color-severity-safe-accent);
+  --color-chart-blocked: var(--color-status-danger);
+  --color-chart-throttled: var(--color-status-warning);
+  --color-chart-allowed: var(--color-status-success);
   --color-skeleton-base: var(--color-bg-elevated);
   --color-skeleton-shine: var(--color-bg-panel);
-  --color-delta-positive: var(--color-severity-high-accent);
-  --color-delta-negative: var(--color-severity-safe-accent);
+  --color-delta-positive: var(--color-status-danger);
+  --color-delta-negative: var(--color-status-success);
   --color-delta-neutral: var(--color-text-muted);
   --color-scrollbar-track: var(--color-bg-base);
   --color-scrollbar-thumb: var(--color-text-ghost);
   --color-scrollbar-thumb-hover: var(--color-text-secondary);
   --color-empty-state-icon: var(--color-text-muted);
   --color-empty-state-text: var(--color-text-secondary);
-  --color-kpi-border-high: var(--color-severity-high-border);
-  --color-kpi-border-blocked: var(--color-severity-blocked-border);
-  --color-kpi-border-safe: var(--color-severity-safe-border);
-  --color-kpi-border-default: var(--color-bg-elevated);
+  --color-kpi-border-high: var(--theme-severity-high-border);
+  --color-kpi-border-blocked: var(--theme-severity-blocked-border);
+  --color-kpi-border-safe: var(--theme-severity-safe-border);
+  --color-kpi-border-default: var(--color-surface-border);
 }
 
 @layer base {
+  :root {
+    --theme-bg-page: #121417;
+    --theme-bg-shell: #181c22;
+    --theme-bg-panel: #1b2026;
+    --theme-bg-card: #222830;
+    --theme-bg-inset: #1c2532;
+    --theme-border-default: #39424c;
+
+    --theme-text-primary: #eef2f6;
+    --theme-text-secondary: #aab4be;
+    --theme-text-soft: #8b96a2;
+    --theme-text-ghost: #4b5661;
+
+    --theme-accent-action: #d29a54;
+    --theme-accent-analytic: #8fa6be;
+    --theme-chart-tertiary: #465467;
+
+    --theme-status-danger: #ff8a8a;
+    --theme-status-warning: #d39c42;
+    --theme-status-success: #72ad89;
+    --theme-status-info: #8fa6be;
+
+    --theme-severity-high-bg: #2f2024;
+    --theme-severity-high-border: #7c4d57;
+    --theme-severity-blocked-bg: #322919;
+    --theme-severity-blocked-border: #775e30;
+    --theme-severity-safe-bg: #1f2c25;
+    --theme-severity-safe-border: #4d7d63;
+    --theme-severity-benign-bg: #1f2936;
+    --theme-severity-benign-border: #4c5f74;
+
+    color-scheme: dark;
+  }
+
+  [data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  [data-theme='light'] {
+    --theme-bg-page: #ece7de;
+    --theme-bg-shell: #f6f1e8;
+    --theme-bg-panel: #faf8f5;
+    --theme-bg-card: #fffdf9;
+    --theme-bg-inset: #e7e2da;
+    --theme-border-default: #d8d0c4;
+
+    --theme-text-primary: #1d2024;
+    --theme-text-secondary: #656a72;
+    --theme-text-soft: #7a7268;
+    --theme-text-ghost: #a79e92;
+
+    --theme-accent-action: #b27a3d;
+    --theme-accent-analytic: #5f748c;
+    --theme-chart-tertiary: #c7ced8;
+
+    --theme-status-danger: #c23a3e;
+    --theme-status-warning: #a06a1a;
+    --theme-status-success: #2f6b4f;
+    --theme-status-info: #5f748c;
+
+    --theme-severity-high-bg: #f8e4e5;
+    --theme-severity-high-border: #ddb4b6;
+    --theme-severity-blocked-bg: #f6ecdc;
+    --theme-severity-blocked-border: #ddc6a0;
+    --theme-severity-safe-bg: #e4efe9;
+    --theme-severity-safe-border: #aac3b6;
+    --theme-severity-benign-bg: #e7edf2;
+    --theme-severity-benign-border: #bcc7d2;
+
+    color-scheme: light;
+  }
+
   @keyframes skeleton-pulse {
     0%, 100% { opacity: 0.4; }
     50% { opacity: 0.8; }
@@ -142,6 +231,84 @@
 
   *::-webkit-scrollbar-corner {
     background: var(--color-scrollbar-track);
+  }
+
+  :root.theme-transitioning :where(
+    body,
+    header,
+    aside,
+    main,
+    section,
+    article,
+    nav,
+    div,
+    span,
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    table,
+    thead,
+    tbody,
+    tr,
+    th,
+    td,
+    svg,
+    path,
+    circle,
+    line,
+    rect
+  ) {
+    transition-property: background-color, border-color, color, fill, stroke, outline-color, box-shadow;
+    transition-duration: 145ms;
+    transition-timing-function: ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root.theme-transitioning :where(
+      body,
+      header,
+      aside,
+      main,
+      section,
+      article,
+      nav,
+      div,
+      span,
+      p,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6,
+      a,
+      button,
+      input,
+      textarea,
+      select,
+      table,
+      thead,
+      tbody,
+      tr,
+      th,
+      td,
+      svg,
+      path,
+      circle,
+      line,
+      rect
+    ) {
+      transition-duration: 0ms;
+    }
   }
 }
 

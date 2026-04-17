@@ -14,7 +14,6 @@ jobs:
       DATABASE_URL: sqlite+aiosqlite:///./test.db
       MODEL_PATH: ./ml_model/model_registry
       MODEL_REGISTRY_PATH: ./ml_model/model_registry
-      API_SECRET_KEY: test-ci-key-32-chars-long!!!!
       APP_ENV: testing
       LOG_LEVEL: WARNING
     steps:

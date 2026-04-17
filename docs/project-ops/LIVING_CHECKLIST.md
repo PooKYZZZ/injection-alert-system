@@ -3,18 +3,23 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-03-24
+**Last updated:** 2026-06-23
 
 Status note:
-- Current test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 336 passed, vitest 122 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
+- ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
+- Client requirements are tracked in `docs/client-requirements.md`
+- DistilBERT staged promotion now uses `ml_model/export/promote_final_training_run.py` with archive-and-recreate safety
+- Real promotion command currently fails closed on strict head-shape mismatch between final-training checkpoint and `package_serving_artifact.py` loader expectations; rollback restoration behavior is verified
+- Local WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`: WAF path `localhost:8088`, SQLi HTTP 403, JSON audit log, bridge `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `source_ip`, `request_path`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`
 
 ---
 
 ## Current Verified State (2026-03-23)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **336 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
@@ -45,15 +50,66 @@ Status note:
 - Tests use SQLite ✓
 - Async SQLAlchemy remains the only DB access path ✓
 
+### WAF Ingest Proof (2026-06-22)
+- `localhost:8088/healthz` returned HTTP 200 ✓
+- `localhost:8088/api/health` returned HTTP 200 with database connected ✓
+- SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned HTTP 403 ✓
+- ModSecurity audit log preserved `transaction.unique_id=17821639659.909603` ✓
+- Bridge posted to FastAPI with `status=200` and rule IDs `942100`, `949110` ✓
+- Docker-internal backend lookup returned `found=true` with `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, and `crs_score=5` ✓
+- Targeted checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, `docker compose config --quiet` ✓
+
 ---
 
 ## Open Backlog
 
-- [ ] Put ModSecurity in the real browser-facing path without violating `Browser -> Next.js -> FastAPI`
+- [x] Build/verify external demo target website (`G:\AI\land-records-portal`)
+- [x] Verify local WAF path through `localhost:8088` with ModSecurity/OWASP CRS block, audit log, bridge post, backend ingest, and transaction lookup proof
+- [x] Verify WAF JSONL bridge and internal FastAPI ingest route with live ModSecurity audit-log evidence
+- [~] ModSecurity audit-log policy is documented, but automatic rotation and production retention are not implemented
+- [~] Decide whether ModSecurity becomes a production browser-facing path or remains a local proof/demo path; current dashboard path remains `Browser -> Next.js -> FastAPI`
+- [ ] Decide ModSecurity audit-log format, captured fields, transaction ID strategy, log rotation, and retention
+- [~] Create CRS-only baseline report for normal and attack traffic; SQLi block proof exists, but no full baseline report is checked in
+- [ ] Add bounded `asyncio.Queue(maxsize=N)` inference queue and queue health visibility
+- [ ] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
+- [ ] Add real-time dashboard alerting for timely threat visibility
+- [ ] Add email notifications after detection using a transactional email provider/API
+- [ ] Replace demo password login with real user access management / secure login
+- [ ] Implement Admin/Analyst RBAC
+- [ ] Implement 2FA and login hardening
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
 - [ ] Repo-managed export and verification of Supabase policy / RLS state
 - [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
+
+---
+
+## PD2 Demo Checklist
+
+- [ ] normal request reaches the demo target
+- [x] SQLi request reaches the ModSecurity/CRS path
+- [ ] code/server-side injection-like request reaches the ModSecurity/CRS path
+- [ ] other attack-like request reaches the ModSecurity/CRS path
+- [x] CRS detection evidence is captured
+- [x] WAF event is ingested by FastAPI
+- [x] ML triage runs
+- [x] confidence tier is recorded
+- [~] dashboard alert is visible; observed manually in current proof but screenshot path is not captured in repo
+- [x] action is recorded; real enforcement only if separately implemented
+- [ ] email/SSE evidence is captured only after those features exist
+
+## Abuse Smoke Expectations
+
+- [ ] missing auth
+- [ ] invalid token
+- [ ] malformed JSON
+- [ ] oversized payload
+- [ ] duplicate transaction ID
+- [ ] repeated requests
+- [ ] queue overflow after queue implementation
+- [ ] slow/failed inference
+- [ ] invalid triage update
+- [ ] dashboard API access without session
 
 ---
 
@@ -80,4 +136,10 @@ cd frontend && npm run build
 
 # Start frontend
 cd frontend && npm run dev
+
+# DistilBERT promotion dry-run
+.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420" --dry-run
+
+# DistilBERT promotion
+.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420"
 ```

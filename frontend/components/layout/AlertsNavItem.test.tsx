@@ -1,22 +1,34 @@
+import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-import { useAlerts, useAlertsFromFilters } from '@/features/alerts/queries'
+import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { DEFAULT_ALERT_FILTERS } from '@/lib/searchParams'
 import { AlertsNavItem } from './AlertsNavItem'
 
 vi.mock('@/features/alerts/queries', () => ({
-  useAlerts: vi.fn(),
   useAlertsFromFilters: vi.fn(),
 }))
 
-vi.mock('./SidebarNavItem', () => ({
-  SidebarNavItem: ({ label, badge }: { label: string; badge?: number }) => (
-    <div>{`${label}:${badge ?? 'none'}`}</div>
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/alerts',
+}))
+
+vi.mock('next/link', () => ({
+  default: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
+    <a href={href} className={className}>
+      {children}
+    </a>
   ),
 }))
 
-const mockedUseAlerts = vi.mocked(useAlerts)
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
+  motion: {
+    span: ({ children, ...rest }: React.HTMLAttributes<HTMLSpanElement>) => <span {...rest}>{children}</span>,
+  },
+}))
+
 const mockedUseAlertsFromFilters = vi.mocked(useAlertsFromFilters)
 
 describe('AlertsNavItem', () => {
@@ -24,16 +36,7 @@ describe('AlertsNavItem', () => {
     vi.clearAllMocks()
   })
 
-  it('uses alerts page default filters for sidebar badge count', () => {
-    mockedUseAlerts.mockReturnValue({
-      data: {
-        items: [],
-        total: 0,
-        page: 1,
-        pageSize: 20,
-      },
-    } as unknown as ReturnType<typeof useAlerts>)
-
+  it('uses alerts page default filters and preserves semantic alert badge styling', () => {
     mockedUseAlertsFromFilters.mockReturnValue({
       data: {
         items: [],
@@ -46,6 +49,12 @@ describe('AlertsNavItem', () => {
     render(<AlertsNavItem href="/alerts" icon="notifications" label="Alerts" />)
 
     expect(mockedUseAlertsFromFilters).toHaveBeenCalledWith(DEFAULT_ALERT_FILTERS)
-    expect(screen.getByText('Alerts:17')).toBeInTheDocument()
+
+    const link = screen.getByRole('link', { name: /alerts/i })
+    expect(link).toHaveClass('border-accent-action')
+
+    const badge = screen.getByText('17')
+    expect(badge).toHaveClass('bg-severity-high-accent')
+    expect(badge).not.toHaveClass('bg-accent-action')
   })
 })

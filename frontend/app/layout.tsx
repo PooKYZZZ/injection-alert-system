@@ -32,13 +32,28 @@ export const metadata: Metadata = {
   description: 'SOC Dashboard',
 }
 
+const themeBootstrapScript = `(() => {
+  const storageKey = 'ias-theme';
+  const root = document.documentElement;
+  const storedTheme = localStorage.getItem(storageKey);
+  const hasExplicitTheme = storedTheme === 'light' || storedTheme === 'dark';
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  const resolvedTheme = hasExplicitTheme ? storedTheme : systemTheme;
+
+  root.setAttribute('data-theme', resolvedTheme);
+  root.style.colorScheme = resolvedTheme;
+})();`
+
 export default function RootLayout({
   children,
 }: {
   children: ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script id="theme-bootstrap" dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body className={`${inter.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable} ${orbitron.variable}`}>
         <Providers>{children}</Providers>
       </body>

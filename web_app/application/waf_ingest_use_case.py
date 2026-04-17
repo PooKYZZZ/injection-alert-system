@@ -80,6 +80,7 @@ class WafIngestUseCase:
             ingest_source=ingest_source,
             matched_rule_messages=matched_rule_messages,
             matched_rule_tags=matched_rule_tags,
+            query_string=query_string,
         )
 
         return await self._triage.ingest(command)

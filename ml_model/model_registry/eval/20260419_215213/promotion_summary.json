@@ -1,0 +1,15 @@
+{
+  "timestamp": "20260419_215213",
+  "dataset_version": "v3_907k_cleaned",
+  "promotion_summary": {
+    "distilbert": {
+      "ready_for_promotion": true,
+      "gates": {
+        "promotion_pipeline": true
+      },
+      "temperature": 1.3780944347381592,
+      "git_hash": "1a3e448c3f51a8e7d747e3fe867fc80f30b94535",
+      "run_dir": "distilbert_v3_907k_cleaned_20260312_133755"
+    }
+  }
+}

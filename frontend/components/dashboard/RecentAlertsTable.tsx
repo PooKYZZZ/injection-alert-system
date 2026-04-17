@@ -29,7 +29,7 @@ function formatCrsScore(score: number | null | undefined): string {
 export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
   if (isPending) {
     return (
-      <div className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-card p-4">
         <LoadingSkeleton rows={4} />
       </div>
     )
@@ -38,12 +38,12 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
   const displayAlerts = alerts.slice(0, 4)
 
   return (
-    <div className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+        <span className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
           Recent alerts
         </span>
-        <Link href="/alerts" className="text-[11px] text-blue-400 hover:underline">
+        <Link href="/alerts" className="text-[11px] text-[var(--color-accent-analytic)] hover:underline">
           View all →
         </Link>
       </div>
@@ -60,17 +60,17 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
             <th className="pb-2 text-left px-2">CRS Score</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[var(--color-text-ghost)]">
+        <tbody className="divide-y divide-surface-border">
           {displayAlerts.map((alert) => (
             <tr
               key={alert.alert_id}
-              className="hover:bg-[var(--color-bg-base)] transition-colors"
+              className="transition-colors hover:bg-surface-inset"
             >
               <td className="p-2">
                 <TriageBadge triage_status={alert.triage_status ?? null} />
               </td>
               <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
-              <td className="p-2 font-mono text-violet-400">{alert.source_ip ?? '—'}</td>
+              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</td>
               <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
               <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
               <td className="p-2">

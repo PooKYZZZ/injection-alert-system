@@ -12,21 +12,21 @@ interface ActionLabelProps {
 }
 
 const styles: Record<AlertAction, string> = {
-  BLOCKED: 'bg-transparent text-red-400',
-  THROTTLED: 'bg-transparent text-amber-400',
-  ALLOWED: 'bg-transparent text-emerald-400',
+  BLOCKED: 'bg-transparent text-severity-high-text',
+  THROTTLED: 'bg-transparent text-severity-blocked-text',
+  ALLOWED: 'bg-transparent text-severity-safe-text',
 }
 
 const borderedStyles: Record<AlertAction, string> = {
-  BLOCKED: 'border border-red-500/30',
-  THROTTLED: 'border border-amber-500/30',
-  ALLOWED: 'border border-emerald-500/30',
+  BLOCKED: 'border border-severity-high-border/30',
+  THROTTLED: 'border border-severity-blocked-border/30',
+  ALLOWED: 'border border-severity-safe-border/30',
 }
 
 export function ActionLabel({ action, bordered = true }: ActionLabelProps) {
   if (action === null) {
     return (
-      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-secondary)]">
+      <span className="inline-flex items-center rounded-full border border-surface-border bg-surface-inset px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
         Unavailable
       </span>
     )

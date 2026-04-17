@@ -83,6 +83,7 @@ class TrafficLog(Base):
     )
     source_ip = Column(String(45), index=True)
     request_path = Column(String(512), nullable=True)
+    query_string = Column(String(4096), nullable=True)
     request_method = Column(String(16), nullable=True)
     # Retain raw header/body fidelity by folding them into http_request at ingest
     # time; do not add standalone request_headers/request_body columns.

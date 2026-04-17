@@ -41,8 +41,8 @@ export function MLConfidenceBands({
       className="flex flex-col gap-2"
     >
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="text-[11px] text-[var(--color-text-secondary)] truncate">{`High > 80%`}</span>
-        <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`High > 80%`}</span>
+        <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{ width: `${total > 0 ? (high / total) * 100 : 0}%`, background: 'var(--color-severity-high-accent)' }}
@@ -56,11 +56,11 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="text-[11px] text-[var(--color-text-secondary)] truncate">Medium 50–80%</span>
-        <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Medium 50–80%</span>
+        <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%`, background: 'var(--color-accent-amber)' }}
+            style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%`, background: 'var(--color-severity-blocked-accent)' }}
           />
         </div>
         <div className="flex items-center justify-end gap-2 tabular-nums">
@@ -71,8 +71,8 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="text-[11px] text-[var(--color-text-secondary)] truncate">{`Low < 50%`}</span>
-        <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`Low < 50%`}</span>
+        <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{ width: `${total > 0 ? (low / total) * 100 : 0}%`, background: 'var(--color-severity-safe-accent)' }}

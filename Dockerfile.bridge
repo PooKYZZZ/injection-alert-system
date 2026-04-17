@@ -1,0 +1,7 @@
+FROM python:3.14-slim
+
+WORKDIR /app
+
+COPY scripts/waf_audit_bridge.py ./scripts/waf_audit_bridge.py
+
+CMD ["python", "scripts/waf_audit_bridge.py", "--help"]
