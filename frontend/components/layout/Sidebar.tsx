@@ -62,8 +62,8 @@ export function Sidebar({ displayName }: SidebarProps) {
 
           <div className="bg-bg-panel">
             <div className="flex items-center gap-3 border-t border-border-light bg-bg-panel px-4 py-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded bg-accent-blue-bg">
-                <span className="text-xs font-bold text-accent-blue">{initials}</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded border border-border-light bg-bg-elevated">
+                <span className="text-xs font-bold text-accent-purple">{initials}</span>
               </div>
 
               <div className="min-w-0 flex-1">

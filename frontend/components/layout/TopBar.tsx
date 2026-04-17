@@ -21,7 +21,7 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
 
   if (severity === 'ALL') {
     return isActive
-      ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
+      ? `${base} border-accent-purple bg-accent-purple-bg text-accent-purple`
       : `${base} border-border-light bg-transparent text-text-muted`
   }
 
@@ -207,7 +207,7 @@ function NewAlertIndicator() {
     <div className="flex items-center gap-5">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">NEW:</span>
-        <span className="text-sm font-semibold text-accent-blue">{newCount}</span>
+        <span className="text-sm font-semibold text-accent-purple">{newCount}</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">IN REVIEW:</span>

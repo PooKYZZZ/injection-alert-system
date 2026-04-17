@@ -46,6 +46,16 @@ describe('Sidebar', () => {
     expect(screen.queryByText('soc@example.com')).not.toBeInTheDocument()
   })
 
+  it('uses set1 shell styling for the analyst identity badge', () => {
+    render(<Sidebar displayName="SOC Analyst" />)
+
+    const initials = screen.getByText('SA')
+    const initialsContainer = initials.closest('div')
+
+    expect(initialsContainer).toHaveClass('bg-bg-elevated')
+    expect(initials).toHaveClass('text-accent-purple')
+  })
+
   it('logout button has aria-label="Log out"', () => {
     render(<Sidebar />)
     expect(screen.getByRole('button', { name: 'Log out' })).toHaveAttribute('aria-label', 'Log out')
