@@ -102,7 +102,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
             {/* Drawer panel */}
             <Dialog.Content asChild>
               <motion.div
-                className="fixed top-0 right-0 z-30 flex h-full w-[420px] flex-col border-l border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] shadow-2xl"
+                className="fixed top-0 right-0 z-30 flex h-full w-[420px] flex-col border-l border-surface-border bg-surface-card shadow-2xl"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
@@ -118,40 +118,40 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 </Dialog.Description>
 
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] p-4">
+                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-surface-border bg-surface-card p-4">
                   <div className="min-w-0 space-y-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
-                      Summary Header
+                      Alert summary
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[16px] font-semibold text-[var(--color-text-primary)]">
                         {alert.prediction}
                       </span>
-                      <span className="rounded-full border border-blue-500/30 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-blue-400">
+                      <span className="rounded-full border border-action-border bg-action-bg px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-action-accent">
                         {triageLabel}
                       </span>
                       <span
                         className={cn(
                           'rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em]',
                           displayAction === 'BLOCKED'
-                            ? 'border-red-500/30 text-red-400'
+                            ? 'border-severity-high-border text-severity-high-text'
                             : displayAction === 'THROTTLED'
-                              ? 'border-amber-500/30 text-amber-400'
+                              ? 'border-severity-blocked-border text-severity-blocked-text'
                               : displayAction === 'ALLOWED'
-                                ? 'border-emerald-500/30 text-emerald-400'
-                                : 'border-[var(--color-text-ghost)] text-[var(--color-text-secondary)]'
+                                ? 'border-severity-safe-border text-severity-safe-text'
+                                : 'border-surface-border text-[var(--color-text-secondary)]'
                         )}
                       >
                         {displayAction ? ALERT_DISPLAY_ACTION_ALIASES[displayAction] : 'No Action'}
                       </span>
                     </div>
                     {isError && (
-                      <span className="block text-[11px] text-red-400">
+                      <span className="block text-[11px] text-severity-high-text">
                         Triage update failed. Please retry.
                       </span>
                     )}
                     {isActionError && (
-                      <span className="block text-[11px] text-red-400">
+                      <span className="block text-[11px] text-severity-high-text">
                         Intervention update failed. Please retry.
                       </span>
                     )}
@@ -160,7 +160,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     <button
                       type="button"
                       aria-label="Close alert detail"
-                      className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[var(--color-text-secondary)] transition-colors hover:bg-surface-inset hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
                     >
                       <svg
                         width="14"
@@ -182,7 +182,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 {/* Content */}
                 <div className="flex-1 overflow-hidden p-3">
                   <div className="grid content-start gap-3">
-                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Core Details
                     </h3>
@@ -196,13 +196,13 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Source IP
                       </dt>
-                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
+                      <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)]">
                         {alert.source_ip ?? '—'}
                       </dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Request
                       </dt>
-                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">
+                      <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)] break-all">
                         {requestLine}
                       </dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -214,7 +214,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     </dl>
                   </section>
 
-                  <section className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       WAF Evidence
                     </h3>
@@ -222,7 +222,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         CRS Score
                       </dt>
-                      <dd className="text-amber-400">{formatCrsScore(alert.crs_score)}</dd>
+                      <dd className="text-severity-blocked-text">{formatCrsScore(alert.crs_score)}</dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Rule IDs
                       </dt>
@@ -234,17 +234,21 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Captured Request
                     </h3>
-                    <div className="max-h-40 overflow-auto rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)]">
+                    <div className="max-h-44 overflow-auto rounded-lg border border-surface-border bg-surface-inset">
+                      <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-[10px]">
+                        <div>
+                          <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Host</p>
+                          <p className="font-mono text-[var(--color-text-primary)]">dashboard.local</p>
+                        </div>
+                        <div>
+                          <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Source-IP</p>
+                          <p className="font-mono text-[var(--color-accent-analytic)]">{alert.source_ip ?? '—'}</p>
+                        </div>
+                      </div>
                       <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.6] text-[var(--color-text-secondary)]">
-                        <span className="text-amber-400">{alert.request_method ?? '—'}</span>{' '}
-                        <span className="text-red-400">{alert.request_path ?? '—'}</span>{' '}
+                        <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
+                        <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
                         <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
-                        {'\n'}
-                        <span className="text-blue-400">Host</span>:{' '}
-                        <span className="text-[var(--color-text-secondary)]">dashboard.local</span>
-                        {'\n'}
-                        <span className="text-blue-400">Source-IP</span>:{' '}
-                        <span className="text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</span>
                         {'\n'}
                         {'\n'}
                         <span className="text-[var(--color-text-primary)]">
@@ -256,7 +260,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
                   <section>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                      <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Analyst Actions
                         </h3>
@@ -268,8 +272,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             className={cn(
                               'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                               displayStatus === 'resolved'
-                                ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400'
-                                : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                                ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
+                                : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
                               isPending && 'cursor-not-allowed opacity-50'
                             )}
                           >
@@ -283,8 +287,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             className={cn(
                               'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                               displayStatus === 'false_positive'
-                                ? 'border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] text-[var(--color-text-primary)]'
-                                : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                                ? 'border-action-border bg-action-bg text-action-accent'
+                                : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
                               isPending && 'cursor-not-allowed opacity-50'
                             )}
                           >
@@ -298,8 +302,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             className={cn(
                               'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                               displayStatus === 'escalated'
-                                ? 'border-red-800 bg-red-950/50 text-red-400'
-                                : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                                ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
+                                : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
                               isPending && 'cursor-not-allowed opacity-50'
                             )}
                           >
@@ -309,7 +313,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3">
+                      <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Intervene
                         </h3>
@@ -321,8 +325,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                           displayAction === 'BLOCKED'
-                            ? 'border-red-500/30 bg-red-950/5 text-red-400'
-                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                            ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
+                            : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
                           isActionPending && 'cursor-not-allowed opacity-50'
                         )}
                       >
@@ -346,8 +350,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                           displayAction === 'THROTTLED'
-                            ? 'border-amber-500/30 bg-amber-950/5 text-amber-400'
-                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                            ? 'border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text'
+                            : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
                           isActionPending && 'cursor-not-allowed opacity-50'
                         )}
                       >
@@ -371,8 +375,8 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         className={cn(
                           'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
                           displayAction === 'ALLOWED'
-                            ? 'border-emerald-500/30 bg-emerald-950/5 text-emerald-400'
-                            : 'border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-ghost)]',
+                            ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
+                            : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
                           isActionPending && 'cursor-not-allowed opacity-50'
                         )}
                       >

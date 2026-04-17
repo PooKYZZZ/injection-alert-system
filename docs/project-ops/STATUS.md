@@ -1,8 +1,8 @@
 # Project Ops Status
 
-**Scope:** operator-only session status  
-**Defense:** May 2026  
-**Last updated:** 2026-03-24
+**Scope:** operator-only session status
+**Defense:** May 2026
+**Last updated:** 2026-06-23
 
 ---
 
@@ -15,11 +15,14 @@
 - Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
 - Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
+- DistilBERT promotion workflow CLI: `ml_model/export/promote_final_training_run.py`
+- Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
+- Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **336 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
@@ -27,6 +30,38 @@
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
 - Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
+- Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
+- Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
+- Promotion real-run command (April DistilBERT source path) → **failed closed** with strict checkpoint architecture incompatibility:
+  - `package_serving_artifact.py` strict load expects DistilBERT classification head shapes (`768`) but final-training checkpoint head uses `256`-dim layers
+  - rollback behavior verified: active staged run restored; archive target not left behind
+
+### Verified WAF ingest proof
+
+Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
+Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
+
+- WAF proof path uses `localhost:8088`.
+- Backend is internal-only in Docker Compose and shows `8000/tcp`; do not use `localhost:8000` unless backend port 8000 is explicitly published.
+- Backend transaction lookup proof uses Docker-internal `docker compose exec -e TXID=$txid backend ...`.
+- `/healthz` through `localhost:8088` returned HTTP 200.
+- `/api/health` through `localhost:8088` returned HTTP 200 and `{"status":"healthy","database":"connected"}`.
+- SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` through WAF returned HTTP 403.
+- ModSecurity audit log contained transaction `17821639659.909603`, source IP `172.21.0.1`, and request URI `/api/health?id=17%27%20OR%2017%3D17--`.
+- Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
+- Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
+- Targeted WAF checks: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed.
+- ModSecurity audit-log policy is documented; automatic rotation and production retention remain TODO.
+- Remaining TODO: bridge follow mode once logged transient `OSError: [Errno 5] Input/output error` at `readline()`; bridge restarted and posted successfully afterward.
+
+### Promotion Workflow Commands
+
+- Dry-run (no writes):
+  - `.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420" --dry-run`
+- Real promotion:
+  - `.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420"`
+- Rollback behavior:
+  - If failure occurs after archive, the promotion script restores the archived active run automatically.
 
 ### Current API/BFF state
 
@@ -62,9 +97,18 @@
 
 ## Open Gaps (Current, Not Historical)
 
-- Docker Compose exists, but ModSecurity is not yet the browser-facing runtime boundary.
-- Redis-backed enforcement and queue behavior is still not implemented in the repo runtime.
+- Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
+- Bridge follow-mode resilience for transient `readline()` `OSError` remains a TODO.
+- Bounded inference queue and queue health visibility are not implemented.
+- Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
+- Client-required real user access management with RBAC and secure login is not yet implemented beyond the current demo credentials flow.
+- Client-required 2FA is not yet implemented.
+- Client-required email notification after detection is not yet implemented.
+- Real-time SSE/EventSource dashboard alerting is not yet implemented.
+- Client-standard `CRITICAL >=90%` confidence tier is not yet implemented.
+- Wazuh export-only integration is not yet implemented; full Wazuh/SIEM deployment is deferred.
+- Retraining remains design-level in `ml_model/retraining/`; promotion/rollback tooling exists separately under `ml_model/export/`.
 
 ---
 
@@ -73,5 +117,6 @@
 - Implementation snapshot: `docs/CONTEXT.md`
 - Architecture boundaries: `docs/architecture.md`
 - Local setup: `docs/SETUP.md`
+- Client requirements: `docs/client-requirements.md`
 - Detailed current-state snapshot: `docs/CURRENT_SYSTEM_STATE.md`
 - Operator checklist: `docs/project-ops/LIVING_CHECKLIST.md`

@@ -4,7 +4,7 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 ## Status
 
-This repository is active and deployable in its current app-plus-BFF form. It now includes Dockerfiles and a `docker-compose.yml` for local smoke testing, but it is still not the finished Docker/ModSecurity/Redis local deployment target described in older planning material.
+This repository is active in its current app-plus-BFF form and now has a verified local ModSecurity/OWASP CRS proof path for WAF ingest. It is still not a finished production Docker/Redis deployment target.
 
 - Backend tests currently pass: `264 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
 - Frontend tests currently pass: `122 passed` (run with `cd frontend && npx vitest run`)
@@ -14,10 +14,15 @@ This repository is active and deployable in its current app-plus-BFF form. It no
 - The dashboard BFF routes for alerts, alert detail, triage, stats, and ML health are wired to FastAPI in non-mock mode
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist
-- ModSecurity is wired internally to the backend in Compose, but it is not yet the browser-facing entrypoint
-- Redis-backed enforcement is still in progress
+- Verified WAF proof path: `localhost:8088` -> ModSecurity/OWASP CRS -> JSON audit log -> bridge -> FastAPI internal WAF ingest
+- Verified SQLi proof: `/api/health?id=17%27%20OR%2017%3D17--` through `localhost:8088` returned HTTP 403
+- Verified backend lookup result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
+- In Compose, the backend is internal-only (`8000/tcp`). Do not use `localhost:8000` for WAF proof unless port 8000 is explicitly published.
+- Redis-backed enforcement is planned/conditional and not implemented in the current runtime
 
 If you need the current implementation truth rather than the thesis target architecture, start with [docs/CONTEXT.md](docs/CONTEXT.md) and [docs/architecture.md](docs/architecture.md).
+
+Client-stated PD2 requirements are tracked in [docs/client-requirements.md](docs/client-requirements.md). They include secure login, RBAC, 2FA, timely alerts, email notifications after detection, and the client confidence standard `CRITICAL >=90%`.
 
 ## What The Project Does
 
@@ -34,7 +39,7 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
-In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, and a Docker smoke setup are present, but the full WAF deployment path is not wired end to end yet.
+In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the WAF public proof path is `localhost:8088`.
 
 ## Current Repository Scope
 
@@ -56,12 +61,19 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 - Staged model artifacts under `ml_model/model_registry/`
 - Alembic scaffolding and the current triage-processing migration set
 - Hosted PostgreSQL/Supabase runtime boundary for application data
+- Verified local ModSecurity/OWASP CRS ingest proof through `localhost:8088`
+- Internal WAF ingest and transaction lookup endpoints protected by bearer auth
 
 ### Not fully implemented yet
 
-- End-to-end browser traffic through ModSecurity
-- A fully authoritative local ModSecurity-fronted runtime
+- Production-grade ModSecurity-fronted deployment
 - Redis-backed enforcement state
+- Bounded inference queue and queue health visibility
+- Client-required real user access management with RBAC and secure login
+- Client-required two-factor authentication
+- Client-required email notification after threat detection
+- Client-required timely push/SSE-style dashboard alerts
+- Client-standard `CRITICAL >=90%` confidence tier
 
 ## Tech Stack
 
@@ -160,8 +172,9 @@ Important constraints:
 
 - The frontend is published on `http://localhost:3000`
 - The backend is internal to the Compose network and is not published to the host
-- ModSecurity is internal to the Compose network and proxies to `backend`, but it is not currently the browser-facing path
+- The WAF proof path is published on `http://localhost:8088`
 - The active browser path remains `Browser -> Next.js -> FastAPI`
+- Backend transaction lookup proof should use `docker compose exec`, not `localhost:8000`
 
 For the current container workflow, use [docs/SETUP.md](docs/SETUP.md) and [docs/project-ops/SMOKE_TEST_RUNBOOK.md](docs/project-ops/SMOKE_TEST_RUNBOOK.md).
 
@@ -193,8 +206,9 @@ curl -X POST "http://localhost:8000/api/predict" \
   - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
-- Public backend endpoints:
+- Internal bearer-token protected backend endpoints:
   - `POST /api/feedback`
+- Public backend endpoints:
   - `GET /health`
   - `GET /api/health`
 
@@ -205,6 +219,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 - Next.js BFF handlers under `frontend/app/api/alerts`, `frontend/app/api/stats`, and `frontend/app/api/ml-health` also call `auth()` and return `401` without a session.
 - Backend internal data routes use `Authorization: Bearer <API_SECRET_KEY>` via the Next.js BFF client.
 - Local `next start` validation also requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
+- Client requirements now call for real user access management with RBAC, secure login, strong account security, and 2FA. The current password-only demo flow is not the final requirement state.
 
 ### Current limitations
 
@@ -219,6 +234,8 @@ curl -X POST "http://localhost:8000/api/predict" \
   - current architecture and planned gaps
 - [docs/SETUP.md](docs/SETUP.md)
   - local setup and environment guidance
+- [docs/client-requirements.md](docs/client-requirements.md)
+  - client-stated security, alerting, and confidence-tier requirements
 - [CONTRIBUTING.md](CONTRIBUTING.md)
   - contributor workflow and validation steps
 - [docs/CURRENT_SYSTEM_STATE.md](docs/CURRENT_SYSTEM_STATE.md)

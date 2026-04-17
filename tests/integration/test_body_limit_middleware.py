@@ -1,6 +1,16 @@
+import pytest
 from fastapi.testclient import TestClient
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.types import Message
 
 from web_app.presentation.app import create_app
+from web_app.presentation.middleware.body_limit import (
+    MAX_BODY_SIZE,
+    BodySizeLimitMiddleware,
+)
 
 
 def test_body_limit_rejects_oversized_content_length() -> None:
@@ -64,3 +74,50 @@ def test_security_headers_middleware_is_the_outermost_custom_middleware() -> Non
         "BodySizeLimitMiddleware",
         "CORSMiddleware",
     ]
+
+
+@pytest.mark.asyncio
+async def test_body_limit_rejects_streaming_body_without_content_length() -> None:
+    async def read_body(request: Request) -> PlainTextResponse:
+        await request.body()
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/upload", read_body, methods=["POST"])])
+    wrapped = BodySizeLimitMiddleware(app)
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/upload",
+        "raw_path": b"/upload",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+    }
+    receive_messages = [
+        {
+            "type": "http.request",
+            "body": b"x" * (MAX_BODY_SIZE // 2),
+            "more_body": True,
+        },
+        {
+            "type": "http.request",
+            "body": b"x" * (MAX_BODY_SIZE // 2 + 1),
+            "more_body": False,
+        },
+    ]
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return receive_messages.pop(0)
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    await wrapped(scope, receive, send)
+
+    start = next(message for message in sent if message["type"] == "http.response.start")
+    assert start["status"] == 413

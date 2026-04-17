@@ -16,9 +16,9 @@ interface TopSourceIPsProps {
 }
 
 const statusStyles: Record<AlertAction, string> = {
-  BLOCKED: 'bg-[var(--color-severity-high-bg)] text-red-400',
-  THROTTLED: 'bg-[var(--color-severity-blocked-bg)] text-amber-400',
-  ALLOWED: 'bg-[var(--color-severity-safe-bg)] text-emerald-400',
+  BLOCKED: 'bg-[var(--color-severity-high-bg)] text-severity-high-text',
+  THROTTLED: 'bg-[var(--color-severity-blocked-bg)] text-severity-blocked-text',
+  ALLOWED: 'bg-[var(--color-severity-safe-bg)] text-severity-safe-text',
 }
 
 const actionLabels: Record<AlertAction, string> = {
@@ -50,11 +50,11 @@ export function TopSourceIPs({ ips, isPending = false }: TopSourceIPsProps) {
       {ips.map((item) => (
         <div
           key={item.ip}
-          className="flex items-center justify-between py-3 border-b border-[var(--color-text-ghost)] last:border-0 text-[11px]"
+          className="flex items-center justify-between border-b border-surface-border py-3 text-[11px] last:border-0"
         >
-          <span className="font-mono text-violet-400">{item.ip}</span>
+          <span className="font-mono text-[var(--color-accent-analytic)]">{item.ip}</span>
           <div className="flex items-center gap-2">
-            <span className="font-medium">{item.count}</span>
+            <span className="font-medium text-[var(--color-text-primary)]">{item.count}</span>
             {item.action && statusStyles[item.action as AlertAction] && (
               <span
                 className={cn(

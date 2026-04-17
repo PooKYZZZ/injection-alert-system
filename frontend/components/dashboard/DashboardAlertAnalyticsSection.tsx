@@ -18,17 +18,17 @@ const DashboardAlertAnalytics = dynamic(
     loading: () => (
       <div className="grid gap-4 xl:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-lg border border-border-light bg-bg-panel p-4 shadow-subtle">
+          <div key={index} className="rounded-lg border border-surface-border bg-surface-card p-4 shadow-subtle">
             <div className="mb-4">
-              <div className="h-4 w-36 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-              <div className="mt-2 h-3 w-52 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+              <div className="h-4 w-36 rounded-sm bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+              <div className="mt-2 h-3 w-52 rounded-sm bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
             </div>
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, rowIndex) => (
                 <div key={rowIndex} className="grid grid-cols-[minmax(0,160px)_1fr_auto] items-center gap-3">
-                  <div className="h-3 w-24 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-                  <div className="h-3 rounded-full bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
-                  <div className="h-3 w-8 rounded-sm bg-bg-elevated [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                  <div className="h-3 w-24 rounded-sm bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                  <div className="h-3 rounded-full bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
+                  <div className="h-3 w-8 rounded-sm bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
                 </div>
               ))}
             </div>
@@ -93,11 +93,11 @@ export default function DashboardAlertAnalyticsSection() {
               onDataSourceDetected={handleHeroDataSourceDetected}
             />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-muted">
+          <div className="flex items-baseline justify-between rounded-md border border-surface-border bg-surface-panel px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-accent-analytic">
               Security overview
             </span>
-            <span className="text-[11px] italic text-text-muted">
+            <span className="text-[11px] italic text-text-secondary">
               {heroStripDbBacked ? 'Real-time activity from database.' : 'Derived from loaded alerts.'}
             </span>
           </div>

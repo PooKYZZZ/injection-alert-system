@@ -27,7 +27,7 @@ export function AlertsPageClient() {
   }, [])
 
   return (
-    <>
+    <div className="flex flex-col gap-3">
       <BulkActionBar
         selectedIds={selectedIds}
         onClearSelection={handleClearSelection}
@@ -42,6 +42,6 @@ export function AlertsPageClient() {
         alert={selectedAlert}
         onClose={handleDrawerClose}
       />
-    </>
+    </div>
   )
 }

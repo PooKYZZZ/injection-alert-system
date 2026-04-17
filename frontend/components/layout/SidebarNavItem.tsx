@@ -79,8 +79,8 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
       href={href}
       className={
         isActive
-          ? 'group flex items-center gap-3 px-6 h-[40px] bg-sidebar-active border-l-[3px] border-primary text-white'
-          : 'group flex items-center gap-3 px-6 h-[40px] text-blue-100 hover:bg-[var(--color-accent-blue-bg)] hover:text-white border-l-[3px] border-transparent transition-colors'
+          ? 'group flex h-[40px] items-center gap-3 border-l-[3px] border-accent-action bg-surface-card px-6 text-text-primary'
+          : 'group flex h-[40px] items-center gap-3 border-l-[3px] border-transparent px-6 text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary'
       }
       >
         <SidebarIcon icon={icon} />
@@ -92,7 +92,7 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
               initial={{ scale: 1.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-              className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+              className="rounded-full bg-severity-high-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
             >
               {badge}
             </motion.span>

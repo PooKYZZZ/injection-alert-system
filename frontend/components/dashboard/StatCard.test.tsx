@@ -4,7 +4,17 @@ import { describe, expect, it } from 'vitest'
 import { StatCard } from './StatCard'
 
 describe('StatCard', () => {
-  it('uses red main value color for an unfavorable delta', () => {
+  it('uses set1 card surface token for dashboard stat chrome', () => {
+    render(<StatCard label="Total requests" value={4200} />)
+
+    const labelEl = screen.getByText('Total requests')
+    const card = labelEl.closest('div')?.parentElement
+
+    expect(card).not.toBeNull()
+    expect(card).toHaveClass('bg-surface-card')
+  })
+
+  it('uses semantic danger colors for an unfavorable delta', () => {
     render(
       <StatCard
         label="Blocked"
@@ -17,8 +27,8 @@ describe('StatCard', () => {
     const valueEl = labelEl.nextElementSibling as HTMLElement | null
 
     expect(valueEl).not.toBeNull()
-    expect(valueEl).toHaveClass('text-red-400')
-    expect(valueEl).not.toHaveClass('text-emerald-400')
-    expect(screen.getByText('↑ 20 vs prev')).toHaveClass('text-red-500/80')
+    expect(valueEl).toHaveClass('text-severity-high-text')
+    expect(valueEl).not.toHaveClass('text-severity-safe-text')
+    expect(screen.getByText('↑ 20 vs prev')).toHaveClass('text-severity-high-text/80')
   })
 })

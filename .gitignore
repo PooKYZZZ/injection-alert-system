@@ -72,7 +72,6 @@ pnpm-debug.log*
 .playwright-mcp/
 .kilocode/mcp.json
 .kilocode/
-.serena/
 .copilot/
 
 # Playwright E2E test artifacts
@@ -199,3 +198,20 @@ docs/audit/2026-04-13-torchlight2-steam-multiplayer-mod-stack-audit.md
 docs/audit/2026-04-15-sensitivity-method-comparison-fresh-research-notes.md
 docs/audit/FINAL_EVALUATION_NOTEBOOK_FACT_CHECK_ROUND2.md
 docs/research/2026-04-15-option-1-gate-design-research.md
+docs/research/
+.kilo/package-lock.json
+.playwright-cli/page-2026-04-17T05-57-41-528Z.yml
+.playwright-cli/page-2026-04-17T05-58-08-310Z.yml
+.playwright-cli/page-2026-04-17T05-58-28-126Z.yml
+.playwright-cli/page-2026-04-17T05-58-35-314Z.yml
+.playwright-cli/page-2026-04-17T05-58-45-282Z.yml
+.playwright-cli/page-2026-04-17T05-58-50-890Z.yml
+.playwright-cli/page-2026-04-17T05-58-59-196Z.yml
+.playwright-cli/page-2026-04-17T05-59-41-837Z.yml
+.playwright-cli/page-2026-04-17T06-00-01-482Z.yml
+.playwright-cli/page-2026-04-17T06-00-04-526Z.yml
+output/playwright/alerts-drawer-dark.png
+output/playwright/alerts-light.png
+output/playwright/dashboard-dark.png
+docs.zip
+.tmp/pytest/
