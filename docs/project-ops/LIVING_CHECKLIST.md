@@ -3,10 +3,12 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-03-24
+**Last updated:** 2026-04-17
 
 Status note:
 - Current test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed
+- Set 1 dashboard theme rollout completed across shell, dashboard widgets, shared primitives, and alerts workflow
+- Light and dark theme presentation sanity-checked on `/dashboard` and `/alerts`
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 
 ---
@@ -17,7 +19,7 @@ Status note:
 - Backend: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
 - Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 

@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status  
 **Defense:** May 2026  
-**Last updated:** 2026-03-24
+**Last updated:** 2026-04-17
 
 ---
 
@@ -15,6 +15,7 @@
 - Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
 - Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
+- Set 1 dashboard theme rollout is now active across shell, dashboard widgets, and alerts workflow (dark/light verified locally)
 
 ### Latest local verification results
 
@@ -24,7 +25,7 @@
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
 - Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 
