@@ -16,18 +16,26 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 const STORAGE_KEY = 'cybertrace-theme'
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') {
+      return 'dark'
+    }
 
-  useEffect(() => {
     try {
       const storedTheme = window.localStorage.getItem(STORAGE_KEY)
       if (storedTheme === 'dark' || storedTheme === 'light') {
-        setTheme(storedTheme)
+        return storedTheme
       }
     } catch {
       // Ignore storage failures and keep the default theme.
     }
-  }, [])
+
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return 'light'
+    }
+
+    return 'dark'
+  })
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
