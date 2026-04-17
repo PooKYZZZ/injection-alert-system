@@ -1,7 +1,6 @@
 'use client'
 
 import * as Dialog from '@radix-ui/react-dialog'
-import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { Alert, TriageStatus } from '@/features/alerts/types'
 import { ALERT_DISPLAY_ACTION_ALIASES } from '@/features/alerts/contract'
@@ -53,9 +52,6 @@ function formatCrsScore(score: number | null | undefined): string {
 }
 
 export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
-  const [optimisticStatus, setOptimisticStatus] = useState<TriageStatus | null>(null)
-  const [optimisticAction, setOptimisticAction] = useState<AlertAction | null>(null)
-
   const {
     mutate,
     isPending,
@@ -64,7 +60,6 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
   const handleVerdictClick = (status: TriageStatus) => {
     if (alert && !isPending) {
-      setOptimisticStatus(status)
       mutate({ id: alert.alert_id, status })
     }
   }
@@ -77,19 +72,12 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
 
   const handleActionClick = (action: AlertAction) => {
     if (alert && !isActionPending) {
-      setOptimisticAction(action)
       mutateAction({ id: alert.alert_id, action })
     }
   }
 
-  const displayStatus =
-    alert && optimisticStatus !== null && !isError
-      ? optimisticStatus
-      : alert?.triage_status ?? null
-  const displayAction =
-    alert && optimisticAction !== null && !isActionError
-      ? optimisticAction
-      : alert?.action_taken ?? null
+  const displayStatus = alert?.triage_status ?? null
+  const displayAction = alert?.action_taken ?? null
 
   const triageLabel = formatTriageLabel(displayStatus)
   const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
