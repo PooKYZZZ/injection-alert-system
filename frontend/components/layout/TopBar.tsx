@@ -17,11 +17,11 @@ const DEFAULT_SEARCH_PLACEHOLDER = 'Search path, attack type...'
 
 function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   const base =
-    'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel'
+    'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel'
 
   if (severity === 'ALL') {
     return isActive
-      ? `${base} border-accent-purple bg-accent-purple-bg text-accent-purple`
+      ? `${base} border-accent-action bg-surface-inset text-accent-action`
       : `${base} border-border-light bg-transparent text-text-muted`
   }
 
@@ -34,7 +34,7 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (severity === 'MEDIUM') {
     return isActive
       ? `${base} border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text`
-      : `${base} border-border-light bg-transparent text-accent-yellow`
+      : `${base} border-border-light bg-transparent text-text-muted`
   }
 
   return `${base} border-border-light bg-transparent text-text-muted`
@@ -102,7 +102,7 @@ function TopBarContent({
   }
 
   return (
-    <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-bg-panel px-6 shadow-subtle">
+    <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-surface-panel px-6 shadow-subtle">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
@@ -172,7 +172,7 @@ function TopBarContent({
               defaultValue={searchParams?.get('search') ?? ''}
               onChange={(event) => handleSearch(event.target.value)}
               placeholder={searchPlaceholder}
-              className="w-64 rounded-md border border-border-light bg-bg-elevated py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel"
+              className="w-64 rounded-md border border-border-light bg-surface-inset py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
             />
           </div>
           <ThemeToggleButton />
@@ -207,7 +207,7 @@ function NewAlertIndicator() {
     <div className="flex items-center gap-5">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">NEW:</span>
-        <span className="text-sm font-semibold text-accent-purple">{newCount}</span>
+        <span className="text-sm font-semibold text-accent-action">{newCount}</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">IN REVIEW:</span>
@@ -219,7 +219,7 @@ function NewAlertIndicator() {
 
 export function TopBar(props: TopBarProps) {
   return (
-    <Suspense fallback={<header className="h-16 flex-shrink-0 border-b border-border-light bg-bg-panel" />}>
+    <Suspense fallback={<header className="h-16 flex-shrink-0 border-b border-border-light bg-surface-panel" />}>
       <TopBarContent {...props} />
     </Suspense>
   )

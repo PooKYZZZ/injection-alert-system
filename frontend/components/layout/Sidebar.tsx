@@ -31,8 +31,8 @@ export function Sidebar({ displayName }: SidebarProps) {
   return (
     <Dialog.Root open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
       <>
-        <aside className="flex h-full w-[250px] flex-shrink-0 flex-col border-r border-border-light bg-bg-base">
-          <div className="flex h-20 flex-col justify-center border-b border-border-light bg-bg-panel px-6">
+        <aside className="flex h-full w-[250px] flex-shrink-0 flex-col border-r border-border-light bg-surface-shell">
+          <div className="flex h-20 flex-col justify-center border-b border-border-light bg-surface-panel px-6">
             <div className="mb-1 flex items-center gap-2">
               <Image src="/logo.png" alt="logo" width={32} height={32} className="h-8 w-8" />
               <h1 className="font-orbitron text-base font-bold leading-tight tracking-wide text-text-primary">
@@ -44,7 +44,7 @@ export function Sidebar({ displayName }: SidebarProps) {
             </p>
           </div>
 
-          <nav className="flex flex-1 flex-col overflow-y-auto bg-bg-panel py-4">
+          <nav className="flex flex-1 flex-col overflow-y-auto bg-surface-panel py-4">
             {NAV_ITEMS.map((item) =>
               item.href === '/alerts' ? (
                 <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
@@ -60,10 +60,10 @@ export function Sidebar({ displayName }: SidebarProps) {
             )}
           </nav>
 
-          <div className="bg-bg-panel">
-            <div className="flex items-center gap-3 border-t border-border-light bg-bg-panel px-4 py-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded border border-border-light bg-bg-elevated">
-                <span className="text-xs font-bold text-accent-purple">{initials}</span>
+          <div className="bg-surface-panel">
+            <div className="flex items-center gap-3 border-t border-border-light bg-surface-panel px-4 py-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded border border-border-light bg-surface-card">
+                <span className="text-xs font-bold text-accent-action">{initials}</span>
               </div>
 
               <div className="min-w-0 flex-1">
@@ -102,7 +102,7 @@ export function Sidebar({ displayName }: SidebarProps) {
 
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border-light bg-bg-panel p-5 shadow-2xl focus:outline-none">
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border-light bg-surface-card p-5 shadow-2xl focus:outline-none">
             <Dialog.Title className="text-base font-semibold text-text-primary">
               Confirm Log Out
             </Dialog.Title>
@@ -113,7 +113,7 @@ export function Sidebar({ displayName }: SidebarProps) {
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-md border border-border-light px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-elevated"
+                  className="rounded-md border border-border-light px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-inset"
                 >
                   Cancel
                 </button>
@@ -121,7 +121,7 @@ export function Sidebar({ displayName }: SidebarProps) {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-md border border-severity-high-border bg-severity-high-bg px-3 py-1.5 text-sm font-medium text-severity-high-text transition-colors hover:bg-[#201010]"
+                className="rounded-md border border-severity-high-border bg-severity-high-bg px-3 py-1.5 text-sm font-medium text-severity-high-text transition-colors hover:bg-severity-high-bg/80"
               >
                 Log out
               </button>

@@ -52,8 +52,15 @@ describe('Sidebar', () => {
     const initials = screen.getByText('SA')
     const initialsContainer = initials.closest('div')
 
-    expect(initialsContainer).toHaveClass('bg-bg-elevated')
-    expect(initials).toHaveClass('text-accent-purple')
+    expect(initialsContainer).toHaveClass('bg-surface-card')
+    expect(initials).toHaveClass('text-accent-action')
+  })
+
+  it('uses semantic shell surfaces on sidebar chrome', () => {
+    render(<Sidebar />)
+
+    const sidebar = screen.getByRole('complementary')
+    expect(sidebar).toHaveClass('bg-surface-shell')
   })
 
   it('logout button has aria-label="Log out"', () => {
