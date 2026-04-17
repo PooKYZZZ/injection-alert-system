@@ -10,9 +10,9 @@ interface ConfidenceBarProps {
 
 function getConfidenceColors(confidence: number): { text: string; bg: string } {
   const value = Math.round(confidence * 100)
-  if (value >= 80) return { text: 'text-violet-400', bg: 'bg-violet-600' }
-  if (value >= 50) return { text: 'text-amber-400', bg: 'bg-amber-600' }
-  return { text: 'text-emerald-400', bg: 'bg-emerald-600' }
+  if (value >= 80) return { text: 'text-severity-high-text', bg: 'bg-severity-high-accent' }
+  if (value >= 50) return { text: 'text-severity-blocked-text', bg: 'bg-severity-blocked-accent' }
+  return { text: 'text-severity-safe-text', bg: 'bg-severity-safe-accent' }
 }
 
 export function ConfidenceBar({ confidence, prediction: _prediction }: ConfidenceBarProps) {
@@ -24,7 +24,7 @@ export function ConfidenceBar({ confidence, prediction: _prediction }: Confidenc
       <span className={cn('min-w-[32px] font-medium', colors.text)}>
         {value}%
       </span>
-      <div className="h-1 w-12 overflow-hidden rounded-full bg-[var(--color-bg-base)]">
+      <div className="h-1 w-12 overflow-hidden rounded-full bg-bg-inset">
         <div
           className={cn('h-full', colors.bg)}
           style={{ width: `${value}%` }}
