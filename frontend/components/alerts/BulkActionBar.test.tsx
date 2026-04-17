@@ -79,7 +79,8 @@ describe('BulkActionBar', () => {
 
     const wrapper = container.firstElementChild
     expect(wrapper).not.toBeNull()
-    expect(wrapper).toHaveClass('bg-bg-card')
-    expect(wrapper).toHaveClass('border-border-light')
+    expect(wrapper).toHaveClass('bg-surface-card')
+    expect(wrapper).toHaveClass('border-surface-border')
+    expect(container.querySelector('.text-accent-action')).not.toBeNull()
   })
 })

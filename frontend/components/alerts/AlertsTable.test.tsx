@@ -243,12 +243,17 @@ describe('AlertsTable', () => {
       />
     )
 
+    const tableShell = screen.getByRole('table').closest('div')?.parentElement
+    expect(tableShell).not.toBeNull()
+    expect(tableShell).toHaveClass('bg-surface-card')
+    expect(tableShell).toHaveClass('border-surface-border')
+
     const rowLabel = await screen.findByLabelText('Select alert 55')
     const activeRow = rowLabel.closest('tr')
     const confidenceText = screen.getAllByText('92% (HIGH)')[0]
 
     expect(activeRow).not.toBeNull()
-    expect(activeRow).toHaveClass('ring-primary/30')
+    expect(activeRow).toHaveClass('ring-accent-action/30')
     expect(confidenceText).toHaveClass('text-severity-high-text')
   })
 })

@@ -82,11 +82,11 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
-          className="flex items-center justify-between rounded-md border border-border-light bg-bg-card px-4 py-2"
+          className="flex items-center justify-between rounded-md border border-surface-border bg-surface-card px-4 py-2"
         >
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <CheckSquare size={14} className="text-accent-purple" />
+              <CheckSquare size={14} className="text-accent-action" />
               <span className="text-sm font-medium text-[var(--color-text-primary)]">
                 {selectedCount} selected
               </span>
@@ -97,7 +97,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('false_positive')}
-                className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-accent-purple disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-accent-action hover:text-accent-action disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Mark False Positive'}
               </button>
@@ -105,7 +105,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('escalated')}
-                className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-severity-high-border hover:bg-severity-high-bg hover:text-severity-high-text disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-severity-high-border hover:bg-severity-high-bg hover:text-severity-high-text disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Escalate'}
               </button>
@@ -113,7 +113,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('resolved')}
-                className="rounded border border-border-light bg-bg-inset px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-severity-safe-border hover:bg-severity-safe-bg hover:text-severity-safe-text disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-surface-border bg-surface-inset px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:border-severity-safe-border hover:bg-severity-safe-bg hover:text-severity-safe-text disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Resolve'}
               </button>
@@ -136,7 +136,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
             type="button"
             onClick={onClearSelection}
             disabled={isProcessing}
-            className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-accent-purple disabled:opacity-50"
+            className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-accent-action disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-[14px]"></span>
             Clear Selection
