@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef } from 'react'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { SeverityFilter } from '@/lib/searchParams'
@@ -181,35 +181,6 @@ function TopBarContent({
         <div className="w-64" aria-hidden="true" />
       )}
     </header>
-  )
-}
-
-function ThemeToggleButton() {
-  const { theme, toggleTheme } = useTheme()
-  const [isMounted, setIsMounted] = useState(false)
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      setIsMounted(true)
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [])
-
-  const nextTheme = theme === 'dark' ? 'light' : 'dark'
-  const buttonLabel = isMounted ? `${nextTheme === 'light' ? 'Light' : 'Dark'} theme` : 'Theme'
-  const ariaLabel = isMounted ? `Switch to ${nextTheme} theme` : 'Toggle theme'
-
-  return (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      aria-label={ariaLabel}
-      title={ariaLabel}
-      className="inline-flex h-9 items-center rounded-md border border-border-light bg-surface-inset px-3 text-xs font-medium text-text-primary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
-    >
-      {buttonLabel}
-    </button>
   )
 }
 
