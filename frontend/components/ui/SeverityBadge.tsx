@@ -12,7 +12,7 @@ const styles: Record<'HIGH' | 'MEDIUM' | 'LOW' | 'BENIGN', string> = {
   HIGH: 'bg-transparent border-severity-high-border/30 text-severity-high-text',
   MEDIUM: 'bg-transparent border-severity-blocked-border/30 text-severity-blocked-text',
   LOW: 'bg-transparent border-severity-safe-border/30 text-severity-safe-text',
-  BENIGN: 'bg-transparent border-border-light text-text-secondary',
+  BENIGN: 'bg-transparent border-surface-border text-text-secondary',
 }
 
 export function SeverityBadge({ severity, prediction }: SeverityBadgeProps) {

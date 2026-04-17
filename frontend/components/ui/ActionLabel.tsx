@@ -26,7 +26,7 @@ const borderedStyles: Record<AlertAction, string> = {
 export function ActionLabel({ action, bordered = true }: ActionLabelProps) {
   if (action === null) {
     return (
-      <span className="inline-flex items-center rounded-full border border-border-light bg-bg-inset px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
+      <span className="inline-flex items-center rounded-full border border-surface-border bg-surface-inset px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
         Unavailable
       </span>
     )

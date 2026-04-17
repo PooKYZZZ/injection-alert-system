@@ -1,7 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { SeverityBadge } from './SeverityBadge'
+import { FilterChip } from './FilterChip'
 
 afterEach(() => {
   cleanup()
@@ -19,6 +20,7 @@ describe('SeverityBadge', () => {
     const mediumBadge = screen.getByText('MEDIUM')
     expect(mediumBadge).toHaveClass('text-severity-blocked-text')
     expect(mediumBadge).toHaveClass('border-severity-blocked-border/30')
+    expect(mediumBadge).not.toHaveClass('text-accent-action')
 
     rerender(<SeverityBadge severity="LOW" prediction="Other Attacks" />)
     const lowBadge = screen.getByText('LOW')
@@ -33,7 +35,7 @@ describe('SeverityBadge', () => {
 
     expect(benignBadge).toBeInTheDocument()
     expect(benignBadge).toHaveClass('text-text-secondary')
-    expect(benignBadge).toHaveClass('border-border-light')
+    expect(benignBadge).toHaveClass('border-surface-border')
     expect(screen.queryByText('HIGH')).not.toBeInTheDocument()
   })
 
@@ -41,5 +43,20 @@ describe('SeverityBadge', () => {
     render(<SeverityBadge severity="HIGH" prediction="SQL Injection" />)
 
     expect(screen.getByText('HIGH')).toBeInTheDocument()
+  })
+
+  it('uses bronze emphasis on filter chips only when selected', () => {
+    const onClick = vi.fn()
+    const { rerender } = render(<FilterChip label="Blocked" active={false} onClick={onClick} />)
+
+    const inactiveChip = screen.getByRole('button', { name: /blocked/i })
+    expect(inactiveChip).not.toHaveClass('text-accent-action')
+    expect(inactiveChip).not.toHaveClass('border-accent-action')
+
+    rerender(<FilterChip label="Blocked" active={true} onClick={onClick} />)
+
+    const activeChip = screen.getByRole('button', { name: /blocked/i })
+    expect(activeChip).toHaveClass('text-accent-action')
+    expect(activeChip).toHaveClass('border-accent-action')
   })
 })

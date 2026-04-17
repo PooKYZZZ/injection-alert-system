@@ -21,8 +21,8 @@ export function FilterChip({ label, active, onClick }: FilterChipProps) {
       className={cn(
         'cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] transition-all',
         active
-          ? 'border-primary bg-bg-inset text-accent-purple'
-          : 'border-border-light bg-bg-card text-text-secondary hover:bg-bg-inset hover:text-text-primary'
+          ? 'border-accent-action bg-surface-inset text-accent-action'
+          : 'border-surface-border bg-surface-card text-text-secondary hover:bg-surface-inset hover:text-text-primary'
       )}
     >
       {label} {active && '▾'}
@@ -37,8 +37,8 @@ export function ConfidencePill({ label, active, onClick }: ConfidencePillProps) 
       className={cn(
         'cursor-pointer rounded border px-2 py-0.5 text-[10px] transition-all',
         active
-          ? 'border-primary bg-bg-inset text-accent-purple'
-          : 'border-border-light bg-bg-card text-text-secondary hover:bg-bg-inset hover:text-text-primary'
+          ? 'border-accent-action bg-surface-inset text-accent-action'
+          : 'border-surface-border bg-surface-card text-text-secondary hover:bg-surface-inset hover:text-text-primary'
       )}
     >
       {label}
