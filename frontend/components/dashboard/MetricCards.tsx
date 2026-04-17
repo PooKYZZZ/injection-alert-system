@@ -37,7 +37,7 @@ function MetricCard({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border-light bg-bg-card p-4',
+        'rounded-lg border border-surface-border bg-surface-card p-4',
         className,
         unavailable && 'opacity-60'
       )}
@@ -58,7 +58,7 @@ function MetricCard({
 
 function MetricCardSkeleton() {
   return (
-    <div className="rounded-lg border border-border-light bg-bg-card p-4" aria-hidden="true">
+    <div className="rounded-lg border border-surface-border bg-surface-card p-4" aria-hidden="true">
       <div className="h-2.5 w-20 rounded-sm bg-bg-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
       <div className="mt-4 h-8 w-16 rounded-sm bg-bg-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
       <div className="mt-4 h-2.5 w-24 rounded-sm bg-bg-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
@@ -79,7 +79,7 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
 
   if (statsError) {
     return (
-      <div className="rounded-lg border border-severity-high-border bg-bg-card p-4">
+      <div className="rounded-lg border border-severity-high-border bg-surface-card p-4">
         <p className="text-sm font-medium text-severity-high-text">Unable to load dashboard metrics.</p>
         <p className="mt-1 text-xs text-text-secondary">{statsError.message}</p>
         {onRetry ? (
@@ -97,7 +97,7 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
 
   if (!stats) {
     return (
-      <div className="rounded-lg border border-border-light bg-bg-card p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-card p-4">
         <p className="text-sm font-medium text-text-muted">No stats data available.</p>
       </div>
     )
@@ -108,7 +108,7 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
       <MetricCard
         label="High Alerts"
         value={stats.actionable_alerts}
-        className="border-severity-high-border bg-bg-card"
+        className="border-severity-high-border bg-surface-card"
         labelClassName="text-severity-high-text"
         valueClassName="text-severity-high-text"
         subtitleClassName="text-severity-high-text/80"
@@ -116,7 +116,7 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
       <MetricCard
         label="Blocked"
         value={stats.blocked_count}
-        className="border-severity-high-border bg-bg-card"
+        className="border-severity-high-border bg-surface-card"
         labelClassName="text-severity-high-text"
         valueClassName="text-severity-high-text"
         subtitleClassName="text-severity-high-text/80"
@@ -124,7 +124,7 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
       <MetricCard
         label="Allowed"
         value={stats.allowed_count}
-        className="border-severity-safe-border bg-bg-card"
+        className="border-severity-safe-border bg-surface-card"
         labelClassName="text-severity-safe-text"
         valueClassName="text-severity-safe-text"
         subtitleClassName="text-severity-safe-text/80"
@@ -133,18 +133,18 @@ export default function MetricCards({ stats, statsPending, statsError, onRetry }
         label="Avg ML Confidence"
         value={stats.avg_confidence !== null ? `${(stats.avg_confidence * 100).toFixed(0)}%` : '—'}
         unavailable={stats.avg_confidence === null}
-        className="border-accent-blue bg-bg-card"
-        labelClassName="text-accent-blue"
-        valueClassName="text-accent-blue"
-        subtitleClassName="text-accent-blue/80"
+        className="border-accent-analytic bg-surface-card"
+        labelClassName="text-accent-analytic"
+        valueClassName="text-accent-analytic"
+        subtitleClassName="text-accent-analytic/80"
       />
       <MetricCard
         label="Total Requests"
         value={stats.total_requests}
-        className="border-border-light bg-bg-card"
-        labelClassName="text-accent-blue"
-        valueClassName="text-accent-blue"
-        subtitleClassName="text-accent-blue/80"
+        className="border-surface-border bg-surface-card"
+        labelClassName="text-accent-analytic"
+        valueClassName="text-accent-analytic"
+        subtitleClassName="text-accent-analytic/80"
       />
     </div>
   )

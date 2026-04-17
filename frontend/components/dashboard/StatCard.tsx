@@ -71,8 +71,8 @@ export function StatCard({
       transition={{ duration: 0.3, ease: 'easeOut', delay }}
       onClick={onClick}
       className={cn(
-        'flex flex-col gap-1 rounded-xl border border-[var(--color-border-light)] bg-[var(--color-bg-card)] p-4 transition-all',
-        onClick && 'cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-inset)]'
+        'flex flex-col gap-1 rounded-xl border border-surface-border bg-surface-card p-4 transition-all',
+        onClick && 'cursor-pointer hover:border-accent-action hover:bg-surface-inset'
       )}
     >
       <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
@@ -114,7 +114,7 @@ export function StatCard({
         </div>
       )}
       {typeof progressBar === 'number' ? (
-        <div className="mt-2 h-0.5 w-full rounded-full bg-[var(--color-border-light)]">
+        <div className="mt-2 h-0.5 w-full rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{

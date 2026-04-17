@@ -235,7 +235,7 @@ describe('TimelineChart', () => {
     const xAxisProps = JSON.parse(xAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
     const yAxisProps = JSON.parse(yAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
 
-    expect(gridProps.stroke).toBe('var(--color-border-light)')
+    expect(gridProps.stroke).toBe('var(--color-surface-border)')
     expect((xAxisProps.tick as { fill?: string } | undefined)?.fill).toBe('var(--color-text-soft)')
     expect((yAxisProps.tick as { fill?: string } | undefined)?.fill).toBe('var(--color-text-soft)')
   })

@@ -130,8 +130,8 @@ function CustomTooltip({
     <div
       className="w-[170px] rounded-md px-2.5 py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.5)] backdrop-blur-md"
       style={{
-        borderColor: 'var(--color-border-light)',
-        backgroundColor: 'var(--color-bg-card)',
+        borderColor: 'var(--color-surface-border)',
+        backgroundColor: 'var(--color-surface-card)',
         color: 'var(--color-text-primary)',
         border: '1px solid',
       }}
@@ -139,7 +139,7 @@ function CustomTooltip({
       <p
         className="mb-1.5 pb-1 text-[10px] font-medium"
         style={{
-          borderBottomColor: 'var(--color-border-light)',
+          borderBottomColor: 'var(--color-surface-border)',
           color: 'var(--color-text-soft)',
           borderBottom: '1px solid',
         }}
@@ -273,7 +273,7 @@ export function TimelineChart({
 
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="var(--color-border-light)"
+            stroke="var(--color-surface-border)"
             vertical={false}
             strokeOpacity={0.15}
           />
@@ -305,13 +305,13 @@ export function TimelineChart({
           />
           <ReferenceLine
             y={30}
-            stroke="var(--color-border-light)"
+            stroke="var(--color-surface-border)"
             strokeOpacity={0.4}
             strokeDasharray="4 4"
           />
           <ReferenceLine
             y={60}
-            stroke="var(--color-border-light)"
+            stroke="var(--color-surface-border)"
             strokeOpacity={0.5}
             strokeDasharray="4 4"
           />
@@ -379,7 +379,7 @@ export function TimelineChart({
                 stroke={colorBlocked}
                 strokeWidth={2.25}
                 dot={false}
-                activeDot={{ r: 4, fill: colorBlocked, stroke: 'var(--color-bg-card)', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: colorBlocked, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
                 isAnimationActive
                 strokeLinecap="round"
@@ -391,7 +391,7 @@ export function TimelineChart({
                 stroke={colorThrottled}
                 strokeWidth={2.25}
                 dot={false}
-                activeDot={{ r: 4, fill: colorThrottled, stroke: 'var(--color-bg-card)', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: colorThrottled, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
                 isAnimationActive
                 strokeLinecap="round"
@@ -403,7 +403,7 @@ export function TimelineChart({
                 stroke={colorAllowed}
                 strokeWidth={2.25}
                 dot={false}
-                activeDot={{ r: 4, fill: colorAllowed, stroke: 'var(--color-bg-card)', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: colorAllowed, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
                 isAnimationActive
                 strokeLinecap="round"

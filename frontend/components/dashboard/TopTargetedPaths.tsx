@@ -35,7 +35,7 @@ export function TopTargetedPaths({ paths, isPending = false }: TopTargetedPathsP
       {paths.map((item) => (
         <div
           key={item.path}
-          className="flex items-center justify-between border-b border-border-light py-1 text-[11px] last:border-0"
+          className="flex items-center justify-between border-b border-surface-border py-1 text-[11px] last:border-0"
         >
           <span className="max-w-[120px] truncate font-mono text-[var(--color-accent-analytic)]">{item.path}</span>
           <span className="text-[var(--color-text-secondary)]">{item.hits} hits</span>

@@ -37,6 +37,6 @@ describe('RecentAlertsTable', () => {
 
     const tableCard = container.firstElementChild
     expect(tableCard).not.toBeNull()
-    expect(tableCard).toHaveClass('bg-bg-card')
+    expect(tableCard).toHaveClass('bg-surface-card')
   })
 })

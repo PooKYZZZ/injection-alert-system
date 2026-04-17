@@ -11,7 +11,7 @@ describe('StatCard', () => {
     const card = labelEl.closest('div')?.parentElement
 
     expect(card).not.toBeNull()
-    expect(card).toHaveClass('bg-[var(--color-bg-card)]')
+    expect(card).toHaveClass('bg-surface-card')
   })
 
   it('uses semantic danger colors for an unfavorable delta', () => {

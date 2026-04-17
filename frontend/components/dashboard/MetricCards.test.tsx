@@ -114,7 +114,8 @@ describe('MetricCards', () => {
     const totalRequestsCard = totalRequestsLabel.closest('div')
 
     expect(totalRequestsCard).not.toBeNull()
-    expect(totalRequestsCard).toHaveClass('bg-bg-card')
+    expect(totalRequestsCard).toHaveClass('bg-surface-card')
+    expect(totalRequestsLabel).toHaveClass('text-accent-analytic')
   })
 
   it('renders error state when stats error occurs', () => {

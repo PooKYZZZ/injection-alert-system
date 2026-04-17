@@ -29,7 +29,7 @@ function formatCrsScore(score: number | null | undefined): string {
 export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
   if (isPending) {
     return (
-      <div className="rounded-lg border border-border-light bg-bg-card p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-card p-4">
         <LoadingSkeleton rows={4} />
       </div>
     )
@@ -38,7 +38,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
   const displayAlerts = alerts.slice(0, 4)
 
   return (
-    <div className="rounded-lg border border-border-light bg-bg-card p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
           Recent alerts
@@ -60,11 +60,11 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
             <th className="pb-2 text-left px-2">CRS Score</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border-light">
+        <tbody className="divide-y divide-surface-border">
           {displayAlerts.map((alert) => (
             <tr
               key={alert.alert_id}
-              className="transition-colors hover:bg-bg-inset"
+              className="transition-colors hover:bg-surface-inset"
             >
               <td className="p-2">
                 <TriageBadge triage_status={alert.triage_status ?? null} />
