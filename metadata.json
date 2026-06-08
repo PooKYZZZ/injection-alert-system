@@ -1,8 +1,0 @@
-{
-  "name": "Land Records Portal",
-  "description": "Land Records Demo Portal supporting search, support submissions, appointments, and copy requests.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

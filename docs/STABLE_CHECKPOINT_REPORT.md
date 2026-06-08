@@ -10,7 +10,7 @@ PASS
 master
 
 ## Commit SHA After Checkpoint
-dac45fe8e26d4d00bb565d362f499f9610b9f108
+503315c00cd0c296149b8a3f7b6d4ab21c963deb
 
 ## Tag Name
 portal-v0.1.0-pre-waf

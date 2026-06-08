@@ -2,6 +2,8 @@ node_modules/
 .next/
 .kilo/
 .serena/
+metadata.json
+next-env.d.ts
 out/
 dist/
 coverage/
@@ -19,3 +21,8 @@ waf-logs/
 test-results/
 playwright-report/
 tsconfig.tsbuildinfo
+docs/CODEBASE.md
+docs/*EVIDENCE.json
+docs/codebase_manifest.json
+docs/codebase_verify_report.md
+docs/superpowers/
