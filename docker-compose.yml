@@ -1,0 +1,14 @@
+services:
+  land-records-portal:
+    container_name: cybertrace-demo-portal
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./dev.db
+    volumes:
+      - ./prisma:/app/prisma
+    restart: always

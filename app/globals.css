@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Minimal clean custom scrollbars and simple utilities */
+body {
+  color: #1a1a1a;
+  background-color: #fafafa;
+  font-family: var(--font-sans), sans-serif;
+  overflow-x: hidden;
+}
+
+pre, code {
+  font-family: var(--font-mono), monospace;
+}
+
+html {
+  overflow-x: hidden;
+  scroll-padding-top: 1rem;
+  text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+main, section, article, aside, header, footer, div {
+  min-width: 0;
+}
+
+p, li, dd, dt, h1, h2, h3, h4, h5, h6, a, span, strong, code, th, td {
+  overflow-wrap: anywhere;
+}
+
+input, select, textarea, button {
+  max-width: 100%;
+}
+
+input, select, textarea {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+button, a {
+  touch-action: manipulation;
+}
+
+[data-table-scroll] {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-table-scroll] table {
+  min-width: 48rem;
+}
+
+@media (max-width: 640px) {
+  [data-table-scroll] table {
+    min-width: 42rem;
+  }
+
+  [data-table-scroll] th,
+  [data-table-scroll] td {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}

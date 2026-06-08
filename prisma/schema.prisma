@@ -1,0 +1,72 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Record {
+  id               String   @id @default(uuid())
+  recordNo         String   @unique
+  ownerDisplayName String
+  location         String
+  city             String
+  classification   String
+  status           String
+  lastUpdated      String
+  createdAt        DateTime @default(now())
+}
+
+model Transaction {
+  id             String   @id @default(uuid())
+  referenceNo    String   @unique
+  recordNo       String?
+  serviceType    String
+  applicantName  String
+  email          String
+  purpose        String?
+  deliveryOption String?
+  remarks        String?
+  status         String
+  createdAt      DateTime @default(now())
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  subject     String
+  category    String
+  email       String
+  referenceNo String?
+  message     String
+  status      String
+  createdAt   DateTime @default(now())
+}
+
+model Appointment {
+  id            String   @id @default(uuid())
+  referenceNo   String   @unique
+  fullName      String
+  email         String
+  branch        String
+  serviceType   String
+  preferredDate String
+  notes         String?
+  status        String
+  createdAt     DateTime @default(now())
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  displayName String
+  message     String
+  createdAt   DateTime @default(now())
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  username  String
+  success   Boolean
+  createdAt DateTime @default(now())
+}
