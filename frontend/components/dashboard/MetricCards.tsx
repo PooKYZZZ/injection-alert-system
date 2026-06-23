@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import type { DashboardStats } from '@/features/stats/types'
-import { cn } from 'lib/utils'
+import { cn } from '@/lib/utils'
 
 interface MetricCardsProps {
   stats: DashboardStats | undefined
