@@ -214,4 +214,5 @@ output/playwright/alerts-drawer-dark.png
 output/playwright/alerts-light.png
 output/playwright/dashboard-dark.png
 docs.zip
+*.rar
 .tmp/pytest/

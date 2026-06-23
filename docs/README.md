@@ -42,12 +42,6 @@ This folder is the maintained documentation surface for the repository. It is in
 - `DATASET_BASELINE_SR_BH_v3.1.0.md`
   - Frozen baseline statistics and training metadata for the current dataset version.
 
-### Academic documents
-- `feasibility_report.md`
-  - Feasibility and design report. Treat it as an academic design document, not the live implementation status page.
-- `model_architecture_subsection.md`
-  - Thesis subsection describing model selection rationale and citations.
-
 ## Verified Repo State
 
 - Backend tests currently pass: **336 passed** (pytest)

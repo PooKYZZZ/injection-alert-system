@@ -259,7 +259,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 
 ## Maintainers
 
-This repository is maintained as part of Team 13's capstone work for the Injection Alert System project. The academic design documents in [docs/feasibility_report.md](docs/feasibility_report.md) contain the broader project context.
+This repository is maintained as part of Team 13's capstone work for the Injection Alert System project.
 
 ## Contributing
 
