@@ -5,6 +5,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
+import scripts.waf_audit_bridge as waf_audit_bridge
 from scripts.waf_audit_bridge import (
     follow_bridge,
     main,
@@ -12,6 +13,19 @@ from scripts.waf_audit_bridge import (
     post_event,
     run_bridge,
 )
+
+
+def _wait_for_follow_ready(monkeypatch):
+    ready_event = threading.Event()
+    original_log = waf_audit_bridge._log
+
+    def _log_and_signal(message: str):
+        if message.startswith("bridge following:"):
+            ready_event.set()
+        original_log(message)
+
+    monkeypatch.setattr(waf_audit_bridge, "_log", _log_and_signal)
+    return ready_event
 
 
 def test_normalize_event_redacts_headers_and_preserves_waf_fields():
@@ -607,6 +621,7 @@ def test_follow_bridge_posts_appended_line(monkeypatch, tmp_path):
     audit_log.write_text("", encoding="utf-8")
     posted = []
     stop_event = threading.Event()
+    ready_event = _wait_for_follow_ready(monkeypatch)
 
     def _fake_post(payload, endpoint, api_secret, timeout):
         posted.append(payload)
@@ -628,6 +643,7 @@ def test_follow_bridge_posts_appended_line(monkeypatch, tmp_path):
     )
     worker.start()
     try:
+        assert ready_event.wait(timeout=1)
         with audit_log.open("a", encoding="utf-8") as handle:
             handle.write(
                 json.dumps(
@@ -657,6 +673,7 @@ def test_follow_bridge_waits_for_partial_line_completion(monkeypatch, tmp_path):
     audit_log.write_text("", encoding="utf-8")
     posted = []
     stop_event = threading.Event()
+    ready_event = _wait_for_follow_ready(monkeypatch)
 
     def _fake_post(payload, endpoint, api_secret, timeout):
         posted.append(payload)
@@ -678,6 +695,7 @@ def test_follow_bridge_waits_for_partial_line_completion(monkeypatch, tmp_path):
     )
     worker.start()
     try:
+        assert ready_event.wait(timeout=1)
         event = json.dumps(
             {
                 "transaction_id": "tx-partial",
