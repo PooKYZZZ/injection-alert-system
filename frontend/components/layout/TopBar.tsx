@@ -1,9 +1,10 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { SeverityFilter } from '@/lib/searchParams'
+import { useTheme } from '@/app/providers'
 
 const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
@@ -16,11 +17,11 @@ const DEFAULT_SEARCH_PLACEHOLDER = 'Search path, attack type...'
 
 function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   const base =
-    'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel'
+    'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel'
 
   if (severity === 'ALL') {
     return isActive
-      ? `${base} border-accent-blue bg-accent-blue-bg text-accent-blue`
+      ? `${base} border-accent-action bg-surface-inset text-accent-action`
       : `${base} border-border-light bg-transparent text-text-muted`
   }
 
@@ -33,7 +34,7 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
   if (severity === 'MEDIUM') {
     return isActive
       ? `${base} border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text`
-      : `${base} border-border-light bg-transparent text-accent-yellow`
+      : `${base} border-border-light bg-transparent text-text-muted`
   }
 
   return `${base} border-border-light bg-transparent text-text-muted`
@@ -101,7 +102,7 @@ function TopBarContent({
   }
 
   return (
-    <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-bg-panel px-6 shadow-subtle">
+    <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-surface-panel px-6 shadow-subtle">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
@@ -109,12 +110,12 @@ function TopBarContent({
           {showLiveStatus ? (
             <>
               <div className="h-4 w-px bg-border-light" />
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-1.5 rounded-full border border-severity-safe-border bg-severity-safe-bg px-2 py-0.5">
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-severity-safe-text opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-severity-safe-accent" />
                 </span>
-                <span className="text-[10px] font-medium text-emerald-400">Snapshot</span>
+                <span className="text-[10px] font-medium text-severity-safe-text">Snapshot</span>
               </div>
               <span className="text-[10px] text-[var(--color-text-secondary)]">Reported in latest refresh</span>
             </>
@@ -171,14 +172,44 @@ function TopBarContent({
               defaultValue={searchParams?.get('search') ?? ''}
               onChange={(event) => handleSearch(event.target.value)}
               placeholder={searchPlaceholder}
-              className="w-64 rounded-md border border-border-light bg-bg-elevated py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/85 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-panel"
+              className="w-64 rounded-md border border-border-light bg-surface-inset py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
             />
           </div>
+          <ThemeToggleButton />
         </div>
       ) : (
         <div className="w-64" aria-hidden="true" />
       )}
     </header>
+  )
+}
+
+function ThemeToggleButton() {
+  const { theme, toggleTheme } = useTheme()
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setIsMounted(true)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  const nextTheme = theme === 'dark' ? 'light' : 'dark'
+  const buttonLabel = isMounted ? `${nextTheme === 'light' ? 'Light' : 'Dark'} theme` : 'Theme'
+  const ariaLabel = isMounted ? `Switch to ${nextTheme} theme` : 'Toggle theme'
+
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={ariaLabel}
+      title={ariaLabel}
+      className="inline-flex h-9 items-center rounded-md border border-border-light bg-surface-inset px-3 text-xs font-medium text-text-primary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
+    >
+      {buttonLabel}
+    </button>
   )
 }
 
@@ -205,11 +236,11 @@ function NewAlertIndicator() {
     <div className="flex items-center gap-5">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">NEW:</span>
-        <span className="text-sm font-semibold text-blue-500">{newCount}</span>
+        <span className="text-sm font-semibold text-accent-action">{newCount}</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">IN REVIEW:</span>
-        <span className="text-sm font-semibold text-amber-400">{inReviewCount}</span>
+        <span className="text-sm font-semibold text-severity-blocked-text">{inReviewCount}</span>
       </div>
     </div>
   )
@@ -217,7 +248,7 @@ function NewAlertIndicator() {
 
 export function TopBar(props: TopBarProps) {
   return (
-    <Suspense fallback={<header className="h-16 flex-shrink-0 border-b border-border-light bg-bg-panel" />}>
+    <Suspense fallback={<header className="h-16 flex-shrink-0 border-b border-border-light bg-surface-panel" />}>
       <TopBarContent {...props} />
     </Suspense>
   )
@@ -257,4 +288,3 @@ export function DashboardTopBar() {
 
   return <TopBar title={fallbackTitle} showSeverityControls={false} showSearch={false} />
 }
-

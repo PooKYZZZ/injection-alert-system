@@ -16,7 +16,6 @@ Dependency rule:
 
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,7 +40,8 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     settings = get_settings()
 
-    await init_db()
+    if settings.is_development or settings.is_testing:
+        await init_db()
 
     # ── Startup: Load model with fallback to mock mode ─────────────────────────
     # In production mode, fail fast on model load errors (convert to RuntimeError).

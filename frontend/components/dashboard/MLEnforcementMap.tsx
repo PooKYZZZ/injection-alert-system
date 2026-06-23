@@ -43,52 +43,52 @@ export function MLEnforcementMap({
       {/* HIGH CONF */}
       <div className="flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-          <span className="text-[var(--color-text-secondary)]">HIGH CONF</span>
+          <div className="h-1.5 w-1.5 rounded-full bg-severity-high-accent" />
+          <span className="text-[var(--color-accent-analytic)]">HIGH CONF</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{high}</span>
-          <span className="px-1 py-0.5 rounded bg-red-900/30 text-red-400 border border-red-500/20 text-[10px] font-bold">
+          <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
             BLOCKED
           </span>
         </div>
       </div>
-      <div className="h-1 bg-[var(--color-text-ghost)] rounded-full overflow-hidden">
-        <div className="h-full bg-red-500" style={{ width: `${total > 0 ? (high / total) * 100 : 0}%` }} />
+      <div className="h-1 overflow-hidden rounded-full bg-surface-border">
+        <div className="h-full bg-severity-high-accent" style={{ width: `${total > 0 ? (high / total) * 100 : 0}%` }} />
       </div>
 
       {/* MED CONF */}
-      <div className="flex items-center justify-between text-[10px] mt-1">
+      <div className="mt-1 flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          <span className="text-[var(--color-text-secondary)]">MED CONF</span>
+          <div className="h-1.5 w-1.5 rounded-full bg-severity-blocked-accent" />
+          <span className="text-[var(--color-accent-analytic)]">MED CONF</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{medium}</span>
-          <span className="px-1 py-0.5 rounded bg-amber-900/30 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+          <span className="rounded border border-severity-blocked-border bg-severity-blocked-bg px-1 py-0.5 text-[10px] font-bold text-severity-blocked-text">
             THROTTLED
           </span>
         </div>
       </div>
-      <div className="h-1 bg-[var(--color-text-ghost)] rounded-full overflow-hidden">
-        <div className="h-full bg-amber-500" style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%` }} />
+      <div className="h-1 overflow-hidden rounded-full bg-surface-border">
+        <div className="h-full bg-severity-blocked-accent" style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%` }} />
       </div>
 
       {/* LOW CONF */}
-      <div className="flex items-center justify-between text-[10px] mt-1">
+      <div className="mt-1 flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span className="text-[var(--color-text-secondary)]">LOW CONF</span>
+          <div className="h-1.5 w-1.5 rounded-full bg-severity-safe-accent" />
+          <span className="text-[var(--color-accent-analytic)]">LOW CONF</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{low}</span>
-          <span className="px-1 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+          <span className="rounded border border-severity-safe-border bg-severity-safe-bg px-1 py-0.5 text-[10px] font-bold text-severity-safe-text">
             ALLOWED
           </span>
         </div>
       </div>
-      <div className="h-1 bg-[var(--color-text-ghost)] rounded-full overflow-hidden">
-        <div className="h-full bg-emerald-500" style={{ width: `${total > 0 ? (low / total) * 100 : 0}%` }} />
+      <div className="h-1 overflow-hidden rounded-full bg-surface-border">
+        <div className="h-full bg-severity-safe-accent" style={{ width: `${total > 0 ? (low / total) * 100 : 0}%` }} />
       </div>
 
       <div className="mt-1 text-[11px] text-[var(--color-text-muted)] leading-tight italic">

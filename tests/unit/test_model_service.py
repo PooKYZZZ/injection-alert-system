@@ -39,7 +39,8 @@ def test_confidence_tier_boundaries_are_locked():
     assert ModelService._confidence_tier_for(0.49) == "LOW"
     assert ModelService._confidence_tier_for(0.50) == "MEDIUM"
     assert ModelService._confidence_tier_for(0.799999) == "MEDIUM"
-    assert ModelService._confidence_tier_for(0.80) == "HIGH"
+    assert ModelService._confidence_tier_for(0.80) == "MEDIUM"
+    assert ModelService._confidence_tier_for(0.800001) == "HIGH"
 
 
 def test_production_requires_explicit_run_directory(tmp_path: Path):

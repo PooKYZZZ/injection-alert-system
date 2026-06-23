@@ -9,8 +9,16 @@ services:
       BACKEND: http://backend:8000
       PARANOIA: 1
       ALLOWED_METHODS: GET POST PATCH
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      MODSEC_AUDIT_LOG_TYPE: Serial
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
+      MODSEC_AUDIT_LOG_PARTS: ABIJDEFHZ
+      MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
+    volumes:
+      - ./logs/modsecurity:/var/log/modsecurity
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   backend:
     build: .
@@ -25,6 +33,16 @@ services:
     env_file:
       - path: .env
         required: true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
 
   frontend:
     build: ./frontend
@@ -39,20 +57,20 @@ services:
       - backend
 
   bridge:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
     env_file:
       - path: .env
         required: true
     command:
       [
-        "python",
-        "scripts/waf_audit_bridge.py",
-        "--input",
-        "/fixtures/waf_event.jsonl",
-        "--endpoint",
-        "http://backend:8000/api/internal/waf-events",
+        "sh",
+        "-c",
+        "while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u scripts/waf_audit_bridge.py --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events",
       ]
     volumes:
-      - ./scripts/fixtures/waf_event.jsonl:/fixtures/waf_event.jsonl:ro
+      - ./logs/modsecurity:/var/log/modsecurity:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy

@@ -378,6 +378,6 @@ class ModelService:
     def _confidence_tier_for(confidence: float) -> str:
         if confidence < 0.50:
             return "LOW"
-        if confidence < 0.80:
+        if confidence <= 0.80:
             return "MEDIUM"
         return "HIGH"

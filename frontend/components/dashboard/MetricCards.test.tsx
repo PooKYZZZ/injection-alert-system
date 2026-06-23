@@ -103,6 +103,21 @@ describe('MetricCards', () => {
     expect(screen.getByText('8400000')).toBeInTheDocument() // total_requests
   })
 
+  it('uses set1 card surface semantics for analytic metrics', () => {
+    const Wrapper = createWrapper()
+    render(
+      <MetricCards stats={sampleStats} statsPending={false} statsError={null} />,
+      { wrapper: Wrapper }
+    )
+
+    const totalRequestsLabel = screen.getByText('Total Requests')
+    const totalRequestsCard = totalRequestsLabel.closest('div')
+
+    expect(totalRequestsCard).not.toBeNull()
+    expect(totalRequestsCard).toHaveClass('bg-surface-card')
+    expect(totalRequestsLabel).toHaveClass('text-accent-analytic')
+  })
+
   it('renders error state when stats error occurs', () => {
     const Wrapper = createWrapper()
     const statsError = new Error('Failed to fetch stats')

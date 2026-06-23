@@ -6,6 +6,8 @@
 **Edge entrypoint:** frontend/proxy.ts (NOT middleware.ts)
 **DB file:** web_app/infrastructure/database/database.py
 
+**Current proof note (2026-06-23):** Local ModSecurity/OWASP CRS WAF ingest proof is now verified in `reports/modsecurity-live-proof/e2e-proof.md`. Older task text that says Docker Compose or ModSecurity are not implemented is historical; Redis remains not implemented.
+
 ---
 
 ## Agent instructions
@@ -263,9 +265,11 @@ Read AGENTS.md. Check if it still describes Supabase as "planned" or
 "not yet implemented". If it does, update to accurately state:
 - Supabase PostgreSQL is the live production database
 - Connected via PgBouncer transaction pooler (port 6543)
-- Docker Compose, ModSecurity, and Redis are not yet implemented
+- Docker Compose and local ModSecurity WAF ingest proof now exist; Redis is not yet implemented
 
 If AGENTS.md already says this correctly, mark [x] with no changes needed.
+
+Current correction: Docker Compose and local ModSecurity WAF ingest proof now exist. Redis remains not implemented.
 
 **Verify:**
 Read file and confirm. No automated gate required.

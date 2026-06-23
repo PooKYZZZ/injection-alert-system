@@ -5,7 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY alembic.ini ./
+COPY migrations ./migrations
+COPY web_app ./web_app
+COPY ml_model ./ml_model
+COPY scripts ./scripts
 
 EXPOSE 8000
 

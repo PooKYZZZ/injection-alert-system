@@ -151,13 +151,16 @@ def test_load_model_falls_back_to_checkpoint_when_local_files_missing(
 
     fake_model = _FakeModel()
     fake_tokenizer = object()
+    calls = {"model": [], "tokenizer": []}
 
     def fake_model_loader(source, **kwargs):
+        calls["model"].append((source, kwargs))
         if isinstance(source, Path):
             raise OSError("local artifact incomplete")
         return fake_model
 
     def fake_tokenizer_loader(source, **kwargs):
+        calls["tokenizer"].append((source, kwargs))
         if isinstance(source, Path):
             raise OSError("local tokenizer incomplete")
         return fake_tokenizer
@@ -188,4 +191,12 @@ def test_load_model_falls_back_to_checkpoint_when_local_files_missing(
     assert temperature == 1.0
     assert fake_model.loaded_state == {"weights": 1}
     assert fake_model.strict is True
+    assert calls["model"][1] == (
+        "distilbert-base-uncased",
+        {"num_labels": predict_module.NUM_CLASSES, "local_files_only": True},
+    )
+    assert calls["tokenizer"][0] == (
+        "distilbert-base-uncased",
+        {"local_files_only": True},
+    )
     assert "Falling back to checkpoint-based loading" in caplog.text

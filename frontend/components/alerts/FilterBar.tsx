@@ -35,7 +35,7 @@ function FilterSelect<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <label className="flex min-w-0 flex-col gap-1 rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-bg-base)] px-2 py-1.5">
+    <label className="flex min-w-0 flex-col gap-1 rounded-md border border-surface-border bg-surface-card px-2 py-1.5">
       <span className="text-[10px] leading-none text-[var(--color-text-secondary)]">{label}</span>
       <select
         value={value}
@@ -43,7 +43,7 @@ function FilterSelect<T extends string>({
         className="w-[96px] min-w-0 bg-transparent text-[11px] font-medium text-[var(--color-text-primary)] outline-none"
       >
         {options.map((option) => (
-          <option key={option} value={option} className="bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+          <option key={option} value={option} className="bg-surface-card text-[var(--color-text-primary)]">
             {option}
           </option>
         ))}
@@ -140,7 +140,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col gap-3 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3"
+      className="flex flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -176,7 +176,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             <motion.span
               key={activeFilterCount}
               animate={{ scale: [1.2, 1] }}
-              className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-[10px] font-medium text-white"
+              className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-action-accent px-1.5 text-[10px] font-medium text-action-contrast"
             >
               {activeFilterCount}
             </motion.span>
@@ -184,7 +184,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           {hasActiveFilters && (
             <button
               onClick={handleClearAll}
-              className="text-[11px] text-blue-400 hover:text-blue-300"
+              className="text-[11px] text-action-accent hover:text-action-accent"
             >
               Clear all
             </button>

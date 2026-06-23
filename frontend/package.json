@@ -23,7 +23,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",
     "motion": "^12.38.0",
-    "next": "^16.2.4",
+    "next": "^16.2.9",
     "next-auth": "5.0.0-beta.30",
     "react": "19.2.4",
     "react-countup": "^6.5.3",
@@ -36,9 +36,10 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@babel/core": "^8.0.1",
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.42.0",
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.3.1",
     "@tanstack/react-query-devtools": "^5.94.5",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.1.0",
@@ -46,12 +47,13 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.4",
-    "jsdom": "^29.0.1",
+    "eslint-config-next": "^16.2.9",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.5.15",
     "typescript": "^5.9.3",
-    "vite": "^8.0.8",
+    "vite": "^8.1.0",
     "vitest": "^4.1.4"
   }
 }

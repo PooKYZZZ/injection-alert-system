@@ -67,6 +67,7 @@ class TrafficLogEntity:
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
     request_path: Optional[str] = None
+    query_string: Optional[str] = None
     request_method: Optional[str] = None
     http_request: str = ""
     crs_score: Optional[int] = None

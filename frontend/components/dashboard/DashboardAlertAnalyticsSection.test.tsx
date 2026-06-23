@@ -238,6 +238,18 @@ describe('DashboardAlertAnalyticsSection', () => {
     expect(screen.getByText('1000000')).toBeInTheDocument() // total_requests
   })
 
+  it('uses set1 hierarchy styling on the security overview divider row', () => {
+    const Wrapper = createWrapper()
+    render(<DashboardAlertAnalyticsSection />, { wrapper: Wrapper })
+
+    const heading = screen.getAllByText('Security overview')[0]
+    const headingRow = heading.closest('div')
+
+    expect(headingRow).not.toBeNull()
+    expect(headingRow).toHaveClass('bg-surface-panel')
+    expect(heading).toHaveClass('text-accent-analytic')
+  })
+
   it('uses stats API for metric cards - does not change when alert filters change', async () => {
     const Wrapper = createWrapper()
     const { rerender } = render(<DashboardAlertAnalyticsSection />, { wrapper: Wrapper })
