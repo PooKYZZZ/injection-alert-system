@@ -22,7 +22,10 @@ from starlette.concurrency import run_in_threadpool
 
 from web_app.application.http_parsing import parse_http_request_line
 from web_app.application.http_preprocessor import preprocess_http_request
-from web_app.application.waf_event_sanitizer import redact_sensitive_text
+from web_app.application.waf_event_sanitizer import (
+    redact_query_string,
+    redact_sensitive_text,
+)
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 
 
@@ -142,7 +145,7 @@ class TriageUseCase:
                 timestamp=command.timestamp,
                 source_ip=command.source_ip,
                 request_path=command.request_uri,
-                query_string=command.query_string,
+                query_string=redact_query_string(command.query_string),
                 request_method=command.request_method,
                 http_request=self._build_persisted_http_request(command),
                 crs_score=command.crs_score,

@@ -4,6 +4,30 @@ from urllib.parse import parse_qsl, urlencode
 
 _SENSITIVE_HEADER_KEYS = {"authorization", "cookie", "set-cookie"}
 _SENSITIVE_HEADER_PATTERNS = re.compile(r"token|secret|key|credential", re.IGNORECASE)
+_SENSITIVE_VALUE_KEYS = {
+    "access_token",
+    "api_key",
+    "apikey",
+    "auth",
+    "authorization",
+    "bearer",
+    "client_secret",
+    "code",
+    "cookie",
+    "credential",
+    "jwt",
+    "password",
+    "passwd",
+    "pwd",
+    "refresh_token",
+    "secret",
+    "session",
+    "session_id",
+    "set-cookie",
+    "sid",
+    "token",
+    "otp",
+}
 _SENSITIVE_BODY_KEYS = {
     "password",
     "token",
@@ -39,6 +63,12 @@ def _is_sensitive_body_key(key: str) -> bool:
     )
 
 
+def _is_sensitive_value_key(key: str) -> bool:
+    return key.lower() in _SENSITIVE_VALUE_KEYS or bool(
+        _SENSITIVE_HEADER_PATTERNS.search(key)
+    )
+
+
 def _redact_json(value: str) -> str | None:
     try:
         parsed = json.loads(value)
@@ -58,11 +88,11 @@ def _redact_form(value: str) -> str | None:
     pairs = parse_qsl(value, keep_blank_values=True)
     if not pairs:
         return None
-    if not any(_is_sensitive_body_key(key) for key, _ in pairs):
+    if not any(_is_sensitive_value_key(key) for key, _ in pairs):
         return None
     return urlencode(
         [
-            (key, "[REDACTED]" if _is_sensitive_body_key(key) else item)
+            (key, "[REDACTED]" if _is_sensitive_value_key(key) else item)
             for key, item in pairs
         ]
     )
@@ -96,6 +126,24 @@ def redact_sensitive_text(value: str) -> str:
         redacted,
     )
     return redacted[:MAX_BODY_LENGTH]
+
+
+def redact_query_string(value: str | None) -> str | None:
+    if not value:
+        return value
+
+    pairs = parse_qsl(value, keep_blank_values=True)
+    if not pairs:
+        return value
+    if not any(_is_sensitive_value_key(key) for key, _ in pairs):
+        return value
+
+    return urlencode(
+        [
+            (key, "[REDACTED]" if _is_sensitive_value_key(key) else item)
+            for key, item in pairs
+        ]
+    )
 
 
 def sanitize_waf_event(payload: dict) -> dict:

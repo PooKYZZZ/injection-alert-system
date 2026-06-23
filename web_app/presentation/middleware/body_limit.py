@@ -42,34 +42,29 @@ class BodySizeLimitMiddleware:
                 await response(scope, receive, send)
                 return
 
-        exceeded = False
         total_size = 0
+        buffered_messages: list[Message] = []
 
-        async def limited_receive() -> Message:
-            nonlocal exceeded, total_size
+        while True:
             message = await receive()
-            if message["type"] != "http.request" or exceeded:
-                return message
+            buffered_messages.append(message)
+            if message["type"] != "http.request":
+                break
 
             total_size += len(message.get("body", b""))
-            if total_size <= MAX_BODY_SIZE:
-                return message
-
-            exceeded = True
-            return {
-                "type": "http.request",
-                "body": b"",
-                "more_body": False,
-            }
-
-        async def guarded_send(message: Message) -> None:
-            if exceeded:
+            if total_size > MAX_BODY_SIZE:
+                await self._too_large_response()(scope, receive, send)
                 return
-            await send(message)
 
-        await self.app(scope, limited_receive, guarded_send)
-        if exceeded:
-            await self._too_large_response()(scope, receive, send)
+            if not message.get("more_body", False):
+                break
+
+        async def replay_receive() -> Message:
+            if buffered_messages:
+                return buffered_messages.pop(0)
+            return await receive()
+
+        await self.app(scope, replay_receive, send)
 
     @staticmethod
     def _response_for_content_length(
