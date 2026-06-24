@@ -60,7 +60,9 @@ Status note:
 - [~] ModSecurity audit-log policy is documented, but automatic rotation and production retention are not implemented
 - [~] Decide whether ModSecurity becomes a production browser-facing path or remains a local proof/demo path; current dashboard path remains `Browser -> Next.js -> FastAPI`
 - [ ] Decide ModSecurity audit-log format, captured fields, transaction ID strategy, log rotation, and retention
-- [~] Create CRS-only baseline report for normal and attack traffic; SQLi block proof exists, but no full baseline report is checked in
+- [x] Create CRS-only baseline report for normal and attack traffic; report exists at `reports/modsecurity-live-proof/crs-baseline.md`
+- [x] Optional demo-target WAF config exists for `localhost:8089 -> host.docker.internal:3010`; portal target must be user-run on host port `3010`
+- [x] Final observed demo-target report exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`
 - [ ] Add bounded `asyncio.Queue(maxsize=N)` inference queue and queue health visibility
 - [ ] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
@@ -77,7 +79,7 @@ Status note:
 
 ## PD2 Demo Checklist
 
-- [ ] normal request reaches the demo target
+- [x] normal request reaches the demo target
 - [x] SQLi request reaches the ModSecurity/CRS path
 - [ ] code/server-side injection-like request reaches the ModSecurity/CRS path
 - [ ] other attack-like request reaches the ModSecurity/CRS path

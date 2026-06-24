@@ -8,6 +8,8 @@ This folder contains operator-focused working documents that support implementat
   - current implementation status and known repo gaps
 - `LIVING_CHECKLIST.md`
   - ongoing task checklist and handoff material
+- `DEMO_TARGET_WAF_PROOF.md`
+  - optional local portal-target WAF proof plan for `localhost:8089 -> host.docker.internal:3010`
 - `../../reports/modsecurity-live-proof/e2e-proof.md`
   - checked-in local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest proof
 - `MODSECURITY_AUDIT_LOG_POLICY.md`
