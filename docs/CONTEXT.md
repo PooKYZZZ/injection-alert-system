@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-06-23
+Updated: 2026-06-25
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -69,6 +69,9 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
     - `GET /health`
     - `GET /api/health`
 - Model loading is handled by `web_app/services/model_service.py`
+- WAF ingest inference is gated by `web_app/application/inference_queue.py`,
+  a bounded in-process `asyncio.Queue`; callers still await the completed
+  `TriageIngestResponse`
 - In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
 - Internal backend routes are protected by bearer-token auth using `API_SECRET_KEY`
@@ -114,7 +117,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 - Production-grade ModSecurity-fronted deployment
 - Bridge follow-mode resilience for transient `readline()` `OSError`
-- Bounded inference queue and queue health visibility
 - Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 - Client-required real user accounts / secure login replacement for demo auth

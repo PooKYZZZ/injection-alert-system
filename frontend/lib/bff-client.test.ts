@@ -653,6 +653,21 @@ describe('bff-client', () => {
             low: 0.5,
             high: 0.8,
           },
+          queue: {
+            enabled: true,
+            max_size: 100,
+            depth: 0,
+            available_capacity: 100,
+            worker_count: 1,
+            worker_running: true,
+            total_enqueued: 4,
+            total_processed: 4,
+            total_failed: 0,
+            overflow_count: 0,
+            last_error: null,
+            last_error_at: null,
+            last_processed_at: '2026-06-24T10:00:00+00:00',
+          },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
@@ -682,6 +697,21 @@ describe('bff-client', () => {
         per_class_f1: {},
         calibration_bins: [],
         prediction_distribution: { baseline: {}, current: {} },
+        queue: {
+          enabled: true,
+          max_size: 100,
+          depth: 0,
+          available_capacity: 100,
+          worker_count: 1,
+          worker_running: true,
+          total_enqueued: 4,
+          total_processed: 4,
+          total_failed: 0,
+          overflow_count: 0,
+          last_error: null,
+          last_error_at: null,
+          last_processed_at: '2026-06-24T10:00:00+00:00',
+        },
       },
     })
   })

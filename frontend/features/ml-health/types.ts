@@ -12,6 +12,22 @@ export interface CalibrationBin {
   count: number
 }
 
+export interface QueueHealth {
+  enabled: boolean
+  max_size: number
+  depth: number
+  available_capacity: number
+  worker_count: number
+  worker_running: boolean
+  total_enqueued: number
+  total_processed: number
+  total_failed: number
+  overflow_count: number
+  last_error: string | null
+  last_error_at: string | null
+  last_processed_at: string | null
+}
+
 export interface MLHealthData {
   model_version: string
   status: 'HEALTHY' | 'DEGRADED' | 'DOWN'
@@ -27,4 +43,5 @@ export interface MLHealthData {
   per_class_f1?: Record<string, number>
   calibration_bins?: CalibrationBin[]
   prediction_distribution?: { baseline: Record<string, number>; current: Record<string, number> }
+  queue?: QueueHealth | null
 }

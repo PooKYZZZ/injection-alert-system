@@ -23,6 +23,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.application.inference_queue import (
+    InferenceQueueFullError,
+    InferenceQueueService,
+)
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
     TriageInProgressError,
@@ -73,6 +77,11 @@ internal_router = APIRouter(dependencies=[internal_auth_dependency])
 def get_model_service(request: Request):
     """Dependency that retrieves the singleton model service from app.state."""
     return request.app.state.model_service
+
+
+def get_inference_queue(request: Request) -> InferenceQueueService:
+    """Dependency that retrieves the singleton inference queue from app.state."""
+    return request.app.state.inference_queue
 
 
 def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
@@ -128,6 +137,7 @@ async def predict(
 async def ingest_waf_event(
     payload: WafIngestRequest,
     model_service=Depends(get_model_service),
+    inference_queue: InferenceQueueService = Depends(get_inference_queue),
     repository: TrafficLogRepository = Depends(get_repository),
 ):
     settings = get_settings()
@@ -139,21 +149,29 @@ async def ingest_waf_event(
     )
 
     try:
-        result = await use_case.execute(
-            transaction_id=payload.transaction_id,
-            timestamp=payload.timestamp,
-            ingest_source=payload.ingest_source,
-            source_ip=payload.source_ip,
-            request_method=payload.request_method,
-            request_path=payload.request_path,
-            query_string=payload.query_string,
-            request_headers=payload.request_headers,
-            sanitized_body=payload.sanitized_body or "",
-            crs_score=payload.crs_score,
-            crs_rule_ids=payload.crs_rule_ids,
-            matched_rule_messages=payload.matched_rule_messages,
-            matched_rule_tags=payload.matched_rule_tags,
+        result = await inference_queue.submit(
+            lambda: use_case.execute(
+                transaction_id=payload.transaction_id,
+                timestamp=payload.timestamp,
+                ingest_source=payload.ingest_source,
+                source_ip=payload.source_ip,
+                request_method=payload.request_method,
+                request_path=payload.request_path,
+                query_string=payload.query_string,
+                request_headers=payload.request_headers,
+                sanitized_body=payload.sanitized_body or "",
+                crs_score=payload.crs_score,
+                crs_rule_ids=payload.crs_rule_ids,
+                matched_rule_messages=payload.matched_rule_messages,
+                matched_rule_tags=payload.matched_rule_tags,
+            )
         )
+    except InferenceQueueFullError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Inference queue is full",
+            headers={"Retry-After": "5"},
+        ) from exc
     except ModelNotReadyError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TriageInProgressError as exc:
@@ -305,6 +323,7 @@ async def get_stats(
 @internal_router.get("/ml-health", response_model=MLHealthResponse)
 async def get_ml_health(
     response: Response,
+    request: Request,
     model_service=Depends(get_model_service),
     repository: TrafficLogRepository = Depends(get_repository),
 ):
@@ -325,6 +344,8 @@ async def get_ml_health(
     eval_metadata = model_service.eval_metadata
 
     response.headers["Cache-Control"] = "private, max-age=5"
+    queue = getattr(request.app.state, "inference_queue", None)
+    queue_health = queue.health() if queue else None
 
     return MLHealthResponse(
         model_version=model_service.model_version,
@@ -341,6 +362,7 @@ async def get_ml_health(
         per_class_f1=eval_metadata.get("per_class_f1") or {},
         calibration_bins=eval_metadata.get("calibration_bins") or [],
         prediction_distribution=eval_metadata.get("prediction_distribution") or {},
+        queue=queue_health,
     )
 
 

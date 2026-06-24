@@ -268,6 +268,21 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
         "per_class_f1": {},
         "calibration_bins": [],
         "prediction_distribution": {},
+        "queue": {
+            "enabled": True,
+            "max_size": 100,
+            "depth": 0,
+            "available_capacity": 100,
+            "worker_count": 1,
+            "worker_running": True,
+            "total_enqueued": 0,
+            "total_processed": 0,
+            "total_failed": 0,
+            "overflow_count": 0,
+            "last_error": None,
+            "last_error_at": None,
+            "last_processed_at": None,
+        },
     }
 
 

@@ -145,6 +145,22 @@ const CalibrationBinSchema = z.object({
   count: z.number(),
 })
 
+const QueueHealthSchema = z.object({
+  enabled: z.boolean(),
+  max_size: z.number(),
+  depth: z.number(),
+  available_capacity: z.number(),
+  worker_count: z.number(),
+  worker_running: z.boolean(),
+  total_enqueued: z.number(),
+  total_processed: z.number(),
+  total_failed: z.number(),
+  overflow_count: z.number(),
+  last_error: z.string().nullable(),
+  last_error_at: z.string().nullable(),
+  last_processed_at: z.string().nullable(),
+})
+
 const BackendMlHealthSchema = z.object({
   model_version: z.string(),
   loaded: z.boolean(),
@@ -171,6 +187,7 @@ const BackendMlHealthSchema = z.object({
       z.record(z.string(), z.number()),
     ])
     .optional(),
+  queue: QueueHealthSchema.nullable().optional(),
 })
 
 function ok<T>(data: T): BffResult<T> {
@@ -497,6 +514,7 @@ function normalizeMlHealth(
     per_class_f1: payload.per_class_f1 ?? {},
     calibration_bins: payload.calibration_bins ?? [],
     prediction_distribution: predictionDistribution,
+    ...(payload.queue !== undefined ? { queue: payload.queue } : {}),
   }
 }
 

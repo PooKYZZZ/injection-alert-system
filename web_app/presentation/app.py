@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from web_app.application.inference_queue import InferenceQueueService
 from web_app.config import get_settings
 from web_app.infrastructure.database import init_db
 from web_app.presentation.api.routes import router as api_router
@@ -79,9 +80,22 @@ async def lifespan(app: FastAPI):
         model_service = ModelService.create_mock()
 
     app.state.model_service = model_service
-    yield
-    # ── Shutdown ──────────────────────────────────────────────────────────────
-    # add any cleanup here if needed
+    app.state.inference_queue = InferenceQueueService(settings)
+    try:
+        await app.state.inference_queue.start()
+    except Exception as exc:
+        logger.warning(
+            "Inference queue failed to start: %s",
+            exc.__class__.__name__,
+        )
+
+    try:
+        yield
+    finally:
+        # ── Shutdown ──────────────────────────────────────────────────────────────
+        queue = getattr(app.state, "inference_queue", None)
+        if queue is not None:
+            await queue.stop()
 
 
 def create_app() -> FastAPI:
