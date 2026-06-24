@@ -10,10 +10,10 @@ interface AttackTypePanelProps {
 }
 
 const colorMap: Record<AlertPrediction, string> = {
-  'SQL Injection': 'var(--color-accent-purple)',
-  'Code Injection': 'var(--color-severity-high-accent)',
-  'Other Attacks': 'var(--color-severity-blocked-accent)',
-  'Normal': 'var(--color-text-muted)',
+  'SQL Injection': 'var(--color-chart-primary)',
+  'Code Injection': 'var(--color-chart-secondary)',
+  'Other Attacks': 'var(--color-chart-tertiary)',
+  'Normal': 'var(--color-severity-safe-accent)',
 }
 
 const labelOrder: AlertPrediction[] = [
@@ -51,7 +51,7 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
             <span className="text-[11px] text-[var(--color-text-secondary)] truncate">
               {label}
             </span>
-            <div className="h-[3px] rounded-full bg-[var(--color-bg-inset)]">
+            <div className="h-[3px] rounded-full bg-surface-inset">
               <div
                 className={cn('h-full rounded-full transition-all duration-500')}
                 style={{ width: `${percentage}%`, background: colorMap[label] }}

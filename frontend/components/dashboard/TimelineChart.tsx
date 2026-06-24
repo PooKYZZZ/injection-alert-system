@@ -78,7 +78,8 @@ function useCSSColor(variable: string): string {
 }
 
 export function buildYAxisMax(maxValue: number): number {
-  if (!Number.isFinite(maxValue) || maxValue <= 60) return 60
+  if (!Number.isFinite(maxValue) || maxValue <= 30) return 30
+  if (maxValue <= 60) return 60
   return Math.ceil(maxValue / 10) * 10
 }
 
@@ -127,8 +128,25 @@ function CustomTooltip({
         : String(label)
 
   return (
-    <div className="w-[170px] rounded-md border border-[#30363d] bg-[rgba(13,17,23,0.82)] px-2.5 py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.5)] backdrop-blur-md">
-      <p className="mb-1.5 border-b border-[#30363d] pb-1 text-[10px] font-medium text-[#7d8590]">{displayLabel}</p>
+    <div
+      className="w-[170px] rounded-md px-2.5 py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.5)] backdrop-blur-md"
+      style={{
+        borderColor: 'var(--color-surface-border)',
+        backgroundColor: 'var(--color-surface-card)',
+        color: 'var(--color-text-primary)',
+        border: '1px solid',
+      }}
+    >
+      <p
+        className="mb-1.5 pb-1 text-[10px] font-medium"
+        style={{
+          borderBottomColor: 'var(--color-surface-border)',
+          color: 'var(--color-text-soft)',
+          borderBottom: '1px solid',
+        }}
+      >
+        {displayLabel}
+      </p>
       {uniquePayload.map((entry) => (
         <div
           key={String(entry.dataKey)}
@@ -201,7 +219,7 @@ export function TimelineChart({
   }, [processedData, timeWindow])
 
   const colorBlocked = useCSSColor('--color-severity-high-accent')
-  const colorThrottled = useCSSColor('--color-accent-amber')
+  const colorThrottled = useCSSColor('--color-severity-blocked-accent')
   const colorAllowed = useCSSColor('--color-severity-safe-accent')
   const maxSeriesValue = useMemo(
     () =>
@@ -212,10 +230,16 @@ export function TimelineChart({
     [processedData]
   )
   const yAxisMax = useMemo(() => buildYAxisMax(maxSeriesValue), [maxSeriesValue])
-  const yAxisTicks = useMemo(
-    () => (yAxisMax > 60 ? [0, 30, 60, yAxisMax] : [0, 30, 60]),
-    [yAxisMax]
-  )
+  const yAxisTicks = useMemo(() => {
+    if (yAxisMax <= 30) return [0, 10, 20, 30]
+    if (yAxisMax <= 60) return [0, 20, 40, 60]
+    return [0, 30, 60, yAxisMax]
+  }, [yAxisMax])
+  const referenceLines = useMemo(() => {
+    if (yAxisMax <= 30) return [10, 20]
+    if (yAxisMax <= 60) return [20, 40]
+    return [30, 60]
+  }, [yAxisMax])
 
   if (isPending) {
     return (
@@ -256,7 +280,7 @@ export function TimelineChart({
 
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="var(--color-text-ghost)"
+            stroke="var(--color-surface-border)"
             vertical={false}
             strokeOpacity={0.15}
           />
@@ -267,7 +291,7 @@ export function TimelineChart({
             scale="time"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+            tick={{ fill: 'var(--color-text-soft)', fontSize: 10 }}
             tickFormatter={xAxisConfig.tickFormatter}
             ticks={xAxisConfig.ticks}
             interval={xAxisConfig.interval}
@@ -282,22 +306,19 @@ export function TimelineChart({
             domain={[0, yAxisMax]}
             ticks={yAxisTicks}
             allowDecimals={false}
-            tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+            tick={{ fill: 'var(--color-text-soft)', fontSize: 10 }}
             width={34}
             tickMargin={5}
           />
-          <ReferenceLine
-            y={30}
-            stroke="var(--color-text-muted)"
-            strokeOpacity={0.4}
-            strokeDasharray="4 4"
-          />
-          <ReferenceLine
-            y={60}
-            stroke="var(--color-text-muted)"
-            strokeOpacity={0.5}
-            strokeDasharray="4 4"
-          />
+          {referenceLines.map((value) => (
+            <ReferenceLine
+              key={value}
+              y={value}
+              stroke="var(--color-surface-border)"
+              strokeOpacity={0.45}
+              strokeDasharray="4 4"
+            />
+          ))}
           <Tooltip
             offset={12}
             content={(props) => (
@@ -313,7 +334,7 @@ export function TimelineChart({
                 label={props.label as string | number}
               />
             )}
-            cursor={{ stroke: 'var(--color-text-primary)', strokeOpacity: 0.2, strokeWidth: 1, strokeDasharray: '3 3' }}
+            cursor={{ stroke: 'var(--color-accent-analytic)', strokeOpacity: 0.35, strokeWidth: 1, strokeDasharray: '3 3' }}
           />
           {!isEmpty ? (
             <>
@@ -362,7 +383,7 @@ export function TimelineChart({
                 stroke={colorBlocked}
                 strokeWidth={2.25}
                 dot={false}
-                activeDot={{ r: 4, fill: colorBlocked, stroke: '#0f172a', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: colorBlocked, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
                 isAnimationActive
                 strokeLinecap="round"
@@ -374,7 +395,7 @@ export function TimelineChart({
                 stroke={colorThrottled}
                 strokeWidth={2.25}
                 dot={false}
-                activeDot={{ r: 4, fill: colorThrottled, stroke: '#0f172a', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: colorThrottled, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
                 isAnimationActive
                 strokeLinecap="round"
@@ -386,7 +407,7 @@ export function TimelineChart({
                 stroke={colorAllowed}
                 strokeWidth={2.25}
                 dot={false}
-                activeDot={{ r: 4, fill: colorAllowed, stroke: '#0f172a', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: colorAllowed, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
                 isAnimationActive
                 strokeLinecap="round"

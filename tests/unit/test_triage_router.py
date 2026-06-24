@@ -47,7 +47,7 @@ async def test_ingest_triage_passes_preprocessing_flag(monkeypatch):
         request_body="{}",
         http_request="POST /login HTTP/1.1",
         crs_score=5,
-        crs_rule_ids=[],
+        crs_rule_ids=["942100"],
     )
 
     result = await triage_router.ingest_triage(

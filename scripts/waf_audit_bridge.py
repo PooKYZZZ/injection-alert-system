@@ -4,7 +4,10 @@ import argparse
 from datetime import datetime, timezone
 import json
 import os
+from pathlib import Path
+import re
 import sys
+import threading
 import time
 from typing import Any, TextIO
 import urllib.error
@@ -18,6 +21,11 @@ _SENSITIVE_SUBSTRINGS = ("token", "secret", "key", "credential")
 _MAX_BODY_LENGTH = 1024
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _RETRYABLE_ERRNOS = {61, 111, 10061}
+_TOTAL_SCORE_RE = re.compile(r"Total Score:\s*`?(\d+)`?", re.IGNORECASE)
+
+
+def _log(message: str) -> None:
+    print(message, flush=True)
 
 
 def _redact_headers(headers: dict[str, Any]) -> dict[str, str]:
@@ -49,6 +57,38 @@ def _split_path_and_query(uri: str) -> tuple[str, str | None]:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def normalize_timestamp(value: Any) -> str:
+    if value is None or str(value).strip() == "":
+        return _now_iso()
+
+    timestamp = str(value).strip()
+
+    try:
+        parsed = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y")
+        return parsed.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    except ValueError:
+        pass
+
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.isoformat()
+        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except ValueError:
+        return timestamp
+
+
+def _http_error_detail(exc: urllib.error.HTTPError) -> str:
+    try:
+        body = exc.read(500)
+    except Exception:  # noqa: BLE001
+        return ""
+
+    if isinstance(body, bytes):
+        return body.decode("utf-8", errors="replace")
+    return str(body)
 
 
 def _extract_rule_metadata(
@@ -84,6 +124,42 @@ def _extract_rule_metadata(
     return dedup_rule_ids, dedup_messages, dedup_tags
 
 
+def _coerce_score(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _extract_total_score(messages: list[str]) -> int | None:
+    for message in messages:
+        match = _TOTAL_SCORE_RE.search(message)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _resolve_crs_score(
+    *,
+    transaction: dict[str, Any] | None,
+    raw_event: dict[str, Any],
+    matched_messages: list[str] | None,
+) -> int:
+    if transaction is not None:
+        transaction_score = _coerce_score(transaction.get("anomaly_score"))
+        if transaction_score is not None:
+            return transaction_score
+
+    raw_score = _coerce_score(raw_event.get("crs_score"))
+    if raw_score is not None:
+        return raw_score
+
+    message_score = _extract_total_score(matched_messages or [])
+    if message_score is not None:
+        return message_score
+
+    return 0
+
+
 def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
     transaction = raw_event.get("transaction")
     if isinstance(transaction, dict):
@@ -108,10 +184,15 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
         return {
             "ingest_source": "modsec_audit_bridge",
             "transaction_id": str(
-                transaction.get("id") or raw_event.get("transaction_id") or uuid4().hex
+                transaction.get("unique_id")
+                or transaction.get("id")
+                or raw_event.get("transaction_id")
+                or uuid4().hex
             ),
-            "timestamp": str(
-                transaction.get("time") or raw_event.get("timestamp") or _now_iso()
+            "timestamp": normalize_timestamp(
+                transaction.get("time")
+                or transaction.get("time_stamp")
+                or raw_event.get("timestamp")
             ),
             "source_ip": str(
                 transaction.get("client_ip") or raw_event.get("source_ip") or "unknown"
@@ -125,8 +206,10 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
             "sanitized_body": _truncate_body(
                 str(request.get("body") or raw_event.get("sanitized_body") or "")
             ),
-            "crs_score": int(
-                transaction.get("anomaly_score") or raw_event.get("crs_score") or 0
+            "crs_score": _resolve_crs_score(
+                transaction=transaction,
+                raw_event=raw_event,
+                matched_messages=messages,
             ),
             "crs_rule_ids": rule_ids or ["unknown-rule"],
             "matched_rule_messages": messages or None,
@@ -172,7 +255,11 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
             if raw_event.get("sanitized_body") is not None
             else None
         ),
-        "crs_score": int(raw_event.get("crs_score") or 0),
+        "crs_score": _resolve_crs_score(
+            transaction=None,
+            raw_event=raw_event,
+            matched_messages=matched_rule_messages,
+        ),
         "crs_rule_ids": crs_rule_ids or ["unknown-rule"],
         "matched_rule_messages": matched_rule_messages,
         "matched_rule_tags": matched_rule_tags,
@@ -241,7 +328,7 @@ def _post_event_with_retry(
             )
 
             if status in _RETRYABLE_STATUS_CODES and attempt < attempts:
-                print(
+                _log(
                     "bridge retry: "
                     f"attempt={attempt}/{attempts} status={status} "
                     f"transaction_id={payload.get('transaction_id')}"
@@ -252,7 +339,7 @@ def _post_event_with_retry(
             return status
         except Exception as exc:  # noqa: BLE001
             if _is_retryable_exception(exc) and attempt < attempts:
-                print(
+                _log(
                     "bridge retry: "
                     f"attempt={attempt}/{attempts} error={exc} "
                     f"transaction_id={payload.get('transaction_id')}"
@@ -297,14 +384,170 @@ def run_bridge(
             )
             if 200 <= status < 300:
                 success += 1
+                _log(
+                    "bridge posted: "
+                    f"status={status} "
+                    f"transaction_id={payload.get('transaction_id')} "
+                    f"rule_ids={payload.get('crs_rule_ids')}"
+                )
             else:
                 failed += 1
-                print(
+                _log(
                     f"bridge failure: status={status} transaction_id={payload.get('transaction_id')}"
                 )
+        except urllib.error.HTTPError as exc:
+            failed += 1
+            _log(
+                "bridge failure: "
+                f"status={exc.code} "
+                f"transaction_id={payload.get('transaction_id')}"
+            )
         except Exception as exc:  # noqa: BLE001
             failed += 1
-            print(f"bridge failure: {exc}")
+            _log(f"bridge failure: {exc} transaction_id=unknown")
+
+    return total, success, failed
+
+
+def _process_event_line(
+    line: str,
+    *,
+    endpoint: str,
+    api_secret: str,
+    timeout: int,
+    max_retries: int,
+    retry_delay_seconds: float,
+    seen_transaction_ids: set[str] | None = None,
+) -> tuple[bool, bool]:
+    transaction_id = "unknown"
+    try:
+        event = json.loads(line)
+        if not isinstance(event, dict):
+            raise ValueError("event line must be a JSON object")
+
+        payload = normalize_event(event)
+        transaction_id = str(payload.get("transaction_id") or "")
+        if seen_transaction_ids is not None and transaction_id in seen_transaction_ids:
+            _log(f"bridge duplicate skipped: transaction_id={transaction_id}")
+            return True, False
+
+        status = _post_event_with_retry(
+            payload,
+            endpoint=endpoint,
+            api_secret=api_secret,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_delay_seconds=retry_delay_seconds,
+        )
+        if 200 <= status < 300:
+            if seen_transaction_ids is not None:
+                seen_transaction_ids.add(transaction_id)
+            _log(
+                "bridge posted: "
+                f"status={status} "
+                f"transaction_id={transaction_id} "
+                f"rule_ids={payload.get('crs_rule_ids')}"
+            )
+            return True, True
+
+        _log(f"bridge failure: status={status} transaction_id={transaction_id}")
+        return False, False
+    except urllib.error.HTTPError as exc:
+        _log(
+            "bridge failure: "
+            f"status={exc.code} "
+            f"transaction_id={transaction_id}"
+        )
+        return False, False
+    except Exception as exc:  # noqa: BLE001
+        _log(f"bridge failure: {exc} transaction_id={transaction_id}")
+        return False, False
+
+
+def follow_bridge(
+    *,
+    input_path: str | os.PathLike[str],
+    endpoint: str,
+    api_secret: str,
+    timeout: int,
+    max_retries: int = 20,
+    retry_delay_seconds: float = 2.0,
+    poll_interval_seconds: float = 1.0,
+    stop_event: threading.Event | None = None,
+    idle_timeout_seconds: float | None = None,
+    start_at_end: bool = True,
+) -> tuple[int, int, int]:
+    total = 0
+    success = 0
+    failed = 0
+    seen_transaction_ids: set[str] = set()
+    last_activity = time.monotonic()
+    stop_signal = stop_event or threading.Event()
+    current_position = 0
+    first_open = True
+    logged_following = False
+
+    while not stop_signal.is_set():
+        with open(Path(input_path), "r", encoding="utf-8") as handle:
+            if first_open and start_at_end:
+                handle.seek(0, os.SEEK_END)
+                current_position = handle.tell()
+            else:
+                handle.seek(current_position)
+            first_open = False
+            if not logged_following:
+                _log(f"bridge following: input={input_path}")
+                logged_following = True
+
+            while not stop_signal.is_set():
+                position = current_position
+                try:
+                    position = handle.tell()
+                    raw_line = handle.readline()
+                except OSError:
+                    current_position = position
+                    _log(
+                        "bridge warning: "
+                        f"read_error input={input_path} error=OSError"
+                    )
+                    time.sleep(poll_interval_seconds)
+                    break
+                if not raw_line:
+                    if (
+                        idle_timeout_seconds is not None
+                        and time.monotonic() - last_activity >= idle_timeout_seconds
+                    ):
+                        stop_signal.set()
+                        break
+                    time.sleep(poll_interval_seconds)
+                    continue
+                if not raw_line.endswith("\n"):
+                    handle.seek(position)
+                    current_position = position
+                    time.sleep(poll_interval_seconds)
+                    continue
+
+                current_position = handle.tell()
+
+                last_activity = time.monotonic()
+                line = raw_line.strip()
+                if not line:
+                    continue
+
+                total += 1
+                line_ok, posted = _process_event_line(
+                    line,
+                    endpoint=endpoint,
+                    api_secret=api_secret,
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    retry_delay_seconds=retry_delay_seconds,
+                    seen_transaction_ids=seen_transaction_ids,
+                )
+                if posted:
+                    success += 1
+                elif not line_ok:
+                    failed += 1
 
     return total, success, failed
 
@@ -327,6 +570,16 @@ def main() -> int:
     )
     parser.add_argument(
         "--input", default="-", help="Input JSONL file path or '-' for stdin"
+    )
+    parser.add_argument(
+        "--follow",
+        action="store_true",
+        help="Keep watching a JSONL audit log file for appended events",
+    )
+    parser.add_argument(
+        "--from-start",
+        action="store_true",
+        help="With --follow, process existing lines before watching for appended events",
     )
     parser.add_argument(
         "--endpoint", default=None, help="Internal FastAPI WAF ingest endpoint"
@@ -359,8 +612,29 @@ def main() -> int:
         return 2
 
     endpoint = _build_endpoint(args.endpoint)
+    _log(
+        "bridge starting: "
+        f"input={args.input} endpoint={endpoint} follow={str(args.follow).lower()}"
+    )
 
-    if args.input == "-":
+    if args.follow:
+        if args.input == "-":
+            print(
+                "--follow requires --input to be a file path",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 2
+        total, success, failed = follow_bridge(
+            input_path=args.input,
+            endpoint=endpoint,
+            api_secret=api_secret,
+            timeout=args.timeout,
+            max_retries=max(0, args.max_retries),
+            retry_delay_seconds=max(0.0, args.retry_delay),
+            start_at_end=not args.from_start,
+        )
+    elif args.input == "-":
         total, success, failed = run_bridge(
             input_stream=sys.stdin,
             endpoint=endpoint,
@@ -380,7 +654,7 @@ def main() -> int:
                 retry_delay_seconds=max(0.0, args.retry_delay),
             )
 
-    print(f"bridge summary: total={total} success={success} failed={failed}")
+    _log(f"bridge summary: total={total} success={success} failed={failed}")
     return 0 if failed == 0 else 1
 
 

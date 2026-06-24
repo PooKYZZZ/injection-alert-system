@@ -1,5 +1,5 @@
-from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,13 +7,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from web_app.config import Settings
-from web_app.infrastructure.database.database import Base
-from web_app.presentation import app as app_module
-from web_app.presentation.app import create_app
-from web_app.presentation.api.routes import get_model_service
-from web_app.infrastructure.database import get_db
-from web_app.infrastructure.database.database import TrafficLog
 from web_app.infrastructure.database import database as db_module
+from web_app.infrastructure.database import get_db
+from web_app.infrastructure.database.database import Base, TrafficLog
+from web_app.presentation import app as app_module
+from web_app.presentation.api.routes import get_model_service
+from web_app.presentation.app import create_app
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 
@@ -211,6 +210,35 @@ def test_startup_stores_real_model_service_on_app_state(
     app = app_module.create_app()
     with TestClient(app):
         assert isinstance(app.state.model_service, FakeModelService)
+
+
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_startup_skips_init_db_in_production_like_environments(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    app_env: str,
+):
+    run_dir = tmp_path / "distilbert_v3_907k_cleaned_20260312_133755"
+    run_dir.mkdir()
+    (run_dir / "best_distilbert_ckpt.pt").write_bytes(b"checkpoint")
+
+    class FakeModelService:
+        def __init__(self, settings):
+            self.settings = settings
+
+    async def fail_init_db() -> None:
+        raise AssertionError("init_db should not run in production-like environments")
+
+    monkeypatch.setattr(
+        app_module,
+        "get_settings",
+        lambda: _make_settings(run_dir, app_env),
+    )
+    monkeypatch.setattr(app_module, "init_db", fail_init_db)
+    monkeypatch.setattr(app_module, "ModelService", FakeModelService)
+
+    with TestClient(app_module.create_app()):
+        pass
 
 
 def test_ml_health_returns_degraded_when_mock_model_active(api_client):

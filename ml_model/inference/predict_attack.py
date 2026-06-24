@@ -148,11 +148,12 @@ def load_model(model_key: str, staging_dir=None, device="cpu"):
         model = AutoModelForSequenceClassification.from_pretrained(
             model_id,
             num_labels=NUM_CLASSES,
+            local_files_only=True,
         )
         state = torch.load(ckpt_path, map_location="cpu", weights_only=True)
         model.load_state_dict(state, strict=True)
         model.to(device).eval()
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, local_files_only=True)
         return model, tokenizer, temperature
 
 

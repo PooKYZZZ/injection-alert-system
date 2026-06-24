@@ -1,6 +1,5 @@
-from typing import Literal, Optional
 from datetime import datetime, timezone
-from typing import List
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
 
@@ -52,16 +51,18 @@ class PredictionResponse(BaseModel):
 
 
 class TriageIngestRequest(BaseModel):
-    transaction_id: str = Field(..., min_length=1)
+    transaction_id: str = Field(..., min_length=1, max_length=128)
     timestamp: datetime
-    source_ip: str = Field(..., min_length=1)
-    request_method: str = Field(..., min_length=1)
-    request_uri: str = Field(..., min_length=1)
+    source_ip: str = Field(..., min_length=1, max_length=45)
+    request_method: str = Field(..., min_length=1, max_length=16)
+    request_uri: str = Field(..., min_length=1, max_length=2048)
     request_headers: dict[str, str]
-    request_body: str
-    http_request: str = Field(..., min_length=1)
-    crs_score: int
-    crs_rule_ids: list[str]
+    request_body: str = Field(default="", max_length=65536)
+    http_request: str = Field(..., min_length=1, max_length=65536)
+    crs_score: int = Field(..., ge=0)
+    crs_rule_ids: list[Annotated[str, Field(min_length=1, max_length=128)]] = Field(
+        ..., min_length=1, max_length=32
+    )
 
 
 class TriageIngestResponse(BaseModel):
@@ -293,6 +294,9 @@ class WafIngestLookupResponse(BaseModel):
     confidence_level: ConfidenceLevel | None = None
     action_taken: ActionTaken | None = None
     ingest_source: str | None = None
+    source_ip: str | None = None
+    request_path: str | None = None
+    query_string: str | None = None
     crs_score: int | None = None
     crs_rule_ids: list[str] | None = None
     matched_rule_messages: list[str] | None = None

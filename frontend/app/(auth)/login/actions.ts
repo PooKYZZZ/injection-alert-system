@@ -27,7 +27,10 @@ export async function loginAction(password: string): Promise<LoginResult> {
       return { ok: false, code: 'INVALID_CREDENTIALS' }
     }
 
-    console.error('Login failed unexpectedly', error)
+    console.error('Login failed unexpectedly', {
+      code: 'AUTH_UNEXPECTED',
+      errorName: error instanceof Error ? error.name : 'UnknownError'
+    })
     return { ok: false, code: 'SERVER_ERROR' }
   }
 }

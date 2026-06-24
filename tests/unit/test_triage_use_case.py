@@ -8,9 +8,11 @@ verifying that the use case correctly:
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
-import pytest
+from datetime import datetime, timezone
+from urllib.parse import parse_qsl
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from web_app.application import triage_use_case as triage_use_case_module
 from web_app.application.triage_use_case import (
@@ -297,6 +299,46 @@ async def test_ingest_raises_model_not_ready_when_service_not_loaded(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_output",
+    [
+        {"confidence": 0.9, "confidence_level": "HIGH"},
+        {"prediction": "SQL Injection", "confidence": 0.9},
+        {"prediction": "SQL Injection", "confidence_level": "HIGH"},
+        {
+            "prediction": "SQL Injection",
+            "confidence": "not-a-number",
+            "confidence_level": "HIGH",
+        },
+    ],
+    ids=[
+        "missing-prediction",
+        "missing-confidence-level",
+        "missing-confidence",
+        "invalid-confidence",
+    ],
+)
+async def test_fresh_model_output_must_include_required_prediction_fields(
+    mock_classifier,
+    mock_repository,
+    model_output,
+):
+    mock_classifier.predict.return_value = model_output
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    with pytest.raises(
+        ModelNotReadyError,
+        match="Model returned an invalid prediction payload",
+    ):
+        await use_case.execute(
+            http_request="POST /login HTTP/1.1",
+            source_ip="203.0.113.9",
+        )
+
+    mock_repository.save.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_ingest_folds_headers_and_body_into_persisted_http_request(
     mock_classifier,
     mock_repository,
@@ -338,6 +380,102 @@ async def test_ingest_folds_headers_and_body_into_persisted_http_request(
     assert "Host: example.test" in saved_entity.http_request
     assert "Body:\nusername=admin" in saved_entity.http_request
     assert saved_entity.crs_rule_ids == ["942100", "942110"]
+
+
+@pytest.mark.asyncio
+async def test_ingest_redacts_sensitive_values_from_persisted_http_request(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.88,
+        "confidence_tier": "HIGH",
+        "inference_latency_ms": 5.5,
+        "model_version": "test-model-v1",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-redact-1",
+            timestamp=triage_use_case_module.datetime.fromisoformat("2026-03-15T12:00:00"),
+            source_ip="192.168.1.100",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={
+                "Host": "example.test",
+                "Authorization": "Bearer abc",
+                "Cookie": "session=abc",
+            },
+            request_body='{"password":"hunter2","api_key":"abc123"}',
+            http_request="POST /login HTTP/1.1",
+            crs_score=9,
+            crs_rule_ids=["942100"],
+        )
+    )
+
+    saved_entity = mock_repository.claim_or_reclaim_processing.call_args[0][0]
+    assert "hunter2" not in saved_entity.http_request
+    assert "Bearer abc" not in saved_entity.http_request
+    assert "session=abc" not in saved_entity.http_request
+    assert "api_key=abc123" not in saved_entity.http_request
+    assert "[REDACTED]" in saved_entity.http_request
+
+
+@pytest.mark.asyncio
+async def test_ingest_redacts_sensitive_values_from_persisted_query_string(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.88,
+        "confidence_tier": "HIGH",
+        "inference_latency_ms": 5.5,
+        "model_version": "test-model-v1",
+    }
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-query-redact-1",
+            timestamp=triage_use_case_module.datetime.fromisoformat("2026-03-15T12:00:00"),
+            source_ip="192.168.1.100",
+            request_method="GET",
+            request_uri="/login",
+            request_headers={"Host": "example.test"},
+            request_body="",
+            http_request="GET /login HTTP/1.1",
+            crs_score=9,
+            crs_rule_ids=["942100"],
+            query_string=(
+                "q=%27%20OR%201%3D1&password=hunter2&access%5Ftoken=abc"
+                "&Token=first&Token=second&session_id=s1&item=book"
+            ),
+        )
+    )
+
+    saved_entity = mock_repository.claim_or_reclaim_processing.call_args[0][0]
+    parsed: dict[str, list[str]] = {}
+    assert saved_entity.query_string is not None
+    for key, value in parse_qsl(saved_entity.query_string, keep_blank_values=True):
+        parsed.setdefault(key, []).append(value)
+
+    assert parsed["q"] == ["' OR 1=1"]
+    assert parsed["item"] == ["book"]
+    assert parsed["password"] == ["[REDACTED]"]
+    assert parsed["access_token"] == ["[REDACTED]"]
+    assert parsed["Token"] == ["[REDACTED]", "[REDACTED]"]
+    assert parsed["session_id"] == ["[REDACTED]"]
+    assert "hunter2" not in saved_entity.query_string
+    assert "abc" not in saved_entity.query_string
+    assert "first" not in saved_entity.query_string
+    assert "second" not in saved_entity.query_string
+    assert "s1" not in saved_entity.query_string
+    assert saved_entity.http_request.startswith("GET /login HTTP/1.1")
+    assert "hunter2" not in saved_entity.http_request
+    assert "access_token" not in saved_entity.http_request
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,10 @@
 # Architecture
 
-Last updated: 2026-03-24
+Last updated: 2026-06-23
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
+
+Client-stated security and alerting requirements are tracked in `docs/client-requirements.md`. They are architectural drivers for planned account security and alerting work, but not all are implemented in the current repository state.
 
 ## Current Topology
 
@@ -17,9 +19,33 @@ flowchart LR
     DB --> Supabase["Supabase PostgreSQL"]
 
     SQLite["SQLite (tests / isolated local work)"] -. optional .-> DB
-    ModSec["ModSecurity + CRS (internal Compose path)"] -. internal only .-> FastAPI
+    WAFProof["localhost:8088 WAF proof path"] --> ModSec["ModSecurity + OWASP CRS"]
+    ModSec --> Bridge["WAF audit bridge"]
+    Bridge --> FastAPI
     Redis["Redis 7"] -. planned .-> FastAPI
 ```
+
+## Feature State Matrix
+
+| Feature | Current State | Evidence |
+|---|---|---|
+| Browser dashboard path | Implemented | `frontend/app/api/*`, `frontend/proxy.ts`, `frontend/lib/bff-client.ts` |
+| FastAPI routes and BFF calls | Implemented | `web_app/presentation/api/routes.py`, `frontend/app/api/*` |
+| ModelService runtime boundary | Implemented | `web_app/services/model_service.py` |
+| WAF ingest endpoint | Verified local proof | `POST /api/internal/waf-events`, `GET /api/internal/waf-events/{transaction_id}`, targeted route tests `8 passed` |
+| WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `34 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
+| ModSecurity request path | Verified local proof | `localhost:8088` through ModSecurity/OWASP CRS blocked SQLi with HTTP 403 and wrote JSON audit log |
+| Backend Compose exposure | Implemented | backend is internal-only in Compose and shown as `8000/tcp`; proof lookup uses `docker compose exec`, not `localhost:8000` |
+| Inference queue | Planned | no runtime `asyncio.Queue(maxsize=N)` ingestion queue found |
+| Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
+| Email notifications | Planned | no transactional email integration found |
+| RBAC secure login | Planned | current `frontend/auth.ts` is demo credentials auth without roles |
+| 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
+| `CRITICAL >=90%` confidence tier | Planned | current contracts expose LOW/MEDIUM/HIGH only |
+| Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
+| Retraining pipeline | Planned | `ml_model/retraining/README.md` documents design-level only |
+| Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
+| Full Wazuh/SIEM, Kubernetes, Kafka/Celery/Elasticsearch | Deferred | PD2 scope keeps these out unless explicitly approved |
 
 ## Backend
 
@@ -51,8 +77,11 @@ The backend follows the intended Clean Architecture split:
   - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
-- Public backend endpoints:
+- Internal bearer-token protected backend endpoints:
+  - `POST /api/internal/waf-events`
+  - `GET /api/internal/waf-events/{transaction_id}`
   - `POST /api/feedback`
+- Public backend endpoints:
   - `GET /health`
   - `GET /api/health`
 
@@ -71,6 +100,17 @@ The backend follows the intended Clean Architecture split:
 - Auth: Auth.js credentials provider with JWT sessions
 - Data layer: TanStack Query + Zod
 - Client state: Zustand
+
+### Client-Required Account Security
+
+The current Auth.js credentials flow is a demo-oriented foundation. Client requirements now call for:
+
+- secure login backed by real user access management,
+- RBAC for role-specific access such as Admin and Analyst,
+- strong account security controls,
+- 2FA.
+
+These are planned requirements. They should be implemented by extending the existing Auth.js boundary or by selecting a managed auth provider, not by hand-rolling session handling.
 
 ### Security boundary
 
@@ -120,23 +160,34 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 
 - A local `docker-compose.yml`
 - Backend and frontend Dockerfiles
-- An internal Compose ModSecurity + OWASP CRS bridge to the backend
+- A verified local Compose ModSecurity + OWASP CRS proof path through `localhost:8088`
+- Internal WAF event ingest route and JSONL bridge tooling
 
 ## What Is Planned, Not Implemented
 
-- ModSecurity as the browser-facing runtime boundary
-- Redis-backed IP blocklist, rate-limit state, and low-confidence queue
+- Production-grade ModSecurity-fronted deployment
+- Bounded `asyncio.Queue` for WAF-event/inference burst protection
+- Redis-backed IP blocklist, rate-limit state, and low-confidence queue only if shared runtime state is required
 - Full repo-managed export and automation of Supabase policy state
+- Client-required real user access management, RBAC, and secure login
+- Client-required 2FA
+- Client-required email notifications after detection
+- Client-standard `CRITICAL >=90%` confidence tier
+- Wazuh export-only JSON/JSONL integration
+- Production edge checklist, backup/restore runbook, and archive/hide retention policy
 
 ## Current limitations
 
 - `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
 - `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
+- Current confidence tier and frontend severity contracts do not include `CRITICAL`.
+- Current action values are recorded metadata, not proof of live network enforcement.
+- Bridge follow mode has a resilience TODO for a transient `OSError: [Errno 5] Input/output error` observed at `readline()`; the container restarted and successfully posted afterward.
 
 ## Architecture Notes For Future Edits
 
 - Do not document planned infrastructure as shipped behavior.
 - Keep the live path names exact. Runtime artifacts live under `ml_model/model_registry/`.
 - Keep setup docs and architecture docs synchronized with the route handlers and tests, not with older planning files.
-- Test baseline: pytest 264 passed, vitest 122 passed, typecheck passed, lint passed, build passed.
+- Latest operator baseline is tracked in `docs/project-ops/STATUS.md`; do not copy old test counts forward without rerunning.

@@ -116,8 +116,11 @@ describe('TimelineChart', () => {
     vi.clearAllMocks()
   })
 
-  it('uses 60 as the default y-axis ceiling and rounds up when data exceeds it', () => {
-    expect(buildYAxisMax(0)).toBe(60)
+  it('uses a lower floor for small windows and rounds up once traffic exceeds the floor', () => {
+    expect(buildYAxisMax(0)).toBe(30)
+    expect(buildYAxisMax(29)).toBe(30)
+    expect(buildYAxisMax(30)).toBe(30)
+    expect(buildYAxisMax(31)).toBe(60)
     expect(buildYAxisMax(58)).toBe(60)
     expect(buildYAxisMax(60)).toBe(60)
     expect(buildYAxisMax(61)).toBe(70)
@@ -195,7 +198,7 @@ describe('TimelineChart', () => {
       const xAxisProps = JSON.parse(xAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
       const yAxisProps = JSON.parse(yAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
       expect(yAxisProps.domain).toEqual([0, 60])
-      expect(yAxisProps.ticks).toEqual([0, 30, 60])
+      expect(yAxisProps.ticks).toEqual([0, 20, 40, 60])
       if (timeWindow === '7d') {
         expect(Array.isArray(xAxisProps.ticks)).toBe(true)
         expect((xAxisProps.ticks as number[]).length).toBeGreaterThan(0)
@@ -222,6 +225,22 @@ describe('TimelineChart', () => {
 
     expect(yAxisProps.domain).toEqual([0, 90])
     expect(yAxisProps.ticks).toEqual([0, 30, 60, 90])
+  })
+
+  it('uses set1 neutral border and soft text tokens for chart chrome', () => {
+    const { container } = render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+
+    const grid = container.querySelector('[data-testid="CartesianGrid"]')
+    const xAxis = container.querySelector('[data-testid="XAxis"]')
+    const yAxis = container.querySelector('[data-testid="YAxis"]')
+
+    const gridProps = JSON.parse(grid?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+    const xAxisProps = JSON.parse(xAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+    const yAxisProps = JSON.parse(yAxis?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+
+    expect(gridProps.stroke).toBe('var(--color-surface-border)')
+    expect((xAxisProps.tick as { fill?: string } | undefined)?.fill).toBe('var(--color-text-soft)')
+    expect((yAxisProps.tick as { fill?: string } | undefined)?.fill).toBe('var(--color-text-soft)')
   })
 
   it('deduplicates tooltip payload entries by series key', () => {

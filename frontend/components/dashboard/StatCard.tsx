@@ -33,7 +33,7 @@ export function StatCard({
   valueColor,
   valueFlashColor,
   secondary,
-  secondaryColor = 'text-[var(--color-text-secondary)]',
+  secondaryColor = 'text-text-secondary',
   previousValue,
   deltaInverted = false,
   progressBar,
@@ -71,8 +71,8 @@ export function StatCard({
       transition={{ duration: 0.3, ease: 'easeOut', delay }}
       onClick={onClick}
       className={cn(
-        'flex flex-col gap-1 rounded-xl border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-4 transition-all',
-        onClick && 'cursor-pointer hover:border-[var(--color-accent-blue-bg)] hover:bg-[var(--color-bg-elevated)]'
+        'flex flex-col gap-1 rounded-xl border border-surface-border bg-surface-card p-4 transition-all',
+        onClick && 'cursor-pointer hover:border-accent-action hover:bg-surface-inset'
       )}
     >
       <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
@@ -82,14 +82,14 @@ export function StatCard({
         className={cn(
           'text-[28px] font-semibold tracking-tight leading-none transition-colors duration-300',
           isZeroValue
-            ? 'text-[var(--color-text-primary)]'
+            ? 'text-text-primary'
             : flash
-            ? (valueFlashColor ?? valueColor ?? (deltaIsGood ? 'text-emerald-200' : 'text-red-200'))
+            ? (valueFlashColor ?? valueColor ?? (deltaIsGood ? 'text-severity-safe-text/80' : 'text-severity-high-text/80'))
             : (valueColor ?? (deltaIsGood
-                ? 'text-emerald-400'
+                ? 'text-severity-safe-text'
                 : delta
-                  ? 'text-red-400'
-                  : 'text-[var(--color-text-primary)]'))
+                  ? 'text-severity-high-text'
+                  : 'text-text-primary'))
         )}
       >
         {typeof value === 'number' ? (
@@ -102,7 +102,7 @@ export function StatCard({
         <div
           className={cn(
             'text-[10px] font-medium whitespace-nowrap overflow-hidden text-ellipsis',
-            deltaIsGood ? 'text-emerald-500/80' : 'text-red-500/80'
+            deltaIsGood ? 'text-severity-safe-text/80' : 'text-severity-high-text/80'
           )}
         >
           {delta.direction === 'up' ? '↑' : '↓'} {delta.diff} vs prev
@@ -114,12 +114,12 @@ export function StatCard({
         </div>
       )}
       {typeof progressBar === 'number' ? (
-        <div className="mt-2 h-0.5 w-full rounded-full bg-[var(--color-text-ghost)]">
+        <div className="mt-2 h-0.5 w-full rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{
               width: `${Math.min(progressBar, 100)}%`,
-              background: 'var(--color-accent-purple)',
+              background: 'var(--color-accent-action)',
             }}
           />
         </div>

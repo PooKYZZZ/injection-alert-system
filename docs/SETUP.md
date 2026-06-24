@@ -1,8 +1,10 @@
 # Local Setup
 
-Last updated: 2026-03-24
+Last updated: 2026-06-23
 
-This guide reflects the repo as it exists now. It supports both direct local development and a Docker-based smoke path. Docker Compose and ModSecurity now exist in the repo, but the browser-facing runtime boundary still remains `Browser -> Next.js -> FastAPI`, not `Browser -> ModSecurity -> FastAPI`.
+This guide reflects the repo as it exists now. It supports both direct local development and a Docker-based smoke path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the verified WAF proof path uses `localhost:8088`.
+
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The current setup still uses demo-oriented credentials auth; final client scope includes secure login, RBAC, 2FA, timely alerts, email notification after detection, and a `CRITICAL >=90%` confidence tier.
 
 ## Prerequisites
 
@@ -69,13 +71,42 @@ Notes:
 MODEL_REGISTRY_PATH=ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
 ```
 
+### Promote the staged DistilBERT artifact safely
+
+Use the promotion CLI to replace the active staged artifact via archive-and-recreate while preserving the active path name.
+
+Dry-run first:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run ^
+  --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
+  --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
+  --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" ^
+  --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" ^
+  --archive-suffix "pre_20260420" ^
+  --dry-run
+```
+
+Real promotion (remove `--dry-run`):
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run ^
+  --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
+  --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
+  --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" ^
+  --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" ^
+  --archive-suffix "pre_20260420"
+```
+
+This workflow writes sidecar provenance files (`provenance.json`, `MODEL_CARD.md`) and does not rename the active staged run directory.
+
 ### Run tests
 
 ```powershell
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-03-23, this passes with **264 backend tests**.
+As of 2026-04-20, this passes with **336 backend tests**.
 
 ### Start the backend
 
@@ -98,8 +129,9 @@ Current API surface:
   - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
-- Public backend endpoints:
+- Internal bearer-token protected backend endpoints:
   - `POST /api/feedback`
+- Public backend endpoints:
   - `GET /health`
   - `GET /api/health`
 
@@ -137,6 +169,7 @@ Notes:
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
+- Client requirements call for this demo login to be replaced or extended with real user access management, RBAC, strong account security, and 2FA.
 
 ### Start the frontend
 
@@ -214,10 +247,13 @@ So the current local dashboard can run fully against the backend, with optional 
 
 The following are not yet available as runnable repo-level setup paths:
 
-- ModSecurity as the browser-facing runtime boundary
+- Production-grade ModSecurity-fronted deployment
 - Redis-backed review queue or enforcement state
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
+- Real user access management with secure login, RBAC, and 2FA
+- Email notification after detection
+- Client-standard `CRITICAL >=90%` confidence tier
 
 ## 5A. Docker Smoke Setup
 
@@ -240,21 +276,23 @@ Expected services:
 - `frontend`
 - `backend`
 - `modsecurity`
+- `bridge`
 
 ### Current Docker network truth
 
 - `frontend` is published on `http://localhost:3000`
-- `backend` is internal only
-- `modsecurity` is internal only
+- `modsecurity` publishes the WAF proof path on `http://localhost:8088`
+- `backend` is internal only and should show `8000/tcp`
 - `frontend` talks to `backend` using `FASTAPI_BASE_URL=http://backend:8000`
 - `modsecurity` proxies to `backend` using `BACKEND=http://backend:8000`
 
 This means:
 
 - Browser path today: `Browser -> frontend -> backend`
-- Internal ModSecurity path today: `modsecurity -> backend`
+- WAF proof path today: `localhost:8088 -> modsecurity -> backend`
+- Backend transaction lookup proof: `docker compose exec backend ...`
 
-ModSecurity is connected to the backend, but it is not currently in front of browser traffic.
+Do not use `localhost:8000` for Docker proof unless backend port 8000 is explicitly published.
 
 ### Backend health checks in Docker
 
@@ -264,6 +302,34 @@ The backend image does not include `curl`, so use Python from inside the contain
 docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
 docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 ```
+
+### Verified WAF proof flow
+
+Use these commands for the ModSecurity/OWASP CRS proof path:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing "http://localhost:8088/healthz"
+Invoke-WebRequest -UseBasicParsing "http://localhost:8088/api/health"
+Invoke-WebRequest -UseBasicParsing -SkipHttpErrorCheck "http://localhost:8088/api/health?id=17%27%20OR%2017%3D17--"
+```
+
+Expected proof result:
+
+- `/healthz` through `localhost:8088` returns HTTP 200.
+- `/api/health` through `localhost:8088` returns HTTP 200.
+- SQLi probe through `localhost:8088` returns HTTP 403.
+- ModSecurity writes JSON audit evidence to `logs/modsecurity/modsec_audit.jsonl`.
+- The bridge posts to `http://backend:8000/api/internal/waf-events`.
+
+Backend transaction lookup is Docker-internal:
+
+```powershell
+$txid = "<paste transaction.unique_id>"
+if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
+docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+```
+
+Verified result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`.
 
 ### Frontend smoke check
 

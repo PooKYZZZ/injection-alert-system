@@ -15,13 +15,17 @@ Dependency rule:
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 from typing import Protocol
+from uuid import uuid4
 
 from starlette.concurrency import run_in_threadpool
 
 from web_app.application.http_parsing import parse_http_request_line
 from web_app.application.http_preprocessor import preprocess_http_request
+from web_app.application.waf_event_sanitizer import (
+    redact_query_string,
+    redact_sensitive_text,
+)
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 
 
@@ -51,6 +55,7 @@ class TriageIngestCommand:
     ingest_source: str | None = None
     matched_rule_messages: list[str] | None = None
     matched_rule_tags: list[str] | None = None
+    query_string: str | None = None
 
 
 @dataclass(frozen=True)
@@ -116,7 +121,7 @@ class TriageUseCase:
                 source_ip=source_ip,
                 request_method=parsed.method,
                 request_path=parsed.path,
-                http_request=http_request,
+                http_request=redact_sensitive_text(http_request),
                 prediction=prediction["prediction"],
                 confidence=prediction["confidence"],
                 confidence_level=prediction["confidence_level"],
@@ -140,6 +145,7 @@ class TriageUseCase:
                 timestamp=command.timestamp,
                 source_ip=command.source_ip,
                 request_path=command.request_uri,
+                query_string=redact_query_string(command.query_string),
                 request_method=command.request_method,
                 http_request=self._build_persisted_http_request(command),
                 crs_score=command.crs_score,
@@ -217,18 +223,18 @@ class TriageUseCase:
             None,
         )
         try:
-            confidence = float(raw_result.get("confidence", 0.0))
+            confidence = float(raw_result["confidence"])
         except (TypeError, ValueError):
-            confidence = 0.0
+            raise ModelNotReadyError(
+                "Model returned an invalid prediction payload"
+            ) from None
+        except KeyError:
+            raise ModelNotReadyError(
+                "Model returned an invalid prediction payload"
+            ) from None
 
-        # Fail-safe: if model output is missing required fields, default to
-        # LOW confidence which triggers ALLOWED (least disruptive). This avoids
-        # both fail-open (letting attacks through at HIGH) and fail-closed
-        # (blocking legitimate traffic at UNKNOWN).
-        if not prediction:
-            prediction = "Normal"
-        if not confidence_level:
-            confidence_level = "LOW"
+        if not prediction or not confidence_level:
+            raise ModelNotReadyError("Model returned an invalid prediction payload")
 
         return {
             "prediction": prediction,
@@ -258,9 +264,9 @@ class TriageUseCase:
         )
         parts = [request_line]
         if header_lines:
-            parts.append(f"\nHeaders:\n{header_lines}")
+            parts.append(f"\nHeaders:\n{redact_sensitive_text(header_lines)}")
         if command.request_body:
-            parts.append(f"\nBody:\n{command.request_body}")
+            parts.append(f"\nBody:\n{redact_sensitive_text(command.request_body)}")
         return "".join(parts)
 
     @staticmethod

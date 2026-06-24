@@ -115,6 +115,22 @@ def test_waf_ingest_missing_token_returns_401(waf_api_client):
     assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
+def test_waf_ingest_invalid_token_returns_401(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=_waf_payload(),
+        headers={"Authorization": "Bearer wrong-secret"},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
 def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio
@@ -159,6 +175,15 @@ def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client
 
     payload = _waf_payload()
     payload["transaction_id"] = "waf-txn-lookup-1"
+    payload["source_ip"] = "172.21.0.1"
+    payload["request_path"] = "/api/health"
+    payload["query_string"] = "id=15%27%20OR%2015%3D15--"
+    payload["crs_score"] = 5
+    payload["crs_rule_ids"] = ["942100", "949110"]
+    payload["matched_rule_messages"] = [
+        "SQL Injection Attack Detected via libinjection",
+        "Inbound Anomaly Score Exceeded (Total Score: 5)",
+    ]
     ingest_response = client.post(
         "/api/internal/waf-events",
         json=payload,
@@ -177,6 +202,21 @@ def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client
     assert body["transaction_id"] == "waf-txn-lookup-1"
     assert body["alert_id"] is not None
     assert body["ingest_source"] == "modsec_audit_bridge"
+    assert body["prediction"] == "SQL Injection"
+    assert body["action_taken"] == "BLOCKED"
+    for key in ("source_ip", "request_path", "query_string"):
+        assert key in body
+        assert body[key] is not None
+    assert body["source_ip"] == "172.21.0.1"
+    assert body["request_path"] == "/api/health"
+    assert body["query_string"] == "id=15%27%20OR%2015%3D15--"
+    assert body["crs_score"] == 5
+    assert body["crs_rule_ids"] == ["942100", "949110"]
+    assert body["matched_rule_messages"] == [
+        "SQL Injection Attack Detected via libinjection",
+        "Inbound Anomaly Score Exceeded (Total Score: 5)",
+    ]
+    assert body["matched_rule_tags"] == ["attack-sqli", "paranoia-level/1"]
 
 
 def test_waf_ingest_lookup_returns_not_found_for_unknown_transaction_id(
@@ -197,3 +237,39 @@ def test_waf_ingest_lookup_returns_not_found_for_unknown_transaction_id(
     assert body["found"] is False
     assert body["transaction_id"] == "waf-txn-missing"
     assert body["alert_id"] is None
+
+
+def test_waf_ingest_duplicate_transaction_id_returns_existing_alert(
+    waf_api_client,
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-dupe-1"
+
+    first = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=INTERNAL_HEADERS,
+    )
+    second = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["alert_id"] == first.json()["alert_id"]
+    assert second.json()["prediction"] == first.json()["prediction"]
+
+    lookup = client.get(
+        "/api/internal/waf-events/waf-txn-dupe-1",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["found"] is True
+    assert lookup.json()["alert_id"] == first.json()["alert_id"]

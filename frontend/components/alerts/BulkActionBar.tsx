@@ -82,11 +82,11 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.15 }}
-          className="flex items-center justify-between rounded-md border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-4 py-2"
+          className="flex items-center justify-between rounded-md border border-surface-border bg-surface-card px-4 py-2"
         >
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <CheckSquare size={14} className="text-violet-400" />
+              <CheckSquare size={14} className="text-action-accent" />
               <span className="text-sm font-medium text-[var(--color-text-primary)]">
                 {selectedCount} selected
               </span>
@@ -97,7 +97,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('false_positive')}
-                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-text-ghost)] hover:bg-[var(--color-text-ghost)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-action-border bg-action-bg px-3 py-1 text-xs font-medium text-action-accent transition-colors hover:border-action-accent hover:bg-action-bg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Mark False Positive'}
               </button>
@@ -105,7 +105,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('escalated')}
-                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-red-800 hover:bg-red-950/30 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-severity-high-border bg-severity-high-bg px-3 py-1 text-xs font-medium text-severity-high-text transition-colors hover:border-severity-high-accent hover:bg-severity-high-bg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Escalate'}
               </button>
@@ -113,7 +113,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
                 type="button"
                 disabled={isProcessing}
                 onClick={() => handleBulkTriage('resolved')}
-                className="rounded border border-[var(--color-text-ghost)] bg-[var(--color-text-ghost)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-emerald-800 hover:bg-emerald-950/30 hover:text-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-severity-safe-border bg-severity-safe-bg px-3 py-1 text-xs font-medium text-severity-safe-text transition-colors hover:border-severity-safe-accent hover:bg-severity-safe-bg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? 'Processing...' : 'Resolve'}
               </button>
@@ -123,8 +123,8 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
               <span
                 className={`text-xs ${
                   summary.includes('failed')
-                    ? 'text-red-400'
-                    : 'text-emerald-400'
+                    ? 'text-severity-high-text'
+                    : 'text-severity-safe-text'
                 }`}
               >
                 {summary}

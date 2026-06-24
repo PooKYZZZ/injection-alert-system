@@ -1,7 +1,5 @@
 # Python 3.14 and Latest Stable Dependency Upgrade Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Upgrade the repository to Python 3.14 and refresh dependency pins to the latest stable releases that still support the repo's runtime and test surface.
 
 **Architecture:** Keep package/version changes in the existing manifests and lockfiles, update CI and local setup instructions to prefer Python 3.14, and preserve current application contracts. Use the smallest set of dependency bumps that keeps install and tests green, then verify each boundary end-to-end.

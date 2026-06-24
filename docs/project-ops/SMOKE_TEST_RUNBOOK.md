@@ -1,11 +1,11 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-03-24
+**Last updated:** 2026-06-23
 **Audience:** Any teammate with zero prior context.
 
-This runbook walks through starting the current repo Docker stack, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
+This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
-> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, while backend and ModSecurity stay internal to the compose network.
+> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the WAF proof path is published on `localhost:8088`, and the backend stays internal to the compose network as `8000/tcp`.
 
 ---
 
@@ -106,7 +106,53 @@ Treat this step as optional. The rest of the runbook still works if the database
 
 ---
 
-## Step 5 — Log In to the Dashboard
+## Step 5 — Verify WAF Proof Path
+
+Use the WAF-facing path, not `localhost:8000`:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing "http://localhost:8088/healthz"
+Invoke-WebRequest -UseBasicParsing "http://localhost:8088/api/health"
+Invoke-WebRequest -UseBasicParsing -SkipHttpErrorCheck "http://localhost:8088/api/health?id=17%27%20OR%2017%3D17--"
+```
+
+Expected:
+
+- `/healthz` returns HTTP 200.
+- `/api/health` returns HTTP 200.
+- SQLi probe returns HTTP 403.
+
+Check the latest ModSecurity transaction and bridge post:
+
+```powershell
+$latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
+$latest = $latestRaw | ConvertFrom-Json
+$txid = $latest.transaction.unique_id
+if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
+docker compose logs --tail=100 bridge
+```
+
+Use Docker-internal backend lookup. Do not use `localhost:8000` unless backend port 8000 is explicitly published:
+
+```powershell
+docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+```
+
+Expected lookup fields:
+
+- `found=true`
+- `prediction=SQL Injection`
+- `confidence_level=HIGH`
+- `action_taken=BLOCKED`
+- `source_ip` present
+- `request_path=/api/health`
+- `query_string` present and URL-encoded
+- `crs_score=5`
+- `crs_rule_ids` includes `942100` and `949110`
+
+---
+
+## Step 6 — Log In to the Dashboard
 
 Open a browser and navigate to:
 
@@ -122,7 +168,7 @@ If the login button appears unresponsive or the dashboard remains on skeletons, 
 
 ---
 
-## Step 6 — Verify Dashboard Page Loads
+## Step 7 — Verify Dashboard Page Loads
 
 **URL:** `http://localhost:3000/dashboard`
 
@@ -141,7 +187,7 @@ If stat cards show `—`, the backend may not be responding. Check `docker compo
 
 ---
 
-## Step 7 — Verify Alerts Page Loads
+## Step 8 — Verify Alerts Page Loads
 
 **URL:** `http://localhost:3000/alerts`
 
@@ -154,7 +200,7 @@ If stat cards show `—`, the backend may not be responding. Check `docker compo
 
 ---
 
-## Step 8 — Verify ML Health Page Loads
+## Step 9 — Verify ML Health Page Loads
 
 **URL:** `http://localhost:3000/ml-health`
 
@@ -170,7 +216,7 @@ If stat cards show `—`, the backend may not be responding. Check `docker compo
 
 ---
 
-## Step 9 — Verify Triage Update Persists to Supabase
+## Step 10 — Verify Triage Update Persists to Supabase
 
 ### 9a. Find an alert to triage
 
@@ -205,7 +251,7 @@ Refresh `http://localhost:3000/alerts` and confirm the updated alert reflects th
 
 ---
 
-## Step 10 — Stop the Stack
+## Step 11 — Stop the Stack
 
 When finished:
 
@@ -234,23 +280,33 @@ docker compose ps
 docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
 docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 
-# 4. Optional demo data seeding (inside container)
+# 4. WAF proof path
+Invoke-WebRequest -UseBasicParsing "http://localhost:8088/healthz"
+Invoke-WebRequest -UseBasicParsing "http://localhost:8088/api/health"
+Invoke-WebRequest -UseBasicParsing -SkipHttpErrorCheck "http://localhost:8088/api/health?id=17%27%20OR%2017%3D17--"
+$latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
+$latest = $latestRaw | ConvertFrom-Json
+$txid = $latest.transaction.unique_id
+if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
+docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+
+# 5. Optional demo data seeding (inside container)
 docker compose exec backend python seed_demo.py
 
-# 5. Open browser to http://localhost:3000/login and log in
+# 6. Open browser to http://localhost:3000/login and log in
 
-# 6. Verify pages
+# 7. Verify pages
 #    - http://localhost:3000/dashboard
 #    - http://localhost:3000/alerts
 #    - http://localhost:3000/ml-health
 
-# 7. Triage update (replace <ALERT_ID>)
+# 8. Triage update (replace <ALERT_ID>)
 docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{\"triage_status\":\"in_review\"}'
 
-# 8. Verify persistence
+# 9. Verify persistence
 docker compose exec backend curl -s http://localhost:8000/api/alerts/<ALERT_ID> -H "Authorization: Bearer local-dev-secret"
 
-# 9. Stop stack
+# 10. Stop stack
 docker compose down
 ```
 

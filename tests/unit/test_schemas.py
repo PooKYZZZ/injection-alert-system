@@ -1,13 +1,15 @@
-import pytest
 from datetime import datetime, timedelta, timezone
+
+import pytest
 from pydantic import ValidationError
+
 from web_app.presentation.schemas import (
     AlertDetailResponse,
+    AlertResponse,
+    FeedbackRequest,
+    HealthResponse,
     PredictionRequest,
     PredictionResponse,
-    FeedbackRequest,
-    AlertResponse,
-    HealthResponse,
     TriageIngestRequest,
     TriageIngestResponse,
 )
@@ -117,6 +119,52 @@ def test_triage_ingest_request_structure():
     )
     assert request.transaction_id == "txn-123"
     assert request.request_headers["Host"] == "example.test"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("source_ip", "x" * 46),
+        ("request_method", ""),
+        ("request_uri", "/" + ("x" * 2048)),
+        ("request_body", "x" * 65537),
+        ("http_request", "x" * 65537),
+        ("crs_score", -1),
+        ("crs_rule_ids", []),
+        ("crs_rule_ids", ["942100"] * 33),
+        ("crs_rule_ids", [""]),
+        ("crs_rule_ids", ["9" * 129]),
+    ],
+    ids=[
+        "source-ip-too-long",
+        "empty-method",
+        "uri-too-long",
+        "body-too-long",
+        "http-request-too-long",
+        "negative-crs-score",
+        "empty-rule-list",
+        "too-many-rules",
+        "empty-rule-id",
+        "rule-id-too-long",
+    ],
+)
+def test_triage_ingest_request_rejects_weak_legacy_fields(field, value):
+    payload = {
+        "transaction_id": "txn-123",
+        "timestamp": "2026-03-15T10:00:00Z",
+        "source_ip": "203.0.113.10",
+        "request_method": "POST",
+        "request_uri": "/login",
+        "request_headers": {"Host": "example.test"},
+        "request_body": "username=admin",
+        "http_request": "POST /login HTTP/1.1",
+        "crs_score": 7,
+        "crs_rule_ids": ["942100"],
+    }
+    payload[field] = value
+
+    with pytest.raises(ValidationError):
+        TriageIngestRequest(**payload)
 
 
 def test_triage_ingest_response_structure():
