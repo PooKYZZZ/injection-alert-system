@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-24
 
 ---
 
@@ -62,6 +62,13 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - The portal target must be run separately by the user on host port `3010`.
 - Observed demo-target evidence was captured through `localhost:8089`, including normal portal traffic and controlled SQLi/XSS checks with CRS transaction IDs, rule IDs, and matched messages where available.
 
+### Dashboard screenshot evidence
+
+- Dashboard evidence is documented in `reports/modsecurity-live-proof/dashboard-evidence.md`.
+- Reviewed replacement screenshots exist under `reports/modsecurity-live-proof/screenshots/`: dashboard overview variants, alerts table with WAF/ML rows, and WAF alert detail drawer.
+- The pasted replacement set does not include a dedicated ML health screenshot.
+- Capture target was `http://localhost:3000` only; no auth state, cookies, session headers, or secrets were written.
+
 ### Promotion Workflow Commands
 
 - Dry-run (no writes):
@@ -103,6 +110,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - ModSecurity audit log policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`.
 - Current ModSecurity audit log path is JSONL at `logs/modsecurity/modsec_audit.jsonl`.
 - Local WAF proof evidence remains under `reports/modsecurity-live-proof/`.
+- Dashboard screenshot evidence remains under `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`.
 - Optional demo-target proof is separate from the default `localhost:8088` WAF proof path.
 - Automatic audit log rotation is not implemented.
 - Production retention and full Wazuh/SIEM deployment are not implemented.

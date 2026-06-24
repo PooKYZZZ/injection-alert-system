@@ -3,7 +3,7 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-24
 
 Status note:
 - Current test baseline: pytest 336 passed, vitest 122 passed, typecheck passed, lint passed, build passed
@@ -13,6 +13,7 @@ Status note:
 - DistilBERT staged promotion now uses `ml_model/export/promote_final_training_run.py` with archive-and-recreate safety
 - Real promotion command currently fails closed on strict head-shape mismatch between final-training checkpoint and `package_serving_artifact.py` loader expectations; rollback restoration behavior is verified
 - Local WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`: WAF path `localhost:8088`, SQLi HTTP 403, JSON audit log, bridge `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `source_ip`, `request_path`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`
+- Dashboard screenshot evidence is partially verified in `reports/modsecurity-live-proof/dashboard-evidence.md` with PNGs under `reports/modsecurity-live-proof/screenshots/`; the pasted replacement set does not include a dedicated ML health screenshot
 
 ---
 
@@ -87,7 +88,7 @@ Status note:
 - [x] WAF event is ingested by FastAPI
 - [x] ML triage runs
 - [x] confidence tier is recorded
-- [~] dashboard alert is visible; observed manually in current proof but screenshot path is not captured in repo
+- [~] dashboard alert is visible; replacement screenshot evidence exists in `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`, but dedicated ML health screenshot is Not Found
 - [x] action is recorded; real enforcement only if separately implemented
 - [ ] email/SSE evidence is captured only after those features exist
 
