@@ -64,7 +64,7 @@ Status note:
 - [x] Create CRS-only baseline report for normal and attack traffic; report exists at `reports/modsecurity-live-proof/crs-baseline.md`
 - [x] Optional demo-target WAF config exists for `localhost:8089 -> host.docker.internal:3010`; portal target must be user-run on host port `3010`
 - [x] Final observed demo-target report exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`
-- [ ] Add bounded `asyncio.Queue(maxsize=N)` inference queue and queue health visibility
+- [x] Add bounded `asyncio.Queue(maxsize=N)` inference queue and queue health visibility
 - [ ] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
 - [ ] Add email notifications after detection using a transactional email provider/API

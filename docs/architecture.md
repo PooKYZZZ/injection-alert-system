@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-06-23
+Last updated: 2026-06-25
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -14,6 +14,8 @@ flowchart LR
     Next --> BFF["Route Handlers / BFF"]
     BFF --> FastAPI["FastAPI API"]
     FastAPI --> Model["ModelService"]
+    FastAPI --> Queue["Bounded in-process inference queue (WAF ingest)"]
+    Queue --> Model
     FastAPI --> DB["Async SQLAlchemy DB"]
     Model --> Registry["ml_model/model_registry/"]
     DB --> Supabase["Supabase PostgreSQL"]
@@ -36,7 +38,7 @@ flowchart LR
 | WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `34 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
 | ModSecurity request path | Verified local proof | `localhost:8088` through ModSecurity/OWASP CRS blocked SQLi with HTTP 403 and wrote JSON audit log |
 | Backend Compose exposure | Implemented | backend is internal-only in Compose and shown as `8000/tcp`; proof lookup uses `docker compose exec`, not `localhost:8000` |
-| Inference queue | Planned | no runtime `asyncio.Queue(maxsize=N)` ingestion queue found |
+| Inference queue | Implemented | `web_app/application/inference_queue.py`; targeted tests cover synchronous WAF ingest, queue overflow, and queue health |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
 | Email notifications | Planned | no transactional email integration found |
 | RBAC secure login | Planned | current `frontend/auth.ts` is demo credentials auth without roles |
@@ -65,7 +67,8 @@ The backend follows the intended Clean Architecture split:
 ### Runtime entrypoint
 
 - App factory: `web_app.presentation.app:create_app`
-- Lifespan startup initializes the database and loads `ModelService`
+- Lifespan startup initializes the database, loads `ModelService`, and starts
+  the bounded in-process inference queue used by WAF ingest.
 
 ### Current routes (2026-03-23)
 
@@ -166,7 +169,6 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 ## What Is Planned, Not Implemented
 
 - Production-grade ModSecurity-fronted deployment
-- Bounded `asyncio.Queue` for WAF-event/inference burst protection
 - Redis-backed IP blocklist, rate-limit state, and low-confidence queue only if shared runtime state is required
 - Full repo-managed export and automation of Supabase policy state
 - Client-required real user access management, RBAC, and secure login

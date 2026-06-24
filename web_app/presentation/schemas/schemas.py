@@ -226,6 +226,23 @@ class MLHealthResponse(BaseModel):
     prediction_distribution: dict[str, int] = Field(
         default_factory=dict, description="Prediction distribution from eval"
     )
+    queue: Optional["QueueHealthResponse"] = None
+
+
+class QueueHealthResponse(BaseModel):
+    enabled: bool
+    max_size: int
+    depth: int
+    available_capacity: int
+    worker_count: int
+    worker_running: bool
+    total_enqueued: int
+    total_processed: int
+    total_failed: int
+    overflow_count: int
+    last_error: Optional[str] = None
+    last_error_at: Optional[str] = None
+    last_processed_at: Optional[str] = None
 
 
 class AlertDetailResponse(BaseModel):

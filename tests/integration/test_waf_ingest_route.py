@@ -1,11 +1,14 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database import database as db_module
-from web_app.infrastructure.database.database import Base
-from web_app.presentation.api.routes import get_model_service
+from web_app.infrastructure.database.database import Base, TrafficLog
+from web_app.presentation.api.routes import get_inference_queue, get_model_service
 from web_app.presentation.app import create_app
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
@@ -62,6 +65,12 @@ def waf_api_client():
     asyncio.run(engine.dispose())
 
 
+async def _count_traffic_logs(session_factory) -> int:
+    async with session_factory() as session:
+        result = await session.execute(select(func.count(TrafficLog.id)))
+        return int(result.scalar_one())
+
+
 def _waf_payload() -> dict:
     return {
         "ingest_source": "modsec_audit_bridge",
@@ -98,6 +107,31 @@ def test_waf_ingest_valid_event_returns_prediction(waf_api_client):
     assert payload["prediction"] == "SQL Injection"
     assert payload["confidence_level"] == "HIGH"
     assert payload["action_taken"] == "BLOCKED"
+
+
+def test_waf_ingest_queue_full_returns_503_with_retry_after(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    class FullQueue:
+        async def submit(self, coro_factory):
+            from web_app.application.inference_queue import InferenceQueueFullError
+
+            raise InferenceQueueFullError("full")
+
+    client.app.dependency_overrides[get_inference_queue] = lambda: FullQueue()
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=_waf_payload(),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "5"
+    assert response.json()["detail"] == "Inference queue is full"
 
 
 def test_waf_ingest_missing_token_returns_401(waf_api_client):
@@ -273,3 +307,49 @@ def test_waf_ingest_duplicate_transaction_id_returns_existing_alert(
     assert lookup.status_code == 200
     assert lookup.json()["found"] is True
     assert lookup.json()["alert_id"] == first.json()["alert_id"]
+    assert asyncio.run(_count_traffic_logs(db_module.AsyncSessionLocal)) == 1
+
+
+def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
+    waf_api_client,
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    async def _seed_processing() -> None:
+        await init_tables()
+        session_factory = db_module.AsyncSessionLocal
+        async with session_factory() as session:
+            session.add(
+                TrafficLog(
+                    transaction_id="waf-txn-processing-1",
+                    created_at=datetime.now(timezone.utc),
+                    timestamp=datetime.now(timezone.utc),
+                    source_ip="203.0.113.10",
+                    request_path="/login",
+                    request_method="POST",
+                    http_request="POST /login HTTP/1.1",
+                    crs_score=8,
+                    crs_rule_ids=["942100"],
+                    status="PROCESSING",
+                    lease_expires_at=datetime.now(timezone.utc)
+                    + timedelta(seconds=30),
+                    processing_owner_token="owner-old",
+                    processing_attempt=1,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(_seed_processing())
+
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-processing-1"
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 409
+    assert response.headers["Retry-After"] == "5"

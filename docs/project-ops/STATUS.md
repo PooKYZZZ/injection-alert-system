@@ -122,7 +122,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
 - Optional portal-target WAF proof through `localhost:8089` is runtime-verified in `reports/modsecurity-live-proof/demo-target-crs-proof.md`.
 - Bridge follow-mode resilience for transient `readline()` `OSError` remains a TODO.
-- Bounded inference queue and queue health visibility are not implemented.
+- Bounded in-process inference queue and queue health visibility are implemented for synchronous WAF ingest.
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
 - Client-required real user access management with RBAC and secure login is not yet implemented beyond the current demo credentials flow.
