@@ -57,6 +57,11 @@
 - CI may show four checks on branch updates because both `push` and `pull_request` workflows run for frontend and backend.
 - `requirements.train.txt` is laptop/training-only and should not be treated as required for CI/backend runtime verification.
 - Supabase is now part of the current runtime truth. Do not document it as merely planned.
+- ModSecurity audit log policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`.
+- Current ModSecurity audit log path is JSONL at `logs/modsecurity/modsec_audit.jsonl`.
+- Local WAF proof evidence remains under `reports/modsecurity-live-proof/`.
+- Automatic audit log rotation is not implemented.
+- Production retention and full Wazuh/SIEM deployment are not implemented.
 
 ---
 
@@ -75,3 +80,4 @@
 - Local setup: `docs/SETUP.md`
 - Detailed current-state snapshot: `docs/CURRENT_SYSTEM_STATE.md`
 - Operator checklist: `docs/project-ops/LIVING_CHECKLIST.md`
+- ModSecurity audit log policy: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`

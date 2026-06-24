@@ -45,6 +45,9 @@ Status note:
 - Tests use SQLite ✓
 - Async SQLAlchemy remains the only DB access path ✓
 
+### ModSecurity Audit Evidence
+- [~] Policy documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; automatic rotation and production retention are not implemented.
+
 ---
 
 ## Open Backlog
