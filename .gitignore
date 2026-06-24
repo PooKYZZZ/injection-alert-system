@@ -82,7 +82,6 @@ playwright/.cache/
 
 # Local artifacts and external archive workspace
 artifacts/
-reports/
 stitch_waf_ml_soc_dashboard_overview/
 archive/
 
