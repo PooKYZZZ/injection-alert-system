@@ -9,8 +9,12 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       BACKEND: http://host.docker.internal:3010
+      PORT: 8080
       PARANOIA: 1
+      BLOCKING_PARANOIA: 1
       ALLOWED_METHODS: GET POST PATCH
+      MODSEC_RULE_ENGINE: On
+      MODSEC_AUDIT_ENGINE: RelevantOnly
       MODSEC_AUDIT_LOG_FORMAT: JSON
       MODSEC_AUDIT_LOG_TYPE: Serial
       MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
@@ -18,4 +22,3 @@ services:
       MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
     volumes:
       - ./logs/modsecurity/demo-target:/var/log/modsecurity
-      - ./config/modsecurity/demo-target-nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro

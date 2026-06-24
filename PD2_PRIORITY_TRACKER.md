@@ -65,7 +65,7 @@ This tracker is based on the following.
 | `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient OSError resilience remains TODO. |
 | `[x]` | Connect ModSecurity detections to FastAPI ingest reliably | Critical | High | Done for local proof: lookup for transaction `17821639659.909603` returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, source/request metadata, `crs_score=5`, and rules `942100`, `949110`. |
 | `[x]` | Create CRS-only baseline test report | Critical | Medium | Done: `reports/modsecurity-live-proof/crs-baseline.md` records normal traffic, SQLi, XSS-like, command/file-access-like, and false-positive check results through `localhost:8088` with observed CRS rule IDs and transaction IDs. |
-| `[~]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Partial: optional demo-target WAF config/docs added for `localhost:8089 -> host.docker.internal:3010`; observed attack evidence is still pending in `reports/modsecurity-live-proof/demo-target-crs-proof.md`. |
+| `[x]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Done: `reports/modsecurity-live-proof/demo-target-crs-proof.md` records observed portal route checks through `localhost:8089`, including normal traffic, SQLi/XSS checks, CRS transaction IDs, rule IDs, and matched messages where available. |
 | `[~]` | Verify end-to-end attack flow | Critical | Medium-High | Partial: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven; dashboard was observed manually, but a screenshot path is not captured in repo evidence. |
 | `[ ]` | Add bounded async inference queue | Critical | Medium | Not started: no `asyncio.Queue(maxsize=N)` runtime ingestion queue found. ML inference is offloaded with `run_in_threadpool`, not queued. |
 | `[ ]` | Add queue health visibility | Critical | Low | Not started: `/api/ml-health` exists, but no queue depth, worker state, overflow, or last queue error fields exist. |
@@ -115,7 +115,7 @@ Based on priority and implementation hardness, focus on the highest-value work t
 | 1 | Harden bridge transient read-error behavior | A live proof passed, but follow mode once logged transient `OSError: [Errno 5] Input/output error` before restart recovery. |
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
-| 4 | Create demo-target WAF proof using portal-pre-waf | Optional config/docs exist; observed request evidence still needs to be captured through `localhost:8089`. |
+| 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
 | 5 | Capture final dashboard screenshot evidence | Dashboard was observed manually, but a screenshot path is not recorded in checked-in proof. |
 | 6 | Add bounded async inference queue and queue health | Protects FastAPI from log bursts and mass attack tests while giving operators visibility. |
 | 7 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
@@ -133,7 +133,7 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 1. Harden bridge follow-mode transient OSError handling.
 2. Keep ModSecurity audit log rotation as future hardening unless explicitly approved and tested.
 3. Keep CRS-only baseline report as the current baseline evidence source.
-4. Capture demo-target WAF proof through the optional `localhost:8089` path.
+4. Keep `reports/modsecurity-live-proof/demo-target-crs-proof.md` as the observed demo-target WAF proof source.
 5. Capture final dashboard screenshot evidence for the proven WAF transaction.
 6. Add bounded async inference queue using `asyncio.Queue(maxsize=N)`.
 7. Queue health visibility in `/api/ml-health` or a small ops/health endpoint.

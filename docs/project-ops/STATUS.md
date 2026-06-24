@@ -57,10 +57,10 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### CRS baseline and demo-target proof
 
 - CRS-only baseline is documented in `reports/modsecurity-live-proof/crs-baseline.md`.
-- Optional demo-target WAF proof config/docs are partial: `docker-compose.demo-target.yml`, `config/modsecurity/demo-target-nginx.conf`, and `docs/project-ops/DEMO_TARGET_WAF_PROOF.md`.
+- Optional demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the optional service uses the official CRS image `BACKEND` reverse-proxy behavior without mounting a custom Nginx template.
 - Optional demo-target WAF path is `localhost:8089 -> ModSecurity/OWASP CRS -> host.docker.internal:3010`.
 - The portal target must be run separately by the user on host port `3010`.
-- Observed demo-target attack evidence is not captured yet; final observed report remains pending at `reports/modsecurity-live-proof/demo-target-crs-proof.md`.
+- Observed demo-target evidence was captured through `localhost:8089`, including normal portal traffic and controlled SQLi/XSS checks with CRS transaction IDs, rule IDs, and matched messages where available.
 
 ### Promotion Workflow Commands
 
@@ -112,7 +112,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ## Open Gaps (Current, Not Historical)
 
 - Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
-- Optional portal-target WAF proof through `localhost:8089` is configured but not runtime-verified in repo evidence.
+- Optional portal-target WAF proof through `localhost:8089` is runtime-verified in `reports/modsecurity-live-proof/demo-target-crs-proof.md`.
 - Bridge follow-mode resilience for transient `readline()` `OSError` remains a TODO.
 - Bounded inference queue and queue health visibility are not implemented.
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.

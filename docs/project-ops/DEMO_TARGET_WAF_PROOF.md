@@ -9,7 +9,7 @@ This is separate from the default CyberTrace WAF proof path.
 - Default CyberTrace WAF proof: `localhost:8088 -> ModSecurity/CRS -> CyberTrace backend`
 - Optional portal-target WAF proof: `localhost:8089 -> ModSecurity/CRS -> portal demo target`
 
-No proof is claimed until observed results are captured in:
+Observed results are captured in:
 
 ```text
 reports/modsecurity-live-proof/demo-target-crs-proof.md
@@ -26,6 +26,8 @@ The optional WAF route proxies to:
 ```text
 host.docker.internal:3010
 ```
+
+The optional compose service uses the official `owasp/modsecurity-crs:nginx-alpine` reverse-proxy behavior through the `BACKEND` environment variable. It does not mount a custom Nginx template.
 
 The portal source stays separate. Do not merge the portal branch into this repository.
 
@@ -83,7 +85,7 @@ Do not paste cookies, Authorization headers, API keys, database URLs, or unrelat
 ## Current Status
 
 ```text
-WARN: Optional configuration and docs exist.
-WARN: User must run the portal target on host port 3010.
-WARN: Observed demo-target proof report is still pending.
+PASS: Optional configuration and docs exist.
+PASS: Observed demo-target proof report exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`.
+WARN: User must run the portal target on host port 3010 for future reruns.
 ```

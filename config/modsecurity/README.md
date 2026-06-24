@@ -14,7 +14,7 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
 - Runnable custom ModSecurity config files are not checked into this directory yet.
 - Root `docker-compose.yml` configures the CRS container to write a host-mounted JSON audit log for the PD2 demo bridge path.
 - Local WAF proof is verified through `localhost:8088`; see `reports/modsecurity-live-proof/e2e-proof.md`.
-- Optional demo-target proof is configured through `docker-compose.demo-target.yml` and `config/modsecurity/demo-target-nginx.conf`.
+- Optional demo-target proof is configured through `docker-compose.demo-target.yml` using the official CRS image reverse-proxy template and `BACKEND=http://host.docker.internal:3010`.
 
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
@@ -58,9 +58,9 @@ Verified proof result:
 
 Optional demo-target proof:
 - Compose override: `docker-compose.demo-target.yml`
-- Nginx config: `config/modsecurity/demo-target-nginx.conf`
 - WAF path: `localhost:8089`
 - Upstream: `host.docker.internal:3010`
+- Nginx template: official `owasp/modsecurity-crs:nginx-alpine` generated config; `config/modsecurity/demo-target-nginx.conf` is not mounted
 - Observed report path: `reports/modsecurity-live-proof/demo-target-crs-proof.md`
 - Template path: `reports/modsecurity-live-proof/demo-target-crs-proof.md.template`
 
