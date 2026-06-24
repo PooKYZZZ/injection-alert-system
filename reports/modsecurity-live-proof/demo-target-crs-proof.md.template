@@ -1,0 +1,56 @@
+# Demo Target CRS Proof Report Template
+
+**Status:** Not observed yet
+**Optional WAF path:** `http://localhost:8089`
+**Portal upstream assumption:** `host.docker.internal:3010`
+**Final report path:** `reports/modsecurity-live-proof/demo-target-crs-proof.md`
+
+This is a template only. Do not treat this file as proof evidence.
+
+Do not add invented HTTP statuses, transaction IDs, CRS rule IDs, or matched messages.
+
+---
+
+## Environment
+
+| Item | Observed Value |
+| --- | --- |
+| Date/time | `TBD` |
+| Git commit | `TBD` |
+| Portal source | `stable/portal-pre-waf` |
+| Portal host port | `3010` |
+| WAF host port | `8089` |
+| Audit log path | `logs/modsecurity/demo-target/modsec_audit.jsonl` |
+
+---
+
+## Summary Table
+
+| Test | Request | Actual HTTP | Transaction ID | CRS Rule IDs | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Normal home | `GET /` | `TBD` | `TBD` | `TBD` | `TBD` |
+| Normal record search | `GET /records/search?query=Pasig` | `TBD` | `TBD` | `TBD` | `TBD` |
+| Normal record detail | `GET /records/LND-2026-0001` | `TBD` | `TBD` | `TBD` | `TBD` |
+| Normal status lookup | `GET /transactions/status?ref=SUP-2026-0001` | `TBD` | `TBD` | `TBD` | `TBD` |
+| SQLi-like search | `GET /records/search?query=...` | `TBD` | `TBD` | `TBD` | `TBD` |
+| XSS-like status lookup | `GET /transactions/status?ref=...` | `TBD` | `TBD` | `TBD` | `TBD` |
+| XSS-like comment submit | `POST /comments/submit` | `TBD` | `TBD` | `TBD` | `TBD` |
+| SQLi-like login submit | `POST /login/submit` | `TBD` | `TBD` | `TBD` | `TBD` |
+
+---
+
+## Evidence Notes
+
+For each detected event, fill in:
+
+```text
+HTTP status: TBD
+transaction_id: TBD
+source_ip: TBD
+request_uri: TBD
+crs_rule_ids: TBD
+matched_messages: TBD
+verdict: TBD
+```
+
+Do not paste secrets, cookies, Authorization headers, API keys, database URLs, or unsafe raw request bodies.

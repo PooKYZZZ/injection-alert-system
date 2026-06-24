@@ -64,7 +64,8 @@ This tracker is based on the following.
 | `[~]` | Decide ModSecurity audit log format and retention | Critical | Low | Partial: Policy documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; JSONL path is `logs/modsecurity/modsec_audit.jsonl`; automatic rotation is not implemented and production retention is not implemented. |
 | `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient OSError resilience remains TODO. |
 | `[x]` | Connect ModSecurity detections to FastAPI ingest reliably | Critical | High | Done for local proof: lookup for transaction `17821639659.909603` returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, source/request metadata, `crs_score=5`, and rules `942100`, `949110`. |
-| `[~]` | Create CRS-only baseline test report | Critical | Medium | Partial: SQLi CRS block proof exists in `reports/modsecurity-live-proof/e2e-proof.md`, but no broader normal/attack CRS-only baseline report is checked in. |
+| `[x]` | Create CRS-only baseline test report | Critical | Medium | Done: `reports/modsecurity-live-proof/crs-baseline.md` records normal traffic, SQLi, XSS-like, command/file-access-like, and false-positive check results through `localhost:8088` with observed CRS rule IDs and transaction IDs. |
+| `[~]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Partial: optional demo-target WAF config/docs added for `localhost:8089 -> host.docker.internal:3010`; observed attack evidence is still pending in `reports/modsecurity-live-proof/demo-target-crs-proof.md`. |
 | `[~]` | Verify end-to-end attack flow | Critical | Medium-High | Partial: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven; dashboard was observed manually, but a screenshot path is not captured in repo evidence. |
 | `[ ]` | Add bounded async inference queue | Critical | Medium | Not started: no `asyncio.Queue(maxsize=N)` runtime ingestion queue found. ML inference is offloaded with `run_in_threadpool`, not queued. |
 | `[ ]` | Add queue health visibility | Critical | Low | Not started: `/api/ml-health` exists, but no queue depth, worker state, overflow, or last queue error fields exist. |
@@ -113,16 +114,17 @@ Based on priority and implementation hardness, focus on the highest-value work t
 |---:|---|---|
 | 1 | Harden bridge transient read-error behavior | A live proof passed, but follow mode once logged transient `OSError: [Errno 5] Input/output error` before restart recovery. |
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
-| 3 | Create CRS-only baseline test report | Shows what CRS detects before ML triage and gives evidence for false positives/detection gaps. |
-| 4 | Capture final dashboard screenshot evidence | Dashboard was observed manually, but a screenshot path is not recorded in checked-in proof. |
-| 5 | Add bounded async inference queue and queue health | Protects FastAPI from log bursts and mass attack tests while giving operators visibility. |
-| 6 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
-| 7 | Add `CRITICAL >=90%` confidence tier | Client standard requires it and it touches backend/frontend contracts. |
-| 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
-| 9 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
-| 10 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
-| 11 | Implement lightweight enforcement and challenge flow | Required for confidence-based response, but should follow stable WAF-to-dashboard proof. |
-| 12 | Implement analyst override and retraining skeleton | Supports HITL feedback and retraining objective without unsafe auto-promotion. |
+| 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
+| 4 | Create demo-target WAF proof using portal-pre-waf | Optional config/docs exist; observed request evidence still needs to be captured through `localhost:8089`. |
+| 5 | Capture final dashboard screenshot evidence | Dashboard was observed manually, but a screenshot path is not recorded in checked-in proof. |
+| 6 | Add bounded async inference queue and queue health | Protects FastAPI from log bursts and mass attack tests while giving operators visibility. |
+| 7 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
+| 8 | Add `CRITICAL >=90%` confidence tier | Client standard requires it and it touches backend/frontend contracts. |
+| 9 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
+| 10 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
+| 11 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
+| 12 | Implement lightweight enforcement and challenge flow | Required for confidence-based response, but should follow stable WAF-to-dashboard proof. |
+| 13 | Implement analyst override and retraining skeleton | Supports HITL feedback and retraining objective without unsafe auto-promotion. |
 
 Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, full Wazuh/SIEM, or blind model auto-promotion. Use lightweight implementation first and add heavier infrastructure only if a real shared-state or deployment need appears.
 
@@ -130,39 +132,40 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 
 1. Harden bridge follow-mode transient OSError handling.
 2. Keep ModSecurity audit log rotation as future hardening unless explicitly approved and tested.
-3. Create CRS-only baseline report for normal and attack traffic.
-4. Capture final dashboard screenshot evidence for the proven WAF transaction.
-5. Add bounded async inference queue using `asyncio.Queue(maxsize=N)`.
-6. Queue health visibility in `/api/ml-health` or a small ops/health endpoint.
-7. Minimal metrics endpoint.
-8. Structured JSON logs with request/transaction IDs.
-9. `CRITICAL >=90%` confidence tier.
-10. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
-11. Real-time dashboard alerts using SSE/EventSource with polling fallback.
-12. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
-13. Standalone final demo/test script if the proof checklist is not enough for defense rehearsal.
-14. API abuse/resource smoke tests.
-15. Real user accounts or managed auth.
-16. RBAC for Admin, Analyst, and Viewer.
-17. 2FA/MFA and login hardening.
-18. Lightweight DB-backed or in-memory enforcement state.
-19. LOW light rate limiting.
-20. MEDIUM aggressive throttling.
-21. CAPTCHA/Turnstile challenge flow with server-side verification if Turnstile is used.
-22. HIGH/CRITICAL temporary IP blocking or firewall action.
-23. Analyst override/audit trail for model mistakes.
-24. Automated retraining pipeline skeleton.
-25. Dataset validation before retraining.
-26. Challenger evaluation gate before promotion.
-27. Real DistilBERT retraining mode if time allows.
-28. Model promotion/rollback integration with manual approval.
-29. Model artifact checksum/manifest validation.
-30. Production edge checklist.
-31. Backup/restore and migration rollback runbook.
-32. Alert/archive retention policy with no physical DELETE for audit/traffic logs.
-33. Wazuh export-only JSON/JSONL integration if time allows.
-34. Align operator docs after implementation.
-35. Dashboard polish for mitigation/security pages.
+3. Keep CRS-only baseline report as the current baseline evidence source.
+4. Capture demo-target WAF proof through the optional `localhost:8089` path.
+5. Capture final dashboard screenshot evidence for the proven WAF transaction.
+6. Add bounded async inference queue using `asyncio.Queue(maxsize=N)`.
+7. Queue health visibility in `/api/ml-health` or a small ops/health endpoint.
+8. Minimal metrics endpoint.
+9. Structured JSON logs with request/transaction IDs.
+10. `CRITICAL >=90%` confidence tier.
+11. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
+12. Real-time dashboard alerts using SSE/EventSource with polling fallback.
+13. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
+14. Standalone final demo/test script if the proof checklist is not enough for defense rehearsal.
+15. API abuse/resource smoke tests.
+16. Real user accounts or managed auth.
+17. RBAC for Admin, Analyst, and Viewer.
+18. 2FA/MFA and login hardening.
+19. Lightweight DB-backed or in-memory enforcement state.
+20. LOW light rate limiting.
+21. MEDIUM aggressive throttling.
+22. CAPTCHA/Turnstile challenge flow with server-side verification if Turnstile is used.
+23. HIGH/CRITICAL temporary IP blocking or firewall action.
+24. Analyst override/audit trail for model mistakes.
+25. Automated retraining pipeline skeleton.
+26. Dataset validation before retraining.
+27. Challenger evaluation gate before promotion.
+28. Real DistilBERT retraining mode if time allows.
+29. Model promotion/rollback integration with manual approval.
+30. Model artifact checksum/manifest validation.
+31. Production edge checklist.
+32. Backup/restore and migration rollback runbook.
+33. Alert/archive retention policy with no physical DELETE for audit/traffic logs.
+34. Wazuh export-only JSON/JSONL integration if time allows.
+35. Align operator docs after implementation.
+36. Dashboard polish for mitigation/security pages.
 
 ## Notes For Client Security Requirements
 

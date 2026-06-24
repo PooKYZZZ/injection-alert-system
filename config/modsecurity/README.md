@@ -14,6 +14,7 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
 - Runnable custom ModSecurity config files are not checked into this directory yet.
 - Root `docker-compose.yml` configures the CRS container to write a host-mounted JSON audit log for the PD2 demo bridge path.
 - Local WAF proof is verified through `localhost:8088`; see `reports/modsecurity-live-proof/e2e-proof.md`.
+- Optional demo-target proof is configured through `docker-compose.demo-target.yml` and `config/modsecurity/demo-target-nginx.conf`.
 
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
@@ -22,6 +23,7 @@ Current repo state:
 - Root `docker-compose.yml` includes a ModSecurity CRS container that proxies to the backend.
 - Runnable ModSecurity config files are not checked into this directory yet.
 - The verified WAF proof path is `localhost:8088 -> ModSecurity/OWASP CRS -> backend`.
+- The optional demo-target proof path is `localhost:8089 -> ModSecurity/OWASP CRS -> host.docker.internal:3010`.
 - The dashboard browser path remains `Browser -> Next.js -> FastAPI`; this proof is not a production-grade WAF deployment claim.
 - The bridge input path for Compose is `logs/modsecurity/modsec_audit.jsonl` on the host, mounted as `/var/log/modsecurity/modsec_audit.jsonl` in the ModSecurity and bridge containers.
 
@@ -53,6 +55,14 @@ Verified proof result:
 - ModSecurity audit log preserved transaction `17821639659.909603`, source IP `172.21.0.1`, and URL-encoded query string.
 - Bridge posted to FastAPI with `status=200`.
 - Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, and CRS rules `942100`, `949110`.
+
+Optional demo-target proof:
+- Compose override: `docker-compose.demo-target.yml`
+- Nginx config: `config/modsecurity/demo-target-nginx.conf`
+- WAF path: `localhost:8089`
+- Upstream: `host.docker.internal:3010`
+- Observed report path: `reports/modsecurity-live-proof/demo-target-crs-proof.md`
+- Template path: `reports/modsecurity-live-proof/demo-target-crs-proof.md.template`
 
 Sensitive data handling:
 - The bridge redacts sensitive headers such as `Authorization`, `Cookie`, `Set-Cookie`, and header names containing `token`, `secret`, `key`, or `credential`.
