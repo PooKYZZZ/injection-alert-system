@@ -25,7 +25,7 @@ This tracker is based on the following.
 - `ml_model/retraining/README.md` says the retraining pipeline is still design-level only.
 - `reports/modsecurity-live-proof/e2e-proof.md` proves the local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest path through `localhost:8088`.
 - Runtime evidence from 2026-06-27 proves the realistic demo-target path through `localhost:8089`: `demo-target-bridge` posted transaction `178249138618.813428`, backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
-- `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard, alerts table, and WAF alert detail screenshot evidence; the pasted replacement set does not include a dedicated ML health screenshot.
+- `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
 
@@ -70,7 +70,7 @@ This tracker is based on the following.
 | `[x]` | Create CRS-only baseline test report | Critical | Medium | Done: `reports/modsecurity-live-proof/crs-baseline.md` records normal traffic, SQLi, XSS-like, command/file-access-like, and false-positive check results through `localhost:8088` with observed CRS rule IDs and transaction IDs. |
 | `[x]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Done: `reports/modsecurity-live-proof/demo-target-crs-proof.md` records observed portal route checks through `localhost:8089`, including normal traffic, SQLi/XSS checks, CRS transaction IDs, rule IDs, and matched messages where available. |
 | `[x]` | Connect demo-target WAF audit log to CyberTrace via demo-target-bridge | Critical | Medium | Done: `demo-target-bridge` watches `logs/modsecurity/demo-target/modsec_audit.jsonl`; verified transaction `178249138618.813428` posted with `status=200` and backend lookup returned `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15`. |
-| `[~]` | Verify end-to-end attack flow | Critical | Medium-High | Partial: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven for both `8088` and realistic `8089`; dashboard screenshot evidence exists for alerts/WAF detail, but no fresh `/records/search` dashboard screenshot was captured in this pass. |
+| `[x]` | Verify end-to-end attack flow | Critical | Medium-High | Done for local proof: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven for both `8088` and realistic `8089`; fresh dashboard screenshot evidence now includes `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15` in `reports/modsecurity-live-proof/screenshots/demo-target-8089-alerts-table.png`. |
 | `[x]` | Add bounded async inference queue | Critical | Medium | Done: `web_app/application/inference_queue.py` implements a bounded `asyncio.Queue(maxsize=N)` gate for synchronous WAF ingest, with overflow handling covered by `tests/unit/test_inference_queue.py`. |
 | `[x]` | Add queue health visibility | Critical | Low | Done: `/api/ml-health` includes optional queue health fields through the backend schema/BFF passthrough; UI-specific queue panel evidence is not claimed. |
 | `[~]` | Add minimal metrics endpoint | High | Low | Partial: `/api/stats` and `/api/ml-health` expose app/model stats and queue health, but no email or bridge metrics endpoint exists. |
@@ -120,7 +120,7 @@ Based on priority and implementation hardness, focus on the highest-value work t
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
 | 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
-| 5 | Capture final dashboard screenshot evidence | Partial: `reports/modsecurity-live-proof/dashboard-evidence.md` and screenshots under `reports/modsecurity-live-proof/screenshots/` show dashboard, alerts table, and WAF alert detail evidence. Dedicated ML health screenshot is Not Found in the replacement set. |
+| 5 | Capture final dashboard screenshot evidence | Done for the current local proof set: screenshots under `reports/modsecurity-live-proof/screenshots/` show the `8089` dashboard overview, `/records/search` alerts table with `crs_score=15`, default `8088` WAF detail drawer evidence, and ML health overview. |
 | 6 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
 | 7 | Add `CRITICAL >=90%` confidence tier | Client standard requires it and it touches backend/frontend contracts. |
 | 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
@@ -137,7 +137,7 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 2. Keep ModSecurity audit log rotation as future hardening unless explicitly approved and tested.
 3. Keep CRS-only baseline report as the current baseline evidence source.
 4. Keep `reports/modsecurity-live-proof/demo-target-crs-proof.md` as the observed demo-target WAF proof source.
-5. Add a dedicated ML health screenshot if the final evidence checklist must include `/ml-health`; current replacement screenshots cover dashboard, alerts table, and WAF alert detail.
+5. Add a queue-specific ML health screenshot only if the final evidence checklist must show queue fields in the UI; the current replacement screenshot covers the `/ml-health` overview but does not visibly show queue-health fields.
 6. Minimal metrics endpoint beyond the existing stats, ML health, and queue health.
 7. Structured JSON logs with request/transaction IDs.
 8. `CRITICAL >=90%` confidence tier.

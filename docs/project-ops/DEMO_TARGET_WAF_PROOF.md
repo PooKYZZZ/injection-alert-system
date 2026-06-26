@@ -107,7 +107,7 @@ Expected: `demo SQLi status: 403`.
 | Backend lookup | `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=15` |
 | `localhost:8088` SQLi smoke after fix | HTTP 403 |
 
-Dashboard check: use the dashboard alert views at `localhost:3000` to confirm the stored alert is visible to the analyst. The backend lookup above proves CyberTrace storage for the verified transaction; no fresh dashboard screenshot was captured in this docs pass.
+Dashboard check: saved screenshot evidence under `reports/modsecurity-live-proof/screenshots/` confirms the analyst UI displays the realistic `8089` proof in the alerts table. `demo-target-8089-alerts-table.png` shows `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15`; `demo-target-8089-dashboard-overview.png` shows `/records/search` in the dashboard targeted-path summary. The supplied alert-detail drawer screenshots show the default `8088` path and are not labeled as `8089` detail evidence.
 
 ## Evidence Handling
 

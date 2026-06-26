@@ -68,8 +68,8 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### Dashboard screenshot evidence
 
 - Dashboard evidence is documented in `reports/modsecurity-live-proof/dashboard-evidence.md`.
-- Reviewed replacement screenshots exist under `reports/modsecurity-live-proof/screenshots/`: dashboard overview variants, alerts table with WAF/ML rows, and WAF alert detail drawer.
-- The pasted replacement set does not include a dedicated ML health screenshot.
+- Reviewed replacement screenshots exist under `reports/modsecurity-live-proof/screenshots/`: dashboard overview variants, `8089` `/records/search` alerts table with WAF/ML rows, default `8088` WAF alert detail drawer, and ML health overview.
+- The latest ML health screenshot is an overview capture; queue-health fields are available through `/api/ml-health`, but a queue-specific UI screenshot is not claimed.
 - Capture target was `http://localhost:3000` only; no auth state, cookies, session headers, or secrets were written.
 
 ### Promotion Workflow Commands
