@@ -1,14 +1,38 @@
 services:
+  demo-portal:
+    build:
+      context: ${DEMO_PORTAL_CONTEXT:-../../land-records-portal}
+      dockerfile: Dockerfile
+    profiles:
+      - demo-target
+    expose:
+      - "3010"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3010
+      DATABASE_URL: file:./dev.db
+    volumes:
+      - ${DEMO_PORTAL_CONTEXT:-../../land-records-portal}/prisma:/app/prisma
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3010/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
   demo-target-modsecurity:
     image: owasp/modsecurity-crs:nginx-alpine
     profiles:
       - demo-target
     ports:
       - "8089:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
-      BACKEND: http://host.docker.internal:3010
+      BACKEND: http://demo-portal:3010
       PORT: 8080
       PARANOIA: 1
       BLOCKING_PARANOIA: 1
@@ -22,3 +46,29 @@ services:
       MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
     volumes:
       - ./logs/modsecurity/demo-target:/var/log/modsecurity
+    depends_on:
+      demo-portal:
+        condition: service_healthy
+
+  demo-target-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    profiles:
+      - demo-target
+    env_file:
+      - path: .env
+        required: true
+    command:
+      [
+        "sh",
+        "-c",
+        "echo 'waiting for demo-target ModSecurity audit log'; while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u scripts/waf_audit_bridge.py --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events",
+      ]
+    volumes:
+      - ./logs/modsecurity/demo-target:/var/log/modsecurity:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      demo-target-modsecurity:
+        condition: service_started

@@ -1,8 +1,8 @@
 # Local Setup
 
-Last updated: 2026-06-23
+Last updated: 2026-06-27
 
-This guide reflects the repo as it exists now. It supports both direct local development and a Docker-based smoke path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the verified WAF proof path uses `localhost:8088`.
+This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
 Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The current setup still uses demo-oriented credentials auth; final client scope includes secure login, RBAC, 2FA, timely alerts, email notification after detection, and a `CRITICAL >=90%` confidence tier.
 
@@ -293,6 +293,33 @@ This means:
 - Backend transaction lookup proof: `docker compose exec backend ...`
 
 Do not use `localhost:8000` for Docker proof unless backend port 8000 is explicitly published.
+
+### Final realistic demo-target stack
+
+For normal developer startup, the demo-target profile is not required. For the final realistic WAF demonstration, start this repo with the demo-target profile:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+```
+
+By default, the profile builds the protected demo website from the sibling path `../../land-records-portal`, which resolves to `G:\AI\land-records-portal` from this repo layout. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` before running Compose.
+
+Expected path:
+
+```text
+localhost:8089
+-> demo-target-modsecurity
+-> demo-portal on the Compose network port 3010
+-> logs/modsecurity/demo-target/modsec_audit.jsonl
+-> demo-target-bridge
+-> FastAPI internal WAF ingest
+-> ML triage
+-> dashboard/backend lookup
+```
+
+The land-records-portal source stays separate from this repository. This repo's Compose override references it as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
+
+Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 
 ### Backend health checks in Docker
 

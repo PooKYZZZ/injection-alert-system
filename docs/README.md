@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-06-23
+Last updated: 2026-06-27
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
@@ -31,6 +31,10 @@ This folder is the maintained documentation surface for the repository. It is in
   - Ongoing implementation checklist and handoff material.
 - `project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - ModSecurity audit-log policy for the verified local WAF proof path.
+- `project-ops/DEMO_TARGET_WAF_PROOF.md`
+  - Verified local PD2 proof for the realistic `localhost:8089` demo-target WAF path against the separate land-records portal.
+- `project-ops/SMOKE_TEST_RUNBOOK.md`
+  - Canonical smoke commands for the `8088` technical proof path and the `8089` realistic demo-target path.
 - `project-ops/README.md`
   - Entry point for the operator-doc subset.
 - `../reports/modsecurity-live-proof/e2e-proof.md`
@@ -44,7 +48,7 @@ This folder is the maintained documentation surface for the repository. It is in
 
 ## Verified Repo State
 
-- Backend tests currently pass: **336 passed** (pytest)
+- Backend tests currently pass: **413 passed** (pytest)
 - Frontend lint currently passes: `cd frontend && npm run lint`
 - Frontend typecheck currently passes: `cd frontend && npm run typecheck`
 - Frontend tests currently pass: **122 passed** (vitest)
@@ -57,9 +61,11 @@ This folder is the maintained documentation surface for the repository. It is in
 - Supabase is the active hosted PostgreSQL boundary for the app runtime
 - Dockerfiles and `docker-compose.yml` are present for local smoke testing
 - The local Compose stack currently publishes the frontend on `localhost:3000`
-- The WAF proof path is published on `localhost:8088`
+- The technical CyberTrace WAF proof path is published on `localhost:8088`
+- The realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled; Compose builds the separate land-records portal as internal service `demo-portal:3010`, so no manual portal dev server is required
 - The backend stays internal to the Compose network and is shown as `8000/tcp`; do not use `localhost:8000` unless backend port 8000 is explicitly published
 - Verified local WAF proof: `/healthz` and `/api/health` returned HTTP 200 through `localhost:8088`; SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned HTTP 403; bridge posted to FastAPI; Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
+- Verified demo-target WAF proof: `localhost:8089` home returned HTTP 200; SQLi marker `SMOKE002945` returned HTTP 403; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`
 - Targeted WAF checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed
 - Client-required real user access management/RBAC, 2FA, email notifications after detection, and the `CRITICAL >=90%` confidence tier are planned requirements tracked in `client-requirements.md`, not completed runtime behavior.
 

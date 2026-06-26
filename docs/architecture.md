@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-06-25
+Last updated: 2026-06-27
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -21,9 +21,13 @@ flowchart LR
     DB --> Supabase["Supabase PostgreSQL"]
 
     SQLite["SQLite (tests / isolated local work)"] -. optional .-> DB
-    WAFProof["localhost:8088 WAF proof path"] --> ModSec["ModSecurity + OWASP CRS"]
+    WAFProof["localhost:8088 technical WAF proof path"] --> ModSec["Main ModSecurity + OWASP CRS"]
     ModSec --> Bridge["WAF audit bridge"]
     Bridge --> FastAPI
+    DemoWAF["localhost:8089 realistic final demo WAF path"] --> DemoModSec["demo-target-modsecurity"]
+    DemoModSec --> DemoTarget["demo-portal (built from separate land-records-portal repo)"]
+    DemoModSec --> DemoBridge["demo-target-bridge"]
+    DemoBridge --> FastAPI
     Redis["Redis 7"] -. planned .-> FastAPI
 ```
 
@@ -36,7 +40,8 @@ flowchart LR
 | ModelService runtime boundary | Implemented | `web_app/services/model_service.py` |
 | WAF ingest endpoint | Verified local proof | `POST /api/internal/waf-events`, `GET /api/internal/waf-events/{transaction_id}`, targeted route tests `8 passed` |
 | WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `34 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
-| ModSecurity request path | Verified local proof | `localhost:8088` through ModSecurity/OWASP CRS blocked SQLi with HTTP 403 and wrote JSON audit log |
+| ModSecurity request path | Verified local proof | `localhost:8088` is the technical CyberTrace backend WAF proof path; SQLi blocks with HTTP 403 and writes `logs/modsecurity/modsec_audit.jsonl` |
+| Demo-target WAF ingest path | Verified local PD2 proof | `localhost:8089` is the realistic protected demo website path; `demo-target-bridge` forwards separate `logs/modsecurity/demo-target/modsec_audit.jsonl` events; transaction `178249138618.813428` reached FastAPI as `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15` |
 | Backend Compose exposure | Implemented | backend is internal-only in Compose and shown as `8000/tcp`; proof lookup uses `docker compose exec`, not `localhost:8000` |
 | Inference queue | Implemented | `web_app/application/inference_queue.py`; targeted tests cover synchronous WAF ingest, queue overflow, and queue health |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
@@ -164,6 +169,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - A local `docker-compose.yml`
 - Backend and frontend Dockerfiles
 - A verified local Compose ModSecurity + OWASP CRS proof path through `localhost:8088`
+- A demo-target WAF profile through `localhost:8089`; the profile is optional for normal developer startup, but required for the final realistic WAF demonstration. It builds `demo-portal` from the separate land-records portal repo path, runs it as an internal Compose service on port `3010`, and does not publish portal port `3010` to the host by default.
 - Internal WAF event ingest route and JSONL bridge tooling
 
 ## What Is Planned, Not Implemented

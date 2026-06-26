@@ -1,11 +1,11 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-27
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
-> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the WAF proof path is published on `localhost:8088`, and the backend stays internal to the compose network as `8000/tcp`.
+> **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the technical CyberTrace WAF proof path is published on `localhost:8088`, the realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled, and the backend stays internal to the compose network as `8000/tcp`.
 
 ---
 
@@ -150,6 +150,102 @@ Expected lookup fields:
 - `crs_score=5`
 - `crs_rule_ids` includes `942100` and `949110`
 
+## Step 5A — Final Realistic Demo-Target Smoke
+
+Use this section for the final realistic WAF demonstration. The land-records-portal source stays separate from this repo. The demo-target profile builds and starts it as `demo-portal` from the sibling repo path `../../land-records-portal`, which resolves to `G:\AI\land-records-portal` from this checkout layout; set `DEMO_PORTAL_CONTEXT` if your portal checkout lives elsewhere. The portal runs as a production Next.js standalone container on internal Compose port `3010`; no manual `npm run dev` is required.
+
+Start the compose stack with the demo-target profile:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+```
+
+Confirm expected containers:
+
+```powershell
+docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
+```
+
+Expected services include:
+
+- `frontend`
+- `backend`
+- `modsecurity`
+- `bridge`
+- `demo-target-modsecurity`
+- `demo-target-bridge`
+- `demo-portal`
+
+Confirm the protected demo website is reachable through the WAF:
+
+```powershell
+curl.exe -s -o NUL -w "8089 home status: %{http_code}`n" http://localhost:8089/
+```
+
+Expected: `8089 home status: 200`.
+
+Generate a fresh identifiable SQLi request:
+
+```powershell
+$marker = "SMOKE$(Get-Date -Format HHmmss)"
+$url = "http://localhost:8089/records/search?query=%27%20UNION%20SELECT%20null,null,null--%20$marker"
+Write-Host "Marker: $marker"
+curl.exe -s -o NUL -w "demo SQLi status: %{http_code}`n" $url
+```
+
+Expected: `demo SQLi status: 403`.
+
+Inspect the demo-target audit JSONL safely:
+
+```powershell
+$raw = Get-Content .\logs\modsecurity\demo-target\modsec_audit.jsonl -Tail 1
+$evt = $raw | ConvertFrom-Json
+$txid = $evt.transaction.unique_id
+$evt.transaction.unique_id
+$evt.transaction.request.uri
+$evt.transaction.request.headers.Host
+```
+
+Expected:
+
+- transaction ID is present
+- URI contains `/records/search`
+- host is `localhost:8089`
+
+Inspect the demo-target bridge logs:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge | Select-String -Pattern "posted|status=200|transaction_id|rule_ids|records/search|SMOKE|949110"
+```
+
+Expected: `demo-target-bridge` posted the fresh transaction with `status=200`.
+
+Run the Docker-internal backend lookup:
+
+```powershell
+docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+```
+
+Expected lookup fields:
+
+- `found=true`
+- `request_path=/records/search`
+- query string includes the safe `SMOKE` marker
+- `prediction=SQL Injection`
+- `action_taken=BLOCKED`
+- `crs_score` present
+- `crs_rule_ids` present
+
+Confirm the original `8088` proof path still blocks SQLi:
+
+```powershell
+curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/?id=1%27%20OR%20%271%27%3D%271"
+```
+
+Expected: `8088 SQLi status: 403`.
+
+Latest verified demo-target evidence: marker `SMOKE002945`, transaction `178249138618.813428`, host `localhost:8089`, request path `/records/search`, bridge post `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=15`.
+
 ---
 
 ## Step 6 — Log In to the Dashboard
@@ -290,23 +386,36 @@ $txid = $latest.transaction.unique_id
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
 docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 
-# 5. Optional demo data seeding (inside container)
+# 5. Final realistic demo-target smoke; Compose starts demo-portal from the separate portal repo
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+curl.exe -s -o NUL -w "8089 home status: %{http_code}`n" http://localhost:8089/
+$marker = "SMOKE$(Get-Date -Format HHmmss)"
+$url = "http://localhost:8089/records/search?query=%27%20UNION%20SELECT%20null,null,null--%20$marker"
+curl.exe -s -o NUL -w "demo SQLi status: %{http_code}`n" $url
+$raw = Get-Content .\logs\modsecurity\demo-target\modsec_audit.jsonl -Tail 1
+$evt = $raw | ConvertFrom-Json
+$txid = $evt.transaction.unique_id
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge
+docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/?id=1%27%20OR%20%271%27%3D%271"
+
+# 6. Optional demo data seeding (inside container)
 docker compose exec backend python seed_demo.py
 
-# 6. Open browser to http://localhost:3000/login and log in
+# 7. Open browser to http://localhost:3000/login and log in
 
-# 7. Verify pages
+# 8. Verify pages
 #    - http://localhost:3000/dashboard
 #    - http://localhost:3000/alerts
 #    - http://localhost:3000/ml-health
 
-# 8. Triage update (replace <ALERT_ID>)
+# 9. Triage update (replace <ALERT_ID>)
 docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{\"triage_status\":\"in_review\"}'
 
-# 9. Verify persistence
+# 10. Verify persistence
 docker compose exec backend curl -s http://localhost:8000/api/alerts/<ALERT_ID> -H "Authorization: Bearer local-dev-secret"
 
-# 10. Stop stack
+# 11. Stop stack
 docker compose down
 ```
 

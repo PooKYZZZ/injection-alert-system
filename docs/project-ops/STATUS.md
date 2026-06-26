@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-06-24
+**Last updated:** 2026-06-27
 
 ---
 
@@ -22,12 +22,12 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **336 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **413 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **69 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
 - Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
@@ -57,10 +57,13 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### CRS baseline and demo-target proof
 
 - CRS-only baseline is documented in `reports/modsecurity-live-proof/crs-baseline.md`.
-- Optional demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the optional service uses the official CRS image `BACKEND` reverse-proxy behavior without mounting a custom Nginx template.
-- Optional demo-target WAF path is `localhost:8089 -> ModSecurity/OWASP CRS -> host.docker.internal:3010`.
-- The portal target must be run separately by the user on host port `3010`.
+- Demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the demo-target service uses the official CRS image `BACKEND` reverse-proxy behavior without mounting a custom Nginx template.
+- The demo-target Compose profile is optional for normal developer startup and required for the final realistic WAF demonstration.
+- Demo-target WAF path is `localhost:8089 -> demo-target-modsecurity -> demo-portal`.
+- Demo-target CyberTrace ingest uses `demo-target-bridge`, which watches `logs/modsecurity/demo-target/modsec_audit.jsonl` separately from the default `8088` audit log.
+- `demo-portal` is built from the separate land-records portal repo path by the demo-target Compose profile; the portal source remains outside this repo, runs internally on Compose port `3010`, and is not host-published by default.
 - Observed demo-target evidence was captured through `localhost:8089`, including normal portal traffic and controlled SQLi/XSS checks with CRS transaction IDs, rule IDs, and matched messages where available.
+- Verified demo-target bridge evidence: SQLi marker `SMOKE002945` returned HTTP 403, audit transaction `178249138618.813428` had host `localhost:8089` and path `/records/search`, `demo-target-bridge` posted `status=200`, backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 
 ### Dashboard screenshot evidence
 
@@ -111,7 +114,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Current ModSecurity audit log path is JSONL at `logs/modsecurity/modsec_audit.jsonl`.
 - Local WAF proof evidence remains under `reports/modsecurity-live-proof/`.
 - Dashboard screenshot evidence remains under `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`.
-- Optional demo-target proof is separate from the default `localhost:8088` WAF proof path.
+- Demo-target proof is separate from the default `localhost:8088` WAF proof path and requires `demo-target-bridge` when `8089` events must appear in CyberTrace.
 - Automatic audit log rotation is not implemented.
 - Production retention and full Wazuh/SIEM deployment are not implemented.
 
@@ -120,7 +123,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ## Open Gaps (Current, Not Historical)
 
 - Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
-- Optional portal-target WAF proof through `localhost:8089` is runtime-verified in `reports/modsecurity-live-proof/demo-target-crs-proof.md`.
+- Portal-target WAF proof through `localhost:8089` is runtime-verified locally. The profile is optional for normal startup, but required for the final realistic WAF demonstration.
 - Bridge follow-mode resilience for transient `readline()` `OSError` remains a TODO.
 - Bounded in-process inference queue and queue health visibility are implemented for synchronous WAF ingest.
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.

@@ -9,7 +9,9 @@ This folder contains operator-focused working documents that support implementat
 - `LIVING_CHECKLIST.md`
   - ongoing task checklist and handoff material
 - `DEMO_TARGET_WAF_PROOF.md`
-  - optional local portal-target WAF proof plan for `localhost:8089 -> host.docker.internal:3010`
+  - verified local PD2 proof for the realistic `localhost:8089 -> demo-target-modsecurity -> demo-target-app` WAF path and `demo-target-bridge` ingest
+- `SMOKE_TEST_RUNBOOK.md`
+  - canonical smoke commands for normal Docker checks, the `8088` technical WAF proof path, and the `8089` final realistic demo-target path
 - `../../reports/modsecurity-live-proof/e2e-proof.md`
   - checked-in local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest proof
 - `MODSECURITY_AUDIT_LOG_POLICY.md`

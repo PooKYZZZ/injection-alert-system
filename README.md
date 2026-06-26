@@ -6,7 +6,7 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 This repository is active in its current app-plus-BFF form and now has a verified local ModSecurity/OWASP CRS proof path for WAF ingest. It is still not a finished production Docker/Redis deployment target.
 
-- Backend tests currently pass: `264 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
+- Backend tests currently pass: `413 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
 - Frontend tests currently pass: `122 passed` (run with `cd frontend && npx vitest run`)
 - Frontend typecheck currently passes: `cd frontend && npm run typecheck`
 - Frontend lint currently passes: `cd frontend && npm run lint`
@@ -15,6 +15,7 @@ This repository is active in its current app-plus-BFF form and now has a verifie
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist
 - Verified WAF proof path: `localhost:8088` -> ModSecurity/OWASP CRS -> JSON audit log -> bridge -> FastAPI internal WAF ingest
+- Verified realistic demo-target path: `localhost:8089` -> demo-target ModSecurity/OWASP CRS -> `demo-target-app` built from the separate land-records portal repo -> demo-target audit log -> demo-target-bridge -> FastAPI internal WAF ingest
 - Verified SQLi proof: `/api/health?id=17%27%20OR%2017%3D17--` through `localhost:8088` returned HTTP 403
 - Verified backend lookup result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
 - In Compose, the backend is internal-only (`8000/tcp`). Do not use `localhost:8000` for WAF proof unless port 8000 is explicitly published.
@@ -39,7 +40,7 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
-In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the WAF public proof path is `localhost:8088`.
+In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the technical WAF proof path is `localhost:8088`; the realistic final demo WAF path is `localhost:8089`, with the separate land-records portal built as the `demo-target-app` service from the sibling portal repo.
 
 ## Current Repository Scope
 
@@ -62,13 +63,14 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 - Alembic scaffolding and the current triage-processing migration set
 - Hosted PostgreSQL/Supabase runtime boundary for application data
 - Verified local ModSecurity/OWASP CRS ingest proof through `localhost:8088`
+- Verified local demo-target WAF ingest proof through `localhost:8089`
 - Internal WAF ingest and transaction lookup endpoints protected by bearer auth
+- Bounded in-process WAF inference queue and queue health visibility in ML health
 
 ### Not fully implemented yet
 
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed enforcement state
-- Bounded inference queue and queue health visibility
 - Client-required real user access management with RBAC and secure login
 - Client-required two-factor authentication
 - Client-required email notification after threat detection
@@ -172,7 +174,8 @@ Important constraints:
 
 - The frontend is published on `http://localhost:3000`
 - The backend is internal to the Compose network and is not published to the host
-- The WAF proof path is published on `http://localhost:8088`
+- The technical WAF proof path is published on `http://localhost:8088`
+- The realistic demo-target WAF path is published on `http://localhost:8089` when the `demo-target` profile is enabled; the profile also starts `demo-target-app` from the separate land-records portal repo
 - The active browser path remains `Browser -> Next.js -> FastAPI`
 - Backend transaction lookup proof should use `docker compose exec`, not `localhost:8000`
 

@@ -24,8 +24,10 @@ This tracker is based on the following.
 - `frontend/auth.ts` currently uses a credentials login with a demo-style SOC user.
 - `ml_model/retraining/README.md` says the retraining pipeline is still design-level only.
 - `reports/modsecurity-live-proof/e2e-proof.md` proves the local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest path through `localhost:8088`.
+- Runtime evidence from 2026-06-27 proves the realistic demo-target path through `localhost:8089`: `demo-target-bridge` posted transaction `178249138618.813428`, backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard, alerts table, and WAF alert detail screenshot evidence; the pasted replacement set does not include a dedicated ML health screenshot.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
+- `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
 
 ### Client Requirements
 
@@ -60,23 +62,24 @@ This tracker is based on the following.
 
 | Status | Task | Urgency | Difficulty | Why This Is Ranked Here |
 |---|---|---|---|---|
-| `[x]` | Build a small demo target website | Critical | Medium | External target exists at `G:\AI\land-records-portal` with WAF route inventory and live Playwright PASS evidence. Integration with this repo remains separate. |
+| `[x]` | Build a small demo target website | Critical | Medium | External target exists at `G:\AI\land-records-portal` with WAF route inventory and live Playwright PASS evidence. The source remains separate; this repo's demo-target Compose profile builds it as internal service `demo-portal:3010`. |
 | `[x]` | Put ModSecurity in the actual test request path | Critical | High | Done for local proof: `localhost:8088` reached ModSecurity/OWASP CRS, `/healthz` and `/api/health` returned 200, and SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned 403. This is not a production deployment claim. |
 | `[~]` | Decide ModSecurity audit log format and retention | Critical | Low | Partial: Policy documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; JSONL path is `logs/modsecurity/modsec_audit.jsonl`; automatic rotation is not implemented and production retention is not implemented. |
 | `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient OSError resilience remains TODO. |
 | `[x]` | Connect ModSecurity detections to FastAPI ingest reliably | Critical | High | Done for local proof: lookup for transaction `17821639659.909603` returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, source/request metadata, `crs_score=5`, and rules `942100`, `949110`. |
 | `[x]` | Create CRS-only baseline test report | Critical | Medium | Done: `reports/modsecurity-live-proof/crs-baseline.md` records normal traffic, SQLi, XSS-like, command/file-access-like, and false-positive check results through `localhost:8088` with observed CRS rule IDs and transaction IDs. |
 | `[x]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Done: `reports/modsecurity-live-proof/demo-target-crs-proof.md` records observed portal route checks through `localhost:8089`, including normal traffic, SQLi/XSS checks, CRS transaction IDs, rule IDs, and matched messages where available. |
-| `[~]` | Verify end-to-end attack flow | Critical | Medium-High | Partial: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven, and `reports/modsecurity-live-proof/dashboard-evidence.md` plus screenshots under `reports/modsecurity-live-proof/screenshots/` show dashboard, alerts table, and WAF alert detail evidence. Dedicated ML health screenshot is Not Found in the replacement set. |
-| `[ ]` | Add bounded async inference queue | Critical | Medium | Not started: no `asyncio.Queue(maxsize=N)` runtime ingestion queue found. ML inference is offloaded with `run_in_threadpool`, not queued. |
-| `[ ]` | Add queue health visibility | Critical | Low | Not started: `/api/ml-health` exists, but no queue depth, worker state, overflow, or last queue error fields exist. |
-| `[~]` | Add minimal metrics endpoint | High | Low | Partial: `/api/stats` and `/api/ml-health` expose app/model stats, but no queue/email/bridge metrics exist. |
+| `[x]` | Connect demo-target WAF audit log to CyberTrace via demo-target-bridge | Critical | Medium | Done: `demo-target-bridge` watches `logs/modsecurity/demo-target/modsec_audit.jsonl`; verified transaction `178249138618.813428` posted with `status=200` and backend lookup returned `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15`. |
+| `[~]` | Verify end-to-end attack flow | Critical | Medium-High | Partial: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven for both `8088` and realistic `8089`; dashboard screenshot evidence exists for alerts/WAF detail, but no fresh `/records/search` dashboard screenshot was captured in this pass. |
+| `[x]` | Add bounded async inference queue | Critical | Medium | Done: `web_app/application/inference_queue.py` implements a bounded `asyncio.Queue(maxsize=N)` gate for synchronous WAF ingest, with overflow handling covered by `tests/unit/test_inference_queue.py`. |
+| `[x]` | Add queue health visibility | Critical | Low | Done: `/api/ml-health` includes optional queue health fields through the backend schema/BFF passthrough; UI-specific queue panel evidence is not claimed. |
+| `[~]` | Add minimal metrics endpoint | High | Low | Partial: `/api/stats` and `/api/ml-health` expose app/model stats and queue health, but no email or bridge metrics endpoint exists. |
 | `[ ]` | Add structured JSON logs with transaction/request IDs | High | Medium | Not started: standard Python/Next logging exists; no repo-wide structured JSON logging contract found. |
 | `[ ]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Not started: code contracts still expose LOW, MEDIUM, HIGH only in `ml_model/inference/predict_attack.py` and `frontend/features/alerts/contract.ts`. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
 | `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
-| `[~]` | Add end-to-end demo/test script | High | Medium | Partial: `reports/modsecurity-live-proof/e2e-proof.md` contains copy-paste proof commands and results; no standalone automated final demo script is checked in. |
-| `[~]` | Add API abuse/resource smoke tests | High | Medium | Partial: tests cover auth, duplicate transaction IDs, model-not-ready, and body limits in places; queue overflow, email, SSE, and full dashboard access abuse tests are not present. |
+| `[~]` | Add end-to-end demo/test script | High | Medium | Partial: `docs/project-ops/SMOKE_TEST_RUNBOOK.md` contains manual smoke commands for `8088` and the final realistic `8089` demo path; no standalone automated final demo script is checked in. |
+| `[~]` | Add API abuse/resource smoke tests | High | Medium | Partial: tests cover auth, duplicate transaction IDs, model-not-ready, body limits in places, and inference queue overflow; email, SSE, and full dashboard access abuse tests are not present. |
 | `[~]` | Add analyst override/audit trail for model mistakes | High | Medium | Partial: `POST /api/feedback` stores analyst label/email/timestamp, but no full old/new action, reason, or model-version override audit trail exists. |
 | `[ ]` | Replace demo login with real user accounts | High | High | Not started: `frontend/auth.ts` still uses demo credentials and static SOC user identity. |
 | `[ ]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Not started: no persisted roles, session role claims, or route/action role checks found. |
@@ -118,14 +121,13 @@ Based on priority and implementation hardness, focus on the highest-value work t
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
 | 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
 | 5 | Capture final dashboard screenshot evidence | Partial: `reports/modsecurity-live-proof/dashboard-evidence.md` and screenshots under `reports/modsecurity-live-proof/screenshots/` show dashboard, alerts table, and WAF alert detail evidence. Dedicated ML health screenshot is Not Found in the replacement set. |
-| 6 | Add bounded async inference queue and queue health | Protects FastAPI from log bursts and mass attack tests while giving operators visibility. |
-| 7 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
-| 8 | Add `CRITICAL >=90%` confidence tier | Client standard requires it and it touches backend/frontend contracts. |
-| 9 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
-| 10 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
-| 11 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
-| 12 | Implement lightweight enforcement and challenge flow | Required for confidence-based response, but should follow stable WAF-to-dashboard proof. |
-| 13 | Implement analyst override and retraining skeleton | Supports HITL feedback and retraining objective without unsafe auto-promotion. |
+| 6 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
+| 7 | Add `CRITICAL >=90%` confidence tier | Client standard requires it and it touches backend/frontend contracts. |
+| 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
+| 9 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
+| 10 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
+| 11 | Implement lightweight enforcement and challenge flow | Required for confidence-based response, but should follow stable WAF-to-dashboard proof. |
+| 12 | Implement analyst override and retraining skeleton | Supports HITL feedback and retraining objective without unsafe auto-promotion. |
 
 Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, full Wazuh/SIEM, or blind model auto-promotion. Use lightweight implementation first and add heavier infrastructure only if a real shared-state or deployment need appears.
 
@@ -136,37 +138,35 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 3. Keep CRS-only baseline report as the current baseline evidence source.
 4. Keep `reports/modsecurity-live-proof/demo-target-crs-proof.md` as the observed demo-target WAF proof source.
 5. Add a dedicated ML health screenshot if the final evidence checklist must include `/ml-health`; current replacement screenshots cover dashboard, alerts table, and WAF alert detail.
-6. Add bounded async inference queue using `asyncio.Queue(maxsize=N)`.
-7. Queue health visibility in `/api/ml-health` or a small ops/health endpoint.
-8. Minimal metrics endpoint.
-9. Structured JSON logs with request/transaction IDs.
-10. `CRITICAL >=90%` confidence tier.
-11. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
-12. Real-time dashboard alerts using SSE/EventSource with polling fallback.
-13. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
-14. Standalone final demo/test script if the proof checklist is not enough for defense rehearsal.
-15. API abuse/resource smoke tests.
-16. Real user accounts or managed auth.
-17. RBAC for Admin, Analyst, and Viewer.
-18. 2FA/MFA and login hardening.
-19. Lightweight DB-backed or in-memory enforcement state.
-20. LOW light rate limiting.
-21. MEDIUM aggressive throttling.
-22. CAPTCHA/Turnstile challenge flow with server-side verification if Turnstile is used.
-23. HIGH/CRITICAL temporary IP blocking or firewall action.
-24. Analyst override/audit trail for model mistakes.
-25. Automated retraining pipeline skeleton.
-26. Dataset validation before retraining.
-27. Challenger evaluation gate before promotion.
-28. Real DistilBERT retraining mode if time allows.
-29. Model promotion/rollback integration with manual approval.
-30. Model artifact checksum/manifest validation.
-31. Production edge checklist.
-32. Backup/restore and migration rollback runbook.
-33. Alert/archive retention policy with no physical DELETE for audit/traffic logs.
-34. Wazuh export-only JSON/JSONL integration if time allows.
-35. Align operator docs after implementation.
-36. Dashboard polish for mitigation/security pages.
+6. Minimal metrics endpoint beyond the existing stats, ML health, and queue health.
+7. Structured JSON logs with request/transaction IDs.
+8. `CRITICAL >=90%` confidence tier.
+9. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
+10. Real-time dashboard alerts using SSE/EventSource with polling fallback.
+11. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
+12. Standalone final demo/test script if the proof checklist is not enough for defense rehearsal.
+13. API abuse/resource smoke tests.
+14. Real user accounts or managed auth.
+15. RBAC for Admin, Analyst, and Viewer.
+16. 2FA/MFA and login hardening.
+17. Lightweight DB-backed or in-memory enforcement state.
+18. LOW light rate limiting.
+19. MEDIUM aggressive throttling.
+20. CAPTCHA/Turnstile challenge flow with server-side verification if Turnstile is used.
+21. HIGH/CRITICAL temporary IP blocking or firewall action.
+22. Analyst override/audit trail for model mistakes.
+23. Automated retraining pipeline skeleton.
+24. Dataset validation before retraining.
+25. Challenger evaluation gate before promotion.
+26. Real DistilBERT retraining mode if time allows.
+27. Model promotion/rollback integration with manual approval.
+28. Model artifact checksum/manifest validation.
+29. Production edge checklist.
+30. Backup/restore and migration rollback runbook.
+31. Alert/archive retention policy with no physical DELETE for audit/traffic logs.
+32. Wazuh export-only JSON/JSONL integration if time allows.
+33. Align operator docs after implementation.
+34. Dashboard polish for mitigation/security pages.
 
 ## Notes For Client Security Requirements
 
@@ -229,11 +229,17 @@ ModSecurity tracker work must include:
 
 ## Notes For Queue And Inference Safety
 
-Use native `asyncio.Queue(maxsize=N)` before Redis/Celery.
+Native `asyncio.Queue(maxsize=N)` is implemented for synchronous WAF ingest before Redis/Celery.
 
 Queue goal: protect FastAPI and ML inference from log bursts and client mass attack tests.
 
-Define overflow behavior explicitly:
+Current overflow behavior:
+
+- reject new WAF ingest work with HTTP 503
+- return `Retry-After: 5`
+- preserve the synchronous WAF ingest response contract for accepted work
+
+Future enforcement design should still define behavior for non-inference queues explicitly:
 
 - Reject new event.
 - Skip ML but store basic alert.
@@ -242,9 +248,7 @@ Define overflow behavior explicitly:
 
 Do not silently drop WAF events.
 
-Expose queue depth, worker status, processed count, failed count, rejected/skipped count, and last worker error.
-
-Put queue status in `/api/ml-health` or a small ops/health endpoint.
+Queue health is exposed in `/api/ml-health`, including depth, capacity, worker status, processed count, failed count, overflow count, and sanitized last worker error.
 
 Keep worker count small and predictable for PD2.
 

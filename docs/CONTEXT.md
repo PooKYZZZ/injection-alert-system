@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-06-25
+Updated: 2026-06-27
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -16,8 +16,9 @@ The repository currently contains:
 - Documentation and academic deliverables under `docs/`
 - A live Supabase-backed PostgreSQL runtime path for application data
 - A verified local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest proof path through Docker Compose
+- A demo-target WAF profile for `localhost:8089`, with a separate `demo-target-bridge` that forwards protected demo website audit events to CyberTrace. The profile is optional for normal developer startup and required for the final realistic WAF demonstration.
 
-This is not yet a production Docker/Redis deployment. The codebase includes Dockerfiles and a `docker-compose.yml`; the verified WAF proof path uses `localhost:8088`, while the dashboard browser path remains the Next.js BFF path.
+This is not yet a production Docker/Redis deployment. The codebase includes Dockerfiles and a `docker-compose.yml`; the technical CyberTrace backend WAF proof path uses `localhost:8088`, the protected demo website WAF path uses profile port `localhost:8089`, and the dashboard browser path remains the Next.js BFF path.
 
 Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. They include secure login, RBAC, strong account security with 2FA, timely threat alerts, email notification after detection, and a `CRITICAL >=90%` confidence tier.
 
@@ -38,6 +39,17 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Docker-internal backend lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
 - Targeted checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet`.
 - Remaining TODO: bridge follow mode once logged transient `OSError: [Errno 5] Input/output error` at `readline()`; the container restarted and posted successfully afterward.
+
+### Realistic demo-target WAF proof (2026-06-27)
+
+- The land-records-portal source stays separate. The demo-target Compose profile builds and runs it as `demo-portal` from the sibling portal repo path, with the production standalone server bound to `0.0.0.0:3010` inside the Compose network.
+- `localhost:8089` returned HTTP 200 for the demo-target home request.
+- Fresh SQLi marker `SMOKE002945` against `/records/search` returned HTTP 403.
+- Demo-target audit log path: `logs/modsecurity/demo-target/modsec_audit.jsonl`.
+- Demo-target transaction: `178249138618.813428`, host `localhost:8089`, request path `/records/search`.
+- `demo-target-bridge` posted `status=200` for transaction `178249138618.813428`.
+- Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
+- `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
 ### Checks run on 2026-03-23
 
@@ -111,7 +123,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Root `docker-compose.yml`
 - Dockerfiles for frontend and backend
 - Compose ModSecurity/OWASP CRS proof path on `localhost:8088`
-- Internal WAF ingest endpoint, WAF ingest use case, JSONL bridge, and replay harness
+- Internal WAF ingest endpoint, WAF ingest use case, JSONL bridge, replay harness, and demo-target bridge. The demo-target profile is optional for normal startup and required for the final realistic WAF demonstration.
 
 ## Not Yet Implemented
 

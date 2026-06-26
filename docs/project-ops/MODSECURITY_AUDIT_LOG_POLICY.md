@@ -2,7 +2,7 @@
 
 **Project:** CyberTrace / Injection Alert System
 **File:** `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
-**Last updated:** 2026-06-24
+**Last updated:** 2026-06-25
 **Scope:** Local PD2 WAF proof, audit evidence handling, and operator documentation
 
 ---
@@ -23,9 +23,9 @@ This is a local PD2 policy. It is not a claim that production-grade centralized 
 
 ---
 
-## 2. Current Verified WAF Path
+## 2. Current Verified WAF Paths
 
-The verified local WAF proof path is:
+The verified technical CyberTrace backend WAF proof path is:
 
 ```text id="tqz77q"
 Client/test request
@@ -39,10 +39,31 @@ Client/test request
 -> dashboard / backend transaction lookup
 ```
 
-Use this path for WAF-facing proof requests:
+Use this path for technical CyberTrace backend WAF proof requests:
 
 ```text id="x6g7rz"
 http://localhost:8088
+```
+
+The verified realistic protected demo website WAF path is:
+
+```text id="demo-target-path"
+Client/test request
+-> http://localhost:8089
+-> demo-target-modsecurity / OWASP CRS
+-> demo-target-app built from the separate land-records-portal repo
+-> logs/modsecurity/demo-target/modsec_audit.jsonl
+-> demo-target-bridge
+-> FastAPI internal WAF ingest
+-> ML triage
+-> persisted alert
+-> dashboard / backend transaction lookup
+```
+
+Use this path for the final realistic WAF demonstration:
+
+```text id="demo-target-url"
+http://localhost:8089
 ```
 
 Backend proof lookup must use Docker-internal access:
@@ -57,10 +78,16 @@ Do not document `http://localhost:8000` as the normal Docker proof path unless t
 
 ## 3. Audit Log Source of Truth
 
-Current ModSecurity audit log path:
+Main ModSecurity audit log path for `8088`:
 
 ```text id="qvp1p3"
 logs/modsecurity/modsec_audit.jsonl
+```
+
+Demo-target ModSecurity audit log path for `8089`:
+
+```text id="demo-target-audit-path"
+logs/modsecurity/demo-target/modsec_audit.jsonl
 ```
 
 Current audit log format:
@@ -75,7 +102,7 @@ Meaning:
 one ModSecurity audit event per line
 ```
 
-The raw ModSecurity audit log is the main evidence source for WAF-layer events.
+The raw ModSecurity audit log is the main evidence source for WAF-layer events. Keep the `8088` and `8089` audit files separate to avoid confusing proof evidence or bridge reads.
 
 Database alert records and dashboard cards are derived application records. They are useful, but they do not replace the raw WAF audit log when proving where an alert came from.
 
@@ -126,7 +153,7 @@ It should connect:
 
 ```text id="g944qk"
 ModSecurity audit log
--> bridge log
+-> bridge or demo-target-bridge log
 -> backend WAF ingest record
 -> persisted alert
 -> dashboard evidence
@@ -226,15 +253,16 @@ There are three different log/evidence types. Do not mix them up.
 
 ```text id="ifhz6w"
 logs/modsecurity/modsec_audit.jsonl
+logs/modsecurity/demo-target/modsec_audit.jsonl
 ```
 
 Purpose:
 
 ```text id="gyndd7"
-raw WAF transaction evidence
+raw WAF transaction evidence for the `8088` technical proof path and the `8089` realistic demo-target path
 ```
 
-This is the source used by the bridge.
+The main `bridge` reads `logs/modsecurity/modsec_audit.jsonl`. The `demo-target-bridge` reads `logs/modsecurity/demo-target/modsec_audit.jsonl`.
 
 ### 7.2 Docker container logs
 
@@ -297,6 +325,7 @@ Routine local logs belong under:
 
 ```text id="r2r4z2"
 logs/modsecurity/
+logs/modsecurity/demo-target/
 ```
 
 Routine local logs may be rotated, archived, or cleared after proof evidence has been captured.
@@ -332,6 +361,8 @@ logs/modsecurity/modsec_audit.jsonl.3
 logs/modsecurity/modsec_audit.jsonl.4
 logs/modsecurity/modsec_audit.jsonl.5
 ```
+
+Use the same naming style under `logs/modsecurity/demo-target/` for the demo-target audit file if local rotation is added later.
 
 This document defines the policy target only.
 
@@ -383,10 +414,22 @@ Check audit log size:
 Get-Item .\logs\modsecurity\modsec_audit.jsonl | Select-Object FullName, Length, LastWriteTime
 ```
 
+Check demo-target audit log size:
+
+```powershell id="demo-target-size"
+Get-Item .\logs\modsecurity\demo-target\modsec_audit.jsonl | Select-Object FullName, Length, LastWriteTime
+```
+
 View latest audit event:
 
 ```powershell id="c11j3e"
 Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
+```
+
+View latest demo-target audit event:
+
+```powershell id="demo-target-tail"
+Get-Content .\logs\modsecurity\demo-target\modsec_audit.jsonl -Tail 1
 ```
 
 Capture a local proof snapshot before clearing routine logs:
@@ -605,12 +648,14 @@ This policy is considered documented when:
 PASS: file exists at docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md
 PASS: audit format is documented as JSONL
 PASS: audit path is documented as logs/modsecurity/modsec_audit.jsonl
+PASS: demo-target audit path is documented as logs/modsecurity/demo-target/modsec_audit.jsonl
 PASS: preserved evidence fields are listed
 PASS: sensitive-data exclusions are listed
 PASS: local retention behavior is documented
 PASS: local rotation target is documented
 PASS: reports/modsecurity-live-proof/ is identified as proof evidence location
 PASS: localhost:8088 remains the WAF proof path
+PASS: localhost:8089 remains the realistic protected demo website proof path
 PASS: backend lookup remains Docker-internal
 PASS: docs do not claim full SIEM deployment
 PASS: docs do not claim production retention is implemented
