@@ -174,6 +174,8 @@ Treat `CRITICAL >=90%` as a client confidence standard and update backend/fronte
 
 Keep confidence tier separate from attack severity.
 
+Current repo naming note: LOW, MEDIUM, and HIGH are the current confidence tiers. The app now prefers `confidence_tier` naming while retaining legacy `severity` query compatibility during migration. Adding `CRITICAL >=90%` remains a separate future task.
+
 Secure login, RBAC, and 2FA should be implemented as one account-security track:
 
 1. Replace demo password login with real user accounts or managed auth.

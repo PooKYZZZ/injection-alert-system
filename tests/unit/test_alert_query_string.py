@@ -24,6 +24,7 @@ class TestAlertQueryParams:
         assert params.page == 1
         assert params.page_size == 20
         assert params.severity is None
+        assert params.confidence_tier is None
         assert params.time_range is None
         assert params.search is None
         assert params.action is None
@@ -39,6 +40,12 @@ class TestAlertQueryParams:
         for severity in ["ALL", "LOW", "MEDIUM", "HIGH"]:
             params = AlertQueryParams(severity=severity)
             assert params.severity == severity
+
+    def test_valid_confidence_tier_filter(self):
+        """Test valid confidence_tier filter values."""
+        for confidence_tier in ["ALL", "LOW", "MEDIUM", "HIGH"]:
+            params = AlertQueryParams(confidence_tier=confidence_tier)
+            assert params.confidence_tier == confidence_tier
 
     def test_valid_time_range_filter(self):
         """Test valid time_range filter values."""
@@ -98,6 +105,15 @@ class TestAlertQueryParamsCombinations:
         )
         assert params.severity == "HIGH"
         assert params.action == "BLOCKED"
+
+    def test_matching_severity_and_confidence_tier_combination(self):
+        """Test matching legacy and preferred confidence-tier filters."""
+        params = AlertQueryParams(
+            severity="HIGH",
+            confidence_tier="HIGH",
+        )
+        assert params.severity == "HIGH"
+        assert params.confidence_tier == "HIGH"
 
     def test_time_range_and_triage_status_combination(self):
         """Test combining time_range and triage_status filters."""
@@ -167,10 +183,17 @@ class TestAlertQueryParamsEdgeCases:
         params = AlertQueryParams(search="")
         assert params.search == ""
 
+    def test_conflicting_severity_and_confidence_tier_raises(self):
+        """Test conflicting legacy and preferred filters are rejected."""
+        params = AlertQueryParams(severity="LOW", confidence_tier="HIGH")
+        with pytest.raises(ValueError, match="severity and confidence_tier"):
+            params.ensure_compatible_confidence_tier_aliases()
+
     def test_none_values_for_optional_fields(self):
         """Test None values for optional fields."""
         params = AlertQueryParams(
             severity=None,
+            confidence_tier=None,
             time_range=None,
             search=None,
             action=None,
@@ -180,6 +203,7 @@ class TestAlertQueryParamsEdgeCases:
             source_ip=None,
         )
         assert params.severity is None
+        assert params.confidence_tier is None
         assert params.time_range is None
 
     def test_page_below_minimum_raises(self):

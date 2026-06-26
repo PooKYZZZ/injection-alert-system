@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { TRIAGE_STATUS_VALUES } from '@/features/alerts/schemas'
 import {
-  ALERT_SEVERITY_VALUES,
+  ALERT_CONFIDENCE_TIER_VALUES,
   ALERT_ACTION_TAKEN_VALUES,
 } from '@/features/alerts/contract'
 
@@ -13,12 +13,12 @@ interface FilterBarProps {
   filteredCount?: number
 }
 
-const SEVERITY_CYCLE = ['ALL', ...ALERT_SEVERITY_VALUES] as const
+const CONFIDENCE_TIER_CYCLE = ['ALL', ...ALERT_CONFIDENCE_TIER_VALUES] as const
 const ACTION_CYCLE = ['ALL', ...ALERT_ACTION_TAKEN_VALUES] as const
 const TRIAGE_CYCLE = ['ALL', ...TRIAGE_STATUS_VALUES] as const
 const WINDOW_CYCLE = ['ALL', '1h', '6h', '24h', '7d'] as const
 
-type SeverityValue = (typeof SEVERITY_CYCLE)[number]
+type ConfidenceTierValue = (typeof CONFIDENCE_TIER_CYCLE)[number]
 type ActionValue = (typeof ACTION_CYCLE)[number]
 type TriageValue = (typeof TRIAGE_CYCLE)[number]
 type WindowValue = (typeof WINDOW_CYCLE)[number]
@@ -59,12 +59,13 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  const currentSeverity = searchParams.get('severity') ?? 'ALL'
+  const currentConfidenceTier =
+    searchParams.get('confidence_tier') ?? searchParams.get('severity') ?? 'ALL'
   const currentAction = searchParams.get('action') ?? 'ALL'
   const currentTriage = searchParams.get('triage_status') ?? 'ALL'
   const currentWindow = searchParams.get('window') ?? 'ALL'
   const activeFilterCount = [
-    currentSeverity !== 'ALL',
+    currentConfidenceTier !== 'ALL',
     currentAction !== 'ALL',
     currentTriage !== 'ALL',
     currentWindow !== 'ALL',
@@ -85,12 +86,14 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     }, 150)
   }, [router, pathname, searchParams])
 
-  function handleSeverityChange(next: SeverityValue) {
+  function handleConfidenceTierChange(next: ConfidenceTierValue) {
     replaceWithParams((params) => {
       if (next === 'ALL') {
+        params.delete('confidence_tier')
         params.delete('severity')
       } else {
-        params.set('severity', next)
+        params.set('confidence_tier', next)
+        params.delete('severity')
       }
     })
   }
@@ -129,6 +132,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
 
   function handleClearAll() {
     replaceWithParams((params) => {
+      params.delete('confidence_tier')
       params.delete('severity')
       params.delete('action')
       params.delete('triage_status')
@@ -165,9 +169,9 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           />
           <FilterSelect
             label="Confidence"
-            value={currentSeverity as SeverityValue}
-            options={SEVERITY_CYCLE}
-            onChange={handleSeverityChange}
+            value={currentConfidenceTier as ConfidenceTierValue}
+            options={CONFIDENCE_TIER_CYCLE}
+            onChange={handleConfidenceTierChange}
           />
         </div>
 
@@ -199,5 +203,4 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     </motion.div>
   )
 }
-
 

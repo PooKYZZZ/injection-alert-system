@@ -95,6 +95,29 @@ def test_alerts_endpoint_empty(client):
     }
 
 
+def test_alerts_endpoint_accepts_matching_legacy_and_preferred_confidence_tier(
+    client,
+):
+    response = client.get(
+        "/api/alerts?severity=HIGH&confidence_tier=HIGH",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+
+
+def test_alerts_endpoint_rejects_conflicting_legacy_and_preferred_confidence_tier(
+    client,
+):
+    response = client.get(
+        "/api/alerts?severity=LOW&confidence_tier=HIGH",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 422
+    assert "severity and confidence_tier" in response.text
+
+
 def test_alerts_endpoint_with_data(client):
     """Test alerts endpoint returns stored alerts"""
     # First make a prediction to create a log

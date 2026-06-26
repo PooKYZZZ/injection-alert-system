@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import {
   ALERT_ACTION_TAKEN_VALUES,
+  ALERT_CONFIDENCE_TIER_VALUES,
   ALERT_PREDICTION_VALUES,
-  ALERT_SEVERITY_VALUES,
 } from './contract'
 
 export const TRIAGE_STATUS_VALUES = [
@@ -31,15 +31,16 @@ export const SourceIntelSchema = z.object({
 export const AlertFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().default(20),
-  severity: z.enum(['ALL', ...ALERT_SEVERITY_VALUES]).optional(),
-  confidence_level: z.array(z.enum(ALERT_SEVERITY_VALUES)).optional(),
+  confidence_tier: z.enum(['ALL', ...ALERT_CONFIDENCE_TIER_VALUES]).optional(),
+  severity: z.enum(['ALL', ...ALERT_CONFIDENCE_TIER_VALUES]).optional(),
+  confidence_level: z.array(z.enum(ALERT_CONFIDENCE_TIER_VALUES)).optional(),
   action: z.enum(ALERT_ACTION_TAKEN_VALUES).optional(),
   triage_status: TriageStatusSchema.optional(),
   prediction: z.enum(ALERT_PREDICTION_VALUES).optional(),
   source_ip: z.string().optional(),
   search: z.string().max(200).optional(),
   window: z.enum(['1h', '6h', '24h', '7d']).optional(),
-  sort_by: z.enum(['timestamp', 'confidence', 'severity', 'action']).default('timestamp'),
+  sort_by: z.enum(['timestamp', 'confidence', 'severity', 'confidence_tier', 'action']).default('timestamp'),
   sort_dir: z.enum(['asc', 'desc']).default('desc'),
 })
 
@@ -55,7 +56,7 @@ export const AlertSchema = z.object({
   payload_snippet: z.string(),
   prediction: z.enum(ALERT_PREDICTION_VALUES),
   confidence: z.number(),
-  confidence_level: z.enum(ALERT_SEVERITY_VALUES),
+  confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable(),
   triage_status: TriageStatusSchema.nullable().optional(),
   crs_score: z.number().optional(),

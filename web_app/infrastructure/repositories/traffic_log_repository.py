@@ -1186,6 +1186,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         page: int,
         page_size: int,
         severity: Optional[str] = None,
+        confidence_tier_filter: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
         action: Optional[str] = None,
@@ -1203,12 +1204,18 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         stmt = select(TrafficLog).where(self._completed_or_legacy_clause())
 
-        # PD1 semantics: the "severity" filter currently maps directly to the
-        # persisted confidence tier. If policy/action severity diverges later,
-        # update the API contract and repository filter together rather than
-        # silently reinterpreting this parameter.
-        if severity and severity != "ALL":
-            stmt = stmt.where(TrafficLog.confidence_level == severity)
+        effective_confidence_tier_filter = confidence_tier_filter or severity
+
+        # The persisted column remains `confidence_level`. Accept the preferred
+        # confidence-tier filter while keeping the legacy severity alias alive
+        # until callers have migrated.
+        if (
+            effective_confidence_tier_filter
+            and effective_confidence_tier_filter != "ALL"
+        ):
+            stmt = stmt.where(
+                TrafficLog.confidence_level == effective_confidence_tier_filter
+            )
 
         if time_range in TIME_RANGE_DELTAS:
             cutoff = datetime.now(timezone.utc) - TIME_RANGE_DELTAS[time_range]
@@ -1266,8 +1273,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         sort_column = TrafficLog.timestamp
         if sort_by == "confidence":
             sort_column = TrafficLog.confidence
-        elif sort_by == "severity":
-            # Rank severity explicitly so HIGH sorts ahead of MEDIUM and LOW.
+        elif sort_by in ("severity", "confidence_tier"):
+            # Rank confidence tiers explicitly so HIGH sorts ahead of MEDIUM and LOW.
             sort_column = case(
                 (TrafficLog.confidence_level == "HIGH", 3),
                 (TrafficLog.confidence_level == "MEDIUM", 2),

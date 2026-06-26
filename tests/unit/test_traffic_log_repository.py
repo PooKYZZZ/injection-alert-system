@@ -101,6 +101,50 @@ async def test_get_alert_list_returns_filtered_total_and_stable_order(
 
 
 @pytest.mark.asyncio
+async def test_get_alert_list_filters_by_preferred_confidence_tier(
+    repository: TrafficLogRepository,
+):
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-tier-low",
+            source_ip="10.0.0.8",
+            request_path="/public",
+            request_method="GET",
+            http_request="GET /public",
+            prediction="Normal",
+            confidence=0.22,
+            confidence_level="LOW",
+            inference_latency_ms=3.0,
+            action_taken="ALLOWED",
+        )
+    )
+    saved_high = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-tier-high",
+            source_ip="10.0.0.9",
+            request_path="/admin",
+            request_method="POST",
+            http_request="POST /admin id=1 OR 1=1",
+            prediction="SQL Injection",
+            confidence=0.94,
+            confidence_level="HIGH",
+            inference_latency_ms=3.5,
+            action_taken="BLOCKED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=10,
+        confidence_tier_filter="HIGH",
+        time_range="7d",
+    )
+
+    assert page.total == 1
+    assert [item.id for item in page.items] == [saved_high.id]
+
+
+@pytest.mark.asyncio
 async def test_get_by_transaction_id_returns_entity(
     repository: TrafficLogRepository,
 ):

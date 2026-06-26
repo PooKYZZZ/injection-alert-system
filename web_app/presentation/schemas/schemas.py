@@ -339,7 +339,10 @@ class AlertQueryParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
     severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]] = Field(
-        default=None, description="Filter by confidence level severity"
+        default=None, description="Legacy compatibility alias for confidence tier"
+    )
+    confidence_tier: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]] = Field(
+        default=None, description="Filter by confidence tier"
     )
     time_range: Optional[Literal["1h", "6h", "24h", "7d"]] = Field(
         default=None, description="Time window filter"
@@ -366,9 +369,26 @@ class AlertQueryParams(BaseModel):
     source_ip: Optional[str] = Field(
         default=None, description="Filter by exact source IP"
     )
-    sort_by: Optional[Literal["timestamp", "confidence", "severity", "action"]] = Field(
+    sort_by: Optional[
+        Literal["timestamp", "confidence", "severity", "confidence_tier", "action"]
+    ] = Field(
         default="timestamp", description="Sort field"
     )
     sort_dir: Optional[Literal["asc", "desc"]] = Field(
         default="desc", description="Sort direction"
     )
+
+    def ensure_compatible_confidence_tier_aliases(self) -> None:
+        if (
+            self.severity
+            and self.confidence_tier
+            and self.severity != self.confidence_tier
+        ):
+            raise ValueError(
+                "severity and confidence_tier must match when both are provided"
+            )
+
+    @property
+    def effective_confidence_tier(self) -> Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]]:
+        self.ensure_compatible_confidence_tier_aliases()
+        return self.confidence_tier or self.severity
