@@ -103,6 +103,7 @@ describe('AlertsTable', () => {
 
     expect(mockedUseAlertsFromFilters).toHaveBeenCalledWith(
       expect.objectContaining({
+        confidence_tier: 'HIGH',
         severity: 'HIGH',
         page: 3,
         sort_by: 'confidence',
@@ -111,6 +112,19 @@ describe('AlertsTable', () => {
         confidence_level: ['HIGH', 'MEDIUM'],
       })
     )
+  })
+
+  it('renders a visible confidence column label', async () => {
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    const confidenceHeaders = await screen.findAllByText('Confidence')
+    expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
   it('marks new alerts as in review when clicked', async () => {

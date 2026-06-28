@@ -14,6 +14,23 @@ describe('normalizeAlertSearchParams', () => {
     expect(result.confidence_level).toEqual(['HIGH'])
   })
 
+  it('reads legacy severity filter into preferred confidence_tier state', () => {
+    const result = normalizeAlertSearchParams({
+      severity: 'HIGH',
+    })
+    expect(result.confidence_tier).toBe('HIGH')
+    expect(result.severity).toBe('HIGH')
+  })
+
+  it('preserves conflicting legacy and preferred confidence-tier params for backend validation', () => {
+    const result = normalizeAlertSearchParams({
+      severity: 'LOW',
+      confidence_tier: 'HIGH',
+    })
+    expect(result.severity).toBe('LOW')
+    expect(result.confidence_tier).toBe('HIGH')
+  })
+
   it('normalizes multiple confidence_level values to deduplicated array', () => {
     const result = normalizeAlertSearchParams({
       confidence_level: ['HIGH', 'MEDIUM', 'HIGH'],
@@ -159,7 +176,7 @@ describe('toAlertQueryString', () => {
     const result = toAlertQueryString({
       page: 2,
       pageSize: 10,
-      severity: 'HIGH',
+      confidence_tier: 'HIGH',
       confidence_level: ['HIGH', 'LOW'],
       action: 'BLOCKED',
       triage_status: 'new',
@@ -172,6 +189,7 @@ describe('toAlertQueryString', () => {
     })
     expect(result).toContain('page=2')
     expect(result).toContain('pageSize=10')
+    expect(result).toContain('confidence_tier=HIGH')
     expect(result).toContain('confidence_level=HIGH')
     expect(result).toContain('confidence_level=LOW')
     expect(result).toContain('action=BLOCKED')
@@ -180,5 +198,16 @@ describe('toAlertQueryString', () => {
     expect(result).toContain('window=6h')
     expect(result).toContain('sort_by=confidence')
     expect(result).toContain('sort_dir=asc')
+  })
+
+  it('serializes both confidence_tier and legacy severity when both are present', () => {
+    const result = toAlertQueryString({
+      ...DEFAULT_ALERT_FILTERS,
+      confidence_tier: 'HIGH',
+      severity: 'LOW',
+    })
+
+    expect(result).toContain('confidence_tier=HIGH')
+    expect(result).toContain('severity=LOW')
   })
 })

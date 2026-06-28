@@ -1,11 +1,19 @@
 import type {
   AlertAction,
+  AlertConfidenceTier,
   AlertPrediction,
   AlertSeverity,
 } from './contract'
 import type { TriageStatus, AlertFilters } from './schemas'
 
-export type { AlertAction, AlertPrediction, AlertSeverity, TriageStatus, AlertFilters }
+export type {
+  AlertAction,
+  AlertConfidenceTier,
+  AlertPrediction,
+  AlertSeverity,
+  TriageStatus,
+  AlertFilters,
+}
 
 export interface ShapFeature {
   feature_name: string
@@ -29,7 +37,7 @@ export interface Alert {
   payload_snippet: string
   prediction: AlertPrediction
   confidence: number
-  confidence_level: AlertSeverity
+  confidence_level: AlertConfidenceTier
   action_taken: AlertAction | null
   triage_status?: TriageStatus | null
   crs_score?: number

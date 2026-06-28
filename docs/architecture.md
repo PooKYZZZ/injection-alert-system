@@ -189,7 +189,8 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
 - `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
-- Current confidence tier and frontend severity contracts do not include `CRITICAL`.
+- Current confidence tiers are `LOW`, `MEDIUM`, and `HIGH`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
+- Current confidence tier contracts do not include `CRITICAL`.
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Bridge follow mode has a resilience TODO for a transient `OSError: [Errno 5] Input/output error` observed at `readline()`; the container restarted and successfully posted afterward.
 

@@ -257,6 +257,7 @@ class ITrafficLogRepository(ABC):
         page: int,
         page_size: int,
         severity: Optional[str] = None,
+        confidence_tier_filter: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
         action: Optional[str] = None,

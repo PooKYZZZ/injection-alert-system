@@ -1,19 +1,20 @@
-export type SeverityFilter = 'ALL' | 'LOW' | 'MEDIUM' | 'HIGH'
+export type ConfidenceTierFilter = 'ALL' | 'LOW' | 'MEDIUM' | 'HIGH'
+export type SeverityFilter = ConfidenceTierFilter
 export type TimeRange = '1h' | '6h' | '24h' | '7d'
 
 export interface DashboardFilters {
-  severity: SeverityFilter
+  confidenceTier: ConfidenceTierFilter
   timeRange: TimeRange
   search: string
 }
 
 export const DEFAULT_FILTERS: DashboardFilters = {
-  severity: 'ALL',
+  confidenceTier: 'ALL',
   timeRange: '24h',
   search: '',
 }
 
-const SEVERITY_VALUES = ['ALL', 'LOW', 'MEDIUM', 'HIGH'] as const
+const CONFIDENCE_TIER_VALUES = ['ALL', 'LOW', 'MEDIUM', 'HIGH'] as const
 const TIME_RANGE_VALUES = ['1h', '6h', '24h', '7d'] as const
 const MAX_SEARCH_LENGTH = 200
 
@@ -21,12 +22,19 @@ export async function normalizeSearchParams(
   searchParams: Promise<Record<string, string | string[] | undefined>>
 ): Promise<DashboardFilters> {
   const params = await searchParams
+  const rawConfidenceTier =
+    typeof params.confidence_tier === 'string'
+      ? params.confidence_tier
+      : typeof params.severity === 'string'
+        ? params.severity
+        : undefined
+
   return {
-    severity: (
-      typeof params.severity === 'string' &&
-        (SEVERITY_VALUES as readonly string[]).includes(params.severity)
-        ? params.severity as SeverityFilter
-        : DEFAULT_FILTERS.severity
+    confidenceTier: (
+      typeof rawConfidenceTier === 'string' &&
+        (CONFIDENCE_TIER_VALUES as readonly string[]).includes(rawConfidenceTier)
+        ? rawConfidenceTier as ConfidenceTierFilter
+        : DEFAULT_FILTERS.confidenceTier
     ),
     timeRange: (
       typeof params.timeRange === 'string' &&
@@ -42,11 +50,12 @@ export async function normalizeSearchParams(
 import { AlertFiltersSchema, type AlertFilters } from '@/features/alerts/schemas'
 
 export function toQueryString(filters: DashboardFilters): string {
-  return new URLSearchParams({
-    severity: filters.severity,
+  const params = new URLSearchParams({
+    confidence_tier: filters.confidenceTier,
     timeRange: filters.timeRange,
     search: filters.search,
-  }).toString()
+  })
+  return params.toString()
 }
 
 export function toAlertQueryString(filters: AlertFilters): string {
@@ -89,6 +98,12 @@ export function normalizeAlertSearchParams(
 
     if (typeof value === 'string') normalized[key] = value
     else if (Array.isArray(value) && value.length > 0) normalized[key] = value[0]
+  }
+
+  const rawConfidenceTier = normalized.confidence_tier
+  const rawSeverity = normalized.severity
+  if (rawConfidenceTier === undefined && typeof rawSeverity === 'string') {
+    normalized.confidence_tier = rawSeverity
   }
 
   const parsed = AlertFiltersSchema.safeParse(normalized)

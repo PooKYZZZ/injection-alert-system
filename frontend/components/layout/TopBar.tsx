@@ -3,10 +3,10 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
-import type { SeverityFilter } from '@/lib/searchParams'
+import type { ConfidenceTierFilter } from '@/lib/searchParams'
 import { useTheme } from '@/app/providers'
 
-const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
+const CONFIDENCE_TIER_OPTIONS: { value: ConfidenceTierFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
   { value: 'HIGH', label: 'HIGH' },
   { value: 'MEDIUM', label: 'MEDIUM' },
@@ -15,23 +15,23 @@ const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
 
 const DEFAULT_SEARCH_PLACEHOLDER = 'Search path, attack type...'
 
-function pillClasses(severity: SeverityFilter, isActive: boolean): string {
+function pillClasses(confidenceTier: ConfidenceTierFilter, isActive: boolean): string {
   const base =
     'inline-flex min-h-[26px] cursor-pointer items-center justify-center rounded-[12px] border px-[10px] text-[11px] font-medium transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel'
 
-  if (severity === 'ALL') {
+  if (confidenceTier === 'ALL') {
     return isActive
       ? `${base} border-accent-action bg-surface-inset text-accent-action`
       : `${base} border-border-light bg-transparent text-text-muted`
   }
 
-  if (severity === 'HIGH') {
+  if (confidenceTier === 'HIGH') {
     return isActive
       ? `${base} border-severity-high-border bg-severity-high-bg text-severity-high-text`
       : `${base} border-border-light bg-transparent text-severity-high-text`
   }
 
-  if (severity === 'MEDIUM') {
+  if (confidenceTier === 'MEDIUM') {
     return isActive
       ? `${base} border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text`
       : `${base} border-border-light bg-transparent text-text-muted`
@@ -42,7 +42,7 @@ function pillClasses(severity: SeverityFilter, isActive: boolean): string {
 
 interface TopBarProps {
   title: string
-  showSeverityControls?: boolean
+  showConfidenceTierControls?: boolean
   showSearch?: boolean
   showLiveStatus?: boolean
   searchPlaceholder?: string
@@ -51,7 +51,7 @@ interface TopBarProps {
 
 function TopBarContent({
   title,
-  showSeverityControls = true,
+  showConfidenceTierControls = true,
   showSearch = true,
   showLiveStatus = false,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
@@ -62,10 +62,10 @@ function TopBarContent({
   const router = useRouter()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const rawSeverity = searchParams?.get('severity')
-  const currentSeverity: SeverityFilter =
-    rawSeverity === 'HIGH' || rawSeverity === 'MEDIUM' || rawSeverity === 'LOW'
-      ? rawSeverity
+  const rawConfidenceTier = searchParams?.get('confidence_tier') ?? searchParams?.get('severity')
+  const currentConfidenceTier: ConfidenceTierFilter =
+    rawConfidenceTier === 'HIGH' || rawConfidenceTier === 'MEDIUM' || rawConfidenceTier === 'LOW'
+      ? rawConfidenceTier
       : 'ALL'
 
   const createQueryString = useCallback(
@@ -87,8 +87,16 @@ function TopBarContent({
     }
   }, [])
 
-  const setSeverity = (severity: SeverityFilter) => {
-    router.push(`${pathname}?${createQueryString('severity', severity)}`, { scroll: false })
+  const setConfidenceTier = (confidenceTier: ConfidenceTierFilter) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    if (confidenceTier === 'ALL') {
+      params.delete('confidence_tier')
+    } else {
+      params.set('confidence_tier', confidenceTier)
+    }
+    params.delete('severity')
+    const query = params.toString()
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false })
   }
 
   const handleSearch = (value: string) => {
@@ -122,17 +130,17 @@ function TopBarContent({
           ) : null}
         </div>
 
-        {showSeverityControls ? (
+        {showConfidenceTierControls ? (
           <>
             <div className="h-4 w-px bg-border-light" />
             <div className="flex items-center gap-1.5">
-              {SEVERITY_OPTIONS.map(({ value, label }) => (
+              {CONFIDENCE_TIER_OPTIONS.map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setSeverity(value)}
-                  className={pillClasses(value, currentSeverity === value)}
-                  aria-pressed={currentSeverity === value}
+                  onClick={() => setConfidenceTier(value)}
+                  className={pillClasses(value, currentConfidenceTier === value)}
+                  aria-pressed={currentConfidenceTier === value}
                 >
                   {label}
                 </button>
@@ -259,22 +267,22 @@ export function DashboardTopBar() {
 
   if (pathname === '/dashboard') {
     return (
-      <TopBar
-        title="Dashboard"
-        showSeverityControls={false}
-        showSearch={true}
-        showLiveStatus={true}
-        searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
-      />
+        <TopBar
+          title="Dashboard"
+          showConfidenceTierControls={false}
+          showSearch={true}
+          showLiveStatus={true}
+          searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
+        />
     )
   }
 
   if (pathname === '/alerts') {
-    return <TopBar title="Alerts" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} showSeverityControls={false} showNewIndicator={true} />
+    return <TopBar title="Alerts" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} showConfidenceTierControls={false} showNewIndicator={true} />
   }
 
   if (pathname === '/ml-health') {
-    return <TopBar title="ML Health" showSeverityControls={false} showSearch={false} />
+    return <TopBar title="ML Health" showConfidenceTierControls={false} showSearch={false} />
   }
 
   const fallbackTitle =
@@ -286,5 +294,5 @@ export function DashboardTopBar() {
       .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
       .join(' ') ?? 'Dashboard'
 
-  return <TopBar title={fallbackTitle} showSeverityControls={false} showSearch={false} />
+  return <TopBar title={fallbackTitle} showConfidenceTierControls={false} showSearch={false} />
 }

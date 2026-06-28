@@ -117,6 +117,62 @@ describe('bff-client', () => {
     })
   })
 
+  it('prefers confidence_tier when forwarding the alerts filter to FastAPI', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [],
+          total: 0,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(
+      new URLSearchParams({
+        confidence_tier: 'HIGH',
+        page: '1',
+      })
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/alerts?page=1&confidence_tier=HIGH',
+      expect.any(Object)
+    )
+  })
+
+  it('forwards both severity and confidence_tier when both exist', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [],
+          total: 0,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(
+      new URLSearchParams({
+        severity: 'LOW',
+        confidence_tier: 'HIGH',
+      })
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/alerts?severity=LOW&confidence_tier=HIGH',
+      expect.any(Object)
+    )
+  })
+
   it('preserves nullable alert fields and missing action_taken without inventing defaults', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

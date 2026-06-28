@@ -15,7 +15,7 @@ interface AlertsTableProps {
   activeAlertId?: string
 }
 
-type SortColumn = 'timestamp' | 'confidence' | 'severity' | 'action'
+type SortColumn = 'timestamp' | 'confidence' | 'severity' | 'confidence_tier' | 'action'
 
 function searchParamsToRecord(
   searchParams: ReadonlyURLSearchParams
@@ -258,6 +258,7 @@ function AlertsTableContent({
 
   const currentSort = (params.sort_by as SortColumn | undefined) ?? null
   const currentDir = params.sort_dir ?? 'desc'
+  const currentConfidenceTierFilter = params.confidence_tier ?? params.severity ?? 'ALL'
 
   const handleSort = (column: SortColumn) => {
     const newDir = currentSort === column && currentDir === 'desc' ? 'asc' : 'desc'
@@ -308,7 +309,7 @@ function AlertsTableContent({
   }
 
   const hasFilters = Boolean(
-    params.severity !== 'ALL' ||
+    currentConfidenceTierFilter !== 'ALL' ||
     params.action !== undefined ||
     params.triage_status !== undefined ||
     params.prediction !== undefined ||

@@ -102,6 +102,12 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - Auth checks are enforced in BFF handlers.
   - Next.js edge entrypoint uses `frontend/proxy.ts`.
   - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
+- Alert confidence-tier naming:
+  - Current tiers remain `LOW`, `MEDIUM`, and `HIGH`.
+  - Preferred query/filter naming is `confidence_tier`.
+  - Legacy `severity` query compatibility is retained for existing URLs and callers.
+  - Persisted backend field remains `confidence_level`.
+  - `CRITICAL >=90%` remains a separate future task and is not implemented.
 
 ---
 

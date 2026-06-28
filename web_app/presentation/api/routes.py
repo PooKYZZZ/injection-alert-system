@@ -92,6 +92,14 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
     return TrafficLogRepository(db, session_factory=session_factory)
 
 
+def get_alert_query_params(query: AlertQueryParams = Depends()) -> AlertQueryParams:
+    try:
+        query.ensure_compatible_confidence_tier_aliases()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return query
+
+
 @internal_router.post("/predict", response_model=PredictionResponse)
 async def predict(
     request: Request,
@@ -380,7 +388,7 @@ async def get_alert_by_id(
 
 @internal_router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts(
-    query: AlertQueryParams = Depends(),
+    query: AlertQueryParams = Depends(get_alert_query_params),
     repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Get list of traffic alerts with full filtering support."""
@@ -388,6 +396,7 @@ async def get_alerts(
         page=query.page,
         page_size=query.page_size,
         severity=query.severity,
+        confidence_tier_filter=query.effective_confidence_tier,
         time_range=query.time_range,
         search=query.search,
         action=query.action,

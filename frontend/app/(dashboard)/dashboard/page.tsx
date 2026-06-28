@@ -38,7 +38,7 @@ export default function DashboardPage() {
 
   const dashboardFilters = useMemo<DashboardFilters>(
     () => ({
-      severity: 'ALL',
+      confidenceTier: 'ALL',
       timeRange: timeWindow,
       search: '',
     }),

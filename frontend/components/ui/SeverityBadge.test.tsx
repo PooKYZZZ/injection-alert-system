@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ConfidenceTierBadge } from './ConfidenceTierBadge'
 import { SeverityBadge } from './SeverityBadge'
 import { FilterChip } from './FilterChip'
 
@@ -9,6 +10,12 @@ afterEach(() => {
 })
 
 describe('SeverityBadge', () => {
+  it('exports the preferred ConfidenceTierBadge name with matching confidence-tier labels', () => {
+    render(<ConfidenceTierBadge confidenceTier="HIGH" prediction="SQL Injection" />)
+
+    expect(screen.getByText('HIGH')).toBeInTheDocument()
+  })
+
   it('maps severity labels to semantic token classes', () => {
     const { rerender } = render(<SeverityBadge severity="HIGH" prediction="SQL Injection" />)
 
@@ -43,6 +50,12 @@ describe('SeverityBadge', () => {
     render(<SeverityBadge severity="HIGH" prediction="SQL Injection" />)
 
     expect(screen.getByText('HIGH')).toBeInTheDocument()
+  })
+
+  it('uses confidence-tier props under the preferred component name', () => {
+    render(<ConfidenceTierBadge confidenceTier="MEDIUM" prediction="Code Injection" />)
+
+    expect(screen.getByText('MEDIUM')).toHaveClass('text-severity-blocked-text')
   })
 
   it('uses bronze emphasis on filter chips only when selected', () => {

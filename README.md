@@ -40,6 +40,8 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
+Current naming note: LOW, MEDIUM, and HIGH are model confidence tiers. The preferred filter/query name is `confidence_tier`, the persisted backend field remains `confidence_level`, legacy `severity` URLs are kept for compatibility, and `CRITICAL >=90%` remains a separate future task.
+
 In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the technical WAF proof path is `localhost:8088`; the realistic final demo WAF path is `localhost:8089`, with the separate land-records portal built as the `demo-target-app` service from the sibling portal repo.
 
 ## Current Repository Scope

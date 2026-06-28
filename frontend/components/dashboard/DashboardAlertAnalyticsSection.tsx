@@ -9,7 +9,7 @@ import HeroActivityStrip from '@/components/dashboard/HeroActivityStrip'
 import { useAlerts } from '@/features/alerts/queries'
 import { useDashboardStats } from '@/features/stats/queries'
 import { useMLHealth } from '@/features/ml-health/queries'
-import type { DashboardFilters, SeverityFilter, TimeRange } from '@/lib/searchParams'
+import type { ConfidenceTierFilter, DashboardFilters, TimeRange } from '@/lib/searchParams'
 
 const DashboardAlertAnalytics = dynamic(
   () => import('@/components/dashboard/DashboardAlertAnalytics'),
@@ -41,7 +41,11 @@ const DashboardAlertAnalytics = dynamic(
 
 function buildFilters(searchParams: Pick<URLSearchParams, 'get'> | null): DashboardFilters {
   return {
-    severity: (searchParams?.get('severity') ?? 'ALL') as SeverityFilter,
+    confidenceTier: (
+      searchParams?.get('confidence_tier') ??
+      searchParams?.get('severity') ??
+      'ALL'
+    ) as ConfidenceTierFilter,
     timeRange: (searchParams?.get('timeRange') ?? '24h') as TimeRange,
     search: searchParams?.get('search') ?? '',
   }
@@ -120,4 +124,3 @@ export default function DashboardAlertAnalyticsSection() {
     </QueryErrorResetBoundary>
   )
 }
-

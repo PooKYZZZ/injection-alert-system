@@ -598,6 +598,7 @@ const PARAM_MAP: Record<string, string> = {
   page: 'page',
   pageSize: 'page_size',
   severity: 'severity',
+  confidence_tier: 'confidence_tier',
   action: 'action',
   triage_status: 'triage_status',
   prediction: 'prediction',
