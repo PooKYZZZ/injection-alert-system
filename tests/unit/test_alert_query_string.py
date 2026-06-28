@@ -164,7 +164,13 @@ class TestAlertQueryParamsCombinations:
 
     def test_all_sort_by_values(self):
         """Test all valid sort_by values."""
-        for sort_by in ["timestamp", "confidence", "severity", "action"]:
+        for sort_by in [
+            "timestamp",
+            "confidence",
+            "severity",
+            "confidence_tier",
+            "action",
+        ]:
             params = AlertQueryParams(sort_by=sort_by)
             assert params.sort_by == sort_by
 

@@ -42,7 +42,7 @@ function pillClasses(confidenceTier: ConfidenceTierFilter, isActive: boolean): s
 
 interface TopBarProps {
   title: string
-  showSeverityControls?: boolean
+  showConfidenceTierControls?: boolean
   showSearch?: boolean
   showLiveStatus?: boolean
   searchPlaceholder?: string
@@ -51,7 +51,7 @@ interface TopBarProps {
 
 function TopBarContent({
   title,
-  showSeverityControls = true,
+  showConfidenceTierControls = true,
   showSearch = true,
   showLiveStatus = false,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
@@ -130,7 +130,7 @@ function TopBarContent({
           ) : null}
         </div>
 
-        {showSeverityControls ? (
+        {showConfidenceTierControls ? (
           <>
             <div className="h-4 w-px bg-border-light" />
             <div className="flex items-center gap-1.5">
@@ -267,22 +267,22 @@ export function DashboardTopBar() {
 
   if (pathname === '/dashboard') {
     return (
-      <TopBar
-        title="Dashboard"
-        showSeverityControls={false}
-        showSearch={true}
-        showLiveStatus={true}
-        searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
-      />
+        <TopBar
+          title="Dashboard"
+          showConfidenceTierControls={false}
+          showSearch={true}
+          showLiveStatus={true}
+          searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
+        />
     )
   }
 
   if (pathname === '/alerts') {
-    return <TopBar title="Alerts" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} showSeverityControls={false} showNewIndicator={true} />
+    return <TopBar title="Alerts" searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER} showConfidenceTierControls={false} showNewIndicator={true} />
   }
 
   if (pathname === '/ml-health') {
-    return <TopBar title="ML Health" showSeverityControls={false} showSearch={false} />
+    return <TopBar title="ML Health" showConfidenceTierControls={false} showSearch={false} />
   }
 
   const fallbackTitle =
@@ -294,5 +294,5 @@ export function DashboardTopBar() {
       .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
       .join(' ') ?? 'Dashboard'
 
-  return <TopBar title={fallbackTitle} showSeverityControls={false} showSearch={false} />
+  return <TopBar title={fallbackTitle} showConfidenceTierControls={false} showSearch={false} />
 }

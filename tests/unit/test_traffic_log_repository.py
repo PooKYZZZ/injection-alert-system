@@ -798,6 +798,73 @@ async def test_get_alert_list_sorts_by_severity_rank(
 
 
 @pytest.mark.asyncio
+async def test_get_alert_list_sorts_by_confidence_tier_rank(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-confidence-tier-high",
+            timestamp=now - timedelta(minutes=3),
+            source_ip="198.51.100.50",
+            request_path="/high",
+            request_method="GET",
+            http_request="GET /high",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="HIGH",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-confidence-tier-low",
+            timestamp=now - timedelta(minutes=2),
+            source_ip="198.51.100.51",
+            request_path="/low",
+            request_method="GET",
+            http_request="GET /low",
+            prediction="Normal",
+            confidence=0.25,
+            confidence_level="LOW",
+            inference_latency_ms=2.0,
+            action_taken="ALLOWED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-confidence-tier-medium",
+            timestamp=now - timedelta(minutes=1),
+            source_ip="198.51.100.52",
+            request_path="/medium",
+            request_method="GET",
+            http_request="GET /medium",
+            prediction="Code Injection",
+            confidence=0.55,
+            confidence_level="MEDIUM",
+            inference_latency_ms=2.0,
+            action_taken="THROTTLED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=10,
+        sort_by="confidence_tier",
+        sort_dir="desc",
+        time_range="7d",
+    )
+
+    assert [item.confidence_level for item in page.items] == [
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_get_stats_summary_reuses_cache_for_same_minute_reference_time(
     repository: TrafficLogRepository,
 ):
