@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import type { Alert } from '@/features/alerts/types'
 import type { ConfidenceThresholds } from '@/features/ml-health/types'
+import { countAlertsByConfidenceTier } from '@/features/alerts/confidenceBands'
 
 interface ThresholdState {
   thresholds: ConfidenceThresholds | null
@@ -233,18 +234,7 @@ export default function DashboardAlertAnalytics({
       return null
     }
 
-    const counts = { critical: 0, high: 0, medium: 0, low: 0 }
-    for (const alert of alerts) {
-      if (alert.confidence >= criticalThreshold) {
-        counts.critical += 1
-      } else if (alert.confidence > highThreshold) {
-        counts.high += 1
-      } else if (alert.confidence >= lowThreshold) {
-        counts.medium += 1
-      } else {
-        counts.low += 1
-      }
-    }
+    const counts = countAlertsByConfidenceTier(alerts)
 
     const criticalPct = Math.round(criticalThreshold * 100)
     const highPct = Math.round(highThreshold * 100)

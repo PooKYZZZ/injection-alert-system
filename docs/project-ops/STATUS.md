@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-06-29
+**Last updated:** 2026-06-30
 
 ---
 
@@ -11,7 +11,7 @@
 - Active branch baseline: `master`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
-- Frontend runtime: Next.js `16.2.1`, React `19.2.4`, TypeScript `5.9`, Zod `4.3.6`
+- Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
 - Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
 - Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
@@ -28,7 +28,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
-- Frontend full suite: `cd frontend && npx vitest run` → **191 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
@@ -109,6 +109,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - Persisted backend field remains `confidence_level`.
   - `CRITICAL >=90%` is implemented as the high-confidence threshold.
   - Historical rows are not retroactively reclassified.
+  - Persisted-alert dashboard counts and confidence styling use backend-emitted `confidence_level`, not raw-score reclassification.
+  - Confidence distributions include all predictions; enforcement-policy counts exclude `Normal`, which remains `ALLOWED` for every valid tier.
+  - Confidence-tier badges display the canonical tier and do not replace it with `Benign`.
 
 ---
 

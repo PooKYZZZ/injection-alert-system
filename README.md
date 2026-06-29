@@ -41,7 +41,7 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
-Current naming note: LOW, MEDIUM, HIGH, and CRITICAL are model confidence tiers. The preferred filter/query name is `confidence_tier`, the persisted backend field remains `confidence_level`, legacy `severity` URLs are kept for compatibility, `CRITICAL >=90%` is implemented as a confidence threshold, no retraining/recalibration/model artifact change was required, and historical rows are not retroactively reclassified.
+Current naming note: LOW, MEDIUM, HIGH, and CRITICAL are model confidence tiers. The preferred filter/query name is `confidence_tier`, the persisted backend field remains `confidence_level`, legacy `severity` URLs are kept for compatibility, `CRITICAL >=90%` is implemented as a confidence threshold, no retraining/recalibration/model artifact change was required, and historical rows are not retroactively reclassified. Persisted-alert dashboard grouping and confidence styling use the backend-emitted `confidence_level`; enforcement-policy counts exclude `Normal` predictions, which remain `ALLOWED` at every valid tier; confidence-tier badges always display the canonical tier rather than substituting prediction terminology.
 
 In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the technical WAF proof path is `localhost:8088`; the realistic final demo WAF path is `localhost:8089`, with the separate land-records portal built as the `demo-target-app` service from the sibling portal repo.
 

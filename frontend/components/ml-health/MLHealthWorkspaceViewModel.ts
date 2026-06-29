@@ -36,6 +36,7 @@ export type MLHealthViewModel = {
   driftStatusDisplay: string
   eceDisplay: string
   calibrationSummary: string
+  normalPolicyException: string
   thresholdLabels: {
     low: string
     medium: string
@@ -123,10 +124,10 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
 
   if (low == null || high == null || critical == null || low >= high || high >= critical) {
     return [
-      { label: 'Low confidence', action: 'allow', rangeLabel: 'Not configured' },
-      { label: 'Medium confidence', action: 'throttle', rangeLabel: 'Not configured' },
-      { label: 'High confidence', action: 'block', rangeLabel: 'Not configured' },
-      { label: 'Critical confidence', action: 'block', rangeLabel: 'Not configured' },
+      { label: 'Low confidence non-Normal', action: 'allow', rangeLabel: 'Not configured' },
+      { label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: 'Not configured' },
+      { label: 'High confidence non-Normal', action: 'block', rangeLabel: 'Not configured' },
+      { label: 'Critical confidence non-Normal', action: 'block', rangeLabel: 'Not configured' },
     ]
   }
 
@@ -135,10 +136,10 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
   const criticalPct = Math.round(critical * 100)
 
   return [
-    { label: 'Low confidence', action: 'allow', rangeLabel: `<${lowPct}%` },
-    { label: 'Medium confidence', action: 'throttle', rangeLabel: `${lowPct}%-${highPct}%` },
-    { label: 'High confidence', action: 'block', rangeLabel: `>${highPct}%-<${criticalPct}%` },
-    { label: 'Critical confidence', action: 'block', rangeLabel: `>=${criticalPct}%` },
+    { label: 'Low confidence non-Normal', action: 'allow', rangeLabel: `<${lowPct}%` },
+    { label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: `${lowPct}%-${highPct}%` },
+    { label: 'High confidence non-Normal', action: 'block', rangeLabel: `>${highPct}%-<${criticalPct}%` },
+    { label: 'Critical confidence non-Normal', action: 'block', rangeLabel: `>=${criticalPct}%` },
   ]
 }
 
@@ -222,6 +223,7 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
     driftStatusDisplay: health.drift_status ?? 'Not reported',
     eceDisplay: ece == null ? 'Not reported' : ece.toFixed(3),
     calibrationSummary: buildCalibrationSummary(ece),
+    normalPolicyException: 'Normal predictions remain allowed for all valid confidence tiers.',
     thresholdLabels: {
       low: formatThreshold(health.thresholds.low),
       medium: formatThreshold(health.thresholds.medium),

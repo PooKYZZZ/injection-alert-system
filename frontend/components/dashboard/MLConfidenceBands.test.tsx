@@ -8,13 +8,13 @@ afterEach(() => {
 })
 
 describe('MLConfidenceBands', () => {
-  it('renders explicit non-overlapping confidence boundaries', () => {
+  it('labels backend-emitted tiers without hard-coded threshold ranges', () => {
     render(<MLConfidenceBands critical={1} high={2} medium={3} low={4} />)
 
-    expect(screen.getByText('Critical >=90%')).toBeInTheDocument()
-    expect(screen.getByText('High >80%–<90%')).toBeInTheDocument()
-    expect(screen.getByText('Medium 50%–80%')).toBeInTheDocument()
-    expect(screen.getByText('Low <50%')).toBeInTheDocument()
-    expect(screen.queryByText(/High 80/)).not.toBeInTheDocument()
+    expect(screen.getByText('Critical confidence tier')).toBeInTheDocument()
+    expect(screen.getByText('High confidence tier')).toBeInTheDocument()
+    expect(screen.getByText('Medium confidence tier')).toBeInTheDocument()
+    expect(screen.getByText('Low confidence tier')).toBeInTheDocument()
+    expect(screen.queryByText(/90%|80%|50%/)).not.toBeInTheDocument()
   })
 })

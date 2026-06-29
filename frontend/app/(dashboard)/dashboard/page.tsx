@@ -15,6 +15,7 @@ import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
 import type { AlertPrediction } from '@/features/alerts/contract'
+import { countAlertsByConfidenceTier } from '@/features/alerts/confidenceBands'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
 
 // Lazy-load TimelineChart to avoid SSR hydration issues and reduce initial bundle
@@ -62,26 +63,14 @@ export default function DashboardPage() {
     return counts
   }, [alerts])
 
-  // Calculate confidence bands from alerts
-  const confidenceBands = useMemo(() => {
-    let critical = 0
-    let high = 0
-    let medium = 0
-    let low = 0
-    for (const alert of alerts) {
-      const confPercent = alert.confidence * 100
-      if (confPercent >= 90) {
-        critical += 1
-      } else if (confPercent > 80) {
-        high += 1
-      } else if (confPercent >= 50) {
-        medium += 1
-      } else {
-        low += 1
-      }
-    }
-    return { critical, high, medium, low }
-  }, [alerts])
+  const allConfidenceBands = useMemo(
+    () => countAlertsByConfidenceTier(alerts),
+    [alerts]
+  )
+  const nonNormalEnforcementBands = useMemo(
+    () => countAlertsByConfidenceTier(alerts, { nonNormalOnly: true }),
+    [alerts]
+  )
 
   const summaryWindowTotal =
     (stats?.blocked_count ?? 0) +
@@ -282,10 +271,10 @@ export default function DashboardPage() {
             ML confidence bands
           </div>
             <MLConfidenceBands
-              critical={confidenceBands.critical}
-              high={confidenceBands.high}
-              medium={confidenceBands.medium}
-              low={confidenceBands.low}
+              critical={allConfidenceBands.critical}
+              high={allConfidenceBands.high}
+              medium={allConfidenceBands.medium}
+              low={allConfidenceBands.low}
               isPending={alertsPending}
             />
 
@@ -299,10 +288,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <MLEnforcementMap
-              critical={confidenceBands.critical}
-              high={confidenceBands.high}
-              medium={confidenceBands.medium}
-              low={confidenceBands.low}
+              nonNormalCounts={nonNormalEnforcementBands}
               isPending={alertsPending}
             />
           </div>

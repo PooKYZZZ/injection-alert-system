@@ -51,7 +51,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run on 2026-06-29
+### Checks run through 2026-06-30
 
 - Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
@@ -59,7 +59,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **191 passed**
+  - `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 
@@ -108,7 +108,11 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
   - all five handlers apply the same existing session auth pattern via `auth()`
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
+    - `confidence_level`: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
     - `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
+  - persisted-alert confidence distributions and styling use backend-emitted `confidence_level`, not raw-score reclassification
+  - enforcement-policy counts exclude `Normal`; Normal predictions remain `ALLOWED` for every valid confidence tier
+  - confidence-tier badges always render the canonical tier and do not substitute `Benign`
 
 ### Database
 
@@ -146,4 +150,5 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `BLOCKED`, `THROTTLED`, and `ALLOWED` are currently recorded action values, not proof of live request-path enforcement.
 - Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
+- Frontend policy displays keep prediction, confidence tier, and `action_taken` separate: confidence tier alone does not imply an action, and `CRITICAL` is never an `action_taken` value.
 - Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

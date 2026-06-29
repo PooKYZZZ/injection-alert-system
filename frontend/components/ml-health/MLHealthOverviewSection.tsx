@@ -84,7 +84,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
       <section className={styles.impactZone}>
         <div className={styles.panel}>
           <div className={styles.panelHeader}>
-            <span className={styles.panelTitle}>Policy Bands (configured thresholds)</span>
+            <span className={styles.panelTitle}>Non-Normal Policy Bands</span>
           </div>
           <div className={styles.tableScroll}>
             <table className={styles.compTable}>
@@ -92,7 +92,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
                 <tr>
                   <th>Band</th>
                   <th>Confidence range</th>
-                  <th>Action</th>
+                  <th>Non-Normal action</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,7 +119,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
             </table>
           </div>
           <div className={styles.panelBody}>
-            <p className={styles.policyFootnote}>Threshold-based policy bands from configured confidence thresholds.</p>
+            <p className={styles.policyFootnote}>{viewModel.normalPolicyException}</p>
           </div>
         </div>
 

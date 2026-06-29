@@ -70,6 +70,7 @@ This folder is the maintained documentation surface for the repository. It is in
 - Targeted WAF checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed
 - Client-required real user access management/RBAC, 2FA, and email notifications after detection remain planned requirements tracked in `client-requirements.md`.
 - The `CRITICAL >=90%` model-confidence tier is implemented without retraining, recalibration, model artifact changes, or retroactive historical-row reclassification.
+- Frontend confidence distributions and styling use persisted `confidence_level`; enforcement-policy counts are non-Normal-only, and confidence-tier badges never replace the canonical tier with prediction labels.
 
 ## Documentation Rules For This Repo
 

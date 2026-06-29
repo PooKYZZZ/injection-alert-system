@@ -11,6 +11,8 @@ import * as mlHealthQueries from '@/features/ml-health/queries'
 import type { DashboardStats } from '@/features/stats/types'
 import type { PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
+import { countAlertsByConfidenceTier } from '@/features/alerts/confidenceBands'
+import type { Alert } from '@/features/alerts/types'
 
 const queryResetMock = vi.fn()
 
@@ -335,6 +337,33 @@ describe('DashboardAlertAnalyticsSection', () => {
 
     // Verify ML health was called to get thresholds
     expect(useMLHealthMock).toHaveBeenCalled()
+  })
+
+  it('groups persisted alerts by confidence_level instead of raw confidence', () => {
+    const alerts = [
+      {
+        prediction: 'SQL Injection',
+        confidence: 0.95,
+        confidence_level: 'MEDIUM',
+      },
+      {
+        prediction: 'Code Injection',
+        confidence: 0.7,
+        confidence_level: 'CRITICAL',
+      },
+      {
+        prediction: 'Other Attacks',
+        confidence: 0.8,
+        confidence_level: 'MEDIUM',
+      },
+    ] as Alert[]
+
+    expect(countAlertsByConfidenceTier(alerts)).toEqual({
+      critical: 1,
+      high: 0,
+      medium: 2,
+      low: 0,
+    })
   })
 
   it('shows confidence bands when thresholds are present', async () => {

@@ -164,6 +164,50 @@ describe('AlertsTable', () => {
     expect(await screen.findByText('95% (CRITICAL)')).toBeInTheDocument()
   })
 
+  it.each([
+    [0.8, 'MEDIUM', '80% (MEDIUM)', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95% (MEDIUM)', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70% (CRITICAL)', 'text-severity-high-text'],
+  ] as const)(
+    'styles confidence %s from canonical tier %s',
+    async (confidence, confidenceLevel, expectedText, expectedClass) => {
+      mockedUseAlertsFromFilters.mockReturnValue({
+        ...buildQueryResult(),
+        data: {
+          items: [
+            {
+              alert_id: 'tier-style',
+              timestamp: '2026-04-03T10:00:00.000Z',
+              source_ip: '10.0.0.4',
+              request_path: '/tier-style',
+              request_method: 'POST',
+              payload_snippet: 'payload',
+              prediction: 'SQL Injection',
+              confidence,
+              confidence_level: confidenceLevel,
+              action_taken: 'THROTTLED',
+              triage_status: 'in_review',
+              crs_score: 7,
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+      render(
+        <AlertsTable
+          selectedIds={[]}
+          onSelectionChange={vi.fn()}
+          onAlertClick={vi.fn()}
+        />
+      )
+
+      expect(await screen.findByText(expectedText)).toHaveClass(expectedClass)
+    }
+  )
+
   it('marks new alerts as in review when clicked', async () => {
     const onAlertClick = vi.fn()
     mockedUseAlertsFromFilters.mockReturnValue({

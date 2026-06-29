@@ -3,14 +3,15 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-06-29
+**Last updated:** 2026-06-30
 
 Status note:
-- Current test baseline: pytest 447 passed, vitest 191 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 447 passed, vitest 206 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
 - Confidence-tier naming is clarified in code/docs: `confidence_tier` is the preferred filter name, legacy `severity` remains a compatibility alias, current tiers remain `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`, and `CRITICAL >=90%` is implemented as the confidence threshold
+- Frontend confidence semantics are aligned: persisted-alert grouping/styling uses `confidence_level`; enforcement-policy counts exclude Normal predictions; Normal remains `ALLOWED` for every valid tier; tier badges always display the canonical tier
 - DistilBERT staged promotion now uses `ml_model/export/promote_final_training_run.py` with archive-and-recreate safety
 - Real promotion command currently fails closed on strict head-shape mismatch between final-training checkpoint and `package_serving_artifact.py` loader expectations; rollback restoration behavior is verified
 - Local WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`: WAF path `localhost:8088`, SQLi HTTP 403, JSON audit log, bridge `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `source_ip`, `request_path`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`
@@ -19,14 +20,14 @@ Status note:
 
 ---
 
-## Current Verified State (2026-06-29)
+## Current Verified State (2026-06-30)
 
 ### Test Baseline
 - Backend: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
-- Frontend full suite: `cd frontend && npx vitest run` → **191 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes

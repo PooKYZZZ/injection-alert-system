@@ -27,8 +27,16 @@ export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) 
   const high = toPercent(thresholds.high)
   const critical = toPercent(thresholds.critical)
 
-  if (low === null || high === null || critical === null) {
-    return <EmptyState message="Threshold data unavailable" />
+  if (
+    low === null ||
+    high === null ||
+    critical === null ||
+    low < 0 ||
+    low >= high ||
+    high >= critical ||
+    critical > 100
+  ) {
+    return <EmptyState message="Threshold data not configured" />
   }
 
   // Calculate width percentages based on the 0-100 scale
@@ -40,7 +48,7 @@ export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) 
   return (
     <>
       <div className="text-[10px] text-[var(--color-text-muted)] mb-2">
-        How ML confidence maps to enforcement actions
+        Configured confidence thresholds for non-Normal enforcement policy
       </div>
       <div className="relative h-8 bg-[var(--color-bg-inset)] rounded-md overflow-hidden flex">
         <div
@@ -74,7 +82,7 @@ export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) 
         <LegendItem color="bg-red-500" label="Block" />
       </div>
       <div className="mt-3 text-[10px] text-[var(--color-text-muted)]">
-        {`Enforcement thresholds: CRITICAL >=90%, HIGH >80%–<90%, MEDIUM 50%–80%, LOW <50% per policy.`}
+        Normal predictions remain allowed for all valid confidence tiers.
       </div>
     </>
   )

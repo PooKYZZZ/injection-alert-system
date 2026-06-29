@@ -1,23 +1,41 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { AlertPrediction } from '@/features/alerts/contract'
+import type { AlertConfidenceTier, AlertPrediction } from '@/features/alerts/contract'
 
 interface ConfidenceBarProps {
   confidence: number
+  confidenceTier?: AlertConfidenceTier
   prediction: AlertPrediction
 }
 
-function getConfidenceColors(confidence: number): { text: string; bg: string } {
+export function getConfidenceColors(
+  confidence: number,
+  confidenceTier?: AlertConfidenceTier
+): { text: string; bg: string } {
+  if (confidenceTier === 'CRITICAL' || confidenceTier === 'HIGH') {
+    return { text: 'text-severity-high-text', bg: 'bg-severity-high-accent' }
+  }
+  if (confidenceTier === 'MEDIUM') {
+    return { text: 'text-severity-blocked-text', bg: 'bg-severity-blocked-accent' }
+  }
+  if (confidenceTier === 'LOW') {
+    return { text: 'text-severity-safe-text', bg: 'bg-severity-safe-accent' }
+  }
+
   const value = Math.round(confidence * 100)
   if (value >= 80) return { text: 'text-severity-high-text', bg: 'bg-severity-high-accent' }
   if (value >= 50) return { text: 'text-severity-blocked-text', bg: 'bg-severity-blocked-accent' }
   return { text: 'text-severity-safe-text', bg: 'bg-severity-safe-accent' }
 }
 
-export function ConfidenceBar({ confidence, prediction: _prediction }: ConfidenceBarProps) {
+export function ConfidenceBar({
+  confidence,
+  confidenceTier,
+  prediction: _prediction,
+}: ConfidenceBarProps) {
   const value = Math.round(confidence * 100)
-  const colors = getConfidenceColors(confidence)
+  const colors = getConfidenceColors(confidence, confidenceTier)
 
   return (
     <div className="flex items-center gap-2">
@@ -33,4 +51,3 @@ export function ConfidenceBar({ confidence, prediction: _prediction }: Confidenc
     </div>
   )
 }
-

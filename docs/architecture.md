@@ -190,6 +190,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
 - Current confidence tiers are `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
 - `CRITICAL >=90%` is implemented as the top confidence threshold, and historical rows are not retroactively reclassified.
+- Persisted-alert dashboard aggregations use backend-emitted `confidence_level`; the frontend does not reclassify stored alerts from raw confidence or current ML-health thresholds.
+- Confidence distributions include all predictions, while enforcement-policy counts include non-Normal predictions only. Normal predictions remain `ALLOWED` at every valid confidence tier.
+- Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 

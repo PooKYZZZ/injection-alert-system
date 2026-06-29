@@ -43,13 +43,20 @@ describe('MLHealthWorkspace.view-model', () => {
   })
 
   it('builds policy bands from configured thresholds', () => {
-    const bands = buildPolicyBands(baseHealth)
+    const health = {
+      ...baseHealth,
+      thresholds: { low: 0.4, medium: 0.55, high: 0.7, critical: 0.85 },
+    }
+    const bands = buildPolicyBands(health)
 
     expect(bands).toHaveLength(4)
-    expect(bands[0]).toMatchObject({ label: 'Low confidence', action: 'allow', rangeLabel: '<50%' })
-    expect(bands[1]).toMatchObject({ label: 'Medium confidence', action: 'throttle', rangeLabel: '50%-80%' })
-    expect(bands[2]).toMatchObject({ label: 'High confidence', action: 'block', rangeLabel: '>80%-<90%' })
-    expect(bands[3]).toMatchObject({ label: 'Critical confidence', action: 'block', rangeLabel: '>=90%' })
+    expect(bands[0]).toMatchObject({ label: 'Low confidence non-Normal', action: 'allow', rangeLabel: '<40%' })
+    expect(bands[1]).toMatchObject({ label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: '40%-70%' })
+    expect(bands[2]).toMatchObject({ label: 'High confidence non-Normal', action: 'block', rangeLabel: '>70%-<85%' })
+    expect(bands[3]).toMatchObject({ label: 'Critical confidence non-Normal', action: 'block', rangeLabel: '>=85%' })
+    expect(buildMLHealthViewModel(health).normalPolicyException).toBe(
+      'Normal predictions remain allowed for all valid confidence tiers.'
+    )
   })
 
   it('uses explicit fallback text when drift score and calibration error are missing', () => {
@@ -80,6 +87,7 @@ describe('MLHealthWorkspace.view-model', () => {
     expect(bands[1]?.rangeLabel).toBe('Not configured')
     expect(bands[2]?.rangeLabel).toBe('Not configured')
     expect(bands[3]?.rangeLabel).toBe('Not configured')
+    expect(bands.every((band) => band.label.includes('non-Normal'))).toBe(true)
   })
 
   it('does not expose guessed deployment or parameter metadata', () => {

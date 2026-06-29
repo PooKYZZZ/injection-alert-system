@@ -8,17 +8,22 @@ afterEach(() => {
 })
 
 describe('ConfidenceThresholds', () => {
-  it('renders explicit non-overlapping confidence boundaries', () => {
+  it('renders configured non-Normal policy boundaries and the Normal exception', () => {
     render(
       <ConfidenceThresholds
-        thresholds={{ low: 0.5, medium: 0.65, high: 0.8, critical: 0.9 }}
+        thresholds={{ low: 0.4, medium: 0.55, high: 0.7, critical: 0.85 }}
       />
     )
 
-    expect(screen.getByText('Low <50%')).toBeInTheDocument()
-    expect(screen.getByText('Medium 50%–80%')).toBeInTheDocument()
-    expect(screen.getByText('High >80%–<90%')).toBeInTheDocument()
-    expect(screen.getByText('Critical >=90%')).toBeInTheDocument()
-    expect(screen.queryByText(/High 80%/)).not.toBeInTheDocument()
+    expect(screen.getByText('Low <40%')).toBeInTheDocument()
+    expect(screen.getByText('Medium 40%–70%')).toBeInTheDocument()
+    expect(screen.getByText('High >70%–<85%')).toBeInTheDocument()
+    expect(screen.getByText('Critical >=85%')).toBeInTheDocument()
+    expect(screen.getByText(/non-Normal enforcement policy/i)).toBeInTheDocument()
+    expect(
+      screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('How ML confidence maps to enforcement actions')).not.toBeInTheDocument()
+    expect(screen.queryByText(/90%|80%|50%/)).not.toBeInTheDocument()
   })
 })

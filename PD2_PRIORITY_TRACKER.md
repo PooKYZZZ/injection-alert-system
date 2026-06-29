@@ -29,8 +29,8 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `447 passed`, frontend full Vitest `191 passed`, frontend typecheck, lint, and production build.
-- CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias.
+- Latest verification passed: backend `447 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
+- CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
 ### Client Requirements
 
@@ -78,7 +78,7 @@ This tracker is based on the following.
 | `[x]` | Add queue health visibility | Critical | Low | Done: `/api/ml-health` includes optional queue health fields through the backend schema/BFF passthrough; UI-specific queue panel evidence is not claimed. |
 | `[~]` | Add minimal metrics endpoint | High | Low | Partial: `/api/stats` and `/api/ml-health` expose app/model stats and queue health, but no email or bridge metrics endpoint exists. |
 | `[ ]` | Add structured JSON logs with transaction/request IDs | High | Medium | Not started: standard Python/Next logging exists; no repo-wide structured JSON logging contract found. |
-| `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts now expose LOW, MEDIUM, HIGH, and CRITICAL, with the persisted `confidence_level` field and legacy `severity` query alias retained. |
+| `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts expose LOW, MEDIUM, HIGH, and CRITICAL; persisted UI grouping/styling uses `confidence_level`; enforcement-policy displays apply to non-Normal predictions and preserve the Normal exception; tier badges always display the canonical tier; the legacy `severity` query alias remains compatibility-only. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
 | `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
 | `[~]` | Add end-to-end demo/test script | High | Medium | Partial: `docs/project-ops/SMOKE_TEST_RUNBOOK.md` contains manual smoke commands for `8088` and the final realistic `8089` demo path; no standalone automated final demo script is checked in. |

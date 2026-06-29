@@ -40,15 +40,11 @@ describe('SeverityBadge', () => {
     expect(lowBadge).toHaveClass('border-severity-safe-border/30')
   })
 
-  it('renders Benign when prediction is Normal even if confidence level is HIGH', () => {
-    render(<SeverityBadge severity="HIGH" prediction="Normal" />)
+  it('preserves the canonical CRITICAL tier for Normal predictions', () => {
+    render(<SeverityBadge severity="CRITICAL" prediction="Normal" />)
 
-    const benignBadge = screen.getByText('Benign')
-
-    expect(benignBadge).toBeInTheDocument()
-    expect(benignBadge).toHaveClass('text-text-secondary')
-    expect(benignBadge).toHaveClass('border-surface-border')
-    expect(screen.queryByText('HIGH')).not.toBeInTheDocument()
+    expect(screen.getByText('CRITICAL')).toBeInTheDocument()
+    expect(screen.queryByText('Benign')).not.toBeInTheDocument()
   })
 
   it('keeps confidence-level label for non-Normal predictions', () => {

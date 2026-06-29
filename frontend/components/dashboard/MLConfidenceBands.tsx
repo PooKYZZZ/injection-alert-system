@@ -43,7 +43,7 @@ export function MLConfidenceBands({
       className="flex flex-col gap-2"
     >
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`Critical >=90%`}</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Critical confidence tier</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -58,7 +58,7 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`High >80%–<90%`}</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">High confidence tier</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -73,7 +73,7 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Medium 50%–80%</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Medium confidence tier</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -88,7 +88,7 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`Low <50%`}</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Low confidence tier</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"

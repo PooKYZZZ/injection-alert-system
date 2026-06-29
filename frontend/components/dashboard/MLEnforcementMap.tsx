@@ -2,24 +2,20 @@
 
 import { motion } from 'motion/react'
 import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
+import type { ConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 
 interface MLEnforcementMapProps {
-  high: number
-  critical: number
-  medium: number
-  low: number
+  nonNormalCounts: ConfidenceBandCounts
   isPending?: boolean
   unavailable?: boolean
 }
 
 export function MLEnforcementMap({
-  high,
-  critical,
-  medium,
-  low,
+  nonNormalCounts,
   isPending = false,
   unavailable = false,
 }: MLEnforcementMapProps) {
+  const { critical, high, medium, low } = nonNormalCounts
   if (isPending) {
     return <LoadingSkeleton rows={4} />
   }

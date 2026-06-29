@@ -8,6 +8,16 @@ afterEach(() => {
 })
 
 describe('ConfidenceTierBadge', () => {
+  it.each(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const)(
+    'renders canonical %s tier for Normal predictions',
+    (confidenceTier) => {
+      render(<ConfidenceTierBadge confidenceTier={confidenceTier} prediction="Normal" />)
+
+      expect(screen.getByText(confidenceTier)).toBeInTheDocument()
+      expect(screen.queryByText('Benign')).not.toBeInTheDocument()
+    }
+  )
+
   it('renders CRITICAL confidence tiers with the existing high-risk styling', () => {
     render(<ConfidenceTierBadge confidenceTier="CRITICAL" prediction="SQL Injection" />)
 
