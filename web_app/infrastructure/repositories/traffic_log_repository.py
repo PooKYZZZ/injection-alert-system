@@ -1274,8 +1274,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         if sort_by == "confidence":
             sort_column = TrafficLog.confidence
         elif sort_by in ("severity", "confidence_tier"):
-            # Rank confidence tiers explicitly so HIGH sorts ahead of MEDIUM and LOW.
+            # Rank confidence tiers explicitly so CRITICAL sorts ahead of HIGH,
+            # then MEDIUM and LOW.
             sort_column = case(
+                (TrafficLog.confidence_level == "CRITICAL", 4),
                 (TrafficLog.confidence_level == "HIGH", 3),
                 (TrafficLog.confidence_level == "MEDIUM", 2),
                 (TrafficLog.confidence_level == "LOW", 1),

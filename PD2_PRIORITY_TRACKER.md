@@ -1,6 +1,7 @@
 # PD2 Priority Tracker
 
 **Purpose:** Track what still needs to be implemented for PD2 without claiming that planned features already exist.
+**Last updated:** 2026-06-29
 
 ## Legend
 
@@ -28,6 +29,8 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
+- Latest verification passed: backend `447 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
+- CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
 ### Client Requirements
 
@@ -65,7 +68,7 @@ This tracker is based on the following.
 | `[x]` | Build a small demo target website | Critical | Medium | External target exists at `G:\AI\land-records-portal` with WAF route inventory and live Playwright PASS evidence. The source remains separate; this repo's demo-target Compose profile builds it as internal service `demo-portal:3010`. |
 | `[x]` | Put ModSecurity in the actual test request path | Critical | High | Done for local proof: `localhost:8088` reached ModSecurity/OWASP CRS, `/healthz` and `/api/health` returned 200, and SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned 403. This is not a production deployment claim. |
 | `[~]` | Decide ModSecurity audit log format and retention | Critical | Low | Partial: Policy documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; JSONL path is `logs/modsecurity/modsec_audit.jsonl`; automatic rotation is not implemented and production retention is not implemented. |
-| `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient OSError resilience remains TODO. |
+| `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`. |
 | `[x]` | Connect ModSecurity detections to FastAPI ingest reliably | Critical | High | Done for local proof: lookup for transaction `17821639659.909603` returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, source/request metadata, `crs_score=5`, and rules `942100`, `949110`. |
 | `[x]` | Create CRS-only baseline test report | Critical | Medium | Done: `reports/modsecurity-live-proof/crs-baseline.md` records normal traffic, SQLi, XSS-like, command/file-access-like, and false-positive check results through `localhost:8088` with observed CRS rule IDs and transaction IDs. |
 | `[x]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Done: `reports/modsecurity-live-proof/demo-target-crs-proof.md` records observed portal route checks through `localhost:8089`, including normal traffic, SQLi/XSS checks, CRS transaction IDs, rule IDs, and matched messages where available. |
@@ -75,7 +78,7 @@ This tracker is based on the following.
 | `[x]` | Add queue health visibility | Critical | Low | Done: `/api/ml-health` includes optional queue health fields through the backend schema/BFF passthrough; UI-specific queue panel evidence is not claimed. |
 | `[~]` | Add minimal metrics endpoint | High | Low | Partial: `/api/stats` and `/api/ml-health` expose app/model stats and queue health, but no email or bridge metrics endpoint exists. |
 | `[ ]` | Add structured JSON logs with transaction/request IDs | High | Medium | Not started: standard Python/Next logging exists; no repo-wide structured JSON logging contract found. |
-| `[ ]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Not started: code contracts still expose LOW, MEDIUM, HIGH only in `ml_model/inference/predict_attack.py` and `frontend/features/alerts/contract.ts`. |
+| `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts expose LOW, MEDIUM, HIGH, and CRITICAL; persisted UI grouping/styling uses `confidence_level`; enforcement-policy displays apply to non-Normal predictions and preserve the Normal exception; tier badges always display the canonical tier; the legacy `severity` query alias remains compatibility-only. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
 | `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
 | `[~]` | Add end-to-end demo/test script | High | Medium | Partial: `docs/project-ops/SMOKE_TEST_RUNBOOK.md` contains manual smoke commands for `8088` and the final realistic `8089` demo path; no standalone automated final demo script is checked in. |
@@ -100,7 +103,7 @@ This tracker is based on the following.
 | `[ ]` | Add retention policy for alerts and audit logs | Medium | Low-Medium | Not started: no `archived_at`/`hidden_at` behavior or retention runbook found. |
 | `[ ]` | Implement full DistilBERT retraining automation | Medium | Critical | Not started: final-training artifacts exist, but no production retraining automation flow is checked in. |
 | `[ ]` | Decide daily vs 20-day retraining window | Medium | Low-Medium | Not started: docs still reference 20-day design while newer tracker requirements mention daily-vs-20-day decision. |
-| `[~]` | Align operator docs after implementation | Medium | Low | Partial: docs exist and are being corrected; some historical/planning docs still contain target-state language. |
+| `[x]` | Align maintained docs for the CRITICAL rollout | Medium | Low | Done: maintained implementation, setup, contributor, operator, and tracker docs describe CRITICAL as implemented and retain planned/deferred wording for unfinished features. |
 | `[ ]` | Add Wazuh export-only integration | Low-Medium | Medium | Not started: no Wazuh JSON/JSONL export implementation found. |
 | `[ ]` | Supabase/RLS operational hardening export | Low-Medium | Medium | Not started: ops docs say some Supabase policy and hardening steps remain outside repo automation. |
 | `[~]` | Dashboard polish for mitigation/security pages | Low | Low-Medium | Partial: dashboard/alerts/ML-health UI exists; mitigation/security-specific pages remain planned. |
@@ -116,13 +119,13 @@ Based on priority and implementation hardness, focus on the highest-value work t
 
 | Order | Task | Why Now |
 |---:|---|---|
-| 1 | Harden bridge transient read-error behavior | A live proof passed, but follow mode once logged transient `OSError: [Errno 5] Input/output error` before restart recovery. |
+| 1 | Add metrics and structured JSON logs | Bridge transient read-error hardening is implemented and covered by `tests/scripts/test_waf_audit_bridge.py`; next focus is structured JSON logs with transaction/request IDs. |
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
 | 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
 | 5 | Capture final dashboard screenshot evidence | Done for the current local proof set: screenshots under `reports/modsecurity-live-proof/screenshots/` show the `8089` dashboard overview, `/records/search` alerts table with `crs_score=15`, default `8088` WAF detail drawer evidence, and ML health overview. |
 | 6 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
-| 7 | Add `CRITICAL >=90%` confidence tier | Client standard requires it and it touches backend/frontend contracts. |
+| 7 | Maintain `CRITICAL >=90%` confidence tier coverage | Client standard requires it and the backend/frontend contracts now implement it. |
 | 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
 | 9 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
 | 10 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
@@ -140,7 +143,7 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 5. Add a queue-specific ML health screenshot only if the final evidence checklist must show queue fields in the UI; the current replacement screenshot covers the `/ml-health` overview but does not visibly show queue-health fields.
 6. Minimal metrics endpoint beyond the existing stats, ML health, and queue health.
 7. Structured JSON logs with request/transaction IDs.
-8. `CRITICAL >=90%` confidence tier.
+8. `CRITICAL >=90%` confidence tier is implemented and maintained across backend/frontend contracts.
 9. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
 10. Real-time dashboard alerts using SSE/EventSource with polling fallback.
 11. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
@@ -165,7 +168,7 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 30. Backup/restore and migration rollback runbook.
 31. Alert/archive retention policy with no physical DELETE for audit/traffic logs.
 32. Wazuh export-only JSON/JSONL integration if time allows.
-33. Align operator docs after implementation.
+33. Maintain operator-doc truth after each implementation.
 34. Dashboard polish for mitigation/security pages.
 
 ## Notes For Client Security Requirements
@@ -174,7 +177,7 @@ Treat `CRITICAL >=90%` as a client confidence standard and update backend/fronte
 
 Keep confidence tier separate from attack severity.
 
-Current repo naming note: LOW, MEDIUM, and HIGH are the current confidence tiers. The app now prefers `confidence_tier` naming while retaining legacy `severity` query compatibility during migration. Adding `CRITICAL >=90%` remains a separate future task.
+Current repo naming note: LOW, MEDIUM, HIGH, and CRITICAL are the current confidence tiers. The app now prefers `confidence_tier` naming while retaining legacy `severity` query compatibility during migration. `CRITICAL >=90%` is implemented as the confidence threshold, and historical rows are not retroactively reclassified.
 
 Secure login, RBAC, and 2FA should be implemented as one account-security track:
 
@@ -311,7 +314,7 @@ Add production edge checklist as a runbook only. Cover CORS, disabled docs outsi
 
 `ALLOWED`, `THROTTLED`, and `BLOCKED` are currently action records, not complete runtime enforcement.
 
-Add `CRITICAL >=90%` as a confidence tier, not as a replacement for severity.
+Maintain `CRITICAL >=90%` as an implemented confidence tier, not as a business/security severity value.
 
 Suggested policy mapping:
 

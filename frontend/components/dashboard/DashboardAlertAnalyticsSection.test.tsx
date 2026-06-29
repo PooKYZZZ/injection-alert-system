@@ -11,6 +11,8 @@ import * as mlHealthQueries from '@/features/ml-health/queries'
 import type { DashboardStats } from '@/features/stats/types'
 import type { PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
+import { countAlertsByConfidenceTier } from '@/features/alerts/confidenceBands'
+import type { Alert } from '@/features/alerts/types'
 
 const queryResetMock = vi.fn()
 
@@ -60,12 +62,13 @@ vi.mock('@/components/dashboard/DashboardAlertAnalytics', () => ({
     }
     // Render unavailable if thresholds are null/missing
     const t = thresholdState?.thresholds
-    if (!t || t.high === null || t.medium === null || t.low === null) {
+    if (!t || t.critical === null || t.high === null || t.medium === null || t.low === null) {
       return <div data-testid="threshold-unavailable">Confidence thresholds unavailable.</div>
     }
     // Default: render threshold bands
     return (
       <div data-testid="threshold-bands">
+        <span>Critical &gt;= {Math.round((t?.critical ?? 0) * 100)}%</span>
         <span>High &gt; {Math.round((t?.high ?? 0) * 100)}%</span>
         <span>Medium {Math.round((t?.medium ?? 0) * 100)}–{Math.round((t?.high ?? 0) * 100)}%</span>
         <span>Low &lt; {Math.round((t?.medium ?? 0) * 100)}%</span>
@@ -158,6 +161,7 @@ const mockMLHealthWithThresholds: MLHealthData = {
     low: 0.5,
     medium: 0.65,
     high: 0.8,
+    critical: 0.9,
   },
 }
 
@@ -174,6 +178,7 @@ const mockMLHealthWithoutThresholds: MLHealthData = {
     low: null,
     medium: null,
     high: null,
+    critical: null,
   },
 }
 
@@ -334,6 +339,33 @@ describe('DashboardAlertAnalyticsSection', () => {
     expect(useMLHealthMock).toHaveBeenCalled()
   })
 
+  it('groups persisted alerts by confidence_level instead of raw confidence', () => {
+    const alerts = [
+      {
+        prediction: 'SQL Injection',
+        confidence: 0.95,
+        confidence_level: 'MEDIUM',
+      },
+      {
+        prediction: 'Code Injection',
+        confidence: 0.7,
+        confidence_level: 'CRITICAL',
+      },
+      {
+        prediction: 'Other Attacks',
+        confidence: 0.8,
+        confidence_level: 'MEDIUM',
+      },
+    ] as Alert[]
+
+    expect(countAlertsByConfidenceTier(alerts)).toEqual({
+      critical: 1,
+      high: 0,
+      medium: 2,
+      low: 0,
+    })
+  })
+
   it('shows confidence bands when thresholds are present', async () => {
     const Wrapper = createWrapper()
 
@@ -409,7 +441,7 @@ describe('DashboardAlertAnalyticsSection', () => {
     useMLHealthMock.mockReturnValue({
       data: {
         ...mockMLHealthWithThresholds,
-        thresholds: { low: 0.3, medium: 0.5, high: 0.7 },
+        thresholds: { low: 0.3, medium: 0.5, high: 0.7, critical: 0.9 },
       },
       isPending: false,
       isError: false,
@@ -418,6 +450,7 @@ describe('DashboardAlertAnalyticsSection', () => {
     const { rerender } = render(<DashboardAlertAnalyticsSection />, { wrapper: Wrapper })
 
     // Should show "High > 70%" - use getAllByText due to dynamic import
+    expect(screen.getAllByText('Critical >= 90%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('High > 70%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Medium 50–70%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Low < 50%').length).toBeGreaterThan(0)
@@ -426,7 +459,7 @@ describe('DashboardAlertAnalyticsSection', () => {
     useMLHealthMock.mockReturnValue({
       data: {
         ...mockMLHealthWithThresholds,
-        thresholds: { low: 0.5, medium: 0.65, high: 0.8 },
+        thresholds: { low: 0.5, medium: 0.65, high: 0.8, critical: 0.9 },
       },
       isPending: false,
       isError: false,
@@ -434,7 +467,7 @@ describe('DashboardAlertAnalyticsSection', () => {
 
     rerender(<DashboardAlertAnalyticsSection />)
 
-    // Should show "High > 80%"
+    expect(screen.getAllByText('Critical >= 90%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('High > 80%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Medium 65–80%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Low < 65%').length).toBeGreaterThan(0)

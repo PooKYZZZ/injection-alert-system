@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-06-27
+**Last updated:** 2026-06-30
 
 ---
 
@@ -11,7 +11,7 @@
 - Active branch baseline: `master`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
-- Frontend runtime: Next.js `16.2.1`, React `19.2.4`, TypeScript `5.9`, Zod `4.3.6`
+- Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
 - Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
 - Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
@@ -22,13 +22,13 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **413 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
-- Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
@@ -52,7 +52,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
 - Targeted WAF checks: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed.
 - ModSecurity audit-log policy is documented; automatic rotation and production retention remain TODO.
-- Remaining TODO: bridge follow mode once logged transient `OSError: [Errno 5] Input/output error` at `readline()`; bridge restarted and posted successfully afterward.
+- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines.
 
 ### CRS baseline and demo-target proof
 
@@ -103,11 +103,15 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - Next.js edge entrypoint uses `frontend/proxy.ts`.
   - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
 - Alert confidence-tier naming:
-  - Current tiers remain `LOW`, `MEDIUM`, and `HIGH`.
+  - Current tiers remain `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`.
   - Preferred query/filter naming is `confidence_tier`.
   - Legacy `severity` query compatibility is retained for existing URLs and callers.
   - Persisted backend field remains `confidence_level`.
-  - `CRITICAL >=90%` remains a separate future task and is not implemented.
+  - `CRITICAL >=90%` is implemented as the high-confidence threshold.
+  - Historical rows are not retroactively reclassified.
+  - Persisted-alert dashboard counts and confidence styling use backend-emitted `confidence_level`, not raw-score reclassification.
+  - Confidence distributions include all predictions; enforcement-policy counts exclude `Normal`, which remains `ALLOWED` for every valid tier.
+  - Confidence-tier badges display the canonical tier and do not replace it with `Benign`.
 
 ---
 
@@ -130,7 +134,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
 - Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
 - Portal-target WAF proof through `localhost:8089` is runtime-verified locally. The profile is optional for normal startup, but required for the final realistic WAF demonstration.
-- Bridge follow-mode resilience for transient `readline()` `OSError` remains a TODO.
+- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested; automatic log rotation and production retention remain TODO.
 - Bounded in-process inference queue and queue health visibility are implemented for synchronous WAF ingest.
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
@@ -138,7 +142,6 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client-required 2FA is not yet implemented.
 - Client-required email notification after detection is not yet implemented.
 - Real-time SSE/EventSource dashboard alerting is not yet implemented.
-- Client-standard `CRITICAL >=90%` confidence tier is not yet implemented.
 - Wazuh export-only integration is not yet implemented; full Wazuh/SIEM deployment is deferred.
 - Retraining remains design-level in `ml_model/retraining/`; promotion/rollback tooling exists separately under `ml_model/export/`.
 

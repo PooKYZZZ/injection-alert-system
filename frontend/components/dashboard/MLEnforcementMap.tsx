@@ -2,24 +2,22 @@
 
 import { motion } from 'motion/react'
 import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
+import type { ConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 
 interface MLEnforcementMapProps {
-  high: number
-  medium: number
-  low: number
+  nonNormalCounts: ConfidenceBandCounts
   isPending?: boolean
   unavailable?: boolean
 }
 
 export function MLEnforcementMap({
-  high,
-  medium,
-  low,
+  nonNormalCounts,
   isPending = false,
   unavailable = false,
 }: MLEnforcementMapProps) {
+  const { critical, high, medium, low } = nonNormalCounts
   if (isPending) {
-    return <LoadingSkeleton rows={3} />
+    return <LoadingSkeleton rows={4} />
   }
 
   if (unavailable) {
@@ -31,7 +29,7 @@ export function MLEnforcementMap({
     )
   }
 
-  const total = high + medium + low
+  const total = critical + high + medium + low
 
   return (
     <motion.div
@@ -40,11 +38,33 @@ export function MLEnforcementMap({
       transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
       className="flex flex-col gap-1.5"
     >
-      {/* HIGH CONF */}
+      <div className="text-[11px] font-medium text-[var(--color-text-primary)]">
+        Action policy for non-Normal predictions
+      </div>
+      <div className="text-[11px] leading-tight text-[var(--color-text-muted)]">
+        Normal predictions remain ALLOWED for all valid confidence tiers.
+      </div>
+
       <div className="flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-high-accent" />
-          <span className="text-[var(--color-accent-analytic)]">HIGH CONF</span>
+          <span className="text-[var(--color-accent-analytic)]">CRITICAL non-Normal</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[var(--color-text-primary)]">{critical}</span>
+          <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
+            BLOCKED
+          </span>
+        </div>
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-surface-border">
+        <div className="h-full bg-severity-high-accent" style={{ width: `${total > 0 ? (critical / total) * 100 : 0}%` }} />
+      </div>
+
+      <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-severity-high-accent" />
+          <span className="text-[var(--color-accent-analytic)]">HIGH non-Normal</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{high}</span>
@@ -57,11 +77,10 @@ export function MLEnforcementMap({
         <div className="h-full bg-severity-high-accent" style={{ width: `${total > 0 ? (high / total) * 100 : 0}%` }} />
       </div>
 
-      {/* MED CONF */}
       <div className="mt-1 flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-blocked-accent" />
-          <span className="text-[var(--color-accent-analytic)]">MED CONF</span>
+          <span className="text-[var(--color-accent-analytic)]">MEDIUM non-Normal</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{medium}</span>
@@ -74,11 +93,10 @@ export function MLEnforcementMap({
         <div className="h-full bg-severity-blocked-accent" style={{ width: `${total > 0 ? (medium / total) * 100 : 0}%` }} />
       </div>
 
-      {/* LOW CONF */}
       <div className="mt-1 flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-safe-accent" />
-          <span className="text-[var(--color-accent-analytic)]">LOW CONF</span>
+          <span className="text-[var(--color-accent-analytic)]">LOW non-Normal</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{low}</span>
@@ -92,9 +110,8 @@ export function MLEnforcementMap({
       </div>
 
       <div className="mt-1 text-[11px] text-[var(--color-text-muted)] leading-tight italic">
-        {`* Enforcement actions are strictly bound to model confidence tiers.`}
+        {`* Enforcement actions depend on prediction class plus confidence tier.`}
       </div>
     </motion.div>
   )
 }
-

@@ -86,7 +86,11 @@ describe('MLHealthPage', () => {
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Policy Bands (configured thresholds)')).toBeInTheDocument()
+    expect(screen.getByText('Non-Normal Policy Bands')).toBeInTheDocument()
+    expect(screen.getByText('Non-Normal action')).toBeInTheDocument()
+    expect(
+      screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')
+    ).toBeInTheDocument()
     expect(screen.getByText('Prediction Distribution Snapshot')).toBeInTheDocument()
     expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()

@@ -3,6 +3,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from ml_model.confidence_tiers import (
+    ConfidenceThresholds,
+    DEFAULT_CONFIDENCE_THRESHOLDS,
+    classify_confidence,
+)
 from ml_model.models.mock_model import MockInjectionClassifier
 from web_app.config import Settings
 
@@ -19,6 +24,7 @@ class ModelService:
     MOCK_MODEL_VERSION = "mock-model-service"
     DEFAULT_CONFIDENCE_LOW_THRESHOLD = 0.50
     DEFAULT_CONFIDENCE_HIGH_THRESHOLD = 0.80
+    DEFAULT_CONFIDENCE_CRITICAL_THRESHOLD = 0.90
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -30,8 +36,11 @@ class ModelService:
         self._mock_classifier: MockInjectionClassifier | None = None
         self._total_processed = 0
         self._total_inference_latency_ms = 0.0
-        self._confidence_low_threshold = float(settings.confidence_low_threshold)
-        self._confidence_high_threshold = float(settings.confidence_high_threshold)
+        self._confidence_thresholds = ConfidenceThresholds(
+            low=float(settings.confidence_low_threshold),
+            high=float(settings.confidence_high_threshold),
+            critical=float(settings.confidence_critical_threshold),
+        )
         self._eval_metadata: dict[str, Any] = {}
 
         run_dir, was_inferred = self._resolve_run_directory(
@@ -74,8 +83,11 @@ class ModelService:
         instance._mock_classifier = MockInjectionClassifier()
         instance._total_processed = 0
         instance._total_inference_latency_ms = 0.0
-        instance._confidence_low_threshold = cls.DEFAULT_CONFIDENCE_LOW_THRESHOLD
-        instance._confidence_high_threshold = cls.DEFAULT_CONFIDENCE_HIGH_THRESHOLD
+        instance._confidence_thresholds = ConfidenceThresholds(
+            low=cls.DEFAULT_CONFIDENCE_LOW_THRESHOLD,
+            high=cls.DEFAULT_CONFIDENCE_HIGH_THRESHOLD,
+            critical=cls.DEFAULT_CONFIDENCE_CRITICAL_THRESHOLD,
+        )
         instance._eval_metadata = {}
         return instance
 
@@ -108,6 +120,7 @@ class ModelService:
                 device=self.device,
                 temperature=self.temperature,
                 return_latency=True,
+                confidence_thresholds=self._confidence_thresholds,
             )
         except Exception as exc:
             raise RuntimeError(
@@ -228,7 +241,10 @@ class ModelService:
         confidence: float,
         inference_latency_ms: float,
     ) -> dict[str, Any]:
-        confidence_tier = self._confidence_tier_for(confidence)
+        confidence_tier = self._confidence_tier_for(
+            confidence,
+            thresholds=self._confidence_thresholds,
+        )
         response = {
             "prediction": prediction,
             "confidence": round(float(confidence), 6),
@@ -263,8 +279,9 @@ class ModelService:
     @property
     def confidence_thresholds(self) -> dict[str, float]:
         return {
-            "low": self._confidence_low_threshold,
-            "high": self._confidence_high_threshold,
+            "low": self._confidence_thresholds.low,
+            "high": self._confidence_thresholds.high,
+            "critical": self._confidence_thresholds.critical,
         }
 
     @property
@@ -375,9 +392,11 @@ class ModelService:
         return metadata
 
     @staticmethod
-    def _confidence_tier_for(confidence: float) -> str:
-        if confidence < 0.50:
-            return "LOW"
-        if confidence <= 0.80:
-            return "MEDIUM"
-        return "HIGH"
+    def _confidence_tier_for(
+        confidence: float,
+        thresholds: ConfidenceThresholds | None = None,
+    ) -> str:
+        return classify_confidence(
+            confidence,
+            thresholds=thresholds or DEFAULT_CONFIDENCE_THRESHOLDS,
+        )

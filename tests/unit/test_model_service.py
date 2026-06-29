@@ -43,6 +43,23 @@ def test_confidence_tier_boundaries_are_locked():
     assert ModelService._confidence_tier_for(0.800001) == "HIGH"
 
 
+def test_confidence_tier_boundaries_extend_to_critical():
+    assert ModelService._confidence_tier_for(0.899999) == "HIGH"
+    assert ModelService._confidence_tier_for(0.8999999999999999) == "HIGH"
+    assert ModelService._confidence_tier_for(0.90) == "CRITICAL"
+    assert ModelService._confidence_tier_for(1.0) == "CRITICAL"
+
+
+def test_confidence_thresholds_include_critical_band():
+    service = ModelService.create_mock()
+
+    assert service.confidence_thresholds == {
+        "low": 0.50,
+        "high": 0.80,
+        "critical": 0.90,
+    }
+
+
 def test_production_requires_explicit_run_directory(tmp_path: Path):
     staging_dir = tmp_path / "staging"
     _make_run_dir(staging_dir, "distilbert_v3_907k_cleaned_20260312_133755")

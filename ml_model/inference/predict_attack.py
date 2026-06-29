@@ -12,13 +12,17 @@ import numpy as np
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from ml_model.confidence_tiers import (
+    ConfidenceThresholds,
+    DEFAULT_CONFIDENCE_THRESHOLDS,
+    classify_confidence,
+)
+
 logger = logging.getLogger(__name__)
 
 LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 NUM_CLASSES = len(LABEL_NAMES)
 MAX_SEQ_LEN = 128
-LOW_THRESHOLD = 0.50
-HIGH_THRESHOLD = 0.80
 MODEL_IDS = {
     "minilm": "nreimers/MiniLM-L6-H384-uncased",
     "distilbert": "distilbert-base-uncased",
@@ -157,7 +161,15 @@ def load_model(model_key: str, staging_dir=None, device="cpu"):
         return model, tokenizer, temperature
 
 
-def predict_attack(text: str, model, tokenizer, device="cpu", temperature: float = 1.0, return_latency: bool = True):
+def predict_attack(
+    text: str,
+    model,
+    tokenizer,
+    device="cpu",
+    temperature: float = 1.0,
+    return_latency: bool = True,
+    confidence_thresholds: ConfidenceThresholds | None = None,
+):
     if isinstance(device, str):
         device = torch.device(device)
 
@@ -171,12 +183,10 @@ def predict_attack(text: str, model, tokenizer, device="cpu", temperature: float
     probs = torch.softmax(logits / float(temperature), dim=-1).squeeze().tolist()
     pred_idx = int(np.argmax(probs))
     max_prob = float(max(probs))
-    if max_prob < LOW_THRESHOLD:
-        tier = "LOW"
-    elif max_prob <= HIGH_THRESHOLD:
-        tier = "MEDIUM"
-    else:
-        tier = "HIGH"
+    tier = classify_confidence(
+        max_prob,
+        thresholds=confidence_thresholds or DEFAULT_CONFIDENCE_THRESHOLDS,
+    )
 
     payload = {
         "label": LABEL_NAMES[pred_idx],

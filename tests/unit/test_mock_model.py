@@ -32,7 +32,7 @@ def test_mock_model_confidence_levels():
     model = MockInjectionClassifier()
     # HIGH confidence (> 0.8)
     high_result = model.predict("SELECT * FROM users; DROP TABLE users;--")
-    assert high_result["confidence_level"] == "HIGH"
+    assert high_result["confidence_level"] in ["HIGH", "CRITICAL"]
     assert high_result["confidence"] > 0.8
 
     # Test that confidence level matches confidence value
@@ -41,8 +41,27 @@ def test_mock_model_confidence_levels():
         assert result["confidence_level"] == "LOW"
     elif result["confidence"] <= 0.8:
         assert result["confidence_level"] == "MEDIUM"
-    else:
+    elif result["confidence"] < 0.9:
         assert result["confidence_level"] == "HIGH"
+    else:
+        assert result["confidence_level"] == "CRITICAL"
+
+
+def test_mock_model_critical_boundary_is_classified_as_critical():
+    model = MockInjectionClassifier()
+    critical_level = getattr(ConfidenceLevel, "CRITICAL", None)
+
+    assert critical_level is not None
+    assert model._get_confidence_level(0.90) == critical_level
+    assert model._get_confidence_level(1.0) == critical_level
+
+
+def test_mock_model_empty_input_hits_critical_band():
+    model = MockInjectionClassifier()
+    result = model.predict("")
+
+    assert result["confidence"] == 0.9
+    assert result["confidence_level"] == "CRITICAL"
 
 
 def test_mock_model_other_attacks():

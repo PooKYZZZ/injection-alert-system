@@ -2,6 +2,7 @@ export interface ConfidenceThresholds {
   low: number | null
   medium: number | null
   high: number | null
+  critical: number | null
 }
 
 export interface CalibrationBin {

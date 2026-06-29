@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-06-27
+Updated: 2026-06-29
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -38,7 +38,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
 - Docker-internal backend lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
 - Targeted checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet`.
-- Remaining TODO: bridge follow mode once logged transient `OSError: [Errno 5] Input/output error` at `readline()`; the container restarted and posted successfully afterward.
+- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; it preserves the last safe file position, warns, sleeps, and resumes follow processing after reopen.
 
 ### Realistic demo-target WAF proof (2026-06-27)
 
@@ -51,15 +51,15 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run on 2026-03-23
+### Checks run through 2026-06-30
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **122 passed**
+  - `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 
@@ -108,7 +108,11 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
   - all five handlers apply the same existing session auth pattern via `auth()`
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
+    - `confidence_level`: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
     - `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
+  - persisted-alert confidence distributions and styling use backend-emitted `confidence_level`, not raw-score reclassification
+  - enforcement-policy counts exclude `Normal`; Normal predictions remain `ALLOWED` for every valid confidence tier
+  - confidence-tier badges always render the canonical tier and do not substitute `Benign`
 
 ### Database
 
@@ -128,7 +132,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 ## Not Yet Implemented
 
 - Production-grade ModSecurity-fronted deployment
-- Bridge follow-mode resilience for transient `readline()` `OSError`
 - Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 - Client-required real user accounts / secure login replacement for demo auth
@@ -136,7 +139,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Client-required 2FA
 - Client-required email notification after detection
 - Client-required real-time/SSE dashboard alerts
-- Client-standard `CRITICAL >=90%` confidence tier
 - Wazuh export-only integration
 - Backup/restore, migration rollback, and archive/hide retention runbooks
 
@@ -147,4 +149,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - The repo has a verified local WAF ingest proof. It is not a production-grade WAF deployment.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `BLOCKED`, `THROTTLED`, and `ALLOWED` are currently recorded action values, not proof of live request-path enforcement.
-- Current confidence tiers are LOW/MEDIUM/HIGH; the client-required `CRITICAL >=90%` tier is planned.
+- Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
+- Frontend policy displays keep prediction, confidence tier, and `action_taken` separate: confidence tier alone does not imply an action, and `CRITICAL` is never an `action_taken` value.
+- Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

@@ -23,6 +23,11 @@ describe('SeverityBadge', () => {
     expect(highBadge).toHaveClass('text-severity-high-text')
     expect(highBadge).toHaveClass('border-severity-high-border/30')
 
+    rerender(<SeverityBadge severity="CRITICAL" prediction="SQL Injection" />)
+    const criticalBadge = screen.getByText('CRITICAL')
+    expect(criticalBadge).toHaveClass('text-severity-high-text')
+    expect(criticalBadge).toHaveClass('border-severity-high-border/30')
+
     rerender(<SeverityBadge severity="MEDIUM" prediction="Code Injection" />)
     const mediumBadge = screen.getByText('MEDIUM')
     expect(mediumBadge).toHaveClass('text-severity-blocked-text')
@@ -35,15 +40,11 @@ describe('SeverityBadge', () => {
     expect(lowBadge).toHaveClass('border-severity-safe-border/30')
   })
 
-  it('renders Benign when prediction is Normal even if confidence level is HIGH', () => {
-    render(<SeverityBadge severity="HIGH" prediction="Normal" />)
+  it('preserves the canonical CRITICAL tier for Normal predictions', () => {
+    render(<SeverityBadge severity="CRITICAL" prediction="Normal" />)
 
-    const benignBadge = screen.getByText('Benign')
-
-    expect(benignBadge).toBeInTheDocument()
-    expect(benignBadge).toHaveClass('text-text-secondary')
-    expect(benignBadge).toHaveClass('border-surface-border')
-    expect(screen.queryByText('HIGH')).not.toBeInTheDocument()
+    expect(screen.getByText('CRITICAL')).toBeInTheDocument()
+    expect(screen.queryByText('Benign')).not.toBeInTheDocument()
   })
 
   it('keeps confidence-level label for non-Normal predictions', () => {

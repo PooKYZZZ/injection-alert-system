@@ -48,11 +48,12 @@ This folder is the maintained documentation surface for the repository. It is in
 
 ## Verified Repo State
 
-- Backend tests currently pass: **413 passed** (pytest)
+- Backend tests currently pass: `.venv\Scripts\python.exe -m pytest -q`
 - Frontend lint currently passes: `cd frontend && npm run lint`
 - Frontend typecheck currently passes: `cd frontend && npm run typecheck`
-- Frontend tests currently pass: **122 passed** (vitest)
+- Frontend tests currently pass: `cd frontend && npx vitest run`
 - Frontend production build currently passes: `cd frontend && npm run build`
+- Latest verification counts are recorded in `project-ops/STATUS.md`.
 - Current backend API surface includes:
   - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `PATCH /api/alerts/{id}/triage`, `GET /api/stats`, `GET /api/ml-health`, `POST /api/feedback`
   - public: `GET /health`, `GET /api/health`
@@ -67,7 +68,9 @@ This folder is the maintained documentation surface for the repository. It is in
 - Verified local WAF proof: `/healthz` and `/api/health` returned HTTP 200 through `localhost:8088`; SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned HTTP 403; bridge posted to FastAPI; Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
 - Verified demo-target WAF proof: `localhost:8089` home returned HTTP 200; SQLi marker `SMOKE002945` returned HTTP 403; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`
 - Targeted WAF checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed
-- Client-required real user access management/RBAC, 2FA, email notifications after detection, and the `CRITICAL >=90%` confidence tier are planned requirements tracked in `client-requirements.md`, not completed runtime behavior.
+- Client-required real user access management/RBAC, 2FA, and email notifications after detection remain planned requirements tracked in `client-requirements.md`.
+- The `CRITICAL >=90%` model-confidence tier is implemented without retraining, recalibration, model artifact changes, or retroactive historical-row reclassification.
+- Frontend confidence distributions and styling use persisted `confidence_level`; enforcement-policy counts are non-Normal-only, and confidence-tier badges never replace the canonical tier with prediction labels.
 
 ## Documentation Rules For This Repo
 

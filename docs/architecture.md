@@ -48,7 +48,7 @@ flowchart LR
 | Email notifications | Planned | no transactional email integration found |
 | RBAC secure login | Planned | current `frontend/auth.ts` is demo credentials auth without roles |
 | 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
-| `CRITICAL >=90%` confidence tier | Planned | current contracts expose LOW/MEDIUM/HIGH only |
+| `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
 | Retraining pipeline | Planned | `ml_model/retraining/README.md` documents design-level only |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
@@ -180,7 +180,6 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Client-required real user access management, RBAC, and secure login
 - Client-required 2FA
 - Client-required email notifications after detection
-- Client-standard `CRITICAL >=90%` confidence tier
 - Wazuh export-only JSON/JSONL integration
 - Production edge checklist, backup/restore runbook, and archive/hide retention policy
 
@@ -189,10 +188,13 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
 - `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
-- Current confidence tiers are `LOW`, `MEDIUM`, and `HIGH`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
-- Current confidence tier contracts do not include `CRITICAL`.
+- Current confidence tiers are `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
+- `CRITICAL >=90%` is implemented as the top confidence threshold, and historical rows are not retroactively reclassified.
+- Persisted-alert dashboard aggregations use backend-emitted `confidence_level`; the frontend does not reclassify stored alerts from raw confidence or current ML-health thresholds.
+- Confidence distributions include all predictions, while enforcement-policy counts include non-Normal predictions only. Normal predictions remain `ALLOWED` at every valid confidence tier.
+- Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
-- Bridge follow mode has a resilience TODO for a transient `OSError: [Errno 5] Input/output error` observed at `readline()`; the container restarted and successfully posted afterward.
+- Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
 ## Architecture Notes For Future Edits
 

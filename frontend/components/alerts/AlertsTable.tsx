@@ -7,6 +7,7 @@ import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { normalizeAlertSearchParams } from '@/lib/searchParams'
+import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 
 interface AlertsTableProps {
   selectedIds: string[]
@@ -89,13 +90,6 @@ function formatRequestHeadline(alert: Alert): string {
 function formatPayloadEvidence(snippet: string | null | undefined): string {
   const normalized = snippet?.trim()
   return normalized && normalized.length > 0 ? normalized : 'No payload snippet'
-}
-
-function getConfidenceTextColor(confidence: number): string {
-  const value = Math.round(confidence * 100)
-  if (value >= 80) return 'text-severity-high-text'
-  if (value >= 50) return 'text-severity-blocked-text'
-  return 'text-[var(--color-accent-analytic)]'
 }
 
 function formatConfidence(confidence: number, level: string): string {
@@ -409,7 +403,7 @@ function AlertsTableContent({
                   </td>
                   <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
-                    <span className={`font-mono text-xs ${getConfidenceTextColor(alert.confidence)}`}>
+                    <span className={`font-mono text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
                       {formatConfidence(alert.confidence, alert.confidence_level)}
                     </span>
                   </td>

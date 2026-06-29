@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/StateViews'
 
 interface ConfidenceThresholdsProps {
-  thresholds: { low: number | null; medium: number | null; high: number | null }
+  thresholds: { low: number | null; medium: number | null; high: number | null; critical: number | null }
 }
 
 function LegendItem({ color, label }: { color: string; label: string }) {
@@ -25,39 +25,55 @@ function toPercent(value: number | null): number | null {
 export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) {
   const low = toPercent(thresholds.low)
   const high = toPercent(thresholds.high)
+  const critical = toPercent(thresholds.critical)
 
-  if (low === null || high === null) {
-    return <EmptyState message="Threshold data unavailable" />
+  if (
+    low === null ||
+    high === null ||
+    critical === null ||
+    low < 0 ||
+    low >= high ||
+    high >= critical ||
+    critical > 100
+  ) {
+    return <EmptyState message="Threshold data not configured" />
   }
 
   // Calculate width percentages based on the 0-100 scale
   const lowWidth = low
   const mediumWidth = high - low
-  const highWidth = 100 - high
+  const highWidth = critical - high
+  const criticalWidth = 100 - critical
 
   return (
     <>
       <div className="text-[10px] text-[var(--color-text-muted)] mb-2">
-        How ML confidence maps to enforcement actions
+        Configured confidence thresholds for non-Normal enforcement policy
       </div>
       <div className="relative h-8 bg-[var(--color-bg-inset)] rounded-md overflow-hidden flex">
         <div
           className="h-full bg-[var(--color-severity-safe-bg)] text-emerald-400 flex items-center justify-center text-[10px] font-medium"
           style={{ width: `${lowWidth}%` }}
         >
-          {`Low < ${low}%`}
+          {`Low <${low}%`}
         </div>
         <div
           className="h-full bg-[var(--color-severity-blocked-bg)] text-amber-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
           style={{ width: `${mediumWidth}%` }}
         >
-          {`Med ${low}%–${high}%`}
+          {`Medium ${low}%–${high}%`}
         </div>
         <div
           className="h-full bg-[var(--color-severity-high-bg)] text-red-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
           style={{ width: `${highWidth}%` }}
         >
-          {`High > ${high}%`}
+          {`High >${high}%–<${critical}%`}
+        </div>
+        <div
+          className="h-full bg-[var(--color-severity-high-bg)] text-red-400 flex items-center justify-center text-[10px] font-medium border-l border-[var(--color-bg-inset)]"
+          style={{ width: `${criticalWidth}%` }}
+        >
+          {`Critical >=${critical}%`}
         </div>
       </div>
       <div className="flex gap-4 mt-2 text-[10px]">
@@ -66,9 +82,8 @@ export function ConfidenceThresholds({ thresholds }: ConfidenceThresholdsProps) 
         <LegendItem color="bg-red-500" label="Block" />
       </div>
       <div className="mt-3 text-[10px] text-[var(--color-text-muted)]">
-        {`Enforcement thresholds: HIGH > 80%, MEDIUM 50–80%, LOW < 50% per policy.`}
+        Normal predictions remain allowed for all valid confidence tiers.
       </div>
     </>
   )
 }
-

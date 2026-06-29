@@ -217,7 +217,7 @@ A previous transient bridge read error was also observed:
 OSError: [Errno 5] Input/output error
 ```
 
-The bridge restarted and continued processing successfully. This is recorded as a resilience TODO, not a failure of this proof.
+The bridge restarted and continued processing successfully. This is historical proof context; later code added unit-tested recovery for the same transient `readline()` `OSError`.
 
 ### 12. Run backend Docker-internal lookup
 
@@ -426,7 +426,7 @@ The bridge restarted and successfully posted the latest event afterward, so this
 Recommended follow-up:
 
 ```text
-Add a regression test and small retry/reopen handling for transient OSError from follow-mode readline().
+Later code added a regression test and retry/reopen handling for transient OSError from follow-mode `readline()`.
 ```
 
 This should be treated as resilience hardening, not as a blocker for the current live proof.

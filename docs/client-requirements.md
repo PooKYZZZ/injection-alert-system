@@ -24,6 +24,6 @@ This document records client-stated requirements that must be considered when pl
 
 | Client Requirement | Engineering Consideration | Current Repo State | Tracker Direction |
 |---|---|---|---|
-| Client standard includes a `CRITICAL >=90%` confidence tier. | Update backend policy, schemas, frontend contracts, filters, mocks, and tests together. | Not implemented as a separate tier. Existing implementation has LOW/MEDIUM/HIGH. | Add CRITICAL as an explicit client-driven confidence tier. |
+| Client standard includes a `CRITICAL >=90%` confidence tier. | Keep backend policy, schemas, frontend contracts, filters, mocks, and tests aligned. | Implemented across backend and frontend contracts without changing action values. Persisted-alert UI grouping/styling uses `confidence_level`; non-Normal enforcement-policy displays keep the Normal exception visible; confidence-tier badges always show the canonical tier. | Maintain CRITICAL as an explicit client-driven confidence tier. |
 
-Implementation rule: confidence tier must remain separate from attack severity. A request can have an attack class such as `SQL Injection` or `Code Injection`, while the confidence tier describes model certainty such as `LOW`, `MEDIUM`, `HIGH`, or planned `CRITICAL`.
+Implementation rule: confidence tier remains separate from attack severity. A request can have an attack class such as `SQL Injection` or `Code Injection`, while `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL` describe model certainty. `CRITICAL >=90%` is implemented without retraining, recalibration, or model artifact changes; historical rows are not retroactively reclassified, and legacy `severity` remains only a query compatibility alias.

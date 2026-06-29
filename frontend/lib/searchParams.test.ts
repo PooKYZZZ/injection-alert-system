@@ -22,6 +22,18 @@ describe('normalizeAlertSearchParams', () => {
     expect(result.severity).toBe('HIGH')
   })
 
+  it('accepts CRITICAL confidence_tier and severity filters', () => {
+    const preferred = normalizeAlertSearchParams({
+      confidence_tier: 'CRITICAL',
+    })
+    expect(preferred.confidence_tier).toBe('CRITICAL')
+
+    const legacy = normalizeAlertSearchParams({
+      severity: 'CRITICAL',
+    })
+    expect(legacy.severity).toBe('CRITICAL')
+  })
+
   it('preserves conflicting legacy and preferred confidence-tier params for backend validation', () => {
     const result = normalizeAlertSearchParams({
       severity: 'LOW',
@@ -176,8 +188,8 @@ describe('toAlertQueryString', () => {
     const result = toAlertQueryString({
       page: 2,
       pageSize: 10,
-      confidence_tier: 'HIGH',
-      confidence_level: ['HIGH', 'LOW'],
+      confidence_tier: 'CRITICAL',
+      confidence_level: ['CRITICAL', 'HIGH', 'LOW'],
       action: 'BLOCKED',
       triage_status: 'new',
       prediction: 'SQL Injection',
@@ -189,7 +201,8 @@ describe('toAlertQueryString', () => {
     })
     expect(result).toContain('page=2')
     expect(result).toContain('pageSize=10')
-    expect(result).toContain('confidence_tier=HIGH')
+    expect(result).toContain('confidence_tier=CRITICAL')
+    expect(result).toContain('confidence_level=CRITICAL')
     expect(result).toContain('confidence_level=HIGH')
     expect(result).toContain('confidence_level=LOW')
     expect(result).toContain('action=BLOCKED')
@@ -203,11 +216,11 @@ describe('toAlertQueryString', () => {
   it('serializes both confidence_tier and legacy severity when both are present', () => {
     const result = toAlertQueryString({
       ...DEFAULT_ALERT_FILTERS,
-      confidence_tier: 'HIGH',
-      severity: 'LOW',
+      confidence_tier: 'CRITICAL',
+      severity: 'CRITICAL',
     })
 
-    expect(result).toContain('confidence_tier=HIGH')
-    expect(result).toContain('severity=LOW')
+    expect(result).toContain('confidence_tier=CRITICAL')
+    expect(result).toContain('severity=CRITICAL')
   })
 })

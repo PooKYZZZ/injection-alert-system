@@ -106,6 +106,37 @@ def test_alerts_endpoint_accepts_matching_legacy_and_preferred_confidence_tier(
     assert response.status_code == 200
 
 
+def test_alerts_endpoint_accepts_critical_legacy_and_preferred_confidence_tier(
+    client,
+):
+    response = client.get(
+        "/api/alerts?severity=CRITICAL&confidence_tier=CRITICAL",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "query_string",
+    [
+        "confidence_tier=EXTREME",
+        "severity=EXTREME",
+    ],
+)
+def test_alerts_endpoint_rejects_invalid_confidence_tier_aliases(
+    client,
+    query_string,
+):
+    response = client.get(
+        f"/api/alerts?{query_string}",
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]
+
+
 def test_alerts_endpoint_rejects_conflicting_legacy_and_preferred_confidence_tier(
     client,
 ):
@@ -125,6 +156,16 @@ def test_alerts_endpoint_accepts_confidence_tier_sort_alias(client):
     )
 
     assert response.status_code == 200
+
+
+def test_ml_health_exposes_critical_threshold(client):
+    response = client.get("/api/ml-health", headers=INTERNAL_HEADERS)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["confidence_thresholds"]["low"] == 0.5
+    assert data["confidence_thresholds"]["high"] == 0.8
+    assert data["confidence_thresholds"]["critical"] == 0.9
 
 
 def test_alerts_endpoint_with_data(client):

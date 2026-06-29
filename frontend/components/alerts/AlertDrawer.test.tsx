@@ -78,4 +78,29 @@ describe('AlertDrawer', () => {
     expect(blockedButton).toHaveClass('border-surface-border')
     expect(allowedButton).toHaveClass('border-surface-border')
   })
+
+  it('renders CRITICAL confidence tiers in the drawer confidence label', () => {
+    render(
+      <AlertDrawer
+        alert={{
+          alert_id: 'drawer-crit',
+          timestamp: '2026-04-03T10:00:00.000Z',
+          source_ip: '10.0.0.9',
+          request_path: '/admin/login',
+          request_method: 'POST',
+          payload_snippet: "username=admin' OR '1'='1",
+          prediction: 'SQL Injection',
+          confidence: 0.95,
+          confidence_level: 'CRITICAL',
+          action_taken: 'BLOCKED',
+          triage_status: 'in_review',
+          crs_score: 11,
+          crs_rule_ids: ['942100'],
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('95% (CRITICAL)')).toBeInTheDocument()
+  })
 })

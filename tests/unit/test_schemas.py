@@ -41,6 +41,17 @@ def test_prediction_response_structure():
     assert response.action_taken == "BLOCKED"
 
 
+def test_prediction_response_accepts_critical_confidence_level():
+    response = PredictionResponse(
+        class_label="SQL Injection",
+        confidence=0.95,
+        confidence_level="CRITICAL",
+        action_taken="BLOCKED",
+    )
+
+    assert response.confidence_level == "CRITICAL"
+
+
 def test_prediction_response_confidence_range():
     """Test that confidence must be in valid range"""
     # Valid confidence
@@ -96,6 +107,20 @@ def test_alert_response_structure():
     )
     assert alert.id == 1
     assert alert.source_ip == "192.168.1.1"
+
+
+def test_alert_response_accepts_critical_confidence_level():
+    alert = AlertResponse(
+        id=1,
+        timestamp=datetime.now(),
+        source_ip="192.168.1.1",
+        http_request="GET /api/test",
+        prediction="SQL Injection",
+        confidence=0.95,
+        confidence_level="CRITICAL",
+        action_taken="BLOCKED",
+    )
+    assert alert.confidence_level == "CRITICAL"
 
 
 def test_health_response():
@@ -178,6 +203,18 @@ def test_triage_ingest_response_structure():
     )
     assert response.alert_id == 1
     assert response.prediction == "SQL Injection"
+
+
+def test_triage_ingest_response_accepts_critical_confidence_level():
+    response = TriageIngestResponse(
+        alert_id=1,
+        prediction="SQL Injection",
+        confidence=0.95,
+        confidence_level="CRITICAL",
+        action_taken="BLOCKED",
+        model_version="distilbert_v1",
+    )
+    assert response.confidence_level == "CRITICAL"
 
 
 def test_alert_detail_response_supports_optional_crs_and_review_fields():

@@ -156,6 +156,42 @@ async def test_triage_low_confidence_is_allowed(mock_classifier, mock_repository
     assert result.action_taken == "ALLOWED"
 
 
+@pytest.mark.parametrize(
+    ("prediction", "confidence_level", "expected_action"),
+    [
+        ("SQL Injection", "CRITICAL", "BLOCKED"),
+        ("Code Injection", "CRITICAL", "BLOCKED"),
+        ("Other Attacks", "CRITICAL", "BLOCKED"),
+        ("Normal", "CRITICAL", "ALLOWED"),
+    ],
+)
+def test_triage_critical_action_mapping(prediction, confidence_level, expected_action):
+    assert TriageUseCase._action_for(
+        prediction=prediction,
+        confidence_level=confidence_level,
+    ) == expected_action
+
+
+@pytest.mark.parametrize(
+    ("prediction", "confidence_level"),
+    [
+        ("SQL Injection", None),
+        ("SQL Injection", "UNKNOWN_TIER"),
+        ("Normal", None),
+        ("Normal", "UNKNOWN_TIER"),
+    ],
+)
+def test_triage_unknown_confidence_tier_raises_value_error(
+    prediction,
+    confidence_level,
+):
+    with pytest.raises(ValueError):
+        TriageUseCase._action_for(
+            prediction=prediction,
+            confidence_level=confidence_level,
+        )
+
+
 @pytest.mark.asyncio
 async def test_triage_persists_correct_entity_fields(mock_classifier, mock_repository):
     """Verify the entity passed to repository.save has the correct fields."""

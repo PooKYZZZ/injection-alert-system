@@ -1,4 +1,4 @@
-export type ConfidenceTierFilter = 'ALL' | 'LOW' | 'MEDIUM' | 'HIGH'
+export type ConfidenceTierFilter = 'ALL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 export type SeverityFilter = ConfidenceTierFilter
 export type TimeRange = '1h' | '6h' | '24h' | '7d'
 
@@ -14,7 +14,7 @@ export const DEFAULT_FILTERS: DashboardFilters = {
   search: '',
 }
 
-const CONFIDENCE_TIER_VALUES = ['ALL', 'LOW', 'MEDIUM', 'HIGH'] as const
+const CONFIDENCE_TIER_VALUES = ['ALL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
 const TIME_RANGE_VALUES = ['1h', '6h', '24h', '7d'] as const
 const MAX_SEARCH_LENGTH = 200
 

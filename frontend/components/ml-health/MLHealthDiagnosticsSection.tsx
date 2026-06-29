@@ -240,7 +240,7 @@ function PolicyTab({ viewModel }: Props) {
         </div>
         <div className={styles.panelBody}>
           <p className={styles.policyFootnote}>Threshold-based policy bands from configured confidence thresholds.</p>
-          <p className={styles.policyFootnote}>Low: {viewModel.thresholdLabels.low} · Medium: {viewModel.thresholdLabels.medium} · High: {viewModel.thresholdLabels.high}</p>
+          <p className={styles.policyFootnote}>Low: {viewModel.thresholdLabels.low} · Medium: {viewModel.thresholdLabels.medium} · High: {viewModel.thresholdLabels.high} · Critical: {viewModel.thresholdLabels.critical}</p>
         </div>
       </div>
     </div>
