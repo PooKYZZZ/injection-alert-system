@@ -22,7 +22,7 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **444 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
@@ -52,7 +52,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
 - Targeted WAF checks: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed.
 - ModSecurity audit-log policy is documented; automatic rotation and production retention remain TODO.
-- Remaining TODO: bridge follow mode once logged transient `OSError: [Errno 5] Input/output error` at `readline()`; bridge restarted and posted successfully afterward.
+- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines.
 
 ### CRS baseline and demo-target proof
 
@@ -131,7 +131,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
 - Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
 - Portal-target WAF proof through `localhost:8089` is runtime-verified locally. The profile is optional for normal startup, but required for the final realistic WAF demonstration.
-- Bridge follow-mode resilience for transient `readline()` `OSError` remains a TODO.
+- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested; automatic log rotation and production retention remain TODO.
 - Bounded in-process inference queue and queue health visibility are implemented for synchronous WAF ingest.
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export.

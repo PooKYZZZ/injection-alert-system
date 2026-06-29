@@ -38,7 +38,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
 - Docker-internal backend lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
 - Targeted checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet`.
-- Remaining TODO: bridge follow mode once logged transient `OSError: [Errno 5] Input/output error` at `readline()`; the container restarted and posted successfully afterward.
+- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; it preserves the last safe file position, warns, sleeps, and resumes follow processing after reopen.
 
 ### Realistic demo-target WAF proof (2026-06-27)
 
@@ -53,7 +53,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 ### Checks run on 2026-06-29
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **444 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
@@ -128,7 +128,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 ## Not Yet Implemented
 
 - Production-grade ModSecurity-fronted deployment
-- Bridge follow-mode resilience for transient `readline()` `OSError`
 - Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 - Client-required real user accounts / secure login replacement for demo auth
@@ -147,3 +146,4 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `BLOCKED`, `THROTTLED`, and `ALLOWED` are currently recorded action values, not proof of live request-path enforcement.
 - Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
+- Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

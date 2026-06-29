@@ -191,7 +191,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Current confidence tiers are `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
 - `CRITICAL >=90%` is implemented as the top confidence threshold, and historical rows are not retroactively reclassified.
 - Current action values are recorded metadata, not proof of live network enforcement.
-- Bridge follow mode has a resilience TODO for a transient `OSError: [Errno 5] Input/output error` observed at `readline()`; the container restarted and successfully posted afterward.
+- Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
 ## Architecture Notes For Future Edits
 

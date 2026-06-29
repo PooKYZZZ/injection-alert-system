@@ -6,7 +6,7 @@
 **Last updated:** 2026-06-29
 
 Status note:
-- Current test baseline: pytest 444 passed, vitest 191 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 447 passed, vitest 191 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -19,10 +19,10 @@ Status note:
 
 ---
 
-## Current Verified State (2026-03-23)
+## Current Verified State (2026-06-29)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **444 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**

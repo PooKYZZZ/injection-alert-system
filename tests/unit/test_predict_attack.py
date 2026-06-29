@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,6 +25,25 @@ class _FakeModel:
     def eval(self):
         self.in_eval = True
         return self
+
+
+class _FakeInferenceModel:
+    def __init__(self, logits=None):
+        self.logits = predict_module.torch.tensor(
+            [[0.0, 0.0, 0.0, 0.0] if logits is None else logits]
+        )
+
+    def __call__(self, **encoded):
+        return SimpleNamespace(logits=self.logits)
+
+
+def _fake_tokenizer(*args, **kwargs):
+    return {
+        "input_ids": predict_module.torch.zeros(
+            (1, 1),
+            dtype=predict_module.torch.long,
+        )
+    }
 
 
 def _write_manifest(
@@ -200,3 +220,57 @@ def test_load_model_falls_back_to_checkpoint_when_local_files_missing(
         {"local_files_only": True},
     )
     assert "Falling back to checkpoint-based loading" in caplog.text
+
+
+def test_predict_attack_builds_payload_from_model_logits():
+    result = predict_module.predict_attack(
+        "SELECT * FROM users",
+        _FakeInferenceModel(logits=[0.0, 0.0, 0.0, 10.0]),
+        _fake_tokenizer,
+        return_latency=False,
+    )
+
+    assert result["label"] == predict_module.LABEL_NAMES[3]
+    assert result["label_idx"] == 3
+    assert result["max_prob"] == pytest.approx(0.999864)
+    assert result["tier"] == "CRITICAL"
+    assert sum(result["probs"]) == pytest.approx(1.0, abs=2e-6)
+
+
+@pytest.mark.parametrize(
+    ("max_probability", "expected_tier"),
+    [
+        (0.80, "MEDIUM"),
+        (0.90, "CRITICAL"),
+    ],
+)
+def test_predict_attack_classifies_confidence_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+    max_probability: float,
+    expected_tier: str,
+):
+    remaining_probability = (1.0 - max_probability) / 3
+    probabilities = predict_module.torch.tensor(
+        [
+            max_probability,
+            remaining_probability,
+            remaining_probability,
+            remaining_probability,
+        ],
+        dtype=predict_module.torch.float64,
+    )
+    monkeypatch.setattr(
+        predict_module.torch,
+        "softmax",
+        lambda logits, dim: probabilities,
+    )
+
+    result = predict_module.predict_attack(
+        "SELECT * FROM users",
+        _FakeInferenceModel(),
+        _fake_tokenizer,
+        return_latency=False,
+    )
+
+    assert result["max_prob"] == max_probability
+    assert result["tier"] == expected_tier

@@ -29,7 +29,7 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `444 passed`, frontend full Vitest `191 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `447 passed`, frontend full Vitest `191 passed`, frontend typecheck, lint, and production build.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias.
 
 ### Client Requirements
@@ -68,7 +68,7 @@ This tracker is based on the following.
 | `[x]` | Build a small demo target website | Critical | Medium | External target exists at `G:\AI\land-records-portal` with WAF route inventory and live Playwright PASS evidence. The source remains separate; this repo's demo-target Compose profile builds it as internal service `demo-portal:3010`. |
 | `[x]` | Put ModSecurity in the actual test request path | Critical | High | Done for local proof: `localhost:8088` reached ModSecurity/OWASP CRS, `/healthz` and `/api/health` returned 200, and SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned 403. This is not a production deployment claim. |
 | `[~]` | Decide ModSecurity audit log format and retention | Critical | Low | Partial: Policy documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; JSONL path is `logs/modsecurity/modsec_audit.jsonl`; automatic rotation is not implemented and production retention is not implemented. |
-| `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient OSError resilience remains TODO. |
+| `[x]` | Build ModSecurity JSON audit-log watcher/bridge | Critical | High | Done for local proof: bridge followed the live JSON audit log and posted `status=200`, `transaction_id=17821639659.909603`, `rule_ids=['942100', '949110']`; follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`. |
 | `[x]` | Connect ModSecurity detections to FastAPI ingest reliably | Critical | High | Done for local proof: lookup for transaction `17821639659.909603` returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, source/request metadata, `crs_score=5`, and rules `942100`, `949110`. |
 | `[x]` | Create CRS-only baseline test report | Critical | Medium | Done: `reports/modsecurity-live-proof/crs-baseline.md` records normal traffic, SQLi, XSS-like, command/file-access-like, and false-positive check results through `localhost:8088` with observed CRS rule IDs and transaction IDs. |
 | `[x]` | Create demo-target WAF proof using portal-pre-waf | Critical | Medium | Done: `reports/modsecurity-live-proof/demo-target-crs-proof.md` records observed portal route checks through `localhost:8089`, including normal traffic, SQLi/XSS checks, CRS transaction IDs, rule IDs, and matched messages where available. |
@@ -119,7 +119,7 @@ Based on priority and implementation hardness, focus on the highest-value work t
 
 | Order | Task | Why Now |
 |---:|---|---|
-| 1 | Harden bridge transient read-error behavior | A live proof passed, but follow mode once logged transient `OSError: [Errno 5] Input/output error` before restart recovery. |
+| 1 | Add metrics and structured JSON logs | Bridge transient read-error hardening is implemented and covered by `tests/scripts/test_waf_audit_bridge.py`; next focus is structured JSON logs with transaction/request IDs. |
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
 | 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
