@@ -14,7 +14,7 @@ export const ALERT_ACTION_TAKEN_VALUES = [
   'ALLOWED',
 ] as const
 
-export const ALERT_CONFIDENCE_TIER_VALUES = ['LOW', 'MEDIUM', 'HIGH'] as const
+export const ALERT_CONFIDENCE_TIER_VALUES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
 
 export type AlertPrediction = (typeof ALERT_PREDICTION_VALUES)[number]
 export type AlertAction = (typeof ALERT_ACTION_TAKEN_VALUES)[number]

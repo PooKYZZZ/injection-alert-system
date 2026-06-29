@@ -1,6 +1,6 @@
 # Contributing
 
-Last updated: 2026-03-23
+Last updated: 2026-06-29
 
 This repo follows a docs-as-code workflow. Keep documentation, code, and validation steps aligned in the same change set.
 
@@ -41,15 +41,11 @@ cd frontend
 npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts
 ```
 
-## Current Test Baseline (2026-03-23)
+## Current Test Baseline
 
-| Test Suite | Result |
-|------------|--------|
-| pytest | 264 passed |
-| lint | PASSED |
-| typecheck | PASSED |
-| vitest (full) | 122 passed |
-| build | PASSED |
+The backend suite, frontend lint, typecheck, full Vitest suite, and production
+build currently pass. Run the commands above before opening a PR; exact latest
+verification counts are maintained in `docs/project-ops/STATUS.md`.
 
 ## Architecture Guardrails
 
@@ -67,6 +63,7 @@ npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts 
 
 Do not change the confidence thresholds without explicit approval:
 
+- `CRITICAL >= 90%`
 - `HIGH > 80%`
 - `MEDIUM 50% to 80%`
 - `LOW < 50%`

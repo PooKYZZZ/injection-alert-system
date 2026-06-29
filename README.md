@@ -6,11 +6,12 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 This repository is active in its current app-plus-BFF form and now has a verified local ModSecurity/OWASP CRS proof path for WAF ingest. It is still not a finished production Docker/Redis deployment target.
 
-- Backend tests currently pass: `413 passed` (run with `.venv\Scripts\python.exe -m pytest -q`)
-- Frontend tests currently pass: `122 passed` (run with `cd frontend && npx vitest run`)
+- Backend tests currently pass: `.venv\Scripts\python.exe -m pytest -q`
+- Frontend tests currently pass: `cd frontend && npx vitest run`
 - Frontend typecheck currently passes: `cd frontend && npm run typecheck`
 - Frontend lint currently passes: `cd frontend && npm run lint`
 - Frontend build currently passes: `cd frontend && npm run build`
+- Latest verification counts are recorded in [docs/project-ops/STATUS.md](docs/project-ops/STATUS.md).
 - The dashboard BFF routes for alerts, alert detail, triage, stats, and ML health are wired to FastAPI in non-mock mode
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist
@@ -40,7 +41,7 @@ The broader capstone goal is:
 - apply a confidence tier
 - surface alerts to a dashboard for review and feedback
 
-Current naming note: LOW, MEDIUM, and HIGH are model confidence tiers. The preferred filter/query name is `confidence_tier`, the persisted backend field remains `confidence_level`, legacy `severity` URLs are kept for compatibility, and `CRITICAL >=90%` remains a separate future task.
+Current naming note: LOW, MEDIUM, HIGH, and CRITICAL are model confidence tiers. The preferred filter/query name is `confidence_tier`, the persisted backend field remains `confidence_level`, legacy `severity` URLs are kept for compatibility, `CRITICAL >=90%` is implemented as a confidence threshold, no retraining/recalibration/model artifact change was required, and historical rows are not retroactively reclassified.
 
 In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the technical WAF proof path is `localhost:8088`; the realistic final demo WAF path is `localhost:8089`, with the separate land-records portal built as the `demo-target-app` service from the sibling portal repo.
 
@@ -77,7 +78,6 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 - Client-required two-factor authentication
 - Client-required email notification after threat detection
 - Client-required timely push/SSE-style dashboard alerts
-- Client-standard `CRITICAL >=90%` confidence tier
 
 ## Tech Stack
 

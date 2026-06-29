@@ -157,10 +157,16 @@ export default function DashboardAlertAnalytics({
 
   // Threshold source of truth: ML health contract
   // Use explicit thresholds from ML health, or show unavailable state
-  const { highThreshold, lowThreshold, thresholdsAvailable } = useMemo(() => {
+  const { criticalThreshold, highThreshold, lowThreshold, thresholdsAvailable } = useMemo(() => {
     // Thresholds must come from ML health contract - no fallback inference from alerts
-    if (!thresholds || thresholds.high === null || thresholds.low === null) {
+    if (
+      !thresholds ||
+      thresholds.critical === null ||
+      thresholds.high === null ||
+      thresholds.low === null
+    ) {
       return {
+        criticalThreshold: null,
         highThreshold: null,
         lowThreshold: null,
         thresholdsAvailable: false,
@@ -168,6 +174,7 @@ export default function DashboardAlertAnalytics({
     }
 
     return {
+      criticalThreshold: thresholds.critical,
       highThreshold: thresholds.high,
       lowThreshold: thresholds.low,
       thresholdsAvailable: true,
@@ -217,13 +224,20 @@ export default function DashboardAlertAnalytics({
 
   const confidenceBands = useMemo(() => {
     // If thresholds are not available, show empty/unavailable state
-    if (!thresholdsAvailable || highThreshold === null || lowThreshold === null) {
+    if (
+      !thresholdsAvailable ||
+      criticalThreshold === null ||
+      highThreshold === null ||
+      lowThreshold === null
+    ) {
       return null
     }
 
-    const counts = { high: 0, medium: 0, low: 0 }
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 }
     for (const alert of alerts) {
-      if (alert.confidence > highThreshold) {
+      if (alert.confidence >= criticalThreshold) {
+        counts.critical += 1
+      } else if (alert.confidence > highThreshold) {
         counts.high += 1
       } else if (alert.confidence >= lowThreshold) {
         counts.medium += 1
@@ -232,15 +246,17 @@ export default function DashboardAlertAnalytics({
       }
     }
 
+    const criticalPct = Math.round(criticalThreshold * 100)
     const highPct = Math.round(highThreshold * 100)
     const lowPct = Math.round(lowThreshold * 100)
 
     return [
-      { label: `High > ${highPct}%`, value: counts.high, colorClassName: 'bg-accent-purple' },
-      { label: `Medium ${lowPct}–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
-      { label: `Low < ${lowPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
+      { label: `Critical >=${criticalPct}%`, value: counts.critical, colorClassName: 'bg-severity-high-border' },
+      { label: `High >${highPct}%–<${criticalPct}%`, value: counts.high, colorClassName: 'bg-accent-purple' },
+      { label: `Medium ${lowPct}%–${highPct}%`, value: counts.medium, colorClassName: 'bg-accent-yellow' },
+      { label: `Low <${lowPct}%`, value: counts.low, colorClassName: 'bg-severity-safe-accent' },
     ]
-  }, [alerts, highThreshold, lowThreshold, thresholdsAvailable])
+  }, [alerts, criticalThreshold, highThreshold, lowThreshold, thresholdsAvailable])
 
   if (alertsPending) {
     return <DashboardAlertAnalyticsSkeleton />
@@ -350,9 +366,11 @@ export default function DashboardAlertAnalytics({
                 emptyMessage="No confidence values are available in the current loaded alerts."
                 showStub
               />
-              {alerts.length > 0 && confidenceBands[0].value === alerts.length ? (
+              {alerts.length > 0 &&
+              confidenceBands[0].label.startsWith('Critical') &&
+              confidenceBands[0].value === alerts.length ? (
                 <p className="mt-3 text-[11px] text-text-muted">
-                  All {alerts.length} requests scored high confidence.
+                  All {alerts.length} requests scored critical confidence.
                 </p>
               ) : null}
             </>

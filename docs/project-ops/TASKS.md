@@ -536,9 +536,9 @@ Panel-facing demo script covering:
 
 ```
 [ ] All 16 tasks above marked [x]
-[ ] pytest -q → 264+ passed
+[ ] pytest -q → current full suite passes
 [ ] npm run typecheck → pass
-[ ] npx vitest run → 122+ passed
+[ ] npx vitest run → current full suite passes
 [ ] npm run build → pass
 [ ] docker compose up --build → exits 0
 [ ] demo seeding utility or equivalent smoke data path works against Docker stack

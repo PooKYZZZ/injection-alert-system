@@ -85,6 +85,8 @@ class TriageInProgressError(RuntimeError):
 class TriageUseCase:
     """Coordinates deduplication, ML inference, action policy, and persistence."""
 
+    _VALID_CONFIDENCE_LEVELS = frozenset({"LOW", "MEDIUM", "HIGH", "CRITICAL"})
+
     def __init__(
         self,
         classifier: IClassifier,
@@ -246,11 +248,22 @@ class TriageUseCase:
 
     @staticmethod
     def _action_for(*, prediction: str, confidence_level: str) -> str:
-        if confidence_level == "HIGH" and prediction != "Normal":
+        if not prediction:
+            raise ValueError("prediction is required")
+        if not confidence_level:
+            raise ValueError("confidence_level is required")
+        if confidence_level not in TriageUseCase._VALID_CONFIDENCE_LEVELS:
+            raise ValueError(f"Unknown confidence_level: {confidence_level}")
+
+        if prediction == "Normal":
+            return "ALLOWED"
+        if confidence_level in {"HIGH", "CRITICAL"}:
             return "BLOCKED"
         if confidence_level == "MEDIUM":
             return "THROTTLED"
-        return "ALLOWED"
+        if confidence_level == "LOW":
+            return "ALLOWED"
+        raise AssertionError("validated confidence_level was not mapped")
 
     @staticmethod
     def _build_persisted_http_request(command: TriageIngestCommand) -> str:

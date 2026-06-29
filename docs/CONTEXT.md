@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-06-27
+Updated: 2026-06-29
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -51,15 +51,15 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run on 2026-03-23
+### Checks run on 2026-06-29
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **264 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **444 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **122 passed**
+  - `cd frontend && npx vitest run` → **191 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 
@@ -136,7 +136,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Client-required 2FA
 - Client-required email notification after detection
 - Client-required real-time/SSE dashboard alerts
-- Client-standard `CRITICAL >=90%` confidence tier
 - Wazuh export-only integration
 - Backup/restore, migration rollback, and archive/hide retention runbooks
 
@@ -147,4 +146,4 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - The repo has a verified local WAF ingest proof. It is not a production-grade WAF deployment.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `BLOCKED`, `THROTTLED`, and `ALLOWED` are currently recorded action values, not proof of live request-path enforcement.
-- Current confidence tiers are LOW/MEDIUM/HIGH; the client-required `CRITICAL >=90%` tier is planned.
+- Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.

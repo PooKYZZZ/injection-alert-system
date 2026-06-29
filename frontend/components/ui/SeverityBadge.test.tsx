@@ -23,6 +23,11 @@ describe('SeverityBadge', () => {
     expect(highBadge).toHaveClass('text-severity-high-text')
     expect(highBadge).toHaveClass('border-severity-high-border/30')
 
+    rerender(<SeverityBadge severity="CRITICAL" prediction="SQL Injection" />)
+    const criticalBadge = screen.getByText('CRITICAL')
+    expect(criticalBadge).toHaveClass('text-severity-high-text')
+    expect(criticalBadge).toHaveClass('border-severity-high-border/30')
+
     rerender(<SeverityBadge severity="MEDIUM" prediction="Code Injection" />)
     const mediumBadge = screen.getByText('MEDIUM')
     expect(mediumBadge).toHaveClass('text-severity-blocked-text')

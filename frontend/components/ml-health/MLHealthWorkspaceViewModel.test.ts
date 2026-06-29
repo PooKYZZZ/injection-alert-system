@@ -15,6 +15,7 @@ const baseHealth: MLHealthData = {
     low: 0.5,
     medium: 0.65,
     high: 0.8,
+    critical: 0.9,
   },
   macro_f1: 0.91,
   ece: 0.04,
@@ -44,10 +45,11 @@ describe('MLHealthWorkspace.view-model', () => {
   it('builds policy bands from configured thresholds', () => {
     const bands = buildPolicyBands(baseHealth)
 
-    expect(bands).toHaveLength(3)
-    expect(bands[0]).toMatchObject({ label: 'Low confidence', action: 'allow', rangeLabel: '0%-50%' })
+    expect(bands).toHaveLength(4)
+    expect(bands[0]).toMatchObject({ label: 'Low confidence', action: 'allow', rangeLabel: '<50%' })
     expect(bands[1]).toMatchObject({ label: 'Medium confidence', action: 'throttle', rangeLabel: '50%-80%' })
-    expect(bands[2]).toMatchObject({ label: 'High confidence', action: 'block', rangeLabel: '80%-100%' })
+    expect(bands[2]).toMatchObject({ label: 'High confidence', action: 'block', rangeLabel: '>80%-<90%' })
+    expect(bands[3]).toMatchObject({ label: 'Critical confidence', action: 'block', rangeLabel: '>=90%' })
   })
 
   it('uses explicit fallback text when drift score and calibration error are missing', () => {
@@ -70,12 +72,14 @@ describe('MLHealthWorkspace.view-model', () => {
         low: null,
         medium: null,
         high: null,
+        critical: null,
       },
     })
 
     expect(bands[0]?.rangeLabel).toBe('Not configured')
     expect(bands[1]?.rangeLabel).toBe('Not configured')
     expect(bands[2]?.rangeLabel).toBe('Not configured')
+    expect(bands[3]?.rangeLabel).toBe('Not configured')
   })
 
   it('does not expose guessed deployment or parameter metadata', () => {

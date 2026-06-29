@@ -10,6 +10,7 @@ interface ConfidenceTierBadgeProps {
 
 const styles: Record<AlertConfidenceTier | 'BENIGN', string> = {
   HIGH: 'bg-transparent border-severity-high-border/30 text-severity-high-text',
+  CRITICAL: 'bg-transparent border-severity-high-border/30 text-severity-high-text',
   MEDIUM: 'bg-transparent border-severity-blocked-border/30 text-severity-blocked-text',
   LOW: 'bg-transparent border-severity-safe-border/30 text-severity-safe-text',
   BENIGN: 'bg-transparent border-surface-border text-text-secondary',

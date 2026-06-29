@@ -37,13 +37,13 @@ class TestAlertQueryParams:
 
     def test_valid_severity_filter(self):
         """Test valid severity filter values."""
-        for severity in ["ALL", "LOW", "MEDIUM", "HIGH"]:
+        for severity in ["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]:
             params = AlertQueryParams(severity=severity)
             assert params.severity == severity
 
     def test_valid_confidence_tier_filter(self):
         """Test valid confidence_tier filter values."""
-        for confidence_tier in ["ALL", "LOW", "MEDIUM", "HIGH"]:
+        for confidence_tier in ["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]:
             params = AlertQueryParams(confidence_tier=confidence_tier)
             assert params.confidence_tier == confidence_tier
 
@@ -78,8 +78,8 @@ class TestAlertQueryParams:
 
     def test_valid_confidence_level_filter(self):
         """Test valid confidence_level filter values."""
-        params = AlertQueryParams(confidence_level=["HIGH", "MEDIUM"])
-        assert params.confidence_level == ["HIGH", "MEDIUM"]
+        params = AlertQueryParams(confidence_level=["HIGH", "MEDIUM", "CRITICAL"])
+        assert params.confidence_level == ["HIGH", "MEDIUM", "CRITICAL"]
 
     def test_valid_pagination_params(self):
         """Test valid pagination parameters."""
@@ -114,6 +114,15 @@ class TestAlertQueryParamsCombinations:
         )
         assert params.severity == "HIGH"
         assert params.confidence_tier == "HIGH"
+
+    def test_matching_critical_legacy_and_preferred_confidence_tier_combination(self):
+        """Test matching legacy and preferred CRITICAL filters."""
+        params = AlertQueryParams(
+            severity="CRITICAL",
+            confidence_tier="CRITICAL",
+        )
+        assert params.severity == "CRITICAL"
+        assert params.confidence_tier == "CRITICAL"
 
     def test_time_range_and_triage_status_combination(self):
         """Test combining time_range and triage_status filters."""

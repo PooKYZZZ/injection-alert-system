@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-06-27
+**Last updated:** 2026-06-29
 
 ---
 
@@ -22,13 +22,13 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **413 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **444 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
-- Frontend full suite: `cd frontend && npx vitest run` → **122 passed**
+- Frontend full suite: `cd frontend && npx vitest run` → **191 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
@@ -103,11 +103,12 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - Next.js edge entrypoint uses `frontend/proxy.ts`.
   - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
 - Alert confidence-tier naming:
-  - Current tiers remain `LOW`, `MEDIUM`, and `HIGH`.
+  - Current tiers remain `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`.
   - Preferred query/filter naming is `confidence_tier`.
   - Legacy `severity` query compatibility is retained for existing URLs and callers.
   - Persisted backend field remains `confidence_level`.
-  - `CRITICAL >=90%` remains a separate future task and is not implemented.
+  - `CRITICAL >=90%` is implemented as the high-confidence threshold.
+  - Historical rows are not retroactively reclassified.
 
 ---
 
@@ -138,7 +139,6 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client-required 2FA is not yet implemented.
 - Client-required email notification after detection is not yet implemented.
 - Real-time SSE/EventSource dashboard alerting is not yet implemented.
-- Client-standard `CRITICAL >=90%` confidence tier is not yet implemented.
 - Wazuh export-only integration is not yet implemented; full Wazuh/SIEM deployment is deferred.
 - Retraining remains design-level in `ml_model/retraining/`; promotion/rollback tooling exists separately under `ml_model/export/`.
 

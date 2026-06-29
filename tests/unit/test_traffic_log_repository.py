@@ -145,6 +145,36 @@ async def test_get_alert_list_filters_by_preferred_confidence_tier(
 
 
 @pytest.mark.asyncio
+async def test_get_alert_list_filters_by_critical_confidence_tier(
+    repository: TrafficLogRepository,
+):
+    saved_critical = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-tier-critical",
+            source_ip="10.0.0.10",
+            request_path="/critical",
+            request_method="POST",
+            http_request="POST /critical id=1 OR 1=1",
+            prediction="SQL Injection",
+            confidence=0.97,
+            confidence_level="CRITICAL",
+            inference_latency_ms=3.5,
+            action_taken="BLOCKED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=10,
+        confidence_tier_filter="CRITICAL",
+        time_range="7d",
+    )
+
+    assert page.total == 1
+    assert [item.id for item in page.items] == [saved_critical.id]
+
+
+@pytest.mark.asyncio
 async def test_get_by_transaction_id_returns_entity(
     repository: TrafficLogRepository,
 ):
@@ -738,6 +768,21 @@ async def test_get_alert_list_sorts_by_severity_rank(
 
     await repository.save(
         TrafficLogEntity(
+            transaction_id="txn-severity-critical",
+            timestamp=now - timedelta(minutes=4),
+            source_ip="198.51.100.39",
+            request_path="/critical",
+            request_method="GET",
+            http_request="GET /critical",
+            prediction="SQL Injection",
+            confidence=0.97,
+            confidence_level="CRITICAL",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
             transaction_id="txn-severity-high",
             timestamp=now - timedelta(minutes=3),
             source_ip="198.51.100.40",
@@ -791,6 +836,7 @@ async def test_get_alert_list_sorts_by_severity_rank(
     )
 
     assert [item.confidence_level for item in page.items] == [
+        "CRITICAL",
         "HIGH",
         "MEDIUM",
         "LOW",
@@ -803,6 +849,21 @@ async def test_get_alert_list_sorts_by_confidence_tier_rank(
 ):
     now = datetime.now(timezone.utc)
 
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-confidence-tier-critical",
+            timestamp=now - timedelta(minutes=4),
+            source_ip="198.51.100.49",
+            request_path="/critical",
+            request_method="GET",
+            http_request="GET /critical",
+            prediction="SQL Injection",
+            confidence=0.97,
+            confidence_level="CRITICAL",
+            inference_latency_ms=2.0,
+            action_taken="BLOCKED",
+        )
+    )
     await repository.save(
         TrafficLogEntity(
             transaction_id="txn-confidence-tier-high",
@@ -858,6 +919,7 @@ async def test_get_alert_list_sorts_by_confidence_tier_rank(
     )
 
     assert [item.confidence_level for item in page.items] == [
+        "CRITICAL",
         "HIGH",
         "MEDIUM",
         "LOW",

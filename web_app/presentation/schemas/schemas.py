@@ -11,7 +11,7 @@ PredictionLabel = Literal[
     "Other Attacks",
     "Normal",
 ]
-ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH"]
+ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
 
@@ -43,7 +43,7 @@ class PredictionResponse(BaseModel):
     class_label: PredictionLabel = Field(..., description="Predicted class label")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
     confidence_level: ConfidenceLevel = Field(
-        ..., description="Confidence level (LOW, MEDIUM, HIGH)"
+        ..., description="Confidence level (LOW, MEDIUM, HIGH, CRITICAL)"
     )
     action_taken: ActionTaken = Field(
         ..., description="Action taken in response to the prediction"
@@ -338,10 +338,10 @@ class AlertQueryParams(BaseModel):
 
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
-    severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]] = Field(
+    severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(
         default=None, description="Legacy compatibility alias for confidence tier"
     )
-    confidence_tier: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]] = Field(
+    confidence_tier: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(
         default=None, description="Filter by confidence tier"
     )
     time_range: Optional[Literal["1h", "6h", "24h", "7d"]] = Field(
@@ -389,6 +389,8 @@ class AlertQueryParams(BaseModel):
             )
 
     @property
-    def effective_confidence_tier(self) -> Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH"]]:
+    def effective_confidence_tier(self) -> Optional[
+        Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    ]:
         self.ensure_compatible_confidence_tier_aliases()
         return self.confidence_tier or self.severity

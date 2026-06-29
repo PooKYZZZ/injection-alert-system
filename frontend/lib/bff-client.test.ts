@@ -145,6 +145,82 @@ describe('bff-client', () => {
     )
   })
 
+  it('accepts CRITICAL confidence tiers from FastAPI alert payloads', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 7,
+              timestamp: '2026-03-15T00:00:00Z',
+              source_ip: '203.0.113.10',
+              request_path: '/login',
+              request_method: 'POST',
+              payload_snippet: "username=admin' OR '1'='1",
+              prediction: 'SQL Injection',
+              confidence: 0.97,
+              confidence_level: 'CRITICAL',
+              action_taken: 'BLOCKED',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams({ confidence_tier: 'CRITICAL' }))
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.items[0]?.confidence_level).toBe('CRITICAL')
+  })
+
+  it('rejects unsupported confidence tiers from FastAPI alert payloads', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 8,
+              timestamp: '2026-03-15T00:00:00Z',
+              source_ip: '203.0.113.11',
+              request_path: '/login',
+              request_method: 'POST',
+              payload_snippet: 'payload',
+              prediction: 'SQL Injection',
+              confidence: 0.99,
+              confidence_level: 'EXTREME',
+              action_taken: 'BLOCKED',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+  })
+
   it('forwards both severity and confidence_tier when both exist', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
@@ -708,6 +784,7 @@ describe('bff-client', () => {
           confidence_thresholds: {
             low: 0.5,
             high: 0.8,
+            critical: 0.9,
           },
           queue: {
             enabled: true,
@@ -746,6 +823,7 @@ describe('bff-client', () => {
           low: 0.5,
           medium: 0.65,
           high: 0.8,
+          critical: 0.9,
         },
         // Optional eval metadata defaults when not provided
         macro_f1: null,
@@ -786,6 +864,7 @@ describe('bff-client', () => {
           confidence_thresholds: {
             low: 0.5,
             high: 0.8,
+            critical: 0.9,
           },
           prediction_distribution: {
             sqli: 3,

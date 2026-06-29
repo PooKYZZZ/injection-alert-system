@@ -5,6 +5,7 @@ import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
 
 interface MLConfidenceBandsProps {
   high: number
+  critical: number
   medium: number
   low: number
   isPending?: boolean
@@ -13,13 +14,14 @@ interface MLConfidenceBandsProps {
 
 export function MLConfidenceBands({
   high,
+  critical,
   medium,
   low,
   isPending = false,
   unavailable = false,
 }: MLConfidenceBandsProps) {
   if (isPending) {
-    return <LoadingSkeleton rows={3} />
+    return <LoadingSkeleton rows={4} />
   }
 
   if (unavailable) {
@@ -31,7 +33,7 @@ export function MLConfidenceBands({
     )
   }
 
-  const total = high + medium + low
+  const total = critical + high + medium + low
 
   return (
     <motion.div
@@ -41,7 +43,22 @@ export function MLConfidenceBands({
       className="flex flex-col gap-2"
     >
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`High > 80%`}</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`Critical >=90%`}</span>
+        <div className="h-[3px] rounded-full bg-surface-border">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${total > 0 ? (critical / total) * 100 : 0}%`, background: 'var(--color-severity-high-accent)' }}
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 tabular-nums">
+          <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-right">{critical}</span>
+          <span className="text-[11px] text-[var(--color-text-muted)] text-right">
+            {total > 0 ? Math.round((critical / total) * 100) : 0}%
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`High >80%–<90%`}</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -56,7 +73,7 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Medium 50–80%</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">Medium 50%–80%</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -71,7 +88,7 @@ export function MLConfidenceBands({
         </div>
       </div>
       <div className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`Low < 50%`}</span>
+        <span className="truncate text-[11px] text-[var(--color-accent-analytic)]">{`Low <50%`}</span>
         <div className="h-[3px] rounded-full bg-surface-border">
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -88,4 +105,3 @@ export function MLConfidenceBands({
     </motion.div>
   )
 }
-

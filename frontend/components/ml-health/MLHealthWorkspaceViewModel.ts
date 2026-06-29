@@ -40,6 +40,7 @@ export type MLHealthViewModel = {
     low: string
     medium: string
     high: string
+    critical: string
   }
   policyBands: PolicyBandView[]
   classMetrics: ClassMetricView[]
@@ -118,22 +119,26 @@ export function deriveHealthTone(health: MLHealthData): HealthTone {
 export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
   const low = health.thresholds.low
   const high = health.thresholds.high
+  const critical = health.thresholds.critical
 
-  if (low == null || high == null || low >= high) {
+  if (low == null || high == null || critical == null || low >= high || high >= critical) {
     return [
       { label: 'Low confidence', action: 'allow', rangeLabel: 'Not configured' },
       { label: 'Medium confidence', action: 'throttle', rangeLabel: 'Not configured' },
       { label: 'High confidence', action: 'block', rangeLabel: 'Not configured' },
+      { label: 'Critical confidence', action: 'block', rangeLabel: 'Not configured' },
     ]
   }
 
   const lowPct = Math.round(low * 100)
   const highPct = Math.round(high * 100)
+  const criticalPct = Math.round(critical * 100)
 
   return [
-    { label: 'Low confidence', action: 'allow', rangeLabel: `0%-${lowPct}%` },
+    { label: 'Low confidence', action: 'allow', rangeLabel: `<${lowPct}%` },
     { label: 'Medium confidence', action: 'throttle', rangeLabel: `${lowPct}%-${highPct}%` },
-    { label: 'High confidence', action: 'block', rangeLabel: `${highPct}%-100%` },
+    { label: 'High confidence', action: 'block', rangeLabel: `>${highPct}%-<${criticalPct}%` },
+    { label: 'Critical confidence', action: 'block', rangeLabel: `>=${criticalPct}%` },
   ]
 }
 
@@ -221,6 +226,7 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
       low: formatThreshold(health.thresholds.low),
       medium: formatThreshold(health.thresholds.medium),
       high: formatThreshold(health.thresholds.high),
+      critical: formatThreshold(health.thresholds.critical),
     },
     policyBands: buildPolicyBands(health),
     classMetrics: buildClassMetrics(health),

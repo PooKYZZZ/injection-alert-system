@@ -127,6 +127,43 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
+  it('renders CRITICAL confidence tiers in the confidence column', async () => {
+    mockedUseAlertsFromFilters.mockReturnValue({
+      ...buildQueryResult(),
+      data: {
+        items: [
+          {
+            alert_id: '91',
+            timestamp: '2026-04-03T10:00:00.000Z',
+            source_ip: '10.0.0.4',
+            request_path: '/critical',
+            request_method: 'POST',
+            payload_snippet: 'payload',
+            prediction: 'SQL Injection',
+            confidence: 0.95,
+            confidence_level: 'CRITICAL',
+            action_taken: 'BLOCKED',
+            triage_status: 'in_review',
+            crs_score: 10,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('95% (CRITICAL)')).toBeInTheDocument()
+  })
+
   it('marks new alerts as in review when clicked', async () => {
     const onAlertClick = vi.fn()
     mockedUseAlertsFromFilters.mockReturnValue({

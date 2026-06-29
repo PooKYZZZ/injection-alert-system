@@ -9,6 +9,7 @@ import { useTheme } from '@/app/providers'
 const CONFIDENCE_TIER_OPTIONS: { value: ConfidenceTierFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
   { value: 'HIGH', label: 'HIGH' },
+  { value: 'CRITICAL', label: 'CRITICAL' },
   { value: 'MEDIUM', label: 'MEDIUM' },
   { value: 'LOW', label: 'LOW' },
 ]
@@ -26,6 +27,12 @@ function pillClasses(confidenceTier: ConfidenceTierFilter, isActive: boolean): s
   }
 
   if (confidenceTier === 'HIGH') {
+    return isActive
+      ? `${base} border-severity-high-border bg-severity-high-bg text-severity-high-text`
+      : `${base} border-border-light bg-transparent text-severity-high-text`
+  }
+
+  if (confidenceTier === 'CRITICAL') {
     return isActive
       ? `${base} border-severity-high-border bg-severity-high-bg text-severity-high-text`
       : `${base} border-border-light bg-transparent text-severity-high-text`
@@ -64,7 +71,7 @@ function TopBarContent({
 
   const rawConfidenceTier = searchParams?.get('confidence_tier') ?? searchParams?.get('severity')
   const currentConfidenceTier: ConfidenceTierFilter =
-    rawConfidenceTier === 'HIGH' || rawConfidenceTier === 'MEDIUM' || rawConfidenceTier === 'LOW'
+    rawConfidenceTier === 'HIGH' || rawConfidenceTier === 'CRITICAL' || rawConfidenceTier === 'MEDIUM' || rawConfidenceTier === 'LOW'
       ? rawConfidenceTier
       : 'ALL'
 

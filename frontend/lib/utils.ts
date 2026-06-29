@@ -8,7 +8,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getConfidenceLevel(confidence: number): AlertConfidenceTier {
-  if (confidence >= CONFIDENCE_THRESHOLDS.HIGH) return 'HIGH'
+  if (confidence >= CONFIDENCE_THRESHOLDS.CRITICAL) return 'CRITICAL'
+  if (confidence > CONFIDENCE_THRESHOLDS.HIGH) return 'HIGH'
   if (confidence >= CONFIDENCE_THRESHOLDS.LOW) return 'MEDIUM'
   return 'LOW'
 }

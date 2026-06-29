@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     enable_api_docs: bool = True
     confidence_low_threshold: float = 0.50
     confidence_high_threshold: float = 0.80
+    confidence_critical_threshold: float = 0.90
     stale_processing_timeout_seconds: int = 30
     inference_queue_maxsize: int = Field(default=100, ge=1)
     max_seq_len: int = 128
@@ -58,6 +59,16 @@ class Settings(BaseSettings):
         if "enable_api_docs" not in self.model_fields_set:
             if self.app_env == "production" or self.app_env == "staging":
                 self.enable_api_docs = False
+        if not (
+            0.0
+            <= self.confidence_low_threshold
+            < self.confidence_high_threshold
+            < self.confidence_critical_threshold
+            <= 1.0
+        ):
+            raise ValueError(
+                "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
+            )
         return self
 
     @property

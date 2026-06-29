@@ -64,12 +64,15 @@ export default function DashboardPage() {
 
   // Calculate confidence bands from alerts
   const confidenceBands = useMemo(() => {
+    let critical = 0
     let high = 0
     let medium = 0
     let low = 0
     for (const alert of alerts) {
       const confPercent = alert.confidence * 100
-      if (confPercent > 80) {
+      if (confPercent >= 90) {
+        critical += 1
+      } else if (confPercent > 80) {
         high += 1
       } else if (confPercent >= 50) {
         medium += 1
@@ -77,7 +80,7 @@ export default function DashboardPage() {
         low += 1
       }
     }
-    return { high, medium, low }
+    return { critical, high, medium, low }
   }, [alerts])
 
   const summaryWindowTotal =
@@ -279,6 +282,7 @@ export default function DashboardPage() {
             ML confidence bands
           </div>
             <MLConfidenceBands
+              critical={confidenceBands.critical}
               high={confidenceBands.high}
               medium={confidenceBands.medium}
               low={confidenceBands.low}
@@ -295,6 +299,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <MLEnforcementMap
+              critical={confidenceBands.critical}
               high={confidenceBands.high}
               medium={confidenceBands.medium}
               low={confidenceBands.low}

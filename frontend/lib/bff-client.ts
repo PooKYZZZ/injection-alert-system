@@ -28,7 +28,7 @@ const BackendAlertSchema = z.object({
   payload_snippet: z.string(),
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
   confidence: z.number(),
-  confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+  confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
@@ -172,6 +172,7 @@ const BackendMlHealthSchema = z.object({
   confidence_thresholds: z.object({
     low: z.number().optional(),
     high: z.number().optional(),
+    critical: z.number().optional(),
   }),
   // Optional eval metadata from model registry artifacts
   macro_f1: z.number().nullable().optional(),
@@ -440,15 +441,19 @@ function normalizeMlHealth(
   // BFF validation: ensure thresholds are valid
   const low = payload.confidence_thresholds.low
   const high = payload.confidence_thresholds.high
+  const critical = payload.confidence_thresholds.critical
   let medium: number | null = null
+  let normalizedCritical: number | null = null
 
   if (typeof low === 'number' && typeof high === 'number') {
     // BFF check: validate threshold range (0-1 or 0-100)
     const normalizedLow = low <= 1 ? low : low / 100
     const normalizedHigh = high <= 1 ? high : high / 100
+    normalizedCritical =
+      typeof critical === 'number' ? (critical <= 1 ? critical : critical / 100) : null
 
     // BFF check: ensure low < high
-    if (normalizedLow >= normalizedHigh) {
+    if (normalizedLow >= normalizedHigh || (normalizedCritical !== null && normalizedHigh >= normalizedCritical)) {
       console.warn('[BFF] Invalid thresholds: low >= high, using defaults')
     } else {
       // BFF transform: derive medium from low/high range
@@ -507,6 +512,7 @@ function normalizeMlHealth(
       low: low ?? null,
       medium: medium ?? null,
       high: high ?? null,
+      critical: normalizedCritical,
     },
     // Optional eval metadata from model registry artifacts
     macro_f1: payload.macro_f1 ?? null,

@@ -2,11 +2,14 @@ import re
 from typing import Dict
 from enum import Enum
 
+from ml_model.confidence_tiers import classify_confidence
+
 
 class ConfidenceLevel(str, Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 
 class MockInjectionClassifier:
@@ -59,13 +62,14 @@ class MockInjectionClassifier:
             Dictionary with keys:
             - class: "Normal" | "SQL Injection" | "Code Injection" | "Other Attacks"
             - confidence: float between 0.0 and 1.0
-            - confidence_level: "LOW" | "MEDIUM" | "HIGH"
+            - confidence_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
         """
         if not http_request or not http_request.strip():
+            confidence = 0.9
             return {
                 "class": "Normal",
-                "confidence": 0.9,
-                "confidence_level": ConfidenceLevel.HIGH.value
+                "confidence": confidence,
+                "confidence_level": self._get_confidence_level(confidence).value
             }
 
         # Check each attack type and calculate confidence
@@ -78,10 +82,11 @@ class MockInjectionClassifier:
 
         # Lower threshold - any pattern match indicates potential attack
         if max_score < 0.09:
+            confidence = 1.0 - max_score
             return {
                 "class": "Normal",
-                "confidence": 1.0 - max_score,
-                "confidence_level": self._get_confidence_level(1.0 - max_score).value
+                "confidence": confidence,
+                "confidence_level": self._get_confidence_level(confidence).value
             }
 
         if sql_score == max_score:
@@ -109,9 +114,4 @@ class MockInjectionClassifier:
 
     def _get_confidence_level(self, confidence: float) -> ConfidenceLevel:
         """Convert confidence score to level."""
-        if confidence < 0.5:
-            return ConfidenceLevel.LOW
-        elif confidence <= 0.8:
-            return ConfidenceLevel.MEDIUM
-        else:
-            return ConfidenceLevel.HIGH
+        return ConfidenceLevel(classify_confidence(confidence))

@@ -4,7 +4,7 @@ Last updated: 2026-06-27
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The current setup still uses demo-oriented credentials auth; final client scope includes secure login, RBAC, 2FA, timely alerts, email notification after detection, and a `CRITICAL >=90%` confidence tier.
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier is implemented; the current setup still uses demo-oriented credentials auth, while secure login, RBAC, 2FA, timely alerts, and email notification remain final client-scope gaps.
 
 ## Prerequisites
 
@@ -253,7 +253,6 @@ The following are not yet available as runnable repo-level setup paths:
 - Automatic repo-managed export of Supabase policies and operational guardrails
 - Real user access management with secure login, RBAC, and 2FA
 - Email notification after detection
-- Client-standard `CRITICAL >=90%` confidence tier
 
 ## 5A. Docker Smoke Setup
 
