@@ -3,10 +3,10 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-02
+**Last updated:** 2026-07-03
 
 Status note:
-- Current test baseline: pytest 476 passed, vitest 206 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 489 passed, vitest 206 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -18,13 +18,22 @@ Status note:
 - Realistic demo-target WAF proof is verified locally through `localhost:8089`: marker `SMOKE002945` returned HTTP 403, `demo-target-bridge` posted transaction `178249138618.813428`, and backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=15`
 - Dashboard screenshot evidence is verified in `reports/modsecurity-live-proof/dashboard-evidence.md` with PNGs under `reports/modsecurity-live-proof/screenshots/`; the latest set includes `8089` dashboard/table evidence and an ML health overview, while the detail drawer screenshots show the default `8088` path
 - Request/trace context, structured JSON logs for request/WAF/prediction boundaries, bridge JSON logs, and recursive log-field redaction are implemented and covered by targeted backend tests
+- Final-demo automation is checked in at `scripts/run_final_demo_smoke.py` with
+  deterministic Docker-free tests; live `8088`/`8089` modes remain opt-in
+  local proof, and Docker-internal lookup remains a manual runbook step
+- The smoke suite now explicitly covers `--json` parsing, safe failure output,
+  timeout/unavailable handling, and secret redaction, without requiring Docker
+  for CI-safe verification
 
 ---
 
-## Current Verified State (2026-07-02)
+## Current Verified State (2026-07-03)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **476 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **489 passed**
+- Final-demo script tests → **9 passed**
+- API abuse smoke tests → **4 passed**
+- WAF ingest and inference queue tests → **24 passed**
 - Request-context regression tests → **9 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
@@ -74,6 +83,12 @@ Status note:
 - [x] Return a safe `X-Request-ID` on generic unhandled `500` responses while preserving sanitized `request.failed` logs
 - [x] Emit bridge configuration failures as JSON stderr and normalize unsupported backend structured-log levels to `INFO`
 - [x] Migrate Starlette `TestClient` to pinned `httpx2==2.5.0` while retaining legacy `httpx` for current consumers
+- [x] Add a standalone final-demo smoke script with explicit backend, `8088`,
+  and `8089` modes, JSON output, timeouts, safe failures, and deterministic
+  script tests
+- [x] Add current-backend API abuse/resource proof for malformed input, auth
+  correlation and token non-leakage, body limits, duplicate/unknown WAF
+  transactions, model unavailable behavior, and queue overflow
 - [~] Minimal metrics use existing `/api/stats`, `/api/ml-health` queue health, and JSON bridge summary counts; no separate bridge/email metrics endpoint is implemented
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
@@ -104,16 +119,17 @@ Status note:
 
 ## Abuse Smoke Expectations
 
-- [ ] missing auth
-- [ ] invalid token
-- [ ] malformed JSON
-- [ ] oversized payload
-- [ ] duplicate transaction ID
-- [ ] repeated requests
-- [ ] queue overflow after queue implementation
-- [ ] slow/failed inference
-- [ ] invalid triage update
-- [ ] dashboard API access without session
+- [x] missing auth
+- [x] invalid token
+- [x] malformed JSON
+- [x] oversized payload
+- [x] duplicate transaction ID
+- [x] repeated transaction request/idempotency
+- [x] queue overflow after queue implementation
+- [x] failed/model-unavailable inference
+- [x] invalid triage update
+- [x] dashboard API access without session (existing BFF route tests)
+- [ ] email/SSE/RBAC/2FA abuse cases only after those features exist
 
 ---
 

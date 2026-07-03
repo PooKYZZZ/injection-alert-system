@@ -165,16 +165,22 @@ def test_waf_ingest_queue_full_returns_503_with_retry_after(
         response = client.post(
             "/api/internal/waf-events",
             json=_waf_payload(),
-            headers=INTERNAL_HEADERS,
+            headers={
+                **INTERNAL_HEADERS,
+                "X-Request-ID": "waf-queue-full-request",
+            },
         )
 
     assert response.status_code == 503
+    assert response.headers["X-Request-ID"] == "waf-queue-full-request"
     assert response.headers["Retry-After"] == "5"
     assert response.json()["detail"] == "Inference queue is full"
     event = _structured_events(caplog, "waf_ingest.queue_full")[-1]
+    assert event["request_id"] == "waf-queue-full-request"
     assert event["transaction_id"] == "waf-txn-001"
     assert event["queue_depth"] == 100
     assert event["status_code"] == 503
+    assert "test-secret-key" not in caplog.text
 
 
 def test_waf_ingest_model_not_ready_is_logged(waf_api_client, caplog):

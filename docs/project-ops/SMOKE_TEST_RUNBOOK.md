@@ -1,11 +1,85 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-06-27
+**Last updated:** 2026-07-03
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
 > **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the technical CyberTrace WAF proof path is published on `localhost:8088`, the realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled, and the backend stays internal to the compose network as `8000/tcp`.
+
+---
+
+## Automated Final Demo Smoke
+
+The maintained smoke entrypoint is `scripts/run_final_demo_smoke.py`. Every run
+requires an explicit mode, prints one result per check, and exits nonzero when a
+required check fails.
+
+Backend-only smoke against a directly reachable FastAPI process:
+
+```powershell
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend --json
+```
+
+The backend default is `http://127.0.0.1:8000`. Override it only for an
+intentionally reachable backend:
+
+```powershell
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend --base-url http://127.0.0.1:8000 --timeout 5
+```
+
+Technical WAF proof through `localhost:8088`:
+
+```powershell
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode waf-8088
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode waf-8088 --json
+```
+
+Realistic demo-target proof through `localhost:8089`:
+
+```powershell
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089 --json
+```
+
+The `waf-8088` mode checks `/healthz`, `/api/health`, an expected SQLi `403`,
+and the latest transaction ID when
+`logs/modsecurity/modsec_audit.jsonl` exists. The `demo-target-8089` mode checks
+the portal home page, an expected `/records/search` SQLi `403`, and the latest
+transaction ID when
+`logs/modsecurity/demo-target/modsec_audit.jsonl` exists. Use `--audit-log` to
+point either WAF mode at a different local JSONL path.
+
+Interpretation:
+
+- `PASS` means the check observed its expected status or transaction field.
+- `FAIL` means a required check failed; the process exits `1`.
+- `SKIP` means an optional local artifact or Docker-internal lookup was not
+  exercised; skipped checks do not hide required HTTP failures.
+- `--json` emits one parseable object and does not print request headers,
+  credentials, database URLs, or request payloads.
+
+CI-safe proof is the mocked script suite and TestClient abuse suite:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py
+.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py
+```
+
+Those tests require neither Docker nor the sibling portal checkout. The three
+CLI modes require a running target; `waf-8088` and `demo-target-8089` are
+explicit local Docker checks, not always-on CI jobs. The `demo-target-8089`
+stack additionally requires the sibling `land-records-portal` checkout or an
+explicit `DEMO_PORTAL_CONTEXT`.
+
+Docker-internal backend transaction lookup remains an optional manual proof
+step because the backend is not host-published and the lookup requires the
+container's secret environment. The automated script reports that step as
+`SKIP`; use the commands in Step 5 or Step 5A when end-to-end lookup evidence
+is required. The manual sections below remain the fallback for startup,
+container inspection, bridge logs, transaction lookup, dashboard checks, and
+triage persistence.
 
 ---
 

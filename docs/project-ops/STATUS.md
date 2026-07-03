@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-02
+**Last updated:** 2026-07-03
 
 ---
 
@@ -22,7 +22,10 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **476 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **489 passed**
+- Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **9 passed**
+- API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
+- WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **24 passed**
 - Request-context regression tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_request_context_middleware.py` → **9 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
@@ -64,6 +67,31 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - `transaction_id` correlates bridge and backend WAF events. Within FastAPI, `request_id` and `trace_id` correlate route and ingest/prediction events for one request.
 - New structured-log fields are redacted recursively and case-insensitively for Authorization, cookies, API keys, tokens, passwords, secrets, sessions, credentials, and database connection values. Raw request bodies and query strings are not logged by the new request/route instrumentation.
 - Minimal metrics remain the existing `/api/stats`, `/api/ml-health` queue health, and bridge summary log counts. No new metrics endpoint, Prometheus, tracing backend, or SIEM was added.
+
+### Automated final demo and abuse smoke proof
+
+- `scripts/run_final_demo_smoke.py` provides explicit `backend`, `waf-8088`,
+  and `demo-target-8089` modes with bounded HTTP timeouts, concise
+  PASS/FAIL/SKIP output, parseable `--json` output, and nonzero exit on required
+  check failure.
+- Script tests cover parseable JSON output, controlled timeout/unavailable
+  failures, and redaction of secret-like values and Authorization headers.
+- The script does not read or emit the backend API secret, Authorization
+  headers, database URLs, or raw request payloads. Connection failures use
+  fixed safe messages without tracebacks.
+- `tests/scripts/test_run_final_demo_smoke.py` is deterministic and requires no
+  Docker, live network, Supabase, or sibling portal checkout.
+- `tests/integration/test_api_abuse_smoke.py` adds malformed JSON, auth
+  correlation/token non-leakage, and invalid triage input proof. Existing tests
+  remain the source for body limits, invalid alert IDs, duplicate/unknown WAF
+  transactions, model unavailable behavior, and queue overflow.
+- Queue-full WAF proof now explicitly asserts `X-Request-ID`,
+  `waf_ingest.queue_full`, `transaction_id`, `queue_depth`, `Retry-After`, and
+  API-secret non-leakage.
+- The `8088` and `8089` CLI modes remain opt-in local checks. Missing audit
+  JSONL files and Docker-internal transaction lookup are reported as `SKIP`;
+  the manual lookup commands remain in
+  `docs/project-ops/SMOKE_TEST_RUNBOOK.md`.
 - Starlette `TestClient` now uses pinned `httpx2==2.5.0` without the deprecated plain-`httpx` warning path; `httpx==0.28.1` remains for current consumers such as `huggingface_hub`.
 
 ### CRS baseline and demo-target proof
@@ -155,6 +183,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client-required 2FA is not yet implemented.
 - Client-required email notification after detection is not yet implemented.
 - Real-time SSE/EventSource dashboard alerting is not yet implemented.
+- Automated final-demo HTTP/audit checks are implemented, but Docker-internal
+  backend transaction lookup and full dashboard interaction remain explicit
+  manual runbook steps rather than always-on CI.
 - Wazuh export-only integration is not yet implemented; full Wazuh/SIEM deployment is deferred.
 - Retraining remains design-level in `ml_model/retraining/`; promotion/rollback tooling exists separately under `ml_model/export/`.
 
