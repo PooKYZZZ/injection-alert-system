@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -48,7 +48,7 @@ flowchart LR
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
 | Email notifications | Planned | no transactional email integration found |
-| RBAC secure login | Planned | current `frontend/auth.ts` is demo credentials auth without roles |
+| RBAC secure login | Implemented | current `frontend/auth.ts` uses named `AUTH_USERS_JSON` accounts, role claims, `authz_version`, and route-guard freshness checks |
 | 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
@@ -77,7 +77,7 @@ The backend follows the intended Clean Architecture split:
 - Lifespan startup initializes the database, loads `ModelService`, and starts
   the bounded in-process inference queue used by WAF ingest.
 
-### Current routes (2026-07-02)
+### Current routes (2026-07-03)
 
 - Protected by backend bearer auth:
   - `POST /api/predict`
@@ -113,12 +113,19 @@ The backend follows the intended Clean Architecture split:
 
 ### Client-Required Account Security
 
-The current Auth.js credentials flow is a demo-oriented foundation. Client requirements now call for:
+The current Auth.js credentials flow is the named-account foundation. Client requirements still call for:
 
 - secure login backed by real user access management,
 - RBAC for role-specific access such as Admin and Analyst,
 - strong account security controls,
 - 2FA.
+
+Implemented in the current foundation:
+
+- named `AUTH_USERS_JSON` accounts with scrypt password hashes,
+- `ADMIN`/`ANALYST`/`VIEWER` session claims,
+- per-account `authz_version` freshness checks in BFF route guards,
+- local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 
 These are planned requirements. They should be implemented by extending the existing Auth.js boundary or by selecting a managed auth provider, not by hand-rolling session handling.
 
@@ -134,7 +141,7 @@ This remains the correct direction for the project. Browser-to-FastAPI direct ca
 
 Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
-### Current BFF status (2026-07-02)
+### Current BFF status (2026-07-03)
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
 - All five route handlers wired:

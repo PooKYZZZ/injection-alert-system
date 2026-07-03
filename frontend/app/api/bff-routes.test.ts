@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ROLES, type UserRole } from '@/lib/auth/roles'
+
 const authMock = vi.fn()
 const getAlertsMock = vi.fn()
 const getAlertDetailMock = vi.fn()
@@ -22,9 +24,42 @@ vi.mock('@/lib/bff-client', () => ({
   updateAlertAction: updateAlertActionMock,
 }))
 
+function session(role: UserRole = ROLES.ADMIN, authzVersion = 1) {
+  return {
+    user: {
+      id: 'user-1',
+      email: 'user@example.test',
+      role,
+      authz_version: authzVersion,
+    },
+    expires: '2099-01-01T00:00:00.000Z',
+  }
+}
+
+function setRegistryRole(role: UserRole, authzVersion = 1) {
+  process.env.AUTH_USERS_JSON = JSON.stringify([
+    {
+      id: 'user-1',
+      email: 'user@example.test',
+      name: 'Test User',
+      role,
+      authz_version: authzVersion,
+    },
+  ])
+}
+
 describe('BFF route handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.AUTH_USERS_JSON = JSON.stringify([
+      {
+        id: 'user-1',
+        email: 'user@example.test',
+        name: 'Test User',
+        role: ROLES.ADMIN,
+        authz_version: 1,
+      },
+    ])
   })
 
   it('alerts route applies the existing session auth pattern', async () => {
@@ -86,7 +121,7 @@ describe('BFF route handlers', () => {
   })
 
   it('alerts route returns centralized client errors unchanged', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getAlertsMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -114,8 +149,8 @@ describe('BFF route handlers', () => {
 
   it('alert detail route returns normalized data and propagates 404', async () => {
     authMock
-      .mockResolvedValueOnce({ user: { id: '1' } })
-      .mockResolvedValueOnce({ user: { id: '1' } })
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(session())
     getAlertDetailMock
       .mockResolvedValueOnce({
         ok: true,
@@ -173,9 +208,9 @@ describe('BFF route handlers', () => {
 
   it('alert detail route rejects non-numeric ids locally', async () => {
     authMock
-      .mockResolvedValueOnce({ user: { id: '1' } })
-      .mockResolvedValueOnce({ user: { id: '1' } })
-      .mockResolvedValueOnce({ user: { id: '1' } })
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(session())
     const { GET } = await import('./alerts/[id]/route')
 
     for (const id of ['NaN', '', undefined] as const) {
@@ -197,7 +232,7 @@ describe('BFF route handlers', () => {
   })
 
   it('stats route returns total_requests in the frontend shape', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getStatsMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -217,7 +252,7 @@ describe('BFF route handlers', () => {
   })
 
   it('stats route forwards window search param to BFF client', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getStatsMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -235,7 +270,7 @@ describe('BFF route handlers', () => {
   })
 
   it('stats route forwards timezone search param to BFF client', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getStatsMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -255,7 +290,7 @@ describe('BFF route handlers', () => {
   })
 
   it('stats route forwards timezone_name search param to BFF client', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getStatsMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -275,7 +310,7 @@ describe('BFF route handlers', () => {
   })
 
   it('ml-health route returns the frontend component contract shape', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getMlHealthMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -305,7 +340,7 @@ describe('BFF route handlers', () => {
   })
 
   it('alerts route propagates upstream 502 (invalid payload) as UPSTREAM_ERROR', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getAlertsMock.mockResolvedValueOnce({
       ok: false,
       status: 502,
@@ -329,7 +364,7 @@ describe('BFF route handlers', () => {
   })
 
   it('stats route propagates upstream 503 (service unavailable)', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getStatsMock.mockResolvedValueOnce({
       ok: false,
       status: 503,
@@ -353,7 +388,7 @@ describe('BFF route handlers', () => {
   })
 
   it('ml-health route propagates INTERNAL_SERVICE_AUTH_FAILED error', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getMlHealthMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -412,7 +447,7 @@ describe('BFF route handlers', () => {
   })
 
   it('alerts route returns 500 for unhandled exceptions', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getAlertsMock.mockRejectedValueOnce(new Error('Unexpected failure'))
 
     const { GET } = await import('./alerts/route')
@@ -429,7 +464,7 @@ describe('BFF route handlers', () => {
   })
 
   it('stats route forwards Retry-After header from upstream 503', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     getStatsMock.mockResolvedValueOnce({
       ok: false,
       status: 503,
@@ -471,7 +506,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH accepts valid triage_status and returns 200', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     updateAlertTriageMock.mockResolvedValueOnce({
       ok: true,
       data: { alert_id: '1', triage_status: 'in_review' },
@@ -494,7 +529,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH rejects invalid triage_status with 400', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     const { PATCH } = await import('./alerts/[id]/triage/route')
 
     const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
@@ -513,7 +548,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH rejects malformed JSON with 400', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     const { PATCH } = await import('./alerts/[id]/triage/route')
 
     const request = new NextRequest('http://localhost:3000/api/alerts/1/triage', {
@@ -532,7 +567,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH rejects non-numeric alert ID with 400', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     const { PATCH } = await import('./alerts/[id]/triage/route')
 
     const request = new NextRequest('http://localhost:3000/api/alerts/abc/triage', {
@@ -551,7 +586,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH propagates 401 from upstream as INTERNAL_SERVICE_AUTH_FAILED', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     updateAlertTriageMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -577,7 +612,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH propagates 404 from upstream as NOT_FOUND', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     updateAlertTriageMock.mockResolvedValueOnce({
       ok: false,
       status: 404,
@@ -603,7 +638,7 @@ describe('BFF route handlers', () => {
   })
 
   it('triage PATCH returns 500 for unhandled exceptions', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     updateAlertTriageMock.mockRejectedValueOnce(new Error('Unexpected failure'))
     const { PATCH } = await import('./alerts/[id]/triage/route')
 
@@ -622,7 +657,7 @@ describe('BFF route handlers', () => {
   })
 
   it('action PATCH accepts valid action_taken and returns 200', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     updateAlertActionMock.mockResolvedValueOnce({
       ok: true,
       data: { alert_id: '1', action_taken: 'BLOCKED' },
@@ -645,7 +680,7 @@ describe('BFF route handlers', () => {
   })
 
   it('action PATCH rejects invalid action_taken with 400', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     const { PATCH } = await import('./alerts/[id]/action/route')
 
     const request = new NextRequest('http://localhost:3000/api/alerts/1/action', {
@@ -685,7 +720,7 @@ describe('BFF route handlers', () => {
   })
 
   it('action PATCH rejects malformed JSON with 400', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     const { PATCH } = await import('./alerts/[id]/action/route')
 
     const request = new NextRequest('http://localhost:3000/api/alerts/1/action', {
@@ -704,7 +739,7 @@ describe('BFF route handlers', () => {
   })
 
   it('action PATCH rejects non-numeric alert ID with 400', async () => {
-    authMock.mockResolvedValueOnce({ user: { id: '1' } })
+    authMock.mockResolvedValueOnce(session())
     const { PATCH } = await import('./alerts/[id]/action/route')
 
     const request = new NextRequest('http://localhost:3000/api/alerts/not-a-number/action', {
@@ -720,5 +755,129 @@ describe('BFF route handlers', () => {
     expect(updateAlertActionMock).not.toHaveBeenCalled()
     expect(response.status).toBe(400)
     expect(body.error.code).toBe('INVALID_ID')
+  })
+
+  it('allows VIEWER sessions to call every read route', async () => {
+    setRegistryRole(ROLES.VIEWER)
+    authMock
+      .mockResolvedValueOnce(session(ROLES.VIEWER))
+      .mockResolvedValueOnce(session(ROLES.VIEWER))
+      .mockResolvedValueOnce(session(ROLES.VIEWER))
+      .mockResolvedValueOnce(session(ROLES.VIEWER))
+    getAlertsMock.mockResolvedValueOnce({ ok: true, data: { items: [] } })
+    getAlertDetailMock.mockResolvedValueOnce({ ok: true, data: { alert_id: '1' } })
+    getStatsMock.mockResolvedValueOnce({ ok: true, data: { total_requests: 0 } })
+    getMlHealthMock.mockResolvedValueOnce({ ok: true, data: { status: 'HEALTHY' } })
+
+    const [{ GET: getAlerts }, { GET: getAlert }, { GET: getStats }, { GET: getMlHealth }] =
+      await Promise.all([
+        import('./alerts/route'),
+        import('./alerts/[id]/route'),
+        import('./stats/route'),
+        import('./ml-health/route'),
+      ])
+
+    expect(
+      (await getAlerts(new NextRequest('http://localhost:3000/api/alerts'))).status
+    ).toBe(200)
+    expect(
+      (
+        await getAlert({} as never, {
+          params: Promise.resolve({ id: '1' }),
+        })
+      ).status
+    ).toBe(200)
+    expect(
+      (await getStats(new NextRequest('http://localhost:3000/api/stats'))).status
+    ).toBe(200)
+    expect((await getMlHealth()).status).toBe(200)
+  })
+
+  it('returns 403 before parsing or forwarding VIEWER mutation requests', async () => {
+    setRegistryRole(ROLES.VIEWER)
+    authMock
+      .mockResolvedValueOnce(session(ROLES.VIEWER))
+      .mockResolvedValueOnce(session(ROLES.VIEWER))
+    const jsonMock = vi.fn()
+    const request = { json: jsonMock } as unknown as NextRequest
+    const [{ PATCH: patchTriage }, { PATCH: patchAction }] = await Promise.all([
+      import('./alerts/[id]/triage/route'),
+      import('./alerts/[id]/action/route'),
+    ])
+
+    const triageResponse = await patchTriage(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+    const actionResponse = await patchAction(request, {
+      params: Promise.resolve({ id: '1' }),
+    })
+
+    expect(triageResponse.status).toBe(403)
+    expect(actionResponse.status).toBe(403)
+    expect(await triageResponse.json()).toEqual({
+      error: { code: 'FORBIDDEN', message: 'Forbidden.' },
+    })
+    expect(jsonMock).not.toHaveBeenCalled()
+    expect(updateAlertTriageMock).not.toHaveBeenCalled()
+    expect(updateAlertActionMock).not.toHaveBeenCalled()
+  })
+
+  it('allows ANALYST triage but returns 403 before forwarding action updates', async () => {
+    setRegistryRole(ROLES.ANALYST)
+    authMock
+      .mockResolvedValueOnce(session(ROLES.ANALYST))
+      .mockResolvedValueOnce(session(ROLES.ANALYST))
+    updateAlertTriageMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alert_id: '1', triage_status: 'in_review' },
+    })
+    const [{ PATCH: patchTriage }, { PATCH: patchAction }] = await Promise.all([
+      import('./alerts/[id]/triage/route'),
+      import('./alerts/[id]/action/route'),
+    ])
+
+    const triageResponse = await patchTriage(
+      new NextRequest('http://localhost:3000/api/alerts/1/triage', {
+        method: 'PATCH',
+        body: JSON.stringify({ triage_status: 'in_review' }),
+      }),
+      { params: Promise.resolve({ id: '1' }) }
+    )
+    const actionResponse = await patchAction(
+      new NextRequest('http://localhost:3000/api/alerts/1/action', {
+        method: 'PATCH',
+        body: JSON.stringify({ action_taken: 'BLOCKED' }),
+      }),
+      { params: Promise.resolve({ id: '1' }) }
+    )
+
+    expect(triageResponse.status).toBe(200)
+    expect(actionResponse.status).toBe(403)
+    expect(updateAlertTriageMock).toHaveBeenCalledWith('1', 'in_review')
+    expect(updateAlertActionMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 and skips the BFF client after a server-side registry version change', async () => {
+    const unchangedClientSession = session(ROLES.ADMIN)
+    authMock
+      .mockResolvedValueOnce(unchangedClientSession)
+      .mockResolvedValueOnce(unchangedClientSession)
+    getAlertsMock.mockResolvedValueOnce({ ok: true, data: { items: [] } })
+    const { GET } = await import('./alerts/route')
+
+    const currentResponse = await GET(
+      new NextRequest('http://localhost:3000/api/alerts')
+    )
+    setRegistryRole(ROLES.ADMIN, 2)
+    const staleResponse = await GET(
+      new NextRequest('http://localhost:3000/api/alerts')
+    )
+
+    expect(currentResponse.status).toBe(200)
+    expect(staleResponse.status).toBe(401)
+    expect(await staleResponse.json()).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+    })
+    expect(getAlertsMock).toHaveBeenCalledTimes(1)
   })
 })

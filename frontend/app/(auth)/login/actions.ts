@@ -9,9 +9,13 @@ export type LoginResult =
 
 const LOGIN_REDIRECT_TO = '/dashboard'
 
-export async function loginAction(password: string): Promise<LoginResult> {
+export async function loginAction(
+  identifier: string,
+  password: string
+): Promise<LoginResult> {
   try {
     await signIn('credentials', {
+      identifier,
       password,
       // This action intentionally redirects only to the dashboard.
       redirectTo: LOGIN_REDIRECT_TO

@@ -330,7 +330,10 @@ Open a browser and navigate to:
 http://localhost:3000/login
 ```
 
-Enter the demo password (the value of `SOC_DEMO_PASSWORD` from your `frontend/.env.local`; the default is `demo1234`).
+Enter the id or email and password for a named account configured in
+`AUTH_USERS_JSON`. Passwords are stored only as scrypt hashes; generate a hash
+with `node scripts/generate_auth_password_hash.mjs "<password>"`. There is no
+demo-password fallback.
 
 You should be redirected to the dashboard.
 

@@ -6,7 +6,7 @@
 **Last updated:** 2026-07-03
 
 Status note:
-- Current test baseline: pytest 489 passed, vitest 206 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 489 passed, vitest 278 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -52,7 +52,7 @@ Status note:
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **206 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **278 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes
@@ -107,9 +107,10 @@ Status note:
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
 - [ ] Add email notifications after detection using a transactional email provider/API
-- [ ] Replace demo password login with real user access management / secure login
-- [ ] Implement Admin/Analyst RBAC
-- [ ] Implement 2FA and login hardening
+- [x] Replace demo password login with named env-backed accounts and scrypt password hashes
+- [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
+- [~] Login hardening includes generic errors, local identifier/global throttles, a two-slot scrypt cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
+- [ ] Implement 2FA/MFA
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
 - [ ] Repo-managed export and verification of Supabase policy / RLS state
