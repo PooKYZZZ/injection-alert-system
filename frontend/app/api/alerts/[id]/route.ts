@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getAlertDetail } from '@/lib/bff-client'
+import { requirePermission } from '@/lib/auth/route-guard'
+import { PERMISSIONS } from '@/lib/auth/roles'
 
 export async function GET(
   _request: NextRequest,
@@ -8,11 +10,9 @@ export async function GET(
 ): Promise<Response> {
   try {
     const session = await auth()
-    if (!session) {
-      return NextResponse.json(
-        { error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' } },
-        { status: 401 }
-      )
+    const authorization = requirePermission(session, PERMISSIONS.ALERTS_READ)
+    if (!authorization.ok) {
+      return authorization.response
     }
 
     const { id } = await params

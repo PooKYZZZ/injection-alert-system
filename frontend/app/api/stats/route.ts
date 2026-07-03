@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getStats } from '@/lib/bff-client'
+import { requirePermission } from '@/lib/auth/route-guard'
+import { PERMISSIONS } from '@/lib/auth/roles'
 
 export async function GET(request: NextRequest): Promise<Response> {
   try {
     const session = await auth()
-    if (!session) {
-      return NextResponse.json(
-        { error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' } },
-        { status: 401 }
-      )
+    const authorization = requirePermission(session, PERMISSIONS.STATS_READ)
+    if (!authorization.ok) {
+      return authorization.response
     }
 
     const timeWindow = request.nextUrl.searchParams.get('window') ?? undefined

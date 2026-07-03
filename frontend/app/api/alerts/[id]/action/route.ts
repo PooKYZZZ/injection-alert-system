@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { ALERT_ACTION_TAKEN_VALUES, type AlertAction } from '@/features/alerts/contract'
 import { updateAlertAction } from '@/lib/bff-client'
+import { requirePermission } from '@/lib/auth/route-guard'
+import { PERMISSIONS } from '@/lib/auth/roles'
 
 export async function PATCH(
   request: NextRequest,
@@ -13,11 +15,12 @@ export async function PATCH(
       console.log('[API] PATCH /api/alerts/[id]/action request received')
     }
     const session = await auth()
-    if (!session) {
-      return NextResponse.json(
-        { error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' } },
-        { status: 401 }
-      )
+    const authorization = requirePermission(
+      session,
+      PERMISSIONS.ALERTS_ACTION_UPDATE
+    )
+    if (!authorization.ok) {
+      return authorization.response
     }
 
     const { id } = await params
