@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSIONS, ROLES } from './roles'
 import { requirePermission } from './route-guard'
@@ -43,6 +43,7 @@ describe('requirePermission', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     if (originalRegistry === undefined) {
       delete process.env.AUTH_USERS_JSON
     } else {
@@ -89,6 +90,7 @@ describe('requirePermission', () => {
   })
 
   it('returns 403 when the valid role lacks the permission', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     setRegistry([
       {
         id: 'analyst-1',
@@ -107,18 +109,33 @@ describe('requirePermission', () => {
     if (!result.ok) {
       expect(result.response.status).toBe(403)
     }
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: 'auth.rbac_forbidden',
+      outcome: 'denied',
+      reason_code: 'PERMISSION_DENIED',
+    })
   })
 
   it('returns 401 for a stale authz_version', async () => {
-    const result = requirePermission(session(ROLES.ANALYST, 0), PERMISSIONS.ALERTS_READ)
+    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+    const result = requirePermission(
+      session(ROLES.ANALYST, 2),
+      PERMISSIONS.ALERTS_READ
+    )
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.response.status).toBe(401)
     }
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: 'auth.session_stale',
+      outcome: 'denied',
+      reason_code: 'AUTHZ_VERSION_MISMATCH',
+    })
   })
 
   it('returns 401 when the registry account was removed', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     setRegistry([])
     const result = requirePermission(session(), PERMISSIONS.ALERTS_READ)
 
@@ -126,6 +143,11 @@ describe('requirePermission', () => {
     if (!result.ok) {
       expect(result.response.status).toBe(401)
     }
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: 'auth.account_removed',
+      outcome: 'denied',
+      reason_code: 'ACCOUNT_REMOVED',
+    })
   })
 
   it('reads the registry again and catches server-side mutation without refreshing the session', async () => {
@@ -156,6 +178,7 @@ describe('requirePermission', () => {
   })
 
   it('returns 401 for a registry role mismatch', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     setRegistry([
       {
         id: 'analyst-1',
@@ -171,6 +194,36 @@ describe('requirePermission', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.response.status).toBe(401)
+    }
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: 'auth.role_mismatch',
+      outcome: 'denied',
+      reason_code: 'ROLE_MISMATCH',
+    })
+  })
+
+  it('does not let audit logging failure change a denied response', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {
+      throw new Error('logger unavailable')
+    })
+    setRegistry([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Viewer',
+        role: ROLES.VIEWER,
+        authz_version: 1,
+      },
+    ])
+
+    const result = requirePermission(
+      session(ROLES.VIEWER),
+      PERMISSIONS.ALERTS_TRIAGE
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(403)
     }
   })
 })

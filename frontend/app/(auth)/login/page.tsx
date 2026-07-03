@@ -6,6 +6,7 @@ import { Lock, UserRoundKey } from 'lucide-react'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -15,12 +16,12 @@ export default function LoginPage() {
     setPending(true)
 
     try {
-      const result = await loginAction(password)
+      const result = await loginAction(identifier, password)
 
       if (!result.ok) {
         setErrorMessage(
           result.code === 'INVALID_CREDENTIALS'
-            ? 'Incorrect password'
+            ? 'Invalid username or password.'
             : 'Unable to sign in right now'
         )
       }
@@ -105,7 +106,7 @@ export default function LoginPage() {
             </h2>
 
             <p className="text-sm text-gray-400 mb-6 text-center">
-              Enter your password to continue
+              Enter your account credentials to continue
             </p>
 
             {errorMessage && (
@@ -115,12 +116,26 @@ export default function LoginPage() {
               </div>
             )}
 
+            <label htmlFor="identifier" className="sr-only">
+              Email or username
+            </label>
+            <input
+              id="identifier"
+              type="text"
+              autoComplete="username"
+              placeholder="Email or username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg bg-[#262626] text-white border border-gray-800 focus:border-white-500 focus:ring-2 focus:ring-white-500/30 outline-none mb-4"
+            />
+
             <label htmlFor="password" className="sr-only">
               Password
             </label>
             <input
               id="password"
               type="password"
+              autoComplete="current-password"
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

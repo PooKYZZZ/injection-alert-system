@@ -36,24 +36,31 @@ function captureNodeUnhandledRejections() {
 }
 
 describe('LoginPage', () => {
-  it('renders password label linked to input via htmlFor/id', () => {
+  it('renders identifier and password fields without a role selector', () => {
     render(<LoginPage />)
 
+    const identifierInput = screen.getByLabelText('Email or username')
     const passwordInput = screen.getByLabelText('Password')
+    expect(identifierInput).toHaveAttribute('id', 'identifier')
     expect(passwordInput).toBeInTheDocument()
     expect(passwordInput).toHaveAttribute('id', 'password')
+    expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
   })
 
-  it('shows incorrect password message on invalid credentials', async () => {
+  it('shows the generic invalid-login message without account-existence leakage', async () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: false, code: 'INVALID_CREDENTIALS' })
 
     render(<LoginPage />)
 
+    await user.type(screen.getByLabelText('Email or username'), 'unknown@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Incorrect password')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Invalid username or password.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/account.*not found/i)).not.toBeInTheDocument()
   })
 
   it('shows fallback message on unexpected sign-in failure', async () => {
@@ -62,6 +69,7 @@ describe('LoginPage', () => {
 
     render(<LoginPage />)
 
+    await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
@@ -74,6 +82,7 @@ describe('LoginPage', () => {
 
     render(<LoginPage />)
 
+    await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
     const button = screen.getByRole('button', { name: 'Sign in' })
     await user.click(button)
@@ -92,6 +101,7 @@ describe('LoginPage', () => {
 
     render(<LoginPage />)
 
+    await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
@@ -103,7 +113,9 @@ describe('LoginPage', () => {
       ).toBe(true)
     })
 
-    expect(screen.queryByText('Incorrect password')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Invalid username or password.')
+    ).not.toBeInTheDocument()
 
     tracker.stop()
   })

@@ -21,7 +21,7 @@ This document is based on current project truth:
 - Demo-target WAF path exists locally through `localhost:8089` when the demo-target profile is enabled.
 - Structured JSON logs, `X-Request-ID`, request/trace/transaction correlation, redaction, and smoke proof exist.
 - Runtime enforcement is not fully implemented.
-- Email, SSE, real accounts, RBAC, and 2FA are not implemented unless another branch has changed that truth.
+- Named env-backed accounts, server-side BFF RBAC, local login throttling, and safe auth audit events are implemented. Email, SSE, MFA/2FA, managed identity, and distributed auth controls are not.
 - Backup automation, restore automation, retention jobs, Wazuh export, and production SIEM are not implemented by this documentation branch.
 
 ---
@@ -67,8 +67,8 @@ These are blocking items. If any item is false, do not claim production readines
 | Public edge | WAF is actually in request path for protected traffic. | Local proof exists; production edge not proven. |
 | TLS | HTTPS/TLS termination configured and tested. | Not implemented in repo. |
 | Secrets | Production secrets stored outside Git and not printed/logged. | Required; verify per environment. |
-| Auth | Real user accounts replace demo credentials. | Not started unless changed later. |
-| RBAC | Admin/Analyst/Viewer roles enforced server-side and UI-side. | Not started unless changed later. |
+| Auth | Real user accounts replace demo credentials. | Named env-backed accounts and scrypt hashes are implemented; managed identity and account-management UI are not. |
+| RBAC | Admin/Analyst/Viewer roles enforced server-side and UI-side. | Server-side BFF enforcement is implemented; UI affordance gating remains deferred. |
 | MFA/2FA | MFA enrollment, challenge, recovery, and reset flow. | Not started unless changed later. |
 | Runtime response | Block/throttle/challenge/IP block decisions enforced, not just recorded. | Partial metadata only unless changed later. |
 | Backups | Backup schedule defined and restore tested. | Docs-only until tested. |
@@ -141,11 +141,11 @@ This is a production blocker if the dashboard is exposed beyond a controlled dem
 
 - [ ] Replace demo credentials with real managed accounts or project-owned account store.
 - [ ] Persist roles: Admin, Analyst, Viewer.
-- [ ] Put roles into session claims safely.
-- [ ] Enforce role checks on server routes, not only UI.
+- [x] Put roles and per-account `authz_version` into session claims safely.
+- [x] Enforce role checks on server routes, not only UI.
 - [ ] Hide/disable unauthorized UI actions.
-- [ ] Add login audit events.
-- [ ] Add failed-login throttling or cooldown.
+- [x] Add login and route-authorization audit events.
+- [x] Add per-identifier/global local login throttling and cooldown.
 - [ ] Add account recovery/reset process.
 - [ ] Add MFA/2FA enrollment and challenge.
 - [ ] Add MFA recovery/reset procedure.
@@ -279,8 +279,8 @@ These remain deferred unless another branch implements them:
 
 - Real-time dashboard alerts.
 - Email notifications.
-- Real accounts.
-- RBAC.
+- Managed identity or persistent account storage beyond the env-backed registry.
+- UI role-gating affordances; server-side RBAC is implemented.
 - 2FA/MFA.
 - Runtime enforcement state.
 - CAPTCHA/Turnstile challenge flow.

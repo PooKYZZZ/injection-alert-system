@@ -22,7 +22,7 @@ This tracker is based on the following.
 ### Current Repo Inspection
 
 - `web_app/application/triage_use_case.py` currently maps confidence to `ALLOWED`, `THROTTLED`, and `BLOCKED`.
-- `frontend/auth.ts` currently uses a credentials login with a demo-style SOC user.
+- `frontend/auth.ts` uses named env-backed accounts with scrypt password hashes, role/version claims, local login throttling, and safe audit events.
 - `ml_model/retraining/README.md` says the retraining pipeline is still design-level only.
 - `reports/modsecurity-live-proof/e2e-proof.md` proves the local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest path through `localhost:8088`.
 - Runtime evidence from 2026-06-27 proves the realistic demo-target path through `localhost:8089`: `demo-target-bridge` posted transaction `178249138618.813428`, backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
@@ -84,10 +84,10 @@ This tracker is based on the following.
 | `[x]` | Add end-to-end demo/test script | High | Medium | Done for the maintained proof boundary: `scripts/run_final_demo_smoke.py` provides explicit backend, `8088`, and `8089` modes, safe PASS/FAIL/SKIP and JSON output, timeouts, and nonzero required-check failures; `tests/scripts/test_run_final_demo_smoke.py` is Docker-free. Docker-internal transaction lookup remains an explicit manual runbook step. |
 | `[x]` | Add API abuse/resource smoke tests | High | Medium | Done for the current backend surface: `tests/integration/test_api_abuse_smoke.py` covers malformed JSON, missing/invalid auth correlation, token non-leakage, and invalid triage input; existing body-limit, duplicate transaction, model-unavailable, queue-overflow, lookup, and BFF-auth tests cover the remaining implemented boundaries. Future email/SSE/RBAC abuse cases remain not applicable until those features exist. |
 | `[~]` | Add analyst override/audit trail for model mistakes | High | Medium | Partial: `POST /api/feedback` stores analyst label/email/timestamp, but no full old/new action, reason, or model-version override audit trail exists. |
-| `[ ]` | Replace demo login with real user accounts | High | High | Not started: `frontend/auth.ts` still uses demo credentials and static SOC user identity. |
-| `[ ]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Not started: no persisted roles, session role claims, or route/action role checks found. |
+| `[x]` | Replace demo login with real user accounts | High | High | Done for the approved capstone boundary: `AUTH_USERS_JSON` provides named ids/emails, roles, required `authz_version`, and scrypt hashes; no demo-password fallback remains. |
+| `[x]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Done: role/session claims and fresh per-request registry checks protect all six BFF routes; Viewer reads, Analyst triages, and Admin may update actions. |
 | `[ ]` | Add 2FA/MFA | High | High | Not started: no TOTP/email OTP enrollment, challenge, recovery, or factor reset flow found. |
-| `[~]` | Add login hardening | High | Medium-High | Partial: `AUTH_SECRET` is required and JWT max age is set; failed-login throttling, account lockout, reset/recovery, and login audit policy are missing. |
+| `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, scrypt dummy verification, per-identifier/global local throttles, two-operation scrypt cap, eight-hour sessions, and safe JSON audit events are implemented. MFA, reset/recovery, distributed throttling, and persistent audit storage remain missing. |
 | `[~]` | Implement real enforcement state for block/throttle/challenge | High | High-Critical | Partial: `action_taken` is persisted as metadata; no request-path block/throttle/challenge state is enforced at runtime. |
 | `[ ]` | Implement LOW light rate limiting | High | High | Not started: no LOW runtime rate-limit enforcement found. |
 | `[ ]` | Implement MEDIUM aggressive throttling | High | High | Not started: no MEDIUM runtime throttle enforcement found. |
@@ -179,13 +179,12 @@ Keep confidence tier separate from attack severity.
 
 Current repo naming note: LOW, MEDIUM, HIGH, and CRITICAL are the current confidence tiers. The app now prefers `confidence_tier` naming while retaining legacy `severity` query compatibility during migration. `CRITICAL >=90%` is implemented as the confidence threshold, and historical rows are not retroactively reclassified.
 
-Secure login, RBAC, and 2FA should be implemented as one account-security track:
+The named-account and RBAC foundation is implemented. Remaining account-security work is:
 
-1. Replace demo password login with real user accounts or managed auth.
-2. Add Admin, Analyst, and Viewer roles.
-3. Enforce RBAC in route handlers, API mutations, dashboard pages, and UI actions.
-4. Add lightweight 2FA/MFA using TOTP or email OTP.
-5. Add failed-login throttling, generic auth errors, session expiry, secure cookies, safe reset/recovery behavior, and login/admin audit records.
+1. Evaluate managed identity or persistent account storage beyond the current env-backed registry.
+2. Add lightweight 2FA/MFA using TOTP or email OTP.
+3. Add secure password reset/recovery.
+4. Replace local-only throttling and logs with distributed controls and persistent audit storage if production deployment is approved.
 
 Keep Auth.js as the current auth foundation unless a managed auth provider is selected.
 
@@ -309,8 +308,9 @@ Current API abuse/resource smoke proof covers:
 - Failed/model-unavailable inference.
 - Dashboard BFF access without a session through existing frontend route tests.
 
-Email, SSE, RBAC, and 2FA abuse cases remain not applicable until those
-features exist.
+Email, SSE, and 2FA abuse cases remain not applicable until those features
+exist. RBAC denial/stale-session and login-throttle/audit cases are covered by
+frontend tests.
 
 Document production edge checklist as operator guidance only. Cover CORS, disabled docs outside dev, env validation, internal API token, auth bypass prevention, reverse proxy headers, TLS boundary, safe error responses, log retention, and demo data reset.
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { writeLoginAudit } from './login-audit'
 import {
   isUserRole,
   roleHasPermission,
@@ -109,14 +110,56 @@ export function requirePermission(
     (account) => account.id === id.trim().toLowerCase()
   )
   if (
-    !currentAccount ||
-    currentAccount.authzVersion !== authzVersion ||
-    currentAccount.role !== role
+    !currentAccount
   ) {
+    writeLoginAudit({
+      event: 'auth.account_removed',
+      level: 'warn',
+      outcome: 'denied',
+      userId: id,
+      role,
+      authzVersion: authzVersion as number,
+      reasonCode: 'ACCOUNT_REMOVED',
+    })
+    return denied(401)
+  }
+
+  if (currentAccount.authzVersion !== authzVersion) {
+    writeLoginAudit({
+      event: 'auth.session_stale',
+      level: 'warn',
+      outcome: 'denied',
+      userId: id,
+      role,
+      authzVersion: authzVersion as number,
+      reasonCode: 'AUTHZ_VERSION_MISMATCH',
+    })
+    return denied(401)
+  }
+
+  if (currentAccount.role !== role) {
+    writeLoginAudit({
+      event: 'auth.role_mismatch',
+      level: 'warn',
+      outcome: 'denied',
+      userId: id,
+      role,
+      authzVersion: authzVersion as number,
+      reasonCode: 'ROLE_MISMATCH',
+    })
     return denied(401)
   }
 
   if (!roleHasPermission(role, permission)) {
+    writeLoginAudit({
+      event: 'auth.rbac_forbidden',
+      level: 'warn',
+      outcome: 'denied',
+      userId: id,
+      role,
+      authzVersion: authzVersion as number,
+      reasonCode: 'PERMISSION_DENIED',
+    })
     return denied(403)
   }
 

@@ -1,10 +1,10 @@
 # Local Setup
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier is implemented; the current setup still uses demo-oriented credentials auth, while secure login, RBAC, 2FA, timely alerts, and email notification remain final client-scope gaps.
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier and the named-account/RBAC foundation are implemented. MFA/2FA, password recovery, timely alerts, and email notification remain client-scope gaps.
 
 ## Prerequisites
 
@@ -151,8 +151,7 @@ Use a local file with the variables the current frontend actually reads:
 ```dotenv
 AUTH_SECRET=replace-me
 AUTH_TRUST_HOST=true
-SOC_DEMO_PASSWORD=demo1234
-DEMO_PASSWORD=
+AUTH_USERS_JSON=[{"id":"admin-1","email":"admin@example.test","name":"SOC Admin","role":"ADMIN","authz_version":1,"password_hash":"scrypt$v1$N=131072,r=8,p=1,keylen=64,maxmem=268435456$<fake-salt-base64url>$<fake-hash-base64url>"}]
 FASTAPI_BASE_URL=http://localhost:8000
 INTERNAL_API_KEY=local-dev-secret
 USE_MOCK_API=false
@@ -164,12 +163,28 @@ Notes:
 
 - `AUTH_SECRET` is the Auth.js signing secret. Keep `NEXTAUTH_SECRET` unset to avoid split secret sources.
 - `AUTH_TRUST_HOST=true` is required for local `next start` validation so Auth.js trusts the local host.
-- The login flow currently checks a password only.
-- `SOC_DEMO_PASSWORD` is preferred. The code also falls back to `DEMO_PASSWORD`, then `demo1234` in development.
+- `AUTH_USERS_JSON` is required and fails closed when missing or invalid. Every account requires a unique normalized `id` and `email`, a `name`, `ADMIN`/`ANALYST`/`VIEWER` role, integer `authz_version >= 1`, and scrypt `password_hash`. Plaintext `password` fields are rejected.
+- Generate a hash with `node scripts/generate_auth_password_hash.mjs "<password>"`. The CLI argument can enter shell history; use only in an appropriate local shell and never commit the generated account registry.
+- The login form accepts account id or email plus password. There is no demo-password fallback.
+- Increment one account's `authz_version` whenever its role or authorization should invalidate existing sessions. Existing JWTs for that account then fail route-guard freshness checks and require login again.
+- JWT sessions expire after 8 hours. This password-only flow is AAL1-style; the shorter lifetime is a voluntary defense-in-depth choice and is not an AAL2 compliance claim.
+- Local login hardening uses per-identifier and process-global failure throttles plus a default two-operation scrypt concurrency cap. Defaults can be overridden with the `AUTH_LOGIN_*` and `AUTH_SCRYPT_CONCURRENCY_LIMIT` variables documented in the implementation plan.
+- Throttle state is process memory only: it resets on restart and is not shared across serverless instances, Node processes, or horizontally scaled containers. It does not use IP or `X-Forwarded-For`.
+- Login audit events are single-line JSON logs with hashed identifiers and fixed reason codes. They are operational logs, not a persistent or tamper-resistant audit store.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
-- Client requirements call for this demo login to be replaced or extended with real user access management, RBAC, strong account security, and 2FA.
+- MFA/2FA, CAPTCHA/step-up, password reset/recovery, managed identity, and distributed throttling are not implemented.
+
+### Dashboard role matrix
+
+| Role | Read alerts/stats/ML health | Triage alerts | Update `action_taken` |
+|---|---:|---:|---:|
+| `VIEWER` | Yes | No | No |
+| `ANALYST` | Yes | Yes | No |
+| `ADMIN` | Yes | Yes | Yes |
+
+The BFF route guards are the authorization authority. This SOC-team console does not implement per-alert ownership or tenant scoping.
 
 ### Start the frontend
 
@@ -241,7 +256,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check.
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- All five BFF handlers also call `auth()` and return `401` without a session.
+- All six BFF handlers validate the session, current registry account, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
 
 ## 5. What This Setup Does Not Cover
 
@@ -251,7 +266,7 @@ The following are not yet available as runnable repo-level setup paths:
 - Redis-backed review queue or enforcement state
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
-- Real user access management with secure login, RBAC, and 2FA
+- MFA/2FA, password reset/recovery, CAPTCHA/step-up, managed identity, and distributed login throttling
 - Email notification after detection
 
 ## 5A. Docker Smoke Setup
