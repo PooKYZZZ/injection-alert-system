@@ -5,8 +5,10 @@ import type { Alert } from '@/features/alerts/types'
 import { AlertsTable } from '@/components/alerts/AlertsTable'
 import { BulkActionBar } from '@/components/alerts/BulkActionBar'
 import { AlertDrawer } from '@/components/alerts/AlertDrawer'
+import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
-export function AlertsPageClient() {
+export function AlertsPageClient({ role }: { role?: unknown }) {
+  const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null)
 
@@ -28,17 +30,21 @@ export function AlertsPageClient() {
 
   return (
     <div className="flex flex-col gap-3">
-      <BulkActionBar
-        selectedIds={selectedIds}
-        onClearSelection={handleClearSelection}
-      />
+      {canTriage && (
+        <BulkActionBar
+          selectedIds={selectedIds}
+          onClearSelection={handleClearSelection}
+        />
+      )}
       <AlertsTable
+        role={role}
         selectedIds={[...selectedIds]}
         onSelectionChange={handleSelectionChange}
         onAlertClick={handleAlertClick}
         activeAlertId={selectedAlert?.alert_id}
       />
       <AlertDrawer
+        role={role}
         alert={selectedAlert}
         onClose={handleDrawerClose}
       />

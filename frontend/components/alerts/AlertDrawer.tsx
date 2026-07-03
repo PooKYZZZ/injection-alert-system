@@ -7,8 +7,10 @@ import { ALERT_DISPLAY_ACTION_ALIASES } from '@/features/alerts/contract'
 import type { AlertAction } from '@/features/alerts/contract'
 import { useTriageMutation, useActionMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
+import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
 interface AlertDrawerProps {
+  role?: unknown
   alert: Alert | null
   onClose: () => void
 }
@@ -51,7 +53,12 @@ function formatCrsScore(score: number | null | undefined): string {
   return score.toFixed(2)
 }
 
-export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
+export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
+  const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
+  const canUpdateAction = roleHasPermission(
+    role,
+    PERMISSIONS.ALERTS_ACTION_UPDATE
+  )
   const {
     mutate,
     isPending,
@@ -114,7 +121,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                 </Dialog.Title>
                 {/* Hidden description to satisfy Radix accessibility warnings */}
                 <Dialog.Description className="sr-only">
-                  Details for {alert.prediction} — {formatAlertTimestamp(alert.timestamp)}. Contains summary details, WAF evidence, captured request data, analyst actions, and intervention controls.
+                  Details for {alert.prediction} — {formatAlertTimestamp(alert.timestamp)}. Contains summary details, WAF evidence, captured request data, and role-appropriate review controls.
                 </Dialog.Description>
 
                 {/* Header */}
@@ -264,6 +271,7 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Analyst Actions
                         </h3>
+                        {canTriage ? (
                         <div className="flex flex-col gap-1.5">
                           <button
                             type="button"
@@ -311,12 +319,19 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                             {isPending && displayStatus === 'escalated' ? <span>Updating...</span> : <span>→</span>}
                           </button>
                         </div>
+                        ) : (
+                          <div className="space-y-1 text-[11px] text-[var(--color-text-secondary)]">
+                            <p>Viewer mode: read-only.</p>
+                            <p>Triage updates require Analyst or Admin.</p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Intervene
                         </h3>
+                        {canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
                       <button
                         type="button"
@@ -393,6 +408,11 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
                         )}
                       </button>
                         </div>
+                        ) : (
+                          <p className="text-[11px] text-[var(--color-text-secondary)]">
+                            Action updates require Admin.
+                          </p>
+                        )}
                       </div>
                     </div>
                   </section>
@@ -406,6 +426,5 @@ export function AlertDrawer({ alert, onClose }: AlertDrawerProps) {
     </Dialog.Root>
   )
 }
-
 
 
