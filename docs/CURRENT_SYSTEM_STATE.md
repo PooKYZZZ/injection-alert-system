@@ -262,19 +262,19 @@ This means:
 
 ---
 
-## 13. Test Baseline (2026-07-02)
+## 13. Test Baseline (2026-07-03)
 
 | Test Suite | Result |
 |------------|--------|
-| pytest | 476 passed |
+| pytest | 489 passed |
 | lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 206 passed |
+| vitest (full) | 278 passed |
 | build | PASSED |
 
 ---
 
-## Summary: What's Implemented (2026-07-02)
+## Summary: What's Implemented (2026-07-03)
 
 | Feature | Status |
 |---------|--------|

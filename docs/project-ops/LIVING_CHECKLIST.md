@@ -109,7 +109,7 @@ Status note:
 - [ ] Add email notifications after detection using a transactional email provider/API
 - [x] Replace demo password login with named env-backed accounts and scrypt password hashes
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
-- [~] Login hardening includes generic errors, local identifier/global throttles, a two-slot scrypt cap, eight-hour sessions, and safe JSON audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
+- [~] Login hardening includes generic errors, local identifier/global throttles, a two-slot scrypt cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
 - [ ] Implement 2FA/MFA
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state

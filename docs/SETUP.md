@@ -106,7 +106,7 @@ This workflow writes sidecar provenance files (`provenance.json`, `MODEL_CARD.md
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-04-20, this passes with **336 backend tests**.
+As of 2026-07-03, this passes with **489 backend tests**.
 
 ### Start the backend
 
@@ -201,7 +201,7 @@ npm run lint
 npm run typecheck
 ```
 
-As of 2026-07-02, both pass cleanly.
+As of 2026-07-03, both pass cleanly.
 
 ### Run focused frontend BFF tests
 
@@ -217,7 +217,7 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-07-02, the focused BFF selection passes **89 tests** and the full suite passes **206 frontend tests**.
+As of 2026-07-03, the focused BFF selection passes **89 tests** and the full suite passes **278 frontend tests**.
 
 ### Validate production build
 

@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-02
+Updated: 2026-07-03
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -51,15 +51,15 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run through 2026-07-02
+### Checks run through 2026-07-03
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **476 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **489 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run --pool=threads` → **206 passed**
+  - `cd frontend && npx vitest run --pool=threads` → **278 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 
@@ -94,8 +94,8 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
-- Demo login uses a password-only credentials flow
-- Client requirements call for real user access management with secure login, RBAC, strong account security, and 2FA; the current demo password flow is not the final requirement state
+- Named env-backed accounts and scrypt password hashes are implemented
+- Client requirements call for real user access management with secure login, RBAC, strong account security, and 2FA; the named-account flow is the current foundation, while 2FA remains a planned requirement
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
 - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`

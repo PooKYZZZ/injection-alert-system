@@ -19,7 +19,7 @@
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
 - Account-security foundation: Auth.js now uses named `AUTH_USERS_JSON` accounts with scrypt hashes, `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, per-account `authz_version`, and server-side RBAC across all six BFF routes.
-- Login hardening is local/process-bound: generic errors, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation scrypt cap, eight-hour AAL1-style sessions, and secret-safe JSON login events are implemented.
+- Login hardening is local/process-bound: generic errors, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation scrypt cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
 
 ### Latest local verification results
 
