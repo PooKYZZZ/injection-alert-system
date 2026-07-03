@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-06-30
+**Last updated:** 2026-07-02
 
 ---
 
@@ -12,7 +12,7 @@
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
-- Backend runtime: FastAPI `0.135.1`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
+- Backend runtime: FastAPI `0.138.0`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
 - Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
 - DistilBERT promotion workflow CLI: `ml_model/export/promote_final_training_run.py`
@@ -22,12 +22,13 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **476 passed**
+- Request-context regression tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_request_context_middleware.py` → **9 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
 - Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
@@ -50,9 +51,20 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - ModSecurity audit log contained transaction `17821639659.909603`, source IP `172.21.0.1`, and request URI `/api/health?id=17%27%20OR%2017%3D17--`.
 - Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
 - Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
-- Targeted WAF checks: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed.
+- Targeted WAF checks: bridge tests `37 passed`, WAF ingest route tests `11 passed`, WAF ingest use-case tests `4 passed`; the latest combined run passed `52` tests, and the previously verified `docker compose config --quiet` result remains recorded in the proof evidence.
 - ModSecurity audit-log policy is documented; automatic rotation and production retention remain TODO.
 - Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines.
+
+### Observability and traceability
+
+- FastAPI responses include `X-Request-ID`; safe incoming IDs are preserved and missing or invalid IDs are replaced. Generic unhandled `500` responses also return the request ID without exposing raw exception details.
+- Valid W3C version-00 `traceparent` headers supply the request `trace_id` and `span_id`; otherwise the backend generates a local `trace_id` without inventing a span.
+- Request completion/failure, WAF ingest outcomes, and direct prediction outcomes use single-line JSON logs through `web_app/observability/structured_logging.py`.
+- The WAF bridge emits single-line JSON events for startup, configuration failures, follow mode, retry, post success/failure, duplicate skip, read errors, and summary counts; configuration failures use JSON stderr while normal operations remain on stdout.
+- `transaction_id` correlates bridge and backend WAF events. Within FastAPI, `request_id` and `trace_id` correlate route and ingest/prediction events for one request.
+- New structured-log fields are redacted recursively and case-insensitively for Authorization, cookies, API keys, tokens, passwords, secrets, sessions, credentials, and database connection values. Raw request bodies and query strings are not logged by the new request/route instrumentation.
+- Minimal metrics remain the existing `/api/stats`, `/api/ml-health` queue health, and bridge summary log counts. No new metrics endpoint, Prometheus, tracing backend, or SIEM was added.
+- Starlette `TestClient` now uses pinned `httpx2==2.5.0` without the deprecated plain-`httpx` warning path; `httpx==0.28.1` remains for current consumers such as `huggingface_hub`.
 
 ### CRS baseline and demo-target proof
 
@@ -122,6 +134,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Supabase is now part of the current runtime truth. Do not document it as merely planned.
 - ModSecurity audit log policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`.
 - Current ModSecurity audit log path is JSONL at `logs/modsecurity/modsec_audit.jsonl`.
+- Bridge and selected backend boundary logs are structured JSON; legacy startup and unrelated application logs are not claimed to be converted repo-wide.
 - Local WAF proof evidence remains under `reports/modsecurity-live-proof/`.
 - Dashboard screenshot evidence remains under `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`.
 - Demo-target proof is separate from the default `localhost:8088` WAF proof path and requires `demo-target-bridge` when `8089` events must appear in CyberTrace.

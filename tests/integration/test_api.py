@@ -1,3 +1,6 @@
+import json
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 from web_app.presentation.app import create_app
@@ -21,19 +24,46 @@ def test_auth_health_endpoint_is_public(client):
     assert "database" in data
 
 
-def test_predict_endpoint_sql_injection(client):
-    """Test prediction endpoint with SQL injection payload"""
-    response = client.post(
-        "/api/predict",
-        json={"http_request": "SELECT * FROM users WHERE id=1 OR 1=1"},
-        headers=INTERNAL_HEADERS,
+def test_response_includes_preserved_request_id(client):
+    response = client.get(
+        "/health",
+        headers={"X-Request-ID": "integration-request-123"},
     )
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "integration-request-123"
+
+
+def test_predict_endpoint_sql_injection(client, caplog):
+    """Test prediction endpoint with SQL injection payload"""
+    raw_request = "SELECT * FROM users WHERE id=1 OR 1=1 /* log-secret */"
+    with caplog.at_level(logging.INFO):
+        response = client.post(
+            "/api/predict",
+            json={"http_request": raw_request},
+            headers={
+                **INTERNAL_HEADERS,
+                "X-Request-ID": "prediction-request-001",
+            },
+        )
     assert response.status_code == 200
     data = response.json()
     assert "class_label" in data
     assert "confidence" in data
     assert "confidence_level" in data
     assert data["class_label"] == "SQL Injection"
+    event = next(
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+        and json.loads(record.getMessage()).get("event") == "prediction.completed"
+    )
+    assert event["request_id"] == "prediction-request-001"
+    assert event["prediction"] == "SQL Injection"
+    assert event["confidence_tier"] == data["confidence_level"]
+    assert event["action_taken"] == data["action_taken"]
+    assert event["status_code"] == 200
+    assert raw_request not in caplog.text
 
 
 def test_predict_endpoint_code_injection(client):

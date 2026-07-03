@@ -17,15 +17,19 @@ from scripts.waf_audit_bridge import (
 
 def _wait_for_follow_ready(monkeypatch):
     ready_event = threading.Event()
-    original_log = waf_audit_bridge._log
+    original_log_event = waf_audit_bridge._log_event
 
-    def _log_and_signal(message: str):
-        if message.startswith("bridge following:"):
+    def _log_and_signal(event, message, level="INFO", **fields):
+        if event == "bridge.following":
             ready_event.set()
-        original_log(message)
+        original_log_event(event, message, level=level, **fields)
 
-    monkeypatch.setattr(waf_audit_bridge, "_log", _log_and_signal)
+    monkeypatch.setattr(waf_audit_bridge, "_log_event", _log_and_signal)
     return ready_event
+
+
+def _json_log_lines(output):
+    return [json.loads(line) for line in output.splitlines() if line.strip()]
 
 
 def test_normalize_event_redacts_headers_and_preserves_waf_fields():
@@ -606,9 +610,15 @@ def test_run_bridge_success_log_contains_transaction_id_and_rule_ids(
     )
 
     output = capsys.readouterr().out
+    logs = _json_log_lines(output)
+    posted_log = next(log for log in logs if log["event"] == "bridge.post.completed")
     assert totals == (1, 1, 0)
-    assert "transaction_id=tx-log-success" in output
-    assert "rule_ids=['942100', '949110']" in output
+    assert posted_log["transaction_id"] == "tx-log-success"
+    assert posted_log["status_code"] == 200
+    assert posted_log["crs_score"] == 8
+    assert posted_log["crs_rule_ids"] == ["942100", "949110"]
+    assert posted_log["service"] == "cybertrace-waf-bridge"
+    assert posted_log["component"] == "modsecurity-bridge"
     assert "Authorization" not in output
     assert "Cookie" not in output
     assert "raw-body-should-not-log" not in output
@@ -845,6 +855,7 @@ def test_follow_bridge_reopens_after_transient_readline_oserror(
     )
 
     output = capsys.readouterr().out
+    logs = _json_log_lines(output)
 
     assert [payload["transaction_id"] for payload in posted] == [
         "tx-before-error",
@@ -852,9 +863,10 @@ def test_follow_bridge_reopens_after_transient_readline_oserror(
     ]
     assert totals[1] == 2
     assert open_count >= 2
-    assert "bridge warning: read_error" in output
-    assert str(audit_log) in output
-    assert "OSError" in output
+    read_error = next(log for log in logs if log["event"] == "bridge.read_error")
+    assert read_error["level"] == "WARNING"
+    assert read_error["input_path"] == str(audit_log)
+    assert read_error["error_type"] == "OSError"
     assert "Bearer should-not-leak" not in output
     assert "sid=should-not-leak" not in output
     assert "raw-body-should-not-leak" not in output
@@ -863,7 +875,9 @@ def test_follow_bridge_reopens_after_transient_readline_oserror(
     assert "DATABASE_URL" not in output
 
 
-def test_main_follow_from_start_passes_start_at_end_false(monkeypatch, tmp_path):
+def test_main_follow_from_start_passes_start_at_end_false(
+    monkeypatch, tmp_path, capsys
+):
     audit_log = tmp_path / "modsec_audit.jsonl"
     audit_log.write_text("", encoding="utf-8")
     captured = {}
@@ -890,6 +904,54 @@ def test_main_follow_from_start_passes_start_at_end_false(monkeypatch, tmp_path)
     assert main() == 0
     assert captured["input_path"] == str(audit_log)
     assert captured["start_at_end"] is False
+    logs = _json_log_lines(capsys.readouterr().out)
+    assert [log["event"] for log in logs] == ["bridge.started", "bridge.summary"]
+    assert logs[-1]["total"] == 0
+    assert logs[-1]["success"] == 0
+    assert logs[-1]["failed"] == 0
+
+
+def test_main_missing_api_secret_emits_json_configuration_error(
+    monkeypatch, capsys
+):
+    monkeypatch.delenv("API_SECRET_KEY", raising=False)
+    monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert exit_code == 2
+    assert payload["event"] == "bridge.configuration_failed"
+    assert payload["level"] == "ERROR"
+    assert payload["message"] == "API secret is required"
+    assert payload["reason"] == "missing_api_secret"
+    assert payload["service"] == "cybertrace-waf-bridge"
+    assert payload["component"] == "modsecurity-bridge"
+    assert "API_SECRET_KEY=" not in captured.err
+
+
+def test_main_follow_with_stdin_emits_json_configuration_error(
+    monkeypatch, capsys
+):
+    secret = "bridge-secret-must-not-leak"
+    monkeypatch.setenv("API_SECRET_KEY", secret)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["waf_audit_bridge.py", "--follow", "--input", "-"],
+    )
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert exit_code == 2
+    assert payload["event"] == "bridge.configuration_failed"
+    assert payload["level"] == "ERROR"
+    assert payload["message"] == "--follow requires --input to be a file path"
+    assert payload["reason"] == "follow_requires_file_input"
+    assert payload["input"] == "-"
+    assert secret not in captured.err
 
 
 def test_follow_bridge_from_start_processes_existing_lines(monkeypatch, tmp_path):
@@ -994,7 +1056,7 @@ def test_follow_bridge_skips_duplicate_transaction_id(monkeypatch, tmp_path):
     assert totals == (2, 1, 0)
 
 
-def test_run_bridge_retries_transient_connection_failure(monkeypatch):
+def test_run_bridge_retries_transient_connection_failure(monkeypatch, capsys):
     lines = StringIO(
         json.dumps(
             {
@@ -1029,6 +1091,12 @@ def test_run_bridge_retries_transient_connection_failure(monkeypatch):
 
     assert attempts["count"] == 2
     assert totals == (1, 1, 0)
+    logs = _json_log_lines(capsys.readouterr().out)
+    retry = next(log for log in logs if log["event"] == "bridge.retry")
+    assert retry["transaction_id"] == "tx-retry"
+    assert retry["attempt"] == 1
+    assert retry["attempts"] == 3
+    assert retry["error_type"] == "URLError"
 
 
 def test_follow_bridge_logs_http_error_status_without_response_body(
@@ -1073,8 +1141,11 @@ def test_follow_bridge_logs_http_error_status_without_response_body(
     )
 
     output = capsys.readouterr().out
+    logs = _json_log_lines(output)
     assert totals == (1, 0, 1)
-    assert "bridge failure: status=422 transaction_id=tx-422" in output
+    failure = next(log for log in logs if log["event"] == "bridge.post.failed")
+    assert failure["status_code"] == 422
+    assert failure["transaction_id"] == "tx-422"
     assert "timestamp validation failed" not in output
 
 
@@ -1130,8 +1201,10 @@ def test_follow_bridge_http_error_log_does_not_leak_secrets_or_body(
     )
 
     output = capsys.readouterr().out
+    logs = _json_log_lines(output)
     assert totals == (1, 0, 1)
-    assert "transaction_id=tx-log-safe" in output
+    failure = next(log for log in logs if log["event"] == "bridge.post.failed")
+    assert failure["transaction_id"] == "tx-log-safe"
     assert "bridge-secret" not in output
     assert "live-auth-secret" not in output
     assert "session=live-cookie" not in output

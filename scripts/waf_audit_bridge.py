@@ -12,7 +12,7 @@ import time
 from typing import Any, TextIO
 import urllib.error
 import urllib.request
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from uuid import uuid4
 
 
@@ -24,8 +24,66 @@ _RETRYABLE_ERRNOS = {61, 111, 10061}
 _TOTAL_SCORE_RE = re.compile(r"Total Score:\s*`?(\d+)`?", re.IGNORECASE)
 
 
-def _log(message: str) -> None:
-    print(message, flush=True)
+def _safe_log_value(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:1024]
+    if isinstance(value, dict):
+        return {
+            str(key): (
+                "[REDACTED]"
+                if str(key).lower() in _SENSITIVE_HEADERS
+                or any(part in str(key).lower() for part in _SENSITIVE_SUBSTRINGS)
+                else _safe_log_value(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_safe_log_value(item) for item in value]
+    try:
+        return str(value)[:1024]
+    except Exception:  # noqa: BLE001
+        return f"<unprintable {type(value).__name__}>"
+
+
+def _log_event(
+    event: str,
+    message: str,
+    level: str = "INFO",
+    stream: TextIO | None = None,
+    **fields: Any,
+) -> None:
+    payload = {
+        **_safe_log_value(fields),
+        "timestamp": _now_iso(),
+        "level": str(level).upper(),
+        "event": str(event)[:128],
+        "message": str(message)[:1024],
+        "service": "cybertrace-waf-bridge",
+        "component": "modsecurity-bridge",
+        "environment": os.getenv("APP_ENV", "development"),
+    }
+    print(
+        json.dumps(payload, default=str, separators=(",", ":")),
+        file=stream or sys.stdout,
+        flush=True,
+    )
+
+
+def _redact_endpoint(endpoint: str) -> str:
+    try:
+        parsed = urlsplit(endpoint)
+        if parsed.username is None and parsed.password is None:
+            return endpoint
+        hostname = parsed.hostname or ""
+        if parsed.port is not None:
+            hostname = f"{hostname}:{parsed.port}"
+        return urlunsplit(
+            (parsed.scheme, f"[REDACTED]@{hostname}", parsed.path, parsed.query, "")
+        )
+    except Exception:  # noqa: BLE001
+        return "[REDACTED]"
 
 
 def _redact_headers(headers: dict[str, Any]) -> dict[str, str]:
@@ -328,10 +386,14 @@ def _post_event_with_retry(
             )
 
             if status in _RETRYABLE_STATUS_CODES and attempt < attempts:
-                _log(
-                    "bridge retry: "
-                    f"attempt={attempt}/{attempts} status={status} "
-                    f"transaction_id={payload.get('transaction_id')}"
+                _log_event(
+                    "bridge.retry",
+                    "Bridge post will be retried",
+                    level="WARNING",
+                    attempt=attempt,
+                    attempts=attempts,
+                    status_code=status,
+                    transaction_id=payload.get("transaction_id"),
                 )
                 time.sleep(retry_delay_seconds)
                 continue
@@ -339,10 +401,15 @@ def _post_event_with_retry(
             return status
         except Exception as exc:  # noqa: BLE001
             if _is_retryable_exception(exc) and attempt < attempts:
-                _log(
-                    "bridge retry: "
-                    f"attempt={attempt}/{attempts} error={exc} "
-                    f"transaction_id={payload.get('transaction_id')}"
+                _log_event(
+                    "bridge.retry",
+                    "Bridge post will be retried",
+                    level="WARNING",
+                    attempt=attempt,
+                    attempts=attempts,
+                    transaction_id=payload.get("transaction_id"),
+                    error_type=type(exc).__name__,
+                    error_message="Transient bridge post failure",
                 )
                 time.sleep(retry_delay_seconds)
                 continue
@@ -369,11 +436,13 @@ def run_bridge(
             continue
 
         total += 1
+        transaction_id = "unknown"
         try:
             event = json.loads(line)
             if not isinstance(event, dict):
                 raise ValueError("event line must be a JSON object")
             payload = normalize_event(event)
+            transaction_id = str(payload.get("transaction_id") or "unknown")
             status = _post_event_with_retry(
                 payload,
                 endpoint=endpoint,
@@ -384,27 +453,44 @@ def run_bridge(
             )
             if 200 <= status < 300:
                 success += 1
-                _log(
-                    "bridge posted: "
-                    f"status={status} "
-                    f"transaction_id={payload.get('transaction_id')} "
-                    f"rule_ids={payload.get('crs_rule_ids')}"
+                _log_event(
+                    "bridge.post.completed",
+                    "Bridge event posted",
+                    status_code=status,
+                    transaction_id=transaction_id,
+                    crs_score=payload.get("crs_score"),
+                    crs_rule_ids=payload.get("crs_rule_ids"),
                 )
             else:
                 failed += 1
-                _log(
-                    f"bridge failure: status={status} transaction_id={payload.get('transaction_id')}"
+                _log_event(
+                    "bridge.post.failed",
+                    "Bridge event post failed",
+                    level="ERROR",
+                    status_code=status,
+                    transaction_id=transaction_id,
                 )
         except urllib.error.HTTPError as exc:
             failed += 1
-            _log(
-                "bridge failure: "
-                f"status={exc.code} "
-                f"transaction_id={payload.get('transaction_id')}"
+            _log_event(
+                "bridge.post.failed",
+                "Bridge event post failed",
+                level="ERROR",
+                status_code=exc.code,
+                transaction_id=transaction_id,
+                error_type=type(exc).__name__,
+                error_message="Bridge HTTP request failed",
             )
         except Exception as exc:  # noqa: BLE001
             failed += 1
-            _log(f"bridge failure: {exc} transaction_id=unknown")
+            _log_event(
+                "bridge.post.failed",
+                "Bridge event processing failed",
+                level="ERROR",
+                transaction_id=transaction_id,
+                error_type=type(exc).__name__,
+                error_message="Bridge event processing failed",
+            )
 
     return total, success, failed
 
@@ -428,7 +514,11 @@ def _process_event_line(
         payload = normalize_event(event)
         transaction_id = str(payload.get("transaction_id") or "")
         if seen_transaction_ids is not None and transaction_id in seen_transaction_ids:
-            _log(f"bridge duplicate skipped: transaction_id={transaction_id}")
+            _log_event(
+                "bridge.duplicate_skipped",
+                "Duplicate bridge event skipped",
+                transaction_id=transaction_id,
+            )
             return True, False
 
         status = _post_event_with_retry(
@@ -442,25 +532,44 @@ def _process_event_line(
         if 200 <= status < 300:
             if seen_transaction_ids is not None:
                 seen_transaction_ids.add(transaction_id)
-            _log(
-                "bridge posted: "
-                f"status={status} "
-                f"transaction_id={transaction_id} "
-                f"rule_ids={payload.get('crs_rule_ids')}"
+            _log_event(
+                "bridge.post.completed",
+                "Bridge event posted",
+                status_code=status,
+                transaction_id=transaction_id,
+                crs_score=payload.get("crs_score"),
+                crs_rule_ids=payload.get("crs_rule_ids"),
             )
             return True, True
 
-        _log(f"bridge failure: status={status} transaction_id={transaction_id}")
+        _log_event(
+            "bridge.post.failed",
+            "Bridge event post failed",
+            level="ERROR",
+            status_code=status,
+            transaction_id=transaction_id,
+        )
         return False, False
     except urllib.error.HTTPError as exc:
-        _log(
-            "bridge failure: "
-            f"status={exc.code} "
-            f"transaction_id={transaction_id}"
+        _log_event(
+            "bridge.post.failed",
+            "Bridge event post failed",
+            level="ERROR",
+            status_code=exc.code,
+            transaction_id=transaction_id,
+            error_type=type(exc).__name__,
+            error_message="Bridge HTTP request failed",
         )
         return False, False
     except Exception as exc:  # noqa: BLE001
-        _log(f"bridge failure: {exc} transaction_id={transaction_id}")
+        _log_event(
+            "bridge.post.failed",
+            "Bridge event processing failed",
+            level="ERROR",
+            transaction_id=transaction_id,
+            error_type=type(exc).__name__,
+            error_message="Bridge event processing failed",
+        )
         return False, False
 
 
@@ -496,7 +605,11 @@ def follow_bridge(
                 handle.seek(current_position)
             first_open = False
             if not logged_following:
-                _log(f"bridge following: input={input_path}")
+                _log_event(
+                    "bridge.following",
+                    "Bridge is following audit log",
+                    input_path=str(input_path),
+                )
                 logged_following = True
 
             while not stop_signal.is_set():
@@ -506,9 +619,13 @@ def follow_bridge(
                     raw_line = handle.readline()
                 except OSError:
                     current_position = position
-                    _log(
-                        "bridge warning: "
-                        f"read_error input={input_path} error=OSError"
+                    _log_event(
+                        "bridge.read_error",
+                        "Bridge audit log read failed; reopening",
+                        level="WARNING",
+                        input_path=str(input_path),
+                        error_type="OSError",
+                        error_message="Audit log read failed",
                     )
                     time.sleep(poll_interval_seconds)
                     break
@@ -606,23 +723,33 @@ def main() -> int:
 
     api_secret = args.api_secret or os.getenv("API_SECRET_KEY")
     if not api_secret:
-        print(
-            "API secret is required via --api-secret or API_SECRET_KEY", file=sys.stderr
+        _log_event(
+            "bridge.configuration_failed",
+            "API secret is required",
+            level="ERROR",
+            stream=sys.stderr,
+            reason="missing_api_secret",
         )
         return 2
 
     endpoint = _build_endpoint(args.endpoint)
-    _log(
-        "bridge starting: "
-        f"input={args.input} endpoint={endpoint} follow={str(args.follow).lower()}"
+    _log_event(
+        "bridge.started",
+        "Bridge started",
+        input_path=args.input,
+        endpoint=_redact_endpoint(endpoint),
+        follow=args.follow,
     )
 
     if args.follow:
         if args.input == "-":
-            print(
+            _log_event(
+                "bridge.configuration_failed",
                 "--follow requires --input to be a file path",
-                file=sys.stderr,
-                flush=True,
+                level="ERROR",
+                stream=sys.stderr,
+                reason="follow_requires_file_input",
+                input="-",
             )
             return 2
         total, success, failed = follow_bridge(
@@ -654,7 +781,13 @@ def main() -> int:
                 retry_delay_seconds=max(0.0, args.retry_delay),
             )
 
-    _log(f"bridge summary: total={total} success={success} failed={failed}")
+    _log_event(
+        "bridge.summary",
+        "Bridge run completed",
+        total=total,
+        success=success,
+        failed=failed,
+    )
     return 0 if failed == 0 else 1
 
 

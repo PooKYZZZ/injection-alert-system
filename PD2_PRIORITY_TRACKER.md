@@ -1,7 +1,7 @@
 # PD2 Priority Tracker
 
 **Purpose:** Track what still needs to be implemented for PD2 without claiming that planned features already exist.
-**Last updated:** 2026-06-29
+**Last updated:** 2026-07-02
 
 ## Legend
 
@@ -29,7 +29,7 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `447 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `476 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
 ### Client Requirements
@@ -76,8 +76,8 @@ This tracker is based on the following.
 | `[x]` | Verify end-to-end attack flow | Critical | Medium-High | Done for local proof: request -> WAF -> audit log -> bridge -> FastAPI -> ML -> persisted lookup is proven for both `8088` and realistic `8089`; fresh dashboard screenshot evidence now includes `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15` in `reports/modsecurity-live-proof/screenshots/demo-target-8089-alerts-table.png`. |
 | `[x]` | Add bounded async inference queue | Critical | Medium | Done: `web_app/application/inference_queue.py` implements a bounded `asyncio.Queue(maxsize=N)` gate for synchronous WAF ingest, with overflow handling covered by `tests/unit/test_inference_queue.py`. |
 | `[x]` | Add queue health visibility | Critical | Low | Done: `/api/ml-health` includes optional queue health fields through the backend schema/BFF passthrough; UI-specific queue panel evidence is not claimed. |
-| `[~]` | Add minimal metrics endpoint | High | Low | Partial: `/api/stats` and `/api/ml-health` expose app/model stats and queue health, but no email or bridge metrics endpoint exists. |
-| `[ ]` | Add structured JSON logs with transaction/request IDs | High | Medium | Not started: standard Python/Next logging exists; no repo-wide structured JSON logging contract found. |
+| `[~]` | Add minimal metrics endpoint | High | Low | Partial by design: `/api/stats` and `/api/ml-health` expose app/model stats and queue health, and bridge JSON summary logs expose total/success/failed counts; no separate bridge/email metrics endpoint exists. |
+| `[x]` | Add structured JSON logs with transaction/request IDs | High | Medium | Done for the approved scope: bridge operations and FastAPI request/WAF/prediction boundaries emit JSON; handled and generic unhandled `500` responses carry `X-Request-ID`, valid `traceparent` IDs are preserved, and `transaction_id` joins bridge and backend WAF events. Unrelated legacy logs and the Next.js BFF are not claimed as converted. |
 | `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts expose LOW, MEDIUM, HIGH, and CRITICAL; persisted UI grouping/styling uses `confidence_level`; enforcement-policy displays apply to non-Normal predictions and preserve the Normal exception; tier badges always display the canonical tier; the legacy `severity` query alias remains compatibility-only. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
 | `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
@@ -119,12 +119,12 @@ Based on priority and implementation hardness, focus on the highest-value work t
 
 | Order | Task | Why Now |
 |---:|---|---|
-| 1 | Add metrics and structured JSON logs | Bridge transient read-error hardening is implemented and covered by `tests/scripts/test_waf_audit_bridge.py`; next focus is structured JSON logs with transaction/request IDs. |
+| 1 | Maintain structured-log coverage and add API abuse/resource smoke tests | Bridge and FastAPI boundary JSON logs are implemented; next observability work should validate abuse/failure paths without adding a metrics platform. |
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
 | 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
 | 5 | Capture final dashboard screenshot evidence | Done for the current local proof set: screenshots under `reports/modsecurity-live-proof/screenshots/` show the `8089` dashboard overview, `/records/search` alerts table with `crs_score=15`, default `8088` WAF detail drawer evidence, and ML health overview. |
-| 6 | Add metrics and structured JSON logs | Gives traceability and measurable evidence for defense/client testing. |
+| 6 | Preserve minimal metrics and structured-log contracts | Existing stats, queue health, bridge summary counts, and correlated JSON events are the current PD2 boundary. |
 | 7 | Maintain `CRITICAL >=90%` confidence tier coverage | Client standard requires it and the backend/frontend contracts now implement it. |
 | 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
 | 9 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
@@ -141,8 +141,8 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 3. Keep CRS-only baseline report as the current baseline evidence source.
 4. Keep `reports/modsecurity-live-proof/demo-target-crs-proof.md` as the observed demo-target WAF proof source.
 5. Add a queue-specific ML health screenshot only if the final evidence checklist must show queue fields in the UI; the current replacement screenshot covers the `/ml-health` overview but does not visibly show queue-health fields.
-6. Minimal metrics endpoint beyond the existing stats, ML health, and queue health.
-7. Structured JSON logs with request/transaction IDs.
+6. Keep metrics minimal: existing stats, ML health, queue health, and bridge summary logs; a new endpoint remains unimplemented.
+7. Maintain implemented structured JSON logs with request/trace/transaction IDs at the bridge and FastAPI request/WAF/prediction boundaries.
 8. `CRITICAL >=90%` confidence tier is implemented and maintained across backend/frontend contracts.
 9. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
 10. Real-time dashboard alerts using SSE/EventSource with polling fallback.
@@ -261,12 +261,14 @@ Redis is not required for inference queuing unless multiple processes/instances 
 
 ## Notes For Observability
 
-Add structured JSON logs across:
+Structured JSON logging is implemented for:
 
 - ModSecurity bridge.
 - FastAPI ingest.
 - ML prediction.
-- Policy decision.
+
+The FastAPI request middleware also logs request completion/failure. WAF ingest and prediction completion events include the policy outcome. The following remain future scope:
+
 - Dashboard/BFF calls.
 - Email send.
 - Analyst override.
@@ -280,10 +282,10 @@ Include these fields where applicable:
 - `model_version`
 - `prediction`
 - `confidence_tier`
-- `action`
+- `action_taken`
 - `user_id`
 
-Add a minimal metrics endpoint tracking:
+Current minimal metrics are `/api/stats`, `/api/ml-health` queue health, and bridge summary log counts. A separate metrics endpoint with the following broader counters remains unimplemented:
 
 - Total ingested.
 - Total classified.

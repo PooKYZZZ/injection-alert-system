@@ -2,7 +2,7 @@
 
 **Project:** CyberTrace / Injection Alert System
 **File:** `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
-**Last updated:** 2026-06-25
+**Last updated:** 2026-07-02
 **Scope:** Local PD2 WAF proof, audit evidence handling, and operator documentation
 
 ---
@@ -147,7 +147,7 @@ backend lookup found=true when testing full WAF -> backend flow
 prediction/action visible when testing full ML triage flow
 ```
 
-The transaction ID is the main correlation key.
+The transaction ID is the main cross-process correlation key.
 
 It should connect:
 
@@ -158,6 +158,48 @@ ModSecurity audit log
 -> persisted alert
 -> dashboard evidence
 ```
+
+---
+
+### 4.1 Structured Runtime Log Correlation
+
+The bridge and selected FastAPI request boundaries emit one JSON object per log line.
+
+Required base fields are:
+
+```text
+timestamp
+level
+event
+message
+service
+component
+environment
+```
+
+FastAPI request behavior:
+
+```text
+safe incoming X-Request-ID -> preserved
+missing or invalid X-Request-ID -> generated locally
+valid W3C version-00 traceparent -> trace_id and span_id preserved
+missing or invalid traceparent -> local trace_id generated; no span_id invented
+response -> X-Request-ID returned
+```
+
+The backend logs `request.completed` or `request.failed` with the route path, method, status, and duration. WAF ingest and direct prediction events add model/policy outcome fields where available.
+
+Correlation boundaries are intentionally distinct:
+
+```text
+transaction_id -> joins ModSecurity, bridge, backend WAF ingest, persisted alert, and dashboard evidence
+request_id -> joins logs emitted during one FastAPI request
+trace_id -> preserves valid inbound trace context or identifies the local FastAPI request flow
+```
+
+The bridge does not claim distributed tracing. It uses `transaction_id` for the bridge-to-backend join. The backend assigns the request and trace IDs when the bridge POST reaches FastAPI.
+
+Structured logging is implemented for bridge operations and configuration failures plus the backend request/WAF/prediction boundaries. Bridge configuration failures are emitted as JSON on stderr; normal bridge operations remain JSON on stdout. This is not a claim that every legacy application log, the Next.js BFF, or an external tracing platform has been converted.
 
 ---
 
