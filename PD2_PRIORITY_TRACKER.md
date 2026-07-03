@@ -1,7 +1,7 @@
 # PD2 Priority Tracker
 
 **Purpose:** Track what still needs to be implemented for PD2 without claiming that planned features already exist.
-**Last updated:** 2026-07-02
+**Last updated:** 2026-07-03
 
 ## Legend
 
@@ -29,7 +29,7 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `476 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `489 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
 ### Client Requirements
@@ -81,8 +81,8 @@ This tracker is based on the following.
 | `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts expose LOW, MEDIUM, HIGH, and CRITICAL; persisted UI grouping/styling uses `confidence_level`; enforcement-policy displays apply to non-Normal predictions and preserve the Normal exception; tier badges always display the canonical tier; the legacy `severity` query alias remains compatibility-only. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
 | `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
-| `[~]` | Add end-to-end demo/test script | High | Medium | Partial: `docs/project-ops/SMOKE_TEST_RUNBOOK.md` contains manual smoke commands for `8088` and the final realistic `8089` demo path; no standalone automated final demo script is checked in. |
-| `[~]` | Add API abuse/resource smoke tests | High | Medium | Partial: tests cover auth, duplicate transaction IDs, model-not-ready, body limits in places, and inference queue overflow; email, SSE, and full dashboard access abuse tests are not present. |
+| `[x]` | Add end-to-end demo/test script | High | Medium | Done for the maintained proof boundary: `scripts/run_final_demo_smoke.py` provides explicit backend, `8088`, and `8089` modes, safe PASS/FAIL/SKIP and JSON output, timeouts, and nonzero required-check failures; `tests/scripts/test_run_final_demo_smoke.py` is Docker-free. Docker-internal transaction lookup remains an explicit manual runbook step. |
+| `[x]` | Add API abuse/resource smoke tests | High | Medium | Done for the current backend surface: `tests/integration/test_api_abuse_smoke.py` covers malformed JSON, missing/invalid auth correlation, token non-leakage, and invalid triage input; existing body-limit, duplicate transaction, model-unavailable, queue-overflow, lookup, and BFF-auth tests cover the remaining implemented boundaries. Future email/SSE/RBAC abuse cases remain not applicable until those features exist. |
 | `[~]` | Add analyst override/audit trail for model mistakes | High | Medium | Partial: `POST /api/feedback` stores analyst label/email/timestamp, but no full old/new action, reason, or model-version override audit trail exists. |
 | `[ ]` | Replace demo login with real user accounts | High | High | Not started: `frontend/auth.ts` still uses demo credentials and static SOC user identity. |
 | `[ ]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Not started: no persisted roles, session role claims, or route/action role checks found. |
@@ -119,7 +119,7 @@ Based on priority and implementation hardness, focus on the highest-value work t
 
 | Order | Task | Why Now |
 |---:|---|---|
-| 1 | Maintain structured-log coverage and add API abuse/resource smoke tests | Bridge and FastAPI boundary JSON logs are implemented; next observability work should validate abuse/failure paths without adding a metrics platform. |
+| 1 | Maintain structured-log and API abuse/resource smoke coverage | Bridge and FastAPI boundary JSON logs plus current backend abuse/failure paths are automated; extend them only when implemented API surfaces change. |
 | 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
 | 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
 | 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
@@ -127,7 +127,7 @@ Based on priority and implementation hardness, focus on the highest-value work t
 | 6 | Preserve minimal metrics and structured-log contracts | Existing stats, queue health, bridge summary counts, and correlated JSON events are the current PD2 boundary. |
 | 7 | Maintain `CRITICAL >=90%` confidence tier coverage | Client standard requires it and the backend/frontend contracts now implement it. |
 | 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
-| 9 | Add API abuse/resource smoke tests | Gives production-readiness evidence without enterprise test platforms. |
+| 9 | Maintain API abuse/resource smoke tests | Current backend proof is checked in; add cases only for newly implemented surfaces. |
 | 10 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
 | 11 | Implement lightweight enforcement and challenge flow | Required for confidence-based response, but should follow stable WAF-to-dashboard proof. |
 | 12 | Implement analyst override and retraining skeleton | Supports HITL feedback and retraining objective without unsafe auto-promotion. |
@@ -147,8 +147,8 @@ Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, ful
 9. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
 10. Real-time dashboard alerts using SSE/EventSource with polling fallback.
 11. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
-12. Standalone final demo/test script if the proof checklist is not enough for defense rehearsal.
-13. API abuse/resource smoke tests.
+12. Maintain the standalone final demo/test script and local-only Docker modes.
+13. Maintain API abuse/resource smoke tests as implemented surfaces change.
 14. Real user accounts or managed auth.
 15. RBAC for Admin, Analyst, and Viewer.
 16. 2FA/MFA and login hardening.
@@ -230,7 +230,8 @@ ModSecurity tracker work must include:
 - Log rotation.
 - Retention.
 - CRS-only baseline report.
-- Repeatable end-to-end demo/test script.
+- Repeatable end-to-end demo/test script (`scripts/run_final_demo_smoke.py`);
+  Docker-internal lookup remains a manual proof step.
 
 ## Notes For Queue And Inference Safety
 
@@ -297,18 +298,19 @@ Current minimal metrics are `/api/stats`, `/api/ml-health` queue health, and bri
 - Email sent count.
 - Model loaded status.
 
-Add API abuse/resource smoke tests for:
+Current API abuse/resource smoke proof covers:
 
-- Missing auth.
-- Invalid token.
-- Malformed JSON.
-- Oversized payload.
-- Duplicate transaction ID.
-- Repeated requests.
-- Queue overflow.
-- Slow/failed inference.
-- Invalid triage update.
-- Dashboard API access.
+- Missing auth and invalid token, including `X-Request-ID` and token non-leakage.
+- Malformed JSON and invalid triage updates.
+- Oversized payloads through the body-limit middleware.
+- Duplicate/repeated transaction IDs and safe unknown transaction lookup.
+- Queue overflow with `503`, `Retry-After`, structured correlation fields, and
+  secret non-leakage.
+- Failed/model-unavailable inference.
+- Dashboard BFF access without a session through existing frontend route tests.
+
+Email, SSE, RBAC, and 2FA abuse cases remain not applicable until those
+features exist.
 
 Add production edge checklist as a runbook only. Cover CORS, disabled docs outside dev, env validation, internal API token, auth bypass prevention, reverse proxy headers, TLS boundary, safe error responses, log retention, and demo data reset.
 
