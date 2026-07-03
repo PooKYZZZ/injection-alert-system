@@ -59,7 +59,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run --pool=threads` → **278 passed**
+  - `cd frontend && npx vitest run --pool=threads` → **288 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 
@@ -96,6 +96,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Authentication is implemented with Auth.js credentials auth
 - Named env-backed accounts and scrypt password hashes are implemented
 - Client requirements call for real user access management with secure login, RBAC, strong account security, and 2FA; the named-account flow is the current foundation, while 2FA remains a planned requirement
+- Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
 - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`

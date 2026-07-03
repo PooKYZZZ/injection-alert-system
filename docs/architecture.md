@@ -126,6 +126,7 @@ Implemented in the current foundation:
 - `ADMIN`/`ANALYST`/`VIEWER` session claims,
 - per-account `authz_version` freshness checks in BFF route guards,
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
+- alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 
 These are planned requirements. They should be implemented by extending the existing Auth.js boundary or by selecting a managed auth provider, not by hand-rolling session handling.
 
@@ -153,6 +154,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Those five handlers all require a valid Auth.js session via `auth()`.
 - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
+- The alerts table and alert drawer now hide unavailable dense-row mutation controls for viewers and preserve triage/action control visibility according to the current role.
 - `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes.
 
 ## Data and Persistence

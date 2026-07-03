@@ -4,7 +4,7 @@
 
 This document provides detailed answers about the current state of the Injection Alert System codebase.
 
-Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier and the named-account/server-side RBAC foundation are implemented. MFA/2FA, password recovery, timely alerts, and email notifications after detection remain incomplete.
+Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier and the named-account/server-side RBAC foundation are implemented. Alert UI role affordances are also implemented in the dashboard. MFA/2FA, password recovery, timely alerts, and email notifications after detection remain incomplete.
 
 Verified WAF proof is tracked in `reports/modsecurity-live-proof/e2e-proof.md` and `docs/project-ops/DEMO_TARGET_WAF_PROOF.md`. The technical CyberTrace WAF proof path uses `localhost:8088`. The realistic protected demo website path uses `localhost:8089` with the separate land-records-portal running on host port `3010`. Backend remains internal-only in Docker Compose and should be queried with `docker compose exec`, not `localhost:8000` unless backend port 8000 is explicitly published.
 
@@ -72,6 +72,7 @@ The alerts page currently renders:
 - `FilterBar`
 - `AlertsTable`
 - `AlertDrawer`
+- Role-aware alert affordances now hide dense-row mutation controls for viewers, keep triage controls for analysts, and keep the full control set for admins.
 
 ### Current Triage Implementation
 
@@ -226,9 +227,9 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 
 ### Current Auth State and Remaining Gaps
 
-- Current state: Auth.js uses named `AUTH_USERS_JSON` accounts with scrypt password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, per-account `authz_version`, local login throttling, and safe JSON audit events.
+- Current state: Auth.js uses named `AUTH_USERS_JSON` accounts with scrypt password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, per-account `authz_version`, local login throttling, and safe JSON login and route-guard audit events.
 - All six BFF routes enforce server-side permissions and fresh registry role/version checks.
-- Remaining client-required work includes MFA/2FA and password recovery. Managed identity, distributed throttling, persistent audit storage, and UI affordance gating also remain future hardening.
+- Remaining client-required work includes MFA/2FA and password recovery. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
 ---
@@ -269,7 +270,7 @@ This means:
 | pytest | 489 passed |
 | lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 278 passed |
+| vitest (full) | 288 passed |
 | build | PASSED |
 
 ---
@@ -293,7 +294,7 @@ This means:
 | Demo-target WAF bridge tooling | Verified local proof; `demo-target-bridge` posted transaction `178249138618.813428` from `localhost:8089` and backend lookup returned `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15` |
 | Bounded WAF inference queue | Implemented; `web_app/application/inference_queue.py` gates synchronous WAF inference and `/api/ml-health` exposes queue health |
 | Request/trace correlation | Implemented; handled and generic unhandled `500` responses return `X-Request-ID`, and valid W3C version-00 `traceparent` IDs are preserved |
-| Structured observability logs | Implemented for backend request/WAF/prediction boundaries and bridge operational/configuration events; recursive sensitive-field redaction is tested |
+| Structured observability logs | Implemented for backend request/WAF/prediction boundaries, bridge operational/configuration events, and login/route-guard audit events; recursive sensitive-field redaction is tested |
 | Action policy values | Partial; actions are recorded, not proven as live request-path enforcement |
 
 ## Summary: Verified WAF Proof (2026-06-22)
@@ -333,7 +334,7 @@ This means:
 | Requirement | Current Status |
 |-------------|----------------|
 | Secure login with named user accounts | Implemented for the env-backed capstone foundation |
-| Admin/Analyst/Viewer RBAC | Server-side BFF enforcement implemented; UI affordance gating remains deferred |
+| Admin/Analyst/Viewer RBAC | Server-side BFF enforcement implemented; alerts UI role affordances are implemented for viewers, analysts, and admins |
 | 2FA | Planned |
 | Timely push-style dashboard alerts | Planned |
 | Email notification after detection | Planned |
