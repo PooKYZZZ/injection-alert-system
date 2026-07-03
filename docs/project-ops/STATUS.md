@@ -19,6 +19,7 @@
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
 - Account-security foundation: Auth.js now uses named `AUTH_USERS_JSON` accounts with scrypt hashes, `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, per-account `authz_version`, and server-side RBAC across all six BFF routes.
+- Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
 - Login hardening is local/process-bound: generic errors, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation scrypt cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
 
 ### Latest local verification results
@@ -34,7 +35,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **278 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **288 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)

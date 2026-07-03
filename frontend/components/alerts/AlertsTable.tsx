@@ -8,8 +8,10 @@ import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { normalizeAlertSearchParams } from '@/lib/searchParams'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
+import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
 interface AlertsTableProps {
+  role?: unknown
   selectedIds: string[]
   onSelectionChange: (ids: string[]) => void
   onAlertClick: (alert: Alert) => void
@@ -226,11 +228,13 @@ function SortHeader({
 }
 
 function AlertsTableContent({
+  role,
   selectedIds,
   onSelectionChange,
   onAlertClick,
   activeAlertId,
 }: AlertsTableProps) {
+  const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -282,7 +286,7 @@ function AlertsTableContent({
   }
 
   const handleRowClick = (alert: Alert) => {
-    if (isNewTriageStatus(alert.triage_status)) {
+    if (canTriage && isNewTriageStatus(alert.triage_status)) {
       updateTriage({ id: alert.alert_id, status: 'in_review' })
       onAlertClick({ ...alert, triage_status: 'in_review' })
       return
@@ -323,14 +327,16 @@ function AlertsTableContent({
           <thead className="sticky top-0 z-10 bg-surface-panel">
             <tr className="border-b border-surface-border">
               <th className="w-10 p-3">
-                <input
-                  type="checkbox"
-                  checked={alerts.length > 0 && selectedIds.length === alerts.length}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
-                  style={{ accentColor: 'var(--color-action-accent)' }}
-                  aria-label="Select all alerts"
-                />
+                {canTriage && (
+                  <input
+                    type="checkbox"
+                    checked={alerts.length > 0 && selectedIds.length === alerts.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
+                    style={{ accentColor: 'var(--color-action-accent)' }}
+                    aria-label="Select all alerts"
+                  />
+                )}
               </th>
               {ALERT_TABLE_COLUMNS.map((column) => (
                 <SortHeader
@@ -364,14 +370,16 @@ function AlertsTableContent({
                   onClick={() => handleRowClick(alert)}
                 >
                   <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIdsSet.has(alert.alert_id)}
-                      onChange={() => handleSelectOne(alert.alert_id)}
-                      className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
-                      style={{ accentColor: 'var(--color-action-accent)' }}
-                      aria-label={`Select alert ${alert.alert_id}`}
-                    />
+                    {canTriage && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIdsSet.has(alert.alert_id)}
+                        onChange={() => handleSelectOne(alert.alert_id)}
+                        className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
+                        style={{ accentColor: 'var(--color-action-accent)' }}
+                        aria-label={`Select alert ${alert.alert_id}`}
+                      />
+                    )}
                   </td>
                   <td className="p-3">
                     <TriageBadge triage_status={alert.triage_status ?? null} />
@@ -511,7 +519,7 @@ function AlertsTableContent({
   )
 }
 
-export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick, activeAlertId }: AlertsTableProps) {
+export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick, activeAlertId }: AlertsTableProps) {
   return (
     <Suspense
       fallback={
@@ -543,6 +551,7 @@ export function AlertsTable({ selectedIds, onSelectionChange, onAlertClick, acti
       }
     >
       <AlertsTableContent
+        role={role}
         selectedIds={selectedIds}
         onSelectionChange={onSelectionChange}
         onAlertClick={onAlertClick}

@@ -68,7 +68,7 @@ These are blocking items. If any item is false, do not claim production readines
 | TLS | HTTPS/TLS termination configured and tested. | Not implemented in repo. |
 | Secrets | Production secrets stored outside Git and not printed/logged. | Required; verify per environment. |
 | Auth | Real user accounts replace demo credentials. | Named env-backed accounts and scrypt hashes are implemented; managed identity and account-management UI are not. |
-| RBAC | Admin/Analyst/Viewer roles enforced server-side and UI-side. | Server-side BFF enforcement is implemented; UI affordance gating remains deferred. |
+| RBAC | Admin/Analyst/Viewer roles enforced server-side and UI-side. | Server-side BFF enforcement is implemented; alerts UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins. |
 | MFA/2FA | MFA enrollment, challenge, recovery, and reset flow. | Not started unless changed later. |
 | Runtime response | Block/throttle/challenge/IP block decisions enforced, not just recorded. | Partial metadata only unless changed later. |
 | Backups | Backup schedule defined and restore tested. | Docs-only until tested. |

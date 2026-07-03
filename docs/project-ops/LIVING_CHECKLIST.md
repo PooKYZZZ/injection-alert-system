@@ -6,12 +6,13 @@
 **Last updated:** 2026-07-03
 
 Status note:
-- Current test baseline: pytest 489 passed, vitest 278 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 489 passed, vitest 288 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
 - Confidence-tier naming is clarified in code/docs: `confidence_tier` is the preferred filter name, legacy `severity` remains a compatibility alias, current tiers remain `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`, and `CRITICAL >=90%` is implemented as the confidence threshold
 - Frontend confidence semantics are aligned: persisted-alert grouping/styling uses `confidence_level`; enforcement-policy counts exclude Normal predictions; Normal remains `ALLOWED` for every valid tier; tier badges always display the canonical tier
+- Alerts UI role affordances are implemented for dense alert rows and detail views: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - DistilBERT staged promotion now uses `ml_model/export/promote_final_training_run.py` with archive-and-recreate safety
 - Real promotion command currently fails closed on strict head-shape mismatch between final-training checkpoint and `package_serving_artifact.py` loader expectations; rollback restoration behavior is verified
 - Local WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`: WAF path `localhost:8088`, SQLi HTTP 403, JSON audit log, bridge `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `source_ip`, `request_path`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`
@@ -52,7 +53,7 @@ Status note:
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
 - Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **278 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **288 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes

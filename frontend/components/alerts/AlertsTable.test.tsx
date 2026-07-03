@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AlertsTable } from './AlertsTable'
@@ -58,6 +58,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
 })
 
@@ -237,6 +238,7 @@ describe('AlertsTable', () => {
 
     render(
       <AlertsTable
+        role="ANALYST"
         selectedIds={[]}
         onSelectionChange={vi.fn()}
         onAlertClick={onAlertClick}
@@ -284,6 +286,7 @@ describe('AlertsTable', () => {
 
     render(
       <AlertsTable
+        role="ANALYST"
         selectedIds={[]}
         onSelectionChange={vi.fn()}
         onAlertClick={onAlertClick}
@@ -340,4 +343,63 @@ describe('AlertsTable', () => {
     expect(requestLine).toHaveClass('text-[var(--color-accent-analytic)]')
     expect(screen.getByText("username=admin' OR '1'='1")).toBeInTheDocument()
   })
+
+  it.each([
+    ['VIEWER', false],
+    ['ANALYST', true],
+    ['ADMIN', true],
+    [undefined, false],
+    ['OWNER', false],
+  ] as const)(
+    'shows row triage affordances for role %s: %s',
+    async (role, canTriage) => {
+      const onAlertClick = vi.fn()
+      mockedUseAlertsFromFilters.mockReturnValue({
+        ...buildQueryResult(),
+        data: {
+          items: [
+            {
+              alert_id: 'role-check',
+              timestamp: '2026-04-03T10:00:00.000Z',
+              source_ip: '10.0.0.8',
+              request_path: '/role-check',
+              request_method: 'POST',
+              payload_snippet: 'payload',
+              prediction: 'SQL Injection',
+              confidence: 0.9,
+              confidence_level: 'HIGH',
+              action_taken: 'BLOCKED',
+              triage_status: 'new',
+              crs_score: 9,
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+      render(
+        <AlertsTable
+          role={role}
+          selectedIds={[]}
+          onSelectionChange={vi.fn()}
+          onAlertClick={onAlertClick}
+        />
+      )
+
+      const detailsButton = await screen.findByRole('button', {
+        name: 'View details for alert role-check',
+      })
+      const selectionControl = screen.queryByRole('checkbox', {
+        name: 'Select alert role-check',
+      })
+
+      expect(Boolean(selectionControl)).toBe(canTriage)
+      detailsButton.closest('tr')?.click()
+
+      expect(onAlertClick).toHaveBeenCalled()
+      expect(mockTriageMutate).toHaveBeenCalledTimes(canTriage ? 1 : 0)
+    }
+  )
 })

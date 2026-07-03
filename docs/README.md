@@ -58,6 +58,7 @@ This folder is the maintained documentation surface for the repository. It is in
   - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `PATCH /api/alerts/{id}/triage`, `GET /api/stats`, `GET /api/ml-health`, `POST /api/feedback`
   - public: `GET /health`, `GET /api/health`
 - The Next.js dashboard BFF is wired for alerts, alert detail, triage, stats, and ML health through `frontend/lib/bff-client.ts`
+- Alerts UI role affordances are implemented in the dashboard: dense-row mutation controls are hidden for viewers, triage stays available for analysts, and admins keep the full control set
 - USE_MOCK_API=false (hitting real FastAPI)
 - Supabase is the active hosted PostgreSQL boundary for the app runtime
 - Dockerfiles and `docker-compose.yml` are present for local smoke testing

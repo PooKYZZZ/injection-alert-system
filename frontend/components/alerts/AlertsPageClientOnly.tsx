@@ -7,6 +7,6 @@ const AlertsPageClient = dynamic(
   { ssr: false }
 )
 
-export function AlertsPageClientOnly() {
-  return <AlertsPageClient />
+export function AlertsPageClientOnly({ role }: { role?: unknown }) {
+  return <AlertsPageClient role={role} />
 }
