@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import json
+import logging
 
 from fastapi.testclient import TestClient
 import pytest
@@ -89,17 +91,30 @@ def _waf_payload() -> dict:
     }
 
 
-def test_waf_ingest_valid_event_returns_prediction(waf_api_client):
+def _structured_events(caplog, event_name):
+    return [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+        and json.loads(record.getMessage()).get("event") == event_name
+    ]
+
+
+def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
     client, init_tables = waf_api_client
     import asyncio
 
     asyncio.run(init_tables())
 
-    response = client.post(
-        "/api/internal/waf-events",
-        json=_waf_payload(),
-        headers=INTERNAL_HEADERS,
-    )
+    with caplog.at_level(logging.INFO):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=_waf_payload(),
+            headers={
+                **INTERNAL_HEADERS,
+                "X-Request-ID": "waf-request-001",
+            },
+        )
 
     assert response.status_code == 200
     payload = response.json()
@@ -107,15 +122,38 @@ def test_waf_ingest_valid_event_returns_prediction(waf_api_client):
     assert payload["prediction"] == "SQL Injection"
     assert payload["confidence_level"] == "HIGH"
     assert payload["action_taken"] == "BLOCKED"
+    received = _structured_events(caplog, "waf_ingest.received")[-1]
+    completed = _structured_events(caplog, "waf_ingest.completed")[-1]
+    request_completed = _structured_events(caplog, "request.completed")[-1]
+    assert received["request_id"] == "waf-request-001"
+    assert received["transaction_id"] == "waf-txn-001"
+    assert received["request_path"] == "/login"
+    assert received["request_method"] == "POST"
+    assert received["crs_rule_count"] == 2
+    assert completed["request_id"] == "waf-request-001"
+    assert completed["transaction_id"] == "waf-txn-001"
+    assert completed["alert_id"] == payload["alert_id"]
+    assert completed["prediction"] == "SQL Injection"
+    assert completed["confidence_tier"] == "HIGH"
+    assert completed["action_taken"] == "BLOCKED"
+    assert completed["model_version"] == "triage-model-v1"
+    assert request_completed["route"] == "/api/internal/waf-events"
+    assert "test-secret-key" not in caplog.text
+    assert "' OR 1=1 --" not in caplog.text
 
 
-def test_waf_ingest_queue_full_returns_503_with_retry_after(waf_api_client):
+def test_waf_ingest_queue_full_returns_503_with_retry_after(
+    waf_api_client, caplog
+):
     client, init_tables = waf_api_client
     import asyncio
 
     asyncio.run(init_tables())
 
     class FullQueue:
+        def health(self):
+            return {"depth": 100}
+
         async def submit(self, coro_factory):
             from web_app.application.inference_queue import InferenceQueueFullError
 
@@ -123,15 +161,50 @@ def test_waf_ingest_queue_full_returns_503_with_retry_after(waf_api_client):
 
     client.app.dependency_overrides[get_inference_queue] = lambda: FullQueue()
 
-    response = client.post(
-        "/api/internal/waf-events",
-        json=_waf_payload(),
-        headers=INTERNAL_HEADERS,
-    )
+    with caplog.at_level(logging.WARNING):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=_waf_payload(),
+            headers=INTERNAL_HEADERS,
+        )
 
     assert response.status_code == 503
     assert response.headers["Retry-After"] == "5"
     assert response.json()["detail"] == "Inference queue is full"
+    event = _structured_events(caplog, "waf_ingest.queue_full")[-1]
+    assert event["transaction_id"] == "waf-txn-001"
+    assert event["queue_depth"] == 100
+    assert event["status_code"] == 503
+
+
+def test_waf_ingest_model_not_ready_is_logged(waf_api_client, caplog):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    class UnavailableQueue:
+        def health(self):
+            return {"depth": 0}
+
+        async def submit(self, coro_factory):
+            from web_app.application.triage_use_case import ModelNotReadyError
+
+            raise ModelNotReadyError("model unavailable")
+
+    client.app.dependency_overrides[get_inference_queue] = lambda: UnavailableQueue()
+
+    with caplog.at_level(logging.WARNING):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=_waf_payload(),
+            headers=INTERNAL_HEADERS,
+        )
+
+    assert response.status_code == 503
+    event = _structured_events(caplog, "waf_ingest.model_not_ready")[-1]
+    assert event["transaction_id"] == "waf-txn-001"
+    assert event["status_code"] == 503
 
 
 def test_waf_ingest_missing_token_returns_401(waf_api_client):
@@ -311,7 +384,7 @@ def test_waf_ingest_duplicate_transaction_id_returns_existing_alert(
 
 
 def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
-    waf_api_client,
+    waf_api_client, caplog
 ):
     client, init_tables = waf_api_client
     import asyncio
@@ -345,11 +418,17 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
     payload = _waf_payload()
     payload["transaction_id"] = "waf-txn-processing-1"
 
-    response = client.post(
-        "/api/internal/waf-events",
-        json=payload,
-        headers=INTERNAL_HEADERS,
-    )
+    with caplog.at_level(logging.INFO):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=payload,
+            headers=INTERNAL_HEADERS,
+        )
 
     assert response.status_code == 409
     assert response.headers["Retry-After"] == "5"
+    event = _structured_events(
+        caplog, "waf_ingest.duplicate_or_processing"
+    )[-1]
+    assert event["transaction_id"] == "waf-txn-processing-1"
+    assert event["status_code"] == 409

@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-06-27
+Last updated: 2026-07-02
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
@@ -67,7 +67,9 @@ This folder is the maintained documentation surface for the repository. It is in
 - The backend stays internal to the Compose network and is shown as `8000/tcp`; do not use `localhost:8000` unless backend port 8000 is explicitly published
 - Verified local WAF proof: `/healthz` and `/api/health` returned HTTP 200 through `localhost:8088`; SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned HTTP 403; bridge posted to FastAPI; Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
 - Verified demo-target WAF proof: `localhost:8089` home returned HTTP 200; SQLi marker `SMOKE002945` returned HTTP 403; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`
-- Targeted WAF checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet` passed
+- Targeted WAF checks passed: bridge tests `37 passed`, WAF ingest route tests `11 passed`, WAF ingest use-case tests `4 passed`; the latest combined targeted run passed `52` tests, and the previously verified `docker compose config --quiet` result remains recorded in the WAF proof evidence
+- Backend request/WAF/prediction boundaries and bridge operations emit structured JSON logs with request/trace/transaction correlation; bridge configuration failures are JSON on stderr
+- Starlette `TestClient` uses pinned `httpx2==2.5.0`; legacy `httpx==0.28.1` remains installed for existing consumers
 - Client-required real user access management/RBAC, 2FA, and email notifications after detection remain planned requirements tracked in `client-requirements.md`.
 - The `CRITICAL >=90%` model-confidence tier is implemented without retraining, recalibration, model artifact changes, or retroactive historical-row reclassification.
 - Frontend confidence distributions and styling use persisted `confidence_level`; enforcement-policy counts are non-Normal-only, and confidence-tier badges never replace the canonical tier with prediction labels.

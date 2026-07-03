@@ -24,6 +24,7 @@ def test_body_limit_rejects_oversized_content_length() -> None:
         )
 
     assert response.status_code == 413
+    assert response.headers["X-Request-ID"]
     assert response.json() == {
         "detail": "Request body too large. Maximum allowed size is 1 MB."
     }
@@ -78,12 +79,13 @@ def test_request_without_content_length_reaches_route_handler() -> None:
     assert response.status_code == 405
 
 
-def test_security_headers_middleware_is_the_outermost_custom_middleware() -> None:
+def test_request_context_middleware_is_the_outermost_custom_middleware() -> None:
     app = create_app()
 
     names = [mw.cls.__name__ for mw in app.user_middleware]
 
-    assert names[:3] == [
+    assert names[:4] == [
+        "RequestContextMiddleware",
         "SecurityHeadersMiddleware",
         "BodySizeLimitMiddleware",
         "CORSMiddleware",

@@ -13,7 +13,7 @@ readme = "README.md"
 dev = [
     "pytest",
     "pytest-cov",
-    "httpx",
+    "httpx2",
     "black",
     "ruff",
     "mypy",

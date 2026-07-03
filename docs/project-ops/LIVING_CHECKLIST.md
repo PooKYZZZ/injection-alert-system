@@ -3,10 +3,10 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-06-30
+**Last updated:** 2026-07-02
 
 Status note:
-- Current test baseline: pytest 447 passed, vitest 206 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 476 passed, vitest 206 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -17,16 +17,18 @@ Status note:
 - Local WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`: WAF path `localhost:8088`, SQLi HTTP 403, JSON audit log, bridge `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `source_ip`, `request_path`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`
 - Realistic demo-target WAF proof is verified locally through `localhost:8089`: marker `SMOKE002945` returned HTTP 403, `demo-target-bridge` posted transaction `178249138618.813428`, and backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=15`
 - Dashboard screenshot evidence is verified in `reports/modsecurity-live-proof/dashboard-evidence.md` with PNGs under `reports/modsecurity-live-proof/screenshots/`; the latest set includes `8089` dashboard/table evidence and an ML health overview, while the detail drawer screenshots show the default `8088` path
+- Request/trace context, structured JSON logs for request/WAF/prediction boundaries, bridge JSON logs, and recursive log-field redaction are implemented and covered by targeted backend tests
 
 ---
 
-## Current Verified State (2026-06-30)
+## Current Verified State (2026-07-02)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **476 passed**
+- Request-context regression tests → **9 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **81 passed**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
 - Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **206 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
@@ -68,6 +70,11 @@ Status note:
 - [x] Demo-target WAF config exists for `localhost:8089 -> demo-target-modsecurity -> demo-portal`; the profile is optional for normal startup and required for the final realistic WAF demonstration; `demo-portal` builds from the separate land-records portal repo path, runs internally on Compose port `3010`, and is not host-published by default; `demo-target-bridge` watches `logs/modsecurity/demo-target/modsec_audit.jsonl` for CyberTrace ingest
 - [x] Final observed demo-target report exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`
 - [x] Add bounded `asyncio.Queue(maxsize=N)` inference queue and queue health visibility
+- [x] Add structured JSON logs with backend request/trace IDs and bridge-to-backend `transaction_id` correlation; scope is request/WAF/prediction boundaries and bridge operational events, not every application log
+- [x] Return a safe `X-Request-ID` on generic unhandled `500` responses while preserving sanitized `request.failed` logs
+- [x] Emit bridge configuration failures as JSON stderr and normalize unsupported backend structured-log levels to `INFO`
+- [x] Migrate Starlette `TestClient` to pinned `httpx2==2.5.0` while retaining legacy `httpx` for current consumers
+- [~] Minimal metrics use existing `/api/stats`, `/api/ml-health` queue health, and JSON bridge summary counts; no separate bridge/email metrics endpoint is implemented
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
 - [ ] Add email notifications after detection using a transactional email provider/API

@@ -69,6 +69,8 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 - Verified local demo-target WAF ingest proof through `localhost:8089`
 - Internal WAF ingest and transaction lookup endpoints protected by bearer auth
 - Bounded in-process WAF inference queue and queue health visibility in ML health
+- Structured JSON logs for backend request/WAF/prediction boundaries and bridge operations, with request/trace/transaction correlation and recursive sensitive-field redaction
+- Safe `X-Request-ID` propagation on handled responses and generic unhandled `500` responses
 
 ### Not fully implemented yet
 
@@ -84,7 +86,7 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 | Layer | Current stack |
 |---|---|
 | Frontend | Next.js 16, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
-| Backend | FastAPI 0.135, SQLAlchemy 2.0, Pydantic 2.12, Python 3.14 |
+| Backend | FastAPI 0.138.0, SQLAlchemy 2.0, Pydantic 2.12, Python 3.14 |
 | ML | PyTorch, Hugging Face Transformers |
 | Data | SQLite for tests and isolated local work, PostgreSQL/Supabase as the active hosted runtime boundary |
 | Docs | Markdown in-repo docs under `docs/` |

@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-06-29
+Updated: 2026-07-02
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -37,7 +37,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - ModSecurity audit log contained `transaction.unique_id=17821639659.909603`, `transaction.client_ip=172.21.0.1`, and request URI `/api/health?id=17%27%20OR%2017%3D17--`.
 - Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
 - Docker-internal backend lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
-- Targeted checks passed: bridge tests `34 passed`, WAF ingest route tests `8 passed`, WAF ingest use-case tests `4 passed`, and `docker compose config --quiet`.
+- Targeted checks passed: bridge tests `37 passed`, WAF ingest route tests `11 passed`, WAF ingest use-case tests `4 passed`; the latest combined targeted run passed `52` tests, and the previously verified `docker compose config --quiet` result remains part of the proof record.
 - Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; it preserves the last safe file position, warns, sleeps, and resumes follow processing after reopen.
 
 ### Realistic demo-target WAF proof (2026-06-27)
@@ -51,9 +51,9 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run through 2026-06-30
+### Checks run through 2026-07-02
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **447 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **476 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
@@ -87,6 +87,8 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
 - Internal backend routes are protected by bearer-token auth using `API_SECRET_KEY`
+- Request context middleware preserves or generates safe request IDs, supports W3C version-00 `traceparent`, and returns `X-Request-ID` on handled and generic unhandled `500` responses
+- Structured JSON logs cover request completion/failure, WAF ingest outcomes, direct prediction outcomes, and bridge operational/configuration events; sensitive keyed fields are recursively redacted
 
 ### Frontend
 

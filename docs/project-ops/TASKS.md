@@ -1,12 +1,12 @@
 # TASKS.md — Injection Alert System
 # Atomic Task List for Autonomous Agent Execution
 
-**Last updated:** 2026-03-23
-**Baseline:** 264 backend tests, 122 frontend tests, master branch
+**Last updated:** 2026-07-02
+**Current verification:** 476 backend tests and 206 frontend tests pass on `feat/observability-traceability`
 **Edge entrypoint:** frontend/proxy.ts (NOT middleware.ts)
 **DB file:** web_app/infrastructure/database/database.py
 
-**Current proof note (2026-06-23):** Local ModSecurity/OWASP CRS WAF ingest proof is now verified in `reports/modsecurity-live-proof/e2e-proof.md`. Older task text that says Docker Compose or ModSecurity are not implemented is historical; Redis remains not implemented.
+**Current proof note (2026-07-02):** Local ModSecurity/OWASP CRS WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`. Bridge transient `readline()` `OSError` recovery and queue health reporting are implemented and tested. Older task text that says Docker Compose or ModSecurity are not implemented is historical; Redis, automatic audit-log rotation, and production retention remain unimplemented.
 
 ---
 

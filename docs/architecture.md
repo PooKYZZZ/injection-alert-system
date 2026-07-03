@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-06-27
+Last updated: 2026-07-02
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -38,12 +38,14 @@ flowchart LR
 | Browser dashboard path | Implemented | `frontend/app/api/*`, `frontend/proxy.ts`, `frontend/lib/bff-client.ts` |
 | FastAPI routes and BFF calls | Implemented | `web_app/presentation/api/routes.py`, `frontend/app/api/*` |
 | ModelService runtime boundary | Implemented | `web_app/services/model_service.py` |
-| WAF ingest endpoint | Verified local proof | `POST /api/internal/waf-events`, `GET /api/internal/waf-events/{transaction_id}`, targeted route tests `8 passed` |
-| WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `34 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
+| WAF ingest endpoint | Verified local proof | `POST /api/internal/waf-events`, `GET /api/internal/waf-events/{transaction_id}`, targeted route tests `11 passed` |
+| WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `37 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
 | ModSecurity request path | Verified local proof | `localhost:8088` is the technical CyberTrace backend WAF proof path; SQLi blocks with HTTP 403 and writes `logs/modsecurity/modsec_audit.jsonl` |
 | Demo-target WAF ingest path | Verified local PD2 proof | `localhost:8089` is the realistic protected demo website path; `demo-target-bridge` forwards separate `logs/modsecurity/demo-target/modsec_audit.jsonl` events; transaction `178249138618.813428` reached FastAPI as `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15` |
 | Backend Compose exposure | Implemented | backend is internal-only in Compose and shown as `8000/tcp`; proof lookup uses `docker compose exec`, not `localhost:8000` |
 | Inference queue | Implemented | `web_app/application/inference_queue.py`; targeted tests cover synchronous WAF ingest, queue overflow, and queue health |
+| Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
+| Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
 | Email notifications | Planned | no transactional email integration found |
 | RBAC secure login | Planned | current `frontend/auth.ts` is demo credentials auth without roles |
@@ -75,7 +77,7 @@ The backend follows the intended Clean Architecture split:
 - Lifespan startup initializes the database, loads `ModelService`, and starts
   the bounded in-process inference queue used by WAF ingest.
 
-### Current routes (2026-03-23)
+### Current routes (2026-07-02)
 
 - Protected by backend bearer auth:
   - `POST /api/predict`
@@ -132,7 +134,7 @@ This remains the correct direction for the project. Browser-to-FastAPI direct ca
 
 Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
-### Current BFF status (2026-03-23)
+### Current BFF status (2026-07-02)
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
 - All five route handlers wired:

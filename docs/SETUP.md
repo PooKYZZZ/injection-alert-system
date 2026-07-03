@@ -1,6 +1,6 @@
 # Local Setup
 
-Last updated: 2026-06-27
+Last updated: 2026-07-02
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
@@ -186,7 +186,7 @@ npm run lint
 npm run typecheck
 ```
 
-As of 2026-03-23, both pass cleanly.
+As of 2026-07-02, both pass cleanly.
 
 ### Run focused frontend BFF tests
 
@@ -202,7 +202,7 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-03-23, full suite passes with **122 frontend tests**.
+As of 2026-07-02, the focused BFF selection passes **89 tests** and the full suite passes **206 frontend tests**.
 
 ### Validate production build
 

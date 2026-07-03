@@ -25,8 +25,10 @@ from web_app.config import get_settings
 from web_app.infrastructure.database import init_db
 from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
+from web_app.presentation.exception_handlers import unhandled_exception_handler
 from web_app.presentation.health import health_check
 from web_app.presentation.middleware.body_limit import BodySizeLimitMiddleware
+from web_app.presentation.middleware.request_context import RequestContextMiddleware
 from web_app.presentation.middleware.security_headers import (
     SecurityHeadersMiddleware,
 )
@@ -115,6 +117,7 @@ def create_app() -> FastAPI:
         redoc_url=redoc_url,
         openapi_url="/openapi.json" if settings.enable_api_docs else None,
     )
+    app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # --- CORS middleware ---
     # In production/staging, use more restrictive CORS settings
@@ -138,11 +141,12 @@ def create_app() -> FastAPI:
         )
 
     # Starlette applies middleware in reverse registration order.
-    # Register the body limit middleware first so the security headers
-    # middleware becomes the outermost custom layer and can post-process
-    # every response, including early 400/413 responses from body limits.
+    # Register request context last so it becomes the outermost custom layer.
+    # This gives early body-limit responses the same request correlation header
+    # and completion log as normal route responses.
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestContextMiddleware)
 
     # --- API router ---
     app.include_router(api_router, prefix="/api")

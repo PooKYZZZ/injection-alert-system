@@ -38,6 +38,7 @@ from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
+from web_app.observability.structured_logging import log_event
 from web_app.presentation.dependencies.auth import verify_internal_token
 from web_app.application.update_alert_triage_use_case import (
     UpdateAlertTriageUseCase,
@@ -92,6 +93,18 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
     return TrafficLogRepository(db, session_factory=session_factory)
 
 
+def _queue_log_fields(inference_queue: object) -> dict[str, object]:
+    health = getattr(inference_queue, "health", None)
+    if not callable(health):
+        return {}
+    try:
+        queue_health = health()
+    except Exception:
+        return {}
+    depth = queue_health.get("depth") if isinstance(queue_health, dict) else None
+    return {"queue_depth": depth} if isinstance(depth, int) else {}
+
+
 def get_alert_query_params(query: AlertQueryParams = Depends()) -> AlertQueryParams:
     try:
         query.ensure_compatible_confidence_tier_aliases()
@@ -123,6 +136,15 @@ async def predict(
         http_request=prediction_request.http_request,
         source_ip=request.client.host if request.client else "unknown",
     )
+    log_event(
+        logger,
+        "prediction.completed",
+        "Prediction completed",
+        prediction=result.class_label,
+        confidence_tier=result.confidence_level,
+        action_taken=result.action_taken,
+        status_code=200,
+    )
 
     return PredictionResponse(
         class_label=result.class_label,
@@ -143,6 +165,7 @@ async def predict(
     },
 )
 async def ingest_waf_event(
+    request: Request,
     payload: WafIngestRequest,
     model_service=Depends(get_model_service),
     inference_queue: InferenceQueueService = Depends(get_inference_queue),
@@ -154,6 +177,19 @@ async def ingest_waf_event(
         repository=repository,
         stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
         enable_preprocessing=settings.enable_http_model_preprocessing,
+    )
+    queue_fields = _queue_log_fields(inference_queue)
+    log_event(
+        logger,
+        "waf_ingest.received",
+        "WAF ingest received",
+        transaction_id=payload.transaction_id,
+        request_path=payload.request_path,
+        request_method=payload.request_method,
+        source_ip=payload.source_ip,
+        crs_score=payload.crs_score,
+        crs_rule_count=len(payload.crs_rule_ids),
+        **queue_fields,
     )
 
     try:
@@ -175,19 +211,65 @@ async def ingest_waf_event(
             )
         )
     except InferenceQueueFullError as exc:
+        log_event(
+            logger,
+            "waf_ingest.queue_full",
+            "WAF ingest rejected because inference queue is full",
+            level="WARNING",
+            transaction_id=payload.transaction_id,
+            status_code=503,
+            error_type=type(exc).__name__,
+            error_message="Inference queue is full",
+            **_queue_log_fields(inference_queue),
+        )
         raise HTTPException(
             status_code=503,
             detail="Inference queue is full",
             headers={"Retry-After": "5"},
         ) from exc
     except ModelNotReadyError as exc:
+        log_event(
+            logger,
+            "waf_ingest.model_not_ready",
+            "WAF ingest rejected because model is not ready",
+            level="WARNING",
+            transaction_id=payload.transaction_id,
+            status_code=503,
+            error_type=type(exc).__name__,
+            error_message="Model is not ready",
+            **_queue_log_fields(inference_queue),
+        )
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TriageInProgressError as exc:
+        log_event(
+            logger,
+            "waf_ingest.duplicate_or_processing",
+            "WAF ingest transaction is already processing",
+            transaction_id=payload.transaction_id,
+            status_code=409,
+            error_type=type(exc).__name__,
+            error_message="Transaction is already processing",
+            **_queue_log_fields(inference_queue),
+        )
         raise HTTPException(
             status_code=409,
             detail=str(exc),
             headers={"Retry-After": "5"},
         ) from exc
+
+    log_event(
+        logger,
+        "waf_ingest.completed",
+        "WAF ingest completed",
+        alert_id=result.alert_id,
+        transaction_id=payload.transaction_id,
+        prediction=result.prediction,
+        confidence_tier=result.confidence_level,
+        action_taken=result.action_taken,
+        model_version=result.model_version,
+        status_code=200,
+        **_queue_log_fields(inference_queue),
+    )
 
     return TriageIngestResponse(
         alert_id=result.alert_id,
