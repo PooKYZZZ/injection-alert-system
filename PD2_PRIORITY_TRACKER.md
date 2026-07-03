@@ -98,14 +98,14 @@ This tracker is based on the following.
 | `[ ]` | Add challenger evaluation gate before promotion | High | High | Not started for retrained candidates; promotion safety exists separately but no closed retraining challenger gate is present. |
 | `[~]` | Add model artifact checksum/manifest validation | Medium-High | Medium | Partial: `ModelService` reads manifest/eval metadata, but checksum validation is not implemented. |
 | `[~]` | Add model promotion/rollback integration | Medium-High | Critical | Partial: `ml_model/export/promote_final_training_run.py` implements archive/rollback safety, but real promotion currently fails closed on checkpoint shape mismatch per ops docs. |
-| `[ ]` | Add production edge checklist | Medium | Low | Not started as a dedicated checklist; related setup notes exist in `docs/SETUP.md`. |
-| `[ ]` | Add backup/restore and migration rollback runbook | Medium | Medium | Not started: no PostgreSQL/Supabase backup-restore or Alembic rollback runbook found. |
-| `[ ]` | Add retention policy for alerts and audit logs | Medium | Low-Medium | Not started: no `archived_at`/`hidden_at` behavior or retention runbook found. |
+| `[x]` | Add production edge checklist | Medium | Low | Done as operator documentation: `docs/project-ops/PRODUCTION_EDGE_CHECKLIST.md` defines production-edge readiness checks and explicit non-production truth. This does not claim production deployment is complete. |
+| `[x]` | Add backup/restore and migration rollback runbook | Medium | Medium | Done as operator documentation: `BACKUP_RESTORE_RUNBOOK.md` and `MIGRATION_ROLLBACK_RUNBOOK.md` document safe backup, restore, and rollback procedures. No automated backup/restore job or migration change was implemented. |
+| `[x]` | Add retention policy for alerts and audit logs | Medium | Low-Medium | Done as policy documentation: `RETENTION_POLICY.md` defines archive/hide-first retention rules and explicitly says no physical DELETE behavior or retention job was added. |
 | `[ ]` | Implement full DistilBERT retraining automation | Medium | Critical | Not started: final-training artifacts exist, but no production retraining automation flow is checked in. |
 | `[ ]` | Decide daily vs 20-day retraining window | Medium | Low-Medium | Not started: docs still reference 20-day design while newer tracker requirements mention daily-vs-20-day decision. |
 | `[x]` | Align maintained docs for the CRITICAL rollout | Medium | Low | Done: maintained implementation, setup, contributor, operator, and tracker docs describe CRITICAL as implemented and retain planned/deferred wording for unfinished features. |
 | `[ ]` | Add Wazuh export-only integration | Low-Medium | Medium | Not started: no Wazuh JSON/JSONL export implementation found. |
-| `[ ]` | Supabase/RLS operational hardening export | Low-Medium | Medium | Not started: ops docs say some Supabase policy and hardening steps remain outside repo automation. |
+| `[x]` | Supabase/RLS operational hardening export | Low-Medium | Medium | Done as operator documentation: `SUPABASE_RLS_HARDENING.md` documents RLS/security-advisor/project-hardening checks. No Supabase dashboard setting or RLS policy was changed by this branch. |
 | `[~]` | Dashboard polish for mitigation/security pages | Low | Low-Medium | Partial: dashboard/alerts/ML-health UI exists; mitigation/security-specific pages remain planned. |
 | `[x]` | Defer Wazuh full SIEM deployment | Defer | Critical | Done as a scope decision: tracker keeps Wazuh as export-only and marks full SIEM as deferred. |
 | `[x]` | Defer Kubernetes/Helm/Terraform | Defer | Critical | Done as a scope decision: tracker keeps Docker Compose/runbooks/checklists as the PD2 path. |
@@ -312,7 +312,7 @@ Current API abuse/resource smoke proof covers:
 Email, SSE, RBAC, and 2FA abuse cases remain not applicable until those
 features exist.
 
-Add production edge checklist as a runbook only. Cover CORS, disabled docs outside dev, env validation, internal API token, auth bypass prevention, reverse proxy headers, TLS boundary, safe error responses, log retention, and demo data reset.
+Document production edge checklist as operator guidance only. Cover CORS, disabled docs outside dev, env validation, internal API token, auth bypass prevention, reverse proxy headers, TLS boundary, safe error responses, log retention, and demo data reset.
 
 ## Notes For Enforcement
 

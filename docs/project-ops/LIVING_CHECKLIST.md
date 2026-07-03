@@ -25,6 +25,20 @@ Status note:
   timeout/unavailable handling, and secret redaction, without requiring Docker
   for CI-safe verification
 
+## Ops Runbooks / Operator Truth
+
+- [x] Production edge checklist exists: `docs/project-ops/PRODUCTION_EDGE_CHECKLIST.md`
+- [x] Backup/restore runbook exists: `docs/project-ops/BACKUP_RESTORE_RUNBOOK.md`
+- [x] Migration rollback runbook exists: `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
+- [x] Retention policy exists: `docs/project-ops/RETENTION_POLICY.md`
+- [x] Supabase/RLS hardening notes exist: `docs/project-ops/SUPABASE_RLS_HARDENING.md`
+- [x] Stale task reconciliation exists: `docs/project-ops/TASKS_RECONCILIATION.md`
+- [ ] Backup automation implemented
+- [ ] Restore automation tested against production-like target
+- [ ] Retention/archive job implemented
+- [ ] Supabase production settings applied and externally verified
+- [ ] RLS policy changes implemented and tested
+
 ---
 
 ## Current Verified State (2026-07-03)

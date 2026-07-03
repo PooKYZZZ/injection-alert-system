@@ -67,6 +67,14 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - `transaction_id` correlates bridge and backend WAF events. Within FastAPI, `request_id` and `trace_id` correlate route and ingest/prediction events for one request.
 - New structured-log fields are redacted recursively and case-insensitively for Authorization, cookies, API keys, tokens, passwords, secrets, sessions, credentials, and database connection values. Raw request bodies and query strings are not logged by the new request/route instrumentation.
 - Minimal metrics remain the existing `/api/stats`, `/api/ml-health` queue health, and bridge summary log counts. No new metrics endpoint, Prometheus, tracing backend, or SIEM was added.
+- Ops runbooks added as documentation-only artifacts:
+  - `docs/project-ops/PRODUCTION_EDGE_CHECKLIST.md`
+  - `docs/project-ops/BACKUP_RESTORE_RUNBOOK.md`
+  - `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
+  - `docs/project-ops/RETENTION_POLICY.md`
+  - `docs/project-ops/SUPABASE_RLS_HARDENING.md`
+  - `docs/project-ops/TASKS_RECONCILIATION.md`
+- These docs do not implement production deployment, backup automation, restore automation, database migrations, retention/archive jobs, Supabase dashboard changes, RLS policies, Wazuh export, or SIEM deployment.
 
 ### Automated final demo and abuse smoke proof
 
