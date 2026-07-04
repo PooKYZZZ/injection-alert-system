@@ -6,7 +6,7 @@
 **Last updated:** 2026-07-03
 
 Status note:
-- Current test baseline: pytest 489 passed, vitest 288 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 493 passed, vitest 295 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -111,6 +111,7 @@ Status note:
 - [x] Replace demo password login with named env-backed accounts and scrypt password hashes
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
 - [~] Login hardening includes generic errors, local identifier/global throttles, a two-slot scrypt cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
+- [x] Auth/security schema foundation implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, and a tested `frontend/lib/server/db/` service-role boundary. Live Supabase migration application and Supabase account login are not implemented
 - [ ] Implement 2FA/MFA
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state

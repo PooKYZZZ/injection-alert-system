@@ -88,6 +88,7 @@ This tracker is based on the following.
 | `[x]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Done: role/session claims and fresh per-request registry checks protect all six BFF routes; Viewer reads, Analyst triages, and Admin may update actions. |
 | `[ ]` | Add 2FA/MFA | High | High | Not started: no TOTP/email OTP enrollment, challenge, recovery, or factor reset flow found. |
 | `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, scrypt dummy verification, per-identifier/global local throttles, two-operation scrypt cap, eight-hour sessions, and safe JSON audit events are implemented. MFA, reset/recovery, distributed throttling, and persistent audit storage remain missing. |
+| `[x]` | Add auth/security schema foundation | High | Medium | Done in repo only: additive Alembic migration, nine public-schema tables with RLS/revocations/no policies, and tested server-only Supabase client/env validation. Live migration application, Supabase account login, Argon2id, provisioning, and MFA remain unimplemented. |
 | `[~]` | Implement real enforcement state for block/throttle/challenge | High | High-Critical | Partial: `action_taken` is persisted as metadata; no request-path block/throttle/challenge state is enforced at runtime. |
 | `[ ]` | Implement LOW light rate limiting | High | High | Not started: no LOW runtime rate-limit enforcement found. |
 | `[ ]` | Implement MEDIUM aggressive throttling | High | High | Not started: no MEDIUM runtime throttle enforcement found. |

@@ -19,13 +19,15 @@
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
 - Account-security foundation: Auth.js now uses named `AUTH_USERS_JSON` accounts with scrypt hashes, `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, per-account `authz_version`, and server-side RBAC across all six BFF routes.
+- Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The migration has not been applied to live Supabase.
+- Current login remains env-backed through `AUTH_USERS_JSON` with scrypt and is unchanged; Supabase account login, provisioning, and MFA are not implemented.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
 - Login hardening is local/process-bound: generic errors, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation scrypt cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **489 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **493 passed**
 - Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **9 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
 - WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **24 passed**
@@ -35,7 +37,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **288 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **295 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
@@ -189,7 +191,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested; automatic log rotation and production retention remain TODO.
 - Bounded in-process inference queue and queue health visibility are implemented for synchronous WAF ingest.
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
-- Some Supabase policy and operational hardening steps remain outside automated repo verification/export.
+- Some Supabase policy and operational hardening steps remain outside automated repo verification/export; the auth/security foundation uses RLS only as defense-in-depth because service-role access bypasses it.
 - Named env-backed account access and BFF RBAC are implemented; account-management UI, managed identity, distributed throttling, persistent audit storage, and immediate stolen-token revocation remain future work.
 - Client-required 2FA is not yet implemented.
 - Password reset/recovery and CAPTCHA/step-up are not implemented.
