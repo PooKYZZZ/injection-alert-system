@@ -1,85 +1,24 @@
-import * as crypto from 'node:crypto'
+import * as argon2 from 'argon2'
 
-export const SCRYPT_N = 131_072
-export const SCRYPT_R = 8
-export const SCRYPT_P = 1
-export const SCRYPT_KEYLEN = 64
-export const SCRYPT_SALT_BYTES = 32
-export const SCRYPT_MAXMEM = 268_435_456
-export const SCRYPT_CONCURRENCY_LIMIT = 2
+export const ARGON2_MEMORY_COST = 19_456
+export const ARGON2_TIME_COST = 2
+export const ARGON2_PARALLELISM = 1
 export const MAX_PASSWORD_LENGTH = 256
+export const PASSWORD_HASH_CONCURRENCY_LIMIT = 2
 
-const SCRYPT_VERSION = 'v1'
-const SCRYPT_PARAMS =
-  `N=${SCRYPT_N},r=${SCRYPT_R},p=${SCRYPT_P},` +
-  `keylen=${SCRYPT_KEYLEN},maxmem=${SCRYPT_MAXMEM}`
-
-export const DUMMY_PASSWORD_HASH =
-  'scrypt$v1$N=131072,r=8,p=1,keylen=64,maxmem=268435456$' +
-  'cGhhc2UyLWR1bW15LXNhbHQtMzItYnl0ZS12YWx1ZSE$' +
-  'zb4dxl8edJC0zJ8H5aa6A7Bh9pP01oQjiwhlHhiZFHtkGSuhdTFFABQArJmq6DfIx4lJVaa2UXrFgfst__5YAQ'
-
-type ParsedHash = {
-  salt: Buffer
-  digest: Buffer
-}
-
-function isBase64Url(value: string): boolean {
-  return value.length > 0 && /^[A-Za-z0-9_-]+$/.test(value)
-}
-
-function parsePasswordHash(encoded: string): ParsedHash | null {
-  const parts = encoded.split('$')
-  if (
-    parts.length !== 5 ||
-    parts[0] !== 'scrypt' ||
-    parts[1] !== SCRYPT_VERSION ||
-    parts[2] !== SCRYPT_PARAMS ||
-    !isBase64Url(parts[3]) ||
-    !isBase64Url(parts[4])
-  ) {
-    return null
-  }
-
-  const salt = Buffer.from(parts[3], 'base64url')
-  const digest = Buffer.from(parts[4], 'base64url')
-  if (
-    salt.length < 16 ||
-    digest.length !== SCRYPT_KEYLEN ||
-    salt.toString('base64url') !== parts[3] ||
-    digest.toString('base64url') !== parts[4]
-  ) {
-    return null
-  }
-
-  return { salt, digest }
-}
-
-function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(
-      password,
-      salt,
-      SCRYPT_KEYLEN,
-      {
-        N: SCRYPT_N,
-        r: SCRYPT_R,
-        p: SCRYPT_P,
-        maxmem: SCRYPT_MAXMEM,
-      },
-      (error, derivedKey) => {
-        if (error) {
-          reject(error)
-        } else {
-          resolve(derivedKey)
-        }
-      }
-    )
-  })
-}
+const ARGON2_OPTIONS = {
+  type: argon2.argon2id,
+  memoryCost: ARGON2_MEMORY_COST,
+  timeCost: ARGON2_TIME_COST,
+  parallelism: ARGON2_PARALLELISM,
+} as const
 
 function passwordIsWithinBounds(password: unknown): password is string {
-  return typeof password === 'string' && password.length <= MAX_PASSWORD_LENGTH
+  return (
+    typeof password === 'string' &&
+    password.length > 0 &&
+    password.length <= MAX_PASSWORD_LENGTH
+  )
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -87,45 +26,52 @@ export async function hashPassword(password: string): Promise<string> {
     throw new Error('Password input is invalid.')
   }
 
-  const salt = crypto.randomBytes(SCRYPT_SALT_BYTES)
-  const digest = await deriveKey(password, salt)
-  return [
-    'scrypt',
-    SCRYPT_VERSION,
-    SCRYPT_PARAMS,
-    salt.toString('base64url'),
-    digest.toString('base64url'),
-  ].join('$')
+  const hash = await argon2.hash(password, ARGON2_OPTIONS)
+  if (!hash.startsWith('$argon2id$')) {
+    throw new Error('Password hashing failed.')
+  }
+  return hash
 }
 
 export async function verifyPasswordHash(
-  password: string,
-  encodedHash: string
+  hash: string,
+  password: string
 ): Promise<boolean> {
-  if (!passwordIsWithinBounds(password)) {
-    return false
-  }
-
-  const parsed = parsePasswordHash(encodedHash)
-  if (!parsed) {
+  if (
+    typeof hash !== 'string' ||
+    !hash.startsWith('$argon2id$') ||
+    !passwordIsWithinBounds(password)
+  ) {
     return false
   }
 
   try {
-    const actual = await deriveKey(password, parsed.salt)
-    return crypto.timingSafeEqual(actual, parsed.digest)
+    return await argon2.verify(hash, password)
   } catch {
     return false
   }
+}
+
+const dummyPasswordHash = hashPassword(
+  'CyberTrace fixed dummy password used only for timing equalization'
+)
+
+export async function verifyPasswordForUnknownAccount(
+  password: string
+): Promise<void> {
+  if (!passwordIsWithinBounds(password)) {
+    return
+  }
+  await verifyPasswordHash(await dummyPasswordHash, password)
 }
 
 export async function verifyPasswordForAccount(
   password: string,
   accountPasswordHash: string | null | undefined
 ): Promise<boolean> {
-  const verified = await verifyPasswordHash(
-    password,
-    accountPasswordHash ?? DUMMY_PASSWORD_HASH
-  )
-  return accountPasswordHash ? verified : false
+  if (!accountPasswordHash) {
+    await verifyPasswordForUnknownAccount(password)
+    return false
+  }
+  return verifyPasswordHash(accountPasswordHash, password)
 }

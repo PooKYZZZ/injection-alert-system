@@ -8,7 +8,7 @@ import {
 import { writeLoginAudit } from './lib/auth/login-audit'
 import {
   loginThrottle,
-  scryptConcurrencyGate,
+  passwordHashConcurrencyGate,
 } from './lib/auth/login-throttle'
 import { verifyPasswordForAccount } from './lib/auth/password-hash'
 import { isUserRole } from './lib/auth/roles'
@@ -73,7 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
-        const verification = await scryptConcurrencyGate.run(() =>
+        const verification = await passwordHashConcurrencyGate.run(() =>
           verifyPasswordForAccount(password, account?.passwordHash ?? null)
         )
         if (!verification.ok) {

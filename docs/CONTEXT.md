@@ -94,7 +94,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
-- Named env-backed accounts and scrypt password hashes are implemented
+- Named env-backed accounts and Argon2id password hashes are implemented
 - Client requirements call for real user access management with secure login, RBAC, strong account security, and 2FA; the named-account flow is the current foundation, while 2FA remains a planned requirement
 - Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`

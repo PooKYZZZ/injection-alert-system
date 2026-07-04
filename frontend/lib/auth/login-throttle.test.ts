@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   LoginThrottle,
-  ScryptConcurrencyGate,
+  PasswordHashConcurrencyGate,
   hashNormalizedIdentifier,
 } from './login-throttle'
 
@@ -202,9 +202,9 @@ describe('LoginThrottle', () => {
   })
 })
 
-describe('ScryptConcurrencyGate', () => {
+describe('PasswordHashConcurrencyGate', () => {
   it('allows two concurrent attempts and rejects a third', async () => {
-    const gate = new ScryptConcurrencyGate(2)
+    const gate = new PasswordHashConcurrencyGate(2)
     const releases: Array<() => void> = []
     const task = () =>
       new Promise<string>((resolve) => {
@@ -215,11 +215,37 @@ describe('ScryptConcurrencyGate', () => {
     const second = gate.run(task)
     const third = await gate.run(task)
 
-    expect(third).toEqual({ ok: false, reasonCode: 'SCRYPT_BUSY' })
+    expect(third).toEqual({ ok: false, reasonCode: 'PASSWORD_HASH_BUSY' })
     expect(releases).toHaveLength(2)
     releases.forEach((release) => release())
     await expect(first).resolves.toEqual({ ok: true, value: 'verified' })
     await expect(second).resolves.toEqual({ ok: true, value: 'verified' })
+  })
+
+  it('uses the generic concurrency env var and ignores the old scrypt variable', async () => {
+    vi.resetModules()
+    process.env.AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT = '2'
+    process.env.AUTH_SCRYPT_CONCURRENCY_LIMIT = '1'
+    const { passwordHashConcurrencyGate } = await import('./login-throttle')
+    const releases: Array<() => void> = []
+    const task = () =>
+      new Promise<string>((resolve) => {
+        releases.push(() => resolve('verified'))
+      })
+
+    const first = passwordHashConcurrencyGate.run(task)
+    const second = passwordHashConcurrencyGate.run(task)
+    const third = await passwordHashConcurrencyGate.run(task)
+
+    expect(releases).toHaveLength(2)
+    expect(third).toEqual({
+      ok: false,
+      reasonCode: 'PASSWORD_HASH_BUSY',
+    })
+    releases.forEach((release) => release())
+    await Promise.all([first, second])
+    delete process.env.AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT
+    delete process.env.AUTH_SCRYPT_CONCURRENCY_LIMIT
   })
 })
 

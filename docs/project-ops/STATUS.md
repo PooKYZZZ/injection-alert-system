@@ -18,11 +18,12 @@
 - DistilBERT promotion workflow CLI: `ml_model/export/promote_final_training_run.py`
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
-- Account-security foundation: Auth.js now uses named `AUTH_USERS_JSON` accounts with scrypt hashes, `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, per-account `authz_version`, and server-side RBAC across all six BFF routes.
+- Account-security foundation: Auth.js uses named `AUTH_USERS_JSON` accounts with Argon2id hashes, `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, per-account `authz_version`, and server-side RBAC across all six BFF routes.
 - Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The migration has not been applied to live Supabase.
-- Current login remains env-backed through `AUTH_USERS_JSON` with scrypt and is unchanged; Supabase account login, provisioning, and MFA are not implemented.
+- Current login remains env-backed through `AUTH_USERS_JSON`; Supabase account provisioning tooling is implemented, but Supabase account login and MFA are not implemented.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
-- Login hardening is local/process-bound: generic errors, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation scrypt cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
+- Login hardening is local/process-bound: Argon2id-only verification, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
+- Operational scripts create, list, disable, and set passwords for `auth_accounts` through a centralized script-only Supabase service-role adapter. MFA, email OTP, Resend, Telegram, Turnstile, password reset, and the PR 3 login cutover remain unimplemented.
 
 ### Latest local verification results
 

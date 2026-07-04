@@ -331,9 +331,10 @@ http://localhost:3000/login
 ```
 
 Enter the id or email and password for a named account configured in
-`AUTH_USERS_JSON`. Passwords are stored only as scrypt hashes; generate a hash
-with `node scripts/generate_auth_password_hash.mjs "<password>"`. There is no
-demo-password fallback.
+`AUTH_USERS_JSON`. Passwords must be stored as Argon2id PHC hashes; generate a
+hash with `node scripts/generate_auth_password_hash.mjs "<password>"`. Old
+scrypt hashes are rejected. There is no demo-password fallback. Supabase
+account login is still planned for PR 3.
 
 You should be redirected to the dashboard.
 
