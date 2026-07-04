@@ -21,7 +21,7 @@ This document is based on current project truth:
 - Demo-target WAF path exists locally through `localhost:8089` when the demo-target profile is enabled.
 - Structured JSON logs, `X-Request-ID`, request/trace/transaction correlation, redaction, and smoke proof exist.
 - Runtime enforcement is not fully implemented.
-- Named env-backed accounts, server-side BFF RBAC, local login throttling, and safe auth audit events are implemented. Email, SSE, MFA/2FA, managed identity, and distributed auth controls are not.
+- Supabase-backed accounts, server-side BFF RBAC/freshness checks, local login throttling, and safe auth audit events are implemented in repo. Reviewed environment migration/provisioning is still required. Email, SSE, MFA/2FA, managed identity, and distributed auth controls are not.
 - Backup automation, restore automation, retention jobs, Wazuh export, and production SIEM are not implemented by this documentation branch.
 
 ---
@@ -67,7 +67,7 @@ These are blocking items. If any item is false, do not claim production readines
 | Public edge | WAF is actually in request path for protected traffic. | Local proof exists; production edge not proven. |
 | TLS | HTTPS/TLS termination configured and tested. | Not implemented in repo. |
 | Secrets | Production secrets stored outside Git and not printed/logged. | Required; verify per environment. |
-| Auth | Real user accounts replace demo credentials. | Named env-backed accounts and Argon2id hashes are implemented; managed identity and account-management UI are not. |
+| Auth | Real user accounts replace demo credentials. | Supabase `auth_accounts`, Argon2id hashes, and fail-closed session freshness are implemented in repo; managed identity and account-management UI are not. |
 | RBAC | Admin/Analyst/Viewer roles enforced server-side and UI-side. | Server-side BFF enforcement is implemented; alerts UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins. |
 | MFA/2FA | MFA enrollment, challenge, recovery, and reset flow. | Not started unless changed later. |
 | Runtime response | Block/throttle/challenge/IP block decisions enforced, not just recorded. | Partial metadata only unless changed later. |
@@ -279,8 +279,7 @@ These remain deferred unless another branch implements them:
 
 - Real-time dashboard alerts.
 - Email notifications.
-- Managed identity or persistent account storage beyond the env-backed registry.
-- UI role-gating affordances; server-side RBAC is implemented.
+- Managed identity or an account-management UI beyond the current DB-backed operator scripts.
 - 2FA/MFA.
 - Runtime enforcement state.
 - CAPTCHA/Turnstile challenge flow.

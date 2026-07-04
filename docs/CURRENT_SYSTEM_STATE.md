@@ -219,16 +219,16 @@ The route and chart composition is now stable enough that docs should treat it a
 
 The dashboard layout:
 
-- uses `getSession()` / session helpers for auth gating
-- redirects unauthenticated users to `/login`
+- uses `getSession()` plus the central DB-backed permission/freshness guard
+- redirects unauthenticated, deleted, disabled, role-mismatched, or stale users to `/login`
 - renders the sidebar, top bar, and child dashboard content
 
 Current sidebar navigation includes Dashboard, Alerts, and ML Health as the active primary paths. Additional destinations remain planned rather than fully implemented.
 
 ### Current Auth State and Remaining Gaps
 
-- Current state: Auth.js uses named `AUTH_USERS_JSON` accounts with Argon2id password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, per-account `authz_version`, local login throttling, and safe JSON login and route-guard audit events.
-- All six BFF routes enforce server-side permissions and fresh registry role/version checks.
+- Current state: Auth.js Credentials login uses Supabase `auth_accounts`, Argon2id password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
+- All six BFF routes enforce server-side permissions and current DB account existence, disablement, role, and `authz_version` checks before downstream calls.
 - Remaining client-required work includes MFA/2FA and password recovery. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
@@ -263,19 +263,19 @@ This means:
 
 ---
 
-## 13. Test Baseline (2026-07-03)
+## 13. Test Baseline (2026-07-04)
 
 | Test Suite | Result |
 |------------|--------|
-| pytest | 489 passed |
+| pytest | 496 passed |
 | lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 288 passed |
+| vitest (full) | 316 passed |
 | build | PASSED |
 
 ---
 
-## Summary: What's Implemented (2026-07-03)
+## Summary: What's Implemented (2026-07-04)
 
 | Feature | Status |
 |---------|--------|

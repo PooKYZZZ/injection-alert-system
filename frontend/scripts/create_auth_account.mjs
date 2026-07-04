@@ -29,7 +29,7 @@ export async function buildCreateAccountPayload(values) {
   const email = values.email?.trim().toLowerCase()
   const name = values.name?.trim()
   const role = values.role?.trim()
-  const username = values.username?.trim() || null
+  const username = values.username?.trim().toLowerCase() || null
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     throw new Error('A valid email is required.')
   }
