@@ -1,15 +1,15 @@
 # Auth Security Hardening Foundation
 
-**Status:** Accepted and implemented for the PR 1 foundation
+**Status:** Accepted and implemented through the PR 3 account cutover
 **Date:** 2026-07-04
 
 ## Decision
 
-CyberTrace adds an auth/security schema foundation in PostgreSQL and an isolated
-server-only Supabase client. This is additive infrastructure for later account
-provisioning and MFA work. Current Auth.js Credentials login remains
-`AUTH_USERS_JSON`-backed, but the env-backed password hashes must now be
-Argon2id PHC strings and old scrypt hashes are rejected.
+CyberTrace uses the PostgreSQL auth/security schema and isolated server-only
+Supabase client for Auth.js Credentials login and request-time session
+freshness. `auth_accounts` is the runtime source of truth. Password hashes are
+Argon2id PHC strings; null, old scrypt, malformed, and unsupported hashes are
+rejected. `AUTH_USERS_JSON` is not a runtime fallback.
 
 The tables use the existing Alembic and `public` schema convention. Row-level
 security is enabled on every new table, privileges are revoked from `PUBLIC`,
@@ -35,8 +35,8 @@ References:
 - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` fail closed when absent.
 - `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` is forbidden.
 - Validation errors identify variable names without values and do not log.
-- No signup, Supabase Auth migration, provisioning, MFA runtime, notification
-  provider, bot defense, or login cutover is part of this change.
+- No signup, Supabase Auth migration, MFA runtime, notification provider, bot
+  defense, password reset, or administrator UI is part of the PR 3 cutover.
 
 ## Threat model
 
@@ -49,11 +49,11 @@ References:
 | Reused backup code | Hash-only storage and `used_at` support atomic single-use consumption later. |
 | Leaked DB contents | Passwords, tokens, and codes are designed for hash-only storage; TOTP secrets require encryption and key versioning later. |
 | Leaked Supabase service key | Rotate immediately and audit access. RLS does not contain service-role access. |
-| Disabled/downgraded user with valid JWT | Existing `authz_version` freshness checks remain and must survive DB cutover. |
+| Disabled/downgraded user with valid JWT | Every protected BFF request loads the current DB row and denies missing, disabled, role-mismatched, or stale `authz_version` sessions. |
 | Account enumeration | Keep generic login/reset responses and no public signup. |
 | Provider outage | TOTP and backup-code paths must remain independent of notification providers. |
 | Bot abuse | Existing local throttling remains; server-validated Turnstile is deferred. |
-| Supabase outage during defense | Future DB-backed login fails closed; there is no hidden env fallback after cutover. |
+| Supabase outage during defense | Login and protected BFF access fail closed; there is no hidden env fallback. |
 | Resend outage | Future email OTP sending fails without breaking TOTP or backup codes. |
 | Server clock drift | Verify server time operationally before TOTP is enabled or demonstrated. |
 
@@ -74,6 +74,11 @@ Rollback drops only these new foundation tables. Once later PRs store account or
 security data, destructive downgrade requires a backup and explicit operator
 approval. This PR does not apply the migration to live Supabase.
 
+PR 3 rollback is code-first: revert the account-source cutover, then restore a
+secure pre-cutover `AUTH_USERS_JSON` value if required. Restoring the env value
+without reverting code has no effect. Keep the auth tables intact during normal
+rollback.
+
 The migration has offline DDL and migration-test coverage. It was also verified
 against a disposable PostgreSQL 17.6 database: the full migration chain upgraded
 from an empty database to `20260704_000008`, the PR 1 schema and controls passed
@@ -82,9 +87,11 @@ re-upgrade to head succeeded. No migration was applied to live Supabase.
 
 ## Deferred work
 
-Use `frontend/scripts/generate_auth_password_hash.mjs` to generate Argon2id
-password hashes for env-backed accounts.
+Argon2id account provisioning and Supabase account login are implemented in
+repo. Reviewed migration application and account creation remain manual
+environment operations. Until MFA is implemented, `mfa_required=true` accounts
+fail closed; temporary PR 3 demo accounts must explicitly use
+`mfa_required=false`.
 
-Argon2id account provisioning is implemented, but Supabase account login,
-login cutover, MFA enforcement, email OTP, Resend, Telegram, Turnstile, and
+MFA enforcement, email OTP, Resend, Telegram, Turnstile, password reset, and
 administrator UI remain planned for later PRs.

@@ -48,9 +48,9 @@ flowchart LR
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
 | Email notifications | Planned | no transactional email integration found |
-| RBAC secure login | Implemented | current `frontend/auth.ts` uses named `AUTH_USERS_JSON` accounts, role claims, `authz_version`, and route-guard freshness checks |
+| RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
-| Argon2id and account provisioning | Implemented | password hashing is Argon2id-only and operational scripts use the centralized script-only Supabase admin adapter; Auth.js still reads `AUTH_USERS_JSON` |
+| Argon2id, account provisioning, and login cutover | Implemented in repo | password hashing is Argon2id-only, operational scripts use the script-only Supabase adapter, and app runtime login uses the server-only Supabase boundary; target environments still require reviewed migration/account provisioning |
 | 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
@@ -124,13 +124,13 @@ The current Auth.js credentials flow is the named-account foundation. Client req
 
 Implemented in the current foundation:
 
-- named `AUTH_USERS_JSON` accounts with Argon2id password hashes,
+- Supabase `auth_accounts` with Argon2id password hashes,
 - `ADMIN`/`ANALYST`/`VIEWER` session claims,
-- per-account `authz_version` freshness checks in BFF route guards,
+- current DB account, disablement, role, and `authz_version` freshness checks in BFF route guards,
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 - alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 
-These are planned requirements. They should be implemented by extending the existing Auth.js boundary or by selecting a managed auth provider, not by hand-rolling session handling.
+MFA and password recovery remain planned requirements. They should extend the existing Auth.js boundary or use a deliberately selected managed auth provider, not hand-rolled session handling.
 
 ### Security boundary
 
@@ -144,16 +144,17 @@ This remains the correct direction for the project. Browser-to-FastAPI direct ca
 
 Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
-### Current BFF status (2026-07-03)
+### Current BFF status (2026-07-04)
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
-- All five route handlers wired:
+- All six route handlers wired:
   - `frontend/app/api/alerts/route.ts` (GET list)
   - `frontend/app/api/alerts/[id]/route.ts` (GET detail)
   - `frontend/app/api/alerts/[id]/triage/route.ts` (PATCH triage)
+  - `frontend/app/api/alerts/[id]/action/route.ts` (PATCH action)
   - `frontend/app/api/stats/route.ts`
   - `frontend/app/api/ml-health/route.ts`
-- Those five handlers all require a valid Auth.js session via `auth()`.
+- Those six handlers require a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work.
 - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
 - The alerts table and alert drawer now hide unavailable dense-row mutation controls for viewers and preserve triage/action control visibility according to the current role.
@@ -168,9 +169,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- The auth/security schema foundation is implemented additively; it does not make Supabase the account-login source of truth
+- The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
-- Current Auth.js login remains `AUTH_USERS_JSON`-backed; Supabase account lookup is planned for PR 3
+- `AUTH_USERS_JSON` is not read by runtime auth. Supabase query or configuration failure denies login and protected BFF access without an env fallback
 - `frontend/lib/server/db/client.ts` remains the `server-only` app-runtime boundary, while `script-client.mjs` is restricted to operational provisioning scripts
 - Some Supabase policy and operational guardrails still live outside repo automation
 

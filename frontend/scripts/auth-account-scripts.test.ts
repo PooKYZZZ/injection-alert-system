@@ -23,6 +23,7 @@ describe('auth account provisioning scripts', () => {
     const plaintext = 'temporary-password'
     const payload = await buildCreateAccountPayload({
       email: ' User@Example.Test ',
+      username: ' SOC-Analyst ',
       name: 'User',
       role: 'ANALYST',
       password: plaintext,
@@ -30,6 +31,7 @@ describe('auth account provisioning scripts', () => {
 
     expect(payload).toMatchObject({
       email: 'user@example.test',
+      username: 'soc-analyst',
       role: 'ANALYST',
       authz_version: 1,
       mfa_required: true,

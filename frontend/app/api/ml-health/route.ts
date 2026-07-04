@@ -7,7 +7,10 @@ import { PERMISSIONS } from '@/lib/auth/roles'
 export async function GET(): Promise<Response> {
   try {
     const session = await auth()
-    const authorization = requirePermission(session, PERMISSIONS.ML_HEALTH_READ)
+    const authorization = await requirePermission(
+      session,
+      PERMISSIONS.ML_HEALTH_READ
+    )
     if (!authorization.ok) {
       return authorization.response
     }

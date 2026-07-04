@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-03
+Updated: 2026-07-04
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -53,7 +53,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 ### Checks run through 2026-07-03
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **489 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
@@ -94,8 +94,8 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
-- Named env-backed accounts and Argon2id password hashes are implemented
-- Client requirements call for real user access management with secure login, RBAC, strong account security, and 2FA; the named-account flow is the current foundation, while 2FA remains a planned requirement
+- Supabase `auth_accounts` login, Argon2id password verification, and DB-backed role/`authz_version` freshness checks are implemented in repo; target environments still require reviewed migration and account provisioning
+- Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow is the current foundation, while MFA remains planned and `mfa_required=true` accounts fail closed until it lands
 - Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
