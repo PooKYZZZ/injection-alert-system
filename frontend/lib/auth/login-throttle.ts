@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { normalizeAccountIdentifier } from './account-registry'
-import { SCRYPT_CONCURRENCY_LIMIT } from './password-hash'
+import { PASSWORD_HASH_CONCURRENCY_LIMIT } from './password-hash'
 
 type ThrottleReason = 'IDENTIFIER_THROTTLED' | 'GLOBAL_THROTTLED'
 
@@ -145,16 +145,16 @@ export class LoginThrottle {
 
 type GateResult<T> =
   | { ok: true; value: T }
-  | { ok: false; reasonCode: 'SCRYPT_BUSY' }
+  | { ok: false; reasonCode: 'PASSWORD_HASH_BUSY' }
 
-export class ScryptConcurrencyGate {
+export class PasswordHashConcurrencyGate {
   private active = 0
 
   constructor(private readonly limit: number) {}
 
   async run<T>(task: () => Promise<T>): Promise<GateResult<T>> {
     if (this.active >= this.limit) {
-      return { ok: false, reasonCode: 'SCRYPT_BUSY' }
+      return { ok: false, reasonCode: 'PASSWORD_HASH_BUSY' }
     }
 
     this.active += 1
@@ -182,6 +182,9 @@ export const loginThrottle = new LoginThrottle({
     readPositiveInteger('AUTH_LOGIN_GLOBAL_COOLDOWN_SECONDS', 60) * 1_000,
 })
 
-export const scryptConcurrencyGate = new ScryptConcurrencyGate(
-  readPositiveInteger('AUTH_SCRYPT_CONCURRENCY_LIMIT', SCRYPT_CONCURRENCY_LIMIT)
+export const passwordHashConcurrencyGate = new PasswordHashConcurrencyGate(
+  readPositiveInteger(
+    'AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT',
+    PASSWORD_HASH_CONCURRENCY_LIMIT
+  )
 )

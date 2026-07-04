@@ -8,7 +8,8 @@
 CyberTrace adds an auth/security schema foundation in PostgreSQL and an isolated
 server-only Supabase client. This is additive infrastructure for later account
 provisioning and MFA work. Current Auth.js Credentials login remains
-`AUTH_USERS_JSON`-backed with scrypt and is unchanged.
+`AUTH_USERS_JSON`-backed, but the env-backed password hashes must now be
+Argon2id PHC strings and old scrypt hashes are rejected.
 
 The tables use the existing Alembic and `public` schema convention. Row-level
 security is enabled on every new table, privileges are revoked from `PUBLIC`,
@@ -81,5 +82,9 @@ re-upgrade to head succeeded. No migration was applied to live Supabase.
 
 ## Deferred work
 
-Argon2id, account provisioning, login cutover, MFA enforcement, email OTP,
-Resend, Telegram, Turnstile, and administrator UI remain planned.
+Use `frontend/scripts/generate_auth_password_hash.mjs` to generate Argon2id
+password hashes for env-backed accounts.
+
+Argon2id account provisioning is implemented, but Supabase account login,
+login cutover, MFA enforcement, email OTP, Resend, Telegram, Turnstile, and
+administrator UI remain planned for later PRs.

@@ -108,10 +108,11 @@ Status note:
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
 - [ ] Add email notifications after detection using a transactional email provider/API
-- [x] Replace demo password login with named env-backed accounts and scrypt password hashes
+- [x] Replace demo password login with named env-backed accounts and Argon2id password hashes
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
-- [~] Login hardening includes generic errors, local identifier/global throttles, a two-slot scrypt cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
+- [~] Login hardening includes Argon2id-only verification, generic errors, local identifier/global throttles, a two-slot password-hash cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
 - [x] Auth/security schema foundation implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, and a tested `frontend/lib/server/db/` service-role boundary. Live Supabase migration application and Supabase account login are not implemented
+- [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; runtime login remains `AUTH_USERS_JSON` until PR 3
 - [ ] Implement 2FA/MFA
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state

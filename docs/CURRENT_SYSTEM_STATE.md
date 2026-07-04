@@ -227,7 +227,7 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 
 ### Current Auth State and Remaining Gaps
 
-- Current state: Auth.js uses named `AUTH_USERS_JSON` accounts with scrypt password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, per-account `authz_version`, local login throttling, and safe JSON login and route-guard audit events.
+- Current state: Auth.js uses named `AUTH_USERS_JSON` accounts with Argon2id password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, per-account `authz_version`, local login throttling, and safe JSON login and route-guard audit events.
 - All six BFF routes enforce server-side permissions and fresh registry role/version checks.
 - Remaining client-required work includes MFA/2FA and password recovery. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.

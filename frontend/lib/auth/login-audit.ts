@@ -4,7 +4,7 @@ type FailureReason =
   | 'INVALID_CREDENTIALS'
   | 'IDENTIFIER_THROTTLED'
   | 'GLOBAL_THROTTLED'
-  | 'SCRYPT_BUSY'
+  | 'PASSWORD_HASH_BUSY'
   | 'CONFIGURATION_INVALID'
 
 type LoginSuccessEvent = {

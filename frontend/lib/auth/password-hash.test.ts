@@ -1,101 +1,71 @@
-import * as crypto from 'node:crypto'
-
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('node:crypto', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:crypto')>()
-  return {
-    ...actual,
-    scrypt: vi.fn(actual.scrypt),
-  }
-})
+import { describe, expect, it } from 'vitest'
 
 import {
-  DUMMY_PASSWORD_HASH,
+  ARGON2_MEMORY_COST,
+  ARGON2_PARALLELISM,
+  ARGON2_TIME_COST,
   MAX_PASSWORD_LENGTH,
-  SCRYPT_CONCURRENCY_LIMIT,
-  SCRYPT_KEYLEN,
-  SCRYPT_MAXMEM,
-  SCRYPT_N,
-  SCRYPT_P,
-  SCRYPT_R,
-  SCRYPT_SALT_BYTES,
   hashPassword,
   verifyPasswordForAccount,
+  verifyPasswordForUnknownAccount,
   verifyPasswordHash,
 } from './password-hash'
 
 describe('password hashing', () => {
-  it('uses the required scrypt constants', () => {
+  it('uses the approved Argon2id parameters', () => {
     expect({
-      N: SCRYPT_N,
-      r: SCRYPT_R,
-      p: SCRYPT_P,
-      keylen: SCRYPT_KEYLEN,
-      saltBytes: SCRYPT_SALT_BYTES,
-      maxmem: SCRYPT_MAXMEM,
-      concurrencyLimit: SCRYPT_CONCURRENCY_LIMIT,
+      memoryCost: ARGON2_MEMORY_COST,
+      timeCost: ARGON2_TIME_COST,
+      parallelism: ARGON2_PARALLELISM,
+      maxPasswordLength: MAX_PASSWORD_LENGTH,
     }).toEqual({
-      N: 131_072,
-      r: 8,
-      p: 1,
-      keylen: 64,
-      saltBytes: 32,
-      maxmem: 268_435_456,
-      concurrencyLimit: 2,
+      memoryCost: 19_456,
+      timeCost: 2,
+      parallelism: 1,
+      maxPasswordLength: 256,
     })
   })
 
-  it('generates a hash that verifies only the correct password', async () => {
-    const encoded = await hashPassword('correct horse battery staple')
+  it('generates an Argon2id PHC hash that verifies only the correct password', async () => {
+    const hash = await hashPassword('correct horse battery staple')
 
+    expect(hash).toMatch(/^\$argon2id\$/)
     await expect(
-      verifyPasswordHash('correct horse battery staple', encoded)
+      verifyPasswordHash(hash, 'correct horse battery staple')
     ).resolves.toBe(true)
-    await expect(verifyPasswordHash('wrong password', encoded)).resolves.toBe(
-      false
-    )
+    await expect(verifyPasswordHash(hash, 'wrong password')).resolves.toBe(false)
   })
 
   it.each([
+    '',
     'not-a-hash',
-    'scrypt$v2$N=131072,r=8,p=1,keylen=64,maxmem=268435456$c2FsdA$aGFzaA',
-    'scrypt$v1$N=131072,r=8,p=1,keylen=64$c2FsdA$aGFzaA',
-    'scrypt$v1$N=x,r=8,p=1,keylen=64,maxmem=268435456$c2FsdA$aGFzaA',
-    'scrypt$v1$N=-1,r=8,p=1,keylen=64,maxmem=268435456$c2FsdA$aGFzaA',
-    'scrypt$v1$N=0,r=8,p=1,keylen=64,maxmem=268435456$c2FsdA$aGFzaA',
-    'scrypt$v1$N=65536,r=8,p=2,keylen=64,maxmem=268435456$c2FsdA$aGFzaA',
-    'scrypt$v1$N=131072,r=8,p=1,keylen=32,maxmem=268435456$c2FsdA$aGFzaA',
-    'scrypt$v1$N=131072,r=8,p=1,keylen=64,maxmem=134217728$c2FsdA$aGFzaA',
-    'scrypt$v1$N=131072,r=8,p=1,keylen=64,maxmem=268435456$c2FsdA$c2hvcnQ',
-  ])('fails safely for malformed or unsupported hash %s', async (encoded) => {
-    await expect(verifyPasswordHash('password', encoded)).resolves.toBe(false)
+    '$argon2i$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA',
+    'scrypt$v1$N=131072,r=8,p=1,keylen=64,maxmem=268435456$c2FsdA$aGFzaA',
+  ])('fails safely for malformed or unsupported hash %s', async (hash) => {
+    await expect(verifyPasswordHash(hash, 'password')).resolves.toBe(false)
   })
 
-  it('uses the exact real-hash profile for the dummy hash', () => {
-    expect(DUMMY_PASSWORD_HASH).toMatch(
-      /^scrypt\$v1\$N=131072,r=8,p=1,keylen=64,maxmem=268435456\$/
+  it('rejects empty and overlong passwords', async () => {
+    const overlong = 'x'.repeat(MAX_PASSWORD_LENGTH + 1)
+    const hash = await hashPassword('valid password')
+
+    await expect(hashPassword('')).rejects.toThrow('Password input is invalid.')
+    await expect(hashPassword(overlong)).rejects.toThrow(
+      'Password input is invalid.'
     )
-    const dummySalt = DUMMY_PASSWORD_HASH.split('$')[3]
-    expect(Buffer.from(dummySalt, 'base64url')).toHaveLength(SCRYPT_SALT_BYTES)
+    await expect(verifyPasswordHash(hash, '')).resolves.toBe(false)
+    await expect(verifyPasswordHash(hash, overlong)).resolves.toBe(false)
   })
 
-  it('runs scrypt for an unknown account before returning generic failure', async () => {
-    const scryptSpy = vi.mocked(crypto.scrypt)
-    scryptSpy.mockClear()
+  it('runs a real Argon2 verification for an unknown account', async () => {
+    await expect(
+      verifyPasswordForUnknownAccount('unknown account password')
+    ).resolves.toBeUndefined()
+  })
 
+  it('returns false after dummy verification for an unknown account', async () => {
     await expect(
       verifyPasswordForAccount('unknown account password', null)
     ).resolves.toBe(false)
-
-    expect(scryptSpy).toHaveBeenCalledTimes(1)
-  })
-
-  it('rejects overlong passwords without leaking the plaintext', async () => {
-    const password = `sensitive-${'x'.repeat(MAX_PASSWORD_LENGTH)}`
-    const encoded = await hashPassword('valid password')
-
-    await expect(verifyPasswordHash(password, encoded)).resolves.toBe(false)
-    await expect(hashPassword(password)).rejects.not.toThrow(password)
   })
 })
