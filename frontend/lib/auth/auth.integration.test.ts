@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { hashPassword } from './password-hash'
+const TEST_ARGON2_HASH =
+  '$argon2id$v=19$m=19456,t=2,p=1$mockSalt$mockHash'
 
 type LoginAccount = {
   id: string
@@ -34,8 +35,8 @@ type CapturedConfig = {
 
 const authHarness = vi.hoisted(() => ({
   config: null as CapturedConfig | null,
-  argon2Verify: vi.fn(),
   findAccount: vi.fn(),
+  verifyPasswordForAccount: vi.fn(),
   writeLoginAudit: vi.fn(),
 }))
 
@@ -55,14 +56,16 @@ vi.mock('next-auth/providers/credentials', () => ({
   default: vi.fn((config: Record<string, unknown>) => config),
 }))
 
-vi.mock('argon2', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('argon2')>()
-  authHarness.argon2Verify.mockImplementation((...args: Array<unknown>) =>
-    actual.verify(...(args as Parameters<typeof actual.verify>))
-  )
+/**
+ * This test validates auth control flow, not native Argon2.
+ * Real Argon2id hash/verify coverage lives in password-hash.test.ts.
+ * Keep this mock pure. Do not use importOriginal()/vi.importActual(),
+ * because that loads the native argon2 addon in Vitest workers.
+ */
+vi.mock('./password-hash', () => {
   return {
-    ...actual,
-    verify: authHarness.argon2Verify,
+    PASSWORD_HASH_CONCURRENCY_LIMIT: 2,
+    verifyPasswordForAccount: authHarness.verifyPasswordForAccount,
   }
 })
 
@@ -124,8 +127,9 @@ afterEach(() => {
 
 beforeEach(() => {
   authHarness.config = null
-  authHarness.argon2Verify.mockClear()
   authHarness.findAccount.mockReset()
+  authHarness.verifyPasswordForAccount.mockReset()
+  authHarness.verifyPasswordForAccount.mockResolvedValue(false)
   authHarness.writeLoginAudit.mockReset()
   process.env.AUTH_SECRET = 'test-auth-secret'
   delete process.env.AUTH_USERS_JSON
@@ -134,8 +138,12 @@ beforeEach(() => {
 describe('Auth.js credential login', () => {
   it('logs in a DB account and preserves JWT/session claim shape', async () => {
     const password = 'correct horse battery staple'
+    authHarness.verifyPasswordForAccount.mockImplementation(
+      async (candidatePassword, candidateHash) =>
+        candidatePassword === password && candidateHash === TEST_ARGON2_HASH
+    )
     authHarness.findAccount.mockResolvedValue(
-      validAccount({ passwordHash: await hashPassword(password) })
+      validAccount({ passwordHash: TEST_ARGON2_HASH })
     )
     await import('@/auth')
 
@@ -146,6 +154,10 @@ describe('Auth.js credential login', () => {
     })
 
     expect(authHarness.findAccount).toHaveBeenCalledWith('admin@example.test')
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledWith(
+      password,
+      TEST_ARGON2_HASH
+    )
     expect(user).toEqual({
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       email: 'admin@example.test',
@@ -174,7 +186,7 @@ describe('Auth.js credential login', () => {
   it('rejects a wrong password with the generic credential failure path', async () => {
     authHarness.findAccount.mockResolvedValue(
       validAccount({
-        passwordHash: await hashPassword('correct horse battery staple'),
+        passwordHash: TEST_ARGON2_HASH,
       })
     )
     await import('@/auth')
@@ -193,7 +205,7 @@ describe('Auth.js credential login', () => {
     )
   })
 
-  it('runs Argon2id dummy verification when the DB account is missing', async () => {
+  it('uses the dummy-verification contract when the DB account is missing', async () => {
     authHarness.findAccount.mockResolvedValue(undefined)
     await import('@/auth')
 
@@ -203,7 +215,10 @@ describe('Auth.js credential login', () => {
         password: 'not-the-password',
       })
     ).resolves.toBeNull()
-    expect(authHarness.argon2Verify).toHaveBeenCalled()
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledWith(
+      'not-the-password',
+      null
+    )
   })
 
   it.each([
@@ -222,9 +237,12 @@ describe('Auth.js credential login', () => {
     'fails closed with a generic result for %s',
     async (_label, overrides) => {
       const password = 'correct horse battery staple'
+      authHarness.verifyPasswordForAccount.mockResolvedValue(
+        !('passwordHash' in overrides)
+      )
       authHarness.findAccount.mockResolvedValue(
         validAccount({
-          passwordHash: await hashPassword(password),
+          passwordHash: TEST_ARGON2_HASH,
           ...overrides,
         })
       )
@@ -270,6 +288,7 @@ describe('Auth.js credential login', () => {
   })
 
   it('ignores AUTH_USERS_JSON and does not fall back when the DB has no account', async () => {
+    const legacyPassword = 'legacy password'
     process.env.AUTH_USERS_JSON = JSON.stringify([
       {
         id: 'legacy-admin',
@@ -277,25 +296,35 @@ describe('Auth.js credential login', () => {
         name: 'Legacy Admin',
         role: 'ADMIN',
         authz_version: 1,
-        password_hash: await hashPassword('legacy password'),
+        password_hash: TEST_ARGON2_HASH,
       },
     ])
+    authHarness.verifyPasswordForAccount.mockImplementation(
+      async (candidatePassword, candidateHash) =>
+        candidatePassword === legacyPassword &&
+        candidateHash === TEST_ARGON2_HASH
+    )
     authHarness.findAccount.mockResolvedValue(undefined)
     await import('@/auth')
 
     await expect(
       capturedConfig().providers[0].authorize({
         identifier: 'admin@example.test',
-        password: 'legacy password',
+        password: legacyPassword,
       })
     ).resolves.toBeNull()
     expect(authHarness.findAccount).toHaveBeenCalledOnce()
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledWith(
+      legacyPassword,
+      null
+    )
   })
 
   it('does not require AUTH_USERS_JSON when a valid DB account exists', async () => {
     const password = 'database password'
+    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
     authHarness.findAccount.mockResolvedValue(
-      validAccount({ passwordHash: await hashPassword(password) })
+      validAccount({ passwordHash: TEST_ARGON2_HASH })
     )
     await import('@/auth')
 
@@ -312,7 +341,8 @@ describe('Auth.js credential login', () => {
 
   it('keeps audit payload inputs free of passwords and hashes', async () => {
     const password = 'must-never-be-logged'
-    const passwordHash = await hashPassword(password)
+    const passwordHash = TEST_ARGON2_HASH
+    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
     authHarness.findAccount.mockResolvedValue(
       validAccount({ passwordHash, mfaRequired: true })
     )

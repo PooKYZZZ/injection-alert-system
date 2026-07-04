@@ -50,10 +50,15 @@ vi.mock('next-auth/providers/credentials', () => ({
   default: vi.fn((config: Record<string, unknown>) => config),
 }))
 
-vi.mock('./password-hash', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./password-hash')>()
+/**
+ * This test validates auth control flow, not native Argon2.
+ * Real Argon2id hash/verify coverage lives in password-hash.test.ts.
+ * Keep this mock pure. Do not use importOriginal()/vi.importActual(),
+ * because that loads the native argon2 addon in Vitest workers.
+ */
+vi.mock('./password-hash', () => {
   return {
-    ...actual,
+    PASSWORD_HASH_CONCURRENCY_LIMIT: 2,
     verifyPasswordForAccount: authHarness.verifyPasswordForAccount,
   }
 })

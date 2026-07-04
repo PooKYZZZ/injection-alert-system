@@ -3,10 +3,10 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-03
+**Last updated:** 2026-07-05
 
 Status note:
-- Current test baseline: pytest 493 passed, vitest 295 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 496 passed, vitest 317 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -42,18 +42,18 @@ Status note:
 
 ---
 
-## Current Verified State (2026-07-03)
+## Current Verified State (2026-07-05)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **489 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
 - Final-demo script tests → **9 passed**
 - API abuse smoke tests → **4 passed**
 - WAF ingest and inference queue tests → **24 passed**
 - Request-context regression tests → **9 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **288 passed**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **95 passed**
+- Frontend full suite: `cd frontend && npx vitest run` → **317 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes
@@ -114,6 +114,7 @@ Status note:
 - [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Live Supabase migration application remains a reviewed manual operation
 - [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
 - [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
+- [x] Stabilize PR #79 frontend CI native-addon loading: PR #81 uses pure mocks in non-hashing auth/provisioning tests, keeps real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice without changing the threaded Vitest pool or production auth code
 - [ ] Implement 2FA/MFA
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
