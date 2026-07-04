@@ -1,6 +1,10 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { authConfig } from './auth.config'
+import {
+  findAccountByIdentifier,
+  readAccountRegistry,
+} from './lib/auth/account-registry'
 import { writeLoginAudit } from './lib/auth/login-audit'
 import {
   loginThrottle,
@@ -8,7 +12,6 @@ import {
 } from './lib/auth/login-throttle'
 import { verifyPasswordForAccount } from './lib/auth/password-hash'
 import { isUserRole } from './lib/auth/roles'
-import { findAuthAccountByIdentifier } from './lib/server/db/auth-accounts'
 // In Next.js, environment variables from .env* are loaded by Next at runtime/build.
 // Avoid importing "dotenv" in frontend/shared code since it is a Node-only module
 // and will break when bundled for the browser. Rely on `process.env` instead.
@@ -58,14 +61,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         let account
         try {
-          account = await findAuthAccountByIdentifier(identifier)
+          account = findAccountByIdentifier(readAccountRegistry(), identifier)
         } catch {
           writeLoginAudit({
-            event: 'auth.account_lookup_failed',
+            event: 'auth.configuration_invalid',
             level: 'error',
             outcome: 'failure',
             identifierHash: attempt.identifierHash,
-            reasonCode: 'ACCOUNT_LOOKUP_FAILED',
+            reasonCode: 'CONFIGURATION_INVALID',
           })
           return null
         }
@@ -84,12 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
-        if (
-          !account ||
-          !verification.value ||
-          account.disabledAt !== null ||
-          account.mfaRequired
-        ) {
+        if (!account || !verification.value) {
           loginThrottle.recordFailure(attempt.identifierHash)
           writeLoginAudit({
             event: 'auth.login_failed',

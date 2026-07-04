@@ -108,12 +108,11 @@ Status note:
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
 - [ ] Add real-time dashboard alerting for timely threat visibility
 - [ ] Add email notifications after detection using a transactional email provider/API
-- [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
+- [x] Replace demo password login with named env-backed accounts and Argon2id password hashes
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
 - [~] Login hardening includes Argon2id-only verification, generic errors, local identifier/global throttles, a two-slot password-hash cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
-- [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Live Supabase migration application remains a reviewed manual operation
-- [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
-- [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
+- [x] Auth/security schema foundation implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, and a tested `frontend/lib/server/db/` service-role boundary. Live Supabase migration application and Supabase account login are not implemented
+- [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; runtime login remains `AUTH_USERS_JSON` until PR 3
 - [ ] Implement 2FA/MFA
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state

@@ -29,7 +29,6 @@ type CapturedAuthConfig = {
 
 const authHarness = vi.hoisted(() => ({
   config: null as CapturedAuthConfig | null,
-  findAuthAccountByIdentifier: vi.fn(),
   verifyPasswordForAccount: vi.fn(),
   writeLoginAudit: vi.fn(),
 }))
@@ -62,10 +61,6 @@ vi.mock('./login-audit', () => ({
   writeLoginAudit: authHarness.writeLoginAudit,
 }))
 
-vi.mock('../server/db/auth-accounts', () => ({
-  findAuthAccountByIdentifier: authHarness.findAuthAccountByIdentifier,
-}))
-
 function capturedAuthConfig(): CapturedAuthConfig {
   if (!authHarness.config) {
     throw new Error('Auth.js configuration was not captured')
@@ -74,6 +69,7 @@ function capturedAuthConfig(): CapturedAuthConfig {
 }
 
 const originalAuthSecret = process.env.AUTH_SECRET
+const originalRegistry = process.env.AUTH_USERS_JSON
 const originalSocDemoPassword = process.env.SOC_DEMO_PASSWORD
 const originalDemoPassword = process.env.DEMO_PASSWORD
 
@@ -87,6 +83,7 @@ function restoreEnvironment(name: string, value: string | undefined): void {
 
 afterEach(() => {
   restoreEnvironment('AUTH_SECRET', originalAuthSecret)
+  restoreEnvironment('AUTH_USERS_JSON', originalRegistry)
   restoreEnvironment('SOC_DEMO_PASSWORD', originalSocDemoPassword)
   restoreEnvironment('DEMO_PASSWORD', originalDemoPassword)
 })
@@ -256,21 +253,19 @@ describe('Auth.js account integration', () => {
   beforeEach(async () => {
     vi.resetModules()
     authHarness.config = null
-    authHarness.findAuthAccountByIdentifier.mockReset()
     authHarness.verifyPasswordForAccount.mockReset()
     authHarness.writeLoginAudit.mockReset()
     process.env.AUTH_SECRET = 'test-auth-secret'
-    authHarness.findAuthAccountByIdentifier.mockResolvedValue({
-      id: 'analyst-1',
-      email: 'analyst@example.test',
-      username: 'analyst',
-      name: 'SOC Analyst',
-      role: 'ANALYST',
-      authzVersion: 3,
-      passwordHash: '$argon2id$test-hash',
-      mfaRequired: false,
-      disabledAt: null,
-    })
+    process.env.AUTH_USERS_JSON = JSON.stringify([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Analyst',
+        role: 'ANALYST',
+        authz_version: 3,
+        password_hash: 'scrypt$v1$test-hash',
+      },
+    ])
     await import('@/auth')
   })
 
@@ -288,7 +283,6 @@ describe('Auth.js account integration', () => {
   })
 
   it('wires unknown accounts through the dummy verification path', async () => {
-    authHarness.findAuthAccountByIdentifier.mockResolvedValue(undefined)
     authHarness.verifyPasswordForAccount.mockResolvedValue(false)
     const authorize = capturedAuthConfig().providers[0].authorize
 
@@ -339,10 +333,10 @@ describe('Auth.js account integration', () => {
     })
   })
 
-  it('has no reachable demo-password fallback when the DB account is absent', async () => {
+  it('has no reachable demo-password fallback when registry configuration is absent', async () => {
+    delete process.env.AUTH_USERS_JSON
     process.env.SOC_DEMO_PASSWORD = 'legacy-password'
     process.env.DEMO_PASSWORD = 'legacy-password'
-    authHarness.findAuthAccountByIdentifier.mockResolvedValue(undefined)
     authHarness.verifyPasswordForAccount.mockResolvedValue(true)
     const authorize = capturedAuthConfig().providers[0].authorize
 
@@ -351,8 +345,8 @@ describe('Auth.js account integration', () => {
     ).resolves.toBeNull()
     expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: 'auth.login_failed',
-        reasonCode: 'INVALID_CREDENTIALS',
+        event: 'auth.configuration_invalid',
+        reasonCode: 'CONFIGURATION_INVALID',
       })
     )
   })

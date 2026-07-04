@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { normalizeAccountIdentifier } from './account-registry'
 import { PASSWORD_HASH_CONCURRENCY_LIMIT } from './password-hash'
 
 type ThrottleReason = 'IDENTIFIER_THROTTLED' | 'GLOBAL_THROTTLED'
@@ -63,7 +64,7 @@ function refreshCounter(
 
 export function hashNormalizedIdentifier(identifier: string): string {
   return createHash('sha256')
-    .update(identifier.trim().toLowerCase())
+    .update(normalizeAccountIdentifier(identifier))
     .digest('hex')
 }
 

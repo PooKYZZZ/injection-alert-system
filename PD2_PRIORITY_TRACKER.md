@@ -22,14 +22,14 @@ This tracker is based on the following.
 ### Current Repo Inspection
 
 - `web_app/application/triage_use_case.py` currently maps confidence to `ALLOWED`, `THROTTLED`, and `BLOCKED`.
-- `frontend/auth.ts` uses Supabase `auth_accounts` with Argon2id password hashes, role/version claims, local login throttling, and safe audit events; protected BFF routes recheck current DB account state.
+- `frontend/auth.ts` uses named env-backed accounts with Argon2id password hashes, role/version claims, local login throttling, and safe audit events.
 - `ml_model/retraining/README.md` says the retraining pipeline is still design-level only.
 - `reports/modsecurity-live-proof/e2e-proof.md` proves the local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest path through `localhost:8088`.
 - Runtime evidence from 2026-06-27 proves the realistic demo-target path through `localhost:8089`: `demo-target-bridge` posted transaction `178249138618.813428`, backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `496 passed`, frontend full Vitest `316 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `489 passed`, frontend full Vitest `206 passed`, frontend typecheck, lint, and production build.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
 ### Client Requirements
@@ -84,11 +84,11 @@ This tracker is based on the following.
 | `[x]` | Add end-to-end demo/test script | High | Medium | Done for the maintained proof boundary: `scripts/run_final_demo_smoke.py` provides explicit backend, `8088`, and `8089` modes, safe PASS/FAIL/SKIP and JSON output, timeouts, and nonzero required-check failures; `tests/scripts/test_run_final_demo_smoke.py` is Docker-free. Docker-internal transaction lookup remains an explicit manual runbook step. |
 | `[x]` | Add API abuse/resource smoke tests | High | Medium | Done for the current backend surface: `tests/integration/test_api_abuse_smoke.py` covers malformed JSON, missing/invalid auth correlation, token non-leakage, and invalid triage input; existing body-limit, duplicate transaction, model-unavailable, queue-overflow, lookup, and BFF-auth tests cover the remaining implemented boundaries. Future email/SSE/RBAC abuse cases remain not applicable until those features exist. |
 | `[~]` | Add analyst override/audit trail for model mistakes | High | Medium | Partial: `POST /api/feedback` stores analyst label/email/timestamp, but no full old/new action, reason, or model-version override audit trail exists. |
-| `[x]` | Replace demo login with real user accounts | High | High | Done in repo: Supabase `auth_accounts` provides ids/emails/usernames, roles, required `authz_version`, and Argon2id hashes; no demo-password or env-registry fallback remains. |
-| `[x]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Done: role/session claims and fresh per-request DB account checks protect all six BFF routes; Viewer reads, Analyst triages, and Admin may update actions. |
+| `[x]` | Replace demo login with real user accounts | High | High | Done for the approved capstone boundary: `AUTH_USERS_JSON` provides named ids/emails, roles, required `authz_version`, and Argon2id hashes; no demo-password fallback remains. |
+| `[x]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Done: role/session claims and fresh per-request registry checks protect all six BFF routes; Viewer reads, Analyst triages, and Admin may update actions. |
 | `[ ]` | Add 2FA/MFA | High | High | Not started: no TOTP/email OTP enrollment, challenge, recovery, or factor reset flow found. |
 | `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, Argon2id dummy verification, per-identifier/global local throttles, two-operation password-hash cap, eight-hour sessions, and safe JSON audit events are implemented. MFA, reset/recovery, distributed throttling, and persistent audit storage remain missing. |
-| `[x]` | Add auth/security schema foundation | High | Medium | Done in repo: additive Alembic migration, nine public-schema tables with RLS/revocations/no policies, tested app-runtime and script-only Supabase boundaries, Argon2id, provisioning scripts, and DB-backed login/freshness. Live migration application and MFA remain unimplemented. |
+| `[x]` | Add auth/security schema foundation | High | Medium | Done in repo only: additive Alembic migration, nine public-schema tables with RLS/revocations/no policies, tested app-runtime and script-only Supabase boundaries, Argon2id, and provisioning scripts. Live migration application, Supabase account login, and MFA remain unimplemented. |
 | `[~]` | Implement real enforcement state for block/throttle/challenge | High | High-Critical | Partial: `action_taken` is persisted as metadata; no request-path block/throttle/challenge state is enforced at runtime. |
 | `[ ]` | Implement LOW light rate limiting | High | High | Not started: no LOW runtime rate-limit enforcement found. |
 | `[ ]` | Implement MEDIUM aggressive throttling | High | High | Not started: no MEDIUM runtime throttle enforcement found. |
@@ -180,10 +180,10 @@ Keep confidence tier separate from attack severity.
 
 Current repo naming note: LOW, MEDIUM, HIGH, and CRITICAL are the current confidence tiers. The app now prefers `confidence_tier` naming while retaining legacy `severity` query compatibility during migration. `CRITICAL >=90%` is implemented as the confidence threshold, and historical rows are not retroactively reclassified.
 
-The DB-backed named-account and RBAC foundation is implemented. Remaining account-security work is:
+The named-account and RBAC foundation is implemented. Remaining account-security work is:
 
-1. Add the notification outbox/email-provider foundation in the maintained plan order.
-2. Add lightweight 2FA/MFA using TOTP with the documented email fallback risk.
+1. Evaluate managed identity or persistent account storage beyond the current env-backed registry.
+2. Add lightweight 2FA/MFA using TOTP or email OTP.
 3. Add secure password reset/recovery.
 4. Replace local-only throttling and logs with distributed controls and persistent audit storage if production deployment is approved.
 

@@ -10,10 +10,7 @@ export async function PATCH(
 ): Promise<Response> {
   try {
     const session = await auth()
-    const authorization = await requirePermission(
-      session,
-      PERMISSIONS.ALERTS_TRIAGE
-    )
+    const authorization = requirePermission(session, PERMISSIONS.ALERTS_TRIAGE)
     if (!authorization.ok) {
       return authorization.response
     }

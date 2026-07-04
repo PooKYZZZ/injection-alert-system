@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { getSession } from '@/lib/auth-session'
-import { requirePermission } from '@/lib/auth/route-guard'
-import { PERMISSIONS } from '@/lib/auth/roles'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { DashboardTopBar } from '@/components/layout/TopBar'
 
@@ -13,11 +11,6 @@ export default async function DashboardLayout({
 }) {
   const session = await getSession()
   if (!session) redirect('/login')
-  const authorization = await requirePermission(
-    session,
-    PERMISSIONS.ALERTS_READ
-  )
-  if (!authorization.ok) redirect('/login')
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-main">

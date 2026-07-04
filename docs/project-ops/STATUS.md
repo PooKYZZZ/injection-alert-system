@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-04
+**Last updated:** 2026-07-03
 
 ---
 
@@ -18,18 +18,17 @@
 - DistilBERT promotion workflow CLI: `ml_model/export/promote_final_training_run.py`
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
-- Account-security runtime: Auth.js Credentials login now reads Supabase `auth_accounts`, verifies Argon2id hashes, preserves `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, and rechecks current DB account state across all six BFF routes.
+- Account-security foundation: Auth.js uses named `AUTH_USERS_JSON` accounts with Argon2id hashes, `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, per-account `authz_version`, and server-side RBAC across all six BFF routes.
 - Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The migration has not been applied to live Supabase.
-- `AUTH_USERS_JSON` is no longer a runtime login or freshness source. Supabase/client failure fails closed with no env fallback; target environments still need the PR 1 migration and at least one provisioned account.
+- Current login remains env-backed through `AUTH_USERS_JSON`; Supabase account provisioning tooling is implemented, but Supabase account login and MFA are not implemented.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
 - Login hardening is local/process-bound: Argon2id-only verification, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
-- Operational scripts create, list, disable, and set passwords for `auth_accounts` through a centralized script-only Supabase service-role adapter. Accounts with `mfa_required=true` are denied final sessions until MFA exists. MFA, email OTP, Resend, Telegram, Turnstile, and password reset remain unimplemented.
-- The next maintained-plan phase is the email-provider/notification-outbox foundation; it must not be represented as MFA delivery or password-reset implementation.
+- Operational scripts create, list, disable, and set passwords for `auth_accounts` through a centralized script-only Supabase service-role adapter. MFA, email OTP, Resend, Telegram, Turnstile, password reset, and the PR 3 login cutover remain unimplemented.
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **493 passed**
 - Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **9 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
 - WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **24 passed**
@@ -38,8 +37,8 @@
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **95 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **316 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **89 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **295 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)

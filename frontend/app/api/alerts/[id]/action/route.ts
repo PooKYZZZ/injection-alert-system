@@ -15,7 +15,7 @@ export async function PATCH(
       console.log('[API] PATCH /api/alerts/[id]/action request received')
     }
     const session = await auth()
-    const authorization = await requirePermission(
+    const authorization = requirePermission(
       session,
       PERMISSIONS.ALERTS_ACTION_UPDATE
     )

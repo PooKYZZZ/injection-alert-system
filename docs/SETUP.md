@@ -68,9 +68,8 @@ SUPABASE_SERVICE_ROLE_KEY=<server-only-key>
 Never use `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY`. The service-role credential
 bypasses RLS and must not enter browser code, bundles, logs, or committed files.
 RLS on the new public-schema auth/security tables is defense-in-depth only.
-Auth.js Credentials login and BFF session freshness checks now read
-`auth_accounts` through the server-only client. `AUTH_USERS_JSON` is not a
-runtime source or outage fallback.
+Current login remains `AUTH_USERS_JSON`-backed; only its password-hash format
+has moved to Argon2id. Supabase account login remains planned for PR 3.
 Do not run the auth/security migration against live Supabase without a separate
 reviewed deployment step.
 
@@ -123,7 +122,7 @@ This workflow writes sidecar provenance files (`provenance.json`, `MODEL_CARD.md
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-07-04, this passes with **496 backend tests**.
+As of 2026-07-03, this passes with **489 backend tests**.
 
 ### Start the backend
 
@@ -174,8 +173,7 @@ Use a local file with the variables the current frontend actually reads:
 ```dotenv
 AUTH_SECRET=replace-me
 AUTH_TRUST_HOST=true
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<server-only-key>
+AUTH_USERS_JSON=[{"id":"admin-1","email":"admin@example.test","name":"SOC Admin","role":"ADMIN","authz_version":1,"password_hash":"<generated-argon2id-phc-hash>"}]
 FASTAPI_BASE_URL=http://localhost:8000
 INTERNAL_API_KEY=local-dev-secret
 USE_MOCK_API=false
@@ -187,46 +185,19 @@ Notes:
 
 - `AUTH_SECRET` is the Auth.js signing secret. Keep `NEXTAUTH_SECRET` unset to avoid split secret sources.
 - `AUTH_TRUST_HOST=true` is required for local `next start` validation so Auth.js trusts the local host.
-- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required for login and protected BFF access. Missing configuration or a Supabase outage fails closed; there is no `AUTH_USERS_JSON` fallback.
-- At least one `auth_accounts` row with an Argon2id `password_hash` must exist before login can succeed. Null, old scrypt, malformed, and unsupported hashes are rejected.
-- The login form accepts account id, normalized email, or normalized username plus password. There is no demo-password fallback.
-- Disablement, role changes, and `authz_version` changes are checked against the current DB row on every protected BFF request. Existing JWTs are denied when the account is missing, disabled, downgraded, or stale.
+- `AUTH_USERS_JSON` is required and fails closed when missing or invalid. Every account requires a unique normalized `id` and `email`, a `name`, `ADMIN`/`ANALYST`/`VIEWER` role, integer `authz_version >= 1`, and Argon2id `password_hash`. Plaintext `password` fields and old scrypt hashes are rejected.
+- Generate a hash with `node scripts/generate_auth_password_hash.mjs "<password>"`. The CLI argument can enter shell history; use only in an appropriate local shell and never commit the generated account registry.
+- The login form accepts account id or email plus password. There is no demo-password fallback.
+- Increment one account's `authz_version` whenever its role or authorization should invalidate existing sessions. Existing JWTs for that account then fail route-guard freshness checks and require login again.
 - JWT sessions expire after 8 hours. This password-only flow is AAL1-style; the shorter lifetime is a voluntary defense-in-depth choice and is not an AAL2 compliance claim.
 - Local login hardening uses per-identifier and process-global failure throttles plus a default two-operation password-hash concurrency cap. Defaults can be overridden with the `AUTH_LOGIN_*` and `AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT` variables.
-- Operational account provisioning uses `frontend/lib/server/db/script-client.mjs`; app runtime access remains protected separately by the `server-only` TypeScript client. The provisioning scripts create, list, disable, and set passwords without exposing secret-bearing fields.
+- Operational account provisioning uses `frontend/lib/server/db/script-client.mjs`; app runtime access remains protected separately by the `server-only` TypeScript client. The provisioning scripts create, list, disable, and set passwords without exposing secret-bearing fields. They do not make Supabase the login source of truth.
 - Throttle state is process memory only: it resets on restart and is not shared across serverless instances, Node processes, or horizontally scaled containers. It does not use IP or `X-Forwarded-For`.
 - Login audit events are single-line JSON logs with hashed identifiers and fixed reason codes. They are operational logs, not a persistent or tamper-resistant audit store.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
 - MFA/2FA, CAPTCHA/step-up, password reset/recovery, managed identity, and distributed throttling are not implemented.
-- Until the MFA PR lands, any active account with `mfa_required=true` fails login closed and receives no final Auth.js session. PR 3 demo accounts must explicitly use `mfa_required=false`; this is temporary pre-MFA state, not implemented MFA.
-
-### Manual PR 3 auth cutover and rollback
-
-Do not mutate live Supabase as part of normal app startup or automated tests.
-For each target environment:
-
-1. Apply migration `20260704_000008` through a reviewed deployment step.
-2. Create at least one account with `frontend/scripts/create_auth_account.mjs`.
-   For the temporary pre-MFA demo path, pass `--mfa-required false`.
-3. Verify login locally or in staging, then verify set-password and disable
-   behavior on a non-primary test account.
-4. Keep a secure pre-cutover `AUTH_USERS_JSON` export only as rollback
-   material. Rollback requires reverting the cutover code before restoring that
-   env value; the PR 3 runtime never reads it. Keep the auth tables intact
-   unless separately reviewed data recovery requires otherwise.
-
-Example from `frontend/`:
-
-```powershell
-node scripts/create_auth_account.mjs --email admin@example.test --name "SOC Admin" --role ADMIN --password "<temporary-password>" --mfa-required false
-node scripts/set_auth_account_password.mjs --email admin@example.test --password "<replacement-password>"
-node scripts/disable_auth_account.mjs --email disposable-check@example.test
-```
-
-Password CLI arguments can enter shell history. Use only an appropriate local
-operator shell and never commit or paste credentials into logs or reports.
 
 ### Dashboard role matrix
 
@@ -306,9 +277,9 @@ So the current local dashboard can run fully against the backend, with optional 
 
 - `/login` is the public sign-in page.
 - `/` redirects to `/login` or `/dashboard` based on session state.
-- `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
+- `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check.
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- All six BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
+- All six BFF handlers validate the session, current registry account, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
 
 ## 5. What This Setup Does Not Cover
 

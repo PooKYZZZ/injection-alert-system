@@ -3,37 +3,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PERMISSIONS, ROLES } from './roles'
 import { requirePermission } from './route-guard'
 
-const guardHarness = vi.hoisted(() => ({
-  getAccount: vi.fn(),
-}))
+const originalRegistry = process.env.AUTH_USERS_JSON
 
-vi.mock('../server/db/auth-accounts', () => ({
-  getAccountForSessionFreshness: guardHarness.getAccount,
-}))
-
-const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
-
-function currentAccount(
-  overrides: Partial<{
+function setRegistry(
+  accounts: Array<{
     id: string
-    role: 'ADMIN' | 'ANALYST' | 'VIEWER'
-    authzVersion: number
-    disabledAt: string | null
-  }> = {}
+    email: string
+    name: string
+    role: string
+    authz_version: number
+  }>
 ) {
-  return {
-    id: accountId,
-    role: ROLES.ANALYST,
-    authzVersion: 1,
-    disabledAt: null,
-    ...overrides,
-  }
+  process.env.AUTH_USERS_JSON = JSON.stringify(accounts)
 }
 
 function session(role: string = ROLES.ANALYST, authzVersion = 1) {
   return {
     user: {
-      id: accountId,
+      id: 'analyst-1',
       email: 'analyst@example.test',
       role,
       authz_version: authzVersion,
@@ -42,33 +29,38 @@ function session(role: string = ROLES.ANALYST, authzVersion = 1) {
   }
 }
 
-async function expectGenericUnauthorized(
-  result: Awaited<ReturnType<typeof requirePermission>>
-): Promise<void> {
-  expect(result.ok).toBe(false)
-  if (!result.ok) {
-    expect(result.response.status).toBe(401)
-    expect(await result.response.json()).toEqual({
-      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
-    })
-  }
-}
-
 describe('requirePermission', () => {
   beforeEach(() => {
-    guardHarness.getAccount.mockReset()
-    guardHarness.getAccount.mockResolvedValue(currentAccount())
+    setRegistry([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Analyst',
+        role: ROLES.ANALYST,
+        authz_version: 1,
+      },
+    ])
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    if (originalRegistry === undefined) {
+      delete process.env.AUTH_USERS_JSON
+    } else {
+      process.env.AUTH_USERS_JSON = originalRegistry
+    }
   })
 
-  it('returns 401 when no session exists without querying the database', async () => {
-    await expectGenericUnauthorized(
-      await requirePermission(null, PERMISSIONS.ALERTS_READ)
-    )
-    expect(guardHarness.getAccount).not.toHaveBeenCalled()
+  it('returns 401 when no session exists', async () => {
+    const result = requirePermission(null, PERMISSIONS.ALERTS_READ)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(401)
+      expect(await result.response.json()).toEqual({
+        error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+      })
+    }
   })
 
   it('returns 403 when the session role is missing or invalid', async () => {
@@ -79,10 +71,7 @@ describe('requirePermission', () => {
       }
       currentSession.user.role = role
 
-      const result = await requirePermission(
-        currentSession,
-        PERMISSIONS.ALERTS_READ
-      )
+      const result = requirePermission(currentSession, PERMISSIONS.ALERTS_READ)
 
       expect(result.ok).toBe(false)
       if (!result.ok) {
@@ -94,20 +83,24 @@ describe('requirePermission', () => {
     }
   })
 
-  it('allows a matching DB account with the required permission', async () => {
-    await expect(
-      requirePermission(session(), PERMISSIONS.ALERTS_TRIAGE)
-    ).resolves.toEqual({ ok: true })
-    expect(guardHarness.getAccount).toHaveBeenCalledWith(accountId)
+  it('allows a current session with the required permission', () => {
+    expect(requirePermission(session(), PERMISSIONS.ALERTS_TRIAGE)).toEqual({
+      ok: true,
+    })
   })
 
-  it('returns 403 when the current role lacks the permission', async () => {
+  it('returns 403 when the valid role lacks the permission', async () => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
-    guardHarness.getAccount.mockResolvedValue(
-      currentAccount({ role: ROLES.VIEWER })
-    )
-
-    const result = await requirePermission(
+    setRegistry([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Viewer',
+        role: ROLES.VIEWER,
+        authz_version: 1,
+      },
+    ])
+    const result = requirePermission(
       session(ROLES.VIEWER),
       PERMISSIONS.ALERTS_TRIAGE
     )
@@ -123,15 +116,17 @@ describe('requirePermission', () => {
     })
   })
 
-  it('denies a stale authz_version', async () => {
+  it('returns 401 for a stale authz_version', async () => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
-
-    const result = await requirePermission(
+    const result = requirePermission(
       session(ROLES.ANALYST, 2),
       PERMISSIONS.ALERTS_READ
     )
 
-    await expectGenericUnauthorized(result)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(401)
+    }
     expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
       event: 'auth.session_stale',
       outcome: 'denied',
@@ -139,16 +134,15 @@ describe('requirePermission', () => {
     })
   })
 
-  it('denies a deleted DB account', async () => {
+  it('returns 401 when the registry account was removed', async () => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
-    guardHarness.getAccount.mockResolvedValue(undefined)
+    setRegistry([])
+    const result = requirePermission(session(), PERMISSIONS.ALERTS_READ)
 
-    const result = await requirePermission(
-      session(),
-      PERMISSIONS.ALERTS_READ
-    )
-
-    await expectGenericUnauthorized(result)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(401)
+    }
     expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
       event: 'auth.account_removed',
       outcome: 'denied',
@@ -156,37 +150,51 @@ describe('requirePermission', () => {
     })
   })
 
-  it('denies an account disabled after its JWT was issued', async () => {
-    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
-    guardHarness.getAccount.mockResolvedValue(
-      currentAccount({ disabledAt: '2026-07-04T00:00:00Z' })
-    )
-
-    const result = await requirePermission(
-      session(),
-      PERMISSIONS.ALERTS_READ
-    )
-
-    await expectGenericUnauthorized(result)
-    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
-      event: 'auth.account_disabled',
-      outcome: 'denied',
-      reason_code: 'ACCOUNT_DISABLED',
+  it('reads the registry again and catches server-side mutation without refreshing the session', async () => {
+    const originalSession = session()
+    expect(requirePermission(originalSession, PERMISSIONS.ALERTS_READ)).toEqual({
+      ok: true,
     })
+
+    setRegistry([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Analyst',
+        role: ROLES.VIEWER,
+        authz_version: 2,
+      },
+    ])
+
+    const staleResult = requirePermission(originalSession, PERMISSIONS.ALERTS_READ)
+
+    expect(staleResult.ok).toBe(false)
+    if (!staleResult.ok) {
+      expect(staleResult.response.status).toBe(401)
+      expect(await staleResult.response.json()).toEqual({
+        error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+      })
+    }
   })
 
-  it('denies a role downgrade after the JWT was issued', async () => {
+  it('returns 401 for a registry role mismatch', async () => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
-    guardHarness.getAccount.mockResolvedValue(
-      currentAccount({ role: ROLES.VIEWER })
-    )
+    setRegistry([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Analyst',
+        role: ROLES.VIEWER,
+        authz_version: 1,
+      },
+    ])
 
-    const result = await requirePermission(
-      session(),
-      PERMISSIONS.ALERTS_READ
-    )
+    const result = requirePermission(session(), PERMISSIONS.ALERTS_READ)
 
-    await expectGenericUnauthorized(result)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(401)
+    }
     expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
       event: 'auth.role_mismatch',
       outcome: 'denied',
@@ -194,45 +202,21 @@ describe('requirePermission', () => {
     })
   })
 
-  it('denies an account id mismatch', async () => {
-    guardHarness.getAccount.mockResolvedValue(
-      currentAccount({ id: 'e1684968-b911-482d-9781-78c82dd7edeb' })
-    )
-
-    await expectGenericUnauthorized(
-      await requirePermission(session(), PERMISSIONS.ALERTS_READ)
-    )
-  })
-
-  it('fails closed when the DB freshness query fails', async () => {
-    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
-    guardHarness.getAccount.mockRejectedValue(
-      new Error('raw Supabase connection details')
-    )
-
-    const result = await requirePermission(
-      session(),
-      PERMISSIONS.ALERTS_READ
-    )
-
-    await expectGenericUnauthorized(result)
-    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
-      event: 'auth.account_lookup_failed',
-      outcome: 'denied',
-      reason_code: 'ACCOUNT_LOOKUP_FAILED',
-    })
-    expect(String(log.mock.calls[0][0])).not.toContain('Supabase')
-  })
-
   it('does not let audit logging failure change a denied response', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {
       throw new Error('logger unavailable')
     })
-    guardHarness.getAccount.mockResolvedValue(
-      currentAccount({ role: ROLES.VIEWER })
-    )
+    setRegistry([
+      {
+        id: 'analyst-1',
+        email: 'analyst@example.test',
+        name: 'SOC Viewer',
+        role: ROLES.VIEWER,
+        authz_version: 1,
+      },
+    ])
 
-    const result = await requirePermission(
+    const result = requirePermission(
       session(ROLES.VIEWER),
       PERMISSIONS.ALERTS_TRIAGE
     )

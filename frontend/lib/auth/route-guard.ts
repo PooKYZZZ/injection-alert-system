@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 
-import { getAccountForSessionFreshness } from '../server/db/auth-accounts'
 import { writeLoginAudit } from './login-audit'
 import {
   isUserRole,
   roleHasPermission,
   type Permission,
+  type UserRole,
 } from './roles'
 
 type GuardSession = {
@@ -16,6 +16,12 @@ type GuardSession = {
     authz_version?: unknown
   }
 } | null
+
+type RegistryAccount = {
+  id: string
+  role: UserRole
+  authzVersion: number
+}
 
 type GuardResult =
   | { ok: true }
@@ -37,10 +43,49 @@ function denied(status: 401 | 403): GuardResult {
   }
 }
 
-export async function requirePermission(
+function readCurrentAccounts(): RegistryAccount[] | null {
+  const rawRegistry = process.env.AUTH_USERS_JSON
+  if (!rawRegistry) {
+    return null
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(rawRegistry)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+
+    const accounts: RegistryAccount[] = []
+    for (const value of parsed) {
+      if (
+        typeof value !== 'object' ||
+        value === null ||
+        !('id' in value) ||
+        typeof value.id !== 'string' ||
+        !isUserRole('role' in value ? value.role : undefined) ||
+        !('authz_version' in value) ||
+        !Number.isInteger(value.authz_version) ||
+        (value.authz_version as number) < 1
+      ) {
+        return null
+      }
+
+      accounts.push({
+        id: value.id.trim().toLowerCase(),
+        role: value.role,
+        authzVersion: value.authz_version as number,
+      })
+    }
+    return accounts
+  } catch {
+    return null
+  }
+}
+
+export function requirePermission(
   session: GuardSession,
   permission: Permission
-): Promise<GuardResult> {
+): GuardResult {
   if (!session) {
     return denied(401)
   }
@@ -60,23 +105,13 @@ export async function requirePermission(
     return denied(401)
   }
 
-  let currentAccount
-  try {
-    currentAccount = await getAccountForSessionFreshness(id)
-  } catch {
-    writeLoginAudit({
-      event: 'auth.account_lookup_failed',
-      level: 'warn',
-      outcome: 'denied',
-      userId: id,
-      role,
-      authzVersion: authzVersion as number,
-      reasonCode: 'ACCOUNT_LOOKUP_FAILED',
-    })
-    return denied(401)
-  }
-
-  if (!currentAccount || currentAccount.id !== id.trim().toLowerCase()) {
+  const currentAccounts = readCurrentAccounts()
+  const currentAccount = currentAccounts?.find(
+    (account) => account.id === id.trim().toLowerCase()
+  )
+  if (
+    !currentAccount
+  ) {
     writeLoginAudit({
       event: 'auth.account_removed',
       level: 'warn',
@@ -85,19 +120,6 @@ export async function requirePermission(
       role,
       authzVersion: authzVersion as number,
       reasonCode: 'ACCOUNT_REMOVED',
-    })
-    return denied(401)
-  }
-
-  if (currentAccount.disabledAt !== null) {
-    writeLoginAudit({
-      event: 'auth.account_disabled',
-      level: 'warn',
-      outcome: 'denied',
-      userId: id,
-      role,
-      authzVersion: authzVersion as number,
-      reasonCode: 'ACCOUNT_DISABLED',
     })
     return denied(401)
   }

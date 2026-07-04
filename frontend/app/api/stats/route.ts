@@ -7,10 +7,7 @@ import { PERMISSIONS } from '@/lib/auth/roles'
 export async function GET(request: NextRequest): Promise<Response> {
   try {
     const session = await auth()
-    const authorization = await requirePermission(
-      session,
-      PERMISSIONS.STATS_READ
-    )
+    const authorization = requirePermission(session, PERMISSIONS.STATS_READ)
     if (!authorization.ok) {
       return authorization.response
     }

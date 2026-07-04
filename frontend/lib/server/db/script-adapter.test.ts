@@ -67,7 +67,7 @@ describe('script-only Supabase boundary', () => {
       .filter(
         (file) =>
           !file.includes('node_modules') &&
-          !file.endsWith('.test.ts') &&
+          !file.endsWith('script-adapter.test.ts') &&
           !file.endsWith('script-client.mjs')
       )
 

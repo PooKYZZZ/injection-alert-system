@@ -330,24 +330,11 @@ Open a browser and navigate to:
 http://localhost:3000/login
 ```
 
-Before this step, a reviewed operator must apply migration `20260704_000008` to
-the target Supabase environment and create at least one account with
-`frontend/scripts/create_auth_account.mjs`. Do not have app startup or tests
-apply the migration or mutate live Supabase.
-
-For the temporary PR 3 pre-MFA demo path, create the account with
-`--mfa-required false`. Accounts with `mfa_required=true` fail closed and do not
-receive a final Auth.js session until MFA is implemented.
-
-Enter the account id, normalized email, or normalized username and password.
-Passwords are Argon2id-only; null, old scrypt, malformed, and unsupported hashes
-are rejected. There is no demo-password or `AUTH_USERS_JSON` fallback. If
-Supabase is unavailable, login is unavailable by design.
-
-After the login check, verify set-password and disable behavior on a disposable
-account. For rollback, revert the PR 3 cutover code before securely restoring a
-pre-cutover `AUTH_USERS_JSON` value; keep the auth tables intact unless a
-separate reviewed recovery requires otherwise.
+Enter the id or email and password for a named account configured in
+`AUTH_USERS_JSON`. Passwords must be stored as Argon2id PHC hashes; generate a
+hash with `node scripts/generate_auth_password_hash.mjs "<password>"`. Old
+scrypt hashes are rejected. There is no demo-password fallback. Supabase
+account login is still planned for PR 3.
 
 You should be redirected to the dashboard.
 

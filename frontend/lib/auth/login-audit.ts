@@ -6,7 +6,6 @@ type FailureReason =
   | 'GLOBAL_THROTTLED'
   | 'PASSWORD_HASH_BUSY'
   | 'CONFIGURATION_INVALID'
-  | 'ACCOUNT_LOOKUP_FAILED'
 
 type LoginSuccessEvent = {
   event: 'auth.login_succeeded'
@@ -22,7 +21,6 @@ type LoginFailureEvent = {
     | 'auth.login_failed'
     | 'auth.login_throttled'
     | 'auth.configuration_invalid'
-    | 'auth.account_lookup_failed'
   level: 'warn' | 'error'
   outcome: 'failure' | 'throttled'
   identifierHash: string
@@ -34,8 +32,6 @@ type AuthorizationEvent = {
     | 'auth.rbac_forbidden'
     | 'auth.session_stale'
     | 'auth.account_removed'
-    | 'auth.account_disabled'
-    | 'auth.account_lookup_failed'
     | 'auth.role_mismatch'
   level: 'warn'
   outcome: 'denied'
@@ -46,8 +42,6 @@ type AuthorizationEvent = {
     | 'PERMISSION_DENIED'
     | 'AUTHZ_VERSION_MISMATCH'
     | 'ACCOUNT_REMOVED'
-    | 'ACCOUNT_DISABLED'
-    | 'ACCOUNT_LOOKUP_FAILED'
     | 'ROLE_MISMATCH'
 }
 

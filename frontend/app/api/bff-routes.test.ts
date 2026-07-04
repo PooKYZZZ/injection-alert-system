@@ -1,6 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,9 +10,6 @@ const getStatsMock = vi.fn()
 const getMlHealthMock = vi.fn()
 const updateAlertTriageMock = vi.fn()
 const updateAlertActionMock = vi.fn()
-const getAccountForSessionFreshnessMock = vi.fn()
-
-const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
 
 vi.mock('@/auth', () => ({
   auth: authMock,
@@ -30,14 +24,10 @@ vi.mock('@/lib/bff-client', () => ({
   updateAlertAction: updateAlertActionMock,
 }))
 
-vi.mock('@/lib/server/db/auth-accounts', () => ({
-  getAccountForSessionFreshness: getAccountForSessionFreshnessMock,
-}))
-
 function session(role: UserRole = ROLES.ADMIN, authzVersion = 1) {
   return {
     user: {
-      id: accountId,
+      id: 'user-1',
       email: 'user@example.test',
       role,
       authz_version: authzVersion,
@@ -46,38 +36,30 @@ function session(role: UserRole = ROLES.ADMIN, authzVersion = 1) {
   }
 }
 
-function setCurrentAccount(role: UserRole, authzVersion = 1) {
-  getAccountForSessionFreshnessMock.mockResolvedValue({
-    id: accountId,
-    role,
-    authzVersion,
-    disabledAt: null,
-  })
+function setRegistryRole(role: UserRole, authzVersion = 1) {
+  process.env.AUTH_USERS_JSON = JSON.stringify([
+    {
+      id: 'user-1',
+      email: 'user@example.test',
+      name: 'Test User',
+      role,
+      authz_version: authzVersion,
+    },
+  ])
 }
 
 describe('BFF route handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setCurrentAccount(ROLES.ADMIN)
-  })
-
-  it('awaits the central DB-backed permission guard in every protected BFF route', () => {
-    const routeFiles = [
-      'alerts/route.ts',
-      'alerts/[id]/route.ts',
-      'alerts/[id]/triage/route.ts',
-      'alerts/[id]/action/route.ts',
-      'stats/route.ts',
-      'ml-health/route.ts',
-    ]
-
-    for (const routeFile of routeFiles) {
-      const source = fs.readFileSync(path.resolve(__dirname, routeFile), 'utf8')
-      expect(source).toContain(
-        "import { requirePermission } from '@/lib/auth/route-guard'"
-      )
-      expect(source).toMatch(/await\s+requirePermission\s*\(/)
-    }
+    process.env.AUTH_USERS_JSON = JSON.stringify([
+      {
+        id: 'user-1',
+        email: 'user@example.test',
+        name: 'Test User',
+        role: ROLES.ADMIN,
+        authz_version: 1,
+      },
+    ])
   })
 
   it('alerts route applies the existing session auth pattern', async () => {
@@ -440,24 +422,6 @@ describe('BFF route handlers', () => {
     expect(response.status).toBe(401)
   })
 
-  it('alerts route fails closed when the DB freshness lookup is unavailable', async () => {
-    authMock.mockResolvedValueOnce(session())
-    getAccountForSessionFreshnessMock.mockRejectedValueOnce(
-      new Error('raw database details')
-    )
-    const { GET } = await import('./alerts/route')
-
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/alerts')
-    )
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({
-      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
-    })
-    expect(getAlertsMock).not.toHaveBeenCalled()
-  })
-
   it('alert detail route rejects unauthenticated request before calling BFF client', async () => {
     authMock.mockResolvedValueOnce(null)
     const { GET } = await import('./alerts/[id]/route')
@@ -794,7 +758,7 @@ describe('BFF route handlers', () => {
   })
 
   it('allows VIEWER sessions to call every read route', async () => {
-    setCurrentAccount(ROLES.VIEWER)
+    setRegistryRole(ROLES.VIEWER)
     authMock
       .mockResolvedValueOnce(session(ROLES.VIEWER))
       .mockResolvedValueOnce(session(ROLES.VIEWER))
@@ -830,7 +794,7 @@ describe('BFF route handlers', () => {
   })
 
   it('returns 403 before parsing or forwarding VIEWER mutation requests', async () => {
-    setCurrentAccount(ROLES.VIEWER)
+    setRegistryRole(ROLES.VIEWER)
     authMock
       .mockResolvedValueOnce(session(ROLES.VIEWER))
       .mockResolvedValueOnce(session(ROLES.VIEWER))
@@ -859,7 +823,7 @@ describe('BFF route handlers', () => {
   })
 
   it('allows ANALYST triage but returns 403 before forwarding action updates', async () => {
-    setCurrentAccount(ROLES.ANALYST)
+    setRegistryRole(ROLES.ANALYST)
     authMock
       .mockResolvedValueOnce(session(ROLES.ANALYST))
       .mockResolvedValueOnce(session(ROLES.ANALYST))
@@ -904,7 +868,7 @@ describe('BFF route handlers', () => {
     const currentResponse = await GET(
       new NextRequest('http://localhost:3000/api/alerts')
     )
-    setCurrentAccount(ROLES.ADMIN, 2)
+    setRegistryRole(ROLES.ADMIN, 2)
     const staleResponse = await GET(
       new NextRequest('http://localhost:3000/api/alerts')
     )

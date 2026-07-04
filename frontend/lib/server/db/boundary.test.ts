@@ -22,10 +22,6 @@ function sourceFiles(root: string): string[] {
 }
 
 describe('Supabase service-role boundary', () => {
-  it('has a dedicated runtime auth account boundary', () => {
-    expect(fs.existsSync(path.join(dbRoot, 'auth-accounts.ts'))).toBe(true)
-  })
-
   it('keeps service-role client code under lib/server/db', () => {
     const violations = sourceFiles(frontendRoot).filter((file) => {
       if (file.startsWith(dbRoot) || file.endsWith('.test.ts')) {
