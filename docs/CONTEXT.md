@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-04
+Updated: 2026-07-05
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -51,7 +51,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run through 2026-07-03
+### Checks run through 2026-07-05
 
 - Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
@@ -59,9 +59,13 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run --pool=threads` → **288 passed**
+  - `cd frontend && npx vitest run` → **317 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
+- PR #79 GitHub CI:
+  - First Ubuntu 24.04 / Node `24.18.0` frontend attempt aborted during `npx vitest run` with native `Napi::Error` exit 134.
+  - PR #81 replaced accidental partial/native Argon2 imports in auth and provisioning control-flow tests with pure mocks. Real Argon2id coverage remains in `password-hash.test.ts`.
+  - The full frontend CI job passed twice after the repair. Vitest remains on `threads`; package scripts, CI workflow, and production auth/Argon2id code are unchanged.
 
 ### Backend
 

@@ -138,7 +138,10 @@ beforeEach(() => {
 describe('Auth.js credential login', () => {
   it('logs in a DB account and preserves JWT/session claim shape', async () => {
     const password = 'correct horse battery staple'
-    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
+    authHarness.verifyPasswordForAccount.mockImplementation(
+      async (candidatePassword, candidateHash) =>
+        candidatePassword === password && candidateHash === TEST_ARGON2_HASH
+    )
     authHarness.findAccount.mockResolvedValue(
       validAccount({ passwordHash: TEST_ARGON2_HASH })
     )
@@ -151,6 +154,10 @@ describe('Auth.js credential login', () => {
     })
 
     expect(authHarness.findAccount).toHaveBeenCalledWith('admin@example.test')
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledWith(
+      password,
+      TEST_ARGON2_HASH
+    )
     expect(user).toEqual({
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       email: 'admin@example.test',
@@ -281,6 +288,7 @@ describe('Auth.js credential login', () => {
   })
 
   it('ignores AUTH_USERS_JSON and does not fall back when the DB has no account', async () => {
+    const legacyPassword = 'legacy password'
     process.env.AUTH_USERS_JSON = JSON.stringify([
       {
         id: 'legacy-admin',
@@ -291,16 +299,25 @@ describe('Auth.js credential login', () => {
         password_hash: TEST_ARGON2_HASH,
       },
     ])
+    authHarness.verifyPasswordForAccount.mockImplementation(
+      async (candidatePassword, candidateHash) =>
+        candidatePassword === legacyPassword &&
+        candidateHash === TEST_ARGON2_HASH
+    )
     authHarness.findAccount.mockResolvedValue(undefined)
     await import('@/auth')
 
     await expect(
       capturedConfig().providers[0].authorize({
         identifier: 'admin@example.test',
-        password: 'legacy password',
+        password: legacyPassword,
       })
     ).resolves.toBeNull()
     expect(authHarness.findAccount).toHaveBeenCalledOnce()
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledWith(
+      legacyPassword,
+      null
+    )
   })
 
   it('does not require AUTH_USERS_JSON when a valid DB account exists', async () => {

@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-04
+**Last updated:** 2026-07-05
 
 ---
 
@@ -39,8 +39,9 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **95 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **316 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **317 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
+- PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
 - Promotion real-run command (April DistilBERT source path) → **failed closed** with strict checkpoint architecture incompatibility:

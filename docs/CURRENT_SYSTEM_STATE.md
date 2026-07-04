@@ -263,19 +263,27 @@ This means:
 
 ---
 
-## 13. Test Baseline (2026-07-04)
+## 13. Test Baseline (2026-07-05)
 
 | Test Suite | Result |
 |------------|--------|
 | pytest | 496 passed |
 | lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 316 passed |
+| vitest (full) | 317 passed |
 | build | PASSED |
+
+PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native
+`Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2
+loading from non-hashing auth and provisioning control-flow tests, adds a
+regression boundary check, and retains real Argon2id coverage in
+`password-hash.test.ts`. The full frontend CI job passed twice after the repair.
+Vitest remains on `threads`; package scripts, CI workflow, production Argon2id,
+and auth behavior are unchanged.
 
 ---
 
-## Summary: What's Implemented (2026-07-04)
+## Summary: What's Implemented (2026-07-05)
 
 | Feature | Status |
 |---------|--------|
