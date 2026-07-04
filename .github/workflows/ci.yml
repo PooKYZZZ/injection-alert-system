@@ -2,6 +2,8 @@ name: CI
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+permissions:
+  contents: read
 on:
   push:
     branches: [master, frontend-adaptation]
@@ -45,3 +47,12 @@ jobs:
         working-directory: frontend
       - run: npx vitest run
         working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9

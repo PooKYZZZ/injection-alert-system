@@ -57,6 +57,21 @@ MAX_SEQ_LEN=128
 TEMPERATURE=0.596868
 ```
 
+The auth/security schema foundation also includes a frontend server-only
+Supabase client. Put these values in `frontend/.env.local`:
+
+```dotenv
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<server-only-key>
+```
+
+Never use `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY`. The service-role credential
+bypasses RLS and must not enter browser code, bundles, logs, or committed files.
+RLS on the new public-schema auth/security tables is defense-in-depth only.
+Current login remains `AUTH_USERS_JSON`-backed with scrypt and is unchanged.
+Do not run the auth/security migration against live Supabase without a separate
+reviewed deployment step.
+
 Notes:
 
 - `MODEL_PATH` still exists in config for compatibility.

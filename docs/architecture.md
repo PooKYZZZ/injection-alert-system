@@ -49,6 +49,7 @@ flowchart LR
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
 | Email notifications | Planned | no transactional email integration found |
 | RBAC secure login | Implemented | current `frontend/auth.ts` uses named `AUTH_USERS_JSON` accounts, role claims, `authz_version`, and route-guard freshness checks |
+| Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
@@ -166,6 +167,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
+- The auth/security schema foundation is implemented additively; it does not make Supabase the account-login source of truth
+- New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
+- Current Auth.js login remains `AUTH_USERS_JSON`-backed with scrypt and is unchanged
 - Some Supabase policy and operational guardrails still live outside repo automation
 
 ## ML Artifacts and Training Config
