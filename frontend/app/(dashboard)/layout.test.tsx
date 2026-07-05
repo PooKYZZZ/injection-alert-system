@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSIONS } from '@/lib/auth/roles'
+import DashboardLayout from './layout'
 
 const layoutHarness = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -40,7 +41,6 @@ describe('DashboardLayout', () => {
   it('requires current DB-backed account state before rendering', async () => {
     layoutHarness.getSession.mockResolvedValue(session)
     layoutHarness.requirePermission.mockResolvedValue({ ok: true })
-    const { default: DashboardLayout } = await import('./layout')
 
     await DashboardLayout({ children: <div>dashboard</div> })
 
@@ -60,7 +60,6 @@ describe('DashboardLayout', () => {
     layoutHarness.redirect.mockImplementation(() => {
       throw new Error('NEXT_REDIRECT')
     })
-    const { default: DashboardLayout } = await import('./layout')
 
     await expect(
       DashboardLayout({ children: <div>dashboard</div> })

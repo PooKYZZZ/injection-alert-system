@@ -1,6 +1,6 @@
 # Current System State - Comprehensive Overview
 
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-07-05
 
 This document provides detailed answers about the current state of the Injection Alert System codebase.
 
@@ -227,8 +227,8 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 
 ### Current Auth State and Remaining Gaps
 
-- Current state: Auth.js Credentials login uses Supabase `auth_accounts`, Argon2id password hashes, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
-- All six BFF routes enforce server-side permissions and current DB account existence, disablement, role, and `authz_version` checks before downstream calls.
+- Current state: Auth.js Credentials login uses Supabase `auth_accounts`, approved Argon2id PHC password hashes, a precomputed same-profile unknown-account hash, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
+- All six BFF routes enforce server-side permissions and current DB account existence, disablement, `mfa_required`, role, and `authz_version` checks before downstream calls.
 - Remaining client-required work includes MFA/2FA and password recovery. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
@@ -267,10 +267,10 @@ This means:
 
 | Test Suite | Result |
 |------------|--------|
-| pytest | 496 passed |
+| pytest | 525 passed |
 | lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 317 passed |
+| vitest (full) | 331 passed |
 | build | PASSED |
 
 PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native
@@ -302,7 +302,7 @@ and auth behavior are unchanged.
 | Demo-target WAF bridge tooling | Verified local proof; `demo-target-bridge` posted transaction `178249138618.813428` from `localhost:8089` and backend lookup returned `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15` |
 | Bounded WAF inference queue | Implemented; `web_app/application/inference_queue.py` gates synchronous WAF inference and `/api/ml-health` exposes queue health |
 | Request/trace correlation | Implemented; handled and generic unhandled `500` responses return `X-Request-ID`, and valid W3C version-00 `traceparent` IDs are preserved |
-| Structured observability logs | Implemented for backend request/WAF/prediction boundaries, bridge operational/configuration events, and login/route-guard audit events; recursive sensitive-field redaction is tested |
+| Structured observability logs | Implemented for backend request/WAF/prediction boundaries, bridge operational/configuration events, and login/route-guard audit events; recursive case/separator-insensitive sensitive-field redaction is tested |
 | Action policy values | Partial; actions are recorded, not proven as live request-path enforcement |
 
 ## Summary: Verified WAF Proof (2026-06-22)
@@ -319,7 +319,7 @@ and auth behavior are unchanged.
 | Backend lookup | `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED` |
 | Correlation metadata | `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string` present |
 | CRS score | `5` |
-| Targeted tests | bridge `37 passed`, WAF ingest route `11 passed`, WAF ingest use-case `4 passed`; combined `52 passed` |
+| Targeted tests | bridge `47 passed`, WAF ingest route `12 passed`, WAF ingest use-case `4 passed`; combined `63 passed` |
 | Follow-mode resilience | transient bridge `readline()` `OSError` recovery is implemented and unit-tested |
 
 ## Summary: Verified Demo-Target WAF Proof (2026-06-25)

@@ -20,6 +20,7 @@ from ml_model.export.promote_final_training_run import (
     run_packager,
     validate_final_training_source,
     validate_label_names,
+    write_eval_provenance_files,
 )
 
 
@@ -118,6 +119,28 @@ def test_extracts_raw_model_state_dict_from_notebook_checkpoint(tmp_path: Path):
 
     saved = torch.load(target, map_location="cpu", weights_only=True)
     assert saved == {"encoder.weight": torch.tensor([1.0])}
+
+
+def test_checkpoint_extraction_uses_weights_only_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.pt"
+    target = tmp_path / "target.pt"
+    calls: list[dict[str, object]] = []
+
+    def safe_load(path, **kwargs):
+        calls.append(kwargs)
+        return {"model_state_dict": {"encoder.weight": torch.tensor([1.0])}}
+
+    monkeypatch.setattr(
+        "ml_model.export.promote_final_training_run.torch.load",
+        safe_load,
+    )
+
+    extract_state_dict_checkpoint(source, target)
+
+    assert calls == [{"map_location": "cpu", "weights_only": True}]
 
 
 def test_extract_state_dict_checkpoint_normalizes_final_training_keys_for_packager(
@@ -279,19 +302,112 @@ def test_create_fresh_active_run_directory_starts_empty(tmp_path: Path):
 
 
 def test_build_provenance_payload_records_checkpoint_archive_and_gates():
+    checkpoint_sha256 = "a" * 64
     payload = build_provenance_payload(
         model_name="distilbert-injection-detector",
         promoted_version="distilbert_v3_907k_cleaned_20260312_133755",
-        checkpoint_sha256="abc123",
+        checkpoint_sha256=checkpoint_sha256,
         archived_path="ml_model/model_registry/archive/run_old",
         repo_commit="deadbeef",
         calibration_temperature=1.3780944347381592,
-        validation_gates={"reload_test": True},
+        validation_gates={
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": False,
+        },
     )
 
-    assert payload["checkpoint_identity"]["checkpoint_sha256"] == "abc123"
+    assert payload["checkpoint_identity"]["checkpoint_sha256"] == checkpoint_sha256
     assert payload["previous_version_archived_to"] == "ml_model/model_registry/archive/run_old"
-    assert payload["validation_gates_passed"]["reload_test"] is True
+    assert payload["artifact_packaging_ready"] is True
+    assert payload["quality_gates_passed"] is False
+    assert payload["ready_for_promotion"] is False
+
+
+def test_build_provenance_payload_requires_packaging_reload_and_quality_gates():
+    common = {
+        "model_name": "distilbert-injection-detector",
+        "promoted_version": "distilbert_test",
+        "checkpoint_sha256": "a" * 64,
+        "archived_path": "ml_model/model_registry/archive/run_old",
+        "repo_commit": "deadbeef",
+        "calibration_temperature": 1.2,
+        "label_names": [
+            "Code Injection",
+            "Normal",
+            "Other Attacks",
+            "SQL Injection",
+        ],
+    }
+
+    ready = build_provenance_payload(
+        **common,
+        validation_gates={
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": True,
+        },
+    )
+    missing_reload = build_provenance_payload(
+        **common,
+        validation_gates={
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": False,
+            "quality_gates_passed": True,
+        },
+    )
+
+    assert ready["ready_for_promotion"] is True
+    assert missing_reload["artifact_packaging_ready"] is False
+    assert missing_reload["ready_for_promotion"] is False
+
+    missing_source_validation = build_provenance_payload(
+        **common,
+        validation_gates={
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": True,
+        },
+    )
+    missing_checksum = build_provenance_payload(
+        **{**common, "checkpoint_sha256": ""},
+        validation_gates={
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": True,
+        },
+    )
+
+    assert missing_source_validation["ready_for_promotion"] is False
+    assert missing_checksum["checkpoint_hash_recorded"] is False
+    assert missing_checksum["ready_for_promotion"] is False
+
+
+def test_eval_provenance_does_not_claim_quality_readiness_without_gates(
+    tmp_path: Path,
+):
+    eval_dir = write_eval_provenance_files(
+        eval_root=tmp_path,
+        model_key="distilbert",
+        run_dir_name="distilbert_test",
+        temperature=1.2,
+        repo_commit="deadbeef",
+        dataset_version="v3",
+        artifact_packaging_pipeline_passed=True,
+        local_reload_validated=True,
+        quality_gates_passed=False,
+    )
+
+    summary = json.loads(
+        (eval_dir / "promotion_summary.json").read_text(encoding="utf-8")
+    )
+    model_summary = summary["promotion_summary"]["distilbert"]
+    assert model_summary["artifact_packaging_ready"] is True
+    assert model_summary["quality_gates_passed"] is False
+    assert model_summary["ready_for_promotion"] is False
 
 
 def test_build_model_card_mentions_metrics_and_version_history():

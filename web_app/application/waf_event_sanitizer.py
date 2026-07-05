@@ -2,6 +2,8 @@ import json
 import re
 from urllib.parse import parse_qsl, urlencode
 
+from web_app.observability.redaction import redact_for_log
+
 _SENSITIVE_HEADER_KEYS = {"authorization", "cookie", "set-cookie"}
 _SENSITIVE_HEADER_PATTERNS = re.compile(r"token|secret|key|credential", re.IGNORECASE)
 _SENSITIVE_VALUE_KEYS = {
@@ -12,6 +14,7 @@ _SENSITIVE_VALUE_KEYS = {
     "authorization",
     "bearer",
     "client_secret",
+    "id_token",
     "code",
     "cookie",
     "credential",
@@ -20,6 +23,7 @@ _SENSITIVE_VALUE_KEYS = {
     "passwd",
     "pwd",
     "refresh_token",
+    "secret_key",
     "secret",
     "session",
     "session_id",
@@ -27,16 +31,16 @@ _SENSITIVE_VALUE_KEYS = {
     "sid",
     "token",
     "otp",
+    "private_key",
 }
-_SENSITIVE_BODY_KEYS = {
-    "password",
-    "token",
-    "secret",
-    "api_key",
-    "apikey",
-    "authorization",
-    "cookie",
-    "credential",
+_PII_QUERY_KEYS = {
+    "account",
+    "customer",
+    "email",
+    "name",
+    "phone",
+    "student_id",
+    "user_id",
 }
 _HEADER_LINE_PATTERN = re.compile(
     r"^(?P<key>[A-Za-z0-9_-]+):(?P<value>.*)$",
@@ -57,15 +61,12 @@ def _is_sensitive_header(key: str) -> bool:
     return bool(_SENSITIVE_HEADER_PATTERNS.search(key))
 
 
-def _is_sensitive_body_key(key: str) -> bool:
-    return key.lower() in _SENSITIVE_BODY_KEYS or bool(
-        _SENSITIVE_HEADER_PATTERNS.search(key)
-    )
-
-
 def _is_sensitive_value_key(key: str) -> bool:
-    return key.lower() in _SENSITIVE_VALUE_KEYS or bool(
-        _SENSITIVE_HEADER_PATTERNS.search(key)
+    normalized = key.lower().replace("-", "_")
+    return (
+        normalized in _SENSITIVE_VALUE_KEYS
+        or normalized in _PII_QUERY_KEYS
+        or bool(_SENSITIVE_HEADER_PATTERNS.search(key))
     )
 
 
@@ -74,13 +75,10 @@ def _redact_json(value: str) -> str | None:
         parsed = json.loads(value)
     except json.JSONDecodeError:
         return None
-    if not isinstance(parsed, dict):
+    if not isinstance(parsed, (dict, list)):
         return None
 
-    redacted = {
-        key: "[REDACTED]" if _is_sensitive_body_key(str(key)) else item
-        for key, item in parsed.items()
-    }
+    redacted = redact_for_log(parsed)
     return json.dumps(redacted)
 
 

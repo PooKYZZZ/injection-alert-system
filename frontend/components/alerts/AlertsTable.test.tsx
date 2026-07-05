@@ -209,7 +209,7 @@ describe('AlertsTable', () => {
     }
   )
 
-  it('marks new alerts as in review when clicked', async () => {
+  it('shows in-review only after the triage mutation succeeds', async () => {
     const onAlertClick = vi.fn()
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),
@@ -248,8 +248,22 @@ describe('AlertsTable', () => {
     const rowLabel = await screen.findByLabelText('Select alert 42')
     rowLabel.closest('tr')?.click()
 
-    expect(mockTriageMutate).toHaveBeenCalledWith({ id: '42', status: 'in_review' })
+    expect(mockTriageMutate).toHaveBeenCalledWith(
+      { id: '42', status: 'in_review' },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    )
     expect(onAlertClick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alert_id: '42',
+        triage_status: 'new',
+      })
+    )
+    const mutationOptions = mockTriageMutate.mock.calls[0][1]
+    mutationOptions.onSuccess({
+      ...mockedUseAlertsFromFilters.mock.results[0].value.data.items[0],
+      triage_status: 'in_review',
+    })
+    expect(onAlertClick).toHaveBeenLastCalledWith(
       expect.objectContaining({
         alert_id: '42',
         triage_status: 'in_review',
@@ -257,7 +271,7 @@ describe('AlertsTable', () => {
     )
   })
 
-  it('marks null triage alerts as in review when clicked', async () => {
+  it('keeps the original drawer state when the triage mutation fails', async () => {
     const onAlertClick = vi.fn()
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),
@@ -296,13 +310,17 @@ describe('AlertsTable', () => {
     const rowLabel = await screen.findByLabelText('Select alert 77')
     rowLabel.closest('tr')?.click()
 
-    expect(mockTriageMutate).toHaveBeenCalledWith({ id: '77', status: 'in_review' })
+    expect(mockTriageMutate).toHaveBeenCalledWith(
+      { id: '77', status: 'in_review' },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    )
     expect(onAlertClick).toHaveBeenCalledWith(
       expect.objectContaining({
         alert_id: '77',
-        triage_status: 'in_review',
+        triage_status: null,
       })
     )
+    expect(onAlertClick).toHaveBeenCalledTimes(1)
   })
 
   it('renders the request column with readable two-line request evidence', async () => {

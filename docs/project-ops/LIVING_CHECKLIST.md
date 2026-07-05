@@ -6,14 +6,14 @@
 **Last updated:** 2026-07-05
 
 Status note:
-- Current test baseline: pytest 496 passed, vitest 317 passed, typecheck passed, lint passed, build passed
+- Current test baseline: pytest 525 passed, vitest 331 passed, typecheck passed, lint passed, build passed
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
 - Confidence-tier naming is clarified in code/docs: `confidence_tier` is the preferred filter name, legacy `severity` remains a compatibility alias, current tiers remain `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`, and `CRITICAL >=90%` is implemented as the confidence threshold
 - Frontend confidence semantics are aligned: persisted-alert grouping/styling uses `confidence_level`; enforcement-policy counts exclude Normal predictions; Normal remains `ALLOWED` for every valid tier; tier badges always display the canonical tier
 - Alerts UI role affordances are implemented for dense alert rows and detail views: viewers are read-only, analysts keep triage controls, and admins keep the full control set
-- DistilBERT staged promotion now uses `ml_model/export/promote_final_training_run.py` with archive-and-recreate safety
+- DistilBERT staged promotion now uses `ml_model/export/promote_final_training_run.py` with archive-and-recreate safety, `weights_only=True` checkpoint loading, and separate packaging/quality readiness fields
 - Real promotion command currently fails closed on strict head-shape mismatch between final-training checkpoint and `package_serving_artifact.py` loader expectations; rollback restoration behavior is verified
 - Local WAF ingest proof is verified in `reports/modsecurity-live-proof/e2e-proof.md`: WAF path `localhost:8088`, SQLi HTTP 403, JSON audit log, bridge `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `source_ip`, `request_path`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`
 - Realistic demo-target WAF proof is verified locally through `localhost:8089`: marker `SMOKE002945` returned HTTP 403, `demo-target-bridge` posted transaction `178249138618.813428`, and backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=15`
@@ -21,10 +21,11 @@ Status note:
 - Request/trace context, structured JSON logs for request/WAF/prediction boundaries, bridge JSON logs, and recursive log-field redaction are implemented and covered by targeted backend tests
 - Final-demo automation is checked in at `scripts/run_final_demo_smoke.py` with
   deterministic Docker-free tests; live `8088`/`8089` modes remain opt-in
-  local proof, and Docker-internal lookup remains a manual runbook step
+  local proof, and `--require-backend-lookup` enforces current-marker backend
+  correlation after bounded audit-flush and bridge-persistence waits
 - The smoke suite now explicitly covers `--json` parsing, safe failure output,
-  timeout/unavailable handling, and secret redaction, without requiring Docker
-  for CI-safe verification
+  stale-audit rejection, timestamp/marker correlation, timeout/unavailable
+  handling, and secret redaction, without requiring Docker for CI-safe verification
 
 ## Ops Runbooks / Operator Truth
 
@@ -45,15 +46,15 @@ Status note:
 ## Current Verified State (2026-07-05)
 
 ### Test Baseline
-- Backend: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
-- Final-demo script tests → **9 passed**
+- Backend: `.venv\Scripts\python.exe -m pytest -q` → **525 passed**
+- Final-demo script tests → **16 passed**
 - API abuse smoke tests → **4 passed**
-- WAF ingest and inference queue tests → **24 passed**
+- WAF ingest and inference queue tests → **25 passed**
 - Request-context regression tests → **9 passed**
 - Frontend lint: `cd frontend && npm run lint` → **PASSED**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **PASSED**
-- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **95 passed**
-- Frontend full suite: `cd frontend && npx vitest run` → **317 passed**
+- Frontend BFF: `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **96 passed**
+- Frontend full suite: `cd frontend && npx vitest run` → **331 passed**
 - Frontend build: `cd frontend && npm run build` → **PASSED**
 
 ### Backend Routes
@@ -110,7 +111,7 @@ Status note:
 - [ ] Add email notifications after detection using a transactional email provider/API
 - [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
-- [~] Login hardening includes Argon2id-only verification, generic errors, local identifier/global throttles, a two-slot password-hash cap, eight-hour sessions, and safe JSON login and route-guard audit logs; MFA, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
+- [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, generic errors, local identifier/global throttles, a two-slot password-hash cap, eight-hour sessions, current-row MFA fail-closed checks, and safe JSON login and route-guard audit logs; MFA enrollment/challenge, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
 - [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Live Supabase migration application remains a reviewed manual operation
 - [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
 - [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed

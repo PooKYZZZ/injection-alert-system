@@ -245,7 +245,7 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
                       <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-[10px]">
                         <div>
                           <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Host</p>
-                          <p className="font-mono text-[var(--color-text-primary)]">dashboard.local</p>
+                          <p className="font-mono text-[var(--color-text-primary)]">—</p>
                         </div>
                         <div>
                           <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Source-IP</p>
@@ -426,5 +426,4 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
     </Dialog.Root>
   )
 }
-
 

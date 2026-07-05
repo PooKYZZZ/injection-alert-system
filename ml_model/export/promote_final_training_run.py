@@ -134,6 +134,32 @@ def build_provenance_payload(
     dataset_version: str = "",
     label_names: list[str] | None = None,
 ) -> dict[str, Any]:
+    effective_label_names = list(label_names or DEFAULT_LABEL_NAMES)
+    artifact_packaging_ready = bool(
+        validation_gates.get("artifact_packaging_pipeline_passed")
+        and validation_gates.get("local_reload_validated")
+    )
+    quality_gates_passed = bool(validation_gates.get("quality_gates_passed"))
+    source_validation_passed = bool(
+        validation_gates.get("source_validation_passed")
+    )
+    checkpoint_hash_recorded = (
+        len(checkpoint_sha256) == 64
+        and all(
+            character in "0123456789abcdefABCDEF"
+            for character in checkpoint_sha256
+        )
+    )
+    labels_validated = (
+        label_names is not None and effective_label_names == DEFAULT_LABEL_NAMES
+    )
+    ready_for_promotion = bool(
+        artifact_packaging_ready
+        and quality_gates_passed
+        and source_validation_passed
+        and checkpoint_hash_recorded
+        and labels_validated
+    )
     return {
         "model_name": model_name,
         "promoted_version": promoted_version,
@@ -147,9 +173,15 @@ def build_provenance_payload(
         "dataset_version": dataset_version,
         "repo_commit": repo_commit,
         "calibration_temperature": float(calibration_temperature),
-        "label_names": list(label_names or DEFAULT_LABEL_NAMES),
+        "label_names": effective_label_names,
         "previous_version_archived_to": archived_path,
         "validation_gates_passed": dict(validation_gates),
+        "artifact_packaging_ready": artifact_packaging_ready,
+        "quality_gates_passed": quality_gates_passed,
+        "source_validation_passed": source_validation_passed,
+        "checkpoint_hash_recorded": checkpoint_hash_recorded,
+        "labels_validated": labels_validated,
+        "ready_for_promotion": ready_for_promotion,
     }
 
 
@@ -227,6 +259,9 @@ def write_eval_provenance_files(
     temperature: float,
     repo_commit: str,
     dataset_version: str,
+    artifact_packaging_pipeline_passed: bool,
+    local_reload_validated: bool,
+    quality_gates_passed: bool,
 ) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     eval_run_dir = Path(eval_root) / timestamp
@@ -239,8 +274,19 @@ def write_eval_provenance_files(
         "dataset_version": dataset_version,
         "promotion_summary": {
             model_key: {
-                "ready_for_promotion": True,
-                "gates": {"promotion_pipeline": True},
+                "artifact_packaging_ready": bool(
+                    artifact_packaging_pipeline_passed
+                    and local_reload_validated
+                ),
+                "quality_gates_passed": quality_gates_passed,
+                "ready_for_promotion": False,
+                "gates": {
+                    "artifact_packaging_pipeline_passed": (
+                        artifact_packaging_pipeline_passed
+                    ),
+                    "local_reload_validated": local_reload_validated,
+                    "quality_gates_passed": quality_gates_passed,
+                },
                 "temperature": float(temperature),
                 "git_hash": repo_commit,
                 "run_dir": run_dir_name,
@@ -336,7 +382,7 @@ def extract_state_dict_checkpoint(
     source = Path(source_path)
     target = Path(target_path)
 
-    checkpoint = torch.load(source, map_location="cpu", weights_only=False)
+    checkpoint = torch.load(source, map_location="cpu", weights_only=True)
     if not isinstance(checkpoint, dict) or "model_state_dict" not in checkpoint:
         raise PromotionError(
             f"Checkpoint at '{source}' does not contain a model_state_dict payload."
@@ -478,15 +524,6 @@ def promote_final_training_run(
         write_json(fresh_active_dir / "eval_report.json", eval_report)
         write_text(fresh_active_dir / "git_hash.txt", f"{repo_commit}\n")
 
-        eval_run_dir = write_eval_provenance_files(
-            eval_root=Path(repo_root) / "ml_model" / "model_registry" / "eval",
-            model_key=model_key,
-            run_dir_name=fresh_active_dir.name,
-            temperature=calibration_temperature,
-            repo_commit=repo_commit,
-            dataset_version=str(config_used.get("dataset_version", "")),
-        )
-
         packaged_run_dir = run_packager(
             model_key=model_key,
             run_dir_name=fresh_active_dir.name,
@@ -494,16 +531,29 @@ def promote_final_training_run(
         )
 
         validation_gates = {
-            "source_validation": True,
-            "packaging": True,
-            "reload_test": False,
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": False,
+            "quality_gates_passed": False,
         }
         validate_local_reload(
             active_run_dir=packaged_run_dir,
             repo_root=repo_root,
             expected_model_version=fresh_active_dir.name,
         )
-        validation_gates["reload_test"] = True
+        validation_gates["local_reload_validated"] = True
+
+        eval_run_dir = write_eval_provenance_files(
+            eval_root=Path(repo_root) / "ml_model" / "model_registry" / "eval",
+            model_key=model_key,
+            run_dir_name=fresh_active_dir.name,
+            temperature=calibration_temperature,
+            repo_commit=repo_commit,
+            dataset_version=str(config_used.get("dataset_version", "")),
+            artifact_packaging_pipeline_passed=True,
+            local_reload_validated=True,
+            quality_gates_passed=False,
+        )
 
         provenance = build_provenance_payload(
             model_name="distilbert-injection-detector",

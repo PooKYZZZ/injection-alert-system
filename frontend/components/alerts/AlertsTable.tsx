@@ -287,8 +287,15 @@ function AlertsTableContent({
 
   const handleRowClick = (alert: Alert) => {
     if (canTriage && isNewTriageStatus(alert.triage_status)) {
-      updateTriage({ id: alert.alert_id, status: 'in_review' })
-      onAlertClick({ ...alert, triage_status: 'in_review' })
+      onAlertClick(alert)
+      updateTriage(
+        { id: alert.alert_id, status: 'in_review' },
+        {
+          onSuccess: (updatedAlert) => {
+            onAlertClick(updatedAlert)
+          },
+        }
+      )
       return
     }
 

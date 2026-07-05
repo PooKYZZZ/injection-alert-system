@@ -37,7 +37,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - ModSecurity audit log contained `transaction.unique_id=17821639659.909603`, `transaction.client_ip=172.21.0.1`, and request URI `/api/health?id=17%27%20OR%2017%3D17--`.
 - Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
 - Docker-internal backend lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
-- Targeted checks passed: bridge tests `37 passed`, WAF ingest route tests `11 passed`, WAF ingest use-case tests `4 passed`; the latest combined targeted run passed `52` tests, and the previously verified `docker compose config --quiet` result remains part of the proof record.
+- Targeted checks passed: bridge tests `47 passed`, WAF ingest route tests `12 passed`, WAF ingest use-case tests `4 passed`; the combined boundary set passed `63` tests.
 - Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; it preserves the last safe file position, warns, sleeps, and resumes follow processing after reopen.
 
 ### Realistic demo-target WAF proof (2026-06-27)
@@ -53,13 +53,13 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 ### Checks run through 2026-07-05
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **525 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **317 passed**
+  - `cd frontend && npx vitest run` → **331 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 - PR #79 GitHub CI:
@@ -92,13 +92,13 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
 - Internal backend routes are protected by bearer-token auth using `API_SECRET_KEY`
 - Request context middleware preserves or generates safe request IDs, supports W3C version-00 `traceparent`, and returns `X-Request-ID` on handled and generic unhandled `500` responses
-- Structured JSON logs cover request completion/failure, WAF ingest outcomes, direct prediction outcomes, and bridge operational/configuration events; sensitive keyed fields are recursively redacted
+- Structured JSON logs cover request completion/failure, WAF ingest outcomes, direct prediction outcomes, and bridge operational/configuration events; sensitive keyed fields are recursively redacted with case/separator-insensitive key matching and cycle/depth bounds
 
 ### Frontend
 
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
-- Supabase `auth_accounts` login, Argon2id password verification, and DB-backed role/`authz_version` freshness checks are implemented in repo; target environments still require reviewed migration and account provisioning
+- Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; target environments still require reviewed migration and account provisioning
 - Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow is the current foundation, while MFA remains planned and `mfa_required=true` accounts fail closed until it lands
 - Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
@@ -112,7 +112,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode
   - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**)
-  - all five handlers apply the same existing session auth pattern via `auth()`
+  - all six handlers await the central DB-backed permission guard before downstream work
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
     - `confidence_level`: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`

@@ -46,11 +46,16 @@ function session(role: UserRole = ROLES.ADMIN, authzVersion = 1) {
   }
 }
 
-function setCurrentAccount(role: UserRole, authzVersion = 1) {
+function setCurrentAccount(
+  role: UserRole,
+  authzVersion = 1,
+  mfaRequired = false
+) {
   getAccountForSessionFreshnessMock.mockResolvedValue({
     id: accountId,
     role,
     authzVersion,
+    mfaRequired,
     disabledAt: null,
   })
 }
@@ -915,5 +920,21 @@ describe('BFF route handlers', () => {
       error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
     })
     expect(getAlertsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 401 and skips the BFF client when MFA becomes required', async () => {
+    setCurrentAccount(ROLES.ADMIN, 1, true)
+    authMock.mockResolvedValueOnce(session(ROLES.ADMIN))
+    const { GET } = await import('./alerts/route')
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/alerts')
+    )
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({
+      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+    })
+    expect(getAlertsMock).not.toHaveBeenCalled()
   })
 })

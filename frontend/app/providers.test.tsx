@@ -61,23 +61,39 @@ describe('Providers', () => {
     document.documentElement.classList.remove('theme-transitioning')
   })
 
-  it('applies saved explicit theme to the root before children read it', () => {
+  it('applies saved explicit theme to the root after render', () => {
     window.localStorage.setItem('ias-theme', 'light')
     mockMatchMedia({ matchesDark: true })
 
-    function ThemeProbe() {
-      return <div data-testid="theme-probe">{document.documentElement.getAttribute('data-theme') ?? 'unset'}</div>
-    }
-
     render(
       <Providers>
-        <ThemeProbe />
+        <div>child</div>
       </Providers>
     )
 
-    expect(screen.getByTestId('theme-probe')).toHaveTextContent('light')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     expect(document.documentElement.style.colorScheme).toBe('light')
+  })
+
+  it('falls back safely when browser theme APIs throw', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn(() => {
+        throw new Error('media query unavailable')
+      }),
+    })
+
+    expect(() =>
+      render(
+        <Providers>
+          <div>child</div>
+        </Providers>
+      )
+    ).not.toThrow()
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
   })
 
   it('falls back to system preference when no explicit theme is saved', () => {

@@ -21,12 +21,13 @@ export type AuthAccountForSessionFreshness = {
   id: string
   role: UserRole
   authzVersion: number
+  mfaRequired: boolean
   disabledAt: string | null
 }
 
 const LOGIN_FIELDS =
   'id,email,username,name,role,authz_version,password_hash,mfa_required,disabled_at'
-const FRESHNESS_FIELDS = 'id,role,authz_version,disabled_at'
+const FRESHNESS_FIELDS = 'id,role,authz_version,mfa_required,disabled_at'
 const LOOKUP_FAILURE_MESSAGE = 'Unable to read authentication account.'
 const MAX_IDENTIFIER_LENGTH = 320
 
@@ -46,6 +47,7 @@ const freshnessAccountSchema = z.object({
   id: z.string().uuid(),
   role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
   authz_version: z.number().int().min(1),
+  mfa_required: z.boolean(),
   disabled_at: z.string().min(1).nullable(),
 })
 
@@ -151,6 +153,7 @@ export async function getAccountForSessionFreshness(
     id: account.data.id,
     role: account.data.role,
     authzVersion: account.data.authz_version,
+    mfaRequired: account.data.mfa_required,
     disabledAt: account.data.disabled_at,
   }
 }
