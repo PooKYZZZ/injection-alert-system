@@ -7,10 +7,10 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `4926609` (Unit 2)
+- Latest accepted commit: `ede2a53` (Unit 3)
 - Current unit: Unit 2 — ADMIN User Management and account setup
 - Current bounded objective: implement server-authorized account listing/creation/setup, role/status management, and verified managed-email transitions.
-- Next exact action: begin Unit 3 TOTP enrollment and backup-code contract after the Unit 2 commit.
+- Next exact action: begin Unit 4 pre-auth challenge, normal TOTP login, and Auth.js completion handoff.
 
 ## Unit 2 Contract
 
@@ -30,6 +30,22 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Visual thesis: a calm graphite-and-amber SOC administration workspace with dense readable rows and minimal chrome.
 - Content plan: concise page orientation, account-creation control, safe account table, and contextual row actions/status.
 - Interaction thesis: restrained entry reveal, clear pending/success feedback, and compact row action transitions; no ornamental dashboard-card grid.
+
+## Unit 3 Contract
+
+- Status: `Implemented`
+- In scope: additive TOTP factor corrections, AES-256-GCM secret encryption, RFC 6238 generation/verification with a three-step window and atomic replay protection, pending enrollment/activation, eight one-time Argon2id backup codes, display-once enrollment UI, and safe security/notification transitions.
+- Out of scope: normal password-plus-TOTP login handoff (Unit 4), recovery email OTP and backup-code recovery (Unit 5), password recovery and ADMIN MFA reset (Unit 6), Turnstile, deployment, and live provider execution.
+- Locked invariants: no plaintext TOTP secret or backup-code hash leaves trusted server code; pending factors expire after ten minutes; only one active factor exists per account; accepted time steps are monotonic and atomically consumed; backup codes are generated with cryptographic randomness, hashed, shown once, and never retrievable by ADMIN; Unit 4 claims remain the only path to a reachable final MFA session.
+- Primary change kind: `new feature slice`.
+- Secondary change kinds: additive schema correction and boundary extraction.
+- Scope: one additive migration, server-only crypto/TOTP/backup modules, narrow Supabase RPC adapters, enrollment route/UI, and focused tests.
+- Extraction outcome: `boundary` for MFA crypto and enrollment orchestration; `local module` for backup-code formatting and server-only database adapters.
+- Contract surfaces: additive factor/backup-code fields and explicit RPCs; new enrollment route/component; no FastAPI or alert contract changes.
+- Materialization: enrollment page is a route-level `container`; the setup form is a local interactive component; crypto and persistence remain server-only infrastructure boundaries.
+- Convention decision: preserve App Router, Zod, server-only Supabase, Auth.js session claims, and thin route handlers; use Node built-in crypto and existing Argon2id support.
+- Validation depth: crypto/TOTP/backup unit tests, migration source and disposable-PostgreSQL concurrency tests, Node 24 lint/typecheck/Vitest/build, and affected backend migration suite.
+- Escalation: none; normal login and final MFA session creation remain explicitly deferred to Unit 4.
 
 ## Unit 1 Contract
 
@@ -124,12 +140,14 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 0: `docs/project-ops/AUTH_V6_EXECUTION_LOG.md`
 - Unit 1: `.env.example`, `web_app/config.py`, `web_app/notifications/*`, `web_app/presentation/app.py`, `web_app/presentation/api/routes.py`, `scripts/run_resend_smoke.py`, migration `20260710_000009`, and focused notification/migration/PostgreSQL/script tests.
 - Unit 2: account-management migration `20260710_000010`, server-only account-management/token/password modules, ADMIN and public setup/verification route handlers, User Management/setup UI, role/sidebar/header updates, and focused frontend/backend/PostgreSQL tests.
+- Unit 3: TOTP migration `20260710_000011`, server-only AES-GCM/TOTP/backup-code modules, enrollment RPC adapters/routes/UI, MFA enrollment permission, QR generation dependency, and focused frontend/backend/PostgreSQL tests.
 
 ## Migrations and RPCs Introduced
 
 - Unit 0: none.
 - Unit 1: additive revision `20260710_000009`; RPCs `claim_notification_outbox_batch`, `complete_notification_outbox_job`, and `fail_notification_outbox_job` with `SECURITY INVOKER`, empty `search_path`, fully qualified tables, bounded inputs, `PUBLIC`/`anon`/`authenticated` revokes, and conditional `service_role` grant.
 - Unit 2: additive revision `20260710_000010`; RPCs `admin_create_auth_account`, `admin_resend_password_setup`, `consume_password_setup_token`, `admin_change_account_role`, `admin_set_account_enabled`, `admin_request_managed_email_change`, and `activate_verified_managed_email`. All are `SECURITY INVOKER`, use an empty `search_path`, apply bounded inputs and actor/self-mutation checks, and revoke browser roles with conditional `service_role` grants.
+- Unit 3: additive revision `20260710_000011`; RPCs `begin_totp_enrollment`, `activate_totp_factor`, `consume_totp_step`, `list_backup_code_candidates`, and `consume_backup_code`. They enforce pending/active/revoked factor lifecycle, atomic monotonic TOTP-step consumption, one-time backup-code updates, safe security events, and owner notifications.
 
 ## Validation Evidence
 
@@ -159,3 +177,6 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 2 implementation regression: initial downgrade left `email_verification` reset rows that violated the restored legacy constraint. Fix: downgrade deletes only those ephemeral rows before restoring the prior constraint; durable accounts and security events remain preserved.
 - Unit 2 High self-review fixes: managed-email requests reject collisions against current and pending addresses; custom mutation routes enforce the configured same-origin `Origin` boundary before parsing bodies; Next response-header rules keep route-specific no-store/no-referrer/noindex rules after the global rule so the specific values win.
 - Unit 2 remaining limitation: successful ADMIN mutations remain intentionally unreachable until Unit 4 supplies `auth_level=mfa`, `auth_method=totp`, and recent `auth_time` claims. Public setup/verification routes are explicit POST-only flows and do not auto-login.
+- Unit 3 focused frontend gate with Node 24.14.0: crypto/TOTP/backup/enrollment/guard/route/component tests passed; ESLint and TypeScript passed after the final QR component change.
+- Unit 3 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000010`, and re-upgrade all passed; TOTP activation/replay and concurrent backup-code consumption tests passed 2/2.
+- Unit 3 remaining limitation: normal password-plus-TOTP login, pre-auth challenge, Auth.js completion handoff, and recovery workflows remain deferred to Units 4 and 5. Enrollment is feature-flagged off by default.

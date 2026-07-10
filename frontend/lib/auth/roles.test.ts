@@ -21,6 +21,7 @@ describe('role permission policy', () => {
       ML_HEALTH_READ: 'ml-health:read',
       ACCOUNTS_READ: 'accounts:read',
       ACCOUNTS_MANAGE: 'accounts:manage',
+      MFA_ENROLLMENT: 'mfa:enrollment',
     })
   })
 
@@ -40,6 +41,7 @@ describe('role permission policy', () => {
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_TRIAGE)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_ACTION_UPDATE)).toBe(false)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ACCOUNTS_MANAGE)).toBe(false)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.MFA_ENROLLMENT)).toBe(true)
   })
 
   it('allows ADMIN every defined permission', () => {

@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   ML_HEALTH_READ: 'ml-health:read',
   ACCOUNTS_READ: 'accounts:read',
   ACCOUNTS_MANAGE: 'accounts:manage',
+  MFA_ENROLLMENT: 'mfa:enrollment',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -29,6 +30,7 @@ const ROLE_PERMISSIONS: Readonly<Record<UserRole, ReadonlySet<Permission>>> = {
     PERMISSIONS.ALERTS_TRIAGE,
     PERMISSIONS.STATS_READ,
     PERMISSIONS.ML_HEALTH_READ,
+    PERMISSIONS.MFA_ENROLLMENT,
   ]),
   [ROLES.ADMIN]: new Set(Object.values(PERMISSIONS)),
 }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSIONS, ROLES } from './roles'
 import {
+  requireMfaEnrollmentPermission,
   requireMfaPermission,
   requirePermission,
   requireRecentTotpAdmin,
@@ -288,6 +289,24 @@ describe('requirePermission', () => {
         PERMISSIONS.ACCOUNTS_READ
       )
     ).resolves.toEqual({ ok: true })
+  })
+
+  it('allows recovery-level sessions only for mandatory TOTP enrollment', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    await expect(
+      requireMfaEnrollmentPermission(
+        session(ROLES.ADMIN, 1, { auth_level: 'recovery', auth_method: 'backup_code' }),
+        PERMISSIONS.ACCOUNTS_READ
+      )
+    ).resolves.toEqual({ ok: true })
+    await expect(
+      requireMfaPermission(
+        session(ROLES.ANALYST, 1, { auth_level: 'recovery', auth_method: 'backup_code' }),
+        PERMISSIONS.ACCOUNTS_READ
+      )
+    ).resolves.toMatchObject({ ok: false })
   })
 
   it('requires recent TOTP-authenticated ADMIN for account mutations', async () => {

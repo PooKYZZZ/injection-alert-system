@@ -8,6 +8,10 @@ export function accountManagementEnabled(): boolean {
   return process.env.AUTH_ACCOUNT_MANAGEMENT_ENABLED === 'true'
 }
 
+export function mfaEnrollmentEnabled(): boolean {
+  return process.env.AUTH_MFA_ENROLLMENT_ENABLED === 'true'
+}
+
 export function featureDisabledResponse(): Response {
   return NextResponse.json(
     { error: { code: 'NOT_FOUND', message: 'Not found.' } },
@@ -77,5 +81,24 @@ export function publicTokenErrorResponse(): Response {
       },
     },
     { status: 400 }
+  )
+}
+
+export function totpErrorResponse(error: unknown): Response {
+  const code = error instanceof Error && 'code' in error ? error.code : undefined
+  const status = code === 'INVALID_REQUEST' || code === 'INVALID_CODE' ? 400 : 503
+  return NextResponse.json(
+    {
+      error: {
+        code: code === 'INVALID_CODE' ? 'INVALID_CODE' : 'MFA_UNAVAILABLE',
+        message:
+          code === 'INVALID_CODE'
+            ? 'That authenticator code is invalid or already used.'
+            : status === 400
+              ? 'The MFA request is invalid.'
+              : 'MFA enrollment is temporarily unavailable.',
+      },
+    },
+    { status }
   )
 }

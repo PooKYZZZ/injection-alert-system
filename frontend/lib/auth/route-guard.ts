@@ -40,9 +40,10 @@ function denied(status: 401 | 403): GuardResult {
   }
 }
 
-export async function requirePermission(
+async function requirePermissionAtLevels(
   session: GuardSession,
-  permission: Permission
+  permission: Permission,
+  allowedMfaLevels: readonly ('mfa' | 'recovery')[] = ['mfa']
 ): Promise<GuardResult> {
   if (!session) {
     return denied(401)
@@ -107,7 +108,7 @@ export async function requirePermission(
 
   if (
     currentAccount.mfaRequired &&
-    session.user?.auth_level !== 'mfa'
+    !allowedMfaLevels.includes(session.user?.auth_level as 'mfa' | 'recovery')
   ) {
     writeLoginAudit({
       event: 'auth.mfa_required',
@@ -160,6 +161,32 @@ export async function requirePermission(
     return denied(403)
   }
 
+  return { ok: true }
+}
+
+export async function requirePermission(
+  session: GuardSession,
+  permission: Permission
+): Promise<GuardResult> {
+  return requirePermissionAtLevels(session, permission, ['mfa'])
+}
+
+export async function requireMfaEnrollmentPermission(
+  session: GuardSession,
+  permission: Permission
+): Promise<GuardResult> {
+  const authorization = await requirePermissionAtLevels(
+    session,
+    permission,
+    ['mfa', 'recovery']
+  )
+  if (!authorization.ok) return authorization
+  if (
+    session?.user?.auth_level !== 'mfa' &&
+    session?.user?.auth_level !== 'recovery'
+  ) {
+    return denied(403)
+  }
   return { ok: true }
 }
 
