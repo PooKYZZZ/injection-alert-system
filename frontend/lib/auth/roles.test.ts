@@ -19,6 +19,8 @@ describe('role permission policy', () => {
       ALERTS_ACTION_UPDATE: 'alerts:action:update',
       STATS_READ: 'stats:read',
       ML_HEALTH_READ: 'ml-health:read',
+      ACCOUNTS_READ: 'accounts:read',
+      ACCOUNTS_MANAGE: 'accounts:manage',
     })
   })
 
@@ -28,6 +30,7 @@ describe('role permission policy', () => {
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ML_HEALTH_READ)).toBe(true)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ALERTS_TRIAGE)).toBe(false)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ALERTS_ACTION_UPDATE)).toBe(false)
+    expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ACCOUNTS_READ)).toBe(false)
   })
 
   it('allows ANALYST read and triage permissions', () => {
@@ -36,6 +39,7 @@ describe('role permission policy', () => {
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ML_HEALTH_READ)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_TRIAGE)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_ACTION_UPDATE)).toBe(false)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ACCOUNTS_MANAGE)).toBe(false)
   })
 
   it('allows ADMIN every defined permission', () => {

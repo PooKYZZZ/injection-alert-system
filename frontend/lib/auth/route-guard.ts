@@ -14,6 +14,9 @@ type GuardSession = {
     email?: unknown
     role?: unknown
     authz_version?: unknown
+    auth_level?: unknown
+    auth_method?: unknown
+    auth_time?: unknown
   }
 } | null
 
@@ -102,7 +105,10 @@ export async function requirePermission(
     return denied(401)
   }
 
-  if (currentAccount.mfaRequired) {
+  if (
+    currentAccount.mfaRequired &&
+    session.user?.auth_level !== 'mfa'
+  ) {
     writeLoginAudit({
       event: 'auth.mfa_required',
       level: 'warn',
@@ -154,5 +160,41 @@ export async function requirePermission(
     return denied(403)
   }
 
+  return { ok: true }
+}
+
+export async function requireMfaPermission(
+  session: GuardSession,
+  permission: Permission
+): Promise<GuardResult> {
+  const authorization = await requirePermission(session, permission)
+  if (!authorization.ok) return authorization
+  if (
+    session?.user?.auth_level !== 'mfa' ||
+    session.user.auth_method !== 'totp'
+  ) {
+    return denied(403)
+  }
+  return { ok: true }
+}
+
+export async function requireRecentTotpAdmin(
+  session: GuardSession,
+  permission: Permission,
+  nowSeconds: () => number = () => Math.floor(Date.now() / 1_000)
+): Promise<GuardResult> {
+  const authorization = await requireMfaPermission(session, permission)
+  if (!authorization.ok) return authorization
+  if (session?.user?.role !== 'ADMIN') return denied(403)
+  const authTime = session.user.auth_time
+  const now = nowSeconds()
+  if (
+    typeof authTime !== 'number' ||
+    !Number.isInteger(authTime) ||
+    authTime > now + 30 ||
+    now - authTime > 10 * 60
+  ) {
+    return denied(403)
+  }
   return { ok: true }
 }

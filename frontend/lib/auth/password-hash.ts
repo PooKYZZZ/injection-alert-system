@@ -4,6 +4,7 @@ export const ARGON2_MEMORY_COST = 19_456
 export const ARGON2_TIME_COST = 2
 export const ARGON2_PARALLELISM = 1
 export const MAX_PASSWORD_LENGTH = 256
+export const MIN_NEW_PASSWORD_LENGTH = 15
 export const PASSWORD_HASH_CONCURRENCY_LIMIT = 2
 export const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$bN0r/SKG56J5Ob9MOsU6/g$9XJz/v+ujBicSJlqn5EsoyP5yRugqmFdYl3xjxEH5ko'
@@ -17,6 +18,20 @@ const ARGON2_OPTIONS = {
   timeCost: ARGON2_TIME_COST,
   parallelism: ARGON2_PARALLELISM,
 } as const
+
+export type NewPasswordValidation =
+  | { ok: true }
+  | { ok: false; code: 'PASSWORD_TOO_SHORT' | 'PASSWORD_TOO_LONG' }
+
+export function validateNewPassword(password: unknown): NewPasswordValidation {
+  if (typeof password !== 'string' || password.length < MIN_NEW_PASSWORD_LENGTH) {
+    return { ok: false, code: 'PASSWORD_TOO_SHORT' }
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return { ok: false, code: 'PASSWORD_TOO_LONG' }
+  }
+  return { ok: true }
+}
 
 function passwordIsWithinBounds(password: unknown): password is string {
   return (

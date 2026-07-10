@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSIONS, ROLES } from './roles'
-import { requirePermission } from './route-guard'
+import {
+  requireMfaPermission,
+  requirePermission,
+  requireRecentTotpAdmin,
+} from './route-guard'
 
 const guardHarness = vi.hoisted(() => ({
   getAccount: vi.fn(),
@@ -32,13 +36,18 @@ function currentAccount(
   }
 }
 
-function session(role: string = ROLES.ANALYST, authzVersion = 1) {
+function session(
+  role: string = ROLES.ANALYST,
+  authzVersion = 1,
+  authClaims: Record<string, unknown> = {}
+) {
   return {
     user: {
       id: accountId,
       email: 'analyst@example.test',
       role,
       authz_version: authzVersion,
+      ...authClaims,
     },
     expires: '2099-01-01T00:00:00.000Z',
   }
@@ -261,6 +270,81 @@ describe('requirePermission', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.response.status).toBe(403)
+    }
+  })
+
+  it('allows an MFA session for an account whose policy requires MFA', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+
+    await expect(
+      requireMfaPermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'mfa',
+          auth_method: 'totp',
+          auth_time: 1_000,
+        }),
+        PERMISSIONS.ACCOUNTS_READ
+      )
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('requires recent TOTP-authenticated ADMIN for account mutations', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    const recentAdmin = session(ROLES.ADMIN, 1, {
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      auth_time: 1_000,
+    })
+
+    await expect(
+      requireRecentTotpAdmin(
+        recentAdmin,
+        PERMISSIONS.ACCOUNTS_MANAGE,
+        () => 1_599
+      )
+    ).resolves.toEqual({ ok: true })
+
+    guardHarness.getAccount.mockResolvedValueOnce(
+      currentAccount({ role: ROLES.ANALYST, mfaRequired: true })
+    )
+    const analystResult = await requireRecentTotpAdmin(
+      session(ROLES.ANALYST, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 1_000,
+      }),
+      PERMISSIONS.ACCOUNTS_MANAGE,
+      () => 1_001
+    )
+    expect(analystResult.ok).toBe(false)
+    if (!analystResult.ok) expect(analystResult.response.status).toBe(403)
+
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    for (const deniedSession of [
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'password',
+        auth_method: 'password',
+        auth_time: 1_000,
+      }),
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 1_000,
+      }),
+    ]) {
+      const result = await requireRecentTotpAdmin(
+        deniedSession,
+        PERMISSIONS.ACCOUNTS_MANAGE,
+        () => 1_601
+      )
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect([401, 403]).toContain(result.response.status)
     }
   })
 })

@@ -8,10 +8,12 @@ import { SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
+import type { UserRole } from '@/lib/auth/roles'
 
 interface SidebarProps {
   displayName?: string | null
   secondaryLabel?: string | null
+  role?: UserRole
 }
 
 function getInitials(name: string): string {
@@ -23,7 +25,7 @@ function getInitials(name: string): string {
   return initials || 'U'
 }
 
-export function Sidebar({ displayName }: SidebarProps) {
+export function Sidebar({ displayName, role }: SidebarProps) {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
   const resolvedName = displayName?.trim() || 'SOC Analyst'
   const initials = getInitials(resolvedName)
@@ -46,7 +48,9 @@ export function Sidebar({ displayName }: SidebarProps) {
           </div>
 
           <nav className="flex flex-1 flex-col overflow-y-auto bg-surface-panel py-4">
-            {NAV_ITEMS.map((item) =>
+            {NAV_ITEMS.filter(
+              (item) => !('adminOnly' in item) || role === 'ADMIN'
+            ).map((item) =>
               item.href === '/alerts' ? (
                 <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
               ) : (

@@ -76,6 +76,7 @@ def _render_simple(
         "admin_mfa_reset": ("CyberTrace MFA reset", "An administrator reset MFA for your account."),
         "account_disabled": ("CyberTrace account disabled", "Your CyberTrace account was disabled."),
         "account_reenabled": ("CyberTrace account re-enabled", "Your CyberTrace account was re-enabled."),
+        "managed_email_changed": ("CyberTrace email changed", "Your CyberTrace account email address was changed."),
     }
     if kind in specs:
         subject, field, prefix = specs[kind]

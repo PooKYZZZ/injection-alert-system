@@ -12,6 +12,8 @@ export const PERMISSIONS = {
   ALERTS_ACTION_UPDATE: 'alerts:action:update',
   STATS_READ: 'stats:read',
   ML_HEALTH_READ: 'ml-health:read',
+  ACCOUNTS_READ: 'accounts:read',
+  ACCOUNTS_MANAGE: 'accounts:manage',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

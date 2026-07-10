@@ -7,10 +7,29 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `7ee300e` (Unit 0)
-- Current unit: Unit 1 — notification foundation (`Implemented`)
-- Current bounded objective: accepted after focused, full-suite, and disposable-PostgreSQL validation.
-- Next exact action: commit Unit 1, then begin Unit 2 with ADMIN-authorization and account-setup failing tests.
+- Latest accepted commit: `4926609` (Unit 2)
+- Current unit: Unit 2 — ADMIN User Management and account setup
+- Current bounded objective: implement server-authorized account listing/creation/setup, role/status management, and verified managed-email transitions.
+- Next exact action: begin Unit 3 TOTP enrollment and backup-code contract after the Unit 2 commit.
+
+## Unit 2 Contract
+
+- Status: `Implemented`
+- In scope: ADMIN-only navigation/page/APIs, safe account list, account creation without ADMIN-chosen passwords, one-time setup link, role-derived MFA policy, setup completion, role change, disable/re-enable, managed-email verification, and authorization-negative tests.
+- Out of scope: usable ADMIN MFA sessions (Unit 4), TOTP enrollment (Unit 3), MFA reset (Unit 6), recovery, Turnstile, and public deployment.
+- Locked invariants: all mutations require a fresh server-side account reload plus ADMIN/TOTP/recent-auth claims; until Unit 4 can issue those claims, mutations fail closed; tokens are generated/digested server-side, URLs use trusted configured origin, GET never consumes a token, and ADMIN never supplies or sees another user's password.
+- Primary change kind: `new feature slice`.
+- Secondary change kinds: additive contract change and boundary extraction.
+- Scope: one additive migration, narrow account-management RPCs, local Next.js server modules/routes, local account-management feature UI, safe headers, and focused tests.
+- Extraction outcome: `boundary` for account-management orchestration; `local module` for token/password policy and Supabase RPC adapters.
+- Contract surfaces: additive account/reset fields and explicit RPCs; new BFF routes/pages; additive permission and session-claim reads; no existing alert/FastAPI response changes.
+- Materialization: page is a route-level `container`; the User Management workspace is a local interactive component boundary; DB adapter and token handling remain server-only infrastructure boundaries.
+- Convention decision: preserve existing App Router, Zod route validation, server-only Supabase client, semantic surface tokens, and thin route handlers.
+- Validation depth: guard/route/component unit tests, migration source and disposable-PostgreSQL transition tests, Node 24 lint/typecheck/Vitest/build, and affected backend migration suite.
+- Escalation: none; Unit 4 is an explicit dependency for reachable successful ADMIN mutations, and Unit 2 remains securely fail-closed until then.
+- Visual thesis: a calm graphite-and-amber SOC administration workspace with dense readable rows and minimal chrome.
+- Content plan: concise page orientation, account-creation control, safe account table, and contextual row actions/status.
+- Interaction thesis: restrained entry reveal, clear pending/success feedback, and compact row action transitions; no ornamental dashboard-card grid.
 
 ## Unit 1 Contract
 
@@ -104,11 +123,13 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 
 - Unit 0: `docs/project-ops/AUTH_V6_EXECUTION_LOG.md`
 - Unit 1: `.env.example`, `web_app/config.py`, `web_app/notifications/*`, `web_app/presentation/app.py`, `web_app/presentation/api/routes.py`, `scripts/run_resend_smoke.py`, migration `20260710_000009`, and focused notification/migration/PostgreSQL/script tests.
+- Unit 2: account-management migration `20260710_000010`, server-only account-management/token/password modules, ADMIN and public setup/verification route handlers, User Management/setup UI, role/sidebar/header updates, and focused frontend/backend/PostgreSQL tests.
 
 ## Migrations and RPCs Introduced
 
 - Unit 0: none.
 - Unit 1: additive revision `20260710_000009`; RPCs `claim_notification_outbox_batch`, `complete_notification_outbox_job`, and `fail_notification_outbox_job` with `SECURITY INVOKER`, empty `search_path`, fully qualified tables, bounded inputs, `PUBLIC`/`anon`/`authenticated` revokes, and conditional `service_role` grant.
+- Unit 2: additive revision `20260710_000010`; RPCs `admin_create_auth_account`, `admin_resend_password_setup`, `consume_password_setup_token`, `admin_change_account_role`, `admin_set_account_enabled`, `admin_request_managed_email_change`, and `activate_verified_managed_email`. All are `SECURITY INVOKER`, use an empty `search_path`, apply bounded inputs and actor/self-mutation checks, and revoke browser roles with conditional `service_role` grants.
 
 ## Validation Evidence
 
@@ -121,6 +142,10 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 1 disposable PostgreSQL 17: full migration upgrade succeeded; outbox two-worker claim and transaction-rollback tests -> 2 passed using independent connections; downgrade one revision and re-upgrade succeeded. Target was local container `cybertrace-v61-pgtest`, not hosted or production.
 - Unit 1 dependency/compile checks: `pip check` reported no broken requirements; `compileall` and `git diff --check` passed.
 - Unit 1 live Resend: safely skipped. Required key/from/approved-recipient/enablement gates were all absent or false; no network request was made.
+- Unit 2 focused frontend gate with Node 24.14.0: ESLint passed, TypeScript passed, and 64 targeted Vitest tests passed.
+- Unit 2 full frontend gate with Node 24.14.0: 52 test files and 360 tests passed; production `next build` completed successfully with non-production sentinel environment values.
+- Unit 2 backend gate: full suite 562 passed and 6 opt-in PostgreSQL tests skipped in the ordinary environment-gated run.
+- Unit 2 disposable PostgreSQL 17: migration source checks 3 passed; account-management integration 4 passed, including concurrent single-use setup-token consumption, authz-version changes, MFA derivation, managed-email activation, old-address notice, and collision rejection. The container target was local `cybertrace-v61-pgtest`, not hosted or production.
 
 ## Failures, Fixes, and Risks
 
@@ -131,3 +156,6 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 1 implementation regression: direct script execution lacked the repository root import path. Fixed in the command wrapper and locked with a subprocess regression test.
 - Unit 1 High self-review fixes: legacy `sending` rows now receive an immediately reclaimable lease during migration; completion is owner-bound rather than time-bound after provider acceptance; provider message IDs are restricted to log-safe characters before reporting.
 - Unit 1 remaining limitation: provider acceptance is proven through fake/mocked contracts only; real inbox delivery, verified-domain sending, and deployed worker operation remain external human/deployment actions.
+- Unit 2 implementation regression: initial downgrade left `email_verification` reset rows that violated the restored legacy constraint. Fix: downgrade deletes only those ephemeral rows before restoring the prior constraint; durable accounts and security events remain preserved.
+- Unit 2 High self-review fixes: managed-email requests reject collisions against current and pending addresses; custom mutation routes enforce the configured same-origin `Origin` boundary before parsing bodies; Next response-header rules keep route-specific no-store/no-referrer/noindex rules after the global rule so the specific values win.
+- Unit 2 remaining limitation: successful ADMIN mutations remain intentionally unreachable until Unit 4 supplies `auth_level=mfa`, `auth_method=totp`, and recent `auth_time` claims. Public setup/verification routes are explicit POST-only flows and do not auto-login.

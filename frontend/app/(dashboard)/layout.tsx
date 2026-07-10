@@ -24,6 +24,7 @@ export default async function DashboardLayout({
       <Sidebar
         displayName={session.user?.name ?? null}
         secondaryLabel={session.user?.email ?? null}
+        role={session.user.role}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
         <DashboardTopBar />

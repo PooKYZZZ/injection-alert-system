@@ -60,3 +60,16 @@ def test_unknown_template_or_version_fails_closed() -> None:
             template_version=99,
             idempotency_key="unknown/1",
         )
+
+
+def test_managed_email_change_owner_notification_is_supported() -> None:
+    message = render_email(
+        kind="managed_email_changed",
+        recipient="old-address@example.test",
+        payload={},
+        template_version=1,
+        idempotency_key="managed-email/account-1",
+    )
+
+    assert message.subject == "CyberTrace email changed"
+    assert "email address was changed" in message.text
