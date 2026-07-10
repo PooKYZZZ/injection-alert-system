@@ -7,7 +7,7 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: pending final audit commit (Unit 7 validation complete)
+- Latest accepted commit: `063f845` (Unit 7 final audit sequence)
 - Current unit: Unit 7 — Turnstile, deployment, audit, and documentation
 - Current bounded objective: complete final server-side hardening, truthful operator docs, full regression validation, and external-gate handoff.
 - Next exact action: finish the final cumulative audit and handoff after the Unit 7 commit.
@@ -206,7 +206,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 6 remaining limitation: Turnstile, deployment, final audit, and documentation truth sweep remain deferred to Unit 7. Password reset, email recovery, and MFA-reset features are feature-flagged off by default.
 - Unit 7 focused frontend gate with Node 24.14.0: Turnstile verifier tests 3/3 passed; ESLint and TypeScript passed.
 - Unit 7 final frontend gate with Node 24.14.0: 71 test files and 406 tests passed; production `next build` completed successfully with non-production sentinel environment values.
-- Unit 7 final backend gate: full `.venv\Scripts\python.exe -m pytest -q` passed 572 tests with 15 opt-in PostgreSQL tests skipped in the ordinary run; migration source tests passed 27/27 and the disposable PostgreSQL Unit 2–6 suites passed 15/15 when explicitly enabled.
+- Unit 7 final backend gate: full `.venv\Scripts\python.exe -m pytest -q` passed 572 tests with 15 opt-in PostgreSQL tests skipped in the ordinary run; migration source tests passed 27/27 and the disposable PostgreSQL Unit 2–6 suites passed 13/13 when explicitly enabled.
 - Unit 7 dependency/secret checks: `pip check` passed; `npm audit --audit-level=high` reported only the known three moderate Next/PostCSS transitive findings and no high/critical findings; repository secret scan found no credentials or private-key material.
 - Unit 7 external gates remain explicit: live Resend/inbox delivery, hosted Supabase migration, public deployment, and Turnstile hostname proof were not claimed or executed.
 - Unit 7 cumulative migration replay: disposable PostgreSQL downgraded from head to `20260704_000008` and upgraded back to head successfully after the legacy-factor revocation fix.
