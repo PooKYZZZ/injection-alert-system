@@ -33,10 +33,12 @@ The promotion flow is strict and fail-closed:
 - archives the full active staged run outside the active path
 - recreates the active staged directory fresh
 - writes `best_distilbert_ckpt.pt`, `config_used.json`, `eval_report.json`, and `git_hash.txt`
-- invokes `package_serving_artifact.py` in strict mode
+- writes a provisional, not-ready eval provenance record and passes that exact
+  calibration source to `package_serving_artifact.py` in strict mode
 - verifies local reload
-- writes honest eval provenance under `ml_model/model_registry/eval/<timestamp>/`
-  with packaging, reload, and quality readiness kept separate
+- finalizes the same eval provenance record under
+  `ml_model/model_registry/eval/<timestamp>/`, with packaging, reload, and
+  quality readiness kept separate
 - writes `provenance.json` and `MODEL_CARD.md`
 
 If a downstream step fails after archive, the script restores the archived run back to the active path.

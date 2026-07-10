@@ -53,13 +53,13 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 ### Checks run through 2026-07-05
 
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **525 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
 - Frontend types: `cd frontend && npm run typecheck` → **passed**
 - Focused frontend BFF tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **passed**
 - Full frontend suite:
-  - `cd frontend && npx vitest run` → **331 passed**
+  - `cd frontend && npx vitest run` → **333 passed**
 - Frontend build:
   - `cd frontend && npm run build` → **passed**
 - PR #79 GitHub CI:

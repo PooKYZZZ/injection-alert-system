@@ -1104,18 +1104,21 @@ def test_run_bridge_retries_transient_connection_failure(monkeypatch, capsys):
 def test_retries_retryable_http_error_statuses(monkeypatch, status_code):
     attempts = []
     sleeps = []
+    response_bodies = []
     headers = Message()
     headers["Retry-After"] = "3"
 
     def _post(payload, endpoint, api_secret, timeout):
         attempts.append(status_code)
         if len(attempts) == 1:
+            response_body = StringIO("sensitive response body must not be logged")
+            response_bodies.append(response_body)
             raise HTTPError(
                 url=endpoint,
                 code=status_code,
                 msg="retryable",
                 hdrs=headers,
-                fp=StringIO("sensitive response body must not be logged"),
+                fp=response_body,
             )
         return 200
 
@@ -1134,11 +1137,13 @@ def test_retries_retryable_http_error_statuses(monkeypatch, status_code):
     assert status == 200
     assert attempts == [status_code, status_code]
     assert sleeps == [3.0]
+    assert response_bodies[0].closed
 
 
 @pytest.mark.parametrize("status_code", [400, 401, 403, 404])
 def test_does_not_retry_non_retryable_http_error(monkeypatch, status_code):
     attempts = []
+    response_body = StringIO("do not log this body")
 
     def _post(payload, endpoint, api_secret, timeout):
         attempts.append(status_code)
@@ -1147,7 +1152,7 @@ def test_does_not_retry_non_retryable_http_error(monkeypatch, status_code):
             code=status_code,
             msg="permanent",
             hdrs=None,
-            fp=StringIO("do not log this body"),
+            fp=response_body,
         )
 
     monkeypatch.setattr(waf_audit_bridge, "post_event", _post)
@@ -1163,6 +1168,7 @@ def test_does_not_retry_non_retryable_http_error(monkeypatch, status_code):
         )
 
     assert attempts == [status_code]
+    assert response_body.closed
 
 
 def test_invalid_retry_after_falls_back_to_bounded_backoff(monkeypatch):

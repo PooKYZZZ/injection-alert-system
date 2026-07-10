@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from ml_model.export.package_serving_artifact import resolve_calibration_provenance
 from ml_model.export.promote_final_training_run import (
     PromotionError,
     archive_existing_run,
@@ -410,6 +411,47 @@ def test_eval_provenance_does_not_claim_quality_readiness_without_gates(
     assert model_summary["ready_for_promotion"] is False
 
 
+def test_explicit_calibration_provenance_avoids_ambiguous_historical_runs(
+    tmp_path: Path,
+):
+    eval_root = tmp_path / "eval"
+    run_dir_name = "distilbert_test"
+    selected_dir: Path | None = None
+    for timestamp, temperature in (("20260710_100000", 0.6), ("20260710_110000", 1.2)):
+        eval_run_dir = eval_root / timestamp
+        eval_run_dir.mkdir(parents=True)
+        (eval_run_dir / "promotion_summary.json").write_text(
+            json.dumps(
+                {
+                    "promotion_summary": {
+                        "distilbert": {
+                            "run_dir": run_dir_name,
+                            "temperature": temperature,
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (eval_run_dir / "eval_results_distilbert_calibrated.json").write_text(
+            json.dumps({"temperature": temperature}),
+            encoding="utf-8",
+        )
+        if temperature == 1.2:
+            selected_dir = eval_run_dir
+
+    assert selected_dir is not None
+    calibration = resolve_calibration_provenance(
+        eval_root,
+        model_key="distilbert",
+        run_dir_name=run_dir_name,
+        calibration_eval_run_dir=selected_dir,
+    )
+
+    assert calibration.eval_run_dir == selected_dir.resolve()
+    assert calibration.temperature == 1.2
+
+
 def test_build_model_card_mentions_metrics_and_version_history():
     text = build_model_card(
         model_version="distilbert_v3_907k_cleaned_20260312_133755",
@@ -428,6 +470,7 @@ def test_run_packager_invokes_existing_package_serving_artifact(
     tmp_path: Path,
 ):
     calls: list[dict[str, object]] = []
+    calibration_eval_run_dir = tmp_path / "eval" / "20260710_120000"
 
     def fake_package_serving_artifact(**kwargs):
         calls.append(kwargs)
@@ -442,11 +485,13 @@ def test_run_packager_invokes_existing_package_serving_artifact(
         model_key="distilbert",
         run_dir_name="distilbert_v3_907k_cleaned_20260312_133755",
         notes=None,
+        calibration_eval_run_dir=calibration_eval_run_dir,
     )
 
     assert calls[0]["model_key"] == "distilbert"
     assert calls[0]["run_dir_name"] == "distilbert_v3_907k_cleaned_20260312_133755"
     assert calls[0]["strict"] is True
+    assert calls[0]["calibration_eval_run_dir"] == calibration_eval_run_dir
 
 
 def test_restore_archive_reinstates_old_active_run_after_failure(tmp_path: Path):
@@ -478,9 +523,21 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
         "ml_model.export.promote_final_training_run.validate_local_reload",
         lambda *args, **kwargs: None,
     )
+    packager_calls: list[dict[str, object]] = []
+
+    def fake_run_packager(**kwargs):
+        packager_calls.append(kwargs)
+        eval_run_dir = Path(kwargs["calibration_eval_run_dir"])
+        provisional_summary = json.loads(
+            (eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
+        )["promotion_summary"]["distilbert"]
+        assert provisional_summary["artifact_packaging_ready"] is False
+        assert provisional_summary["gates"]["local_reload_validated"] is False
+        return active_run_dir
+
     monkeypatch.setattr(
         "ml_model.export.promote_final_training_run.run_packager",
-        lambda **kwargs: active_run_dir,
+        fake_run_packager,
     )
 
     result = promote_final_training_run(
@@ -494,6 +551,13 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
     assert result.active_run_dir.exists()
     assert (result.active_run_dir / "provenance.json").exists()
     assert (result.active_run_dir / "MODEL_CARD.md").exists()
+    assert packager_calls[0]["calibration_eval_run_dir"] == result.eval_run_dir
+    final_summary = json.loads(
+        (result.eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
+    )["promotion_summary"]["distilbert"]
+    assert final_summary["artifact_packaging_ready"] is True
+    assert final_summary["gates"]["local_reload_validated"] is True
+    assert final_summary["ready_for_promotion"] is False
 
 
 def test_promote_final_training_run_does_not_archive_or_write_when_preflight_fails(

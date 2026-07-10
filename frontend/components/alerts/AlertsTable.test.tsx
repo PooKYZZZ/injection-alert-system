@@ -323,6 +323,59 @@ describe('AlertsTable', () => {
     expect(onAlertClick).toHaveBeenCalledTimes(1)
   })
 
+  it('does not reopen an earlier alert when its triage response arrives late', async () => {
+    const onAlertClick = vi.fn()
+    const firstAlert = {
+      alert_id: 'first',
+      timestamp: '2026-04-03T10:00:00.000Z',
+      source_ip: '10.0.0.10',
+      request_path: '/first',
+      request_method: 'POST',
+      payload_snippet: 'first payload',
+      prediction: 'SQL Injection',
+      confidence: 0.92,
+      confidence_level: 'HIGH' as const,
+      action_taken: 'BLOCKED' as const,
+      triage_status: 'new' as const,
+      crs_score: 9,
+    }
+    const secondAlert = {
+      ...firstAlert,
+      alert_id: 'second',
+      request_path: '/second',
+      triage_status: 'in_review' as const,
+    }
+    mockedUseAlertsFromFilters.mockReturnValue({
+      ...buildQueryResult(),
+      data: {
+        items: [firstAlert, secondAlert],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      },
+    } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+    render(
+      <AlertsTable
+        role="ANALYST"
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={onAlertClick}
+      />
+    )
+
+    ;(await screen.findByLabelText('Select alert first')).closest('tr')?.click()
+    screen.getByLabelText('Select alert second').closest('tr')?.click()
+
+    const firstMutationOptions = mockTriageMutate.mock.calls[0][1]
+    firstMutationOptions.onSuccess({ ...firstAlert, triage_status: 'in_review' })
+
+    expect(onAlertClick).toHaveBeenCalledTimes(2)
+    expect(onAlertClick).toHaveBeenLastCalledWith(
+      expect.objectContaining({ alert_id: 'second' })
+    )
+  })
+
   it('renders the request column with readable two-line request evidence', async () => {
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),

@@ -267,10 +267,10 @@ This means:
 
 | Test Suite | Result |
 |------------|--------|
-| pytest | 525 passed |
+| pytest | 528 passed |
 | lint | PASSED |
 | typecheck | PASSED |
-| vitest (full) | 331 passed |
+| vitest (full) | 333 passed |
 | build | PASSED |
 
 PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native

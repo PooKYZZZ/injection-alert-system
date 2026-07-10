@@ -41,7 +41,7 @@ def test_upgrade_remains_idempotent_when_query_string_exists(monkeypatch):
         "_column_names",
         lambda table: {"id", "query_string"},
     )
-    add_column = monkeypatch.setattr(
+    monkeypatch.setattr(
         migration.op,
         "add_column",
         lambda *args, **kwargs: pytest.fail("query_string must not be added twice"),
@@ -49,4 +49,38 @@ def test_upgrade_remains_idempotent_when_query_string_exists(monkeypatch):
 
     migration.upgrade()
 
-    assert add_column is None
+
+def test_upgrade_adds_query_string_when_table_exists(monkeypatch):
+    migration = load_migration()
+    calls = []
+    monkeypatch.setattr(migration, "_column_names", lambda table: {"id"})
+    monkeypatch.setattr(
+        migration.op,
+        "add_column",
+        lambda table, column: calls.append((table, column.name, column.nullable)),
+    )
+
+    migration.upgrade()
+
+    assert calls == [("traffic_logs", "query_string", True)]
+
+
+def test_downgrade_drops_query_string_only_when_present(monkeypatch):
+    migration = load_migration()
+    calls = []
+    monkeypatch.setattr(
+        migration.op,
+        "drop_column",
+        lambda table, column: calls.append((table, column)),
+    )
+
+    monkeypatch.setattr(migration, "_column_names", lambda table: {"id"})
+    migration.downgrade()
+    monkeypatch.setattr(
+        migration,
+        "_column_names",
+        lambda table: {"id", "query_string"},
+    )
+    migration.downgrade()
+
+    assert calls == [("traffic_logs", "query_string")]

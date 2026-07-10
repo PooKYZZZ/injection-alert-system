@@ -29,7 +29,7 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `525 passed`, frontend full Vitest `331 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `528 passed`, frontend full Vitest `333 passed`, frontend typecheck, lint, and production build.
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing tests while retaining real coverage in `password-hash.test.ts`; the full frontend CI job passed twice without changing the Vitest pool, package scripts, or production auth code.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 

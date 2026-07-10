@@ -96,6 +96,28 @@ describe('Providers', () => {
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
   })
 
+  it('still toggles safely when reduced-motion detection throws', () => {
+    window.localStorage.setItem('ias-theme', 'dark')
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn(() => {
+        throw new Error('media query unavailable')
+      }),
+    })
+
+    render(
+      <Providers>
+        <ThemeToggleHarness />
+      </Providers>
+    )
+
+    expect(() =>
+      fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
+    ).not.toThrow()
+    expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
+    expect(document.documentElement).not.toHaveClass('theme-transitioning')
+  })
+
   it('falls back to system preference when no explicit theme is saved', () => {
     mockMatchMedia({ matchesDark: true })
 

@@ -44,6 +44,18 @@ function getSystemTheme(): Theme {
   }
 }
 
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true
+  }
+
+  try {
+    return window.matchMedia(REDUCED_MOTION_MEDIA_QUERY).matches
+  } catch {
+    return true
+  }
+}
+
 function getStoredThemePreference(): ThemePreference {
   if (typeof window === 'undefined') {
     return 'system'
@@ -168,12 +180,11 @@ export function Providers({ children }: { children: ReactNode }) {
       setThemePreference,
       toggleTheme: () => {
         if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-          const prefersReducedMotion =
-            typeof window.matchMedia === 'function' && window.matchMedia(REDUCED_MOTION_MEDIA_QUERY).matches
+          const reduceMotion = prefersReducedMotion()
 
           const root = document.documentElement
 
-          if (!prefersReducedMotion) {
+          if (!reduceMotion) {
             root.classList.add(THEME_TRANSITION_CLASS)
 
             if (transitionTimeoutRef.current !== null) {

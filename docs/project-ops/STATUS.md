@@ -29,7 +29,7 @@
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **525 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
 - Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **16 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
 - WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **25 passed**
@@ -39,7 +39,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **96 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **331 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **333 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **21 passed**

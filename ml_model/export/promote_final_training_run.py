@@ -262,12 +262,22 @@ def write_eval_provenance_files(
     artifact_packaging_pipeline_passed: bool,
     local_reload_validated: bool,
     quality_gates_passed: bool,
+    eval_run_dir: Path | None = None,
 ) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    eval_run_dir = Path(eval_root) / timestamp
-    if eval_run_dir.exists():
-        raise PromotionError(f"Evaluation provenance directory already exists: {eval_run_dir}")
-    eval_run_dir.mkdir(parents=True, exist_ok=False)
+    if eval_run_dir is None:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        eval_run_dir = Path(eval_root) / timestamp
+        if eval_run_dir.exists():
+            raise PromotionError(f"Evaluation provenance directory already exists: {eval_run_dir}")
+        eval_run_dir.mkdir(parents=True, exist_ok=False)
+    else:
+        eval_run_dir = Path(eval_run_dir)
+        if not eval_run_dir.is_dir() or eval_run_dir.parent.resolve() != Path(eval_root).resolve():
+            raise PromotionError(
+                "Evaluation provenance updates must target an existing direct child of "
+                f"'{Path(eval_root)}'."
+            )
+        timestamp = eval_run_dir.name
 
     promotion_summary = {
         "timestamp": timestamp,
@@ -326,7 +336,13 @@ def validate_local_reload(
         )
 
 
-def run_packager(*, model_key: str, run_dir_name: str, notes: str | None) -> Path:
+def run_packager(
+    *,
+    model_key: str,
+    run_dir_name: str,
+    notes: str | None,
+    calibration_eval_run_dir: Path,
+) -> Path:
     return package_serving_artifact(
         model_key=model_key,
         run_dir_name=run_dir_name,
@@ -334,6 +350,7 @@ def run_packager(*, model_key: str, run_dir_name: str, notes: str | None) -> Pat
         overwrite=True,
         strict=True,
         notes=notes,
+        calibration_eval_run_dir=calibration_eval_run_dir,
     )
 
 
@@ -524,10 +541,23 @@ def promote_final_training_run(
         write_json(fresh_active_dir / "eval_report.json", eval_report)
         write_text(fresh_active_dir / "git_hash.txt", f"{repo_commit}\n")
 
+        eval_run_dir = write_eval_provenance_files(
+            eval_root=Path(repo_root) / "ml_model" / "model_registry" / "eval",
+            model_key=model_key,
+            run_dir_name=fresh_active_dir.name,
+            temperature=calibration_temperature,
+            repo_commit=repo_commit,
+            dataset_version=str(config_used.get("dataset_version", "")),
+            artifact_packaging_pipeline_passed=False,
+            local_reload_validated=False,
+            quality_gates_passed=False,
+        )
+
         packaged_run_dir = run_packager(
             model_key=model_key,
             run_dir_name=fresh_active_dir.name,
             notes=notes,
+            calibration_eval_run_dir=eval_run_dir,
         )
 
         validation_gates = {
@@ -543,7 +573,7 @@ def promote_final_training_run(
         )
         validation_gates["local_reload_validated"] = True
 
-        eval_run_dir = write_eval_provenance_files(
+        write_eval_provenance_files(
             eval_root=Path(repo_root) / "ml_model" / "model_registry" / "eval",
             model_key=model_key,
             run_dir_name=fresh_active_dir.name,
@@ -553,6 +583,7 @@ def promote_final_training_run(
             artifact_packaging_pipeline_passed=True,
             local_reload_validated=True,
             quality_gates_passed=False,
+            eval_run_dir=eval_run_dir,
         )
 
         provenance = build_provenance_payload(

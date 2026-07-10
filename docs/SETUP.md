@@ -129,7 +129,7 @@ quality approval.
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-07-05, this passes with **525 backend tests**.
+As of 2026-07-10, this passes with **528 backend tests**.
 
 ### Start the backend
 
@@ -292,7 +292,9 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-07-03, the focused BFF selection passes **89 tests** and the full suite passes **278 frontend tests**.
+The current verified counts are recorded in `docs/project-ops/STATUS.md` and
+`docs/project-ops/LIVING_CHECKLIST.md`; run the commands above to verify the
+current checkout rather than relying on a stale embedded count.
 
 ### Validate production build
 

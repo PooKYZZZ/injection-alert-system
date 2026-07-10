@@ -428,8 +428,10 @@ def _post_event_with_retry(
 
             return status
         except urllib.error.HTTPError as exc:
-            if exc.code in _RETRYABLE_STATUS_CODES and attempt < attempts:
-                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            status_code = exc.code
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            exc.close()
+            if status_code in _RETRYABLE_STATUS_CODES and attempt < attempts:
                 delay = _retry_delay(
                     attempt=attempt,
                     base_delay_seconds=retry_delay_seconds,
@@ -441,7 +443,7 @@ def _post_event_with_retry(
                     level="WARNING",
                     attempt=attempt,
                     attempts=attempts,
-                    status_code=exc.code,
+                    status_code=status_code,
                     transaction_id=payload.get("transaction_id"),
                     error_type=type(exc).__name__,
                     error_message="Retryable bridge HTTP response",
