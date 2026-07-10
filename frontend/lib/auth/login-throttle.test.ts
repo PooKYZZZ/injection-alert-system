@@ -39,6 +39,9 @@ vi.mock('../server/db/mfa-challenges', () => ({
   beginLoginMfaChallenge: vi.fn(),
   consumeMfaCompletionToken: vi.fn(),
 }))
+vi.mock('../server/db/mfa-recovery', () => ({
+  consumeRecoveryCompletionToken: vi.fn(),
+}))
 vi.mock('./preauth', () => ({
   setPreAuthCookie: vi.fn(),
 }))

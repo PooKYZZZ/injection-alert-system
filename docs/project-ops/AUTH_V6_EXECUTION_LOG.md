@@ -7,10 +7,10 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `4c1a262` (Unit 4)
-- Current unit: Unit 4 — normal MFA login and Auth.js completion
-- Current bounded objective: bind password-success sessions to a replay-safe TOTP challenge and issue final fresh MFA claims only after one-time completion.
-- Next exact action: begin Unit 5 backup-code/email-OTP recovery after the Unit 4 commit.
+- Latest accepted commit: `f86ccd5` (Unit 5)
+- Current unit: Unit 5 — MFA recovery
+- Current bounded objective: support single-use backup-code and verified-email OTP recovery while keeping recovery sessions out of the dashboard until TOTP replacement.
+- Next exact action: begin Unit 6 password recovery and ADMIN MFA reset after the Unit 5 commit.
 
 ## Unit 2 Contract
 
@@ -142,6 +142,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 2: account-management migration `20260710_000010`, server-only account-management/token/password modules, ADMIN and public setup/verification route handlers, User Management/setup UI, role/sidebar/header updates, and focused frontend/backend/PostgreSQL tests.
 - Unit 3: TOTP migration `20260710_000011`, server-only AES-GCM/TOTP/backup-code modules, enrollment RPC adapters/routes/UI, MFA enrollment permission, QR generation dependency, and focused frontend/backend/PostgreSQL tests.
 - Unit 4: MFA challenge migration `20260710_000012`, pre-auth cookie/challenge/completion server modules, Auth.js claim and login-flow changes, MFA verification route/page, and focused frontend/backend/PostgreSQL tests.
+- Unit 5: MFA recovery migration `20260710_000013`, server-only OTP/recovery digest and transition modules, guarded backup/email recovery routes/forms, recovery Auth.js claims, and focused frontend/backend/PostgreSQL tests.
 
 ## Migrations and RPCs Introduced
 
@@ -150,6 +151,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 2: additive revision `20260710_000010`; RPCs `admin_create_auth_account`, `admin_resend_password_setup`, `consume_password_setup_token`, `admin_change_account_role`, `admin_set_account_enabled`, `admin_request_managed_email_change`, and `activate_verified_managed_email`. All are `SECURITY INVOKER`, use an empty `search_path`, apply bounded inputs and actor/self-mutation checks, and revoke browser roles with conditional `service_role` grants.
 - Unit 3: additive revision `20260710_000011`; RPCs `begin_totp_enrollment`, `activate_totp_factor`, `consume_totp_step`, `list_backup_code_candidates`, and `consume_backup_code`. They enforce pending/active/revoked factor lifecycle, atomic monotonic TOTP-step consumption, one-time backup-code updates, safe security events, and owner notifications.
 - Unit 4: additive revision `20260710_000012`; RPCs `begin_login_mfa_challenge`, `verify_totp_and_issue_completion`, and `consume_mfa_completion_token`. They bind opaque pre-auth handles, supersede pending challenges, atomically advance TOTP replay state, and consume completion tokens once while returning only fresh account claim material.
+- Unit 5: additive revision `20260710_000013`; RPCs `consume_backup_code_for_recovery`, `begin_email_recovery_challenge`, `consume_email_otp_for_recovery`, and `consume_mfa_recovery_completion_token`. They revoke old TOTP/backup material, enforce OTP TTL/attempt/cooldown state, and return recovery-only completion claims.
 
 ## Validation Evidence
 
@@ -178,15 +180,36 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 1 remaining limitation: provider acceptance is proven through fake/mocked contracts only; real inbox delivery, verified-domain sending, and deployed worker operation remain external human/deployment actions.
 - Unit 2 implementation regression: initial downgrade left `email_verification` reset rows that violated the restored legacy constraint. Fix: downgrade deletes only those ephemeral rows before restoring the prior constraint; durable accounts and security events remain preserved.
 - Unit 2 High self-review fixes: managed-email requests reject collisions against current and pending addresses; custom mutation routes enforce the configured same-origin `Origin` boundary before parsing bodies; Next response-header rules keep route-specific no-store/no-referrer/noindex rules after the global rule so the specific values win.
-- Unit 2 remaining limitation: successful ADMIN mutations remain intentionally unreachable until Unit 4 supplies `auth_level=mfa`, `auth_method=totp`, and recent `auth_time` claims. Public setup/verification routes are explicit POST-only flows and do not auto-login.
+- Unit 2 remaining limitation: successful ADMIN mutations depend on the Unit 4 MFA claims and are still feature-flagged behind the account-management rollout. Public setup/verification routes are explicit POST-only flows and do not auto-login.
 - Unit 3 focused frontend gate with Node 24.14.0: crypto/TOTP/backup/enrollment/guard/route/component tests passed; ESLint and TypeScript passed after the final QR component change.
 - Unit 3 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000010`, and re-upgrade all passed; TOTP activation/replay and concurrent backup-code consumption tests passed 2/2.
-- Unit 3 remaining limitation: normal password-plus-TOTP login, pre-auth challenge, Auth.js completion handoff, and recovery workflows remain deferred to Units 4 and 5. Enrollment is feature-flagged off by default.
+- Unit 3 remaining limitation: enrollment completion requires a fresh sign-in after the one-time backup-code display; enrollment remains feature-flagged off by default.
 - Unit 4 focused frontend gate with Node 24.14.0: Auth.js credential/completion, pre-auth cookie, challenge persistence, guard, route, and form tests passed; ESLint and TypeScript passed.
 - Unit 4 full frontend gate with Node 24.14.0: 62 test files and 384 tests passed; production `next build` completed successfully with non-production sentinel environment values.
 - Unit 4 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000011`, and re-upgrade passed; concurrent same-challenge verification and same-completion-token consumption tests passed 2/2.
 - Unit 4 implementation fix: legacy `passed`/`cancelled` challenge statuses are remapped only after the old status constraint is dropped, preserving valid upgrade/downgrade ordering.
-- Unit 4 remaining limitation: recovery methods, password reset, ADMIN MFA reset, Turnstile, deployment, and final documentation sweep remain deferred to Units 5–7. MFA enrollment/enforcement routes remain feature-flagged off by default.
+- Unit 4 remaining limitation: password reset, ADMIN MFA reset, Turnstile, deployment, and final documentation sweep remain deferred to Units 6–7. MFA enrollment/enforcement routes remain feature-flagged off by default.
+- Unit 5 focused frontend gate with Node 24.14.0: recovery digest/service/Auth.js/route/form tests passed; ESLint and TypeScript passed.
+- Unit 5 full frontend gate with Node 24.14.0: 66 test files and 393 tests passed; production `next build` completed successfully with non-production sentinel environment values.
+- Unit 5 migration source gate: 25 migration tests passed; disposable PostgreSQL TOTP/completion/recovery integration tests passed 6/6.
+- Unit 5 implementation fix: recovery email enqueue now uses the verified account email loaded server-side rather than a client-provided or placeholder recipient; OTP material is not returned in the public response.
+- Unit 5 remaining limitation: password reset, ADMIN MFA reset, Turnstile, deployment, and final documentation sweep remain deferred to Units 6–7. Recovery/email features are feature-flagged off by default.
+
+## Unit 5 Contract
+
+- Status: `Implemented`
+- In scope: password-authenticated backup-code recovery, verified-email OTP recovery, account/challenge rate bounds, atomic revocation of old TOTP and backup material, recovery-level Auth.js claims, mandatory TOTP replacement routing, and safe recovery notifications.
+- Out of scope: forgot-password/password reset and ADMIN MFA reset (Unit 6), Turnstile/deployment (Unit 7), and arbitrary-recipient live email delivery.
+- Locked invariants: recovery never creates a normal dashboard-capable MFA session; backup codes and email OTPs are single-use; email OTPs are six digits with five-minute TTL, five attempts, and sixty-second resend cooldown; successful recovery revokes the old factor and unused backup codes; recovery claims use `auth_level=recovery` with `auth_method=backup_code|email_otp`; dashboard access remains blocked until fresh TOTP enrollment.
+- Primary change kind: `new feature slice`.
+- Secondary change kinds: additive recovery RPC/schema change and Auth.js recovery claim contract.
+- Scope: one additive migration, server-only recovery digest/service modules, guarded backup/email recovery routes/UI, notification enqueue boundaries, and focused tests.
+- Extraction outcome: `boundary` for recovery transitions; `local module` for OTP digest/formatting and recovery route adapters.
+- Contract surfaces: additive OTP/recovery RPCs and recovery session claims; existing dashboard/FastAPI contracts remain unchanged.
+- Materialization: recovery screens are route-level containers with local forms; recovery persistence and token handling remain server-only.
+- Convention decision: preserve Auth.js Credentials, POST-only same-origin routes, server-only Supabase, existing outbox, and current TOTP enrollment handoff.
+- Validation depth: digest/rate/guard/route tests, disposable-PostgreSQL single-use and revocation concurrency tests, Node 24 lint/typecheck/Vitest/build, and affected backend migration suite.
+- Escalation: none; recovery sessions are intentionally restricted and must re-enroll before normal dashboard access.
 
 ## Unit 4 Contract
 

@@ -102,3 +102,22 @@ export function totpErrorResponse(error: unknown): Response {
     { status }
   )
 }
+
+export function recoveryErrorResponse(error: unknown): Response {
+  const code = error instanceof Error && 'code' in error ? error.code : undefined
+  const status = code === 'INVALID_CODE' || code === 'COOLDOWN' ? 400 : 503
+  return NextResponse.json(
+    {
+      error: {
+        code: code === 'COOLDOWN' ? 'TRY_LATER' : 'RECOVERY_UNAVAILABLE',
+        message:
+          code === 'COOLDOWN'
+            ? 'Please wait before requesting another recovery code.'
+            : code === 'INVALID_CODE'
+              ? 'That recovery code is invalid or expired.'
+              : 'Recovery is temporarily unavailable.',
+      },
+    },
+    { status }
+  )
+}

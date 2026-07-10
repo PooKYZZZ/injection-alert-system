@@ -40,6 +40,7 @@ const authHarness = vi.hoisted(() => ({
   writeLoginAudit: vi.fn(),
   beginMfaChallenge: vi.fn(),
   consumeMfaCompletion: vi.fn(),
+  consumeRecoveryCompletion: vi.fn(),
   setPreAuthCookie: vi.fn(),
 }))
 
@@ -84,6 +85,9 @@ vi.mock('server-only', () => ({}))
 vi.mock('../server/db/mfa-challenges', () => ({
   beginLoginMfaChallenge: authHarness.beginMfaChallenge,
   consumeMfaCompletionToken: authHarness.consumeMfaCompletion,
+}))
+vi.mock('../server/db/mfa-recovery', () => ({
+  consumeRecoveryCompletionToken: authHarness.consumeRecoveryCompletion,
 }))
 vi.mock('./preauth', () => ({
   setPreAuthCookie: authHarness.setPreAuthCookie,
@@ -145,6 +149,7 @@ beforeEach(() => {
   authHarness.writeLoginAudit.mockReset()
   authHarness.beginMfaChallenge.mockReset()
   authHarness.consumeMfaCompletion.mockReset()
+  authHarness.consumeRecoveryCompletion.mockReset()
   authHarness.setPreAuthCookie.mockReset()
   authHarness.beginMfaChallenge.mockResolvedValue({
     challenge_id: 'challenge-1',
@@ -380,6 +385,21 @@ describe('Auth.js credential login', () => {
     })
     expect(user).toMatchObject({ auth_level: 'mfa', auth_method: 'totp' })
     expect(authHarness.consumeMfaCompletion).toHaveBeenCalledWith('a'.repeat(43))
+  })
+
+  it('consumes a recovery completion token into restricted recovery claims', async () => {
+    authHarness.consumeRecoveryCompletion.mockResolvedValue({
+      id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      role: 'ANALYST',
+      authz_version: 5,
+      auth_level: 'recovery',
+      auth_method: 'backup_code',
+    })
+    await import('@/auth')
+    const user = await capturedConfig().providers[0].authorize({
+      recovery_completion_token: 'c'.repeat(43),
+    })
+    expect(user).toMatchObject({ auth_level: 'recovery', auth_method: 'backup_code' })
   })
 
   it('keeps audit payload inputs free of passwords and hashes', async () => {

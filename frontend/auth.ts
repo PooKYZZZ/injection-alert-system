@@ -14,6 +14,7 @@ import {
   consumeMfaCompletionToken,
 } from './lib/server/db/mfa-challenges'
 import { setPreAuthCookie } from './lib/auth/preauth'
+import { consumeRecoveryCompletionToken } from './lib/server/db/mfa-recovery'
 // In Next.js, environment variables from .env* are loaded by Next at runtime/build.
 // Avoid importing "dotenv" in frontend/shared code since it is a Node-only module
 // and will break when bundled for the browser. Rely on `process.env` instead.
@@ -51,6 +52,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             : ''
         if (completionToken) {
           return consumeMfaCompletionToken(completionToken)
+        }
+        const recoveryToken =
+          typeof suppliedCredentials?.recovery_completion_token === 'string'
+            ? suppliedCredentials.recovery_completion_token
+            : ''
+        if (recoveryToken) {
+          return consumeRecoveryCompletionToken(recoveryToken)
         }
         const identifier =
           typeof credentials?.identifier === 'string'
