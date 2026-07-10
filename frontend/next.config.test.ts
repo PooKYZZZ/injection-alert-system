@@ -20,7 +20,7 @@ describe('buildContentSecurityPolicy', () => {
   it('adds scanner-safe no-store headers to setup and verification pages', async () => {
     const headers = await nextConfig.headers!()
     const globalIndex = headers.findIndex((entry) => entry.source === '/(.*)')
-    for (const source of ['/setup-password', '/verify-email']) {
+    for (const source of ['/setup-password', '/verify-email', '/reset-password']) {
       const specificIndex = headers.findIndex((entry) => entry.source === source)
       const rule = headers[specificIndex]
       expect(specificIndex).toBeGreaterThan(globalIndex)

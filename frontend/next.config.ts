@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      ...['/setup-password', '/verify-email'].map((source) => ({
+      ...['/setup-password', '/verify-email', '/reset-password'].map((source) => ({
         source,
         headers: [
           { key: 'Referrer-Policy', value: 'no-referrer' },

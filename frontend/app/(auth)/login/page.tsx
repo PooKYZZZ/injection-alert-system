@@ -151,6 +151,10 @@ export default function LoginPage() {
               {pending ? 'Signing in...' : 'Sign in'}
             </button>
 
+            <a href="/forgot-password" className="mt-4 block text-center text-xs text-gray-400 underline">
+              Forgot password?
+            </a>
+
             <p className="mt-5 text-xs text-center text-gray-400">
               Restricted access — authorized personnel only
             </p>

@@ -55,6 +55,7 @@ describe('ADMIN user management routes', () => {
       'admin/users/[id]/status/route.ts',
       'admin/users/[id]/email/route.ts',
       'admin/users/[id]/resend-setup/route.ts',
+      'admin/users/[id]/mfa-reset/route.ts',
     ]) {
       const source = fs.readFileSync(path.resolve(__dirname, route), 'utf8')
       expect(source).toContain('requireRecentTotpAdmin')
