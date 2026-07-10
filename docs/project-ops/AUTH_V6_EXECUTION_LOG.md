@@ -7,7 +7,7 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `059db72` (Unit 7)
+- Latest accepted commit: pending final audit commit (Unit 7 validation complete)
 - Current unit: Unit 7 — Turnstile, deployment, audit, and documentation
 - Current bounded objective: complete final server-side hardening, truthful operator docs, full regression validation, and external-gate handoff.
 - Next exact action: finish the final cumulative audit and handoff after the Unit 7 commit.
@@ -188,6 +188,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 3 focused frontend gate with Node 24.14.0: crypto/TOTP/backup/enrollment/guard/route/component tests passed; ESLint and TypeScript passed after the final QR component change.
 - Unit 3 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000010`, and re-upgrade all passed; TOTP activation/replay and concurrent backup-code consumption tests passed 2/2.
 - Unit 3 remaining limitation: enrollment completion requires a fresh sign-in after the one-time backup-code display; enrollment remains feature-flagged off by default.
+- Unit 3 final migration-chain fix: legacy `verified` and `disabled` factor rows are both revoked before the new active/revoked constraint is created, so a full foundation-to-head replay remains fail-closed.
 - Unit 4 focused frontend gate with Node 24.14.0: Auth.js credential/completion, pre-auth cookie, challenge persistence, guard, route, and form tests passed; ESLint and TypeScript passed.
 - Unit 4 full frontend gate with Node 24.14.0: 62 test files and 384 tests passed; production `next build` completed successfully with non-production sentinel environment values.
 - Unit 4 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000011`, and re-upgrade passed; concurrent same-challenge verification and same-completion-token consumption tests passed 2/2.
@@ -208,6 +209,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 7 final backend gate: full `.venv\Scripts\python.exe -m pytest -q` passed 572 tests with 15 opt-in PostgreSQL tests skipped in the ordinary run; migration source tests passed 27/27 and the disposable PostgreSQL Unit 2–6 suites passed 15/15 when explicitly enabled.
 - Unit 7 dependency/secret checks: `pip check` passed; `npm audit --audit-level=high` reported only the known three moderate Next/PostCSS transitive findings and no high/critical findings; repository secret scan found no credentials or private-key material.
 - Unit 7 external gates remain explicit: live Resend/inbox delivery, hosted Supabase migration, public deployment, and Turnstile hostname proof were not claimed or executed.
+- Unit 7 cumulative migration replay: disposable PostgreSQL downgraded from head to `20260704_000008` and upgraded back to head successfully after the legacy-factor revocation fix.
 
 ## Unit 7 Contract
 

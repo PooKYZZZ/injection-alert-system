@@ -52,7 +52,7 @@ def upgrade() -> None:
     op.drop_constraint("ck_auth_mfa_factor_status", "auth_mfa_factors", type_="check")
     # Legacy factors have no nonce/AES-GCM key metadata; revoke them rather than
     # treating an unverifiable ciphertext as an active authentication factor.
-    op.execute(sa.text("UPDATE auth_mfa_factors SET status = 'revoked', revoked_at = clock_timestamp() WHERE status = 'verified'"))
+    op.execute(sa.text("UPDATE auth_mfa_factors SET status = 'revoked', revoked_at = clock_timestamp() WHERE status IN ('verified', 'disabled')"))
     op.create_check_constraint(
         "ck_auth_mfa_factor_status_v61",
         "auth_mfa_factors",
