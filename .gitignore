@@ -215,3 +215,4 @@ output/playwright/dashboard-dark.png
 docs.zip
 *.rar
 .tmp/pytest/
+cybertrace_waf_serious_probe.py
