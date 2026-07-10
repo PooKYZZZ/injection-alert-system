@@ -7,12 +7,18 @@ declare module 'next-auth' {
       id: string
       role: UserRole
       authz_version: number
+      auth_level?: 'password' | 'recovery' | 'mfa'
+      auth_method?: 'password' | 'totp' | 'backup_code' | 'email_otp'
+      auth_time?: number
     } & DefaultSession['user']
   }
 
   interface User {
     role: UserRole
     authz_version: number
+    auth_level?: 'password' | 'recovery' | 'mfa'
+    auth_method?: 'password' | 'totp' | 'backup_code' | 'email_otp'
+    auth_time?: number
   }
 }
 
@@ -21,5 +27,8 @@ declare module 'next-auth/jwt' {
     id: string
     role: UserRole
     authz_version: number
+    auth_level?: 'password' | 'recovery' | 'mfa'
+    auth_method?: 'password' | 'totp' | 'backup_code' | 'email_otp'
+    auth_time?: number
   }
 }

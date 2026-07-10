@@ -43,7 +43,7 @@ function denied(status: 401 | 403): GuardResult {
 async function requirePermissionAtLevels(
   session: GuardSession,
   permission: Permission,
-  allowedMfaLevels: readonly ('mfa' | 'recovery')[] = ['mfa']
+  allowedMfaLevels: readonly ('password' | 'mfa' | 'recovery')[] = ['mfa']
 ): Promise<GuardResult> {
   if (!session) {
     return denied(401)
@@ -108,7 +108,9 @@ async function requirePermissionAtLevels(
 
   if (
     currentAccount.mfaRequired &&
-    !allowedMfaLevels.includes(session.user?.auth_level as 'mfa' | 'recovery')
+    !allowedMfaLevels.includes(
+      session.user?.auth_level as 'password' | 'mfa' | 'recovery'
+    )
   ) {
     writeLoginAudit({
       event: 'auth.mfa_required',
@@ -182,6 +184,26 @@ export async function requireMfaEnrollmentPermission(
   )
   if (!authorization.ok) return authorization
   if (
+    session?.user?.auth_level !== 'mfa' &&
+    session?.user?.auth_level !== 'recovery'
+  ) {
+    return denied(403)
+  }
+  return { ok: true }
+}
+
+export async function requireMfaChallengePermission(
+  session: GuardSession,
+  permission: Permission
+): Promise<GuardResult> {
+  const authorization = await requirePermissionAtLevels(
+    session,
+    permission,
+    ['password', 'mfa', 'recovery']
+  )
+  if (!authorization.ok) return authorization
+  if (
+    session?.user?.auth_level !== 'password' &&
     session?.user?.auth_level !== 'mfa' &&
     session?.user?.auth_level !== 'recovery'
   ) {

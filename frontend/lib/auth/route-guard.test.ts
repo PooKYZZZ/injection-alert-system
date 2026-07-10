@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSIONS, ROLES } from './roles'
 import {
+  requireMfaChallengePermission,
   requireMfaEnrollmentPermission,
   requireMfaPermission,
   requirePermission,
@@ -307,6 +308,18 @@ describe('requirePermission', () => {
         PERMISSIONS.ACCOUNTS_READ
       )
     ).resolves.toMatchObject({ ok: false })
+  })
+
+  it('allows password-level ADMIN/ANALYST sessions only into the MFA challenge boundary', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    await expect(
+      requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, { auth_level: 'password', auth_method: 'password' }),
+        PERMISSIONS.MFA_ENROLLMENT
+      )
+    ).resolves.toEqual({ ok: true })
   })
 
   it('requires recent TOTP-authenticated ADMIN for account mutations', async () => {

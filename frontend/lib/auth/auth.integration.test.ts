@@ -38,6 +38,9 @@ const authHarness = vi.hoisted(() => ({
   findAccount: vi.fn(),
   verifyPasswordForAccount: vi.fn(),
   writeLoginAudit: vi.fn(),
+  beginMfaChallenge: vi.fn(),
+  consumeMfaCompletion: vi.fn(),
+  setPreAuthCookie: vi.fn(),
 }))
 
 vi.mock('next-auth', () => ({
@@ -75,6 +78,15 @@ vi.mock('../server/db/auth-accounts', () => ({
 
 vi.mock('./login-audit', () => ({
   writeLoginAudit: authHarness.writeLoginAudit,
+}))
+
+vi.mock('server-only', () => ({}))
+vi.mock('../server/db/mfa-challenges', () => ({
+  beginLoginMfaChallenge: authHarness.beginMfaChallenge,
+  consumeMfaCompletionToken: authHarness.consumeMfaCompletion,
+}))
+vi.mock('./preauth', () => ({
+  setPreAuthCookie: authHarness.setPreAuthCookie,
 }))
 
 function capturedConfig(): CapturedConfig {
@@ -131,6 +143,14 @@ beforeEach(() => {
   authHarness.verifyPasswordForAccount.mockReset()
   authHarness.verifyPasswordForAccount.mockResolvedValue(false)
   authHarness.writeLoginAudit.mockReset()
+  authHarness.beginMfaChallenge.mockReset()
+  authHarness.consumeMfaCompletion.mockReset()
+  authHarness.setPreAuthCookie.mockReset()
+  authHarness.beginMfaChallenge.mockResolvedValue({
+    challenge_id: 'challenge-1',
+    handle: 'a'.repeat(43),
+  })
+  authHarness.setPreAuthCookie.mockResolvedValue(undefined)
   process.env.AUTH_SECRET = 'test-auth-secret'
   delete process.env.AUTH_USERS_JSON
 })
@@ -158,12 +178,15 @@ describe('Auth.js credential login', () => {
       password,
       TEST_ARGON2_HASH
     )
-    expect(user).toEqual({
+    expect(user).toMatchObject({
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       email: 'admin@example.test',
       name: 'SOC Admin',
       role: 'ADMIN',
       authz_version: 3,
+      auth_level: 'password',
+      auth_method: 'password',
+      auth_time: expect.any(Number),
     })
 
     const token = await config.callbacks.jwt({ token: {}, user })
@@ -248,18 +271,22 @@ describe('Auth.js credential login', () => {
       )
       await import('@/auth')
 
-      await expect(
-        capturedConfig().providers[0].authorize({
+      const result = await capturedConfig().providers[0].authorize({
           identifier: 'admin@example.test',
           password,
         })
-      ).resolves.toBeNull()
-      expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          event: 'auth.login_failed',
-          reasonCode: 'INVALID_CREDENTIALS',
-        })
-      )
+      if ('mfaRequired' in overrides && overrides.mfaRequired) {
+        expect(result).toMatchObject({ auth_level: 'password', auth_method: 'password' })
+        expect(authHarness.beginMfaChallenge).toHaveBeenCalled()
+      } else {
+        expect(result).toBeNull()
+        expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'auth.login_failed',
+            reasonCode: 'INVALID_CREDENTIALS',
+          })
+        )
+      }
     }
   )
 
@@ -337,6 +364,22 @@ describe('Auth.js credential login', () => {
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       role: 'ADMIN',
     })
+  })
+
+  it('consumes a one-time MFA completion token into final MFA claims', async () => {
+    authHarness.consumeMfaCompletion.mockResolvedValue({
+      id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      role: 'ADMIN',
+      authz_version: 4,
+      auth_level: 'mfa',
+      auth_method: 'totp',
+    })
+    await import('@/auth')
+    const user = await capturedConfig().providers[0].authorize({
+      mfa_completion_token: 'a'.repeat(43),
+    })
+    expect(user).toMatchObject({ auth_level: 'mfa', auth_method: 'totp' })
+    expect(authHarness.consumeMfaCompletion).toHaveBeenCalledWith('a'.repeat(43))
   })
 
   it('keeps audit payload inputs free of passwords and hashes', async () => {

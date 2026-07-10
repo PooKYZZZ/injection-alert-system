@@ -34,6 +34,15 @@ const authHarness = vi.hoisted(() => ({
   writeLoginAudit: vi.fn(),
 }))
 
+vi.mock('server-only', () => ({}))
+vi.mock('../server/db/mfa-challenges', () => ({
+  beginLoginMfaChallenge: vi.fn(),
+  consumeMfaCompletionToken: vi.fn(),
+}))
+vi.mock('./preauth', () => ({
+  setPreAuthCookie: vi.fn(),
+}))
+
 vi.mock('next-auth', () => ({
   default: vi.fn((config: CapturedAuthConfig) => {
     authHarness.config = config
@@ -318,12 +327,15 @@ describe('Auth.js account integration', () => {
       password: 'correct-password',
     })
 
-    expect(user).toEqual({
+    expect(user).toMatchObject({
       id: 'analyst-1',
       email: 'analyst@example.test',
       name: 'SOC Analyst',
       role: 'ANALYST',
       authz_version: 3,
+      auth_level: 'password',
+      auth_method: 'password',
+      auth_time: expect.any(Number),
     })
 
     const token = await config.callbacks.jwt({ token: {}, user })

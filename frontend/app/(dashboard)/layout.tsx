@@ -17,7 +17,15 @@ export default async function DashboardLayout({
     session,
     PERMISSIONS.ALERTS_READ
   )
-  if (!authorization.ok) redirect('/login')
+  if (!authorization.ok) {
+    if (
+      session.user?.auth_level === 'password' &&
+      (session.user.role === 'ADMIN' || session.user.role === 'ANALYST')
+    ) {
+      redirect('/mfa/verify')
+    }
+    redirect('/login')
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-main">

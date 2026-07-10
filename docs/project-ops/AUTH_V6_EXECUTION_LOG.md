@@ -7,10 +7,10 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `ede2a53` (Unit 3)
-- Current unit: Unit 2 — ADMIN User Management and account setup
-- Current bounded objective: implement server-authorized account listing/creation/setup, role/status management, and verified managed-email transitions.
-- Next exact action: begin Unit 4 pre-auth challenge, normal TOTP login, and Auth.js completion handoff.
+- Latest accepted commit: `4c1a262` (Unit 4)
+- Current unit: Unit 4 — normal MFA login and Auth.js completion
+- Current bounded objective: bind password-success sessions to a replay-safe TOTP challenge and issue final fresh MFA claims only after one-time completion.
+- Next exact action: begin Unit 5 backup-code/email-OTP recovery after the Unit 4 commit.
 
 ## Unit 2 Contract
 
@@ -141,6 +141,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 1: `.env.example`, `web_app/config.py`, `web_app/notifications/*`, `web_app/presentation/app.py`, `web_app/presentation/api/routes.py`, `scripts/run_resend_smoke.py`, migration `20260710_000009`, and focused notification/migration/PostgreSQL/script tests.
 - Unit 2: account-management migration `20260710_000010`, server-only account-management/token/password modules, ADMIN and public setup/verification route handlers, User Management/setup UI, role/sidebar/header updates, and focused frontend/backend/PostgreSQL tests.
 - Unit 3: TOTP migration `20260710_000011`, server-only AES-GCM/TOTP/backup-code modules, enrollment RPC adapters/routes/UI, MFA enrollment permission, QR generation dependency, and focused frontend/backend/PostgreSQL tests.
+- Unit 4: MFA challenge migration `20260710_000012`, pre-auth cookie/challenge/completion server modules, Auth.js claim and login-flow changes, MFA verification route/page, and focused frontend/backend/PostgreSQL tests.
 
 ## Migrations and RPCs Introduced
 
@@ -148,6 +149,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 1: additive revision `20260710_000009`; RPCs `claim_notification_outbox_batch`, `complete_notification_outbox_job`, and `fail_notification_outbox_job` with `SECURITY INVOKER`, empty `search_path`, fully qualified tables, bounded inputs, `PUBLIC`/`anon`/`authenticated` revokes, and conditional `service_role` grant.
 - Unit 2: additive revision `20260710_000010`; RPCs `admin_create_auth_account`, `admin_resend_password_setup`, `consume_password_setup_token`, `admin_change_account_role`, `admin_set_account_enabled`, `admin_request_managed_email_change`, and `activate_verified_managed_email`. All are `SECURITY INVOKER`, use an empty `search_path`, apply bounded inputs and actor/self-mutation checks, and revoke browser roles with conditional `service_role` grants.
 - Unit 3: additive revision `20260710_000011`; RPCs `begin_totp_enrollment`, `activate_totp_factor`, `consume_totp_step`, `list_backup_code_candidates`, and `consume_backup_code`. They enforce pending/active/revoked factor lifecycle, atomic monotonic TOTP-step consumption, one-time backup-code updates, safe security events, and owner notifications.
+- Unit 4: additive revision `20260710_000012`; RPCs `begin_login_mfa_challenge`, `verify_totp_and_issue_completion`, and `consume_mfa_completion_token`. They bind opaque pre-auth handles, supersede pending challenges, atomically advance TOTP replay state, and consume completion tokens once while returning only fresh account claim material.
 
 ## Validation Evidence
 
@@ -180,3 +182,24 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 3 focused frontend gate with Node 24.14.0: crypto/TOTP/backup/enrollment/guard/route/component tests passed; ESLint and TypeScript passed after the final QR component change.
 - Unit 3 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000010`, and re-upgrade all passed; TOTP activation/replay and concurrent backup-code consumption tests passed 2/2.
 - Unit 3 remaining limitation: normal password-plus-TOTP login, pre-auth challenge, Auth.js completion handoff, and recovery workflows remain deferred to Units 4 and 5. Enrollment is feature-flagged off by default.
+- Unit 4 focused frontend gate with Node 24.14.0: Auth.js credential/completion, pre-auth cookie, challenge persistence, guard, route, and form tests passed; ESLint and TypeScript passed.
+- Unit 4 full frontend gate with Node 24.14.0: 62 test files and 384 tests passed; production `next build` completed successfully with non-production sentinel environment values.
+- Unit 4 disposable PostgreSQL 17: migration upgrade, downgrade to `20260710_000011`, and re-upgrade passed; concurrent same-challenge verification and same-completion-token consumption tests passed 2/2.
+- Unit 4 implementation fix: legacy `passed`/`cancelled` challenge statuses are remapped only after the old status constraint is dropped, preserving valid upgrade/downgrade ordering.
+- Unit 4 remaining limitation: recovery methods, password reset, ADMIN MFA reset, Turnstile, deployment, and final documentation sweep remain deferred to Units 5–7. MFA enrollment/enforcement routes remain feature-flagged off by default.
+
+## Unit 4 Contract
+
+- Status: `Implemented`
+- In scope: password-success MFA challenge creation, opaque `__Host-cybertrace-preauth` cookie, TOTP verification with atomic replay binding, one-time completion token, Auth.js MFA claims, final fresh account reload, and ADMIN/ANALYST dashboard enforcement.
+- Out of scope: backup-code/email-OTP recovery (Unit 5), password reset and ADMIN MFA reset (Unit 6), Turnstile/deployment (Unit 7), and provider calls from request handlers.
+- Locked invariants: the pre-auth cookie contains only a random opaque handle, challenge rows bind its digest to one account/purpose and expire in ten minutes, completion tokens are single-use, final sessions expose only `account_id`, role, `authz_version`, `auth_level`, `auth_method`, and `auth_time`, and stale/disabled/role-changed accounts fail closed before final session creation.
+- Primary change kind: `new feature slice`.
+- Secondary change kinds: additive schema/RPC change and Auth.js session contract change.
+- Scope: one additive migration, server-only challenge/completion adapters, Auth.js callback/login routing, MFA verification route/page, and focused tests.
+- Extraction outcome: `boundary` for pre-auth/completion persistence; `local module` for cookie/token handling and login-flow orchestration.
+- Contract surfaces: additive challenge/completion fields and RPCs; session claims and MFA routes; existing alert/FastAPI contracts remain unchanged.
+- Materialization: MFA verification is a route-level container with a local form component; challenge persistence and token handling remain server-only infrastructure boundaries.
+- Convention decision: preserve Auth.js Credentials, App Router POST handlers, Zod, server-only Supabase, and existing fresh-account guard; use framework cookie APIs with explicit secure flags.
+- Validation depth: claim/guard/cookie/route unit tests, disposable-PostgreSQL completion-token concurrency tests, Node 24 lint/typecheck/Vitest/build, and affected backend migration suite.
+- Escalation: none; recovery-level sessions remain restricted to enrollment/recovery paths and do not enter the dashboard.

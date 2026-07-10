@@ -9,6 +9,11 @@ import {
 import { verifyPasswordForAccount } from './lib/auth/password-hash'
 import { isUserRole } from './lib/auth/roles'
 import { findAuthAccountByIdentifier } from './lib/server/db/auth-accounts'
+import {
+  beginLoginMfaChallenge,
+  consumeMfaCompletionToken,
+} from './lib/server/db/mfa-challenges'
+import { setPreAuthCookie } from './lib/auth/preauth'
 // In Next.js, environment variables from .env* are loaded by Next at runtime/build.
 // Avoid importing "dotenv" in frontend/shared code since it is a Node-only module
 // and will break when bundled for the browser. Rely on `process.env` instead.
@@ -37,6 +42,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Password', type: 'password', placeholder: '' },
       },
       async authorize(credentials) {
+        const suppliedCredentials = credentials as
+          | Record<string, unknown>
+          | undefined
+        const completionToken =
+          typeof suppliedCredentials?.mfa_completion_token === 'string'
+            ? suppliedCredentials.mfa_completion_token
+            : ''
+        if (completionToken) {
+          return consumeMfaCompletionToken(completionToken)
+        }
         const identifier =
           typeof credentials?.identifier === 'string'
             ? credentials.identifier
@@ -84,12 +99,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
-        if (
-          !account ||
-          !verification.value ||
-          account.disabledAt !== null ||
-          account.mfaRequired
-        ) {
+        if (!account || !verification.value || account.disabledAt !== null) {
           loginThrottle.recordFailure(attempt.identifierHash)
           writeLoginAudit({
             event: 'auth.login_failed',
@@ -101,6 +111,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
+        if (account.mfaRequired) {
+          try {
+            const challenge = await beginLoginMfaChallenge(account.id)
+            await setPreAuthCookie(challenge.handle)
+          } catch {
+            writeLoginAudit({
+              event: 'auth.login_failed',
+              level: 'warn',
+              outcome: 'failure',
+              identifierHash: attempt.identifierHash,
+              reasonCode: 'ACCOUNT_LOOKUP_FAILED',
+            })
+            return null
+          }
+        }
         loginThrottle.recordSuccess(attempt.identifierHash)
         writeLoginAudit({
           event: 'auth.login_succeeded',
@@ -116,6 +141,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: account.email,
           role: account.role,
           authz_version: account.authzVersion,
+          auth_level: 'password',
+          auth_method: 'password',
+          auth_time: Math.floor(Date.now() / 1_000),
         }
       },
     }),
@@ -135,6 +163,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id
         token.role = user.role
         token.authz_version = user.authz_version
+        token.auth_level = user.auth_level
+        token.auth_method = user.auth_method
+        token.auth_time = user.auth_time
       }
       return token
     },
@@ -148,6 +179,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id
         session.user.role = token.role
         session.user.authz_version = token.authz_version as number
+        if (
+          token.auth_level === 'password' ||
+          token.auth_level === 'recovery' ||
+          token.auth_level === 'mfa'
+        ) {
+          session.user.auth_level = token.auth_level
+        }
+        if (
+          token.auth_method === 'password' ||
+          token.auth_method === 'totp' ||
+          token.auth_method === 'backup_code' ||
+          token.auth_method === 'email_otp'
+        ) {
+          session.user.auth_method = token.auth_method
+        }
+        if (Number.isInteger(token.auth_time)) {
+          session.user.auth_time = token.auth_time as number
+        }
       }
       return session
     },
