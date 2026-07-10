@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ _SENSITIVE_SUBSTRINGS = ("token", "secret", "key", "credential")
 _MAX_BODY_LENGTH = 1024
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _RETRYABLE_ERRNOS = {61, 111, 10061}
+_MAX_RETRY_DELAY_SECONDS = 60.0
 _TOTAL_SCORE_RE = re.compile(r"Total Score:\s*`?(\d+)`?", re.IGNORECASE)
 
 
@@ -365,6 +367,32 @@ def _is_retryable_exception(exc: Exception) -> bool:
     return False
 
 
+def _retry_delay(
+    *,
+    attempt: int,
+    base_delay_seconds: float,
+    retry_after: str | None = None,
+) -> float:
+    fallback = base_delay_seconds * (2 ** max(0, attempt - 1))
+    if retry_after:
+        stripped = retry_after.strip()
+        try:
+            delay = float(int(stripped))
+            if delay >= 0:
+                return min(delay, _MAX_RETRY_DELAY_SECONDS)
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(stripped)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+                if delay >= 0:
+                    return min(delay, _MAX_RETRY_DELAY_SECONDS)
+            except (TypeError, ValueError, OverflowError):
+                pass
+    return min(max(0.0, fallback), _MAX_RETRY_DELAY_SECONDS)
+
+
 def _post_event_with_retry(
     payload: dict[str, Any],
     *,
@@ -399,8 +427,37 @@ def _post_event_with_retry(
                 continue
 
             return status
+        except urllib.error.HTTPError as exc:
+            status_code = exc.code
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            exc.close()
+            if status_code in _RETRYABLE_STATUS_CODES and attempt < attempts:
+                delay = _retry_delay(
+                    attempt=attempt,
+                    base_delay_seconds=retry_delay_seconds,
+                    retry_after=retry_after,
+                )
+                _log_event(
+                    "bridge.retry",
+                    "Bridge post will be retried",
+                    level="WARNING",
+                    attempt=attempt,
+                    attempts=attempts,
+                    status_code=status_code,
+                    transaction_id=payload.get("transaction_id"),
+                    error_type=type(exc).__name__,
+                    error_message="Retryable bridge HTTP response",
+                    retry_delay_seconds=delay,
+                )
+                time.sleep(delay)
+                continue
+            raise
         except Exception as exc:  # noqa: BLE001
             if _is_retryable_exception(exc) and attempt < attempts:
+                delay = _retry_delay(
+                    attempt=attempt,
+                    base_delay_seconds=retry_delay_seconds,
+                )
                 _log_event(
                     "bridge.retry",
                     "Bridge post will be retried",
@@ -410,8 +467,9 @@ def _post_event_with_retry(
                     transaction_id=payload.get("transaction_id"),
                     error_type=type(exc).__name__,
                     error_message="Transient bridge post failure",
+                    retry_delay_seconds=delay,
                 )
-                time.sleep(retry_delay_seconds)
+                time.sleep(delay)
                 continue
 
             raise

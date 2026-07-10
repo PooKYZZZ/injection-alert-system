@@ -5,6 +5,11 @@ export const ARGON2_TIME_COST = 2
 export const ARGON2_PARALLELISM = 1
 export const MAX_PASSWORD_LENGTH = 256
 export const PASSWORD_HASH_CONCURRENCY_LIMIT = 2
+export const DUMMY_PASSWORD_HASH =
+  '$argon2id$v=19$m=19456,t=2,p=1$bN0r/SKG56J5Ob9MOsU6/g$9XJz/v+ujBicSJlqn5EsoyP5yRugqmFdYl3xjxEH5ko'
+
+const ARGON2ID_PHC_PATTERN =
+  /^\$argon2id\$v=(\d+)\$m=(\d+),t=(\d+),p=(\d+)\$[A-Za-z0-9+/]+={0,2}\$[A-Za-z0-9+/]+={0,2}$/
 
 const ARGON2_OPTIONS = {
   type: argon2.argon2id,
@@ -21,13 +26,30 @@ function passwordIsWithinBounds(password: unknown): password is string {
   )
 }
 
+export function hasApprovedArgon2Parameters(hash: unknown): hash is string {
+  if (typeof hash !== 'string') {
+    return false
+  }
+  const match = ARGON2ID_PHC_PATTERN.exec(hash)
+  if (!match) {
+    return false
+  }
+  const [, version, memoryCost, timeCost, parallelism] = match
+  return (
+    Number(version) === 19 &&
+    Number(memoryCost) >= ARGON2_MEMORY_COST &&
+    Number(timeCost) >= ARGON2_TIME_COST &&
+    Number(parallelism) >= ARGON2_PARALLELISM
+  )
+}
+
 export async function hashPassword(password: string): Promise<string> {
   if (!passwordIsWithinBounds(password)) {
     throw new Error('Password input is invalid.')
   }
 
   const hash = await argon2.hash(password, ARGON2_OPTIONS)
-  if (!hash.startsWith('$argon2id$')) {
+  if (!hasApprovedArgon2Parameters(hash)) {
     throw new Error('Password hashing failed.')
   }
   return hash
@@ -38,8 +60,7 @@ export async function verifyPasswordHash(
   password: string
 ): Promise<boolean> {
   if (
-    typeof hash !== 'string' ||
-    !hash.startsWith('$argon2id$') ||
+    !hasApprovedArgon2Parameters(hash) ||
     !passwordIsWithinBounds(password)
   ) {
     return false
@@ -52,17 +73,13 @@ export async function verifyPasswordHash(
   }
 }
 
-const dummyPasswordHash = hashPassword(
-  'CyberTrace fixed dummy password used only for timing equalization'
-)
-
 export async function verifyPasswordForUnknownAccount(
   password: string
 ): Promise<void> {
   if (!passwordIsWithinBounds(password)) {
     return
   }
-  await verifyPasswordHash(await dummyPasswordHash, password)
+  await verifyPasswordHash(DUMMY_PASSWORD_HASH, password)
 }
 
 export async function verifyPasswordForAccount(

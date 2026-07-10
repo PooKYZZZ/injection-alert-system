@@ -156,6 +156,7 @@ describe('auth account database boundary', () => {
       id: loginRow.id,
       role: loginRow.role,
       authz_version: loginRow.authz_version,
+      mfa_required: true,
       disabled_at: null,
       password_hash: loginRow.password_hash,
     })
@@ -167,9 +168,11 @@ describe('auth account database boundary', () => {
       id: loginRow.id,
       role: 'ADMIN',
       authzVersion: 4,
+      mfaRequired: true,
       disabledAt: null,
     })
     expect(dbHarness.queries[0].fields).not.toContain('password_hash')
+    expect(dbHarness.queries[0].fields).toContain('mfa_required')
     expect(account).not.toHaveProperty('passwordHash')
   })
 

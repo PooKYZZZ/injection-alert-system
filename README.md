@@ -71,12 +71,15 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 - Bounded in-process WAF inference queue and queue health visibility in ML health
 - Structured JSON logs for backend request/WAF/prediction boundaries and bridge operations, with request/trace/transaction correlation and recursive sensitive-field redaction
 - Safe `X-Request-ID` propagation on handled responses and generic unhandled `500` responses
+- Supabase-backed named accounts with approved Argon2id PHC verification and
+  fail-closed DB-backed RBAC freshness checks
+- Marker-correlated final-demo smoke with optional required Docker-internal
+  backend lookup
 
 ### Not fully implemented yet
 
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed enforcement state
-- Client-required real user access management with RBAC and secure login
 - Client-required two-factor authentication
 - Client-required email notification after threat detection
 - Client-required timely push/SSE-style dashboard alerts

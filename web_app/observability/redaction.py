@@ -1,6 +1,7 @@
 """Safe, non-mutating redaction for structured log fields."""
 
 from collections.abc import Mapping
+import re
 from typing import Any
 
 REDACTED = "[REDACTED]"
@@ -9,28 +10,30 @@ _MAX_DEPTH = 10
 _SENSITIVE_KEYS = {
     "authorization",
     "cookie",
-    "set_cookie",
-    "x_api_key",
-    "api_key",
+    "setcookie",
+    "xapikey",
     "apikey",
     "token",
-    "access_token",
-    "refresh_token",
+    "accesstoken",
+    "refreshtoken",
+    "idtoken",
     "password",
     "passwd",
     "pwd",
     "secret",
+    "clientsecret",
+    "secretkey",
     "credential",
-    "private_key",
+    "privatekey",
     "session",
-    "session_id",
-    "database_url",
-    "db_url",
-    "connection_string",
-    "auth_secret",
-    "nextauth_secret",
-    "api_secret_key",
-    "groq_api_key",
+    "sessionid",
+    "databaseurl",
+    "dburl",
+    "connectionstring",
+    "authsecret",
+    "nextauthsecret",
+    "apisecretkey",
+    "groqapikey",
 }
 
 
@@ -43,7 +46,7 @@ def _bounded_string(value: Any) -> str:
 
 
 def _normalize_key(key: Any) -> str:
-    return _bounded_string(key).strip().lower().replace("-", "_")
+    return re.sub(r"[^a-z0-9]", "", _bounded_string(key).strip().lower())
 
 
 def _is_sensitive_key(key: Any) -> bool:
@@ -59,13 +62,15 @@ def redact_value(key: Any, value: Any) -> Any:
 
 def redact_mapping(mapping: Mapping[Any, Any]) -> dict[Any, Any]:
     """Return a redacted copy of a mapping."""
-    return {
-        key: REDACTED if _is_sensitive_key(key) else redact_for_log(value)
-        for key, value in mapping.items()
-    }
+    return redact_for_log(mapping)
 
 
-def redact_for_log(value: Any, *, _depth: int = 0) -> Any:
+def redact_for_log(
+    value: Any,
+    *,
+    _depth: int = 0,
+    _ancestors: frozenset[int] = frozenset(),
+) -> Any:
     """Convert arbitrary values into bounded, JSON-friendly log values."""
     if _depth >= _MAX_DEPTH:
         return "<maximum depth exceeded>"
@@ -74,16 +79,43 @@ def redact_for_log(value: Any, *, _depth: int = 0) -> Any:
     if isinstance(value, str):
         return value[:_MAX_VALUE_LENGTH]
     if isinstance(value, Mapping):
+        if id(value) in _ancestors:
+            return "<cycle detected>"
+        ancestors = _ancestors | {id(value)}
         return {
             key: (
                 REDACTED
                 if _is_sensitive_key(key)
-                else redact_for_log(item, _depth=_depth + 1)
+                else redact_for_log(
+                    item,
+                    _depth=_depth + 1,
+                    _ancestors=ancestors,
+                )
             )
             for key, item in value.items()
         }
     if isinstance(value, list):
-        return [redact_for_log(item, _depth=_depth + 1) for item in value]
+        if id(value) in _ancestors:
+            return "<cycle detected>"
+        ancestors = _ancestors | {id(value)}
+        return [
+            redact_for_log(
+                item,
+                _depth=_depth + 1,
+                _ancestors=ancestors,
+            )
+            for item in value
+        ]
     if isinstance(value, tuple):
-        return tuple(redact_for_log(item, _depth=_depth + 1) for item in value)
+        if id(value) in _ancestors:
+            return "<cycle detected>"
+        ancestors = _ancestors | {id(value)}
+        return tuple(
+            redact_for_log(
+                item,
+                _depth=_depth + 1,
+                _ancestors=ancestors,
+            )
+            for item in value
+        )
     return _bounded_string(value)

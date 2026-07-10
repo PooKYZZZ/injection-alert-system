@@ -1,6 +1,6 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-07-03
+**Last updated:** 2026-07-05
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
@@ -33,6 +33,7 @@ Technical WAF proof through `localhost:8088`:
 
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode waf-8088
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode waf-8088 --require-backend-lookup
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode waf-8088 --json
 ```
 
@@ -40,23 +41,26 @@ Realistic demo-target proof through `localhost:8089`:
 
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089
+.venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089 --require-backend-lookup
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089 --json
 ```
 
-The `waf-8088` mode checks `/healthz`, `/api/health`, an expected SQLi `403`,
-and the latest transaction ID when
-`logs/modsecurity/modsec_audit.jsonl` exists. The `demo-target-8089` mode checks
-the portal home page, an expected `/records/search` SQLi `403`, and the latest
-transaction ID when
-`logs/modsecurity/demo-target/modsec_audit.jsonl` exists. Use `--audit-log` to
-point either WAF mode at a different local JSONL path.
+Each WAF run generates a unique `CYBERTRACE_SMOKE_*` marker and accepts only an
+audit event containing that exact marker. The correlated audit event supplies
+the transaction ID. With `--require-backend-lookup`, the script runs the
+Docker-internal lookup and also requires the backend row to contain the same
+marker with a timestamp at or after the smoke start. Use `--audit-log` to point
+either WAF mode at a different local JSONL path. Audit-log discovery and
+backend persistence use bounded retries because ModSecurity flush and bridge
+ingest are asynchronous; a stale or never-persisted marker still fails.
 
 Interpretation:
 
-- `PASS` means the check observed its expected status or transaction field.
+- `PASS` means every requested proof boundary passed for the current marker.
+- `WARN` means required checks passed but optional backend lookup was skipped;
+  this is audit-only proof, not full WAF-to-backend proof.
 - `FAIL` means a required check failed; the process exits `1`.
-- `SKIP` means an optional local artifact or Docker-internal lookup was not
-  exercised; skipped checks do not hide required HTTP failures.
+- `SKIP` is a per-check state for optional evidence that was not exercised.
 - `--json` emits one parseable object and does not print request headers,
   credentials, database URLs, or request payloads.
 
@@ -73,13 +77,11 @@ explicit local Docker checks, not always-on CI jobs. The `demo-target-8089`
 stack additionally requires the sibling `land-records-portal` checkout or an
 explicit `DEMO_PORTAL_CONTEXT`.
 
-Docker-internal backend transaction lookup remains an optional manual proof
-step because the backend is not host-published and the lookup requires the
-container's secret environment. The automated script reports that step as
-`SKIP`; use the commands in Step 5 or Step 5A when end-to-end lookup evidence
-is required. The manual sections below remain the fallback for startup,
-container inspection, bridge logs, transaction lookup, dashboard checks, and
-triage persistence.
+Docker-internal backend transaction lookup is automated only when
+`--require-backend-lookup` is supplied. The script passes the transaction ID,
+not the secret, into `docker compose exec`; the container reads its own
+`API_SECRET_KEY`. Manual sections remain useful for container inspection,
+dashboard checks, and triage persistence.
 
 ---
 
@@ -160,23 +162,11 @@ docker compose exec backend python -c "import urllib.request; print(urllib.reque
 
 ---
 
-## Step 4 — Optional Demo Data Seeding
+## Step 4 — Demo Data
 
-This repository does track `seed_demo.py`, but it targets `127.0.0.1:8000`.
-
-That means:
-
-- running it on the host will fail in Docker mode because backend is not host-published
-- running it inside the backend container will hit FastAPI directly
-- it will not exercise the ModSecurity path
-
-If you want to seed directly into the backend container:
-
-```powershell
-docker compose exec backend python seed_demo.py
-```
-
-Treat this step as optional. The rest of the runbook still works if the database already contains alert rows.
+No maintained `seed_demo.py` exists. The current-run smoke request creates the
+WAF evidence used by this runbook; account creation uses the provisioning
+scripts in `docs/SETUP.md`.
 
 ---
 
@@ -490,10 +480,7 @@ docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile
 docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/?id=1%27%20OR%20%271%27%3D%271"
 
-# 6. Optional demo data seeding (inside container)
-docker compose exec backend python seed_demo.py
-
-# 7. Open browser to http://localhost:3000/login and log in
+# 6. Open browser to http://localhost:3000/login and log in
 
 # 8. Verify pages
 #    - http://localhost:3000/dashboard
@@ -531,11 +518,10 @@ Common causes:
 - Check `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
 - Check `INTERNAL_API_KEY` matches `API_SECRET_KEY` in `.env`.
 
-### Seeding utility fails with connection error
+### A copied seeding command fails
 
-- Ensure the backend container is running: `docker compose ps`.
-- `seed_demo.py` targets `127.0.0.1:8000`, so it must be run inside the backend container in Docker mode.
-- If you want to test the ModSecurity path, do not use `seed_demo.py` unchanged.
+`seed_demo.py` is not a maintained repository script. Remove the stale command
+and use the marker-correlated smoke or account provisioning workflow instead.
 
 ### ModSecurity routing expectation
 

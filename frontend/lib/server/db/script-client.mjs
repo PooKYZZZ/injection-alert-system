@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-import { readSupabaseScriptEnv } from './script-env.mjs'
+import {
+  loadSupabaseScriptEnv,
+  readSupabaseScriptEnv,
+} from './script-env.mjs'
 
 /**
  * Creates a service-role client for operational provisioning scripts only.
@@ -9,8 +12,11 @@ import { readSupabaseScriptEnv } from './script-env.mjs'
 /**
  * @param {Record<string, string | undefined>} env
  */
-export function createSupabaseScriptClient(env = process.env) {
-  const values = readSupabaseScriptEnv(env)
+export function createSupabaseScriptClient(env) {
+  const values =
+    env === undefined
+      ? loadSupabaseScriptEnv()
+      : readSupabaseScriptEnv(env)
   return createClient(values.SUPABASE_URL, values.SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       persistSession: false,

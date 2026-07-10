@@ -29,7 +29,7 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `496 passed`, frontend full Vitest `317 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `528 passed`, frontend full Vitest `333 passed`, frontend typecheck, lint, and production build.
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing tests while retaining real coverage in `password-hash.test.ts`; the full frontend CI job passed twice without changing the Vitest pool, package scripts, or production auth code.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
@@ -82,13 +82,13 @@ This tracker is based on the following.
 | `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts expose LOW, MEDIUM, HIGH, and CRITICAL; persisted UI grouping/styling uses `confidence_level`; enforcement-policy displays apply to non-Normal predictions and preserve the Normal exception; tier badges always display the canonical tier; the legacy `severity` query alias remains compatibility-only. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
 | `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
-| `[x]` | Add end-to-end demo/test script | High | Medium | Done for the maintained proof boundary: `scripts/run_final_demo_smoke.py` provides explicit backend, `8088`, and `8089` modes, safe PASS/FAIL/SKIP and JSON output, timeouts, and nonzero required-check failures; `tests/scripts/test_run_final_demo_smoke.py` is Docker-free. Docker-internal transaction lookup remains an explicit manual runbook step. |
+| `[x]` | Add end-to-end demo/test script | High | Medium | Done for the maintained proof boundary: `scripts/run_final_demo_smoke.py` generates a unique current-run marker, correlates the exact audit transaction, provides explicit backend/`8088`/`8089` modes and PASS/WARN/FAIL JSON output, and can require a Docker-internal backend lookup with the same marker and a current timestamp. |
 | `[x]` | Add API abuse/resource smoke tests | High | Medium | Done for the current backend surface: `tests/integration/test_api_abuse_smoke.py` covers malformed JSON, missing/invalid auth correlation, token non-leakage, and invalid triage input; existing body-limit, duplicate transaction, model-unavailable, queue-overflow, lookup, and BFF-auth tests cover the remaining implemented boundaries. Future email/SSE/RBAC abuse cases remain not applicable until those features exist. |
 | `[~]` | Add analyst override/audit trail for model mistakes | High | Medium | Partial: `POST /api/feedback` stores analyst label/email/timestamp, but no full old/new action, reason, or model-version override audit trail exists. |
 | `[x]` | Replace demo login with real user accounts | High | High | Done in repo: Supabase `auth_accounts` provides ids/emails/usernames, roles, required `authz_version`, and Argon2id hashes; no demo-password or env-registry fallback remains. |
 | `[x]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Done: role/session claims and fresh per-request DB account checks protect all six BFF routes; Viewer reads, Analyst triages, and Admin may update actions. |
 | `[ ]` | Add 2FA/MFA | High | High | Not started: no TOTP/email OTP enrollment, challenge, recovery, or factor reset flow found. |
-| `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, Argon2id dummy verification, per-identifier/global local throttles, two-operation password-hash cap, eight-hour sessions, and safe JSON audit events are implemented. MFA, reset/recovery, distributed throttling, and persistent audit storage remain missing. |
+| `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, approved Argon2id PHC parameter enforcement, a precomputed same-profile dummy hash, per-identifier/global local throttles, two-operation password-hash cap, eight-hour sessions, current-row MFA fail-closed checks, and safe JSON audit events are implemented. MFA enrollment/challenge, reset/recovery, distributed throttling, and persistent audit storage remain missing. |
 | `[x]` | Add auth/security schema foundation | High | Medium | Done in repo: additive Alembic migration, nine public-schema tables with RLS/revocations/no policies, tested app-runtime and script-only Supabase boundaries, Argon2id, provisioning scripts, and DB-backed login/freshness. Live migration application and MFA remain unimplemented. |
 | `[~]` | Implement real enforcement state for block/throttle/challenge | High | High-Critical | Partial: `action_taken` is persisted as metadata; no request-path block/throttle/challenge state is enforced at runtime. |
 | `[ ]` | Implement LOW light rate limiting | High | High | Not started: no LOW runtime rate-limit enforcement found. |
@@ -99,7 +99,7 @@ This tracker is based on the following.
 | `[ ]` | Add dataset validation before retraining | High | High | Not started for analyst-labeled retraining exports; no retraining dataset validation entrypoint found. |
 | `[ ]` | Add challenger evaluation gate before promotion | High | High | Not started for retrained candidates; promotion safety exists separately but no closed retraining challenger gate is present. |
 | `[~]` | Add model artifact checksum/manifest validation | Medium-High | Medium | Partial: `ModelService` reads manifest/eval metadata, but checksum validation is not implemented. |
-| `[~]` | Add model promotion/rollback integration | Medium-High | Critical | Partial: `ml_model/export/promote_final_training_run.py` implements archive/rollback safety, but real promotion currently fails closed on checkpoint shape mismatch per ops docs. |
+| `[~]` | Add model promotion/rollback integration | Medium-High | Critical | Partial: `ml_model/export/promote_final_training_run.py` implements archive/rollback safety and safe `weights_only=True` checkpoint loading. Packaging/reload readiness is reported separately; `ready_for_promotion` remains false without configured quality gates, and the real promotion still fails closed on checkpoint shape mismatch per ops docs. |
 | `[x]` | Add production edge checklist | Medium | Low | Done as operator documentation: `docs/project-ops/PRODUCTION_EDGE_CHECKLIST.md` defines production-edge readiness checks and explicit non-production truth. This does not claim production deployment is complete. |
 | `[x]` | Add backup/restore and migration rollback runbook | Medium | Medium | Done as operator documentation: `BACKUP_RESTORE_RUNBOOK.md` and `MIGRATION_ROLLBACK_RUNBOOK.md` document safe backup, restore, and rollback procedures. No automated backup/restore job or migration change was implemented. |
 | `[x]` | Add retention policy for alerts and audit logs | Medium | Low-Medium | Done as policy documentation: `RETENTION_POLICY.md` defines archive/hide-first retention rules and explicitly says no physical DELETE behavior or retention job was added. |
@@ -232,7 +232,8 @@ ModSecurity tracker work must include:
 - Retention.
 - CRS-only baseline report.
 - Repeatable end-to-end demo/test script (`scripts/run_final_demo_smoke.py`);
-  Docker-internal lookup remains a manual proof step.
+  current-marker Docker-internal lookup is available through
+  `--require-backend-lookup`.
 
 ## Notes For Queue And Inference Safety
 

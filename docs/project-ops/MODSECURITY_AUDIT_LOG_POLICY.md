@@ -2,7 +2,7 @@
 
 **Project:** CyberTrace / Injection Alert System
 **File:** `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
-**Last updated:** 2026-07-02
+**Last updated:** 2026-07-05
 **Scope:** Local PD2 WAF proof, audit evidence handling, and operator documentation
 
 ---
@@ -149,6 +149,11 @@ prediction/action visible when testing full ML triage flow
 
 The transaction ID is the main cross-process correlation key.
 
+The maintained smoke script also creates a unique per-run marker. Audit proof
+must find that exact marker before accepting its transaction ID; full proof
+must then find the same marker and a current timestamp in the backend lookup.
+The latest non-empty audit line by itself is not proof of the current run.
+
 It should connect:
 
 ```text id="g944qk"
@@ -246,6 +251,12 @@ action_taken
 Raw request bodies should only be captured when they are necessary for a specific test, and only if the payload is safe test data.
 
 If a raw body is included in a local artifact, the artifact must be treated as local evidence and not pasted into public docs or screenshots without review.
+
+The backend sanitizer recursively redacts nested secret-bearing JSON, sensitive
+headers, cookies, and common secret/PII query keys. Correlation IDs, attack
+parameter names, and safe smoke markers remain available. This is application
+sanitization for the local proof path; raw ModSecurity files still require
+restricted access and the documented retention review.
 
 ---
 
@@ -481,7 +492,7 @@ New-Item -ItemType Directory -Force .\reports\modsecurity-live-proof | Out-Null
 Copy-Item .\logs\modsecurity\modsec_audit.jsonl .\reports\modsecurity-live-proof\modsec_audit_snapshot.jsonl
 ```
 
-Extract the latest transaction ID:
+Inspect the latest transaction ID for diagnostics only:
 
 ```powershell id="t3ylt9"
 $latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
@@ -490,6 +501,10 @@ $txid = $latest.transaction.unique_id
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
 $txid
 ```
+
+Do not use that tail command as current-run proof. For proof, run
+`scripts/run_final_demo_smoke.py` so the transaction ID is selected from the
+exact generated marker.
 
 Run Docker-internal backend lookup:
 

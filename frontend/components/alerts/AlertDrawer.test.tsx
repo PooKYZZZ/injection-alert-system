@@ -67,6 +67,8 @@ describe('AlertDrawer', () => {
     )
 
     expect(screen.queryByText(/summary header/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('dashboard.local')).not.toBeInTheDocument()
+    expect(screen.getByText('Host').nextElementSibling).toHaveTextContent('—')
 
     const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured Request' })
     const evidenceShell = capturedRequestHeading.nextElementSibling

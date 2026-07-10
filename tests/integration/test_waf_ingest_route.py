@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
+import threading
 
 from fastapi.testclient import TestClient
 import pytest
@@ -438,3 +440,63 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
     )[-1]
     assert event["transaction_id"] == "waf-txn-processing-1"
     assert event["status_code"] == 409
+
+
+def test_concurrent_duplicate_transaction_runs_inference_once(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    prediction_started = threading.Event()
+    release_prediction = threading.Event()
+    prediction_count = 0
+    count_lock = threading.Lock()
+
+    class BlockingModelService(FakeWafModelService):
+        def predict(self, http_request: str):
+            nonlocal prediction_count
+            with count_lock:
+                prediction_count += 1
+            prediction_started.set()
+            assert release_prediction.wait(timeout=5)
+            return super().predict(http_request)
+
+    class ConcurrentQueue:
+        def health(self):
+            return {"depth": 0}
+
+        async def submit(self, coro_factory):
+            return await coro_factory()
+
+    client.app.dependency_overrides[get_model_service] = (
+        lambda: BlockingModelService()
+    )
+    client.app.dependency_overrides[get_inference_queue] = (
+        lambda: ConcurrentQueue()
+    )
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-live-concurrent"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_future = executor.submit(
+            client.post,
+            "/api/internal/waf-events",
+            json=payload,
+            headers=INTERNAL_HEADERS,
+        )
+        assert prediction_started.wait(timeout=5)
+        second_future = executor.submit(
+            client.post,
+            "/api/internal/waf-events",
+            json=payload,
+            headers=INTERNAL_HEADERS,
+        )
+        second = second_future.result(timeout=5)
+        release_prediction.set()
+        first = first_future.result(timeout=5)
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.headers["Retry-After"] == "5"
+    assert prediction_count == 1
+    assert asyncio.run(_count_traffic_logs(db_module.AsyncSessionLocal)) == 1

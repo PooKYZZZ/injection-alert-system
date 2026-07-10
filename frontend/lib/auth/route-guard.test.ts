@@ -18,6 +18,7 @@ function currentAccount(
     id: string
     role: 'ADMIN' | 'ANALYST' | 'VIEWER'
     authzVersion: number
+    mfaRequired: boolean
     disabledAt: string | null
   }> = {}
 ) {
@@ -25,6 +26,7 @@ function currentAccount(
     id: accountId,
     role: ROLES.ANALYST,
     authzVersion: 1,
+    mfaRequired: false,
     disabledAt: null,
     ...overrides,
   }
@@ -172,6 +174,25 @@ describe('requirePermission', () => {
       event: 'auth.account_disabled',
       outcome: 'denied',
       reason_code: 'ACCOUNT_DISABLED',
+    })
+  })
+
+  it('denies an account that starts requiring MFA after login', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ mfaRequired: true })
+    )
+
+    const result = await requirePermission(
+      session(),
+      PERMISSIONS.ALERTS_READ
+    )
+
+    await expectGenericUnauthorized(result)
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: 'auth.mfa_required',
+      outcome: 'denied',
+      reason_code: 'MFA_REQUIRED',
     })
   })
 

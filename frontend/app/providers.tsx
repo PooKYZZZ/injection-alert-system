@@ -1,6 +1,14 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
@@ -29,7 +37,23 @@ function getSystemTheme(): Theme {
     return 'dark'
   }
 
-  return window.matchMedia(THEME_MEDIA_QUERY).matches ? 'dark' : 'light'
+  try {
+    return window.matchMedia(THEME_MEDIA_QUERY).matches ? 'dark' : 'light'
+  } catch {
+    return 'dark'
+  }
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true
+  }
+
+  try {
+    return window.matchMedia(REDUCED_MOTION_MEDIA_QUERY).matches
+  } catch {
+    return true
+  }
 }
 
 function getStoredThemePreference(): ThemePreference {
@@ -37,8 +61,14 @@ function getStoredThemePreference(): ThemePreference {
     return 'system'
   }
 
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-  return storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : 'system'
+  try {
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+    return storedTheme === 'light' || storedTheme === 'dark'
+      ? storedTheme
+      : 'system'
+  } catch {
+    return 'system'
+  }
 }
 
 function applyThemeToRoot(theme: Theme) {
@@ -85,19 +115,25 @@ export function Providers({ children }: { children: ReactNode }) {
   const transitionTimeoutRef = useRef<number | null>(null)
 
   const theme = themePreference === 'system' ? systemTheme : themePreference
-  applyThemeToRoot(theme)
+  useLayoutEffect(() => {
+    applyThemeToRoot(theme)
+  }, [theme])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
 
-    if (themePreference === 'system') {
-      window.localStorage.removeItem(THEME_STORAGE_KEY)
-      return
-    }
+    try {
+      if (themePreference === 'system') {
+        window.localStorage.removeItem(THEME_STORAGE_KEY)
+        return
+      }
 
-    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference)
+      window.localStorage.setItem(THEME_STORAGE_KEY, themePreference)
+    } catch {
+      // Restricted browser contexts can deny storage access.
+    }
   }, [themePreference])
 
   useEffect(() => {
@@ -105,7 +141,12 @@ export function Providers({ children }: { children: ReactNode }) {
       return
     }
 
-    const mediaQueryList = window.matchMedia(THEME_MEDIA_QUERY)
+    let mediaQueryList: MediaQueryList
+    try {
+      mediaQueryList = window.matchMedia(THEME_MEDIA_QUERY)
+    } catch {
+      return
+    }
 
     const handleChange = (event: MediaQueryListEvent) => {
       setSystemTheme(event.matches ? 'dark' : 'light')
@@ -139,12 +180,11 @@ export function Providers({ children }: { children: ReactNode }) {
       setThemePreference,
       toggleTheme: () => {
         if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-          const prefersReducedMotion =
-            typeof window.matchMedia === 'function' && window.matchMedia(REDUCED_MOTION_MEDIA_QUERY).matches
+          const reduceMotion = prefersReducedMotion()
 
           const root = document.documentElement
 
-          if (!prefersReducedMotion) {
+          if (!reduceMotion) {
             root.classList.add(THEME_TRANSITION_CLASS)
 
             if (transitionTimeoutRef.current !== null) {

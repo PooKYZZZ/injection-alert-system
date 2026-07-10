@@ -194,16 +194,32 @@ def resolve_calibration_provenance(
     *,
     model_key: str,
     run_dir_name: str,
+    calibration_eval_run_dir: Path | None = None,
 ) -> CalibrationProvenance:
     if not eval_dir.exists():
         raise PackagingError(f"Evaluation directory does not exist: {eval_dir}")
 
+    if calibration_eval_run_dir is not None:
+        explicit_eval_run_dir = Path(calibration_eval_run_dir).resolve()
+        if explicit_eval_run_dir.parent != eval_dir.resolve():
+            raise PackagingError(
+                "Explicit calibration evaluation directory must be a direct child of "
+                f"'{eval_dir}'."
+            )
+        if not explicit_eval_run_dir.is_dir():
+            raise PackagingError(
+                f"Explicit calibration evaluation directory does not exist: {explicit_eval_run_dir}"
+            )
+        candidate_dirs = [explicit_eval_run_dir]
+    else:
+        candidate_dirs = sorted(
+            [path for path in eval_dir.iterdir() if path.is_dir()],
+            key=lambda path: path.name,
+            reverse=True,
+        )
+
     matches: list[CalibrationProvenance] = []
-    for eval_run_dir in sorted(
-        [path for path in eval_dir.iterdir() if path.is_dir()],
-        key=lambda path: path.name,
-        reverse=True,
-    ):
+    for eval_run_dir in candidate_dirs:
         promotion_summary_path = eval_run_dir / "promotion_summary.json"
         if not promotion_summary_path.exists():
             continue
@@ -417,6 +433,7 @@ def package_serving_artifact(
     strict: bool = False,
     sample_text: str = DEFAULT_SAMPLE_TEXT,
     notes: str | None = None,
+    calibration_eval_run_dir: Path | None = None,
 ) -> Path:
     if model_key not in MODEL_IDS:
         raise KeyError(f"Unknown model key: {model_key}")
@@ -449,6 +466,7 @@ def package_serving_artifact(
         eval_dir,
         model_key=model_key,
         run_dir_name=run_dir.name,
+        calibration_eval_run_dir=calibration_eval_run_dir,
     )
 
     model_id = config_used.get("model_id", MODEL_IDS[model_key])

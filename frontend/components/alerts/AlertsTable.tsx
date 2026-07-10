@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useSyncExternalStore, Suspense } from 'react'
+import { useMemo, useRef, useSyncExternalStore, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { useAlertsFromFilters, useTriageMutation } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
@@ -253,6 +253,7 @@ function AlertsTableContent({
   const { data, isPending, isError, refetch } = useAlertsFromFilters(params)
   const { mutate: updateTriage } = useTriageMutation()
   const alerts = data?.items ?? []
+  const rowClickSequenceRef = useRef(0)
 
   const currentSort = (params.sort_by as SortColumn | undefined) ?? null
   const currentDir = params.sort_dir ?? 'desc'
@@ -286,9 +287,21 @@ function AlertsTableContent({
   }
 
   const handleRowClick = (alert: Alert) => {
+    rowClickSequenceRef.current += 1
+    const clickSequence = rowClickSequenceRef.current
+
     if (canTriage && isNewTriageStatus(alert.triage_status)) {
-      updateTriage({ id: alert.alert_id, status: 'in_review' })
-      onAlertClick({ ...alert, triage_status: 'in_review' })
+      onAlertClick(alert)
+      updateTriage(
+        { id: alert.alert_id, status: 'in_review' },
+        {
+          onSuccess: (updatedAlert) => {
+            if (rowClickSequenceRef.current === clickSequence) {
+              onAlertClick(updatedAlert)
+            }
+          },
+        }
+      )
       return
     }
 

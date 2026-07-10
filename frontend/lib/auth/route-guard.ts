@@ -102,6 +102,19 @@ export async function requirePermission(
     return denied(401)
   }
 
+  if (currentAccount.mfaRequired) {
+    writeLoginAudit({
+      event: 'auth.mfa_required',
+      level: 'warn',
+      outcome: 'denied',
+      userId: id,
+      role,
+      authzVersion: authzVersion as number,
+      reasonCode: 'MFA_REQUIRED',
+    })
+    return denied(401)
+  }
+
   if (currentAccount.authzVersion !== authzVersion) {
     writeLoginAudit({
       event: 'auth.session_stale',

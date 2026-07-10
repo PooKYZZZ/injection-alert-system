@@ -1,6 +1,6 @@
 # Local Setup
 
-Last updated: 2026-07-03
+Last updated: 2026-07-05
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
@@ -115,7 +115,13 @@ Real promotion (remove `--dry-run`):
   --archive-suffix "pre_20260420"
 ```
 
-This workflow writes sidecar provenance files (`provenance.json`, `MODEL_CARD.md`) and does not rename the active staged run directory.
+This workflow reads checkpoint payloads with `torch.load(..., weights_only=True)`,
+writes sidecar provenance files (`provenance.json`, `MODEL_CARD.md`), and does
+not rename the active staged run directory. Packaging plus local reload sets
+`artifact_packaging_ready`; it does not set `ready_for_promotion=true` unless a
+separate configured quality gate also passes. No such quality threshold gate is
+currently configured, so operators must not treat packaging success as model
+quality approval.
 
 ### Run tests
 
@@ -123,7 +129,7 @@ This workflow writes sidecar provenance files (`provenance.json`, `MODEL_CARD.md
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-07-04, this passes with **496 backend tests**.
+As of 2026-07-10, this passes with **528 backend tests**.
 
 ### Start the backend
 
@@ -188,12 +194,12 @@ Notes:
 - `AUTH_SECRET` is the Auth.js signing secret. Keep `NEXTAUTH_SECRET` unset to avoid split secret sources.
 - `AUTH_TRUST_HOST=true` is required for local `next start` validation so Auth.js trusts the local host.
 - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required for login and protected BFF access. Missing configuration or a Supabase outage fails closed; there is no `AUTH_USERS_JSON` fallback.
-- At least one `auth_accounts` row with an Argon2id `password_hash` must exist before login can succeed. Null, old scrypt, malformed, and unsupported hashes are rejected.
+- At least one `auth_accounts` row with an approved Argon2id `password_hash` must exist before login can succeed. Runtime verification requires PHC version `v=19` with at least `m=19456,t=2,p=1`; weak, null, old scrypt/bcrypt, malformed, and unsupported hashes are rejected before native verification.
 - The login form accepts account id, normalized email, or normalized username plus password. There is no demo-password fallback.
-- Disablement, role changes, and `authz_version` changes are checked against the current DB row on every protected BFF request. Existing JWTs are denied when the account is missing, disabled, downgraded, or stale.
+- Disablement, `mfa_required`, role changes, and `authz_version` changes are checked against the current DB row on every protected BFF request. Existing JWTs are denied when the account is missing, disabled, newly MFA-required, downgraded, or stale.
 - JWT sessions expire after 8 hours. This password-only flow is AAL1-style; the shorter lifetime is a voluntary defense-in-depth choice and is not an AAL2 compliance claim.
 - Local login hardening uses per-identifier and process-global failure throttles plus a default two-operation password-hash concurrency cap. Defaults can be overridden with the `AUTH_LOGIN_*` and `AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT` variables.
-- Operational account provisioning uses `frontend/lib/server/db/script-client.mjs`; app runtime access remains protected separately by the `server-only` TypeScript client. The provisioning scripts create, list, disable, and set passwords without exposing secret-bearing fields.
+- Operational account provisioning uses `frontend/lib/server/db/script-client.mjs`; app runtime access remains protected separately by the `server-only` TypeScript client. Scripts load `frontend/.env.local` when run from `frontend/`, with explicitly supplied shell variables taking precedence, and errors name missing variables without printing values. The scripts create, list, disable, and set passwords without exposing secret-bearing fields.
 - Throttle state is process memory only: it resets on restart and is not shared across serverless instances, Node processes, or horizontally scaled containers. It does not use IP or `X-Forwarded-For`.
 - Login audit events are single-line JSON logs with hashed identifiers and fixed reason codes. They are operational logs, not a persistent or tamper-resistant audit store.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
@@ -227,6 +233,23 @@ node scripts/disable_auth_account.mjs --email disposable-check@example.test
 
 Password CLI arguments can enter shell history. Use only an appropriate local
 operator shell and never commit or paste credentials into logs or reports.
+
+### Validate migrations without touching live Supabase
+
+Use a disposable PostgreSQL database, then exercise the normal migration chain:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://<user>:<password>@127.0.0.1:<port>/<disposable-db>"
+.venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m alembic downgrade -1
+.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Revision `20260704_000008` is intentionally part of normal `upgrade head`.
+It creates nine auth/security tables, enables RLS, revokes public-role access,
+and creates no browser-facing policies. Revision `20260324_000007` now fails
+clearly if its required `traffic_logs` table is missing instead of silently
+reporting success. Use a reviewed deployment step for live Supabase.
 
 ### Dashboard role matrix
 
@@ -269,7 +292,9 @@ cd frontend
 npx vitest run
 ```
 
-As of 2026-07-03, the focused BFF selection passes **89 tests** and the full suite passes **278 frontend tests**.
+The current verified counts are recorded in `docs/project-ops/STATUS.md` and
+`docs/project-ops/LIVING_CHECKLIST.md`; run the commands above to verify the
+current checkout rather than relying on a stale embedded count.
 
 ### Validate production build
 
@@ -432,21 +457,11 @@ Invoke-WebRequest -UseBasicParsing http://localhost:3000 | Select-Object -Expand
 
 Expected result: `200`
 
-### Running the demo seeder
+### Demo data
 
-The repo does track `seed_demo.py`, but it currently targets `http://127.0.0.1:8000`.
-
-Implications:
-
-- From the host machine, it will fail against Docker because the backend is not published to host port `8000`
-- From inside the `backend` container, it talks directly to FastAPI and bypasses ModSecurity
-- It does not currently exercise the ModSecurity path
-
-To run it against the backend container directly:
-
-```powershell
-docker compose exec backend python seed_demo.py
-```
+No maintained `seed_demo.py` exists in this repository. Use the WAF smoke
+commands and account provisioning scripts documented above; do not rely on
+stale seeder commands.
 
 ### Stop the stack
 

@@ -1,6 +1,15 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const tempDirectories: string[] = []
+
+afterEach(() => {
+  for (const directory of tempDirectories.splice(0)) {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
 
 describe('script-only Supabase boundary', () => {
   it('validates and trims required environment values', async () => {
@@ -32,6 +41,52 @@ describe('script-only Supabase boundary', () => {
       expect(String(error)).not.toContain(secret)
       expect(String(error)).toContain('NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY')
     }
+  })
+
+  it('loads script credentials from frontend .env.local', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cybertrace-env-'))
+    tempDirectories.push(directory)
+    const envFilePath = path.join(directory, '.env.local')
+    fs.writeFileSync(
+      envFilePath,
+      [
+        'SUPABASE_URL=https://from-file.supabase.co',
+        'SUPABASE_SERVICE_ROLE_KEY=file-service-secret',
+      ].join('\n')
+    )
+    const { loadSupabaseScriptEnv } = await import('./script-env.mjs')
+
+    expect(loadSupabaseScriptEnv({ env: {}, envFilePath })).toEqual({
+      SUPABASE_URL: 'https://from-file.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'file-service-secret',
+    })
+  })
+
+  it('prefers shell environment over .env.local values', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cybertrace-env-'))
+    tempDirectories.push(directory)
+    const envFilePath = path.join(directory, '.env.local')
+    fs.writeFileSync(
+      envFilePath,
+      [
+        'SUPABASE_URL=https://from-file.supabase.co',
+        'SUPABASE_SERVICE_ROLE_KEY=file-service-secret',
+      ].join('\n')
+    )
+    const { loadSupabaseScriptEnv } = await import('./script-env.mjs')
+
+    expect(
+      loadSupabaseScriptEnv({
+        env: {
+          SUPABASE_URL: 'https://from-shell.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'shell-service-secret',
+        },
+        envFilePath,
+      })
+    ).toEqual({
+      SUPABASE_URL: 'https://from-shell.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'shell-service-secret',
+    })
   })
 
   it('creates a non-persistent service-role client', async () => {

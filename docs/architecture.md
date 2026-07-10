@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-07-03
+Last updated: 2026-07-05
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -38,19 +38,19 @@ flowchart LR
 | Browser dashboard path | Implemented | `frontend/app/api/*`, `frontend/proxy.ts`, `frontend/lib/bff-client.ts` |
 | FastAPI routes and BFF calls | Implemented | `web_app/presentation/api/routes.py`, `frontend/app/api/*` |
 | ModelService runtime boundary | Implemented | `web_app/services/model_service.py` |
-| WAF ingest endpoint | Verified local proof | `POST /api/internal/waf-events`, `GET /api/internal/waf-events/{transaction_id}`, targeted route tests `11 passed` |
-| WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `37 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
+| WAF ingest endpoint | Verified local proof | `POST /api/internal/waf-events`, `GET /api/internal/waf-events/{transaction_id}`, targeted route tests `12 passed` |
+| WAF JSONL bridge | Verified local proof | `scripts/waf_audit_bridge.py`; targeted bridge tests `47 passed`; live bridge posted `status=200` for transaction `17821639659.909603` |
 | ModSecurity request path | Verified local proof | `localhost:8088` is the technical CyberTrace backend WAF proof path; SQLi blocks with HTTP 403 and writes `logs/modsecurity/modsec_audit.jsonl` |
 | Demo-target WAF ingest path | Verified local PD2 proof | `localhost:8089` is the realistic protected demo website path; `demo-target-bridge` forwards separate `logs/modsecurity/demo-target/modsec_audit.jsonl` events; transaction `178249138618.813428` reached FastAPI as `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15` |
 | Backend Compose exposure | Implemented | backend is internal-only in Compose and shown as `8000/tcp`; proof lookup uses `docker compose exec`, not `localhost:8000` |
 | Inference queue | Implemented | `web_app/application/inference_queue.py`; targeted tests cover synchronous WAF ingest, queue overflow, and queue health |
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
-| Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; redaction and correlation behavior are covered by targeted tests |
+| Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
 | Email notifications | Planned | no transactional email integration found |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
-| Argon2id, account provisioning, and login cutover | Implemented in repo | password hashing is Argon2id-only, operational scripts use the script-only Supabase adapter, and app runtime login uses the server-only Supabase boundary; target environments still require reviewed migration/account provisioning |
+| Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
 | 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
@@ -127,6 +127,7 @@ Implemented in the current foundation:
 - Supabase `auth_accounts` with Argon2id password hashes,
 - `ADMIN`/`ANALYST`/`VIEWER` session claims,
 - current DB account, disablement, role, and `authz_version` freshness checks in BFF route guards,
+- current `mfa_required` fail-closed checks in login and every protected BFF route,
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 - alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 

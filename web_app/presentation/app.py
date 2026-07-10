@@ -128,7 +128,14 @@ def create_app() -> FastAPI:
             allow_origins=settings.allowed_origins,
             allow_credentials=True,
             allow_methods=["GET", "POST", "PATCH"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=[
+                "Authorization",
+                "Content-Type",
+                "X-Request-ID",
+                "traceparent",
+                "tracestate",
+            ],
+            expose_headers=["X-Request-ID"],
         )
     else:
         # Development: allow more flexibility for local development

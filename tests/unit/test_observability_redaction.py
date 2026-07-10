@@ -78,10 +78,13 @@ def test_all_required_sensitive_key_variants_are_redacted():
         "token",
         "access_token",
         "refresh_token",
+        "id_token",
         "password",
         "passwd",
         "pwd",
         "secret",
+        "client_secret",
+        "secret_key",
         "credential",
         "private_key",
         "session",
@@ -96,3 +99,36 @@ def test_all_required_sensitive_key_variants_are_redacted():
     ]
 
     assert all(redact_value(key.upper(), "sensitive") == REDACTED for key in keys)
+
+
+def test_separator_and_case_variants_are_redacted_recursively():
+    original = {
+        "clientSecret": "client-secret",
+        "nested": [
+            {
+                "Secret-Key": "secret-key",
+                "privateKey": "private-key",
+                "apiKey": "api-key",
+                "safe": "visible",
+            }
+        ],
+    }
+
+    redacted = redact_for_log(original)
+
+    assert redacted["clientSecret"] == REDACTED
+    assert redacted["nested"][0]["Secret-Key"] == REDACTED
+    assert redacted["nested"][0]["privateKey"] == REDACTED
+    assert redacted["nested"][0]["apiKey"] == REDACTED
+    assert redacted["nested"][0]["safe"] == "visible"
+
+
+def test_cyclic_structures_are_bounded_without_mutation():
+    original = {"request_id": "req-cycle"}
+    original["self"] = original
+
+    redacted = redact_for_log(original)
+
+    assert redacted["request_id"] == "req-cycle"
+    assert redacted["self"] == "<cycle detected>"
+    assert original["self"] is original

@@ -35,6 +35,7 @@ type AuthorizationEvent = {
     | 'auth.session_stale'
     | 'auth.account_removed'
     | 'auth.account_disabled'
+    | 'auth.mfa_required'
     | 'auth.account_lookup_failed'
     | 'auth.role_mismatch'
   level: 'warn'
@@ -47,6 +48,7 @@ type AuthorizationEvent = {
     | 'AUTHZ_VERSION_MISMATCH'
     | 'ACCOUNT_REMOVED'
     | 'ACCOUNT_DISABLED'
+    | 'MFA_REQUIRED'
     | 'ACCOUNT_LOOKUP_FAILED'
     | 'ROLE_MISMATCH'
 }

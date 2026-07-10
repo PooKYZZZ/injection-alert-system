@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from ml_model.export.package_serving_artifact import resolve_calibration_provenance
 from ml_model.export.promote_final_training_run import (
     PromotionError,
     archive_existing_run,
@@ -20,6 +21,7 @@ from ml_model.export.promote_final_training_run import (
     run_packager,
     validate_final_training_source,
     validate_label_names,
+    write_eval_provenance_files,
 )
 
 
@@ -118,6 +120,28 @@ def test_extracts_raw_model_state_dict_from_notebook_checkpoint(tmp_path: Path):
 
     saved = torch.load(target, map_location="cpu", weights_only=True)
     assert saved == {"encoder.weight": torch.tensor([1.0])}
+
+
+def test_checkpoint_extraction_uses_weights_only_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.pt"
+    target = tmp_path / "target.pt"
+    calls: list[dict[str, object]] = []
+
+    def safe_load(path, **kwargs):
+        calls.append(kwargs)
+        return {"model_state_dict": {"encoder.weight": torch.tensor([1.0])}}
+
+    monkeypatch.setattr(
+        "ml_model.export.promote_final_training_run.torch.load",
+        safe_load,
+    )
+
+    extract_state_dict_checkpoint(source, target)
+
+    assert calls == [{"map_location": "cpu", "weights_only": True}]
 
 
 def test_extract_state_dict_checkpoint_normalizes_final_training_keys_for_packager(
@@ -279,19 +303,153 @@ def test_create_fresh_active_run_directory_starts_empty(tmp_path: Path):
 
 
 def test_build_provenance_payload_records_checkpoint_archive_and_gates():
+    checkpoint_sha256 = "a" * 64
     payload = build_provenance_payload(
         model_name="distilbert-injection-detector",
         promoted_version="distilbert_v3_907k_cleaned_20260312_133755",
-        checkpoint_sha256="abc123",
+        checkpoint_sha256=checkpoint_sha256,
         archived_path="ml_model/model_registry/archive/run_old",
         repo_commit="deadbeef",
         calibration_temperature=1.3780944347381592,
-        validation_gates={"reload_test": True},
+        validation_gates={
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": False,
+        },
     )
 
-    assert payload["checkpoint_identity"]["checkpoint_sha256"] == "abc123"
+    assert payload["checkpoint_identity"]["checkpoint_sha256"] == checkpoint_sha256
     assert payload["previous_version_archived_to"] == "ml_model/model_registry/archive/run_old"
-    assert payload["validation_gates_passed"]["reload_test"] is True
+    assert payload["artifact_packaging_ready"] is True
+    assert payload["quality_gates_passed"] is False
+    assert payload["ready_for_promotion"] is False
+
+
+def test_build_provenance_payload_requires_packaging_reload_and_quality_gates():
+    common = {
+        "model_name": "distilbert-injection-detector",
+        "promoted_version": "distilbert_test",
+        "checkpoint_sha256": "a" * 64,
+        "archived_path": "ml_model/model_registry/archive/run_old",
+        "repo_commit": "deadbeef",
+        "calibration_temperature": 1.2,
+        "label_names": [
+            "Code Injection",
+            "Normal",
+            "Other Attacks",
+            "SQL Injection",
+        ],
+    }
+
+    ready = build_provenance_payload(
+        **common,
+        validation_gates={
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": True,
+        },
+    )
+    missing_reload = build_provenance_payload(
+        **common,
+        validation_gates={
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": False,
+            "quality_gates_passed": True,
+        },
+    )
+
+    assert ready["ready_for_promotion"] is True
+    assert missing_reload["artifact_packaging_ready"] is False
+    assert missing_reload["ready_for_promotion"] is False
+
+    missing_source_validation = build_provenance_payload(
+        **common,
+        validation_gates={
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": True,
+        },
+    )
+    missing_checksum = build_provenance_payload(
+        **{**common, "checkpoint_sha256": ""},
+        validation_gates={
+            "source_validation_passed": True,
+            "artifact_packaging_pipeline_passed": True,
+            "local_reload_validated": True,
+            "quality_gates_passed": True,
+        },
+    )
+
+    assert missing_source_validation["ready_for_promotion"] is False
+    assert missing_checksum["checkpoint_hash_recorded"] is False
+    assert missing_checksum["ready_for_promotion"] is False
+
+
+def test_eval_provenance_does_not_claim_quality_readiness_without_gates(
+    tmp_path: Path,
+):
+    eval_dir = write_eval_provenance_files(
+        eval_root=tmp_path,
+        model_key="distilbert",
+        run_dir_name="distilbert_test",
+        temperature=1.2,
+        repo_commit="deadbeef",
+        dataset_version="v3",
+        artifact_packaging_pipeline_passed=True,
+        local_reload_validated=True,
+        quality_gates_passed=False,
+    )
+
+    summary = json.loads(
+        (eval_dir / "promotion_summary.json").read_text(encoding="utf-8")
+    )
+    model_summary = summary["promotion_summary"]["distilbert"]
+    assert model_summary["artifact_packaging_ready"] is True
+    assert model_summary["quality_gates_passed"] is False
+    assert model_summary["ready_for_promotion"] is False
+
+
+def test_explicit_calibration_provenance_avoids_ambiguous_historical_runs(
+    tmp_path: Path,
+):
+    eval_root = tmp_path / "eval"
+    run_dir_name = "distilbert_test"
+    selected_dir: Path | None = None
+    for timestamp, temperature in (("20260710_100000", 0.6), ("20260710_110000", 1.2)):
+        eval_run_dir = eval_root / timestamp
+        eval_run_dir.mkdir(parents=True)
+        (eval_run_dir / "promotion_summary.json").write_text(
+            json.dumps(
+                {
+                    "promotion_summary": {
+                        "distilbert": {
+                            "run_dir": run_dir_name,
+                            "temperature": temperature,
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (eval_run_dir / "eval_results_distilbert_calibrated.json").write_text(
+            json.dumps({"temperature": temperature}),
+            encoding="utf-8",
+        )
+        if temperature == 1.2:
+            selected_dir = eval_run_dir
+
+    assert selected_dir is not None
+    calibration = resolve_calibration_provenance(
+        eval_root,
+        model_key="distilbert",
+        run_dir_name=run_dir_name,
+        calibration_eval_run_dir=selected_dir,
+    )
+
+    assert calibration.eval_run_dir == selected_dir.resolve()
+    assert calibration.temperature == 1.2
 
 
 def test_build_model_card_mentions_metrics_and_version_history():
@@ -312,6 +470,7 @@ def test_run_packager_invokes_existing_package_serving_artifact(
     tmp_path: Path,
 ):
     calls: list[dict[str, object]] = []
+    calibration_eval_run_dir = tmp_path / "eval" / "20260710_120000"
 
     def fake_package_serving_artifact(**kwargs):
         calls.append(kwargs)
@@ -326,11 +485,13 @@ def test_run_packager_invokes_existing_package_serving_artifact(
         model_key="distilbert",
         run_dir_name="distilbert_v3_907k_cleaned_20260312_133755",
         notes=None,
+        calibration_eval_run_dir=calibration_eval_run_dir,
     )
 
     assert calls[0]["model_key"] == "distilbert"
     assert calls[0]["run_dir_name"] == "distilbert_v3_907k_cleaned_20260312_133755"
     assert calls[0]["strict"] is True
+    assert calls[0]["calibration_eval_run_dir"] == calibration_eval_run_dir
 
 
 def test_restore_archive_reinstates_old_active_run_after_failure(tmp_path: Path):
@@ -362,9 +523,21 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
         "ml_model.export.promote_final_training_run.validate_local_reload",
         lambda *args, **kwargs: None,
     )
+    packager_calls: list[dict[str, object]] = []
+
+    def fake_run_packager(**kwargs):
+        packager_calls.append(kwargs)
+        eval_run_dir = Path(kwargs["calibration_eval_run_dir"])
+        provisional_summary = json.loads(
+            (eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
+        )["promotion_summary"]["distilbert"]
+        assert provisional_summary["artifact_packaging_ready"] is False
+        assert provisional_summary["gates"]["local_reload_validated"] is False
+        return active_run_dir
+
     monkeypatch.setattr(
         "ml_model.export.promote_final_training_run.run_packager",
-        lambda **kwargs: active_run_dir,
+        fake_run_packager,
     )
 
     result = promote_final_training_run(
@@ -378,6 +551,13 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
     assert result.active_run_dir.exists()
     assert (result.active_run_dir / "provenance.json").exists()
     assert (result.active_run_dir / "MODEL_CARD.md").exists()
+    assert packager_calls[0]["calibration_eval_run_dir"] == result.eval_run_dir
+    final_summary = json.loads(
+        (result.eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
+    )["promotion_summary"]["distilbert"]
+    assert final_summary["artifact_packaging_ready"] is True
+    assert final_summary["gates"]["local_reload_validated"] is True
+    assert final_summary["ready_for_promotion"] is False
 
 
 def test_promote_final_training_run_does_not_archive_or_write_when_preflight_fails(

@@ -19,30 +19,31 @@
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
 - Account-security runtime: Auth.js Credentials login now reads Supabase `auth_accounts`, verifies Argon2id hashes, preserves `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, and rechecks current DB account state across all six BFF routes.
-- Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The migration has not been applied to live Supabase.
+- Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The full chain and downgrade/re-upgrade passed on disposable PostgreSQL; the migration has not been applied to live Supabase.
 - `AUTH_USERS_JSON` is no longer a runtime login or freshness source. Supabase/client failure fails closed with no env fallback; target environments still need the PR 1 migration and at least one provisioned account.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
-- Login hardening is local/process-bound: Argon2id-only verification, same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour AAL1-style sessions, and secret-safe JSON login and route-guard audit events are implemented.
-- Operational scripts create, list, disable, and set passwords for `auth_accounts` through a centralized script-only Supabase service-role adapter. Accounts with `mfa_required=true` are denied final sessions until MFA exists. MFA, email OTP, Resend, Telegram, Turnstile, and password reset remain unimplemented.
+- Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour AAL1-style sessions, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
+- Operational scripts load `frontend/.env.local` with shell precedence and create, list, disable, and set passwords for `auth_accounts` through a centralized script-only Supabase service-role adapter. Accounts with `mfa_required=true` are denied login and protected BFF access until MFA exists. MFA, email OTP, Resend, Telegram, Turnstile, and password reset remain unimplemented.
 - The next maintained-plan phase is the email-provider/notification-outbox foundation; it must not be represented as MFA delivery or password-reset implementation.
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **496 passed**
-- Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **9 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
+- Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **16 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
-- WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **24 passed**
+- WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **25 passed**
 - Request-context regression tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_request_context_middleware.py` → **9 passed**
 - App startup sanity: `.venv\Scripts\python.exe -c "from web_app.presentation.app import create_app; print(bool(create_app()))"` → **True**
 - Frontend lint: `cd frontend && npm run lint` → **pass**
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
-  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **95 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **317 passed**
+  - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **96 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **333 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.
-- Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **18 passed**
+- Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **21 passed**
+- Dependency gates: `pip-audit -r requirements.txt` found no known vulnerabilities; `npm audit --audit-level=high` passed with three transitive moderate PostCSS findings and no high/critical findings. The unused direct `@babel/core` dependency was removed after source and dependency-tree inspection.
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
 - Promotion real-run command (April DistilBERT source path) → **failed closed** with strict checkpoint architecture incompatibility:
   - `package_serving_artifact.py` strict load expects DistilBERT classification head shapes (`768`) but final-training checkpoint head uses `256`-dim layers
@@ -62,7 +63,8 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - ModSecurity audit log contained transaction `17821639659.909603`, source IP `172.21.0.1`, and request URI `/api/health?id=17%27%20OR%2017%3D17--`.
 - Bridge posted `status=200 transaction_id=17821639659.909603 rule_ids=['942100', '949110']`.
 - Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and CRS rules `942100`, `949110`.
-- Targeted WAF checks: bridge tests `37 passed`, WAF ingest route tests `11 passed`, WAF ingest use-case tests `4 passed`; the latest combined run passed `52` tests, and the previously verified `docker compose config --quiet` result remains recorded in the proof evidence.
+- Targeted WAF checks: bridge tests `47 passed`, WAF ingest route tests `12 passed`, WAF ingest use-case tests `4 passed`; the combined boundary set is `63 passed`.
+- Current-marker live proof passed on 2026-07-05 for both `localhost:8088` and the optional `localhost:8089` demo target, including audit-log and Docker-internal backend correlation. The smoke waits boundedly for audit flush and bridge persistence rather than accepting stale evidence.
 - ModSecurity audit-log policy is documented; automatic rotation and production retention remain TODO.
 - Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested in `tests/scripts/test_waf_audit_bridge.py`; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines.
 
@@ -87,9 +89,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### Automated final demo and abuse smoke proof
 
 - `scripts/run_final_demo_smoke.py` provides explicit `backend`, `waf-8088`,
-  and `demo-target-8089` modes with bounded HTTP timeouts, concise
-  PASS/FAIL/SKIP output, parseable `--json` output, and nonzero exit on required
-  check failure.
+  and `demo-target-8089` modes with unique current-run markers, bounded HTTP
+  timeouts, PASS/WARN/FAIL output, parseable `--json` output, and optional
+  required Docker-internal backend correlation.
 - Script tests cover parseable JSON output, controlled timeout/unavailable
   failures, and redaction of secret-like values and Authorization headers.
 - The script does not read or emit the backend API secret, Authorization
@@ -104,10 +106,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Queue-full WAF proof now explicitly asserts `X-Request-ID`,
   `waf_ingest.queue_full`, `transaction_id`, `queue_depth`, `Retry-After`, and
   API-secret non-leakage.
-- The `8088` and `8089` CLI modes remain opt-in local checks. Missing audit
-  JSONL files and Docker-internal transaction lookup are reported as `SKIP`;
-  the manual lookup commands remain in
-  `docs/project-ops/SMOKE_TEST_RUNBOOK.md`.
+- The `8088` and `8089` CLI modes remain opt-in local checks. Without
+  `--require-backend-lookup`, successful audit-only proof is explicitly `WARN`;
+  full proof requires the same marker and a current timestamp in the backend row.
 - Starlette `TestClient` now uses pinned `httpx2==2.5.0` without the deprecated plain-`httpx` warning path; `httpx==0.28.1` remains for current consumers such as `huggingface_hub`.
 
 ### CRS baseline and demo-target proof
@@ -200,9 +201,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Password reset/recovery and CAPTCHA/step-up are not implemented.
 - Client-required email notification after detection is not yet implemented.
 - Real-time SSE/EventSource dashboard alerting is not yet implemented.
-- Automated final-demo HTTP/audit checks are implemented, but Docker-internal
-  backend transaction lookup and full dashboard interaction remain explicit
-  manual runbook steps rather than always-on CI.
+- Automated final-demo HTTP/audit checks and opt-in Docker-internal backend
+  lookup are implemented; full dashboard interaction remains a manual runbook
+  step rather than always-on CI.
 - Wazuh export-only integration is not yet implemented; full Wazuh/SIEM deployment is deferred.
 - Retraining remains design-level in `ml_model/retraining/`; promotion/rollback tooling exists separately under `ml_model/export/`.
 

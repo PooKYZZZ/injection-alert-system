@@ -111,6 +111,21 @@ def test_redacts_json_body_secrets():
     assert "abc123" not in result
 
 
+def test_redacts_nested_json_and_array_secret_variants():
+    result = redact_sensitive_text(
+        '{"profile":{"clientSecret":"client-value"},'
+        '"items":[{"private_key":"private-value"},{"apiKey":"api-value"}]}'
+    )
+
+    parsed = __import__("json").loads(result)
+    assert parsed["profile"]["clientSecret"] == "[REDACTED]"
+    assert parsed["items"][0]["private_key"] == "[REDACTED]"
+    assert parsed["items"][1]["apiKey"] == "[REDACTED]"
+    assert "client-value" not in result
+    assert "private-value" not in result
+    assert "api-value" not in result
+
+
 def test_redacts_authorization_header_text():
     result = redact_sensitive_text("Authorization: Bearer abc")
 
@@ -157,3 +172,24 @@ def test_redacts_encoded_repeated_and_case_variant_query_keys():
     assert "second" not in result
     assert "s1" not in result
     assert "1234" not in result
+
+
+def test_redacts_common_pii_query_keys_and_preserves_attack_marker():
+    result = redact_query_string(
+        "query=%27+OR+1%3D1--+CYBERTRACE_SMOKE_123"
+        "&email=analyst%40example.test&phone=5551234"
+        "&name=Alice&account=acct-9&student_id=2026-001"
+    )
+
+    parsed = dict(parse_qsl(result, keep_blank_values=True))
+    assert parsed["query"] == "' OR 1=1-- CYBERTRACE_SMOKE_123"
+    for key in ("email", "phone", "name", "account", "student_id"):
+        assert parsed[key] == "[REDACTED]"
+    for secret in (
+        "analyst@example.test",
+        "5551234",
+        "Alice",
+        "acct-9",
+        "2026-001",
+    ):
+        assert secret not in result

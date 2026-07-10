@@ -1,5 +1,6 @@
 import json
 import threading
+from email.message import Message
 from io import StringIO
 from urllib.error import HTTPError, URLError
 
@@ -1097,6 +1098,162 @@ def test_run_bridge_retries_transient_connection_failure(monkeypatch, capsys):
     assert retry["attempt"] == 1
     assert retry["attempts"] == 3
     assert retry["error_type"] == "URLError"
+
+
+@pytest.mark.parametrize("status_code", [500, 502, 503, 504])
+def test_retries_retryable_http_error_statuses(monkeypatch, status_code):
+    attempts = []
+    sleeps = []
+    response_bodies = []
+    headers = Message()
+    headers["Retry-After"] = "3"
+
+    def _post(payload, endpoint, api_secret, timeout):
+        attempts.append(status_code)
+        if len(attempts) == 1:
+            response_body = StringIO("sensitive response body must not be logged")
+            response_bodies.append(response_body)
+            raise HTTPError(
+                url=endpoint,
+                code=status_code,
+                msg="retryable",
+                hdrs=headers,
+                fp=response_body,
+            )
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", _post)
+    monkeypatch.setattr(waf_audit_bridge.time, "sleep", sleeps.append)
+
+    status = waf_audit_bridge._post_event_with_retry(
+        {"transaction_id": "tx-http-error", "password": "do-not-log"},
+        endpoint="http://backend:8000/api/internal/waf-events",
+        api_secret="api-secret",
+        timeout=10,
+        max_retries=1,
+        retry_delay_seconds=0.25,
+    )
+
+    assert status == 200
+    assert attempts == [status_code, status_code]
+    assert sleeps == [3.0]
+    assert response_bodies[0].closed
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 403, 404])
+def test_does_not_retry_non_retryable_http_error(monkeypatch, status_code):
+    attempts = []
+    response_body = StringIO("do not log this body")
+
+    def _post(payload, endpoint, api_secret, timeout):
+        attempts.append(status_code)
+        raise HTTPError(
+            url=endpoint,
+            code=status_code,
+            msg="permanent",
+            hdrs=None,
+            fp=response_body,
+        )
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", _post)
+
+    with pytest.raises(HTTPError):
+        waf_audit_bridge._post_event_with_retry(
+            {"transaction_id": "tx-permanent"},
+            endpoint="http://backend:8000/api/internal/waf-events",
+            api_secret="api-secret",
+            timeout=10,
+            max_retries=3,
+            retry_delay_seconds=0,
+        )
+
+    assert attempts == [status_code]
+    assert response_body.closed
+
+
+def test_invalid_retry_after_falls_back_to_bounded_backoff(monkeypatch):
+    attempts = 0
+    sleeps = []
+    headers = Message()
+    headers["Retry-After"] = "not-a-delay"
+
+    def _post(payload, endpoint, api_secret, timeout):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise HTTPError(
+                url=endpoint,
+                code=503,
+                msg="retryable",
+                hdrs=headers,
+                fp=StringIO(""),
+            )
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", _post)
+    monkeypatch.setattr(waf_audit_bridge.time, "sleep", sleeps.append)
+
+    status = waf_audit_bridge._post_event_with_retry(
+        {"transaction_id": "tx-invalid-retry-after"},
+        endpoint="http://backend:8000/api/internal/waf-events",
+        api_secret="api-secret",
+        timeout=10,
+        max_retries=1,
+        retry_delay_seconds=1.5,
+    )
+
+    assert status == 200
+    assert sleeps == [1.5]
+
+
+def test_retry_logs_do_not_leak_sensitive_fields(monkeypatch, capsys):
+    headers = Message()
+    headers["Retry-After"] = "0"
+    attempts = 0
+
+    def _post(payload, endpoint, api_secret, timeout):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise HTTPError(
+                url=endpoint,
+                code=503,
+                msg="Authorization: Bearer response-secret",
+                hdrs=headers,
+                fp=StringIO(
+                    '{"password":"payload-secret","token":"response-token"}'
+                ),
+            )
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", _post)
+    monkeypatch.setattr(waf_audit_bridge.time, "sleep", lambda _: None)
+
+    status = waf_audit_bridge._post_event_with_retry(
+        {
+            "transaction_id": "tx-safe-retry-log",
+            "authorization": "Bearer request-secret",
+            "nested": {"client_secret": "nested-secret"},
+        },
+        endpoint="http://backend:8000/api/internal/waf-events",
+        api_secret="api-secret",
+        timeout=10,
+        max_retries=1,
+        retry_delay_seconds=0,
+    )
+
+    output = capsys.readouterr().out
+    assert status == 200
+    assert "tx-safe-retry-log" in output
+    for secret in (
+        "response-secret",
+        "payload-secret",
+        "response-token",
+        "request-secret",
+        "nested-secret",
+        "api-secret",
+    ):
+        assert secret not in output
 
 
 def test_follow_bridge_logs_http_error_status_without_response_body(

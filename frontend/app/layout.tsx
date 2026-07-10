@@ -3,6 +3,7 @@ import { IBM_Plex_Sans, Inter, JetBrains_Mono, Orbitron } from 'next/font/google
 import type { ReactNode } from 'react'
 import './globals.css'
 import { Providers } from './providers'
+import { themeBootstrapScript } from './theme-bootstrap'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -31,18 +32,6 @@ export const metadata: Metadata = {
   title: 'Injection Alert System',
   description: 'SOC Dashboard',
 }
-
-const themeBootstrapScript = `(() => {
-  const storageKey = 'ias-theme';
-  const root = document.documentElement;
-  const storedTheme = localStorage.getItem(storageKey);
-  const hasExplicitTheme = storedTheme === 'light' || storedTheme === 'dark';
-  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  const resolvedTheme = hasExplicitTheme ? storedTheme : systemTheme;
-
-  root.setAttribute('data-theme', resolvedTheme);
-  root.style.colorScheme = resolvedTheme;
-})();`
 
 export default function RootLayout({
   children,

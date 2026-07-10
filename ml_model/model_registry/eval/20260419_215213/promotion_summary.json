@@ -3,9 +3,14 @@
   "dataset_version": "v3_907k_cleaned",
   "promotion_summary": {
     "distilbert": {
-      "ready_for_promotion": true,
+      "artifact_packaging_ready": false,
+      "quality_gates_passed": false,
+      "ready_for_promotion": false,
       "gates": {
-        "promotion_pipeline": true
+        "source_evaluation_available": true,
+        "artifact_packaging_pipeline_passed": false,
+        "local_reload_validated": false,
+        "quality_gates_passed": false
       },
       "temperature": 1.3780944347381592,
       "git_hash": "1a3e448c3f51a8e7d747e3fe867fc80f30b94535",

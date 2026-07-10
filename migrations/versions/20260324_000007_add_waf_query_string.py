@@ -18,17 +18,21 @@ branch_labels = None
 depends_on = None
 
 
-def _column_names(table_name: str) -> set[str]:
+def _column_names(table_name: str) -> set[str] | None:
     bind = op.get_bind()
     inspector = inspect(bind)
     if not inspector.has_table(table_name):
-        return set()
+        return None
     return {column["name"] for column in inspector.get_columns(table_name)}
 
 
 def upgrade() -> None:
     existing = _column_names("traffic_logs")
-    if not existing or "query_string" in existing:
+    if existing is None:
+        raise RuntimeError(
+            "traffic_logs must exist before applying revision 20260324_000007"
+        )
+    if "query_string" in existing:
         return
 
     op.add_column(
@@ -39,5 +43,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     existing = _column_names("traffic_logs")
-    if "query_string" in existing:
+    if existing and "query_string" in existing:
         op.drop_column("traffic_logs", "query_string")

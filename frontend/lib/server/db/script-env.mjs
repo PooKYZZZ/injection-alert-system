@@ -1,3 +1,9 @@
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+import { parseEnv } from 'node:util'
+
+const DEFAULT_ENV_FILE = path.resolve(process.cwd(), '.env.local')
+
 /**
  * Environment validation for operational provisioning scripts only.
  * App runtime code uses the server-only TypeScript boundary instead.
@@ -29,4 +35,23 @@ export function readSupabaseScriptEnv(env = process.env) {
     SUPABASE_URL: url,
     SUPABASE_SERVICE_ROLE_KEY: serviceKey,
   }
+}
+
+/**
+ * Load the script-only environment from frontend/.env.local, with the
+ * invoking shell taking precedence over file values.
+ *
+ * @param {{
+ *   env?: Record<string, string | undefined>,
+ *   envFilePath?: string
+ * }} options
+ */
+export function loadSupabaseScriptEnv({
+  env = process.env,
+  envFilePath = DEFAULT_ENV_FILE,
+} = {}) {
+  const fileValues = existsSync(envFilePath)
+    ? parseEnv(readFileSync(envFilePath, 'utf8'))
+    : {}
+  return readSupabaseScriptEnv({ ...fileValues, ...env })
 }
