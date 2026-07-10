@@ -23,6 +23,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from web_app.application.inference_queue import InferenceQueueService
 from web_app.config import get_settings
 from web_app.infrastructure.database import init_db
+from web_app.infrastructure.database import database as db_module
+from web_app.notifications.outbox import PostgresNotificationOutboxRepository
+from web_app.notifications.service import NotificationWorkerService
 from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.exception_handlers import unhandled_exception_handler
@@ -82,6 +85,19 @@ async def lifespan(app: FastAPI):
         model_service = ModelService.create_mock()
 
     app.state.model_service = model_service
+    app.state.notification_outbox_repository = (
+        PostgresNotificationOutboxRepository(db_module.AsyncSessionLocal)
+    )
+    notification_worker = None
+    try:
+        notification_worker = NotificationWorkerService.from_settings(settings)
+        await notification_worker.start()
+    except Exception as exc:
+        logger.error(
+            "Notification worker failed to start: %s",
+            exc.__class__.__name__,
+        )
+    app.state.notification_worker = notification_worker
     app.state.inference_queue = InferenceQueueService(settings)
     try:
         await app.state.inference_queue.start()
@@ -98,6 +114,9 @@ async def lifespan(app: FastAPI):
         queue = getattr(app.state, "inference_queue", None)
         if queue is not None:
             await queue.stop()
+        worker = getattr(app.state, "notification_worker", None)
+        if worker is not None:
+            await worker.stop()
 
 
 def create_app() -> FastAPI:

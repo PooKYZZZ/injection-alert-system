@@ -1,5 +1,7 @@
 from functools import lru_cache
 
+from typing import Literal
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,6 +36,18 @@ class Settings(BaseSettings):
     confidence_critical_threshold: float = 0.90
     stale_processing_timeout_seconds: int = 30
     inference_queue_maxsize: int = Field(default=100, ge=1)
+    notification_worker_enabled: bool = False
+    notification_worker_poll_seconds: float = Field(default=2.0, gt=0, le=60)
+    notification_worker_batch_size: int = Field(default=10, ge=1, le=100)
+    notification_worker_lease_seconds: int = Field(default=60, ge=5, le=300)
+    email_provider: Literal["fake", "resend"] = "fake"
+    resend_api_key: str | None = None
+    resend_from_email: str = "onboarding@resend.dev"
+    resend_smoke_test_to: str | None = None
+    resend_live_test_enabled: bool = False
+    threat_email_enabled: bool = False
+    threat_email_to: str | None = None
+    dashboard_base_url: str = "http://localhost:3000"
     max_seq_len: int = 128
     # dev-time default — source from artifact metadata in production
     temperature: float = 0.596868
@@ -68,6 +82,18 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
+            )
+        if (
+            self.notification_worker_enabled
+            and self.email_provider == "resend"
+            and (not self.resend_api_key or not self.resend_from_email)
+        ):
+            raise ValueError(
+                "enabled Resend notification worker requires server-side provider configuration"
+            )
+        if self.threat_email_enabled and not self.threat_email_to:
+            raise ValueError(
+                "enabled threat email notifications require a recipient"
             )
         return self
 

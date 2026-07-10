@@ -203,3 +203,17 @@ def test_production_environment_properties(monkeypatch):
     assert settings.is_development is False
     assert settings.is_testing is False
     assert settings.api_secret_key == "prod-key-789"
+
+
+def test_notification_settings_are_safe_by_default():
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+    )
+
+    assert settings.notification_worker_enabled is False
+    assert settings.threat_email_enabled is False
+    assert settings.email_provider == "fake"
+    assert settings.resend_api_key is None
+    assert settings.resend_live_test_enabled is False

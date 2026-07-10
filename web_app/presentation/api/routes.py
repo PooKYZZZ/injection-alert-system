@@ -39,6 +39,7 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
 from web_app.observability.structured_logging import log_event
+from web_app.notifications.threats import enqueue_threat_notification_safely
 from web_app.presentation.dependencies.auth import verify_internal_token
 from web_app.application.update_alert_triage_use_case import (
     UpdateAlertTriageUseCase,
@@ -270,6 +271,22 @@ async def ingest_waf_event(
         status_code=200,
         **_queue_log_fields(inference_queue),
     )
+
+    if result.alert_id is not None and result.prediction != "Normal":
+        outbox_repository = getattr(
+            request.app.state, "notification_outbox_repository", None
+        )
+        if outbox_repository is not None:
+            await enqueue_threat_notification_safely(
+                repository=outbox_repository,
+                settings=settings,
+                alert_id=result.alert_id,
+                timestamp=payload.timestamp.isoformat(),
+                attack_category=result.prediction,
+                confidence_tier=result.confidence_level,
+                action_taken=result.action_taken,
+                request_path=payload.request_path,
+            )
 
     return TriageIngestResponse(
         alert_id=result.alert_id,

@@ -7,10 +7,26 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf` (pre-Unit 0)
-- Current unit: Unit 0 — repository discovery and decision verification
-- Current bounded objective: record verified authentication, schema, notification, rate-limit, and deployment ownership before feature edits.
-- Next exact action: commit this Unit 0 evidence, then begin Unit 1 with a failing notification-provider test.
+- Latest accepted commit: `7ee300e` (Unit 0)
+- Current unit: Unit 1 — notification foundation (`Implemented`)
+- Current bounded objective: accepted after focused, full-suite, and disposable-PostgreSQL validation.
+- Next exact action: commit Unit 1, then begin Unit 2 with ADMIN-authorization and account-setup failing tests.
+
+## Unit 1 Contract
+
+- Status: `Implemented`
+- In scope: `EmailProvider`, fake provider, Resend HTTP adapter, safe versioned templates, outbox claim/complete/fail RPCs, one logical Python worker, deterministic retry policy, safe configuration, and fake/mocked/live-guard tests.
+- Out of scope: account setup/recovery route wiring (Units 2/5/6), MFA behavior, Turnstile, public deployment, and live provider execution unless the locked opt-in environment gate is already satisfied.
+- Locked invariants: handlers enqueue only; Resend is called only by the worker/smoke boundary; durable dedupe remains in PostgreSQL; provider retries preserve payload and idempotency key; errors never expose secrets or arbitrary provider text; WAF/auth request paths do not depend on provider availability.
+- Primary change kind: `new feature slice`.
+- Secondary change kind: `boundary extraction` for the provider and outbox worker seams.
+- Scope: backend notification package, central settings, one additive migration, focused tests, environment placeholders, and worker lifecycle wiring only where proven necessary.
+- Extraction outcome: `boundary` for notifications, with local modules for provider, templates, repository, and worker.
+- Contract surfaces: additive database columns/functions, settings fields, and worker entrypoint; existing BFF/FastAPI response shapes remain unchanged.
+- Materialization: Python owns delivery because it already owns WAF ingest and the long-running backend lifecycle; frontend/auth code will later enqueue through narrow Supabase operations.
+- Convention decision: async interfaces, Pydantic central settings, SQLAlchemy sessions, thin startup wiring, and narrow fully qualified PostgreSQL functions.
+- Validation depth: unit/provider contract tests, migration source checks, worker behavior tests, affected backend suite, disposable PostgreSQL migration/RPC checks when a non-production target is confirmed.
+- Escalation: no product decision is unresolved; schema application stops if a target cannot be proven disposable.
 
 ## Unit 0 Contract
 
@@ -87,16 +103,24 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 ## Files Changed by Unit
 
 - Unit 0: `docs/project-ops/AUTH_V6_EXECUTION_LOG.md`
+- Unit 1: `.env.example`, `web_app/config.py`, `web_app/notifications/*`, `web_app/presentation/app.py`, `web_app/presentation/api/routes.py`, `scripts/run_resend_smoke.py`, migration `20260710_000009`, and focused notification/migration/PostgreSQL/script tests.
 
 ## Migrations and RPCs Introduced
 
 - Unit 0: none.
+- Unit 1: additive revision `20260710_000009`; RPCs `claim_notification_outbox_batch`, `complete_notification_outbox_job`, and `fail_notification_outbox_job` with `SECURITY INVOKER`, empty `search_path`, fully qualified tables, bounded inputs, `PUBLIC`/`anon`/`authenticated` revokes, and conditional `service_role` grant.
 
 ## Validation Evidence
 
 - Workspace: abandoned `feat-cybertrace-v6-1` worktree path absent; no external matching process; `git worktree prune --verbose` completed; main checkout clean on the expected branch.
 - Frontend baseline with Node 24.14.0: focused Auth.js, route-guard, server DB, dashboard layout, and BFF suite -> 9 files, 117 tests passed.
 - Backend baseline: auth-foundation migration plus application-startup tests -> 30 passed.
+- Unit 1 red evidence: notification imports/migration were absent; later direct smoke execution reproduced `ModuleNotFoundError: web_app` before the entrypoint fix.
+- Unit 1 focused backend gate: notification providers/templates/worker/service/outbox/threat/smoke, configuration, WAF route, app startup, and migration tests -> 74 passed before final hardening; focused provider/migration hardening -> 12 passed; direct smoke wrapper regression -> 1 passed.
+- Unit 1 final full backend suite: 558 passed, 2 opt-in PostgreSQL tests skipped in the ordinary environment-gated run; the same 2 tests passed separately against disposable PostgreSQL.
+- Unit 1 disposable PostgreSQL 17: full migration upgrade succeeded; outbox two-worker claim and transaction-rollback tests -> 2 passed using independent connections; downgrade one revision and re-upgrade succeeded. Target was local container `cybertrace-v61-pgtest`, not hosted or production.
+- Unit 1 dependency/compile checks: `pip check` reported no broken requirements; `compileall` and `git diff --check` passed.
+- Unit 1 live Resend: safely skipped. Required key/from/approved-recipient/enablement gates were all absent or false; no network request was made.
 
 ## Failures, Fixes, and Risks
 
@@ -104,3 +128,6 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Discovery mismatch: V6.1 plan names one logical challenge table while the repository has separated MFA, email-OTP, and completion tables. Decision: preserve the existing additive split and extend it narrowly where it can satisfy the same invariants.
 - Risk: no disposable PostgreSQL target has yet been confirmed. No migration or schema mutation will be applied until a non-production target is proven.
 - Risk: live Resend and deployed connected-environment checks depend on external configuration and remain separate from fake/mocked implementation proof.
+- Unit 1 implementation regression: direct script execution lacked the repository root import path. Fixed in the command wrapper and locked with a subprocess regression test.
+- Unit 1 High self-review fixes: legacy `sending` rows now receive an immediately reclaimable lease during migration; completion is owner-bound rather than time-bound after provider acceptance; provider message IDs are restricted to log-safe characters before reporting.
+- Unit 1 remaining limitation: provider acceptance is proven through fake/mocked contracts only; real inbox delivery, verified-domain sending, and deployed worker operation remain external human/deployment actions.
