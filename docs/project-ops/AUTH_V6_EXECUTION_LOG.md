@@ -7,10 +7,10 @@ Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 - Repository: `G:\AI\PDDDD\injection-alert-system`
 - Branch: `feat/cybertrace-v6-1`
 - Base commit: `12c5708b2e7755bece7764a0e3ff566b9fcad3cf`
-- Latest accepted commit: `7bb7009` (Unit 6)
-- Current unit: Unit 6 — password recovery and ADMIN MFA reset
-- Current bounded objective: provide generic scanner-safe password reset, atomic session invalidation, and recent-TOTP ADMIN MFA reset with explicit operator break-glass fallback.
-- Next exact action: begin Unit 7 Turnstile/deployment/audit/documentation sweep after the Unit 6 commit.
+- Latest accepted commit: `059db72` (Unit 7)
+- Current unit: Unit 7 — Turnstile, deployment, audit, and documentation
+- Current bounded objective: complete final server-side hardening, truthful operator docs, full regression validation, and external-gate handoff.
+- Next exact action: finish the final cumulative audit and handoff after the Unit 7 commit.
 
 ## Unit 2 Contract
 
@@ -144,6 +144,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 4: MFA challenge migration `20260710_000012`, pre-auth cookie/challenge/completion server modules, Auth.js claim and login-flow changes, MFA verification route/page, and focused frontend/backend/PostgreSQL tests.
 - Unit 5: MFA recovery migration `20260710_000013`, server-only OTP/recovery digest and transition modules, guarded backup/email recovery routes/forms, recovery Auth.js claims, and focused frontend/backend/PostgreSQL tests.
 - Unit 6: password-recovery migration `20260710_000014`, server-only reset/MFA-reset adapters, generic forgot/reset routes/pages/forms, ADMIN MFA reset action, operator break-glass script, and focused frontend/backend/PostgreSQL tests.
+- Unit 7: server-only Turnstile verifier/tests, feature-gate placeholders, deployment runbook, and synchronized setup/architecture/status/checklist docs.
 
 ## Migrations and RPCs Introduced
 
@@ -154,6 +155,7 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 4: additive revision `20260710_000012`; RPCs `begin_login_mfa_challenge`, `verify_totp_and_issue_completion`, and `consume_mfa_completion_token`. They bind opaque pre-auth handles, supersede pending challenges, atomically advance TOTP replay state, and consume completion tokens once while returning only fresh account claim material.
 - Unit 5: additive revision `20260710_000013`; RPCs `consume_backup_code_for_recovery`, `begin_email_recovery_challenge`, `consume_email_otp_for_recovery`, and `consume_mfa_recovery_completion_token`. They revoke old TOTP/backup material, enforce OTP TTL/attempt/cooldown state, and return recovery-only completion claims.
 - Unit 6: additive revision `20260710_000014`; RPCs `create_password_reset_token`, `consume_password_reset_and_change_password`, `admin_reset_mfa`, and `operator_reset_admin_mfa`. They hash/consume reset material once, increment authorization state, invalidate pending authentication state, and emit safe owner/operator events.
+- Unit 7: no migration or transport contract changes.
 
 ## Validation Evidence
 
@@ -201,6 +203,26 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Unit 6 migration source gate: 27 migration tests passed; disposable PostgreSQL password-reset/MFA-recovery integration tests passed 5/5.
 - Unit 6 implementation fix: reset account lookup uses PostgreSQL `IS NULL`/`IS NOT NULL` filters for disabled and verified-email state, preserving generic behavior without false matches.
 - Unit 6 remaining limitation: Turnstile, deployment, final audit, and documentation truth sweep remain deferred to Unit 7. Password reset, email recovery, and MFA-reset features are feature-flagged off by default.
+- Unit 7 focused frontend gate with Node 24.14.0: Turnstile verifier tests 3/3 passed; ESLint and TypeScript passed.
+- Unit 7 final frontend gate with Node 24.14.0: 71 test files and 406 tests passed; production `next build` completed successfully with non-production sentinel environment values.
+- Unit 7 final backend gate: full `.venv\Scripts\python.exe -m pytest -q` passed 572 tests with 15 opt-in PostgreSQL tests skipped in the ordinary run; migration source tests passed 27/27 and the disposable PostgreSQL Unit 2–6 suites passed 15/15 when explicitly enabled.
+- Unit 7 dependency/secret checks: `pip check` passed; `npm audit --audit-level=high` reported only the known three moderate Next/PostCSS transitive findings and no high/critical findings; repository secret scan found no credentials or private-key material.
+- Unit 7 external gates remain explicit: live Resend/inbox delivery, hosted Supabase migration, public deployment, and Turnstile hostname proof were not claimed or executed.
+
+## Unit 7 Contract
+
+- Status: `Implemented`
+- In scope: server-side threshold-triggered Turnstile verification boundary, official-key/test validation, deployment/feature-gate runbook, full concurrency and regression validation, dependency/secret scan, and maintained-doc truth synchronization.
+- Out of scope: enabling live provider/deployment credentials, applying migrations to hosted production, building Kubernetes/SIEM infrastructure, or claiming external hostname/inbox proof without evidence.
+- Locked invariants: Turnstile fails closed and validates success/action/hostname; secrets remain server-only; feature flags default false; local WAF proof remains `localhost:8088` with backend internal-only; status docs distinguish implemented code from external/deferred gates.
+- Primary change kind: `hardening/operational slice`.
+- Secondary change kinds: documentation truth maintenance and validation-only changes.
+- Scope: server-only Turnstile verifier/tests, `.env.example` placeholders, deployment runbook, current setup/architecture/status/checklist updates, and final verification evidence.
+- Extraction outcome: `boundary` for Turnstile; `inline` for maintained-doc truth updates.
+- Contract surfaces: no FastAPI/alert transport changes; only optional auth hardening boundary and operator documentation.
+- Convention decision: preserve current feature-flag defaults, local Compose topology, pinned Node 24 validation, and explicit disposable-PostgreSQL rule.
+- Validation depth: full backend/frontend suites, build/lint/typecheck, migration/RPC concurrency suites, dependency audit, secret scan, and `git diff --check`.
+- Escalation: external live Resend, hosted Supabase migration, public deployment, and Turnstile hostname proof remain human/deployment gates.
 
 ## Unit 6 Contract
 

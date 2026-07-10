@@ -1,10 +1,10 @@
 # Local Setup
 
-Last updated: 2026-07-05
+Last updated: 2026-07-10
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier and the named-account/RBAC foundation are implemented. MFA/2FA, password recovery, timely alerts, and email notification remain client-scope gaps.
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, and password-reset boundaries are implemented behind explicit rollout switches. Public deployment, provider delivery, and Turnstile hostname verification remain external gates.
 
 ## Prerequisites
 
@@ -73,6 +73,11 @@ Auth.js Credentials login and BFF session freshness checks now read
 runtime source or outage fallback.
 Do not run the auth/security migration against live Supabase without a separate
 reviewed deployment step.
+
+The V6.1 account/MFA/recovery feature switches are documented in
+`frontend/.env.example`; they remain disabled by default. The maintained
+operator/deployment boundary is documented in
+`docs/project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`.
 
 Notes:
 
@@ -205,8 +210,8 @@ Notes:
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
-- MFA/2FA, CAPTCHA/step-up, password reset/recovery, managed identity, and distributed throttling are not implemented.
-- Until the MFA PR lands, any active account with `mfa_required=true` fails login closed and receives no final Auth.js session. PR 3 demo accounts must explicitly use `mfa_required=false`; this is temporary pre-MFA state, not implemented MFA.
+- TOTP MFA enrollment/login, backup/email recovery, and password reset are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`; all remain disabled by default until a reviewed target migration/provider gate is complete. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
+- Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
 
 ### Manual PR 3 auth cutover and rollback
 
@@ -343,7 +348,7 @@ The following are not yet available as runnable repo-level setup paths:
 - Redis-backed review queue or enforcement state
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
-- MFA/2FA, password reset/recovery, CAPTCHA/step-up, managed identity, and distributed login throttling
+- Public deployment, live Resend delivery, Turnstile widget/hostname rollout, managed identity, and distributed login throttling
 - Email notification after detection
 
 ## 5A. Docker Smoke Setup

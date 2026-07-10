@@ -51,7 +51,7 @@ flowchart LR
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
-| 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
+| 2FA/MFA | Implemented behind flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; external enablement remains gated |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
 | Retraining pipeline | Planned | `ml_model/retraining/README.md` documents design-level only |
@@ -131,7 +131,7 @@ Implemented in the current foundation:
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 - alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 
-MFA and password recovery remain planned requirements. They should extend the existing Auth.js boundary or use a deliberately selected managed auth provider, not hand-rolled session handling.
+MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, and scanner-safe POST routes. Feature flags remain disabled by default pending reviewed target migration and provider configuration.
 
 ### Security boundary
 

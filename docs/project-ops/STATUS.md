@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-10
 
 ---
 
@@ -18,18 +18,18 @@
 - DistilBERT promotion workflow CLI: `ml_model/export/promote_final_training_run.py`
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
-- Account-security runtime: Auth.js Credentials login now reads Supabase `auth_accounts`, verifies Argon2id hashes, preserves `ADMIN`/`ANALYST`/`VIEWER` JWT/session claims, and rechecks current DB account state across all six BFF routes.
+- Account-security runtime: Auth.js Credentials login now reads Supabase `auth_accounts`, verifies Argon2id hashes, preserves role/authz/MFA claims, and rechecks current DB account state across protected BFF routes.
 - Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The full chain and downgrade/re-upgrade passed on disposable PostgreSQL; the migration has not been applied to live Supabase.
 - `AUTH_USERS_JSON` is no longer a runtime login or freshness source. Supabase/client failure fails closed with no env fallback; target environments still need the PR 1 migration and at least one provisioned account.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
-- Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour AAL1-style sessions, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
-- Operational scripts load `frontend/.env.local` with shell precedence and create, list, disable, and set passwords for `auth_accounts` through a centralized script-only Supabase service-role adapter. Accounts with `mfa_required=true` are denied login and protected BFF access until MFA exists. MFA, email OTP, Resend, Telegram, Turnstile, and password reset remain unimplemented.
-- The next maintained-plan phase is the email-provider/notification-outbox foundation; it must not be represented as MFA delivery or password-reset implementation.
+- Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
+- Operational scripts load `frontend/.env.local` with shell precedence and create, list, disable, set passwords, and perform explicit operator-only ADMIN MFA recovery through a centralized script-only Supabase service-role adapter. TOTP, recovery, and password-reset boundaries are implemented behind explicit feature flags; no feature flag is enabled by default.
+- The maintained-plan phase is now final Turnstile/deployment/audit/docs verification. Resend delivery, public deployment, and Turnstile hostname verification remain external gates.
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
+- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **572 passed, 15 skipped** (ordinary environment-gated run)
 - Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **16 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
 - WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **25 passed**
@@ -39,7 +39,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **96 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **333 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **406 passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **21 passed**

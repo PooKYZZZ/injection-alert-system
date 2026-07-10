@@ -71,7 +71,7 @@ This folder is the maintained documentation surface for the repository. It is in
 - Targeted WAF checks passed: bridge tests `47 passed`, WAF ingest route tests `12 passed`, WAF ingest use-case tests `4 passed`; the combined boundary set passed `63` tests
 - Backend request/WAF/prediction boundaries and bridge operations emit structured JSON logs with request/trace/transaction correlation; bridge configuration failures are JSON on stderr
 - Starlette `TestClient` uses pinned `httpx2==2.5.0`; legacy `httpx==0.28.1` remains installed for existing consumers
-- Real user access management/RBAC is implemented for the named-account foundation; 2FA and email notifications after detection remain planned requirements tracked in `client-requirements.md`.
+- Real user access management/RBAC, TOTP MFA/recovery, and password-reset boundaries are implemented behind explicit rollout flags; email delivery after detection and public deployment remain external/partially implemented requirements tracked in `client-requirements.md`.
 - The `CRITICAL >=90%` model-confidence tier is implemented without retraining, recalibration, model artifact changes, or retroactive historical-row reclassification.
 - Frontend confidence distributions and styling use persisted `confidence_level`; enforcement-policy counts are non-Normal-only, and confidence-tier badges never replace the canonical tier with prediction labels.
 

@@ -99,7 +99,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
 - Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; target environments still require reviewed migration and account provisioning
-- Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow is the current foundation, while MFA remains planned and `mfa_required=true` accounts fail closed until it lands
+- Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow now includes encrypted TOTP enrollment, replay-safe MFA completion, recovery-only claims, and password recovery behind disabled-by-default rollout flags
 - Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
