@@ -216,3 +216,5 @@ docs.zip
 *.rar
 .tmp/pytest/
 cybertrace_waf_serious_probe.py
+.codex/config.toml
+.codex/agents/terra-worker.toml
