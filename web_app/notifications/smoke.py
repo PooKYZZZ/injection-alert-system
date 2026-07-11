@@ -7,7 +7,7 @@ from web_app.notifications.models import EmailMessage, ProviderSendResult
 from web_app.notifications.providers import EmailProvider, ResendEmailProvider
 from web_app.notifications.providers import EmailProviderError
 
-APPROVED_SMOKE_RECIPIENT = "froilangayaom@gmail.com"
+APPROVED_SMOKE_RECIPIENT = "smoke-recipient@example.test"
 
 
 class SmokeSettings(Protocol):

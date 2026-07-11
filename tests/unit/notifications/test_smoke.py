@@ -31,6 +31,10 @@ class ProviderStub:
         return ProviderSendResult(message_id="safe-provider-id")
 
 
+def test_approved_smoke_recipient_is_an_obvious_non_personal_placeholder() -> None:
+    assert APPROVED_SMOKE_RECIPIENT == "smoke-recipient@example.test"
+
+
 @pytest.mark.asyncio
 async def test_live_smoke_is_disabled_without_explicit_flag() -> None:
     provider = ProviderStub()

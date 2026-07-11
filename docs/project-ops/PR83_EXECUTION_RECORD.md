@@ -21,7 +21,8 @@ evidence classifications, not completion claims.
 - [x] Unit 1 — Deterministic authentication E2E harness (`2689813`)
 - [x] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
   (`c4629c1`)
-- [ ] Unit 3 — Merge evidence and repository cleanup
+- [ ] Unit 3 — Merge evidence and repository cleanup (implementation and local
+  validation complete; awaiting commit/push and PR-body evidence)
 - [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
 - [ ] Unit 5 — Thesis-grade evidence package
 - [ ] Unit 6A — Required Playwright CI gate
@@ -154,6 +155,48 @@ same-run resend was added.
 - Residual risk: a provider-accepted ambiguous row requires later reconciliation
   after lease expiry; the stable provider idempotency key prevents an unkeyed
   resend but provider-side behavior still needs hosted validation before enablement.
+
+### Unit 3 merge evidence and repository cleanup
+
+Unit 3 began from pushed head `96ec6dc084d78eb924358c6a6b4c2b6b1a32608e`.
+Local, remote, and PR metadata agreed on the branch, and every one of the 16
+commits after `origin/master` appeared in the PR commit list in the same order.
+The complete PR diff contained 207 files and remained confined to the planned
+authentication, account-management, notification, migrations, tests, CI, and
+documentation surfaces. No generated test report, coverage, build, archive, or
+media artifact is tracked.
+
+The only manifest additions are the auth E2E command plus `qrcode` and its type
+package, with matching lockfile changes required by the checked-in enrollment
+UI. The user-owned untracked root package files and test results remain excluded.
+The auth/notification migration chain is linear from `20260704_000008` through
+single head `20260711_000018`; all eleven reviewed revisions define downgrade
+functions and all 33 migration tests pass. Disposable PostgreSQL migration and
+outbox lifecycle replay remains 7/7 from Unit 2.
+
+The personal smoke recipient in `.env.example` and
+`web_app/notifications/smoke.py` is replaced with the non-routable,
+non-personal `smoke-recipient@example.test` placeholder. The tracked-email and
+credential-pattern review found only reserved example domains, provider defaults,
+and explicit test vectors/fixtures. The remaining Gmail-shaped value is the
+synthetic `first.last+soc@gmail.com` normalization test, not configuration or an
+operator identity.
+
+| Unit 3 validation | Result |
+|---|---|
+| Full backend suite after safe-example change | PASS — 591 passed / 28 PostgreSQL-only skips |
+| Migration source/tests | PASS — one head / 33 tests |
+| Frontend lint, typecheck, Vitest, build | PASS on unchanged frontend head — 83 files / 462 tests / 39 static pages |
+| Managed auth browser project | PASS on unchanged auth head — 5 journeys / 5 passed |
+| Python dependency integrity/audit | PASS — no broken requirements / no known vulnerabilities |
+| npm audit at high threshold | PASS — no high/critical; 3 moderate transitive PostCSS findings recorded |
+| Remote CI at `96ec6dc` | PASS — backend, PostgreSQL, frontend, secret-scan |
+| Generated artifact review | PASS — none tracked |
+
+The three moderate npm findings have no non-breaking automated remediation in
+the current audit output; `npm audit fix --force` proposes an unrelated breaking
+Next.js change and was not run. Hosted database/provider identity, live email,
+hosted smoke, and feature enablement remain explicitly unperformed.
 
 ### Finding revalidation at the starting HEAD
 
