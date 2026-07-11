@@ -145,13 +145,13 @@ This is a production blocker if the dashboard is exposed beyond a controlled dem
 - [x] Enforce role checks on server routes, not only UI.
 - [ ] Hide/disable unauthorized UI actions.
 - [x] Add login and route-authorization audit events.
-- [x] Add per-identifier/global local login throttling and cooldown.
-- [ ] Add account recovery/reset process.
-- [ ] Add MFA/2FA enrollment and challenge.
-- [ ] Add MFA recovery/reset procedure.
+- [x] Add bounded per-identifier local login throttling and cooldown.
+- [x] Add account recovery/reset process behind disabled rollout switches.
+- [x] Add MFA/2FA enrollment and challenge behind disabled rollout switches.
+- [x] Add MFA recovery/reset procedure behind disabled rollout switches.
 - [ ] Document emergency admin access procedure.
 
-Minimum production claim requires real accounts + RBAC + login hardening. MFA/2FA is a client requirement and must not be described as implemented until it exists.
+Minimum production claim requires real accounts + RBAC + login hardening. MFA/2FA exists behind disabled rollout switches but must not be enabled until the hosted migration, provider, payload-protection, browser, and rollback gates pass.
 
 ---
 

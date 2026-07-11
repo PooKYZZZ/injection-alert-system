@@ -233,6 +233,32 @@ describe('Auth.js credential login', () => {
     )
   })
 
+  it('bounds a password-level MFA session to the database challenge expiry', async () => {
+    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH, mfaRequired: true })
+    )
+    authHarness.beginMfaChallenge.mockResolvedValue({
+      challenge_id: 'challenge-1',
+      handle: 'a'.repeat(43),
+      purpose: 'login_mfa',
+      expires_at: '2030-01-01T00:10:00.000Z',
+    })
+    await import('@/auth')
+
+    const user = await capturedConfig().providers[0].authorize({
+      identifier: 'admin@example.test',
+      password: 'correct horse battery staple',
+    })
+    const token = await capturedConfig().callbacks.jwt({ token: {}, user })
+
+    expect(user).toMatchObject({
+      mfa_challenge_purpose: 'login_mfa',
+      mfa_challenge_expires_at: '2030-01-01T00:10:00.000Z',
+    })
+    expect(token.exp).toBe(Math.floor(Date.parse('2030-01-01T00:10:00.000Z') / 1_000))
+  })
+
   it('uses the dummy-verification contract when the DB account is missing', async () => {
     authHarness.findAccount.mockResolvedValue(undefined)
     await import('@/auth')
@@ -378,22 +404,31 @@ describe('Auth.js credential login', () => {
       authz_version: 4,
       auth_level: 'mfa',
       auth_method: 'totp',
+      verified_at: '2026-07-11T02:00:00.000Z',
     })
     await import('@/auth')
     const user = await capturedConfig().providers[0].authorize({
       mfa_completion_token: 'a'.repeat(43),
     })
-    expect(user).toMatchObject({ auth_level: 'mfa', auth_method: 'totp' })
+    expect(user).toMatchObject({
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      auth_time: Math.floor(Date.parse('2026-07-11T02:00:00.000Z') / 1_000),
+    })
     expect(authHarness.consumeMfaCompletion).toHaveBeenCalledWith('a'.repeat(43))
   })
 
   it('consumes a recovery completion token into restricted recovery claims', async () => {
     authHarness.consumeRecoveryCompletion.mockResolvedValue({
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      name: 'SOC Analyst',
+      email: 'analyst@example.test',
       role: 'ANALYST',
       authz_version: 5,
       auth_level: 'recovery',
       auth_method: 'backup_code',
+      verified_at: '2026-07-11T02:00:00.000Z',
+      completion_purpose: 'mfa_recovery',
     })
     await import('@/auth')
     const user = await capturedConfig().providers[0].authorize({

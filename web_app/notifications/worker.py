@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import random
+from datetime import datetime, timezone
+import logging
 from typing import Callable, Protocol
 
 from web_app.notifications.models import OutboxJob, WorkerRunResult
 from web_app.notifications.providers import EmailProvider, EmailProviderError
 from web_app.notifications.templates import TemplatePayloadError, render_email
+
+logger = logging.getLogger(__name__)
 
 
 class OutboxRepository(Protocol):
@@ -34,7 +38,7 @@ class OutboxWorker:
         repository: OutboxRepository,
         provider: EmailProvider,
         worker_id: str,
-        batch_size: int = 10,
+        batch_size: int = 1,
         lease_seconds: int = 60,
         base_retry_seconds: int = 30,
         max_retry_seconds: int = 3_600,
@@ -58,6 +62,15 @@ class OutboxWorker:
         sent = 0
         failed = 0
         for job in jobs:
+            if job.deliver_before is not None and job.deliver_before <= datetime.now(timezone.utc):
+                failed += 1
+                await self._safe_fail(
+                    job,
+                    "delivery_deadline_expired",
+                    False,
+                    0,
+                )
+                continue
             try:
                 message = render_email(
                     kind=job.kind,
@@ -69,37 +82,56 @@ class OutboxWorker:
                 result = await self._provider.send(message)
             except TemplatePayloadError:
                 failed += 1
-                await self._repository.fail(
-                    job.id,
-                    self._worker_id,
-                    "template_payload_invalid",
-                    False,
-                    0,
-                )
+                await self._safe_fail(job, "template_payload_invalid", False, 0)
             except EmailProviderError as exc:
                 failed += 1
-                await self._repository.fail(
-                    job.id,
-                    self._worker_id,
+                await self._safe_fail(
+                    job,
                     exc.error_class,
                     exc.retryable,
                     self._retry_delay(job.attempt_count) if exc.retryable else 0,
                 )
             except Exception:
                 failed += 1
-                await self._repository.fail(
-                    job.id,
-                    self._worker_id,
+                await self._safe_fail(
+                    job,
                     "provider_unexpected",
                     True,
                     self._retry_delay(job.attempt_count),
                 )
             else:
                 sent += 1
-                await self._repository.complete(
-                    job.id, self._worker_id, result.message_id
-                )
+                try:
+                    await self._repository.complete(
+                        job.id, self._worker_id, result.message_id
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "notification outbox completion transition failed",
+                        extra={"error_type": type(exc).__name__},
+                    )
         return WorkerRunResult(claimed=len(jobs), sent=sent, failed=failed)
+
+    async def _safe_fail(
+        self,
+        job: OutboxJob,
+        error_class: str,
+        retryable: bool,
+        retry_delay_seconds: int,
+    ) -> None:
+        try:
+            await self._repository.fail(
+                job.id,
+                self._worker_id,
+                error_class,
+                retryable,
+                retry_delay_seconds,
+            )
+        except Exception as exc:
+            logger.warning(
+                "notification outbox failure transition failed",
+                extra={"error_type": type(exc).__name__},
+            )
 
     def _retry_delay(self, attempt_count: int) -> int:
         exponent = max(0, attempt_count - 1)

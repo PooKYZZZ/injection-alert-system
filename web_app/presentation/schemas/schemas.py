@@ -326,6 +326,7 @@ class HealthResponse(BaseModel):
 
     status: str
     database: str
+    notification_worker: str | None = None
 
 
 class AlertQueryParams(BaseModel):

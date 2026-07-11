@@ -58,7 +58,7 @@ def test_two_workers_never_claim_the_same_outbox_job() -> None:
             barrier.wait(timeout=5)
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id FROM public.claim_notification_outbox_batch(%s, %s, %s)",
+                    "SELECT id FROM public.claim_notification_outbox_batch_v61(%s, %s, %s)",
                     (worker_id, 1, 60),
                 )
                 return [str(row[0]) for row in cursor.fetchall()]
@@ -78,7 +78,7 @@ def test_outbox_claim_rolls_back_with_its_transaction() -> None:
     with psycopg.connect(POSTGRES_URL) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id FROM public.claim_notification_outbox_batch(%s, %s, %s)",
+                "SELECT id FROM public.claim_notification_outbox_batch_v61(%s, %s, %s)",
                 ("rollback-worker", 1, 60),
             )
             assert str(cursor.fetchone()[0]) == job_id
@@ -87,7 +87,7 @@ def test_outbox_claim_rolls_back_with_its_transaction() -> None:
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id FROM public.claim_notification_outbox_batch(%s, %s, %s)",
+                "SELECT id FROM public.claim_notification_outbox_batch_v61(%s, %s, %s)",
                 ("next-worker", 1, 60),
             )
             assert str(cursor.fetchone()[0]) == job_id

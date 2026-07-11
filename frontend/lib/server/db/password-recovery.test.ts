@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => ({
 vi.mock('server-only', () => ({}))
 vi.mock('./client', () => ({ getSupabaseServerClient: () => ({ from: harness.from, rpc: harness.rpc }) }))
 vi.mock('@/lib/auth/password-hash', () => ({
+  PASSWORD_HASH_CONCURRENCY_LIMIT: 2,
   hashPassword: harness.hash,
   validateNewPassword: (password: unknown) => typeof password === 'string' && password.length >= 15 ? { ok: true } : { ok: false, code: 'PASSWORD_TOO_SHORT' },
 }))
@@ -41,9 +42,24 @@ describe('password recovery database boundary', () => {
   })
 
   it('hashes a new password before consuming the reset token', async () => {
+    harness.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: accountId, error: null })
     await expect(completePasswordReset('a'.repeat(43), 'correct horse battery staple')).resolves.toEqual({ account_id: accountId })
     expect(harness.hash).toHaveBeenCalledWith('correct horse battery staple')
     expect(harness.rpc).toHaveBeenCalledWith('consume_password_reset_and_change_password', expect.objectContaining({ p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/) }))
+  })
+
+  it('does not hash an invalid reset token after cheap preflight', async () => {
+    harness.rpc.mockResolvedValue({ data: false, error: null })
+    await expect(
+      completePasswordReset('a'.repeat(43), 'correct horse battery staple')
+    ).rejects.toMatchObject({ code: 'UNAVAILABLE' })
+    expect(harness.hash).not.toHaveBeenCalled()
+    expect(harness.rpc).toHaveBeenCalledWith(
+      'preflight_password_token_v61',
+      expect.objectContaining({ p_purpose: 'password_reset' })
+    )
   })
 
   it('requires a distinct target and bounded reason for MFA reset', async () => {

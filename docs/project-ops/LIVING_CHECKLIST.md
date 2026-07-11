@@ -3,10 +3,12 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-10
+**Last updated:** 2026-07-11
 
 Status note:
-- Current test baseline: pytest 572 passed / 15 skipped in ordinary gates, vitest 406 passed, typecheck passed, lint passed, build passed
+- PR #83 execution record: `docs/project-ops/PR83_EXECUTION_RECORD.md`
+- Current disposable-PostgreSQL validation: backend 612 passed, integration 104 passed, migration tests 33 passed, clean downgrade/re-upgrade passed
+- Current frontend validation: lint, typecheck, build, and full Vitest (73 files / 417 tests) passed; Playwright journey definitions are present but browser execution requires installed binaries and a seeded Supabase-backed app environment
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -44,7 +46,7 @@ Status note:
 
 ---
 
-## Current Verified State (2026-07-05)
+## Current Verified State (historical baseline: 2026-07-05)
 
 ### Test Baseline
 - Backend: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
@@ -112,13 +114,17 @@ Status note:
 - [ ] Add email notifications after detection using a transactional email provider/API
 - [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
-- [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, local identifier/global throttles, replay-safe TOTP/recovery claims, eight-hour sessions, current-row MFA fail-closed checks, and safe JSON login/route-guard audit logs; distributed throttling, persistent audit storage, and external provider deployment remain deferred
+- [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, bounded per-identifier throttles, database-expiring password-level MFA challenges, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and safe JSON login/route-guard audit logs; distributed throttling, persistent audit storage, and external provider deployment remain deferred
 - [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Live Supabase migration application remains a reviewed manual operation
 - [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
 - [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
 - [x] Stabilize PR #79 frontend CI native-addon loading: PR #81 uses pure mocks in non-hashing auth/provisioning tests, keeps real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice without changing the threaded Vitest pool or production auth code
 - [x] Implement encrypted TOTP enrollment, replay-safe MFA login completion, backup-code/email-OTP recovery, and mandatory re-enrollment routing (feature flags remain off by default)
 - [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and explicit operator break-glass script (feature flags remain off by default)
+- [x] Add database-authoritative MFA completion claims, factor-aware enrollment, persistent MFA/OTP attempt accounting, retry-safe recovery handoff, and password-work preflight (PR #83)
+- [x] Add bounded notification deadlines, cancellation, terminal reconciliation/scrubbing, supported templates, lease-safe worker behavior, and provider/readiness validation (PR #83)
+- [x] Add required PostgreSQL CI job and five critical browser journey definitions (PR #83; browser execution remains environment-gated)
+- [~] Approve and implement encryption for pending secret-bearing notification payloads before enabling security-email flags
 - [ ] Apply V6.1 migrations to a reviewed hosted Supabase target
 - [ ] Enable Resend/Turnstile/public deployment after external configuration and hostname checks
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path

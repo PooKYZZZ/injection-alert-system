@@ -70,7 +70,7 @@ async def test_repository_maps_claimed_rows_and_uses_narrow_rpc() -> None:
 
     assert jobs[0].id == "job-1"
     assert jobs[0].attempt_count == 1
-    assert "claim_notification_outbox_batch" in session.calls[0][0]
+    assert "claim_notification_outbox_batch_v61" in session.calls[0][0]
     assert session.calls[0][1] == {
         "worker_id": "worker-a",
         "batch_size": 10,

@@ -75,6 +75,25 @@ export function TotpEnrollmentForm() {
     }
   }
 
+  async function finalize() {
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/auth/mfa/enroll/finalize', {
+        method: 'POST',
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error?.message ?? 'Unable to finish enrollment.')
+      }
+      window.location.assign('/dashboard')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to finish enrollment.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (backupCodes) {
     return (
       <section className="space-y-4" aria-labelledby="backup-code-heading">
@@ -84,6 +103,15 @@ export function TotpEnrollmentForm() {
           {backupCodes.map((backupCode) => <span key={backupCode}>{backupCode}</span>)}
         </output>
         <p className="text-sm text-status-success">Authenticator enrollment complete.</p>
+        <button
+          type="button"
+          onClick={finalize}
+          disabled={busy}
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60"
+        >
+          {busy ? 'Finishing…' : 'I saved my backup codes'}
+        </button>
+        {error && <p role="alert" className="text-sm text-status-danger">{error}</p>}
       </section>
     )
   }

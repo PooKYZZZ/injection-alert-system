@@ -185,7 +185,12 @@ RETURNING id
             )
             assert cursor.fetchone()[0] is True
             cursor.execute(
-                "SELECT public.admin_set_account_enabled(%s, %s, false)",
+                "SELECT public.admin_set_account_enabled_v61(%s, %s, false)",
+                (admin_id, target_id),
+            )
+            assert cursor.fetchone()[0] is True
+            cursor.execute(
+                "SELECT public.admin_set_account_enabled_v61(%s, %s, true)",
                 (admin_id, target_id),
             )
             assert cursor.fetchone()[0] is True
@@ -193,7 +198,16 @@ RETURNING id
                 "SELECT role, mfa_required, authz_version, disabled_at IS NOT NULL FROM public.auth_accounts WHERE id = %s",
                 (target_id,),
             )
-            assert cursor.fetchone() == ('ANALYST', True, 3, True)
+            assert cursor.fetchone() == ('ANALYST', True, 4, False)
+            cursor.execute(
+                """
+SELECT count(*), count(DISTINCT provider_idempotency_key), bool_and(event_id IS NOT NULL)
+FROM public.notification_outbox
+WHERE recipient = 'target@example.test'
+  AND kind IN ('account_disabled', 'account_reenabled')
+"""
+            )
+            assert cursor.fetchone() == (2, 2, True)
 
 
 def test_managed_email_request_rejects_another_accounts_current_email() -> None:

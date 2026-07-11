@@ -31,6 +31,11 @@ class EmptyRepository:
         raise AssertionError("No job should fail.")
 
 
+@dataclass
+class RequiredSettings(WorkerSettings):
+    notification_worker_required: bool = True
+
+
 @pytest.mark.asyncio
 async def test_notification_service_runs_and_stops_cleanly() -> None:
     repository = EmptyRepository()
@@ -63,3 +68,20 @@ async def test_notification_service_stays_disabled_by_default() -> None:
 
     assert service.running is False
     assert repository.claims == 0
+
+
+@pytest.mark.asyncio
+async def test_required_worker_performs_a_startup_probe() -> None:
+    repository = EmptyRepository()
+    service = NotificationWorkerService(
+        settings=RequiredSettings(),
+        repository=repository,
+        provider=FakeEmailProvider(),
+        worker_id="worker-test",
+    )
+
+    await service.start()
+    await service.stop()
+
+    assert repository.claims >= 1
+    assert service.last_poll_at is not None

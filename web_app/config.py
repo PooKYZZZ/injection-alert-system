@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     inference_queue_maxsize: int = Field(default=100, ge=1)
     notification_worker_enabled: bool = False
     notification_worker_poll_seconds: float = Field(default=2.0, gt=0, le=60)
-    notification_worker_batch_size: int = Field(default=10, ge=1, le=100)
+    notification_worker_batch_size: int = Field(default=1, ge=1, le=100)
+    notification_worker_required: bool = False
     notification_worker_lease_seconds: int = Field(default=60, ge=5, le=300)
     email_provider: Literal["fake", "resend"] = "fake"
     resend_api_key: str | None = None
@@ -90,6 +91,22 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "enabled Resend notification worker requires server-side provider configuration"
+            )
+        if (
+            self.notification_worker_enabled
+            and self.notification_worker_required
+            and self.email_provider == "fake"
+        ):
+            raise ValueError(
+                "required notification worker cannot use the fake email provider"
+            )
+        if (
+            self.notification_worker_enabled
+            and (self.is_production or self.is_staging)
+            and self.email_provider == "fake"
+        ):
+            raise ValueError(
+                "staging and production notification workers cannot use the fake email provider"
             )
         if self.threat_email_enabled and not self.threat_email_to:
             raise ValueError(

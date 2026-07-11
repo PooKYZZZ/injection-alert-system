@@ -2,13 +2,13 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-10
+**Last updated:** 2026-07-11
 
 ---
 
 ## Current Verified Repo State
 
-- Active branch baseline: `master`
+- Working branch for PR #83 remediation: `feat/cybertrace-v6-1`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -22,14 +22,26 @@
 - Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. The full chain and downgrade/re-upgrade passed on disposable PostgreSQL; the migration has not been applied to live Supabase.
 - `AUTH_USERS_JSON` is no longer a runtime login or freshness source. Supabase/client failure fails closed with no env fallback; target environments still need the PR 1 migration and at least one provisioned account.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
-- Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, per-identifier and global failure throttles, a default two-operation password-hash cap, eight-hour sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
+- Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, bounded per-identifier failure throttles, a default two-operation password-hash cap, database-expiring password-level MFA sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
 - Operational scripts load `frontend/.env.local` with shell precedence and create, list, disable, set passwords, and perform explicit operator-only ADMIN MFA recovery through a centralized script-only Supabase service-role adapter. TOTP, recovery, and password-reset boundaries are implemented behind explicit feature flags; no feature flag is enabled by default.
-- The maintained-plan phase is now final Turnstile/deployment/audit/docs verification. Resend delivery, public deployment, and Turnstile hostname verification remain external gates.
+- PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, notification lifecycle/worker hardening, required PostgreSQL CI coverage, and checked-in browser journeys. Feature flags remain disabled; Resend delivery, payload encryption approval, public deployment, and browser execution remain external gates.
+
+### PR #83 validation snapshot
+
+- Full backend suite with disposable PostgreSQL integration enabled: **612 passed**.
+- PostgreSQL integration suite: **104 passed**.
+- Migration-source suite: **33 passed**.
+- Clean downgrade from `20260711_000018` to `20260710_000014` and re-upgrade: **passed**.
+- Frontend lint and typecheck: **passed**.
+- Frontend full Vitest: **73 files / 417 tests passed**.
+- Frontend production build: **passed**.
+- Frontend browser journey definitions: present; execution is blocked locally by missing Playwright browser binaries and no seeded Supabase-backed app environment.
 
 ### Latest local verification results
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
-- Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **572 passed, 15 skipped** (ordinary environment-gated run)
+- Backend pre-PR ordinary baseline: `.venv\Scripts\python.exe -m pytest -q` → **572 passed, 15 skipped** (PostgreSQL unavailable)
+- Backend PR #83 disposable-PostgreSQL run: `.venv\Scripts\python.exe -m pytest -q` with `CYBERTRACE_POSTGRES_TEST_URL` → **612 passed**
 - Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **16 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
 - WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **25 passed**
@@ -39,7 +51,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **96 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **406 passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **73 files / 417 tests passed**
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **21 passed**
@@ -197,9 +209,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
 - Some Supabase policy and operational hardening steps remain outside automated repo verification/export; the auth/security foundation uses RLS only as defense-in-depth because service-role access bypasses it.
 - Named env-backed account access and BFF RBAC are implemented; account-management UI, managed identity, distributed throttling, persistent audit storage, and immediate stolen-token revocation remain future work.
-- Client-required 2FA is not yet implemented.
-- Password reset/recovery and CAPTCHA/step-up are not implemented.
-- Client-required email notification after detection is not yet implemented.
+- MFA, recovery, password reset, and recent-TOTP step-up are implemented behind disabled rollout switches; hosted migration, provider, browser, and payload-protection gates remain.
+- Terminal notification payload scrubbing is implemented. Pending secret-bearing payload encryption remains unresolved and blocks security-email enablement.
+- Live transactional email delivery after detection is not enabled; the email-only outbox/worker boundary is implemented and provider configuration is still external.
 - Real-time SSE/EventSource dashboard alerting is not yet implemented.
 - Automated final-demo HTTP/audit checks and opt-in Docker-internal backend
   lookup are implemented; full dashboard interaction remains a manual runbook

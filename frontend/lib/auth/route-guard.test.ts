@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+vi.mock('../server/db/mfa-challenges', () => ({
+  hasActiveMfaEnrollmentChallenge: vi.fn().mockResolvedValue(false),
+}))
+
 import { PERMISSIONS, ROLES } from './roles'
 import {
   requireMfaChallengePermission,
@@ -320,6 +325,65 @@ describe('requirePermission', () => {
         PERMISSIONS.MFA_ENROLLMENT
       )
     ).resolves.toEqual({ ok: true })
+  })
+
+  it('allows only a bounded stale password session to finalize enrollment', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, authzVersion: 2, mfaRequired: true })
+    )
+    const enrollmentHandoff = session(ROLES.ADMIN, 1, {
+      auth_level: 'password',
+      auth_method: 'password',
+      mfa_challenge_purpose: 'mfa_enrollment',
+      mfa_challenge_expires_at: '2099-01-01T00:00:00.000Z',
+    })
+
+    await expect(
+      requireMfaChallengePermission(
+        enrollmentHandoff,
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowEnrollmentFinalization: true }
+      )
+    ).resolves.toEqual({ ok: true })
+
+    await expectGenericUnauthorized(
+      await requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'password',
+          auth_method: 'password',
+          mfa_challenge_purpose: 'login_mfa',
+          mfa_challenge_expires_at: '2099-01-01T00:00:00.000Z',
+        }),
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowEnrollmentFinalization: true }
+      )
+    )
+
+    await expect(
+      requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'password',
+          auth_method: 'password',
+          mfa_challenge_purpose: 'login_mfa',
+          mfa_challenge_expires_at: '2099-01-01T00:00:00.000Z',
+        }),
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowRecoveryFinalization: true }
+      )
+    ).resolves.toEqual({ ok: true })
+
+    await expectGenericUnauthorized(
+      await requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'password',
+          auth_method: 'password',
+          mfa_challenge_purpose: 'login_mfa',
+          mfa_challenge_expires_at: '2020-01-01T00:00:00.000Z',
+        }),
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowRecoveryFinalization: true }
+      )
+    )
   })
 
   it('requires recent TOTP-authenticated ADMIN for account mutations', async () => {

@@ -89,15 +89,20 @@ async def lifespan(app: FastAPI):
         PostgresNotificationOutboxRepository(db_module.AsyncSessionLocal)
     )
     notification_worker = None
+    notification_worker_error = None
     try:
         notification_worker = NotificationWorkerService.from_settings(settings)
         await notification_worker.start()
     except Exception as exc:
+        notification_worker_error = type(exc).__name__
         logger.error(
             "Notification worker failed to start: %s",
             exc.__class__.__name__,
         )
+        if settings.notification_worker_enabled and settings.notification_worker_required:
+            raise RuntimeError("required notification worker failed to start") from exc
     app.state.notification_worker = notification_worker
+    app.state.notification_worker_error = notification_worker_error
     app.state.inference_queue = InferenceQueueService(settings)
     try:
         await app.state.inference_queue.start()

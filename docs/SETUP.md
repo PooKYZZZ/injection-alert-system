@@ -1,10 +1,10 @@
 # Local Setup
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, and password-reset boundaries are implemented behind explicit rollout switches. Public deployment, provider delivery, and Turnstile hostname verification remain external gates.
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, and notification outbox boundaries are implemented behind explicit rollout switches. Public deployment, provider delivery, pending-payload protection approval, browser proof, and Turnstile hostname verification remain external gates.
 
 ## Prerequisites
 
@@ -134,7 +134,9 @@ quality approval.
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-As of 2026-07-10, this passes with **528 backend tests**.
+The maintained execution evidence for the PR #83 remediation is in
+`docs/project-ops/PR83_EXECUTION_RECORD.md`. Do not copy historical test
+counts from this setup guide; rerun the repository commands for current totals.
 
 ### Start the backend
 
@@ -202,16 +204,18 @@ Notes:
 - At least one `auth_accounts` row with an approved Argon2id `password_hash` must exist before login can succeed. Runtime verification requires PHC version `v=19` with at least `m=19456,t=2,p=1`; weak, null, old scrypt/bcrypt, malformed, and unsupported hashes are rejected before native verification.
 - The login form accepts account id, normalized email, or normalized username plus password. There is no demo-password fallback.
 - Disablement, `mfa_required`, role changes, and `authz_version` changes are checked against the current DB row on every protected BFF request. Existing JWTs are denied when the account is missing, disabled, newly MFA-required, downgraded, or stale.
-- JWT sessions expire after 8 hours. This password-only flow is AAL1-style; the shorter lifetime is a voluntary defense-in-depth choice and is not an AAL2 compliance claim.
-- Local login hardening uses per-identifier and process-global failure throttles plus a default two-operation password-hash concurrency cap. Defaults can be overridden with the `AUTH_LOGIN_*` and `AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT` variables.
+- Assured MFA sessions retain an eight-hour Auth.js maximum. Password-level MFA sessions are additionally bounded by the database challenge expiry and cannot reach the dashboard. This is not an AAL2 compliance claim.
+- Local login hardening uses per-identifier failure throttles with bounded expiry/size pruning plus a default two-operation password-hash concurrency cap. There is no process-wide denial counter. Defaults can be overridden with the `AUTH_LOGIN_*` and `AUTH_PASSWORD_HASH_CONCURRENCY_LIMIT` variables.
 - Operational account provisioning uses `frontend/lib/server/db/script-client.mjs`; app runtime access remains protected separately by the `server-only` TypeScript client. Scripts load `frontend/.env.local` when run from `frontend/`, with explicitly supplied shell variables taking precedence, and errors name missing variables without printing values. The scripts create, list, disable, and set passwords without exposing secret-bearing fields.
 - Throttle state is process memory only: it resets on restart and is not shared across serverless instances, Node processes, or horizontally scaled containers. It does not use IP or `X-Forwarded-For`.
 - Login audit events are single-line JSON logs with hashed identifiers and fixed reason codes. They are operational logs, not a persistent or tamper-resistant audit store.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
-- TOTP MFA enrollment/login, backup/email recovery, and password reset are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`; all remain disabled by default until a reviewed target migration/provider gate is complete. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
+- TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`; all remain disabled by default until the reviewed target migration, provider, payload-protection, and browser gates are complete. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
+- The current additive migration head is `20260711_000018`. New database functions are purpose-bound and restricted to the server-side service role; do not apply them to hosted Supabase outside a reviewed deployment.
+- The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, and scrubs terminal payloads. Pending credential payload encryption remains a required approval gate before enabling security-email features.
 
 ### Manual PR 3 auth cutover and rollback
 
@@ -245,12 +249,17 @@ Use a disposable PostgreSQL database, then exercise the normal migration chain:
 
 ```powershell
 $env:DATABASE_URL = "postgresql+psycopg://<user>:<password>@127.0.0.1:<port>/<disposable-db>"
+$env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic upgrade head
-.venv\Scripts\python.exe -m alembic downgrade -1
+.venv\Scripts\python.exe -m pytest -q tests/integration
+.venv\Scripts\python.exe -m pytest -q tests/migrations
+.venv\Scripts\python.exe -m alembic downgrade 20260710_000014
 .venv\Scripts\python.exe -m alembic upgrade head
 ```
 
-Revision `20260704_000008` is intentionally part of normal `upgrade head`.
+The current head is `20260711_000018`, with additive PR #83 revisions after
+`20260710_000014`. Revision `20260704_000008` is intentionally part of normal
+`upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,
 and creates no browser-facing policies. Revision `20260324_000007` now fails
 clearly if its required `traffic_logs` table is missing instead of silently
@@ -349,7 +358,8 @@ The following are not yet available as runnable repo-level setup paths:
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
 - Public deployment, live Resend delivery, Turnstile widget/hostname rollout, managed identity, and distributed login throttling
-- Email notification after detection
+- Pending secret-bearing notification payload encryption and hosted-provider approval
+- Browser auth journeys unless Playwright browsers and a disposable seeded Supabase-backed environment are supplied; the checked-in suite is `frontend/e2e/auth-journeys.spec.ts`
 
 ## 5A. Docker Smoke Setup
 

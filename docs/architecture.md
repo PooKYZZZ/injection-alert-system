@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-07-05
+Last updated: 2026-07-11
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -47,7 +47,7 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
-| Email notifications | Planned | no transactional email integration found |
+| Notification outbox and worker | Implemented behind disabled flags | additive lifecycle migrations through `20260711_000018`, versioned PostgreSQL claim/transition functions, deadline/cancellation/terminal scrubbing, batch-one worker, and Resend boundary; live provider delivery remains gated |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
@@ -131,7 +131,7 @@ Implemented in the current foundation:
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 - alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 
-MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, and scanner-safe POST routes. Feature flags remain disabled by default pending reviewed target migration and provider configuration.
+MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, trusted database verification timestamps, factor-aware enrollment, purpose-bound completion contracts, recent-TOTP step-up, and scanner-safe POST routes. Feature flags remain disabled by default pending reviewed target migration, provider configuration, browser proof, and payload-protection approval.
 
 ### Security boundary
 
@@ -170,7 +170,10 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
+- The repository migration head for the PR #83 remediation is `20260711_000018`; the new revisions are additive after `20260710_000014`
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
+- MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
+- Security-email outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, lease reconciliation, email-only channel enforcement, and terminal payload scrubbing. Pending secret-bearing payload encryption remains a rollout gate.
 - New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
 - `AUTH_USERS_JSON` is not read by runtime auth. Supabase query or configuration failure denies login and protected BFF access without an env fallback
 - `frontend/lib/server/db/client.ts` remains the `server-only` app-runtime boundary, while `script-client.mjs` is restricted to operational provisioning scripts
@@ -196,9 +199,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed IP blocklist, rate-limit state, and low-confidence queue only if shared runtime state is required
 - Full repo-managed export and automation of Supabase policy state
-- Client-required real user access management, RBAC, and secure login
-- Client-required 2FA
-- Client-required email notifications after detection
+- Hosted account provisioning and external deployment verification
+- Live MFA/recovery enablement after migration, provider, payload-protection, and browser gates
+- Live transactional email delivery after detection; the outbox/worker boundary exists but provider enablement remains gated
 - Wazuh export-only JSON/JSONL integration
 - Production edge checklist, backup/restore runbook, and archive/hide retention policy
 
@@ -213,6 +216,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Confidence distributions include all predictions, while enforcement-policy counts include non-Normal predictions only. Normal predictions remain `ALLOWED` at every valid confidence tier.
 - Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
+- Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.
+- The operator reset helper is a high-privilege service-role operational helper, not a separately provisioned break-glass database role.
+- Browser-level authentication proof is defined in `frontend/e2e/auth-journeys.spec.ts` but requires installed Playwright browsers and a disposable seeded Supabase-backed environment.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
 ## Architecture Notes For Future Edits

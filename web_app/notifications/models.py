@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Mapping
 
 
@@ -37,6 +38,7 @@ class OutboxJob:
     provider_idempotency_key: str
     attempt_count: int
     max_attempts: int
+    deliver_before: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +49,7 @@ class PendingNotification:
     template_version: int
     dedupe_key: str
     provider_idempotency_key: str
+    deliver_before: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

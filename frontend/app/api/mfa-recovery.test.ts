@@ -8,6 +8,7 @@ const harness = vi.hoisted(() => ({
   backup: vi.fn(),
   requestEmail: vi.fn(),
   verifyEmail: vi.fn(),
+  recoveryCookie: null as string | null,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -20,7 +21,7 @@ vi.mock('@/lib/server/db/mfa-recovery', () => ({
 }))
 vi.mock('@/lib/auth/recovery-cookie', () => ({
   setRecoveryCompletionCookie: vi.fn(),
-  readRecoveryCompletionCookie: () => 'c'.repeat(43),
+  readRecoveryCompletionCookie: () => harness.recoveryCookie,
   clearRecoveryCompletionCookie: vi.fn(),
 }))
 
@@ -29,6 +30,7 @@ const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
 describe('MFA recovery routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    harness.recoveryCookie = null
     process.env.AUTH_MFA_ENROLLMENT_ENABLED = 'true'
     process.env.AUTH_EMAIL_RECOVERY_ENABLED = 'true'
     process.env.AUTH_APP_ORIGIN = 'http://localhost'
@@ -47,6 +49,38 @@ describe('MFA recovery routes', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'recovery_started' })
     expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: 'b'.repeat(43) }))
+  })
+
+  it('retries an existing recovery completion cookie without consuming another code', async () => {
+    harness.recoveryCookie = 'c'.repeat(43)
+    const { POST } = await import('./auth/mfa/recovery/backup/route')
+    const response = await POST(new NextRequest('http://localhost/api/auth/mfa/recovery/backup', {
+      method: 'POST', headers: { origin: 'http://localhost', cookie: `__Host-cybertrace-recovery=${harness.recoveryCookie}` }, body: JSON.stringify({ code: 'ignored' }),
+    }))
+    expect(response.status).toBe(200)
+    expect(harness.backup).not.toHaveBeenCalled()
+    expect(harness.guard).toHaveBeenCalledWith(
+      expect.anything(),
+      'mfa:enrollment',
+      { allowRecoveryFinalization: true }
+    )
+    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: harness.recoveryCookie }))
+  })
+
+  it('retries email handoff when OTP completion already committed', async () => {
+    harness.verifyEmail.mockRejectedValue(new Error('INVALID_CODE'))
+    harness.recoveryCookie = 'c'.repeat(43)
+    const { POST } = await import('./auth/mfa/recovery/email/verify/route')
+    const response = await POST(new NextRequest('http://localhost/api/auth/mfa/recovery/email/verify', {
+      method: 'POST', headers: { origin: 'http://localhost', cookie: `__Host-cybertrace-recovery=${harness.recoveryCookie}` }, body: JSON.stringify({ code: '123456' }),
+    }))
+    expect(response.status).toBe(200)
+    expect(harness.guard).toHaveBeenCalledWith(
+      expect.anything(),
+      'mfa:enrollment',
+      { allowRecoveryFinalization: true }
+    )
+    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: harness.recoveryCookie }))
   })
 
   it('denies email recovery before body parsing when the guard fails', async () => {

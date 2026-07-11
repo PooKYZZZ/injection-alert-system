@@ -14,6 +14,8 @@ _SAFE_MESSAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 class EmailProvider(Protocol):
     async def send(self, message: EmailMessage) -> ProviderSendResult: ...
 
+    async def close(self) -> None: ...
+
 
 class EmailProviderError(RuntimeError):
     def __init__(self, error_class: str, *, retryable: bool) -> None:
@@ -33,6 +35,9 @@ class FakeEmailProvider:
         self.messages.append(message)
         return ProviderSendResult(message_id=f"fake-{len(self.messages)}")
 
+    async def close(self) -> None:
+        return None
+
 
 class ResendEmailProvider:
     _API_URL = "https://api.resend.com/emails"
@@ -49,14 +54,16 @@ class ResendEmailProvider:
             raise ValueError("Resend provider configuration is incomplete.")
         self._api_key = api_key
         self._from_email = from_email
-        self._client = client
+        self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
+        self._owns_client = client is None
         self._timeout = timeout_seconds
 
     async def send(self, message: EmailMessage) -> ProviderSendResult:
-        if self._client is not None:
-            return await self._send(self._client, message)
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            return await self._send(client, message)
+        return await self._send(self._client, message)
+
+    async def close(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
 
     async def _send(
         self, client: httpx.AsyncClient, message: EmailMessage

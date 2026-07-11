@@ -5,7 +5,9 @@ import { z } from 'zod'
 
 import { buildTrustedActionUrl, digestOpaqueToken, generateOpaqueToken } from '@/lib/auth/account-tokens'
 import { hashPassword, validateNewPassword } from '@/lib/auth/password-hash'
+import { passwordHashConcurrencyGate } from '@/lib/auth/login-throttle'
 import { getSupabaseServerClient } from './client'
+import { preflightPasswordToken } from './password-token-preflight'
 
 const UUID = z.string().uuid()
 const EMAIL = z.string().email()
@@ -61,7 +63,14 @@ export async function completePasswordReset(
   if (typeof token !== 'string' || token.length < 40) throw new PasswordRecoveryError('INVALID_REQUEST')
   const validation = validateNewPassword(password)
   if (!validation.ok) throw new PasswordRecoveryError('INVALID_REQUEST')
-  const passwordHash = await hashPassword(password)
+  try {
+    await preflightPasswordToken(token, 'password_reset')
+  } catch {
+    throw new PasswordRecoveryError('UNAVAILABLE')
+  }
+  const hashed = await passwordHashConcurrencyGate.run(() => hashPassword(password))
+  if (!hashed.ok) throw new PasswordRecoveryError('UNAVAILABLE')
+  const passwordHash = hashed.value
   const { data, error } = await getSupabaseServerClient().rpc('consume_password_reset_and_change_password', {
     p_token_hash: digestOpaqueToken(token),
     p_password_hash: passwordHash,

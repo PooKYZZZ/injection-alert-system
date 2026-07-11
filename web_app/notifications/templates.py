@@ -77,6 +77,10 @@ def _render_simple(
         "account_disabled": ("CyberTrace account disabled", "Your CyberTrace account was disabled."),
         "account_reenabled": ("CyberTrace account re-enabled", "Your CyberTrace account was re-enabled."),
         "managed_email_changed": ("CyberTrace email changed", "Your CyberTrace account email address was changed."),
+        "email_recovery_completed": (
+            "CyberTrace account recovery completed",
+            "Your CyberTrace account recovery was completed.",
+        ),
     }
     if kind in specs:
         subject, field, prefix = specs[kind]

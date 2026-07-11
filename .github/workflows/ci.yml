@@ -28,6 +28,37 @@ jobs:
       - run: pytest -q
       - run: pip install pip-audit
       - run: pip-audit -r requirements.txt
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: cybertrace-ci-only
+          POSTGRES_DB: cybertrace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cybertrace"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
+      CYBERTRACE_POSTGRES_TEST_URL: postgresql://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
+      APP_ENV: testing
+      MODEL_PATH: ./ml_model/model_registry
+      MODEL_REGISTRY_PATH: ./ml_model/model_registry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python -m alembic upgrade head
+      - run: pytest -q tests/integration
+      - run: pytest -q tests/migrations
   frontend:
     runs-on: ubuntu-latest
     steps:

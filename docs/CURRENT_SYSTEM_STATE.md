@@ -1,10 +1,10 @@
 # Current System State - Comprehensive Overview
 
-**Last Updated:** 2026-07-05
+**Last Updated:** 2026-07-11
 
 This document provides detailed answers about the current state of the Injection Alert System codebase.
 
-Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier and the named-account/server-side RBAC foundation are implemented. Alert UI role affordances are also implemented in the dashboard. MFA/2FA, password recovery, timely alerts, and email notifications after detection remain incomplete.
+Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/server-side RBAC foundation, and alert UI role affordances are implemented. MFA/recovery/password-reset/step-up boundaries and the notification outbox/worker are implemented behind disabled rollout gates; hosted migration, provider, pending-payload protection, and browser proof remain incomplete.
 
 Verified WAF proof is tracked in `reports/modsecurity-live-proof/e2e-proof.md` and `docs/project-ops/DEMO_TARGET_WAF_PROOF.md`. The technical CyberTrace WAF proof path uses `localhost:8088`. The realistic protected demo website path uses `localhost:8089` with the separate land-records-portal running on host port `3010`. Backend remains internal-only in Docker Compose and should be queried with `docker compose exec`, not `localhost:8000` unless backend port 8000 is explicitly published.
 
@@ -227,9 +227,9 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 
 ### Current Auth State and Remaining Gaps
 
-- Current state: Auth.js Credentials login uses Supabase `auth_accounts`, approved Argon2id PHC password hashes, a precomputed same-profile unknown-account hash, eight-hour JWT sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
+- Current state: Auth.js Credentials login uses Supabase `auth_accounts`, approved Argon2id PHC password hashes, a precomputed same-profile unknown-account hash, database-expiring password-level MFA challenges, eight-hour maximum assured sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, bounded local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
 - All six BFF routes enforce server-side permissions and current DB account existence, disablement, `mfa_required`, role, and `authz_version` checks before downstream calls.
-- Remaining client-required work includes MFA/2FA and password recovery. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
+- Remaining gates include hosted migration/provider deployment, pending secret-bearing outbox payload encryption approval, and executable browser journeys. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
 ---
@@ -263,7 +263,7 @@ This means:
 
 ---
 
-## 13. Test Baseline (2026-07-05)
+## 13. Historical Test Baseline (2026-07-05)
 
 | Test Suite | Result |
 |------------|--------|
@@ -343,9 +343,9 @@ and auth behavior are unchanged.
 |-------------|----------------|
 | Secure login with named user accounts | Implemented for the env-backed capstone foundation |
 | Admin/Analyst/Viewer RBAC | Server-side BFF enforcement implemented; alerts UI role affordances are implemented for viewers, analysts, and admins |
-| 2FA | Planned |
+| 2FA | Implemented behind disabled rollout switches; browser/provider/hosted migration gates remain |
 | Timely push-style dashboard alerts | Planned |
-| Email notification after detection | Planned |
+| Email notification after detection | Outbox/worker boundary implemented; live provider delivery gated |
 | `CRITICAL >=90%` confidence tier | Implemented |
 
 ## Summary: Deferred Or Conditional

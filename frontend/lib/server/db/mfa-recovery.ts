@@ -16,7 +16,13 @@ const UUID = z.string().uuid()
 
 export class MfaRecoveryError extends Error {
   constructor(
-    public readonly code: 'INVALID_REQUEST' | 'INVALID_CODE' | 'COOLDOWN' | 'UNAVAILABLE'
+    public readonly code:
+      | 'INVALID_REQUEST'
+      | 'INVALID_CODE'
+      | 'LOCKED'
+      | 'EXPIRED'
+      | 'COOLDOWN'
+      | 'UNAVAILABLE'
   ) {
     super(code)
     this.name = 'MfaRecoveryError'
@@ -67,7 +73,7 @@ export async function consumeBackupCodeForRecovery(
   if (!matchingId) throw new MfaRecoveryError('INVALID_CODE')
   const completionToken = generateOpaqueToken()
   const { error: consumeError } = await getSupabaseServerClient().rpc(
-    'consume_backup_code_for_recovery',
+    'consume_backup_code_for_recovery_v61',
     {
       p_account_id: id,
       p_code_id: matchingId,
@@ -86,35 +92,22 @@ export async function requestEmailRecovery(
   const otp = generateEmailOtp()
   const completionToken = generateOpaqueToken()
   const expiresAt = new Date(Date.now() + 5 * 60 * 1_000).toISOString()
-  const client = getSupabaseServerClient()
-  const { data: account, error: accountError } = await client
-    .from('auth_accounts')
-    .select('email')
-    .eq('id', id)
-    .maybeSingle()
-  if (accountError || !account || typeof account.email !== 'string') unavailable(accountError)
-  const { error } = await client.rpc(
-    'begin_email_recovery_challenge',
+  const dedupeKey = `email-recovery/${id}/${tokenDigest(completionToken)}`
+  const { data, error } = await getSupabaseServerClient().rpc(
+    'begin_email_recovery_challenge_v61',
     {
       p_account_id: id,
       p_otp_digest: digestEmailOtp(otp),
       p_completion_token_hash: tokenDigest(completionToken),
       p_expires_at: expiresAt,
+      p_otp: otp,
+      p_dedupe_key: dedupeKey,
+      p_provider_idempotency_key: dedupeKey,
     }
   )
   if (error) unavailable(error)
-  const { error: outboxError } = await client
-    .from('notification_outbox')
-    .insert({
-      channel: 'email',
-      recipient: account.email,
-      kind: 'email_recovery_otp',
-      template_version: 1,
-      dedupe_key: `email-recovery/${id}/${tokenDigest(completionToken)}`,
-      provider_idempotency_key: `email-recovery/${id}/${tokenDigest(completionToken)}`,
-      payload_safe_json: { otp },
-    })
-  if (outboxError) unavailable(outboxError)
+  const result = z.array(z.object({ status: z.literal('sent') })).safeParse(data)
+  if (!result.success || result.data.length !== 1) unavailable(null)
   return { status: 'sent', completion_token: completionToken }
 }
 
@@ -129,38 +122,68 @@ export async function completeEmailRecovery(
   } catch {
     throw new MfaRecoveryError('INVALID_CODE')
   }
-  const { error } = await getSupabaseServerClient().rpc(
-    'consume_email_otp_for_recovery',
+  const { data, error } = await getSupabaseServerClient().rpc(
+    'consume_email_otp_for_recovery_v61',
     { p_account_id: id, p_otp_digest: digest }
   )
   if (error) unavailable(error)
+  const result = z.array(z.object({
+    outcome: z.enum(['verified', 'invalid', 'locked', 'expired']),
+  })).safeParse(data)
+  if (!result.success || result.data.length !== 1) unavailable(null)
+  if (result.data[0].outcome !== 'verified') {
+    throw new MfaRecoveryError(
+      result.data[0].outcome === 'locked'
+        ? 'LOCKED'
+        : result.data[0].outcome === 'expired'
+          ? 'EXPIRED'
+          : 'INVALID_CODE'
+    )
+  }
   return { status: 'verified' }
 }
 
-export async function consumeRecoveryCompletionToken(token: string): Promise<{
+export type RecoveryCompletionClaims = {
   id: string
+  name: string
+  email: string
   role: UserRole
   authz_version: number
   auth_level: 'recovery'
   auth_method: 'backup_code' | 'email_otp'
-}> {
+  verified_at: string
+  completion_purpose: 'mfa_recovery'
+}
+
+export async function consumeRecoveryCompletionToken(
+  token: string
+): Promise<RecoveryCompletionClaims> {
   const { data, error } = await getSupabaseServerClient().rpc(
-    'consume_mfa_recovery_completion_token',
+    'consume_mfa_recovery_completion_token_v61',
     { p_completion_token_hash: tokenDigest(token) }
   )
   if (error || !Array.isArray(data) || data.length !== 1) unavailable(error)
   const row = z.object({
     account_id: z.string().uuid(),
+    name: z.string().min(1),
+    email: z.string().email(),
     role: z.string(),
     authz_version: z.number().int().min(1),
+    auth_level: z.literal('recovery'),
     auth_method: z.enum(['backup_code', 'email_otp']),
+    verified_at: z.string().datetime({ offset: true }),
+    completion_purpose: z.literal('mfa_recovery'),
   }).safeParse(data[0])
   if (!row.success || !isUserRole(row.data.role)) unavailable(null)
   return {
     id: row.data.account_id,
+    name: row.data.name,
+    email: row.data.email,
     role: row.data.role,
     authz_version: row.data.authz_version,
-    auth_level: 'recovery',
+    auth_level: row.data.auth_level,
     auth_method: row.data.auth_method,
+    verified_at: row.data.verified_at,
+    completion_purpose: row.data.completion_purpose,
   }
 }

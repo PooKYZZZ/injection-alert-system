@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-05
+Updated: 2026-07-11
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -51,7 +51,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run through 2026-07-05
+### Historical checks through 2026-07-05
 
 - Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
@@ -65,7 +65,25 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - PR #79 GitHub CI:
   - First Ubuntu 24.04 / Node `24.18.0` frontend attempt aborted during `npx vitest run` with native `Napi::Error` exit 134.
   - PR #81 replaced accidental partial/native Argon2 imports in auth and provisioning control-flow tests with pure mocks. Real Argon2id coverage remains in `password-hash.test.ts`.
-  - The full frontend CI job passed twice after the repair. Vitest remains on `threads`; package scripts, CI workflow, and production auth/Argon2id code are unchanged.
+- The full frontend CI job passed twice after the repair. Vitest remains on `threads`; package scripts, CI workflow, and production auth/Argon2id code are unchanged.
+
+### PR #83 remediation state (2026-07-11)
+
+- Additive migration head: `20260711_000018`, after deployed revision `20260710_000014`.
+- Database-authoritative MFA completion, factor-aware enrollment, recovery,
+  recent-TOTP step-up, password-work preflight, outbox lifecycle, and worker
+  readiness changes are implemented behind disabled feature gates.
+- Disposable PostgreSQL validation passed: 612 full backend tests, 104
+  integration tests, 33 migration tests, and clean downgrade/re-upgrade.
+- Frontend validation passed: lint, typecheck, build, and 73 Vitest files / 417
+  tests. The Playwright command is present but skips all 25 configured journey
+  cases without the required seeded E2E environment and browser binaries.
+- Five critical browser journeys are defined in
+  `frontend/e2e/auth-journeys.spec.ts`; local execution remains blocked by
+  missing Playwright browser binaries and no seeded Supabase-backed app
+  environment.
+- Terminal notification payload scrubbing is enforced. Pending secret-bearing
+  payload encryption remains a human security gate before enabling delivery.
 
 ### Backend
 

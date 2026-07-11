@@ -26,7 +26,7 @@ class PostgresNotificationOutboxRepository:
                 result = await session.execute(
                     text(
                         """
-SELECT * FROM public.claim_notification_outbox_batch(
+SELECT * FROM public.claim_notification_outbox_batch_v61(
   :worker_id, :batch_size, :lease_seconds
 )
 """
@@ -49,6 +49,7 @@ SELECT * FROM public.claim_notification_outbox_batch(
                 provider_idempotency_key=row["provider_idempotency_key"],
                 attempt_count=row["attempts"],
                 max_attempts=row["max_attempts"],
+                deliver_before=row.get("deliver_before"),
             )
             for row in rows
         ]
@@ -58,7 +59,7 @@ SELECT * FROM public.claim_notification_outbox_batch(
     ) -> None:
         changed = await self._transition(
             """
-SELECT public.complete_notification_outbox_job(
+SELECT public.complete_notification_outbox_job_v61(
   :job_id, :worker_id, :message_id
 )
 """,
@@ -81,7 +82,7 @@ SELECT public.complete_notification_outbox_job(
     ) -> None:
         changed = await self._transition(
             """
-SELECT public.fail_notification_outbox_job(
+SELECT public.fail_notification_outbox_job_v61(
   :job_id, :worker_id, :error_class, :retryable, :retry_delay_seconds
 )
 """,
@@ -104,12 +105,13 @@ SELECT public.fail_notification_outbox_job(
                         """
 INSERT INTO public.notification_outbox (
   kind, channel, recipient, status, payload_safe_json,
-  template_version, dedupe_key, provider_idempotency_key
+  template_version, dedupe_key, provider_idempotency_key, deliver_before
 )
 VALUES (
   :kind, 'email', :recipient, 'pending',
   CAST(:safe_payload AS jsonb), :template_version,
-  :dedupe_key, :provider_idempotency_key
+  :dedupe_key, :provider_idempotency_key,
+  COALESCE(:deliver_before, now() + interval '24 hours')
 )
 ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
 RETURNING id
@@ -126,6 +128,7 @@ RETURNING id
                         "template_version": notification.template_version,
                         "dedupe_key": notification.dedupe_key,
                         "provider_idempotency_key": notification.provider_idempotency_key,
+                        "deliver_before": notification.deliver_before,
                     },
                 )
                 return result.scalar_one_or_none() is not None

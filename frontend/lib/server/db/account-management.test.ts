@@ -11,6 +11,7 @@ vi.mock('./client', () => ({
   getSupabaseServerClient: () => ({ rpc: harness.rpc, from: harness.from }),
 }))
 vi.mock('@/lib/auth/password-hash', () => ({
+  PASSWORD_HASH_CONCURRENCY_LIMIT: 2,
   hashPassword: harness.hashPassword,
   validateNewPassword: (password: unknown) =>
     typeof password === 'string' && password.length >= 15
@@ -101,7 +102,9 @@ describe('account management database boundary', () => {
   })
 
   it('validates and hashes a setup password before atomic token consumption', async () => {
-    harness.rpc.mockResolvedValue({ data: actorId, error: null })
+    harness.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: actorId, error: null })
 
     await expect(
       completeInitialPasswordSetup('opaque-token', 'short')
@@ -123,6 +126,22 @@ describe('account management database boundary', () => {
         p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
         p_password_hash: '$argon2id$approved',
       }
+    )
+  })
+
+  it('does not hash an invalid setup token after cheap preflight', async () => {
+    harness.rpc.mockResolvedValue({ data: false, error: null })
+
+    await expect(
+      completeInitialPasswordSetup(
+        'a'.repeat(43),
+        'correct horse battery staple'
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(harness.hashPassword).not.toHaveBeenCalled()
+    expect(harness.rpc).toHaveBeenCalledWith(
+      'preflight_password_token_v61',
+      expect.objectContaining({ p_purpose: 'password_setup' })
     )
   })
 

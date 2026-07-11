@@ -40,7 +40,7 @@ describe('TOTP enrollment database boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     harness.encrypt.mockReturnValue({ ciphertext: 'cipher', nonce: 'nonce', key_version: 1 })
-    harness.rpc.mockResolvedValue({ data: true, error: null })
+    harness.rpc.mockResolvedValue({ data: factorId, error: null })
     harness.hash.mockResolvedValue('$argon2id$backup')
     harness.decrypt.mockReturnValue('JBSWY3DPEHPK3PXP')
   })
@@ -52,11 +52,11 @@ describe('TOTP enrollment database boundary', () => {
     const select = vi.fn().mockReturnValue(query)
     harness.from.mockReturnValue({ select })
 
-    const result = await beginTotpEnrollment(accountId)
+    const result = await beginTotpEnrollment(accountId, 'a'.repeat(43))
 
     expect(result.manual_key).toMatch(/^[A-Z2-7]+$/)
     expect(result.provisioning_uri).toContain('otpauth://totp/')
-    expect(harness.rpc).toHaveBeenCalledWith('begin_totp_enrollment', expect.objectContaining({
+    expect(harness.rpc).toHaveBeenCalledWith('begin_totp_enrollment_v61', expect.objectContaining({
       p_account_id: accountId,
       p_ciphertext: 'cipher',
     }))
@@ -80,11 +80,12 @@ describe('TOTP enrollment database boundary', () => {
     const select = vi.fn().mockReturnValue(query)
     harness.from.mockReturnValue({ select })
 
-    const result = await completeTotpEnrollment(accountId, factorId, '000000')
+    harness.rpc.mockResolvedValue({ data: [{ outcome: 'verified' }], error: null })
+    const result = await completeTotpEnrollment(accountId, factorId, '000000', 'a'.repeat(43))
 
     expect(result.backup_codes).toHaveLength(8)
     expect(harness.hash).toHaveBeenCalledTimes(8)
-    expect(harness.rpc).toHaveBeenCalledWith('activate_totp_factor', expect.objectContaining({
+    expect(harness.rpc).toHaveBeenCalledWith('complete_totp_enrollment_v61', expect.objectContaining({
       p_account_id: accountId,
       p_factor_id: factorId,
       p_backup_codes: expect.arrayContaining([

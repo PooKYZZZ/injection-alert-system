@@ -217,3 +217,27 @@ def test_notification_settings_are_safe_by_default():
     assert settings.email_provider == "fake"
     assert settings.resend_api_key is None
     assert settings.resend_live_test_enabled is False
+
+
+def test_required_worker_rejects_fake_provider():
+    with pytest.raises(ValueError, match="fake email provider"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            notification_worker_enabled=True,
+            notification_worker_required=True,
+            email_provider="fake",
+        )
+
+
+def test_production_worker_rejects_fake_provider():
+    with pytest.raises(ValueError, match="fake email provider"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env="production",
+            notification_worker_enabled=True,
+            email_provider="fake",
+        )

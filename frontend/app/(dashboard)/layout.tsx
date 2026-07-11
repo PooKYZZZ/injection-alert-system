@@ -22,7 +22,11 @@ export default async function DashboardLayout({
       session.user?.auth_level === 'password' &&
       (session.user.role === 'ADMIN' || session.user.role === 'ANALYST')
     ) {
-      redirect('/mfa/verify')
+      redirect(
+        session.user.mfa_challenge_purpose === 'mfa_enrollment'
+          ? '/mfa/enroll'
+          : '/mfa/verify'
+      )
     }
     if (
       session.user?.auth_level === 'recovery' &&

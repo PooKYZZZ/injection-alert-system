@@ -16,7 +16,9 @@ import {
   generateOpaqueToken,
 } from '@/lib/auth/account-tokens'
 import { hashPassword, validateNewPassword } from '@/lib/auth/password-hash'
+import { passwordHashConcurrencyGate } from '@/lib/auth/login-throttle'
 import { getSupabaseServerClient } from './client'
+import { preflightPasswordToken } from './password-token-preflight'
 
 const ACCOUNT_FIELDS =
   'id,email,pending_email,name,role,mfa_required,email_verified_at,disabled_at,created_at,auth_mfa_factors(status)'
@@ -206,7 +208,7 @@ export async function setManagedAccountEnabled(
   const parsed = accountEnabledSchema.safeParse(input)
   if (!parsed.success) throw new AccountManagementError('INVALID_REQUEST')
   const { error } = await getSupabaseServerClient().rpc(
-    'admin_set_account_enabled',
+    'admin_set_account_enabled_v61',
     {
       p_actor_account_id: requestUuid(actorAccountId),
       p_target_account_id: requestUuid(targetAccountId),
@@ -251,7 +253,14 @@ export async function completeInitialPasswordSetup(
 ): Promise<{ account_id: string }> {
   const policy = validateNewPassword(password)
   if (!policy.ok) throw new Error('Password does not meet policy.')
-  const passwordHash = await hashPassword(password)
+  try {
+    await preflightPasswordToken(token, 'password_setup')
+  } catch {
+    throw new AccountManagementError('INVALID_REQUEST')
+  }
+  const hashed = await passwordHashConcurrencyGate.run(() => hashPassword(password))
+  if (!hashed.ok) throw new AccountManagementError('UNAVAILABLE')
+  const passwordHash = hashed.value
   const { data, error } = await getSupabaseServerClient().rpc(
     'consume_password_setup_token',
     {

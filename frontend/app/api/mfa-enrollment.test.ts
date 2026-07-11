@@ -76,6 +76,6 @@ describe('TOTP enrollment routes', () => {
     )
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ manual_key: 'JBSWY3DPEHPK3PXP' })
-    expect(harness.begin).toHaveBeenCalledWith(accountId)
+    expect(harness.begin).toHaveBeenCalledWith(accountId, null)
   })
 })

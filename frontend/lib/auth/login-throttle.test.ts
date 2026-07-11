@@ -147,7 +147,7 @@ describe('LoginThrottle', () => {
     expect(throttle.check('analyst@example.test').allowed).toBe(true)
   })
 
-  it('blocks all identifiers after the global threshold', () => {
+  it('does not block unrelated identifiers through a process-wide denial counter', () => {
     const throttle = createThrottle(() => 0)
 
     for (const identifier of ['one@example.test', 'two@example.test', 'three@example.test']) {
@@ -155,10 +155,32 @@ describe('LoginThrottle', () => {
       throttle.recordFailure(attempt.identifierHash)
     }
 
-    expect(throttle.check('new@example.test')).toMatchObject({
-      allowed: false,
-      reasonCode: 'GLOBAL_THROTTLED',
-    })
+    expect(throttle.check('new@example.test').allowed).toBe(true)
+  })
+
+  it('prunes expired identifiers and enforces a maximum map size', () => {
+    let now = 0
+    const throttle = new LoginThrottle(
+      {
+        identifierMaxFailures: 2,
+        identifierWindowMs: 1_000,
+        identifierCooldownMs: 2_000,
+        globalMaxFailures: 3,
+        globalWindowMs: 1_000,
+        globalCooldownMs: 2_000,
+        maxIdentifierEntries: 2,
+      },
+      () => now
+    )
+
+    throttle.check('one@example.test')
+    throttle.check('two@example.test')
+    throttle.check('three@example.test')
+    expect(throttle.trackedIdentifierCount).toBe(2)
+
+    now = 3_001
+    throttle.check('new@example.test')
+    expect(throttle.trackedIdentifierCount).toBe(1)
   })
 
   it('allows attempts again after cooldown without leaking a distinct user outcome', () => {

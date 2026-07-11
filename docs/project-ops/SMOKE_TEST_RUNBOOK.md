@@ -404,7 +404,7 @@ Go to `http://localhost:3000/alerts` and note the ID of any alert row (e.g., cli
 Use PowerShell to send a triage update directly inside the backend container. Replace `<ALERT_ID>` with the actual alert ID:
 
 ```powershell
-docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{"triage_status":"in_review"}'
+docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 > **Note:** The browser path still goes through the Next.js BFF. This direct backend call is only for smoke verification because the backend is internal to the compose network.
@@ -414,7 +414,7 @@ docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<A
 Query the same alert to confirm the triage status changed:
 
 ```powershell
-docker compose exec backend curl -s http://localhost:8000/api/alerts/<ALERT_ID> -H "Authorization: Bearer local-dev-secret"
+docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 **What to check:**
@@ -488,10 +488,10 @@ curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/
 #    - http://localhost:3000/ml-health
 
 # 9. Triage update (replace <ALERT_ID>)
-docker compose exec backend curl -s -X PATCH http://localhost:8000/api/alerts/<ALERT_ID>/triage -H "Content-Type: application/json" -H "Authorization: Bearer local-dev-secret" -d '{\"triage_status\":\"in_review\"}'
+docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 
 # 10. Verify persistence
-docker compose exec backend curl -s http://localhost:8000/api/alerts/<ALERT_ID> -H "Authorization: Bearer local-dev-secret"
+docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 
 # 11. Stop stack
 docker compose down

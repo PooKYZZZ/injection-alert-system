@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import socket
+import time
 from contextlib import suppress
 from typing import Protocol
 from uuid import uuid4
@@ -65,6 +66,10 @@ class NotificationWorkerService:
         self._stop = asyncio.Event()
         self._polled = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
+        self._last_poll_at: float | None = None
+        self._last_error_class: str | None = None
+        self._last_sent = 0
+        self._last_failed = 0
 
     @classmethod
     def from_settings(cls, settings: ProviderSettings) -> "NotificationWorkerService":
@@ -91,34 +96,62 @@ class NotificationWorkerService:
             return
         self._stop.clear()
         self._polled.clear()
+        if getattr(self._settings, "notification_worker_required", False):
+            result = await self._worker.run_once()
+            self._last_sent = result.sent
+            self._last_failed = result.failed
+            self._last_poll_at = time.time()
         self._task = asyncio.create_task(
             self._run(), name="notification-outbox-worker"
         )
 
     async def stop(self) -> None:
-        if self._task is None:
-            return
-        self._stop.set()
-        self._task.cancel()
-        with suppress(asyncio.CancelledError):
-            await self._task
-        self._task = None
+        if self._task is not None:
+            self._stop.set()
+            self._task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._task
+            self._task = None
+        close = getattr(self._worker._provider, "close", None)
+        if close is not None:
+            await close()
 
     async def wait_until_polled(self) -> None:
         await asyncio.wait_for(self._polled.wait(), timeout=2.0)
 
+    @property
+    def last_poll_at(self) -> float | None:
+        return self._last_poll_at
+
+    @property
+    def last_error_class(self) -> str | None:
+        return self._last_error_class
+
+    @property
+    def last_sent(self) -> int:
+        return self._last_sent
+
+    @property
+    def last_failed(self) -> int:
+        return self._last_failed
+
     async def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                await self._worker.run_once()
+                result = await self._worker.run_once()
+                self._last_sent = result.sent
+                self._last_failed = result.failed
+                self._last_error_class = None
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                self._last_error_class = type(exc).__name__
                 logger.error(
                     "notification worker poll failed",
                     extra={"error_type": type(exc).__name__},
                 )
             finally:
+                self._last_poll_at = time.time()
                 self._polled.set()
             try:
                 await asyncio.wait_for(

@@ -73,3 +73,16 @@ def test_managed_email_change_owner_notification_is_supported() -> None:
 
     assert message.subject == "CyberTrace email changed"
     assert "email address was changed" in message.text
+
+
+def test_email_recovery_completion_notice_is_supported_without_secret_payload() -> None:
+    message = render_email(
+        kind="email_recovery_completed",
+        recipient="owner@example.test",
+        payload={},
+        template_version=1,
+        idempotency_key="email-recovery-completed/event-1",
+    )
+
+    assert message.subject == "CyberTrace account recovery completed"
+    assert "recovery was completed" in message.text

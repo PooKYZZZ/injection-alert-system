@@ -86,13 +86,13 @@ export function publicTokenErrorResponse(): Response {
 
 export function totpErrorResponse(error: unknown): Response {
   const code = error instanceof Error && 'code' in error ? error.code : undefined
-  const status = code === 'INVALID_REQUEST' || code === 'INVALID_CODE' ? 400 : 503
+  const status = code === 'INVALID_REQUEST' || code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' ? 400 : 503
   return NextResponse.json(
     {
       error: {
-        code: code === 'INVALID_CODE' ? 'INVALID_CODE' : 'MFA_UNAVAILABLE',
+        code: code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' ? 'INVALID_CODE' : 'MFA_UNAVAILABLE',
         message:
-          code === 'INVALID_CODE'
+          code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED'
             ? 'That authenticator code is invalid or already used.'
             : status === 400
               ? 'The MFA request is invalid.'
@@ -105,7 +105,7 @@ export function totpErrorResponse(error: unknown): Response {
 
 export function recoveryErrorResponse(error: unknown): Response {
   const code = error instanceof Error && 'code' in error ? error.code : undefined
-  const status = code === 'INVALID_CODE' || code === 'COOLDOWN' ? 400 : 503
+  const status = code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' || code === 'COOLDOWN' ? 400 : 503
   return NextResponse.json(
     {
       error: {
@@ -113,7 +113,7 @@ export function recoveryErrorResponse(error: unknown): Response {
         message:
           code === 'COOLDOWN'
             ? 'Please wait before requesting another recovery code.'
-            : code === 'INVALID_CODE'
+            : code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED'
               ? 'That recovery code is invalid or expired.'
               : 'Recovery is temporarily unavailable.',
       },

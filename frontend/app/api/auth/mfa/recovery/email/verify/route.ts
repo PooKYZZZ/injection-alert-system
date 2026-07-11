@@ -15,21 +15,50 @@ export async function POST(request: Request): Promise<Response> {
   const originError = requireTrustedOrigin(request)
   if (originError) return originError
   const session = await auth()
-  const authorization = await requireMfaChallengePermission(session, PERMISSIONS.MFA_ENROLLMENT)
-  if (!authorization.ok) return authorization.response
   const completionToken = readRecoveryCompletionCookie(request)
+  const authorization = await requireMfaChallengePermission(
+    session,
+    PERMISSIONS.MFA_ENROLLMENT,
+    { allowRecoveryFinalization: Boolean(completionToken) }
+  )
+  if (!authorization.ok) return authorization.response
   if (!completionToken) return recoveryErrorResponse(new Error('INVALID_CODE'))
   try {
     const input = requestSchema.parse(await request.json())
-    await completeEmailRecovery(session!.user.id, input.code)
+    let handoffComplete = false
+    try {
+      await completeEmailRecovery(session!.user.id, input.code)
+    } catch (completionError) {
+      // A prior Auth.js handoff may have consumed the DB token before the
+      // browser received its redirect.  Retrying the same short-lived cookie
+      // is allowed by the database handoff contract; a first-use token still
+      // fails closed here.
+      try {
+        await signIn('credentials', {
+          recovery_completion_token: completionToken,
+          redirectTo: '/mfa/enroll',
+        })
+        handoffComplete = true
+      } catch (handoffError) {
+        if (handoffError instanceof Error && handoffError.message === 'NEXT_REDIRECT') {
+          throw handoffError
+        }
+        throw completionError
+      }
+    }
+    if (!handoffComplete) {
+      await signIn('credentials', {
+        recovery_completion_token: completionToken,
+        redirectTo: '/mfa/enroll',
+      })
+    }
     await clearRecoveryCompletionCookie()
-    await signIn('credentials', {
-      recovery_completion_token: completionToken,
-      redirectTo: '/mfa/enroll',
-    })
     return NextResponse.json({ status: 'recovery_started' })
   } catch (error) {
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') throw error
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      await clearRecoveryCompletionCookie()
+      throw error
+    }
     return recoveryErrorResponse(error)
   }
 }
