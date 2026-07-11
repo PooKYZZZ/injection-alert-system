@@ -21,8 +21,7 @@ evidence classifications, not completion claims.
 - [x] Unit 1 — Deterministic authentication E2E harness (`2689813`)
 - [x] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
   (`c4629c1`)
-- [ ] Unit 3 — Merge evidence and repository cleanup (implementation and local
-  validation complete; awaiting commit/push and PR-body evidence)
+- [x] Unit 3 — Merge evidence and repository cleanup (`11d5628`)
 - [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
 - [ ] Unit 5 — Thesis-grade evidence package
 - [ ] Unit 6A — Required Playwright CI gate
@@ -197,6 +196,20 @@ The three moderate npm findings have no non-breaking automated remediation in
 the current audit output; `npm audit fix --force` proposes an unrelated breaking
 Next.js change and was not run. Hosted database/provider identity, live email,
 hosted smoke, and feature enablement remain explicitly unperformed.
+
+### Unit 3 outcome
+
+- Commit: `11d5628916f53126bf844f82860e0072a17500aa`
+- Remote verification: local, remote branch, and PR #83 head matched after push.
+- Findings addressed: F-08 and F-09; all earlier merge blockers rechecked.
+- PR description: replaced stale counts with the current verified evidence,
+  resolved/deferred findings, safety boundary, and execution-record pointer.
+- CI: the previous completed head `96ec6dc` passed all four existing jobs; the
+  `11d5628` run was in progress when the PR description was updated.
+- Remaining work: encrypted outbox payloads, evidence package, Playwright CI,
+  break-glass path, and documentation consolidation.
+- Residual risk: hosted target/provider verification is still blocked by explicit
+  authorization and credentials; no live smoke or enablement claim is made.
 
 ### Finding revalidation at the starting HEAD
 
