@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-import random
-from datetime import datetime, timezone
+import asyncio
 import logging
-from typing import Callable, Protocol
+import random
+import time
+from datetime import datetime, timezone
+from typing import Callable, Literal, Protocol
 
 from web_app.notifications.models import OutboxJob, WorkerRunResult
 from web_app.notifications.providers import EmailProvider, EmailProviderError
 from web_app.notifications.templates import TemplatePayloadError, render_email
+from web_app.observability.structured_logging import log_event
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,7 @@ class OutboxWorker:
         )
         sent = 0
         failed = 0
+        ambiguous = 0
         for job in jobs:
             if job.deliver_before is not None and job.deliver_before <= datetime.now(timezone.utc):
                 failed += 1
@@ -100,17 +104,65 @@ class OutboxWorker:
                     self._retry_delay(job.attempt_count),
                 )
             else:
-                sent += 1
+                completion_started_at = time.monotonic()
                 try:
                     await self._repository.complete(
                         job.id, self._worker_id, result.message_id
                     )
-                except Exception as exc:
-                    logger.warning(
-                        "notification outbox completion transition failed",
-                        extra={"error_type": type(exc).__name__},
+                except asyncio.CancelledError as exc:
+                    self._log_ambiguous_completion(
+                        job=job,
+                        provider_message_id=result.message_id,
+                        error=exc,
+                        completion_result="cancelled",
+                        started_at=completion_started_at,
                     )
-        return WorkerRunResult(claimed=len(jobs), sent=sent, failed=failed)
+                    raise
+                except Exception as exc:
+                    ambiguous += 1
+                    self._log_ambiguous_completion(
+                        job=job,
+                        provider_message_id=result.message_id,
+                        error=exc,
+                        completion_result="failed",
+                        started_at=completion_started_at,
+                    )
+                else:
+                    sent += 1
+        return WorkerRunResult(
+            claimed=len(jobs),
+            sent=sent,
+            failed=failed,
+            ambiguous=ambiguous,
+        )
+
+    def _log_ambiguous_completion(
+        self,
+        *,
+        job: OutboxJob,
+        provider_message_id: str,
+        error: BaseException,
+        completion_result: Literal["cancelled", "failed"],
+        started_at: float,
+    ) -> None:
+        duration_ms = max(0, round((time.monotonic() - started_at) * 1_000))
+        log_event(
+            logger,
+            "notification.delivery_completion_ambiguous",
+            "Provider accepted notification but durable completion is ambiguous",
+            level="WARNING",
+            component="notification-worker",
+            notification_event_id=job.id,
+            provider_message_id=provider_message_id,
+            idempotency_key=job.provider_idempotency_key,
+            attempt_number=job.attempt_count,
+            previous_state="processing",
+            requested_state="sent",
+            completion_result=completion_result,
+            reconciliation_status="required",
+            error_class=type(error).__name__,
+            duration_ms=duration_ms,
+        )
 
     async def _safe_fail(
         self,

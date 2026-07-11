@@ -20,6 +20,7 @@ evidence classifications, not completion claims.
 - [x] Unit 0 — Baseline and evidence freeze (`d41c3d3`)
 - [x] Unit 1 — Deterministic authentication E2E harness (`2689813`)
 - [ ] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
+  (implementation and local validation complete; awaiting commit/push evidence)
 - [ ] Unit 3 — Merge evidence and repository cleanup
 - [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
 - [ ] Unit 5 — Thesis-grade evidence package
@@ -94,6 +95,49 @@ managed Playwright project supplied the database-backed journey evidence.
 Unit 1 fixes F-01, F-02, and F-04 locally. F-03 remains partial until Unit 6A
 makes the managed command a required PR job.
 
+### Unit 2 correctness and reconciliation evidence
+
+Unit 2 removes the final production dependency on exact `NEXT_REDIRECT` message
+matching. Password login and every fetch-based Auth.js completion now use
+`redirect: false`; the client owns final dashboard navigation, after which the
+existing route guard selects MFA enrollment or verification as required.
+Unexpected Auth.js errors retain a generic public response and redacted error
+class only.
+
+Notification delivery now increments `sent` only after
+`complete_notification_outbox_job_v61` succeeds. Provider acceptance followed
+by a completion exception increments a separate `ambiguous` result, does not
+invoke the failure transition, and emits
+`notification.delivery_completion_ambiguous`. The structured event contains the
+outbox event ID, available request/trace correlation, provider message ID,
+idempotency key, attempt number, requested state transition, completion result,
+reconciliation status, error class, and duration. It never receives the
+recipient or payload. Cancellation after provider acceptance emits the same
+reconciliation evidence and then propagates shutdown.
+
+`/health` and `/api/health` remain public aliases with their existing response
+fields and now represent readiness plus component detail. Database failure or a
+configured required worker in any state other than `healthy` returns 503 and an
+`unhealthy` body. A disabled or unhealthy optional worker remains visible in the
+component field without failing readiness. This repository does not add a
+separate process-only liveness route.
+
+| Unit 2 validation | Result |
+|---|---|
+| Redirect component regressions | PASS — 8 tests |
+| Worker and readiness regressions | PASS — 10 tests |
+| Adjacent notification/config/API suite | PASS — 72 passed / 7 PostgreSQL skips |
+| Disposable PostgreSQL outbox lifecycle | PASS — 7 tests after migrations through `20260711_000018` |
+| Full backend suite | PASS — 590 passed / 28 PostgreSQL-only skips |
+| Frontend lint, typecheck, Vitest, build | PASS — 83 files / 462 tests / 39 static pages |
+| Managed auth browser project | PASS — 5 journeys / 5 passed in 1.4 minutes |
+| Disposable cleanup | PASS — PostgreSQL, PostgREST, proxy, containers, and networks removed |
+
+Unit 2 fixes F-05, F-06, F-07, and F-13 and completes the remaining F-04
+redirect-handoff hardening. The durable outbox still relies on lease expiry plus
+the stable provider idempotency key for a later reconciliation attempt; no blind
+same-run resend was added.
+
 ### Finding revalidation at the starting HEAD
 
 | Finding | Status | Repository evidence and impact |
@@ -153,6 +197,38 @@ makes the managed command a required PR job.
 - Rollback impact: remove the dedicated config, orchestrator, setup, support,
   and journey changes; production feature switches remain unchanged.
 
+#### D-003 — Represent provider-accepted completion failures explicitly
+
+- Date: 2026-07-11
+- Actor: Codex
+- Decision: add an `ambiguous` worker result and structured reconciliation event;
+  count `sent` only after the durable completion transition succeeds.
+- Rationale: provider acceptance is not equivalent to a committed outbox state,
+  while treating it as an ordinary failure can cause an unsafe immediate resend.
+- Evidence: worker failure, retry, cancellation, redaction, and PostgreSQL outbox
+  lifecycle tests.
+- Alternatives considered: count provider acceptance as sent; mark the job
+  failed immediately; add a new database state in this unit.
+- Compatibility impact: the result dataclass gains a defaulted field and existing
+  lease/idempotency behavior is preserved.
+- Rollback impact: revert the worker/model/service changes; no schema change.
+
+#### D-004 — Treat both existing health paths as readiness with component detail
+
+- Date: 2026-07-11
+- Actor: Codex
+- Decision: keep `/health` and `/api/health` public and shape-compatible, but
+  return 503 when the database or a required notification worker is unready.
+- Rationale: startup already fails fast for a required worker; runtime health must
+  not report healthy for the same condition.
+- Evidence: unit coverage for required, optional, disabled, and database-failure
+  states plus route-level public/readiness tests.
+- Alternatives considered: add new health paths; fail readiness for optional
+  worker degradation; retain HTTP 200 for an unhealthy body.
+- Compatibility impact: unhealthy readiness changes HTTP status from 200 to 503;
+  JSON fields are unchanged.
+- Rollback impact: restore the previous status-code behavior; no data impact.
+
 ### Surprises and discoveries
 
 #### 2026-07-11 — Default diagnostics retained interactive secrets
@@ -185,6 +261,18 @@ makes the managed command a required PR job.
 - Correction: retain the default gitleaks rules and add an `AND` allowlist scoped
   to the exact generic rule, exact test path, and exact published vector. A local
   gitleaks 8.24.3 scan of the same 13-commit PR range reports no leaks.
+
+#### 2026-07-11 — Auth config test depended on a gitignored local file
+
+- Status: FIXED
+- Evidence: Unit 1 frontend CI failed TypeScript resolution for
+  `./playwright.config`; the file exists locally but is explicitly ignored and is
+  absent from a clean checkout.
+- Impact: local validation passed while Linux CI correctly rejected the
+  non-portable test dependency.
+- Correction: keep the tracked authentication config self-contained, remove the
+  ignored base-config import, and revert the local ignored-file edit. Targeted
+  config tests and clean TypeScript validation pass.
 
 #### 2026-07-11 — Playwright server fails before skipped journeys are reported
 

@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Lock, UserRoundKey } from 'lucide-react'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -24,11 +26,10 @@ export default function LoginPage() {
             ? 'Invalid username or password.'
             : 'Unable to sign in right now'
         )
+      } else {
+        router.replace('/dashboard')
       }
-    } catch (e) {
-      if (e instanceof Error && e.message === 'NEXT_REDIRECT') {
-        throw e
-      }
+    } catch {
       setErrorMessage('Unable to sign in right now')
     } finally {
       setPending(false)

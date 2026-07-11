@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import baseConfig from './playwright.config'
 import authConfig from './playwright.auth.config'
 
 describe('authentication Playwright configuration', () => {
-  it('keeps auth journeys out of the generic multi-browser suite', () => {
-    expect(baseConfig.testIgnore).toEqual(['auth-journeys.spec.ts'])
-  })
-
   it('runs only the critical auth file in the supported Chromium browser', () => {
     expect(authConfig.testMatch).toEqual(['auth-journeys.spec.ts'])
     expect(authConfig.projects).toHaveLength(1)

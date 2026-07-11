@@ -36,6 +36,7 @@ describe('loginAction', () => {
     expect(signInMock).toHaveBeenCalledWith('credentials', {
       identifier: 'analyst@example.test',
       password: 'password',
+      redirect: false,
       redirectTo: '/dashboard',
     })
   })
@@ -47,5 +48,13 @@ describe('loginAction', () => {
       ok: false,
       code: 'INVALID_CREDENTIALS',
     })
+  })
+
+  it('returns a safe server error for unexpected Auth.js failures', async () => {
+    signInMock.mockRejectedValue(new Error('database detail must not escape'))
+
+    await expect(
+      loginAction('analyst@example.test', 'password')
+    ).resolves.toEqual({ ok: false, code: 'SERVER_ERROR' })
   })
 })

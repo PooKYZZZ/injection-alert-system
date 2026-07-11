@@ -70,6 +70,7 @@ class NotificationWorkerService:
         self._last_error_class: str | None = None
         self._last_sent = 0
         self._last_failed = 0
+        self._last_ambiguous = 0
 
     @classmethod
     def from_settings(cls, settings: ProviderSettings) -> "NotificationWorkerService":
@@ -100,6 +101,7 @@ class NotificationWorkerService:
             result = await self._worker.run_once()
             self._last_sent = result.sent
             self._last_failed = result.failed
+            self._last_ambiguous = result.ambiguous
             self._last_poll_at = time.time()
         self._task = asyncio.create_task(
             self._run(), name="notification-outbox-worker"
@@ -135,12 +137,17 @@ class NotificationWorkerService:
     def last_failed(self) -> int:
         return self._last_failed
 
+    @property
+    def last_ambiguous(self) -> int:
+        return self._last_ambiguous
+
     async def _run(self) -> None:
         while not self._stop.is_set():
             try:
                 result = await self._worker.run_once()
                 self._last_sent = result.sent
                 self._last_failed = result.failed
+                self._last_ambiguous = result.ambiguous
                 self._last_error_class = None
             except asyncio.CancelledError:
                 raise

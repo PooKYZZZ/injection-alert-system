@@ -57,3 +57,4 @@ class WorkerRunResult:
     claimed: int
     sent: int
     failed: int
+    ambiguous: int = 0
