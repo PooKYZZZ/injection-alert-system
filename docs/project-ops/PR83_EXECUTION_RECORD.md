@@ -19,8 +19,8 @@ evidence classifications, not completion claims.
 
 - [x] Unit 0 — Baseline and evidence freeze (`d41c3d3`)
 - [x] Unit 1 — Deterministic authentication E2E harness (`2689813`)
-- [ ] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
-  (implementation and local validation complete; awaiting commit/push evidence)
+- [x] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
+  (`c4629c1`)
 - [ ] Unit 3 — Merge evidence and repository cleanup
 - [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
 - [ ] Unit 5 — Thesis-grade evidence package
@@ -137,6 +137,23 @@ Unit 2 fixes F-05, F-06, F-07, and F-13 and completes the remaining F-04
 redirect-handoff hardening. The durable outbox still relies on lease expiry plus
 the stable provider idempotency key for a later reconciliation attempt; no blind
 same-run resend was added.
+
+### Unit 2 outcome
+
+- Commit: `c4629c147b21b9c4fd7a2b0e7b80c235a8b346a1`
+- Remote verification: local, `origin/feat/cybertrace-v6-1`, and PR #83 head
+  matched after the normal push.
+- Findings addressed: F-04 remainder, F-05, F-06, F-07, and F-13.
+- Files changed: login action/page and tests; Playwright config test; worker
+  model/service/implementation and tests; health handler and tests; execution
+  record.
+- Tests: all Unit 2 validation rows above passed from the committed code state.
+- CI: secret-scan passed immediately; backend, PostgreSQL, and frontend jobs were
+  running when remote presence was recorded.
+- Remaining work: Unit 3 onward; required Playwright CI remains Unit 6A.
+- Residual risk: a provider-accepted ambiguous row requires later reconciliation
+  after lease expiry; the stable provider idempotency key prevents an unkeyed
+  resend but provider-side behavior still needs hosted validation before enablement.
 
 ### Finding revalidation at the starting HEAD
 
