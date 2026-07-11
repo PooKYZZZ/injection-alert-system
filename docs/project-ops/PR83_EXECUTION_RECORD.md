@@ -18,8 +18,7 @@ evidence classifications, not completion claims.
 ### Progress
 
 - [x] Unit 0 — Baseline and evidence freeze (`d41c3d3`)
-- [ ] Unit 1 — Deterministic authentication E2E harness (implementation and
-  local validation complete; awaiting commit/push evidence)
+- [x] Unit 1 — Deterministic authentication E2E harness (`2689813`)
 - [ ] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
 - [ ] Unit 3 — Merge evidence and repository cleanup
 - [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
@@ -90,6 +89,7 @@ managed Playwright project supplied the database-backed journey evidence.
 | Frontend lint and typecheck | PASS |
 | Adjacent backend/config/health baseline | PASS — 28 tests |
 | Disposable cleanup | PASS — rows, containers, network, and proxy removed |
+| Gitleaks 8.24.3 PR-range scan | PASS — published RFC test vector narrowly allowlisted |
 
 Unit 1 fixes F-01, F-02, and F-04 locally. F-03 remains partial until Unit 6A
 makes the managed command a required PR job.
@@ -174,6 +174,17 @@ makes the managed command a required PR job.
   session before the client rendered completion state.
 - Correction: prewarm five pages and nine POST handlers; fetch-based completion
   handlers use Auth.js `redirect: false` and client-owned final navigation.
+
+#### 2026-07-11 — Published RFC TOTP vector triggered the secret scanner
+
+- Status: FIXED
+- Evidence: the first CI run for `2689813` identified only the public RFC 6238
+  SHA-1 Base32 test vector in `totp.test.ts` under the generic API-key rule.
+- Impact: no credential was exposed, but the required secret-scan job correctly
+  remained red until the false positive was bounded.
+- Correction: retain the default gitleaks rules and add an `AND` allowlist scoped
+  to the exact generic rule, exact test path, and exact published vector. A local
+  gitleaks 8.24.3 scan of the same 13-commit PR range reports no leaks.
 
 #### 2026-07-11 — Playwright server fails before skipped journeys are reported
 

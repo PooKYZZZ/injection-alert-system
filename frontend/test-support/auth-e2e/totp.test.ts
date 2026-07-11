@@ -8,17 +8,17 @@ import {
   waitForTotpStepAfter,
 } from './totp'
 
-const RFC_6238_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
+const RFC_6238_BASE32_VECTOR = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
 
 describe('authentication E2E TOTP support', () => {
   it('matches the RFC 6238 SHA-1 vector and the application six-digit form', () => {
-    expect(totpCodeAtStep(RFC_6238_SECRET, 1, 8)).toBe('94287082')
-    expect(totpCodeAtStep(RFC_6238_SECRET, 1)).toBe('287082')
+    expect(totpCodeAtStep(RFC_6238_BASE32_VECTOR, 1, 8)).toBe('94287082')
+    expect(totpCodeAtStep(RFC_6238_BASE32_VECTOR, 1)).toBe('287082')
   })
 
   it('returns the exact time step used to generate a runtime code', () => {
     expect(totpTimeStep(59_000)).toBe(1)
-    expect(totpCodeAtTime(RFC_6238_SECRET, 59_000)).toEqual({
+    expect(totpCodeAtTime(RFC_6238_BASE32_VECTOR, 59_000)).toEqual({
       code: '287082',
       step: 1,
     })
@@ -27,9 +27,9 @@ describe('authentication E2E TOTP support', () => {
   it('extracts only a valid Base32 secret from a provisioning URI', () => {
     expect(
       parseTotpSecret(
-        `otpauth://totp/CyberTrace%3Aadmin?secret=${RFC_6238_SECRET}&issuer=CyberTrace`
+        `otpauth://totp/CyberTrace%3Aadmin?secret=${RFC_6238_BASE32_VECTOR}&issuer=CyberTrace`
       )
-    ).toBe(RFC_6238_SECRET)
+    ).toBe(RFC_6238_BASE32_VECTOR)
     expect(() => parseTotpSecret('https://example.test/not-totp')).toThrow(
       'TOTP provisioning URI is invalid.'
     )
