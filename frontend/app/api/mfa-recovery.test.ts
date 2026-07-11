@@ -8,6 +8,8 @@ const harness = vi.hoisted(() => ({
   backup: vi.fn(),
   requestEmail: vi.fn(),
   verifyEmail: vi.fn(),
+  clearPreAuth: vi.fn(),
+  clearRecovery: vi.fn(),
   recoveryCookie: null as string | null,
 }))
 
@@ -22,7 +24,10 @@ vi.mock('@/lib/server/db/mfa-recovery', () => ({
 vi.mock('@/lib/auth/recovery-cookie', () => ({
   setRecoveryCompletionCookie: vi.fn(),
   readRecoveryCompletionCookie: () => harness.recoveryCookie,
-  clearRecoveryCompletionCookie: vi.fn(),
+  clearRecoveryCompletionCookie: harness.clearRecovery,
+}))
+vi.mock('@/lib/auth/preauth', () => ({
+  clearPreAuthCookie: harness.clearPreAuth,
 }))
 
 const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
@@ -48,7 +53,9 @@ describe('MFA recovery routes', () => {
     }))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'recovery_started' })
-    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: 'b'.repeat(43) }))
+    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: 'b'.repeat(43), redirect: false }))
+    expect(harness.clearRecovery).toHaveBeenCalledOnce()
+    expect(harness.clearPreAuth).toHaveBeenCalledOnce()
   })
 
   it('retries an existing recovery completion cookie without consuming another code', async () => {
@@ -64,7 +71,9 @@ describe('MFA recovery routes', () => {
       'mfa:enrollment',
       { allowRecoveryFinalization: true }
     )
-    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: harness.recoveryCookie }))
+    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: harness.recoveryCookie, redirect: false }))
+    expect(harness.clearRecovery).toHaveBeenCalledOnce()
+    expect(harness.clearPreAuth).toHaveBeenCalledOnce()
   })
 
   it('retries email handoff when OTP completion already committed', async () => {
@@ -80,7 +89,9 @@ describe('MFA recovery routes', () => {
       'mfa:enrollment',
       { allowRecoveryFinalization: true }
     )
-    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: harness.recoveryCookie }))
+    expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({ recovery_completion_token: harness.recoveryCookie, redirect: false }))
+    expect(harness.clearRecovery).toHaveBeenCalledOnce()
+    expect(harness.clearPreAuth).toHaveBeenCalledOnce()
   })
 
   it('denies email recovery before body parsing when the guard fails', async () => {

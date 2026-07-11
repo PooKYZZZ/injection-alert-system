@@ -65,6 +65,7 @@ describe('MFA enrollment finalization route', () => {
     )
     expect(harness.signIn).toHaveBeenCalledWith('credentials', {
       mfa_completion_token: completionToken,
+      redirect: false,
       redirectTo: '/dashboard',
     })
     expect(harness.clearCompletionCookie).toHaveBeenCalledOnce()

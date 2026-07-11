@@ -74,6 +74,7 @@ describe('recent TOTP step-up routes', () => {
     expect(harness.verify).toHaveBeenCalledWith(accountId, 'a'.repeat(43), '123456')
     expect(signIn).toHaveBeenCalledWith('credentials', {
       mfa_completion_token: 'b'.repeat(43),
+      redirect: false,
       redirectTo: '/dashboard',
     })
     expect(harness.clearCookie).toHaveBeenCalled()

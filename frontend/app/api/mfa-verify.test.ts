@@ -56,6 +56,7 @@ describe('MFA verification route', () => {
     expect(harness.verify).toHaveBeenCalledWith(accountId, 'a'.repeat(43), '123456')
     expect(harness.signIn).toHaveBeenCalledWith('credentials', expect.objectContaining({
       mfa_completion_token: 'b'.repeat(43),
+      redirect: false,
       redirectTo: '/dashboard',
     }))
     expect(harness.clearCookie).toHaveBeenCalled()

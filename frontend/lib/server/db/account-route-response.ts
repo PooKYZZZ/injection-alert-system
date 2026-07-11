@@ -84,8 +84,14 @@ export function publicTokenErrorResponse(): Response {
   )
 }
 
+function safeErrorCode(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  if ('code' in error && typeof error.code === 'string') return error.code
+  return error.message
+}
+
 export function totpErrorResponse(error: unknown): Response {
-  const code = error instanceof Error && 'code' in error ? error.code : undefined
+  const code = safeErrorCode(error)
   const status = code === 'INVALID_REQUEST' || code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' ? 400 : 503
   return NextResponse.json(
     {
@@ -104,7 +110,7 @@ export function totpErrorResponse(error: unknown): Response {
 }
 
 export function recoveryErrorResponse(error: unknown): Response {
-  const code = error instanceof Error && 'code' in error ? error.code : undefined
+  const code = safeErrorCode(error)
   const status = code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' || code === 'COOLDOWN' ? 400 : 503
   return NextResponse.json(
     {

@@ -313,7 +313,7 @@ describe('Auth.js account integration', () => {
     await import('@/auth')
   })
 
-  it('uses identifier/password credentials and an eight-hour JWT session', () => {
+  it('declares exclusive password and completion credentials with an eight-hour JWT session', () => {
     const config = capturedAuthConfig()
     expect(config.session).toEqual({
       strategy: 'jwt',
@@ -323,6 +323,8 @@ describe('Auth.js account integration', () => {
     expect(config.providers[0].credentials).toEqual({
       identifier: expect.objectContaining({ type: 'text' }),
       password: expect.objectContaining({ type: 'password' }),
+      mfa_completion_token: expect.objectContaining({ type: 'password' }),
+      recovery_completion_token: expect.objectContaining({ type: 'password' }),
     })
   })
 

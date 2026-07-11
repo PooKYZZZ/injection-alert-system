@@ -8,6 +8,10 @@ import {
 } from './lib/auth/login-throttle'
 import { verifyPasswordForAccount } from './lib/auth/password-hash'
 import { isUserRole } from './lib/auth/roles'
+import {
+  AUTH_CREDENTIAL_FIELDS,
+  parseCredentialMode,
+} from './lib/auth/credential-mode'
 import { findAuthAccountByIdentifier } from './lib/server/db/auth-accounts'
 import {
   beginLoginMfaChallenge,
@@ -64,42 +68,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       name: 'Credentials',
-      credentials: {
-        identifier: {
-          label: 'Email or username',
-          type: 'text',
-          placeholder: '',
-        },
-        password: { label: 'Password', type: 'password', placeholder: '' },
-      },
+      credentials: AUTH_CREDENTIAL_FIELDS,
       async authorize(credentials) {
-        const suppliedCredentials = credentials as
-          | Record<string, unknown>
-          | undefined
-        const completionToken =
-          typeof suppliedCredentials?.mfa_completion_token === 'string'
-            ? suppliedCredentials.mfa_completion_token
-            : ''
-        if (completionToken) {
+        const mode = parseCredentialMode(
+          credentials as Record<string, unknown> | undefined
+        )
+        if (!mode) return null
+        if (mode.kind === 'mfa_completion') {
           return claimsFromVerifiedCompletion(
-            await consumeMfaCompletionToken(completionToken)
+            await consumeMfaCompletionToken(mode.token)
           )
         }
-        const recoveryToken =
-          typeof suppliedCredentials?.recovery_completion_token === 'string'
-            ? suppliedCredentials.recovery_completion_token
-            : ''
-        if (recoveryToken) {
+        if (mode.kind === 'recovery_completion') {
           return claimsFromVerifiedCompletion(
-            await consumeRecoveryCompletionToken(recoveryToken)
+            await consumeRecoveryCompletionToken(mode.token)
           )
         }
-        const identifier =
-          typeof credentials?.identifier === 'string'
-            ? credentials.identifier
-            : ''
-        const password =
-          typeof credentials?.password === 'string' ? credentials.password : ''
+        const { identifier, password } = mode
         const attempt = loginThrottle.check(identifier)
 
         if (!attempt.allowed) {

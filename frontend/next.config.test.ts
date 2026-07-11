@@ -3,6 +3,19 @@ import { describe, expect, it } from 'vitest'
 import nextConfig, { buildContentSecurityPolicy } from './next.config'
 
 describe('buildContentSecurityPolicy', () => {
+  it('allows the loopback origin used by deterministic browser tests', () => {
+    expect(nextConfig.allowedDevOrigins).toContain('127.0.0.1')
+    expect(nextConfig.outputFileTracingRoot).toBe(process.cwd())
+    expect(nextConfig.turbopack).toMatchObject({ root: process.cwd() })
+  })
+
+  it('does not echo server-function arguments or browser logs to the terminal', () => {
+    expect(nextConfig.logging).toMatchObject({
+      serverFunctions: false,
+      browserToTerminal: false,
+    })
+  })
+
   it('keeps inline scripts enabled in production without eval', () => {
     const csp = buildContentSecurityPolicy('production')
 

@@ -17,6 +17,7 @@ type LoginAccount = {
 
 type CapturedConfig = {
   providers: Array<{
+    credentials: Record<string, unknown>
     authorize: (
       credentials: Record<string, unknown>
     ) => Promise<Record<string, unknown> | null>
@@ -161,6 +162,49 @@ beforeEach(() => {
 })
 
 describe('Auth.js credential login', () => {
+  it('declares every credential field consumed by authorize', async () => {
+    await import('@/auth')
+
+    expect(Object.keys(capturedConfig().providers[0].credentials)).toEqual([
+      'identifier',
+      'password',
+      'mfa_completion_token',
+      'recovery_completion_token',
+    ])
+  })
+
+  it.each([
+    {
+      identifier: 'admin@example.test',
+      password: 'password',
+      mfa_completion_token: 'a'.repeat(43),
+    },
+    {
+      mfa_completion_token: 'a'.repeat(43),
+      recovery_completion_token: 'b'.repeat(43),
+    },
+  ])('rejects mixed credential modes before consuming or querying', async (credentials) => {
+    authHarness.consumeMfaCompletion.mockResolvedValue({
+      id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      name: 'SOC Admin',
+      email: 'admin@example.test',
+      role: 'ADMIN',
+      authz_version: 4,
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      verified_at: '2026-07-11T02:00:00.000Z',
+      completion_purpose: 'login_mfa',
+    })
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize(credentials)
+    ).resolves.toBeNull()
+    expect(authHarness.consumeMfaCompletion).not.toHaveBeenCalled()
+    expect(authHarness.consumeRecoveryCompletion).not.toHaveBeenCalled()
+    expect(authHarness.findAccount).not.toHaveBeenCalled()
+  })
+
   it('logs in a DB account and preserves JWT/session claim shape', async () => {
     const password = 'correct horse battery staple'
     authHarness.verifyPasswordForAccount.mockImplementation(

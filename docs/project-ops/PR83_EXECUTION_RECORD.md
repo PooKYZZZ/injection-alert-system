@@ -17,8 +17,9 @@ evidence classifications, not completion claims.
 
 ### Progress
 
-- [ ] Unit 0 — Baseline and evidence freeze
-- [ ] Unit 1 — Deterministic authentication E2E harness
+- [x] Unit 0 — Baseline and evidence freeze (`d41c3d3`)
+- [ ] Unit 1 — Deterministic authentication E2E harness (implementation and
+  local validation complete; awaiting commit/push evidence)
 - [ ] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
 - [ ] Unit 3 — Merge evidence and repository cleanup
 - [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
@@ -48,8 +49,50 @@ The current Playwright startup failure was isolated without changing source:
 waiting for the configured default Next.js development server after a React
 client-manifest error. Starting the same tracked application with
 `npm run dev -- --webpack` returned HTTP 200 for `/login`. The untracked root
-lockfile remains untouched; Unit 1 must add a repo-owned, automated regression
-and a stable server strategy.
+lockfile remains untouched. This established the baseline requirement for a
+repo-owned regression and stable server strategy, which Unit 1 now supplies.
+
+### Unit 1 deterministic authentication E2E evidence
+
+Unit 1 replaces static credentials and skip switches with a managed local test
+boundary. `npm run test:e2e:auth` now creates uniquely named, loopback-only
+PostgreSQL 17.6 and PostgREST 14.14 containers plus a localhost Supabase REST
+compatibility proxy; applies Alembic through `20260711_000018`; generates five
+separate `example.test` identities and short-lived test keys; precompiles the
+critical pages and API handlers; runs the five Chromium journeys; deletes the
+seeded rows; and removes every disposable container and network in `finally`.
+
+The final managed run passed all five journeys in 1.2 minutes and printed the
+cleanup confirmation. Each journey also passed independently through the same
+managed command using `--grep`; every isolated invocation provisioned a fresh
+migrated environment and printed its cleanup confirmation. The evidence proves
+dynamic TOTP enrollment/login, one-time backup and email recovery, forced
+recovery re-enrollment, rejected replay, a newer accepted TOTP step for recent
+reauthentication, final session claims, and durable database state. No hosted
+project or live provider was used.
+
+Browser traces, videos, automatic screenshots, raw page snapshots, and Next.js
+server-function argument logs are disabled because they can retain passwords,
+OTPs, provisioning URIs, or backup codes. Failure evidence is limited to an
+HTML report, fixed redacted context, and input/QR-masked screenshot.
+
+An independent in-app Browser smoke check reproduced the original inert login
+button under the rejected loopback development origin. After the repo-owned
+Next.js origin/root correction, the same local UI hydrated and transitioned to
+`Signing in...`. That smoke used nonfunctional loopback database settings; the
+managed Playwright project supplied the database-backed journey evidence.
+
+| Unit 1 validation | Result |
+|---|---|
+| Managed auth browser project | PASS — 5 journeys / 5 passed |
+| Each journey in isolation | PASS — 5 independent invocations / 5 passed |
+| Frontend full Vitest suite | PASS — 83 files / 462 tests |
+| Frontend lint and typecheck | PASS |
+| Adjacent backend/config/health baseline | PASS — 28 tests |
+| Disposable cleanup | PASS — rows, containers, network, and proxy removed |
+
+Unit 1 fixes F-01, F-02, and F-04 locally. F-03 remains partial until Unit 6A
+makes the managed command a required PR job.
 
 ### Finding revalidation at the starting HEAD
 
@@ -94,7 +137,43 @@ and a stable server strategy.
 - Compatibility impact: none.
 - Rollback impact: none; this is an execution-boundary decision.
 
+#### D-002 — Use a disposable Supabase-compatible local boundary
+
+- Date: 2026-07-11
+- Actor: Codex
+- Decision: Use migrated PostgreSQL plus standalone PostgREST behind a
+  localhost `/rest/v1` compatibility proxy and generated service-role JWT.
+- Rationale: Exercise the existing Supabase client and database functions
+  without changing the Browser -> Next.js boundary or touching the hosted
+  project.
+- Evidence: the final five-journey run and unconditional cleanup confirmation.
+- Alternatives considered: static credentials, a hosted test project, direct
+  browser database access, and a test-only production route; all were rejected.
+- Compatibility impact: test-only local processes and ignored reports.
+- Rollback impact: remove the dedicated config, orchestrator, setup, support,
+  and journey changes; production feature switches remain unchanged.
+
 ### Surprises and discoveries
+
+#### 2026-07-11 — Default diagnostics retained interactive secrets
+
+- Status: FIXED
+- Evidence: Playwright's automatic page snapshot included filled input values,
+  and Next.js development server-function logging included action arguments.
+- Impact: even disposable credentials must not enter retained artifacts or CI
+  logs.
+- Correction: attach a fixed redacted context, retain masked screenshots only,
+  disable raw trace media, disable server-function/browser-console forwarding,
+  and ignore web-server stdout in the auth project.
+
+#### 2026-07-11 — Cold compilation reloaded stale auth state
+
+- Status: FIXED
+- Evidence: first-use page/API compilation reloaded enrollment after the
+  database incremented `authz_version`, correctly invalidating the old password
+  session before the client rendered completion state.
+- Correction: prewarm five pages and nine POST handlers; fetch-based completion
+  handlers use Auth.js `redirect: false` and client-owned final navigation.
 
 #### 2026-07-11 — Playwright server fails before skipped journeys are reported
 
@@ -102,6 +181,12 @@ and a stable server strategy.
 - Evidence: the configured default Next.js server timed out with a login-route client-manifest error; webpack served the same route successfully.
 - Impact: the earlier `25 skipped` evidence is not reproducible from the current checkout, and browser execution needs both a deterministic data harness and a stable server startup path.
 - Plan change: Unit 1 will cover the server command with an automated config test before changing it, then retain webpack or another repository-supported stable path only if the regression passes.
+
+## Prior PR implementation snapshot
+
+The sections below preserve the evidence snapshot that existed before the
+follow-up units above. The progress list and unit evidence supersede any older
+browser-unavailable statement in this snapshot.
 
 ## Phase status
 

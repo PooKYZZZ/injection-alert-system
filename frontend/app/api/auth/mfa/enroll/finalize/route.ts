@@ -31,17 +31,13 @@ export async function POST(request: Request): Promise<Response> {
   try {
     await signIn('credentials', {
       mfa_completion_token: completionToken,
+      redirect: false,
       redirectTo: '/dashboard',
     })
     await clearMfaCompletionCookie()
     await clearPreAuthCookie()
     return NextResponse.json({ status: 'authenticated' })
   } catch (error) {
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      await clearMfaCompletionCookie()
-      await clearPreAuthCookie()
-      throw error
-    }
     return totpErrorResponse(error)
   }
 }

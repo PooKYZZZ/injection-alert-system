@@ -20,6 +20,15 @@ export function buildContentSecurityPolicy(
 }
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['127.0.0.1'],
+  outputFileTracingRoot: process.cwd(),
+  turbopack: {
+    root: process.cwd(),
+  },
+  logging: {
+    browserToTerminal: false,
+    serverFunctions: false,
+  },
   poweredByHeader: false,
   async headers() {
     return [

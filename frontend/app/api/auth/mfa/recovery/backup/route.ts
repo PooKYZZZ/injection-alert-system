@@ -6,10 +6,10 @@ import { PERMISSIONS } from '@/lib/auth/roles'
 import { requireTrustedOrigin, recoveryErrorResponse, mfaEnrollmentEnabled } from '@/lib/server/db/account-route-response'
 import { consumeBackupCodeForRecovery } from '@/lib/server/db/mfa-recovery'
 import {
-  clearRecoveryCompletionCookie,
   readRecoveryCompletionCookie,
   setRecoveryCompletionCookie,
 } from '@/lib/auth/recovery-cookie'
+import { clearRecoveryHandoffCookies } from '@/lib/auth/recovery-handoff'
 import { z } from 'zod'
 
 const requestSchema = z.object({ code: z.string().min(1).max(32) }).strict()
@@ -31,15 +31,12 @@ export async function POST(request: Request): Promise<Response> {
       try {
         await signIn('credentials', {
           recovery_completion_token: completionToken,
+          redirect: false,
           redirectTo: '/mfa/enroll',
         })
-        await clearRecoveryCompletionCookie()
+        await clearRecoveryHandoffCookies()
         return NextResponse.json({ status: 'recovery_started' })
-      } catch (handoffError) {
-        if (handoffError instanceof Error && handoffError.message === 'NEXT_REDIRECT') {
-          await clearRecoveryCompletionCookie()
-          throw handoffError
-        }
+      } catch {
         completionToken = null
       }
     }
@@ -49,15 +46,12 @@ export async function POST(request: Request): Promise<Response> {
     await setRecoveryCompletionCookie(completionToken)
     await signIn('credentials', {
       recovery_completion_token: completionToken,
+      redirect: false,
       redirectTo: '/mfa/enroll',
     })
-    await clearRecoveryCompletionCookie()
+    await clearRecoveryHandoffCookies()
     return NextResponse.json({ status: 'recovery_started' })
   } catch (error) {
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      await clearRecoveryCompletionCookie()
-      throw error
-    }
     return recoveryErrorResponse(error)
   }
 }
