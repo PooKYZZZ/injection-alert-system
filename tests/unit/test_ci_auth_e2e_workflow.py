@@ -26,3 +26,12 @@ def test_ci_retains_safe_failure_evidence_and_always_cleans_resources() -> None:
     assert "if: always()" in job
     assert "cybertrace.auth-e2e=true" in job
     assert "secrets." not in job
+
+
+def test_postgres_ci_provisions_the_supabase_runtime_role_before_migrations() -> None:
+    source = WORKFLOW.read_text(encoding="utf-8")
+    job = source.split("  postgres:", 1)[1].split("  frontend:", 1)[0]
+
+    role_setup = "python scripts/prepare_ci_postgres_roles.py"
+    assert role_setup in job
+    assert job.index(role_setup) < job.index("python -m alembic upgrade head")

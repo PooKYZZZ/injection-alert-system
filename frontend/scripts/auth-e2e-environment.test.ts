@@ -134,9 +134,10 @@ describe('disposable authentication E2E environment', () => {
     expect(
       buildMigrationEnvironment({
         databaseUrl: 'postgresql+psycopg://disposable',
-        baseEnvironment: { PATH: 'test-path' },
+        baseEnvironment: { NODE_ENV: 'test', PATH: 'test-path' },
       })
     ).toMatchObject({
+      NODE_ENV: 'test',
       PATH: 'test-path',
       DATABASE_URL: 'postgresql+psycopg://disposable',
       CYBERTRACE_POSTGRES_TEST_URL: 'postgresql+psycopg://disposable',
