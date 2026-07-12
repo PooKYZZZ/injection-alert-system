@@ -108,6 +108,24 @@ export function buildAuthE2EEnvironment({
   }
 }
 
+export function buildMigrationEnvironment({
+  databaseUrl,
+  baseEnvironment = process.env,
+}) {
+  const modelPath = path.join(
+    repositoryDirectory,
+    'ml_model',
+    'model_registry'
+  )
+  return {
+    ...baseEnvironment,
+    DATABASE_URL: databaseUrl,
+    CYBERTRACE_POSTGRES_TEST_URL: databaseUrl,
+    MODEL_PATH: modelPath,
+    MODEL_REGISTRY_PATH: modelPath,
+  }
+}
+
 export function playwrightInvocation(
   nodeExecutable = process.execPath,
   playwrightArgs = []
@@ -406,11 +424,7 @@ GRANT anon, authenticated, service_role TO authenticator;
   const databaseUrl = `postgresql+psycopg://${POSTGRES_USER}:${postgresPassword}@127.0.0.1:${postgresPort}/${DATABASE_NAME}`
   console.log('AUTH_E2E: applying the real Alembic migration chain')
   await runProcess(pythonExecutable(), ['-m', 'alembic', 'upgrade', 'head'], {
-    env: {
-      ...process.env,
-      DATABASE_URL: databaseUrl,
-      CYBERTRACE_POSTGRES_TEST_URL: databaseUrl,
-    },
+    env: buildMigrationEnvironment({ databaseUrl }),
     label: 'Alembic upgrade',
   })
   await runPsql(

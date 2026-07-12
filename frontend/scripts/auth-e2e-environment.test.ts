@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   buildAuthE2EEnvironment,
+  buildMigrationEnvironment,
   createDisposableNames,
   createServiceRoleToken,
   DISPOSABLE_RESOURCE_LABEL,
@@ -127,6 +128,21 @@ describe('disposable authentication E2E environment', () => {
         platform: 'linux',
       })
     ).toThrow('Repository Python virtual environment is unavailable.')
+  })
+
+  it('supplies every required backend setting to Alembic explicitly', () => {
+    expect(
+      buildMigrationEnvironment({
+        databaseUrl: 'postgresql+psycopg://disposable',
+        baseEnvironment: { PATH: 'test-path' },
+      })
+    ).toMatchObject({
+      PATH: 'test-path',
+      DATABASE_URL: 'postgresql+psycopg://disposable',
+      CYBERTRACE_POSTGRES_TEST_URL: 'postgresql+psycopg://disposable',
+      MODEL_PATH: expect.stringContaining('ml_model'),
+      MODEL_REGISTRY_PATH: expect.stringContaining('ml_model'),
+    })
   })
 
   it('maps only the Supabase REST prefix to standalone PostgREST', () => {
