@@ -23,7 +23,7 @@ evidence classifications, not completion claims.
   (`c4629c1`)
 - [x] Unit 3 — Merge evidence and repository cleanup (`11d5628`)
 - [x] Unit 4 — Outbox secret protection and hosted-readiness preparation
-- [ ] Unit 5 — Thesis-grade evidence package
+- [x] Unit 5 — Thesis-grade evidence package
 - [ ] Unit 6A — Required Playwright CI gate
 - [ ] Unit 6B — Notification reconciliation observability
 - [ ] Unit 6C — Restricted break-glass mechanism
@@ -279,6 +279,26 @@ and interactive production login UI without a database-backed sign-in.
 - Residual risk: version `1` supports one active notification key. A future key
   rotation requires a reviewed multi-version decrypt window or complete
   terminalization of active version-1 rows before replacing the key.
+
+### Unit 5 outcome
+
+- Commit: `dbe743babfd5d1c281506cb364e376aca230d4ce`.
+- Artifact: `docs/project-ops/PR83_THESIS_EVIDENCE.md`.
+- Remote verification: local, remote branch, and PR #83 head matched after the
+  normal push.
+- Evidence included: authentication and notification state models; F-01 through
+  F-15 traceability; reproduction and validation record; exact Unit 0–4 SHAs;
+  safe five-journey demo; hosted exclusions; residual risk; and explicit thesis
+  scope justification.
+- Validation: every named primary source path exists; `git diff --check` passed;
+  the document contains no personal address or known credential placeholder;
+  Gitleaks 8.24.3 found no staged leak.
+- Remaining work: Unit 6A required CI, Unit 6C restricted break-glass, and Unit
+  6D consolidation. Unit 6B is already implemented in Unit 2 but still requires
+  the operator-facing consolidation check.
+- Residual risk: the package describes the completed Unit 4 tree and must be
+  refreshed with Unit 6 commits and final CI evidence before the PR is declared
+  merge-ready.
 
 ### Finding revalidation at the starting HEAD
 
