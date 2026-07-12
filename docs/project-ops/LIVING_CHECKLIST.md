@@ -3,12 +3,12 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-11
+**Last updated:** 2026-07-12
 
 Status note:
 - PR #83 execution record: `docs/project-ops/PR83_EXECUTION_RECORD.md`
-- Current disposable-PostgreSQL validation: backend 612 passed, integration 104 passed, migration tests 33 passed, clean downgrade/re-upgrade passed
-- Current frontend validation: lint, typecheck, build, and full Vitest (73 files / 417 tests) passed; Playwright journey definitions are present but browser execution requires installed binaries and a seeded Supabase-backed app environment
+- Current disposable-PostgreSQL validation: backend 643 passed, integration 107 passed, migration tests 37 passed, and downgrade/re-upgrade through migration head `20260712_000020` passed
+- Current frontend validation: lint, typecheck, build, and full Vitest (83 files / 472 tests) passed; the five managed Chromium journeys pass locally and run in the required `auth-e2e` CI job
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -123,8 +123,8 @@ Status note:
 - [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and a restricted execute-only PostgreSQL break-glass role/CLI (hosted membership and feature flags remain off by default)
 - [x] Add database-authoritative MFA completion claims, factor-aware enrollment, persistent MFA/OTP attempt accounting, retry-safe recovery handoff, and password-work preflight (PR #83)
 - [x] Add bounded notification deadlines, cancellation, terminal reconciliation/scrubbing, supported templates, lease-safe worker behavior, and provider/readiness validation (PR #83)
-- [x] Add required PostgreSQL CI job and five critical browser journey definitions (PR #83; browser execution remains environment-gated)
-- [~] Approve and implement encryption for pending secret-bearing notification payloads before enabling security-email flags
+- [x] Add required PostgreSQL and managed Chromium authentication CI jobs, including disposable setup and unconditional cleanup (PR #83)
+- [x] Encrypt active credential-equivalent notification payloads with a versioned AES-GCM envelope and fail-closed delivery decryption (PR #83; hosted key provisioning/rotation remains gated)
 - [ ] Apply V6.1 migrations to a reviewed hosted Supabase target
 - [ ] Enable Resend/Turnstile/public deployment after external configuration and hostname checks
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path

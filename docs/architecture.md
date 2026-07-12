@@ -131,7 +131,7 @@ Implemented in the current foundation:
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 - alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 
-MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, trusted database verification timestamps, factor-aware enrollment, purpose-bound completion contracts, recent-TOTP step-up, and scanner-safe POST routes. Feature flags remain disabled by default pending reviewed target migration, provider configuration, browser proof, and payload-protection approval.
+MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, trusted database verification timestamps, factor-aware enrollment, purpose-bound completion contracts, recent-TOTP step-up, and scanner-safe POST routes. Feature flags remain disabled by default pending reviewed hosted migration, provider configuration, smoke, and rollback approval.
 
 ### Security boundary
 
@@ -173,7 +173,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - The repository migration head for the PR #83 remediation is `20260712_000020`; the new revisions are additive after `20260710_000014`
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
-- Security-email outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, lease reconciliation, email-only channel enforcement, and terminal payload scrubbing. Pending secret-bearing payload encryption remains a rollout gate.
+- Security-email outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, lease reconciliation, email-only channel enforcement, AES-GCM protection for active credential-equivalent payloads, and terminal payload scrubbing.
 - New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
 - `AUTH_USERS_JSON` is not read by runtime auth. Supabase query or configuration failure denies login and protected BFF access without an env fallback
 - `frontend/lib/server/db/client.ts` remains the `server-only` app-runtime boundary, while `script-client.mjs` is restricted to operational provisioning scripts
@@ -200,7 +200,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Redis-backed IP blocklist, rate-limit state, and low-confidence queue only if shared runtime state is required
 - Full repo-managed export and automation of Supabase policy state
 - Hosted account provisioning and external deployment verification
-- Live MFA/recovery enablement after migration, provider, payload-protection, and browser gates
+- Live MFA/recovery enablement after hosted migration, provider, smoke, and rollback gates
 - Live transactional email delivery after detection; the outbox/worker boundary exists but provider enablement remains gated
 - Wazuh export-only JSON/JSONL integration
 - Production edge checklist, backup/restore runbook, and archive/hide retention policy
@@ -218,7 +218,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.
 - ADMIN MFA break glass is isolated behind the NOLOGIN `cybertrace_break_glass` role and one `SECURITY DEFINER` function. The runtime `service_role` cannot execute either the restricted or legacy operator function; hosted login membership remains approval-gated.
-- Browser-level authentication proof is defined in `frontend/e2e/auth-journeys.spec.ts` but requires installed Playwright browsers and a disposable seeded Supabase-backed environment.
+- Browser-level authentication proof is automated by the managed disposable harness and the required `auth-e2e` CI job; it intentionally covers Chromium only.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
 ## Architecture Notes For Future Edits

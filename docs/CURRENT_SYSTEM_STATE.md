@@ -229,7 +229,7 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 
 - Current state: Auth.js Credentials login uses Supabase `auth_accounts`, approved Argon2id PHC password hashes, a precomputed same-profile unknown-account hash, database-expiring password-level MFA challenges, eight-hour maximum assured sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, bounded local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
 - All six BFF routes enforce server-side permissions and current DB account existence, disablement, `mfa_required`, role, and `authz_version` checks before downstream calls.
-- Remaining gates include hosted migration/provider deployment, pending secret-bearing outbox payload encryption approval, and executable browser journeys. Managed identity, distributed throttling, and persistent audit storage remain future hardening.
+- Remaining gates include hosted migration/role approval, provider deployment, controlled live smoke, and feature enablement. Active credential-equivalent outbox payload protection and five executable disposable browser journeys are implemented. Managed identity, distributed throttling, and external log retention remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
 ---

@@ -1,5 +1,10 @@
 # Migration Rollback Runbook
 
+> General rollback policy background. The current V6.1 migration head,
+> compatibility gates, protected payload behavior, restricted break-glass role,
+> and reviewed deployment sequence are canonical in
+> [`CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`](CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md).
+
 **Last updated:** 2026-07-03  
 **Audience:** developers, database operator, reviewer  
 **Scope:** CyberTrace database/schema migration safety and rollback decision-making  

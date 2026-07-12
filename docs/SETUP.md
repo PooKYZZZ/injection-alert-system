@@ -1,10 +1,10 @@
 # Local Setup
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, and notification outbox boundaries are implemented behind explicit rollout switches. Public deployment, provider delivery, pending-payload protection approval, browser proof, and Turnstile hostname verification remain external gates.
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. Public deployment, hosted migration/role membership, provider delivery, live smoke, and Turnstile hostname verification remain external gates.
 
 ## Prerequisites
 
@@ -212,10 +212,10 @@ Notes:
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
-- TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`; all remain disabled by default until the reviewed target migration, provider, payload-protection, and browser gates are complete. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
+- TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`; all remain disabled by default until the reviewed target migration, provider, hosted smoke, and rollback gates are complete. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current additive migration head is `20260711_000018`. New database functions are purpose-bound and restricted to the server-side service role; do not apply them to hosted Supabase outside a reviewed deployment.
-- The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, and scrubs terminal payloads. Pending credential payload encryption remains a required approval gate before enabling security-email features.
+- The current additive migration head is `20260712_000020`. Application functions remain purpose-bound and server-only; the restricted break-glass function is executable only through `cybertrace_break_glass`, not `service_role`. Do not apply migrations or role membership to hosted Supabase outside a reviewed deployment.
+- The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, decrypts protected credential payloads only at delivery, and scrubs terminal payloads.
 
 ### Manual PR 3 auth cutover and rollback
 
@@ -257,13 +257,28 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic upgrade head
 ```
 
-The current head is `20260711_000018`, with additive PR #83 revisions after
+The current head is `20260712_000020`, with additive PR #83 revisions after
 `20260710_000014`. Revision `20260704_000008` is intentionally part of normal
 `upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,
 and creates no browser-facing policies. Revision `20260324_000007` now fails
 clearly if its required `traffic_logs` table is missing instead of silently
 reporting success. Use a reviewed deployment step for live Supabase.
+
+For current feature enablement, notification-key, recovery, and restricted
+break-glass operations, follow
+[`project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`](project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md).
+
+### Run the disposable authentication browser project
+
+```powershell
+cd frontend
+npm run test:e2e:auth
+```
+
+The managed command creates and migrates unique PostgreSQL/PostgREST resources,
+runs only the five critical Chromium journeys, and always removes them. It does
+not require static E2E credentials or a hosted project. CI runs the same command.
 
 ### Dashboard role matrix
 
@@ -358,8 +373,7 @@ The following are not yet available as runnable repo-level setup paths:
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
 - Public deployment, live Resend delivery, Turnstile widget/hostname rollout, managed identity, and distributed login throttling
-- Pending secret-bearing notification payload encryption and hosted-provider approval
-- Browser auth journeys unless Playwright browsers and a disposable seeded Supabase-backed environment are supplied; the checked-in suite is `frontend/e2e/auth-journeys.spec.ts`
+- Hosted notification-key provisioning, provider approval, controlled live smoke, and feature enablement
 
 ## 5A. Docker Smoke Setup
 

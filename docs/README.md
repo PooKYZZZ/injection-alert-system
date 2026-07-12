@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-07-03
+Last updated: 2026-07-12
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
@@ -36,7 +36,14 @@ This folder is the maintained documentation surface for the repository. It is in
 - `project-ops/SMOKE_TEST_RUNBOOK.md`
   - Canonical smoke commands for the `8088` technical proof path and the `8089` realistic demo-target path.
 - `project-ops/README.md`
-  - Entry point for the operator-doc subset.
+  - Canonical routing table for setup, tests, migrations, enablement,
+    notifications, recovery, break glass, and thesis demonstrations.
+- `project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`
+  - Current auth/notification migration, enablement, reconciliation, and
+    restricted break-glass procedure.
+- `project-ops/PR83_THESIS_EVIDENCE.md`
+  - Reviewer-facing state models, traceability, validation, and the disposable
+    five-journey authentication demonstration.
 - `../reports/modsecurity-live-proof/e2e-proof.md`
   - Checked-in local proof evidence for ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest.
 

@@ -1,7 +1,10 @@
 # PR #83 Authentication and Notification Hardening Evidence
 
 This package is the reviewer-facing evidence for CyberTrace V6.1 on draft PR
-#83. It describes the repository at commit `c0bf95e33b2f17604de6deef722ce53cb66282d3`.
+#83. It describes the implementation through commit
+`354f2f91ffcc78c8ccf68fef07998857bdc33853`; the exact pushed head and CI run
+are finalized in the living execution record after documentation evidence is
+committed.
 The living, per-unit command record remains
 `docs/project-ops/PR83_EXECUTION_RECORD.md`.
 
@@ -136,7 +139,7 @@ Primary evidence:
 |---|---|---|---|---|
 | F-01 | Static TOTP was reused across journeys despite database replay rejection. | Dynamic TOTP helpers and separate accepted time steps in `frontend/test-support/auth-e2e/totp.ts` and `auth-journeys.spec.ts`. | Managed Playwright: replay fails and a newer step succeeds. | Fixed locally; clock behavior still depends on the runtime clock. |
 | F-02 | Browser tests depended on manually supplied identities and recovery values. | `auth-e2e-environment.mjs`, global setup, seed material, database readers, and unconditional cleanup. | `npm run test:e2e:auth`: five disposable journeys pass. | Fixed; Docker and installed Chromium remain test prerequisites. |
-| F-03/F-12 | Auth E2E was skipped manually and absent from CI. | Unit 1 created the deterministic command; Unit 6A owns the required workflow job. | Local command is proven; remote required-job proof is recorded only after Unit 6A CI passes. | Pending Unit 6A at this evidence commit. |
+| F-03/F-12 | Auth E2E was skipped manually and absent from CI. | Unit 1 created the deterministic command; Unit 6A added the required `auth-e2e` workflow job with managed Chromium and cleanup. | Five local journeys pass; the required remote job passed in 3m37s on `7e5a61c`. | Fixed; Docker/Chromium cold-start time remains an operational CI cost. |
 | F-04 | Auth.js credential declarations and mixed completion modes were not proven through the framework/browser. | Explicit credential fields, mutually exclusive mode validation, final session assertions. | Auth integration tests plus five browser journeys. | Fixed. |
 | F-05 | Production control flow compared exception text to `NEXT_REDIRECT`. | Auth.js calls use `redirect: false`; clients own final navigation. | Redirect component regressions and browser journeys. | Fixed; framework upgrades still require the normal frontend suite. |
 | F-06 | Worker counted provider acceptance as sent before durable completion. | `OutboxWorker.run_once`, `WorkerRunResult.ambiguous`. | Worker success, completion-failure, cancellation, and retry tests. | Fixed; ambiguous delivery remains an operator reconciliation concern. |
@@ -146,8 +149,8 @@ Primary evidence:
 | F-10 | Pending outbox rows stored reset/setup/verification URLs and OTPs as plaintext JSON. | AES-GCM modules, five protected RPCs, worker boundary, migration `000019`. | Crypto/producer/worker tests, 105 PostgreSQL integrations, legacy-row gate. | Fixed for new active rows; key rotation requires a planned version window. |
 | F-11 | Hosted target, role, key, provider, and smoke identity could not be verified locally. | Approval-gated checklist in `CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`. | Local PostgreSQL 17.6 migration and role proof only. | Prepared, externally blocked; no hosted action is claimed. |
 | F-13 | Completion ambiguity logged only a generic warning. | Structured `notification.delivery_completion_ambiguous` event. | Log-capture tests require correlation fields and exclude secrets. | Fixed locally; external log routing is deployment-time work. |
-| F-14 | Emergency MFA reset used the broad service-role boundary. | Unit 6C owns a restricted function/role and runbook. | Local role/function integration tests after implementation. | Pending Unit 6C at this evidence commit; hosted grants prohibited. |
-| F-15 | Auth, notification, recovery, migration, and demo instructions overlap and contradict. | Unit 6D owns canonical entry points and pointer cleanup. | Link and stale-text checks after consolidation. | Pending Unit 6D at this evidence commit. |
+| F-14 | Emergency MFA reset used the broad service-role boundary. | Migration `000020`, `cybertrace_break_glass`, one restricted function, and the fail-closed Python operator CLI. | PostgreSQL role/function tests, upgrade/downgrade/re-upgrade, CLI safeguards. | Fixed locally; hosted login membership remains a human approval gate. |
+| F-15 | Auth, notification, recovery, migration, and demo instructions overlap and contradict. | Canonical routing table plus explicit historical/background banners and aligned current-state docs. | `tests/unit/test_docs_navigation.py` checks categories, stale claims, and local Markdown links. | Fixed for maintained docs; historical counts remain intentionally preserved behind banners. |
 
 ## Reproduction and validation record
 
@@ -164,7 +167,7 @@ The original defects were established from source and targeted red tests:
 - a deliberate active plaintext row stopped `000019` until the row was
   terminalized, proving the migration does not silently guess.
 
-Final commands executed through Unit 4:
+Final commands executed through Unit 6:
 
 ```powershell
 # Backend and disposable PostgreSQL
@@ -188,8 +191,8 @@ npm audit --audit-level=high
 gitleaks git --staged --redact --config .gitleaks.toml .
 ```
 
-Observed completed-tree results were: 634 backend tests; 105 PostgreSQL
-integration tests within that total; 84 frontend test files and 470 tests;
+Observed completed-tree results were: 643 backend tests; 107 PostgreSQL
+integration tests within that total; 83 frontend test files and 472 tests;
 frontend lint/typecheck; a 39-page production build; and five of five managed
 Chromium journeys in 1.8 minutes. Gitleaks 8.24.3 reported no staged leak,
 `pip-audit` reported no known vulnerability, and npm reported no high/critical
@@ -198,7 +201,7 @@ automatic fix). The in-app Browser separately rendered the production login,
 found one email control, one password control, and one enabled sign-in button,
 then observed the disabled `Signing in...` transition with synthetic input.
 
-The migration chain reached the single head `20260711_000019` on PostgreSQL
+The migration chain reached the single head `20260712_000020` on PostgreSQL
 17.6. An active synthetic plaintext reset row produced the documented reviewed-
 remediation exception; after terminalization, the same database upgraded to the
 head. No trace, video, raw snapshot, password, OTP, reset URL, provider key, or
@@ -217,6 +220,13 @@ database credential is retained as evidence.
 | 3 evidence | `9a076885b5669b91ed50d31b9f4e4f98cd182e32` | Record immutable Unit 3 proof. |
 | 4 | `01202b4159de8027ec793ca7fcbb47e22e06df33` | Protect secret-bearing outbox payloads. |
 | 4 evidence | `c0bf95e33b2f17604de6deef722ce53cb66282d3` | Record immutable Unit 4 proof. |
+| 5 | `dbe743babfd5d1c281506cb364e376aca230d4ce` | Add the thesis-grade evidence package. |
+| 5 evidence | `ac21541edbbbaa09b13ccba9ef88b1388319d555` | Record immutable Unit 5 proof. |
+| 6A | `79ae298a2957abcc7dafe70840b97ac4c59a819a` | Require managed auth Playwright in CI. |
+| 6A follow-up | `f8da38ed43d466c90f1e557c73a5532b0f556e6c` | Use the CI setup-Python runtime. |
+| 6A follow-up | `9e31333922d780229ba4d8110a0d58a7dc8a2718` | Supply required migration settings. |
+| 6C | `7e5a61cc5600abf780cfa0f462388eb6a2baf70a` | Add restricted audited break glass. |
+| 6 CI follow-up | `354f2f91ffcc78c8ccf68fef07998857bdc33853` | Mirror Supabase roles in stock PostgreSQL CI and fix the environment fixture. |
 
 ## Safe five-journey demonstration
 

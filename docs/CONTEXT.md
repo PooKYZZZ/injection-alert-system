@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-11
+Updated: 2026-07-12
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -67,23 +67,23 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
   - PR #81 replaced accidental partial/native Argon2 imports in auth and provisioning control-flow tests with pure mocks. Real Argon2id coverage remains in `password-hash.test.ts`.
 - The full frontend CI job passed twice after the repair. Vitest remains on `threads`; package scripts, CI workflow, and production auth/Argon2id code are unchanged.
 
-### PR #83 remediation state (2026-07-11)
+### PR #83 remediation state (2026-07-12)
 
-- Additive migration head: `20260711_000018`, after deployed revision `20260710_000014`.
-- Database-authoritative MFA completion, factor-aware enrollment, recovery,
-  recent-TOTP step-up, password-work preflight, outbox lifecycle, and worker
-  readiness changes are implemented behind disabled feature gates.
-- Disposable PostgreSQL validation passed: 612 full backend tests, 104
-  integration tests, 33 migration tests, and clean downgrade/re-upgrade.
-- Frontend validation passed: lint, typecheck, build, and 73 Vitest files / 417
-  tests. The Playwright command is present but skips all 25 configured journey
-  cases without the required seeded E2E environment and browser binaries.
-- Five critical browser journeys are defined in
-  `frontend/e2e/auth-journeys.spec.ts`; local execution remains blocked by
-  missing Playwright browser binaries and no seeded Supabase-backed app
-  environment.
-- Terminal notification payload scrubbing is enforced. Pending secret-bearing
-  payload encryption remains a human security gate before enabling delivery.
+- Additive migration head: `20260712_000020`, after deployed revision
+  `20260710_000014`.
+- Database-authoritative MFA/recovery, recent step-up, protected notification
+  payloads, durable worker accounting/readiness, required authentication E2E
+  CI, and restricted break glass are implemented. Feature flags remain off.
+- Disposable PostgreSQL validation passed: 643 full backend tests, 107
+  integration tests, 37 migration tests, and downgrade/re-upgrade of the two
+  final security revisions.
+- Frontend lint, typecheck, 83 Vitest files / 472 tests, production build, and
+  five managed Chromium authentication journeys pass locally. The same managed
+  project is a required CI job; current remote evidence is tracked in
+  `docs/project-ops/PR83_EXECUTION_RECORD.md`.
+- Active credential-equivalent notification payloads use versioned AES-GCM
+  envelopes and terminal rows are scrubbed. Hosted migration, provider smoke,
+  role membership, and feature enablement remain explicit human gates.
 
 ### Backend
 
@@ -159,13 +159,9 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
-- Client-required real user accounts / secure login replacement for demo auth
-- Client-required Admin/Analyst RBAC
-- Client-required 2FA
-- Client-required email notification after detection
+- Hosted V6.1 migration, break-glass login membership, live provider smoke, and feature enablement
 - Client-required real-time/SSE dashboard alerts
 - Wazuh export-only integration
-- Backup/restore, migration rollback, and archive/hide retention runbooks
 
 ## Important Truths To Keep Straight
 

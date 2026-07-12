@@ -3,7 +3,7 @@
 **Execution date:** 2026-07-11–12
 **Working branch:** `feat/cybertrace-v6-1`  
 **Starting HEAD:** `488436c277db28f3a54dd36de09c2cdb4d5b6016`  
-**Migration head after this work:** `20260711_000019`
+**Migration head after this work:** `20260712_000020`
 
 This is the living evidence record for the PR #83 remediation plan. Feature
 switches remain disabled. No hosted Supabase database, production credential,
@@ -24,10 +24,10 @@ evidence classifications, not completion claims.
 - [x] Unit 3 — Merge evidence and repository cleanup (`11d5628`)
 - [x] Unit 4 — Outbox secret protection and hosted-readiness preparation
 - [x] Unit 5 — Thesis-grade evidence package
-- [ ] Unit 6A — Required Playwright CI gate
-- [ ] Unit 6B — Notification reconciliation observability
-- [ ] Unit 6C — Restricted break-glass mechanism
-- [ ] Unit 6D — Operational documentation consolidation
+- [x] Unit 6A — Required Playwright CI gate (`79ae298` plus CI follow-ups)
+- [x] Unit 6B — Notification reconciliation observability (`c4629c1`)
+- [x] Unit 6C — Restricted break-glass mechanism (`7e5a61c`)
+- [x] Unit 6D — Operational documentation consolidation
 
 ### Unit 0 baseline freeze
 
@@ -299,6 +299,61 @@ and interactive production login UI without a database-backed sign-in.
 - Residual risk: the package describes the completed Unit 4 tree and must be
   refreshed with Unit 6 commits and final CI evidence before the PR is declared
   merge-ready.
+
+### Unit 6 outcome
+
+#### Unit 6A — Required authentication browser gate
+
+- Primary commit: `79ae298a2957abcc7dafe70840b97ac4c59a819a`.
+- The required `auth-e2e` GitHub Actions job uses Node 24, Python 3.14, managed
+  Chromium, the same disposable harness as local development, bounded failure
+  artifacts, and unconditional label-based Docker cleanup.
+- CI follow-ups `f8da38ed43d466c90f1e557c73a5532b0f556e6c` and
+  `9e31333922d780229ba4d8110a0d58a7dc8a2718` aligned the harness with
+  `setup-python` and supplied all settings required during Alembic startup.
+- Remote proof: the required job passed in 3m37s on commit `7e5a61c`.
+- The next clean-checkout run exposed two independent test-environment gaps:
+  a partial TypeScript `ProcessEnv` fixture and absent Supabase runtime roles in
+  stock PostgreSQL. Commit `354f2f9` fixes both without weakening assertions;
+  final all-job status is recorded after that head completes.
+
+#### Unit 6B — Notification reconciliation observability
+
+- Implemented in Unit 2 commit `c4629c147b21b9c4fd7a2b0e7b80c235a8b346a1`.
+- `notification.delivery_completion_ambiguous` carries the event, available
+  trace/request correlation, provider message, idempotency, attempt, requested
+  transition, result, reconciliation status, error class, and duration.
+- Redaction tests prove recipient and payload are never supplied to the event;
+  the V6.1 deployment runbook is the operator entry point for reconciliation.
+
+#### Unit 6C — Restricted break glass
+
+- Commit: `7e5a61cc5600abf780cfa0f462388eb6a2baf70a`.
+- Migration `20260712_000020` creates a `NOLOGIN`, `NOINHERIT`,
+  `NOBYPASSRLS` group role with no table/sequence privileges and execution of
+  exactly one qualified `SECURITY DEFINER` recovery function. The runtime
+  `service_role` cannot execute the new or legacy operator reset function.
+- The Python operator CLI requires a dedicated database URL, an explicit
+  confirmation, a reason and operator identity, then rejects broad runtime or
+  table privileges before invocation. Failures remain generic and no secret is
+  printed.
+- Disposable PostgreSQL proved upgrade, downgrade to `000019`, re-upgrade,
+  restricted function execution, service-role denial, MFA revocation, and
+  durable operator/session/result audit fields. No hosted role or membership
+  was changed.
+
+#### Unit 6D — Canonical documentation routes
+
+- `docs/project-ops/README.md` now routes setup, tests, migrations, feature
+  enablement, notifications, recovery, break glass, and thesis demos to one
+  current source per concern.
+- Historical execution and generic rollback documents carry explicit banners;
+  current setup, architecture, context, status, evidence, and operator wording
+  agree on migration `000020`, protected payloads, managed Chromium proof, and
+  the remaining hosted gates.
+- `tests/unit/test_docs_navigation.py` checks the canonical categories, rejects
+  stale PR #83 claims in maintained current-state docs, and resolves every local
+  Markdown link under `docs/`.
 
 ### Finding revalidation at the starting HEAD
 
