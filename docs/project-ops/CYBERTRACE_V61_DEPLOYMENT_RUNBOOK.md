@@ -2,7 +2,7 @@
 
 This runbook records the implemented boundary and the remaining human/deployment gates. The repository is still a thesis-sized local Compose and hosted-Supabase runtime; it is not a Kubernetes or production-SIEM deployment.
 
-The current additive migration head is `20260711_000019`. PR #83 keeps all
+The current additive migration head is `20260712_000020`. PR #83 keeps all
 V6.1 feature switches disabled until the target migration, provider,
 payload-protection, and browser gates are reviewed.
 
@@ -83,7 +83,7 @@ project.
 - [ ] Generate a dedicated notification payload key in the approved secret
   manager, deploy the identical value to Next.js and the worker, and record key
   version `1` without recording the key itself.
-- [ ] Apply migrations through `20260711_000019`, then verify the single
+- [ ] Apply migrations through `20260712_000020`, then verify the single
   Alembic head, protected RPC execute grants, plaintext rejection, and terminal
   scrub behavior.
 - [ ] Confirm Auth.js callback/origin values, HTTPS, secure cookies, provider
@@ -99,6 +99,63 @@ project.
 - [ ] Record rollback ownership: disable producers and worker first, then
   prefer a forward fix after any protected row exists. Downgrade `000019` only
   when its active-row gate passes and key/version compatibility is understood.
+
+## Restricted ADMIN MFA break glass
+
+Migration `20260712_000020` creates the NOLOGIN, NOINHERIT,
+NOBYPASSRLS role `cybertrace_break_glass` and grants it schema usage plus execute
+on exactly `operator_reset_admin_mfa_restricted_v61`. It has no direct table or
+sequence privileges. The migration removes `service_role` execute permission
+from both the new function and the legacy `operator_reset_admin_mfa` function.
+The replacement function is `SECURITY DEFINER`, uses an empty search path and
+fully qualified objects, and contains only the bounded recovery transaction.
+
+Hosted role creation, membership, and grants require a separate approved DBA
+window. Do not reuse the Next.js service-role credential. The approved DBA must
+create a temporary or managed LOGIN identity with no direct auth-table rights,
+grant only membership in `cybertrace_break_glass`, and provide its direct or
+session-pooler PostgreSQL URL through the secret manager. Before invocation,
+verify the login can execute the restricted function and cannot update
+`auth_accounts` or `auth_mfa_factors`; the CLI repeats this preflight and refuses
+a broad runtime role.
+
+Approval and invocation procedure:
+
+1. Record incident/change approval, target ADMIN UUID, named operator identity,
+   bounded reason, reviewer, and recovery window. Confirm ordinary ADMIN reset
+   and backup/email recovery are unavailable or inappropriate.
+2. Verify the target database/project independently. Provision the dedicated
+   login and membership through the approved DBA process; do not grant table
+   access or `service_role`.
+3. In a private operator shell, set the dedicated connection and explicit
+   confirmation, invoke one target, then clear both variables:
+
+```powershell
+$env:CYBERTRACE_BREAK_GLASS_DATABASE_URL = Read-Host -MaskInput `
+  'Dedicated PostgreSQL URL from the approved secret manager'
+$env:CYBERTRACE_BREAK_GLASS_CONFIRMATION='CYBERTRACE_BREAK_GLASS'
+.venv\Scripts\python.exe scripts\operator_reset_admin_mfa.py `
+  --id '<target-admin-uuid>' `
+  --operator '<approved-operator-identity>' `
+  --reason '<approved-reason>'
+Remove-Item Env:CYBERTRACE_BREAK_GLASS_DATABASE_URL
+Remove-Item Env:CYBERTRACE_BREAK_GLASS_CONFIRMATION
+```
+
+4. Record only the returned event UUID and timestamp. Verify that the matching
+   `security_events` row is critical/success and contains the target account,
+   operator identity, database session user, reason, result, and timestamp.
+   Confirm factors and unused backup codes are revoked, pending completions are
+   expired, `authz_version` increased, and the owner notification was enqueued.
+5. Revoke the dedicated login's membership immediately after the recovery
+   window and preserve the audit event under the normal retention policy.
+
+The CLI prints a bounded success object or a generic failure; it never prints
+the database URL, provider data, factors, backup codes, or database exception.
+If recovery is partial or verification fails, revoke access and use a reviewed
+forward fix. Migration downgrade revokes/drops the restricted function but
+restores the legacy service-role grant for schema compatibility, so downgrade
+is not an acceptable emergency rollback after this control is adopted.
 
 ## Frontend validation
 
@@ -122,10 +179,9 @@ The browser boundary remains `Browser -> Next.js/Auth.js -> server-only Supabase
 - Backup-code recovery requires a password-bearing privileged account and an
   unused backup code, then forces TOTP enrollment. Live email verification is
   not required for that path.
-- The operator reset function is a high-privilege service-role helper with
-  exact confirmation and audit logging. It is not an isolated database role;
-  provision a separate operational role before calling it a production
-  break-glass control.
+- ADMIN MFA break glass uses a NOLOGIN execute-only role and a direct database
+  CLI that refuses broad table privileges. Hosted login membership remains an
+  explicit DBA approval step and has not been performed by this repository run.
 - Next.js and FastAPI must be checked against the same intended PostgreSQL
   target at deployment time; this repository does not apply hosted migrations
   automatically.
@@ -141,7 +197,7 @@ The browser boundary remains `Browser -> Next.js/Auth.js -> server-only Supabase
 
 Disable the feature switches and worker first, preserve account/security-event
 and outbox history, then roll back application code before any reviewed schema
-downgrade. A clean downgrade from `20260711_000019` to `20260710_000014` is
+downgrade. A clean downgrade from `20260712_000020` to `20260710_000014` is
 validated only before new terminal outbox states or live auth challenges are
 written; after rollout, prefer a forward migration. Do not restore
 `AUTH_USERS_JSON` or another weaker authentication path. Rotate/revoke any

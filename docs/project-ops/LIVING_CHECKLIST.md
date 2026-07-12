@@ -120,7 +120,7 @@ Status note:
 - [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
 - [x] Stabilize PR #79 frontend CI native-addon loading: PR #81 uses pure mocks in non-hashing auth/provisioning tests, keeps real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice without changing the threaded Vitest pool or production auth code
 - [x] Implement encrypted TOTP enrollment, replay-safe MFA login completion, backup-code/email-OTP recovery, and mandatory re-enrollment routing (feature flags remain off by default)
-- [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and explicit operator break-glass script (feature flags remain off by default)
+- [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and a restricted execute-only PostgreSQL break-glass role/CLI (hosted membership and feature flags remain off by default)
 - [x] Add database-authoritative MFA completion claims, factor-aware enrollment, persistent MFA/OTP attempt accounting, retry-safe recovery handoff, and password-work preflight (PR #83)
 - [x] Add bounded notification deadlines, cancellation, terminal reconciliation/scrubbing, supported templates, lease-safe worker behavior, and provider/readiness validation (PR #83)
 - [x] Add required PostgreSQL CI job and five critical browser journey definitions (PR #83; browser execution remains environment-gated)

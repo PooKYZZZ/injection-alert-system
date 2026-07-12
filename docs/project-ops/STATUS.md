@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-11
+**Last updated:** 2026-07-12
 
 ---
 
@@ -23,8 +23,8 @@
 - `AUTH_USERS_JSON` is no longer a runtime login or freshness source. Supabase/client failure fails closed with no env fallback; target environments still need the PR 1 migration and at least one provisioned account.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, and keep the full control set for admins.
 - Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, bounded per-identifier failure throttles, a default two-operation password-hash cap, database-expiring password-level MFA sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
-- Operational scripts load `frontend/.env.local` with shell precedence and create, list, disable, set passwords, and perform explicit operator-only ADMIN MFA recovery through a centralized script-only Supabase service-role adapter. TOTP, recovery, and password-reset boundaries are implemented behind explicit feature flags; no feature flag is enabled by default.
-- PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, notification lifecycle/worker hardening, required PostgreSQL CI coverage, and checked-in browser journeys. Feature flags remain disabled; Resend delivery, payload encryption approval, public deployment, and browser execution remain external gates.
+- Operational account scripts load `frontend/.env.local` for ordinary provisioning. ADMIN MFA break glass instead uses `scripts/operator_reset_admin_mfa.py` with a dedicated direct PostgreSQL login whose only membership is the execute-only `cybertrace_break_glass` role; hosted membership remains approval-gated. TOTP, recovery, and password-reset feature flags remain disabled by default.
+- PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, protected notification payloads, notification lifecycle/worker hardening, required PostgreSQL and authentication-browser CI jobs, and locally passing browser journeys. Feature flags remain disabled; hosted migration, live Resend delivery, public deployment, and break-glass login provisioning remain external gates.
 
 ### PR #83 validation snapshot
 

@@ -47,7 +47,7 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
-| Notification outbox and worker | Implemented behind disabled flags | additive lifecycle migrations through `20260711_000018`, versioned PostgreSQL claim/transition functions, deadline/cancellation/terminal scrubbing, batch-one worker, and Resend boundary; live provider delivery remains gated |
+| Notification outbox and worker | Implemented behind disabled flags | additive lifecycle migrations through `20260711_000019`, versioned PostgreSQL claim/transition functions, protected active credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, and Resend boundary; live provider delivery remains gated |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
@@ -170,7 +170,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- The repository migration head for the PR #83 remediation is `20260711_000018`; the new revisions are additive after `20260710_000014`
+- The repository migration head for the PR #83 remediation is `20260712_000020`; the new revisions are additive after `20260710_000014`
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
 - Security-email outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, lease reconciliation, email-only channel enforcement, and terminal payload scrubbing. Pending secret-bearing payload encryption remains a rollout gate.
@@ -217,7 +217,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.
-- The operator reset helper is a high-privilege service-role operational helper, not a separately provisioned break-glass database role.
+- ADMIN MFA break glass is isolated behind the NOLOGIN `cybertrace_break_glass` role and one `SECURITY DEFINER` function. The runtime `service_role` cannot execute either the restricted or legacy operator function; hosted login membership remains approval-gated.
 - Browser-level authentication proof is defined in `frontend/e2e/auth-journeys.spec.ts` but requires installed Playwright browsers and a disposable seeded Supabase-backed environment.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
