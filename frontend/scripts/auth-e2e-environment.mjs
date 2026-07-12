@@ -299,15 +299,18 @@ async function removeDisposableResources(names) {
   console.log('AUTH_E2E: disposable environment removed')
 }
 
-function pythonExecutable() {
+export function pythonExecutable({
+  ci = process.env.CI === 'true',
+  fileExists = existsSync,
+  platform = process.platform,
+} = {}) {
   const candidate =
-    process.platform === 'win32'
+    platform === 'win32'
       ? path.join(repositoryDirectory, '.venv', 'Scripts', 'python.exe')
       : path.join(repositoryDirectory, '.venv', 'bin', 'python')
-  if (!existsSync(candidate)) {
-    throw new Error('Repository Python virtual environment is unavailable.')
-  }
-  return candidate
+  if (fileExists(candidate)) return candidate
+  if (ci) return platform === 'win32' ? 'python.exe' : 'python'
+  throw new Error('Repository Python virtual environment is unavailable.')
 }
 
 async function provisionAndRun(names, playwrightArgs) {

@@ -10,6 +10,7 @@ import {
   parsePublishedPort,
   playwrightInvocation,
   postgrestTargetUrl,
+  pythonExecutable,
   withDisposableCleanup,
 } from './auth-e2e-environment.mjs'
 
@@ -109,6 +110,23 @@ describe('disposable authentication E2E environment', () => {
       '--grep',
       'normal login',
     ])
+  })
+
+  it('uses setup-python on CI but still requires the local repository venv', () => {
+    expect(
+      pythonExecutable({
+        ci: true,
+        fileExists: () => false,
+        platform: 'linux',
+      })
+    ).toBe('python')
+    expect(() =>
+      pythonExecutable({
+        ci: false,
+        fileExists: () => false,
+        platform: 'linux',
+      })
+    ).toThrow('Repository Python virtual environment is unavailable.')
   })
 
   it('maps only the Supabase REST prefix to standalone PostgREST', () => {
