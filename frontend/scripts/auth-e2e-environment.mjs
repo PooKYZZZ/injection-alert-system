@@ -11,6 +11,7 @@ const POSTGREST_IMAGE = 'postgrest/postgrest:v14.14'
 const DATABASE_NAME = 'cybertrace'
 const POSTGRES_USER = 'postgres'
 const FRONTEND_ORIGIN = 'http://127.0.0.1:3000'
+export const DISPOSABLE_RESOURCE_LABEL = 'cybertrace.auth-e2e=true'
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 const frontendDirectory = path.resolve(scriptDirectory, '..')
@@ -320,7 +321,13 @@ async function provisionAndRun(names, playwrightArgs) {
     capture: true,
     label: 'Docker availability check',
   })
-  await runProcess('docker', ['network', 'create', names.network], {
+  await runProcess('docker', [
+    'network',
+    'create',
+    '--label',
+    DISPOSABLE_RESOURCE_LABEL,
+    names.network,
+  ], {
     capture: true,
     label: 'Docker network creation',
   })
@@ -335,6 +342,8 @@ async function provisionAndRun(names, playwrightArgs) {
       names.network,
       '--network-alias',
       'postgres',
+      '--label',
+      DISPOSABLE_RESOURCE_LABEL,
       // This database is disposable. A tmpfs avoids Docker Desktop disk stalls
       // and ensures no authentication fixture data survives container removal.
       '--tmpfs',
@@ -421,6 +430,8 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
       names.postgrest,
       '--network',
       names.network,
+      '--label',
+      DISPOSABLE_RESOURCE_LABEL,
       '--publish',
       '127.0.0.1::3000',
       '--env',

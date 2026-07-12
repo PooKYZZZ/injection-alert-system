@@ -6,6 +6,7 @@ import {
   buildAuthE2EEnvironment,
   createDisposableNames,
   createServiceRoleToken,
+  DISPOSABLE_RESOURCE_LABEL,
   parsePublishedPort,
   playwrightInvocation,
   postgrestTargetUrl,
@@ -17,6 +18,10 @@ function decodeJwtPart(value: string): Record<string, unknown> {
 }
 
 describe('disposable authentication E2E environment', () => {
+  it('uses one explicit label for CI cancellation cleanup', () => {
+    expect(DISPOSABLE_RESOURCE_LABEL).toBe('cybertrace.auth-e2e=true')
+  })
+
   it('creates bounded resource names with an unmistakable disposable prefix', () => {
     expect(createDisposableNames('12345678-1234-1234-1234-123456789abc')).toEqual({
       network: 'cybertrace-auth-e2e-123456781234-network',
