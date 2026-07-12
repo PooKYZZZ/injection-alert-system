@@ -1,9 +1,9 @@
 # PR #83 Remediation Execution Record
 
-**Execution date:** 2026-07-11  
+**Execution date:** 2026-07-11–12
 **Working branch:** `feat/cybertrace-v6-1`  
 **Starting HEAD:** `488436c277db28f3a54dd36de09c2cdb4d5b6016`  
-**Migration head after this work:** `20260711_000018`
+**Migration head after this work:** `20260711_000019`
 
 This is the living evidence record for the PR #83 remediation plan. Feature
 switches remain disabled. No hosted Supabase database, production credential,
@@ -22,7 +22,7 @@ evidence classifications, not completion claims.
 - [x] Unit 2 — Redirect, worker, readiness, and reconciliation correctness
   (`c4629c1`)
 - [x] Unit 3 — Merge evidence and repository cleanup (`11d5628`)
-- [ ] Unit 4 — Outbox secret protection and hosted-readiness preparation
+- [x] Unit 4 — Outbox secret protection and hosted-readiness preparation
 - [ ] Unit 5 — Thesis-grade evidence package
 - [ ] Unit 6A — Required Playwright CI gate
 - [ ] Unit 6B — Notification reconciliation observability
@@ -210,6 +210,53 @@ hosted smoke, and feature enablement remain explicitly unperformed.
   break-glass path, and documentation consolidation.
 - Residual risk: hosted target/provider verification is still blocked by explicit
   authorization and credentials; no live smoke or enablement claim is made.
+
+### Unit 4 outbox payload protection evidence
+
+Unit 4 replaces active plaintext setup URLs, reset URLs, verification URLs, and
+email-recovery OTPs with a versioned AES-256-GCM envelope in the existing
+`payload_safe_json` column. Each encryption uses a random 96-bit nonce. The
+authenticated additional data binds the envelope to notification kind,
+recipient, and provider idempotency key, so moving a ciphertext to a different
+job fails authentication. The envelope contains exactly `ciphertext`, `nonce`,
+and `key_version`; no plaintext fallback exists.
+
+Next.js protects the payload before invoking one of five new atomic RPCs. The
+RPCs preserve token/challenge creation and enqueue atomicity, validate the
+database-authoritative recipient where applicable, and are executable only by
+the service role when that role exists. The Python worker decrypts protected
+kinds only at the delivery boundary. Missing keys, wrong keys, unknown versions,
+context changes, malformed envelopes, and tag failures produce the bounded
+`payload_decryption_failed` transition before any provider call; exception and
+payload details are not logged. Non-secret notification kinds retain their
+existing JSON contract.
+
+Migration `20260711_000019` replaces the active-row guard, adds the protected
+producers, retains terminal scrubbing, and stops rather than guessing when an
+active legacy secret-bearing row is plaintext. A disposable PostgreSQL 17.6
+exercise proved that precondition, terminalized the synthetic legacy row, and
+then upgraded successfully. A downgrade is also blocked while active protected
+rows exist. No hosted migration or credential operation occurred.
+
+| Unit 4 validation | Result |
+|---|---|
+| Python AES-GCM and worker boundary | PASS — round trip, nonce uniqueness, tamper/context/key/version/missing-key, provider exclusion, redaction, and non-secret compatibility |
+| Frontend producer and crypto boundary | PASS — all five producers protected; no raw URL/OTP RPC arguments; backend/frontend interoperability vector |
+| Migration chain | PASS — PostgreSQL 17.6 reached single head `20260711_000019` |
+| Legacy-row migration gate | PASS — active plaintext stopped upgrade; reviewed terminalization allowed retry |
+| PostgreSQL integration suite | PASS — 105 tests, including plaintext rejection and terminal scrub |
+| Full backend suite with PostgreSQL | PASS — 634 tests |
+| Frontend validation | PASS — lint, typecheck, 84 Vitest files / 470 tests, production build / 39 static pages |
+| Managed authentication browser project | PASS — 5 journeys / 5 passed in 1.8 minutes; disposable environment removed |
+| In-app Browser smoke | PASS — production login rendered uniquely addressable controls and entered the disabled `Signing in...` transition; synthetic credentials only |
+| Hosted readiness | PREPARED — project identity, role, key, provider, smoke, feature-switch, rollback, and observability gates documented; no hosted action performed |
+
+The first post-migration browser attempt reached Playwright but the unusually
+slow local Next.js cold start exceeded the 120-second web-server timeout. The
+auth project now permits a bounded 300-second startup while retaining its
+90-second per-journey limit; the completed-tree rerun started the server and
+passed all five assertions. The in-app Browser independently verified rendered
+and interactive production login UI without a database-backed sign-in.
 
 ### Finding revalidation at the starting HEAD
 

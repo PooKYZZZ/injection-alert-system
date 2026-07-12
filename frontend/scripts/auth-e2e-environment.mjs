@@ -84,6 +84,7 @@ export function buildAuthE2EEnvironment({
   authSecret,
   mfaEncryptionKey,
   emailOtpKey,
+  notificationPayloadKey,
 }) {
   return {
     SUPABASE_URL: supabaseUrl,
@@ -94,6 +95,7 @@ export function buildAuthE2EEnvironment({
     AUTH_APP_ORIGIN: FRONTEND_ORIGIN,
     AUTH_MFA_ENCRYPTION_KEY: mfaEncryptionKey,
     AUTH_EMAIL_OTP_KEY: emailOtpKey,
+    NOTIFICATION_PAYLOAD_ENCRYPTION_KEY: notificationPayloadKey,
     AUTH_ACCOUNT_MANAGEMENT_ENABLED: 'true',
     AUTH_MFA_ENROLLMENT_ENABLED: 'true',
     AUTH_EMAIL_RECOVERY_ENABLED: 'true',
@@ -333,6 +335,10 @@ async function provisionAndRun(names, playwrightArgs) {
       names.network,
       '--network-alias',
       'postgres',
+      // This database is disposable. A tmpfs avoids Docker Desktop disk stalls
+      // and ensures no authentication fixture data survives container removal.
+      '--tmpfs',
+      '/var/lib/postgresql/data:rw',
       '--publish',
       '127.0.0.1::5432',
       '--env',
@@ -465,6 +471,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
       authSecret: randomHex(32),
       mfaEncryptionKey: randomBytes(32).toString('base64'),
       emailOtpKey: randomHex(32),
+      notificationPayloadKey: randomBytes(32).toString('base64'),
     })
     console.log('AUTH_E2E: running critical Chromium authentication journeys')
     const playwright = playwrightInvocation(process.execPath, playwrightArgs)

@@ -17,6 +17,7 @@ import {
 } from '@/lib/auth/account-tokens'
 import { hashPassword, validateNewPassword } from '@/lib/auth/password-hash'
 import { passwordHashConcurrencyGate } from '@/lib/auth/login-throttle'
+import { protectNotificationPayload } from '@/lib/server/notifications/payload-crypto'
 import { getSupabaseServerClient } from './client'
 import { preflightPasswordToken } from './password-token-preflight'
 
@@ -113,6 +114,21 @@ function mapAccount(value: unknown): SafeManagedAccount {
   }
 }
 
+async function passwordSetupRecipient(
+  targetAccountId: string
+): Promise<string> {
+  const { data, error } = await getSupabaseServerClient()
+    .from('auth_accounts')
+    .select('email')
+    .eq('id', targetAccountId)
+    .is('disabled_at', null)
+    .is('password_hash', null)
+    .maybeSingle()
+  const parsed = z.object({ email: z.string().email() }).safeParse(data)
+  if (error || !parsed.success) throw new AccountManagementError('UNAVAILABLE')
+  return parsed.data.email
+}
+
 export async function listManagedAccounts(): Promise<SafeManagedAccount[]> {
   const { data, error } = await getSupabaseServerClient()
     .from('auth_accounts')
@@ -133,8 +149,13 @@ export async function createManagedAccount(
   }
   const token = generateOpaqueToken()
   const keys = operationKeys('password-setup')
+  const setupUrl = buildTrustedActionUrl(
+    configuredOrigin(),
+    '/setup-password',
+    token
+  )
   const { data, error } = await getSupabaseServerClient().rpc(
-    'admin_create_auth_account',
+    'admin_create_auth_account_protected_v61',
     {
       p_actor_account_id: actor.data,
       p_email: account.data.email,
@@ -142,10 +163,13 @@ export async function createManagedAccount(
       p_role: account.data.role,
       p_setup_token_hash: digestOpaqueToken(token),
       p_expires_at: expiresInThirtyMinutes(),
-      p_setup_url: buildTrustedActionUrl(
-        configuredOrigin(),
-        '/setup-password',
-        token
+      p_protected_payload: protectNotificationPayload(
+        {
+          kind: 'password_setup',
+          recipient: account.data.email,
+          idempotencyKey: keys.providerKey,
+        },
+        { setup_url: setupUrl }
       ),
       p_dedupe_key: keys.dedupeKey,
       p_provider_idempotency_key: keys.providerKey,
@@ -161,19 +185,29 @@ export async function resendPasswordSetup(
 ): Promise<void> {
   const actor = requestUuid(actorAccountId)
   const target = requestUuid(targetAccountId)
+  const recipient = await passwordSetupRecipient(target)
   const token = generateOpaqueToken()
   const keys = operationKeys('password-setup-resend')
+  const setupUrl = buildTrustedActionUrl(
+    configuredOrigin(),
+    '/setup-password',
+    token
+  )
   const { error } = await getSupabaseServerClient().rpc(
-    'admin_resend_password_setup',
+    'admin_resend_password_setup_protected_v61',
     {
       p_actor_account_id: actor,
       p_target_account_id: target,
+      p_recipient: recipient,
       p_setup_token_hash: digestOpaqueToken(token),
       p_expires_at: expiresInThirtyMinutes(),
-      p_setup_url: buildTrustedActionUrl(
-        configuredOrigin(),
-        '/setup-password',
-        token
+      p_protected_payload: protectNotificationPayload(
+        {
+          kind: 'password_setup',
+          recipient,
+          idempotencyKey: keys.providerKey,
+        },
+        { setup_url: setupUrl }
       ),
       p_dedupe_key: keys.dedupeKey,
       p_provider_idempotency_key: keys.providerKey,
@@ -227,18 +261,26 @@ export async function requestManagedEmailChange(
   if (!parsed.success) throw new AccountManagementError('INVALID_REQUEST')
   const token = generateOpaqueToken()
   const keys = operationKeys('managed-email-verification')
+  const verificationUrl = buildTrustedActionUrl(
+    configuredOrigin(),
+    '/verify-email',
+    token
+  )
   const { error } = await getSupabaseServerClient().rpc(
-    'admin_request_managed_email_change',
+    'admin_request_managed_email_change_protected_v61',
     {
       p_actor_account_id: requestUuid(actorAccountId),
       p_target_account_id: requestUuid(targetAccountId),
       p_new_email: parsed.data.email,
       p_token_hash: digestOpaqueToken(token),
       p_expires_at: expiresInThirtyMinutes(),
-      p_verification_url: buildTrustedActionUrl(
-        configuredOrigin(),
-        '/verify-email',
-        token
+      p_protected_payload: protectNotificationPayload(
+        {
+          kind: 'email_verification',
+          recipient: parsed.data.email,
+          idempotencyKey: keys.providerKey,
+        },
+        { verification_url: verificationUrl }
       ),
       p_dedupe_key: keys.dedupeKey,
       p_provider_idempotency_key: keys.providerKey,

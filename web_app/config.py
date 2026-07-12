@@ -1,5 +1,6 @@
+import base64
+import re
 from functools import lru_cache
-
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -41,6 +42,7 @@ class Settings(BaseSettings):
     notification_worker_batch_size: int = Field(default=1, ge=1, le=100)
     notification_worker_required: bool = False
     notification_worker_lease_seconds: int = Field(default=60, ge=5, le=300)
+    notification_payload_encryption_key: str | None = None
     email_provider: Literal["fake", "resend"] = "fake"
     resend_api_key: str | None = None
     resend_from_email: str = "onboarding@resend.dev"
@@ -70,7 +72,7 @@ class Settings(BaseSettings):
     def apply_environment_defaults(self) -> "Settings":
         if "is_development" not in self.model_fields_set:
             self.is_development = self.app_env == "development"
-        # Disable API docs by default in production and staging unless explicitly enabled
+        # Disable API docs in production and staging unless explicitly enabled.
         if "enable_api_docs" not in self.model_fields_set:
             if self.app_env == "production" or self.app_env == "staging":
                 self.enable_api_docs = False
@@ -84,13 +86,29 @@ class Settings(BaseSettings):
             raise ValueError(
                 "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
             )
+        if self.notification_worker_enabled:
+            raw_key = (self.notification_payload_encryption_key or "").strip()
+            try:
+                payload_key = (
+                    bytes.fromhex(raw_key)
+                    if re.fullmatch(r"[0-9a-fA-F]{64}", raw_key)
+                    else base64.b64decode(raw_key, validate=True)
+                )
+            except (ValueError, base64.binascii.Error):
+                payload_key = b""
+            if len(payload_key) != 32:
+                raise ValueError(
+                    "enabled notification worker requires a valid payload "
+                    "encryption key"
+                )
         if (
             self.notification_worker_enabled
             and self.email_provider == "resend"
             and (not self.resend_api_key or not self.resend_from_email)
         ):
             raise ValueError(
-                "enabled Resend notification worker requires server-side provider configuration"
+                "enabled Resend notification worker requires server-side "
+                "provider configuration"
             )
         if (
             self.notification_worker_enabled
@@ -106,7 +124,8 @@ class Settings(BaseSettings):
             and self.email_provider == "fake"
         ):
             raise ValueError(
-                "staging and production notification workers cannot use the fake email provider"
+                "staging and production notification workers cannot use "
+                "the fake email provider"
             )
         if self.threat_email_enabled and not self.threat_email_to:
             raise ValueError(

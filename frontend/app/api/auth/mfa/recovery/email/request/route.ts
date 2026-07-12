@@ -14,8 +14,12 @@ export async function POST(request: Request): Promise<Response> {
   const session = await auth()
   const authorization = await requireMfaChallengePermission(session, PERMISSIONS.MFA_ENROLLMENT)
   if (!authorization.ok) return authorization.response
+  if (!session?.user.email) return recoveryErrorResponse(new Error('UNAVAILABLE'))
   try {
-    const result = await requestEmailRecovery(session!.user.id)
+    const result = await requestEmailRecovery(
+      session.user.id,
+      session.user.email
+    )
     await setRecoveryCompletionCookie(result.completion_token)
     return NextResponse.json({ status: 'sent' })
   } catch (error) {

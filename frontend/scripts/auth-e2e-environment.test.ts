@@ -68,6 +68,7 @@ describe('disposable authentication E2E environment', () => {
         authSecret: 'test-auth-secret',
         mfaEncryptionKey: 'test-mfa-key',
         emailOtpKey: 'test-email-otp-key',
+        notificationPayloadKey: 'test-notification-payload-key',
       })
     ).toMatchObject({
       SUPABASE_URL: 'http://127.0.0.1:54321',
@@ -75,6 +76,8 @@ describe('disposable authentication E2E environment', () => {
       AUTH_SECRET: 'test-auth-secret',
       AUTH_MFA_ENCRYPTION_KEY: 'test-mfa-key',
       AUTH_EMAIL_OTP_KEY: 'test-email-otp-key',
+      NOTIFICATION_PAYLOAD_ENCRYPTION_KEY:
+        'test-notification-payload-key',
       AUTH_ACCOUNT_MANAGEMENT_ENABLED: 'true',
       AUTH_MFA_ENROLLMENT_ENABLED: 'true',
       AUTH_EMAIL_RECOVERY_ENABLED: 'true',

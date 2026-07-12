@@ -10,6 +10,7 @@ import { digestEmailOtp, generateEmailOtp } from '@/lib/auth/email-otp'
 import { digestOpaqueToken, generateOpaqueToken } from '@/lib/auth/account-tokens'
 import { verifyBackupCode } from '@/lib/auth/backup-codes'
 import { isUserRole, type UserRole } from '@/lib/auth/roles'
+import { protectNotificationPayload } from '@/lib/server/notifications/payload-crypto'
 import { getSupabaseServerClient } from './client'
 
 const UUID = z.string().uuid()
@@ -86,21 +87,32 @@ export async function consumeBackupCodeForRecovery(
 }
 
 export async function requestEmailRecovery(
-  rawAccountId: string
+  rawAccountId: string,
+  recipient: string
 ): Promise<{ status: 'sent'; completion_token: string }> {
   const id = accountId(rawAccountId)
+  const email = z.string().email().safeParse(recipient)
+  if (!email.success) throw new MfaRecoveryError('INVALID_REQUEST')
   const otp = generateEmailOtp()
   const completionToken = generateOpaqueToken()
   const expiresAt = new Date(Date.now() + 5 * 60 * 1_000).toISOString()
   const dedupeKey = `email-recovery/${id}/${tokenDigest(completionToken)}`
   const { data, error } = await getSupabaseServerClient().rpc(
-    'begin_email_recovery_challenge_v61',
+    'begin_email_recovery_challenge_protected_v61',
     {
       p_account_id: id,
+      p_recipient: email.data,
       p_otp_digest: digestEmailOtp(otp),
       p_completion_token_hash: tokenDigest(completionToken),
       p_expires_at: expiresAt,
-      p_otp: otp,
+      p_protected_payload: protectNotificationPayload(
+        {
+          kind: 'email_recovery_otp',
+          recipient: email.data,
+          idempotencyKey: dedupeKey,
+        },
+        { otp }
+      ),
       p_dedupe_key: dedupeKey,
       p_provider_idempotency_key: dedupeKey,
     }

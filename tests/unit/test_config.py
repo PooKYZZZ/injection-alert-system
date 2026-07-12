@@ -1,8 +1,9 @@
+from base64 import b64encode
+
 import pytest
-from web_app.config import Settings, get_settings, reset_settings_cache
-from pydantic_settings import BaseSettings
 from pydantic import ValidationError
-import os
+
+from web_app.config import Settings, get_settings, reset_settings_cache
 
 
 @pytest.fixture(autouse=True)
@@ -213,6 +214,7 @@ def test_notification_settings_are_safe_by_default():
     )
 
     assert settings.notification_worker_enabled is False
+    assert settings.notification_payload_encryption_key is None
     assert settings.threat_email_enabled is False
     assert settings.email_provider == "fake"
     assert settings.resend_api_key is None
@@ -227,6 +229,7 @@ def test_required_worker_rejects_fake_provider():
             model_path="test_model.py",
             notification_worker_enabled=True,
             notification_worker_required=True,
+            notification_payload_encryption_key=b64encode(bytes(32)).decode(),
             email_provider="fake",
         )
 
@@ -239,5 +242,18 @@ def test_production_worker_rejects_fake_provider():
             model_path="test_model.py",
             app_env="production",
             notification_worker_enabled=True,
+            notification_payload_encryption_key=b64encode(bytes(32)).decode(),
             email_provider="fake",
+        )
+
+
+@pytest.mark.parametrize("key", [None, "not-a-key", "00" * 31])
+def test_enabled_worker_requires_a_valid_payload_encryption_key(key):
+    with pytest.raises(ValueError, match="payload encryption key"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            notification_worker_enabled=True,
+            notification_payload_encryption_key=key,
         )

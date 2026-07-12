@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 import pytest
-
+from psycopg.types.json import Jsonb
 
 POSTGRES_URL = os.getenv('CYBERTRACE_POSTGRES_TEST_URL')
 pytestmark = pytest.mark.skipif(not POSTGRES_URL, reason='requires an explicit disposable PostgreSQL URL')
@@ -55,8 +55,18 @@ def test_password_reset_is_single_use_and_increments_authz_once() -> None:
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT public.create_password_reset_token(%s, %s, now() + interval '30 minutes', '/reset-password?token=opaque', 'reset-dedupe', 'reset-provider', 'user_requested')",
-                (account_id, token_hash),
+                "SELECT public.create_password_reset_token_protected_v61(%s, %s, now() + interval '30 minutes', %s, 'reset-dedupe', 'reset-provider', 'user_requested')",
+                (
+                    account_id,
+                    token_hash,
+                    Jsonb(
+                        {
+                            'ciphertext': 'integration-test',
+                            'nonce': 'test-nonce',
+                            'key_version': 1,
+                        }
+                    ),
+                ),
             )
             assert cursor.fetchone()[0] is True
     with ThreadPoolExecutor(max_workers=2) as pool:

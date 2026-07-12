@@ -1,5 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
+import {
+  unprotectNotificationPayload,
+  type ProtectedNotificationPayload,
+} from '@/lib/server/notifications/payload-crypto-core'
+
 function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim()
   if (!value) throw new Error('Authentication E2E database is unavailable.')
@@ -30,6 +35,32 @@ export function createAuthE2EClient(): SupabaseClient {
   )
 }
 
+type EmailRecoveryOutboxRow = {
+  payload_safe_json: unknown
+  provider_idempotency_key: unknown
+}
+
+export function readEmailRecoveryOtp(
+  email: string,
+  row: EmailRecoveryOutboxRow
+): string {
+  try {
+    if (typeof row.provider_idempotency_key !== 'string') throw new Error()
+    const payload = unprotectNotificationPayload(
+      {
+        kind: 'email_recovery_otp',
+        recipient: email,
+        idempotencyKey: row.provider_idempotency_key,
+      },
+      row.payload_safe_json as ProtectedNotificationPayload
+    )
+    if (!/^\d{6}$/.test(payload.otp ?? '')) throw new Error()
+    return payload.otp
+  } catch {
+    throw new Error('Authentication E2E database is unavailable.')
+  }
+}
+
 export async function waitForEmailRecoveryOtp(
   email: string,
   timeoutMs = 10_000
@@ -39,14 +70,19 @@ export async function waitForEmailRecoveryOtp(
   while (Date.now() < deadline) {
     const { data, error } = await client
       .from('notification_outbox')
-      .select('payload_safe_json')
+      .select('payload_safe_json,provider_idempotency_key')
       .eq('recipient', email)
       .eq('kind', 'email_recovery_otp')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    const otp = data?.payload_safe_json?.otp
-    if (!error && typeof otp === 'string' && /^\d{6}$/.test(otp)) return otp
+    if (!error && data) {
+      try {
+        return readEmailRecoveryOtp(email, data)
+      } catch {
+        // The row may not be fully committed yet; keep polling until timeout.
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error('Disposable email recovery OTP was not created.')

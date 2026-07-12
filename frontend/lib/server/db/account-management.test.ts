@@ -4,6 +4,7 @@ const harness = vi.hoisted(() => ({
   rpc: vi.fn(),
   from: vi.fn(),
   hashPassword: vi.fn(),
+  protect: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -18,6 +19,9 @@ vi.mock('@/lib/auth/password-hash', () => ({
       ? { ok: true }
       : { ok: false, code: 'PASSWORD_TOO_SHORT' },
 }))
+vi.mock('@/lib/server/notifications/payload-crypto', () => ({
+  protectNotificationPayload: harness.protect,
+}))
 
 import {
   AccountManagementError,
@@ -25,6 +29,8 @@ import {
   completeInitialPasswordSetup,
   createManagedAccount,
   listManagedAccounts,
+  requestManagedEmailChange,
+  resendPasswordSetup,
 } from './account-management'
 
 const actorId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
@@ -34,6 +40,11 @@ describe('account management database boundary', () => {
     vi.clearAllMocks()
     process.env.AUTH_APP_ORIGIN = 'https://dashboard.example.test'
     harness.hashPassword.mockResolvedValue('$argon2id$approved')
+    harness.protect.mockReturnValue({
+      ciphertext: 'protected-payload',
+      nonce: 'protected-nonce',
+      key_version: 1,
+    })
   })
 
   it('lists only safe account fields and derives MFA status', async () => {
@@ -87,18 +98,68 @@ describe('account management database boundary', () => {
       string,
       Record<string, string>,
     ]
-    expect(name).toBe('admin_create_auth_account')
+    expect(name).toBe('admin_create_auth_account_protected_v61')
     expect(params).toMatchObject({
       p_actor_account_id: actorId,
       p_email: 'new@example.test',
       p_name: 'New Analyst',
       p_role: 'ANALYST',
+      p_protected_payload: {
+        ciphertext: 'protected-payload',
+        nonce: 'protected-nonce',
+        key_version: 1,
+      },
     })
     expect(params.p_setup_token_hash).toMatch(/^[a-f0-9]{64}$/)
-    expect(params.p_setup_url).toMatch(
-      /^https:\/\/dashboard\.example\.test\/setup-password\?token=/
+    expect(params).not.toHaveProperty('p_setup_url')
+    expect(harness.protect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'password_setup',
+        recipient: 'new@example.test',
+      }),
+      {
+        setup_url: expect.stringMatching(
+          /^https:\/\/dashboard\.example\.test\/setup-password\?token=/
+        ),
+      }
     )
     expect(JSON.stringify(result)).not.toContain('token')
+  })
+
+  it('uses protected atomic RPCs for setup resend and email verification', async () => {
+    harness.rpc.mockResolvedValue({ data: true, error: null })
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { email: 'target@example.test' },
+      error: null,
+    })
+    const query = { eq: vi.fn(), is: vi.fn(), maybeSingle }
+    query.eq.mockReturnValue(query)
+    query.is.mockReturnValue(query)
+    harness.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) })
+
+    await resendPasswordSetup(actorId, actorId)
+    await requestManagedEmailChange(actorId, actorId, {
+      email: 'changed@example.test',
+    })
+
+    expect(harness.rpc).toHaveBeenNthCalledWith(
+      1,
+      'admin_resend_password_setup_protected_v61',
+      expect.objectContaining({
+        p_protected_payload: expect.objectContaining({ key_version: 1 }),
+      })
+    )
+    expect(harness.rpc).toHaveBeenNthCalledWith(
+      2,
+      'admin_request_managed_email_change_protected_v61',
+      expect.objectContaining({
+        p_new_email: 'changed@example.test',
+        p_protected_payload: expect.objectContaining({ key_version: 1 }),
+      })
+    )
+    expect(JSON.stringify(harness.rpc.mock.calls)).not.toContain(
+      'p_verification_url'
+    )
   })
 
   it('validates and hashes a setup password before atomic token consumption', async () => {

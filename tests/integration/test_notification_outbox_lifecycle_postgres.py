@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
-
+from psycopg.types.json import Jsonb
 
 POSTGRES_URL = os.getenv("CYBERTRACE_POSTGRES_TEST_URL")
 pytestmark = pytest.mark.skipif(
@@ -38,6 +38,16 @@ def _insert_job(
     recipient: str = "owner@example.test",
 ) -> str:
     key = f"lifecycle/{uuid4()}"
+    payload = (
+        {"ciphertext": "integration-test", "nonce": "test-nonce", "key_version": 1}
+        if kind in {
+            "password_setup",
+            "password_reset",
+            "email_verification",
+            "email_recovery_otp",
+        }
+        else {"secret": "bearer-value"}
+    )
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -49,7 +59,7 @@ INSERT INTO public.notification_outbox (
 )
 VALUES (
   %s, 'email', %s, %s, %s, %s,
-  now(), '{"secret":"bearer-value"}'::jsonb, 1,
+  now(), %s, 1,
   %s, %s, COALESCE(%s, now() + interval '1 day'), %s
 )
 RETURNING id
@@ -60,6 +70,7 @@ RETURNING id
                     status,
                     attempts,
                     max_attempts,
+                    Jsonb(payload),
                     key,
                     key,
                     deliver_before,
@@ -67,6 +78,28 @@ RETURNING id
                 ),
             )
             return str(cursor.fetchone()[0])
+
+
+def test_active_secret_payload_rejects_plaintext() -> None:
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            with pytest.raises(
+                psycopg.Error,
+                match="notification payload protection is required",
+            ):
+                cursor.execute(
+                    """
+INSERT INTO public.notification_outbox (
+  kind, channel, recipient, payload_safe_json, dedupe_key,
+  provider_idempotency_key
+)
+VALUES (
+  'password_reset', 'email', 'plaintext@example.test',
+  '{"reset_url":"https://example.test/reset?token=plaintext"}'::jsonb,
+  'plaintext/test', 'plaintext/test'
+)
+"""
+                )
 
 
 def _claim(worker_id: str = "lifecycle-worker") -> list[tuple]:

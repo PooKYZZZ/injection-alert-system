@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { buildTrustedActionUrl, digestOpaqueToken, generateOpaqueToken } from '@/lib/auth/account-tokens'
 import { hashPassword, validateNewPassword } from '@/lib/auth/password-hash'
 import { passwordHashConcurrencyGate } from '@/lib/auth/login-throttle'
+import { protectNotificationPayload } from '@/lib/server/notifications/payload-crypto'
 import { getSupabaseServerClient } from './client'
 import { preflightPasswordToken } from './password-token-preflight'
 
@@ -43,11 +44,23 @@ export async function requestPasswordReset(email: string): Promise<{ status: 'se
   if (error || !data || typeof data.id !== 'string') return { status: 'sent' }
   const token = generateOpaqueToken()
   const dedupe = key('password-reset')
-  const { error: rpcError } = await client.rpc('create_password_reset_token', {
+  const resetUrl = buildTrustedActionUrl(
+    process.env.AUTH_APP_ORIGIN ?? '',
+    '/reset-password',
+    token
+  )
+  const { error: rpcError } = await client.rpc('create_password_reset_token_protected_v61', {
     p_account_id: data.id,
     p_token_hash: digestOpaqueToken(token),
     p_expires_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
-    p_reset_url: buildTrustedActionUrl(process.env.AUTH_APP_ORIGIN ?? '', '/reset-password', token),
+    p_protected_payload: protectNotificationPayload(
+      {
+        kind: 'password_reset',
+        recipient: normalized.data,
+        idempotencyKey: dedupe,
+      },
+      { reset_url: resetUrl }
+    ),
     p_dedupe_key: dedupe,
     p_provider_idempotency_key: dedupe,
     p_reason: 'user_requested',

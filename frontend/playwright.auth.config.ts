@@ -30,7 +30,7 @@ export default defineConfig({
     reuseExistingServer: false,
     stdout: 'ignore',
     stderr: 'pipe',
-    timeout: 120_000,
+    timeout: 300_000,
   },
   outputDir: 'test-results/auth',
   timeout: 90_000,

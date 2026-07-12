@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
-
+from psycopg.types.json import Jsonb
 
 POSTGRES_URL = os.getenv("CYBERTRACE_POSTGRES_TEST_URL")
 pytestmark = pytest.mark.skipif(
@@ -50,6 +50,12 @@ RETURNING id
             return str(cursor.fetchone()[0])
 
 
+def _protected_payload() -> Jsonb:
+    return Jsonb(
+        {"ciphertext": "integration-test", "nonce": "test-nonce", "key_version": 1}
+    )
+
+
 def test_admin_create_derives_mfa_and_setup_token_is_consumed_once() -> None:
     admin_id = _admin()
     token_hash = "a" * 64
@@ -58,7 +64,7 @@ def test_admin_create_derives_mfa_and_setup_token_is_consumed_once() -> None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-SELECT public.admin_create_auth_account(
+SELECT public.admin_create_auth_account_protected_v61(
   %s, %s, %s, %s, %s, %s, %s, %s, %s
 )
 """,
@@ -69,7 +75,7 @@ SELECT public.admin_create_auth_account(
                     "ANALYST",
                     token_hash,
                     expires_at,
-                    "https://dashboard.example.test/setup-password?token=opaque",
+                    _protected_payload(),
                     "setup/test-1",
                     "setup/test-1",
                 ),
@@ -124,7 +130,7 @@ RETURNING id, authz_version
             key = f"email/{uuid4()}"
             cursor.execute(
                 """
-SELECT public.admin_request_managed_email_change(
+SELECT public.admin_request_managed_email_change_protected_v61(
   %s, %s, %s, %s, %s, %s, %s, %s
 )
 """,
@@ -134,7 +140,7 @@ SELECT public.admin_request_managed_email_change(
                     "new-viewer@example.test",
                     token_hash,
                     datetime.now(timezone.utc) + timedelta(minutes=30),
-                    "https://dashboard.example.test/verify-email?token=opaque",
+                    _protected_payload(),
                     key,
                     key,
                 ),
@@ -230,7 +236,7 @@ RETURNING id
             with pytest.raises(psycopg.Error):
                 cursor.execute(
                     """
-SELECT public.admin_request_managed_email_change(
+SELECT public.admin_request_managed_email_change_protected_v61(
   %s, %s, %s, %s, %s, %s, %s, %s
 )
 """,
@@ -240,7 +246,7 @@ SELECT public.admin_request_managed_email_change(
                         'admin@example.test',
                         'c' * 64,
                         datetime.now(timezone.utc) + timedelta(minutes=30),
-                        'https://dashboard.example.test/verify-email?token=opaque',
+                        _protected_payload(),
                         key,
                         key,
                     ),

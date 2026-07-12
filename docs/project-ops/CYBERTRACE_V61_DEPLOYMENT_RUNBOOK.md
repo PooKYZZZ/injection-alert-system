@@ -2,7 +2,7 @@
 
 This runbook records the implemented boundary and the remaining human/deployment gates. The repository is still a thesis-sized local Compose and hosted-Supabase runtime; it is not a Kubernetes or production-SIEM deployment.
 
-The current additive migration head is `20260711_000018`. PR #83 keeps all
+The current additive migration head is `20260711_000019`. PR #83 keeps all
 V6.1 feature switches disabled until the target migration, provider,
 payload-protection, and browser gates are reviewed.
 
@@ -17,6 +17,7 @@ SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<server-only service-role key>
 AUTH_MFA_ENCRYPTION_KEY=<base64 32-byte AES-GCM key>
 AUTH_EMAIL_OTP_KEY=<dedicated 32+ byte OTP HMAC key>
+NOTIFICATION_PAYLOAD_ENCRYPTION_KEY=<dedicated base64 or hex 32-byte AES-GCM key>
 NOTIFICATION_WORKER_ENABLED=false
 NOTIFICATION_WORKER_REQUIRED=false
 NOTIFICATION_WORKER_BATCH_SIZE=1
@@ -39,10 +40,14 @@ AUTH_TURNSTILE_ENABLED=false
 
 The worker is email-only and claims one job per poll by default. Staging and
 production reject `EMAIL_PROVIDER=fake` when the worker is enabled; a required
-worker also performs a startup database probe. Terminal outbox rows are
-scrubbed, but pending credential payload encryption still requires a separate
-security approval before security-email enablement. No live Resend smoke was
-performed in this remediation.
+worker also performs a startup database probe. Pending setup, reset,
+verification, and email-recovery values are stored as versioned AES-256-GCM
+envelopes. Next.js encrypts before the atomic producer RPC, and the Python
+worker decrypts only immediately before template rendering. The same dedicated
+key must be present in both server runtimes; it must not be reused for TOTP or
+OTP hashing. An enabled worker fails configuration validation when the key is
+missing or malformed. Terminal outbox rows remain scrubbed. No live Resend
+smoke was performed in this remediation.
 
 ## Migration gate
 
@@ -51,6 +56,49 @@ performed in this remediation.
 3. Run the migration source tests and PostgreSQL integration suites.
 4. Run `.venv\Scripts\python.exe -m alembic downgrade 20260710_000014` followed by `upgrade head` to verify clean rollback/re-upgrade of the PR #83 revisions.
 5. A hosted Supabase migration requires a separate reviewed deployment approval; this agent has not applied migrations to production.
+
+Migration `20260711_000019` intentionally stops when an active
+credential-equivalent outbox row still contains plaintext. Before a hosted
+upgrade, inventory only `pending`, `leased`, and `retry_wait` rows for
+`password_setup`, `password_reset`, `email_verification`, and
+`email_recovery_otp`. Do not copy their payloads into tickets or logs. A
+reviewed operator must either let the old worker finish them, terminalize them,
+or reissue them through the protected producer before rerunning the migration.
+The migration does not silently encrypt legacy rows because deployment may not
+possess the original application key and nonce context.
+
+## Hosted readiness checklist (approval required)
+
+This checklist is preparation only. Completing it requires an authorized human
+deployment window and is not evidence that this repository changed a hosted
+project.
+
+- [ ] Record the intended Supabase project reference without credentials and
+  independently confirm both Next.js `SUPABASE_URL` and FastAPI `DATABASE_URL`
+  resolve to that same project.
+- [ ] Confirm the migration identity is the approved database owner and that
+  `anon`, `authenticated`, and `service_role` are the intended target roles.
+- [ ] Inventory active legacy secret-bearing outbox rows using counts and IDs
+  only; complete the reviewed remediation gate above before `000019`.
+- [ ] Generate a dedicated notification payload key in the approved secret
+  manager, deploy the identical value to Next.js and the worker, and record key
+  version `1` without recording the key itself.
+- [ ] Apply migrations through `20260711_000019`, then verify the single
+  Alembic head, protected RPC execute grants, plaintext rejection, and terminal
+  scrub behavior.
+- [ ] Confirm Auth.js callback/origin values, HTTPS, secure cookies, provider
+  sender/domain verification, and the explicitly approved smoke recipient.
+- [ ] Keep auth feature switches and both worker switches disabled while
+  running readiness, health-detail, and database-role checks.
+- [ ] With separate approval, enable one bounded staging producer path and the
+  worker, send one controlled email, verify delivery plus durable completion,
+  then confirm the terminal payload is `{}` and logs contain no URL, OTP,
+  token, recipient, envelope, or key material.
+- [ ] Review ambiguous-delivery events by outbox ID and provider message ID;
+  never issue an unkeyed resend.
+- [ ] Record rollback ownership: disable producers and worker first, then
+  prefer a forward fix after any protected row exists. Downgrade `000019` only
+  when its active-row gate passes and key/version compatibility is understood.
 
 ## Frontend validation
 
@@ -93,7 +141,7 @@ The browser boundary remains `Browser -> Next.js/Auth.js -> server-only Supabase
 
 Disable the feature switches and worker first, preserve account/security-event
 and outbox history, then roll back application code before any reviewed schema
-downgrade. A clean downgrade from `20260711_000018` to `20260710_000014` is
+downgrade. A clean downgrade from `20260711_000019` to `20260710_000014` is
 validated only before new terminal outbox states or live auth challenges are
 written; after rollout, prefer a forward migration. Do not restore
 `AUTH_USERS_JSON` or another weaker authentication path. Rotate/revoke any

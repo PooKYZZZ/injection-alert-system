@@ -3,15 +3,25 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from base64 import b64encode
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from web_app.notifications.models import OutboxJob, ProviderSendResult
+from web_app.notifications.payload_crypto import encrypt_notification_payload
 from web_app.notifications.providers import EmailProviderError
 from web_app.notifications.worker import OutboxWorker
 from web_app.observability.context import reset_request_context, set_request_context
+
+
+@pytest.fixture(autouse=True)
+def notification_payload_key(monkeypatch):
+    monkeypatch.setenv(
+        "NOTIFICATION_PAYLOAD_ENCRYPTION_KEY",
+        b64encode(bytes([7]) * 32).decode("ascii"),
+    )
 
 
 def job(*, attempt_count: int = 1) -> OutboxJob:
@@ -155,9 +165,14 @@ async def test_worker_records_provider_accepted_completion_failure_as_ambiguous(
     secret_bearing_job = replace(
         job(),
         kind="password_reset",
-        safe_payload={
-            "reset_url": "https://dashboard.example.test/reset?token=raw-secret",
-        },
+        safe_payload=encrypt_notification_payload(
+            kind="password_reset",
+            recipient=job().recipient,
+            idempotency_key=job().provider_idempotency_key,
+            payload={
+                "reset_url": "https://dashboard.example.test/reset?token=raw-secret",
+            },
+        ),
     )
     repository = TransitionFailureRepository(
         [secret_bearing_job, secret_bearing_job], complete_transitions=True
@@ -207,6 +222,66 @@ async def test_worker_records_provider_accepted_completion_failure_as_ambiguous(
     assert "soc@example.test" not in caplog.text
     assert "dashboard.example.test" not in caplog.text
     assert "raw-secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_worker_decrypts_secret_payload_only_at_delivery_boundary() -> None:
+    reset_url = "https://dashboard.example.test/reset?token=delivery-only"
+    protected = replace(
+        job(),
+        kind="password_reset",
+        safe_payload=encrypt_notification_payload(
+            kind="password_reset",
+            recipient=job().recipient,
+            idempotency_key=job().provider_idempotency_key,
+            payload={"reset_url": reset_url},
+        ),
+    )
+    repository = RepositoryStub([protected])
+    provider = SuccessfulProvider()
+    worker = OutboxWorker(
+        repository=repository,
+        provider=provider,
+        worker_id="worker-a",
+    )
+
+    result = await worker.run_once()
+
+    assert result.sent == 1
+    assert reset_url not in json.dumps(protected.safe_payload)
+    assert reset_url in provider.messages[0].text
+
+
+@pytest.mark.asyncio
+async def test_worker_fails_closed_before_provider_on_tampered_payload(caplog) -> None:
+    envelope = encrypt_notification_payload(
+        kind="password_reset",
+        recipient=job().recipient,
+        idempotency_key=job().provider_idempotency_key,
+        payload={"reset_url": "https://example.test/reset?token=never-log"},
+    )
+    ciphertext = str(envelope["ciphertext"])
+    envelope["ciphertext"] = f"{ciphertext[:-1]}{'A' if ciphertext[-1] != 'A' else 'B'}"
+    protected = replace(job(), kind="password_reset", safe_payload=envelope)
+    repository = RepositoryStub([protected])
+    provider = SuccessfulProvider()
+    worker = OutboxWorker(
+        repository=repository,
+        provider=provider,
+        worker_id="worker-a",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = await worker.run_once()
+
+    assert result == type(result)(claimed=1, sent=0, failed=1, ambiguous=0)
+    assert provider.messages == []
+    assert repository.failed[0][2:] == (
+        "payload_decryption_failed",
+        False,
+        0,
+    )
+    assert "never-log" not in caplog.text
 
 
 @pytest.mark.asyncio

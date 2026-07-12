@@ -8,6 +8,11 @@ from datetime import datetime, timezone
 from typing import Callable, Literal, Protocol
 
 from web_app.notifications.models import OutboxJob, WorkerRunResult
+from web_app.notifications.payload_crypto import (
+    PROTECTED_NOTIFICATION_KINDS,
+    NotificationPayloadError,
+    decrypt_notification_payload,
+)
 from web_app.notifications.providers import EmailProvider, EmailProviderError
 from web_app.notifications.templates import TemplatePayloadError, render_email
 from web_app.observability.structured_logging import log_event
@@ -66,7 +71,10 @@ class OutboxWorker:
         failed = 0
         ambiguous = 0
         for job in jobs:
-            if job.deliver_before is not None and job.deliver_before <= datetime.now(timezone.utc):
+            if (
+                job.deliver_before is not None
+                and job.deliver_before <= datetime.now(timezone.utc)
+            ):
                 failed += 1
                 await self._safe_fail(
                     job,
@@ -76,14 +84,25 @@ class OutboxWorker:
                 )
                 continue
             try:
+                payload = job.safe_payload
+                if job.kind in PROTECTED_NOTIFICATION_KINDS:
+                    payload = decrypt_notification_payload(
+                        kind=job.kind,
+                        recipient=job.recipient,
+                        idempotency_key=job.provider_idempotency_key,
+                        envelope=job.safe_payload,
+                    )
                 message = render_email(
                     kind=job.kind,
                     recipient=job.recipient,
-                    payload=job.safe_payload,
+                    payload=payload,
                     template_version=job.template_version,
                     idempotency_key=job.provider_idempotency_key,
                 )
                 result = await self._provider.send(message)
+            except NotificationPayloadError:
+                failed += 1
+                await self._safe_fail(job, "payload_decryption_failed", False, 0)
             except TemplatePayloadError:
                 failed += 1
                 await self._safe_fail(job, "template_payload_invalid", False, 0)

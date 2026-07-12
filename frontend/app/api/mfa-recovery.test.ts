@@ -102,4 +102,31 @@ describe('MFA recovery routes', () => {
     expect(response.status).toBe(403)
     expect(json).not.toHaveBeenCalled()
   })
+
+  it('binds email recovery delivery to the authenticated address', async () => {
+    harness.auth.mockResolvedValue({
+      user: {
+        id: accountId,
+        email: 'admin@example.test',
+        role: 'ADMIN',
+        auth_level: 'password',
+      },
+    })
+    const { POST } = await import(
+      './auth/mfa/recovery/email/request/route'
+    )
+
+    const response = await POST(
+      new NextRequest(
+        'http://localhost/api/auth/mfa/recovery/email/request',
+        { method: 'POST', headers: { origin: 'http://localhost' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(harness.requestEmail).toHaveBeenCalledWith(
+      accountId,
+      'admin@example.test'
+    )
+  })
 })

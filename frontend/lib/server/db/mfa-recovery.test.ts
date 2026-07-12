@@ -5,6 +5,7 @@ const harness = vi.hoisted(() => ({
   rpc: vi.fn(),
   verify: vi.fn(),
   hash: vi.fn(),
+  protect: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -13,6 +14,9 @@ vi.mock('./client', () => ({
 }))
 vi.mock('@/lib/auth/password-hash', () => ({
   verifyPasswordHash: harness.verify,
+}))
+vi.mock('@/lib/server/notifications/payload-crypto', () => ({
+  protectNotificationPayload: harness.protect,
 }))
 
 import {
@@ -29,6 +33,11 @@ describe('MFA recovery persistence boundary', () => {
     vi.clearAllMocks()
     harness.rpc.mockResolvedValue({ data: [{ outcome: 'verified' }], error: null })
     harness.verify.mockResolvedValue(true)
+    harness.protect.mockReturnValue({
+      ciphertext: 'protected-payload',
+      nonce: 'protected-nonce',
+      key_version: 1,
+    })
   })
 
   it('consumes a verified backup code only after candidate hash verification', async () => {
@@ -42,9 +51,23 @@ describe('MFA recovery persistence boundary', () => {
   it('creates an email OTP challenge without returning the OTP', async () => {
     process.env.AUTH_EMAIL_OTP_KEY = 'test-email-otp-key-with-at-least-32-bytes'
     harness.rpc.mockResolvedValue({ data: [{ status: 'sent' }], error: null })
-    const result = await requestEmailRecovery(accountId)
+    const result = await requestEmailRecovery(accountId, 'analyst@example.test')
     expect(result).toMatchObject({ status: 'sent', completion_token: expect.any(String) })
-    expect(harness.rpc).toHaveBeenCalledWith('begin_email_recovery_challenge_v61', expect.objectContaining({ p_account_id: accountId, p_otp: expect.stringMatching(/^\d{6}$/) }))
+    expect(harness.rpc).toHaveBeenCalledWith(
+      'begin_email_recovery_challenge_protected_v61',
+      expect.objectContaining({
+        p_account_id: accountId,
+        p_protected_payload: expect.objectContaining({ key_version: 1 }),
+      })
+    )
+    expect(harness.rpc.mock.calls[0][1]).not.toHaveProperty('p_otp')
+    expect(harness.protect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'email_recovery_otp',
+        recipient: expect.any(String),
+      }),
+      { otp: expect.stringMatching(/^\d{6}$/) }
+    )
     expect(JSON.stringify(result)).not.toMatch(/\d{6}/)
   })
 

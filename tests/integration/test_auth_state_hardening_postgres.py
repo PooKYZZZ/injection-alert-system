@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
-
+from psycopg.types.json import Jsonb
 
 POSTGRES_URL = os.getenv("CYBERTRACE_POSTGRES_TEST_URL")
 pytestmark = pytest.mark.skipif(
@@ -197,12 +197,31 @@ def test_email_otp_invalid_attempts_commit_without_outbox_split() -> None:
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
+                "SELECT email FROM public.auth_accounts WHERE id = %s",
+                (account_id,),
+            )
+            recipient = cursor.fetchone()[0]
+            cursor.execute(
                 """
-SELECT status FROM public.begin_email_recovery_challenge_v61(
-  %s, %s, %s, now() + interval '5 minutes', '123456', %s, %s
+SELECT status FROM public.begin_email_recovery_challenge_protected_v61(
+  %s, %s, %s, %s, now() + interval '5 minutes', %s, %s, %s
 )
 """,
-                (account_id, "f" * 64, "1" * 64, f"email/{uuid4()}", f"provider/{uuid4()}"),
+                (
+                    account_id,
+                    recipient,
+                    "f" * 64,
+                    "1" * 64,
+                    Jsonb(
+                        {
+                            "ciphertext": "integration-test",
+                            "nonce": "test-nonce",
+                            "key_version": 1,
+                        }
+                    ),
+                    f"email/{uuid4()}",
+                    f"provider/{uuid4()}",
+                ),
             )
             assert cursor.fetchone()[0] == "sent"
             outcomes = []
