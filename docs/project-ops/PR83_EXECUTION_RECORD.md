@@ -258,6 +258,28 @@ auth project now permits a bounded 300-second startup while retaining its
 passed all five assertions. The in-app Browser independently verified rendered
 and interactive production login UI without a database-backed sign-in.
 
+### Unit 4 outcome
+
+- Primary commit: `01202b4159de8027ec793ca7fcbb47e22e06df33`.
+- Remote verification: local, `origin/feat/cybertrace-v6-1`, and PR #83 head
+  matched after the normal push; the PR remains open and draft.
+- Findings addressed: F-10 is fixed in code and F-11 now has a concrete hosted
+  readiness procedure without claiming hosted execution.
+- Security scan: Gitleaks 8.24.3 found no leak in the staged Unit 4 change;
+  GitHub `secret-scan` passed on the pushed commit.
+- Dependency review: `pip check` passed; `pip-audit` found no known Python
+  vulnerabilities; `npm audit --audit-level=high` exited successfully with no
+  high or critical finding and two moderate transitive PostCSS findings. The
+  proposed forced fix is breaking and was not applied.
+- Remote CI: backend, PostgreSQL, and frontend jobs were pending when this
+  immutable commit evidence was recorded.
+- External boundary: no hosted Supabase migration, role change, key creation or
+  rotation, provider configuration, live email, or feature enablement was
+  performed.
+- Residual risk: version `1` supports one active notification key. A future key
+  rotation requires a reviewed multi-version decrypt window or complete
+  terminalization of active version-1 rows before replacing the key.
+
 ### Finding revalidation at the starting HEAD
 
 | Finding | Status | Repository evidence and impact |
