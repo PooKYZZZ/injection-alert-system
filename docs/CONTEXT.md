@@ -74,10 +74,10 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Database-authoritative MFA/recovery, recent step-up, protected notification
   payloads, durable worker accounting/readiness, required authentication E2E
   CI, and restricted break glass are implemented. Feature flags remain off.
-- Disposable PostgreSQL validation passed: 643 full backend tests, 107
+- Disposable PostgreSQL validation passed: 650 full backend tests, 107
   integration tests, 37 migration tests, and downgrade/re-upgrade of the two
   final security revisions.
-- Frontend lint, typecheck, 83 Vitest files / 472 tests, production build, and
+- Frontend lint, typecheck, 83 Vitest files / 473 tests, production build, and
   five managed Chromium authentication journeys pass locally. The same managed
   project is a required CI job; current remote evidence is tracked in
   `docs/project-ops/PR83_EXECUTION_RECORD.md`.

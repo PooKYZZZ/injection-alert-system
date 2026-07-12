@@ -7,8 +7,8 @@
 
 Status note:
 - PR #83 execution record: `docs/project-ops/PR83_EXECUTION_RECORD.md`
-- Current disposable-PostgreSQL validation: backend 643 passed, integration 107 passed, migration tests 37 passed, and downgrade/re-upgrade through migration head `20260712_000020` passed
-- Current frontend validation: lint, typecheck, build, and full Vitest (83 files / 472 tests) passed; the five managed Chromium journeys pass locally and run in the required `auth-e2e` CI job
+- Current disposable-PostgreSQL validation: backend 650 passed, integration 107 passed, migration tests 37 passed, and downgrade/re-upgrade through migration head `20260712_000020` passed
+- Current frontend validation: lint, typecheck, build, and full Vitest (83 files / 473 tests) passed; the five managed Chromium journeys pass locally and run in the required `auth-e2e` CI job
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`

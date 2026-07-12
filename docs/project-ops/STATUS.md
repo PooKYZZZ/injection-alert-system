@@ -28,12 +28,12 @@
 
 ### PR #83 validation snapshot
 
-- Full backend suite with disposable PostgreSQL integration enabled: **643 passed**.
+- Full backend suite with disposable PostgreSQL integration enabled: **650 passed**.
 - PostgreSQL integration suite: **107 passed**.
 - Migration-source suite: **37 passed**.
 - Downgrade from `20260712_000020` to `20260711_000019` and re-upgrade: **passed**; the earlier `000019` plaintext compatibility gate was also exercised.
 - Frontend lint and typecheck: **passed**.
-- Frontend full Vitest: **83 files / 472 tests passed**.
+- Frontend full Vitest: **83 files / 473 tests passed**.
 - Frontend production build: **passed**.
 - Managed authentication browser project: **5/5 Chromium journeys passed** with disposable PostgreSQL/PostgREST setup and cleanup; the same project is a required CI job.
 
@@ -41,7 +41,7 @@
 
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
 - Backend pre-PR ordinary baseline: `.venv\Scripts\python.exe -m pytest -q` → **572 passed, 15 skipped** (PostgreSQL unavailable)
-- Backend PR #83 disposable-PostgreSQL run: `.venv\Scripts\python.exe -m pytest -q` with `CYBERTRACE_POSTGRES_TEST_URL` → **643 passed**
+- Backend PR #83 disposable-PostgreSQL run: `.venv\Scripts\python.exe -m pytest -q` with `CYBERTRACE_POSTGRES_TEST_URL` → **650 passed**
 - Final-demo script tests: `.venv\Scripts\python.exe -m pytest -q tests/scripts/test_run_final_demo_smoke.py` → **16 passed**
 - API abuse smoke tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_api_abuse_smoke.py` → **4 passed**
 - WAF ingest and inference queue tests: `.venv\Scripts\python.exe -m pytest -q tests/integration/test_waf_ingest_route.py tests/unit/test_inference_queue.py` → **25 passed**
@@ -51,7 +51,7 @@
 - Frontend typecheck: `cd frontend && npm run typecheck` → **pass**
 - Frontend BFF-focused tests:
   - `cd frontend && npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts` → **96 passed**
-- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **83 files / 472 tests passed**
+- Frontend full suite: `cd frontend && npx vitest run --pool=threads` → **83 files / 473 tests passed**
 - Managed authentication E2E: `cd frontend && npm run test:e2e:auth` → **5/5 passed** with unconditional disposable cleanup
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.

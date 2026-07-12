@@ -191,8 +191,8 @@ npm audit --audit-level=high
 gitleaks git --staged --redact --config .gitleaks.toml .
 ```
 
-Observed completed-tree results were: 643 backend tests; 107 PostgreSQL
-integration tests within that total; 83 frontend test files and 472 tests;
+Observed completed-tree results were: 650 backend tests; 107 PostgreSQL
+integration tests within that total; 83 frontend test files and 473 tests;
 frontend lint/typecheck; a 39-page production build; and five of five managed
 Chromium journeys in 1.8 minutes. Gitleaks 8.24.3 reported no staged leak,
 `pip-audit` reported no known vulnerability, and npm reported no high/critical

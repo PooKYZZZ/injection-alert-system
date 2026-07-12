@@ -246,7 +246,7 @@ rows exist. No hosted migration or credential operation occurred.
 | Legacy-row migration gate | PASS — active plaintext stopped upgrade; reviewed terminalization allowed retry |
 | PostgreSQL integration suite | PASS — 105 tests, including plaintext rejection and terminal scrub |
 | Full backend suite with PostgreSQL | PASS — 634 tests |
-| Frontend validation | PASS — lint, typecheck, 84 Vitest files / 470 tests, production build / 39 static pages |
+| Frontend validation | PASS — lint, typecheck, 83 Vitest files / 473 tests, production build / 39 static pages |
 | Managed authentication browser project | PASS — 5 journeys / 5 passed in 1.8 minutes; disposable environment removed |
 | In-app Browser smoke | PASS — production login rendered uniquely addressable controls and entered the disabled `Signing in...` transition; synthetic credentials only |
 | Hosted readiness | PREPARED — project identity, role, key, provider, smoke, feature-switch, rollback, and observability gates documented; no hosted action performed |
@@ -311,11 +311,28 @@ and interactive production login UI without a database-backed sign-in.
 - CI follow-ups `f8da38ed43d466c90f1e557c73a5532b0f556e6c` and
   `9e31333922d780229ba4d8110a0d58a7dc8a2718` aligned the harness with
   `setup-python` and supplied all settings required during Alembic startup.
-- Remote proof: the required job passed in 3m37s on commit `7e5a61c`.
+- Remote proof: the required job passed in 3m37s on commit `7e5a61c`; the final
+  five-job workflow also passed on `95d2a31`.
 - The next clean-checkout run exposed two independent test-environment gaps:
   a partial TypeScript `ProcessEnv` fixture and absent Supabase runtime roles in
   stock PostgreSQL. Commit `354f2f9` fixes both without weakening assertions;
-  final all-job status is recorded after that head completes.
+  final all-job status is recorded below after `95d2a31` completed.
+
+### Final verification after Unit 6D
+
+| Gate | Result |
+|---|---|
+| Full backend with disposable PostgreSQL 17.6 | PASS — 650 tests |
+| PostgreSQL integration subset | PASS — 107 tests |
+| Migration source suite | PASS — 37 tests |
+| Frontend lint and typecheck | PASS |
+| Frontend Vitest | PASS — 83 files / 473 tests |
+| Frontend production build | PASS — 39 static pages |
+| Managed Playwright authentication project | PASS — 5/5 in 1.4 minutes; disposable environment removed |
+| In-app Browser smoke | PASS — unique production login controls, synthetic submission, generic invalid-credentials result; tab and local server closed |
+| Dependency checks | PASS — `pip check`, `pip-audit`; npm high-severity gate passed in CI |
+| Staged secret scan | PASS — Gitleaks 8.24.3 found no leaks |
+| GitHub PR #83 | PASS — `backend`, `postgres`, `frontend`, `auth-e2e`, and `secret-scan` all successful on `95d2a31`; PR remains draft |
 
 #### Unit 6B — Notification reconciliation observability
 
