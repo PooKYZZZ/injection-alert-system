@@ -5,9 +5,11 @@ import { getSession } from '@/lib/auth-session'
 import { requireMfaPermission } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import { listManagedAccounts } from '@/lib/server/db/account-management'
+import { readPageRuntimeAuthFlags } from '@/lib/server/runtime-config'
 
 export default async function UserManagementPage() {
-  if (process.env.AUTH_ACCOUNT_MANAGEMENT_ENABLED !== 'true') notFound()
+  const flags = await readPageRuntimeAuthFlags()
+  if (!flags.accountManagementEnabled) notFound()
   const session = await getSession()
   const authorization = await requireMfaPermission(
     session,
