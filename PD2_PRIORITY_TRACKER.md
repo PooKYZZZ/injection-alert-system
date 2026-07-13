@@ -1,7 +1,7 @@
 # PD2 Priority Tracker
 
 **Purpose:** Track what still needs to be implemented for PD2 without claiming that planned features already exist.
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-13
 
 ## Legend
 
@@ -29,7 +29,10 @@ This tracker is based on the following.
 - `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/` contain dashboard overview, `/records/search` alerts table, WAF alert detail, and ML health overview screenshot evidence; the alert detail drawer screenshots in the latest set show the default `8088` path, not the `8089` `/records/search` transaction.
 - `docs/architecture.md` says Redis-backed enforcement is planned, not implemented.
 - `web_app/application/inference_queue.py`, `tests/unit/test_inference_queue.py`, and `/api/ml-health` queue schema wiring prove the bounded in-process inference queue and queue health API are implemented.
-- Latest verification passed: backend `528 passed`, frontend full Vitest `333 passed`, frontend typecheck, lint, and production build.
+- Latest verification passed: backend `619 passed, 31 skipped` with SQLite-only worker flags disabled, PostgreSQL integration `76 passed, 31 skipped`, migration tests `37 passed`, frontend `84 files / 480 tests`, lint, typecheck, production build, Docker runtime checks, and remote authentication E2E.
+- Hosted V6.1 verification is complete through migration `20260712_000020`: public Cloudflare deployment, Cloudflare Access protection, Resend domain/live delivery, Admin invitation/setup/password/TOTP journey, invalid-TOTP rejection, MFA-authenticated Admin login, and User Management access are verified.
+- Runtime frontend feature flags are evaluated per request through the server-only helper; changing container environment values requires container recreation or restart.
+- `click==8.3.3` resolves advisory `PYSEC-2026-2132`; `pip-audit -r requirements.txt` reports no known vulnerabilities.
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing tests while retaining real coverage in `password-hash.test.ts`; the full frontend CI job passed twice without changing the Vitest pool, package scripts, or production auth code.
 - CRITICAL remains a confidence tier only. Persisted `confidence_level` and action values `ALLOWED`/`THROTTLED`/`BLOCKED` remain unchanged; `confidence_tier` is preferred and `severity` is a legacy query alias. Persisted-alert UI grouping/styling uses `confidence_level`, enforcement-policy counts exclude Normal predictions, and tier badges always display the canonical tier.
 
@@ -81,15 +84,15 @@ This tracker is based on the following.
 | `[x]` | Add structured JSON logs with transaction/request IDs | High | Medium | Done for the approved scope: bridge operations and FastAPI request/WAF/prediction boundaries emit JSON; handled and generic unhandled `500` responses carry `X-Request-ID`, valid `traceparent` IDs are preserved, and `transaction_id` joins bridge and backend WAF events. Unrelated legacy logs and the Next.js BFF are not claimed as converted. |
 | `[x]` | Add `CRITICAL >=90%` confidence tier | Critical | Medium | Done: backend/frontend contracts expose LOW, MEDIUM, HIGH, and CRITICAL; persisted UI grouping/styling uses `confidence_level`; enforcement-policy displays apply to non-Normal predictions and preserve the Normal exception; tier badges always display the canonical tier; the legacy `severity` query alias remains compatibility-only. |
 | `[ ]` | Add real-time dashboard alerts | High | Medium | Not started: no SSE/EventSource route or client stream found. |
-| `[ ]` | Add email notifications after detection | High | Medium | Not started: no transactional email integration found. |
+| `[~]` | Add email notifications after detection | High | Medium | Partial: the notification outbox/worker, protected payloads, Resend boundary, setup/invitation email, and live delivery are implemented/verified; notification-worker retry, duplicate-prevention, provider-failure, and required-worker health testing remain deferred. |
 | `[x]` | Add end-to-end demo/test script | High | Medium | Done for the maintained proof boundary: `scripts/run_final_demo_smoke.py` generates a unique current-run marker, correlates the exact audit transaction, provides explicit backend/`8088`/`8089` modes and PASS/WARN/FAIL JSON output, and can require a Docker-internal backend lookup with the same marker and a current timestamp. |
 | `[x]` | Add API abuse/resource smoke tests | High | Medium | Done for the current backend surface: `tests/integration/test_api_abuse_smoke.py` covers malformed JSON, missing/invalid auth correlation, token non-leakage, and invalid triage input; existing body-limit, duplicate transaction, model-unavailable, queue-overflow, lookup, and BFF-auth tests cover the remaining implemented boundaries. Future email/SSE/RBAC abuse cases remain not applicable until those features exist. |
 | `[~]` | Add analyst override/audit trail for model mistakes | High | Medium | Partial: `POST /api/feedback` stores analyst label/email/timestamp, but no full old/new action, reason, or model-version override audit trail exists. |
 | `[x]` | Replace demo login with real user accounts | High | High | Done in repo: Supabase `auth_accounts` provides ids/emails/usernames, roles, required `authz_version`, and Argon2id hashes; no demo-password or env-registry fallback remains. |
 | `[x]` | Implement RBAC for Admin, Analyst, and Viewer roles | High | High | Done: role/session claims and fresh per-request DB account checks protect all six BFF routes; Viewer reads, Analyst triages, and Admin may update actions. |
-| `[ ]` | Add 2FA/MFA | High | High | Not started: no TOTP/email OTP enrollment, challenge, recovery, or factor reset flow found. |
-| `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, approved Argon2id PHC parameter enforcement, a precomputed same-profile dummy hash, per-identifier/global local throttles, two-operation password-hash cap, eight-hour sessions, current-row MFA fail-closed checks, and safe JSON audit events are implemented. MFA enrollment/challenge, reset/recovery, distributed throttling, and persistent audit storage remain missing. |
-| `[x]` | Add auth/security schema foundation | High | Medium | Done in repo: additive Alembic migration, nine public-schema tables with RLS/revocations/no policies, tested app-runtime and script-only Supabase boundaries, Argon2id, provisioning scripts, and DB-backed login/freshness. Live migration application and MFA remain unimplemented. |
+| `[x]` | Add 2FA/MFA | High | High | Done: encrypted TOTP enrollment, purpose-bound challenges, replay-safe completion, backup/email recovery, step-up, mandatory enrollment routing, MFA-aware sessions, and hosted Admin enrollment/login verification. MFA availability flags fail closed and remain server-side controls. |
+| `[~]` | Add login hardening | High | Medium-High | Partial: generic errors, approved Argon2id PHC enforcement, same-profile dummy verification, bounded local throttles, password-hash concurrency limits, MFA challenge expiry, recovery assurance, current-row fail-closed checks, and safe audit events are implemented. Distributed throttling and persistent audit storage remain deferred. |
+| `[x]` | Add auth/security schema foundation | High | Medium | Done: additive Alembic migration, nine public-schema tables with RLS/revocations/no policies, tested app-runtime and script-only Supabase boundaries, Argon2id, provisioning scripts, and DB-backed login/freshness. Hosted Supabase is migrated through `20260712_000020`. |
 | `[~]` | Implement real enforcement state for block/throttle/challenge | High | High-Critical | Partial: `action_taken` is persisted as metadata; no request-path block/throttle/challenge state is enforced at runtime. |
 | `[ ]` | Implement LOW light rate limiting | High | High | Not started: no LOW runtime rate-limit enforcement found. |
 | `[ ]` | Implement MEDIUM aggressive throttling | High | High | Not started: no MEDIUM runtime throttle enforcement found. |
@@ -100,8 +103,8 @@ This tracker is based on the following.
 | `[ ]` | Add challenger evaluation gate before promotion | High | High | Not started for retrained candidates; promotion safety exists separately but no closed retraining challenger gate is present. |
 | `[~]` | Add model artifact checksum/manifest validation | Medium-High | Medium | Partial: `ModelService` reads manifest/eval metadata, but checksum validation is not implemented. |
 | `[~]` | Add model promotion/rollback integration | Medium-High | Critical | Partial: `ml_model/export/promote_final_training_run.py` implements archive/rollback safety and safe `weights_only=True` checkpoint loading. Packaging/reload readiness is reported separately; `ready_for_promotion` remains false without configured quality gates, and the real promotion still fails closed on checkpoint shape mismatch per ops docs. |
-| `[x]` | Add production edge checklist | Medium | Low | Done as operator documentation: current edge limitations and rollback safeguards are maintained in `docs/project-ops/STATUS.md` and `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`. This does not claim a production-grade ModSecurity deployment. |
-| `[x]` | Add backup/restore and migration rollback runbook | Medium | Medium | Done as operator documentation: `BACKUP_RESTORE_RUNBOOK.md` and `MIGRATION_ROLLBACK_RUNBOOK.md` document safe backup, restore, and rollback procedures. No automated backup/restore job or migration change was implemented. |
+| `[x]` | Add production edge checklist | Medium | Low | Done as maintained operator guidance: current edge limitations and rollback safeguards are maintained in `docs/project-ops/STATUS.md` and `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`. This does not claim a production-grade ModSecurity deployment. |
+| `[x]` | Add backup/restore and migration rollback runbook | Medium | Medium | Done as operator documentation: `docs/project-ops/BACKUP_RESTORE_RUNBOOK.md` and `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md` document safe backup, restore, application rollback, runtime kill switches, and downgrade safeguards. |
 | `[x]` | Add retention policy for alerts and audit logs | Medium | Low-Medium | Done as policy documentation: `RETENTION_POLICY.md` defines archive/hide-first retention rules and explicitly says no physical DELETE behavior or retention job was added. |
 | `[ ]` | Implement full DistilBERT retraining automation | Medium | Critical | Not started: final-training artifacts exist, but no production retraining automation flow is checked in. |
 | `[ ]` | Decide daily vs 20-day retraining window | Medium | Low-Medium | Not started: docs still reference 20-day design while newer tracker requirements mention daily-vs-20-day decision. |
@@ -112,66 +115,52 @@ This tracker is based on the following.
 | `[x]` | Defer Wazuh full SIEM deployment | Defer | Critical | Done as a scope decision: tracker keeps Wazuh as export-only and marks full SIEM as deferred. |
 | `[x]` | Defer Kubernetes/Helm/Terraform | Defer | Critical | Done as a scope decision: tracker keeps Docker Compose/runbooks/checklists as the PD2 path. |
 | `[x]` | Defer Kafka/Celery/Elasticsearch | Defer | Critical | Done as a scope decision: tracker prefers `asyncio.Queue`, PostgreSQL, and structured logs first. |
+| `[x]` | Fix patched Python dependency vulnerability | High | Low | Done: direct `click` pin updated to `8.3.3`; `pip-audit` is clean. |
+| `[x]` | Fix runtime feature-flag prerendering | High | Medium | Done: page-level flags use request-time server rendering through `connection()`; enabled and disabled Docker runtime behavior was verified. |
+| `[x]` | Consolidate V6.1 release documentation | Medium | Low | Done: maintained docs were updated, stale claims corrected, navigation fixed, and approved temporary PR documents removed. |
+| `[ ]` | Redesign MFA enrollment UI | Defer | Medium | Post-merge follow-up; current QR/manual enrollment UI is functional and verified. |
+| `[ ]` | Redesign backup-code UI | Defer | Medium | Post-merge follow-up; current recovery behavior remains security-authoritative. |
+| `[ ]` | Validate notification-worker operational failures | Defer | Medium-High | Test retry, duplicate prevention, provider failure handling, and required-worker health behavior in the tested deployment. |
+| `[ ]` | Audit disabled MFA feature-flag semantics | Defer | Medium | Confirm the intended availability behavior for enrollment-disabled deployments without weakening generic 404 or authorization behavior. |
+| `[ ]` | Investigate local Playwright null-session behavior if it reappears | Defer | Medium | Remote authentication E2E passes; investigate only if the local-only issue returns. |
+| `[ ]` | Review Auth.js beta upgrade in a separate PR | Defer | High | Current dependency is `next-auth 5.0.0-beta.30`; rerun the complete authentication suite before upgrading. |
+| `[ ]` | Evaluate passkeys/WebAuthn | Defer | High | Later enhancement; outside current PR scope. |
 
 ## Current Recommended Focus
 
-Based on priority and implementation hardness, focus on the highest-value work that proves the system before starting the hardest platform pieces.
+The core PD2 authentication and hosted deployment journey is now verified. The
+remaining focus is operational hardening and explicitly deferred product work.
 
 ### Focus Order
 
 | Order | Task | Why Now |
 |---:|---|---|
-| 1 | Maintain structured-log and API abuse/resource smoke coverage | Bridge and FastAPI boundary JSON logs plus current backend abuse/failure paths are automated; extend them only when implemented API surfaces change. |
-| 2 | Track ModSecurity audit log rotation as future hardening | Policy is documented; automatic rotation and production retention remain unimplemented and should not be marked done without tested rotation. |
-| 3 | Create CRS-only baseline test report | Done in `reports/modsecurity-live-proof/crs-baseline.md`; keep it as the CRS baseline evidence source. |
-| 4 | Create demo-target WAF proof using portal-pre-waf | Done in `reports/modsecurity-live-proof/demo-target-crs-proof.md`; normal traffic and controlled CRS checks were recorded through `localhost:8089`. |
-| 5 | Capture final dashboard screenshot evidence | Done for the current local proof set: screenshots under `reports/modsecurity-live-proof/screenshots/` show the `8089` dashboard overview, `/records/search` alerts table with `crs_score=15`, default `8088` WAF detail drawer evidence, and ML health overview. |
-| 6 | Preserve minimal metrics and structured-log contracts | Existing stats, queue health, bridge summary counts, and correlated JSON events are the current PD2 boundary. |
-| 7 | Maintain `CRITICAL >=90%` confidence tier coverage | Client standard requires it and the backend/frontend contracts now implement it. |
-| 8 | Add real-time dashboard alerts and email notification path | Client requires timely alerts and email notification after detection. |
-| 9 | Maintain API abuse/resource smoke tests | Current backend proof is checked in; add cases only for newly implemented surfaces. |
-| 10 | Implement secure login, RBAC, 2FA, and login hardening | Client requires secure login, RBAC, strong account security, and 2FA. |
-| 11 | Implement lightweight enforcement and challenge flow | Required for confidence-based response, but should follow stable WAF-to-dashboard proof. |
-| 12 | Implement analyst override and retraining skeleton | Supports HITL feedback and retraining objective without unsafe auto-promotion. |
+| 1 | Validate notification-worker failure and retry behavior | Prove retry, duplicate prevention, provider-failure handling, and required-worker health behavior in the tested deployment. |
+| 2 | Audit disabled MFA feature-flag semantics | Confirm availability controls, generic 404 behavior, and fail-closed authorization when enrollment is disabled. |
+| 3 | Maintain authentication, RBAC, MFA, and dependency regression coverage | Protect the verified hosted flow, current Auth.js beta boundary, and patched Python dependency. |
+| 4 | Redesign MFA enrollment and backup-code UI | Improve usability without changing the existing security-authoritative flows. |
+| 5 | Track local-only Playwright null-session behavior if it reappears | Remote auth E2E passes; investigate only if the local environment reproduces the issue. |
+| 6 | Add real-time dashboard alerts | Still a client requirement; no SSE/EventSource implementation is currently shipped. |
+| 7 | Improve analyst override/audit trail | Current feedback persists labels but not a complete old/new action and reason history. |
+| 8 | Add lightweight enforcement state and challenge controls | `action_taken` remains recorded metadata rather than live request-path enforcement. |
+| 9 | Add retraining validation and challenger approval gates | Keep candidate artifacts, evaluation thresholds, manual approval, and rollback. |
+| 10 | Add Wazuh export-only compatibility if time allows | Full SIEM deployment remains outside PD2 scope. |
 
-Do not start with Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, full Wazuh/SIEM, or blind model auto-promotion. Use lightweight implementation first and add heavier infrastructure only if a real shared-state or deployment need appears.
+Do not start Kubernetes, Helm, Terraform, Kafka, Celery, Elasticsearch, full
+Wazuh/SIEM, passkeys, or blind model auto-promotion without explicit scope
+approval. Keep the current Docker Compose, PostgreSQL, server-side Auth.js,
+bounded queue, and structured-log boundaries.
 
-## Suggested Build Order
+### Completed foundations to maintain
 
-1. Harden bridge follow-mode transient OSError handling.
-2. Keep ModSecurity audit log rotation as future hardening unless explicitly approved and tested.
-3. Keep CRS-only baseline report as the current baseline evidence source.
-4. Keep `reports/modsecurity-live-proof/demo-target-crs-proof.md` as the observed demo-target WAF proof source.
-5. Add a queue-specific ML health screenshot only if the final evidence checklist must show queue fields in the UI; the current replacement screenshot covers the `/ml-health` overview but does not visibly show queue-health fields.
-6. Keep metrics minimal: existing stats, ML health, queue health, and bridge summary logs; a new endpoint remains unimplemented.
-7. Maintain implemented structured JSON logs with request/trace/transaction IDs at the bridge and FastAPI request/WAF/prediction boundaries.
-8. `CRITICAL >=90%` confidence tier is implemented and maintained across backend/frontend contracts.
-9. Confidence-to-action policy mapping for LOW, MEDIUM, HIGH, and CRITICAL.
-10. Real-time dashboard alerts using SSE/EventSource with polling fallback.
-11. Email notifications using transactional email API with deduplication, cooldown, retry/failure logging, and summary behavior.
-12. Maintain the standalone final demo/test script and local-only Docker modes.
-13. Maintain API abuse/resource smoke tests as implemented surfaces change.
-14. Real user accounts or managed auth.
-15. RBAC for Admin, Analyst, and Viewer.
-16. 2FA/MFA and login hardening.
-17. Lightweight DB-backed or in-memory enforcement state.
-18. LOW light rate limiting.
-19. MEDIUM aggressive throttling.
-20. CAPTCHA/Turnstile challenge flow with server-side verification if Turnstile is used.
-21. HIGH/CRITICAL temporary IP blocking or firewall action.
-22. Analyst override/audit trail for model mistakes.
-23. Automated retraining pipeline skeleton.
-24. Dataset validation before retraining.
-25. Challenger evaluation gate before promotion.
-26. Real DistilBERT retraining mode if time allows.
-27. Model promotion/rollback integration with manual approval.
-28. Model artifact checksum/manifest validation.
-29. Production edge checklist.
-30. Backup/restore and migration rollback runbook.
-31. Alert/archive retention policy with no physical DELETE for audit/traffic logs.
-32. Wazuh export-only JSON/JSONL integration if time allows.
-33. Maintain operator-doc truth after each implementation.
-34. Dashboard polish for mitigation/security pages.
+- Local ModSecurity/OWASP CRS and realistic demo-target proof.
+- Supabase migration head `20260712_000020` and rollback documentation.
+- Auth.js credential authentication, account setup, password recovery, MFA,
+  recovery, step-up, RBAC, and `authz_version` freshness checks.
+- Notification outbox/worker and Resend delivery boundary.
+- Request-time runtime feature flags and Docker recreation guidance.
+- Backend/frontend regression tests, remote auth E2E, secret scanning, and
+  maintained documentation truth.
 
 ## Notes For Client Security Requirements
 
@@ -181,16 +170,19 @@ Keep confidence tier separate from attack severity.
 
 Current repo naming note: LOW, MEDIUM, HIGH, and CRITICAL are the current confidence tiers. The app now prefers `confidence_tier` naming while retaining legacy `severity` query compatibility during migration. `CRITICAL >=90%` is implemented as the confidence threshold, and historical rows are not retroactively reclassified.
 
-The DB-backed named-account and RBAC foundation is implemented. Remaining account-security work is:
+The DB-backed named-account, RBAC, password, MFA, recovery, and hosted
+deployment foundations are implemented. Remaining account-security work is:
 
-1. Add the notification outbox/email-provider foundation in the maintained plan order.
-2. Add lightweight 2FA/MFA using TOTP with the documented email fallback risk.
-3. Add secure password reset/recovery.
-4. Replace local-only throttling and logs with distributed controls and persistent audit storage if production deployment is approved.
+1. Validate notification-worker operational failure and retry behavior.
+2. Audit disabled MFA feature-flag semantics.
+3. Replace local-only throttling and logs with distributed controls and
+   persistent audit storage if a shared production runtime is approved.
+4. Review the Auth.js beta upgrade separately; do not upgrade it as part of
+   unrelated work.
 
 Keep Auth.js as the current auth foundation unless a managed auth provider is selected.
 
-Email notification should use a transactional email provider/API instead of hand-built SMTP infrastructure.
+Email notification uses a transactional email provider/API instead of hand-built SMTP infrastructure. The Resend domain and tested live delivery are verified; operational failure/retry testing remains deferred.
 
 Email notifications must include deduplication, cooldown, retry/failure logging, and summary behavior to avoid spam during mass attack tests.
 
