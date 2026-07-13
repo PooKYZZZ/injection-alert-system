@@ -38,6 +38,6 @@ export default async function middleware(
 
 export const config = {
   matcher: [
-    '/(dashboard|alerts|ml-health)/:path*',
+    '/(dashboard|alerts|ml-health|user-management)/:path*',
   ],
 }

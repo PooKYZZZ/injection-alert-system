@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildContentSecurityPolicy } from './next.config'
+import nextConfig, { buildContentSecurityPolicy } from './next.config'
 
 describe('buildContentSecurityPolicy', () => {
+  it('allows the loopback origin used by deterministic browser tests', () => {
+    expect(nextConfig.allowedDevOrigins).toContain('127.0.0.1')
+    expect(nextConfig.outputFileTracingRoot).toBe(process.cwd())
+    expect(nextConfig.turbopack).toMatchObject({ root: process.cwd() })
+  })
+
+  it('does not echo server-function arguments or browser logs to the terminal', () => {
+    expect(nextConfig.logging).toMatchObject({
+      serverFunctions: false,
+      browserToTerminal: false,
+    })
+  })
+
   it('keeps inline scripts enabled in production without eval', () => {
     const csp = buildContentSecurityPolicy('production')
 
@@ -15,5 +28,22 @@ describe('buildContentSecurityPolicy', () => {
     const csp = buildContentSecurityPolicy('development')
 
     expect(csp).toContain("script-src 'self' 'unsafe-eval' 'unsafe-inline'")
+  })
+
+  it('adds scanner-safe no-store headers to setup and verification pages', async () => {
+    const headers = await nextConfig.headers!()
+    const globalIndex = headers.findIndex((entry) => entry.source === '/(.*)')
+    for (const source of ['/setup-password', '/verify-email', '/reset-password']) {
+      const specificIndex = headers.findIndex((entry) => entry.source === source)
+      const rule = headers[specificIndex]
+      expect(specificIndex).toBeGreaterThan(globalIndex)
+      expect(rule?.headers).toEqual(
+        expect.arrayContaining([
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ])
+      )
+    }
   })
 })

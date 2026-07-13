@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ROLES, type UserRole } from '@/lib/auth/roles'
 
+vi.mock('server-only', () => ({}))
+
 const authMock = vi.fn()
 const getAlertsMock = vi.fn()
 const getAlertDetailMock = vi.fn()

@@ -17,13 +17,32 @@ export default async function DashboardLayout({
     session,
     PERMISSIONS.ALERTS_READ
   )
-  if (!authorization.ok) redirect('/login')
+  if (!authorization.ok) {
+    if (
+      session.user?.auth_level === 'password' &&
+      (session.user.role === 'ADMIN' || session.user.role === 'ANALYST')
+    ) {
+      redirect(
+        session.user.mfa_challenge_purpose === 'mfa_enrollment'
+          ? '/mfa/enroll'
+          : '/mfa/verify'
+      )
+    }
+    if (
+      session.user?.auth_level === 'recovery' &&
+      (session.user.role === 'ADMIN' || session.user.role === 'ANALYST')
+    ) {
+      redirect('/mfa/enroll')
+    }
+    redirect('/login')
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-main">
       <Sidebar
         displayName={session.user?.name ?? null}
         secondaryLabel={session.user?.email ?? null}
+        role={session.user.role}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
         <DashboardTopBar />

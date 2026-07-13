@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest'
 
 const frontendRoot = path.resolve(__dirname, '../../..')
 const dbRoot = path.resolve(__dirname)
+const serviceRoleTestBoundary = new Set([
+  path.resolve(frontendRoot, 'scripts/auth-e2e-environment.mjs'),
+  path.resolve(frontendRoot, 'test-support/auth-e2e/database.ts'),
+])
 
 function sourceFiles(root: string): string[] {
   return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -26,9 +30,13 @@ describe('Supabase service-role boundary', () => {
     expect(fs.existsSync(path.join(dbRoot, 'auth-accounts.ts'))).toBe(true)
   })
 
-  it('keeps service-role client code under lib/server/db', () => {
+  it('keeps service-role client code under production DB or exact E2E boundaries', () => {
     const violations = sourceFiles(frontendRoot).filter((file) => {
-      if (file.startsWith(dbRoot) || file.endsWith('.test.ts')) {
+      if (
+        file.startsWith(dbRoot) ||
+        file.endsWith('.test.ts') ||
+        serviceRoleTestBoundary.has(file)
+      ) {
         return false
       }
       return fs.readFileSync(file, 'utf8').includes('SUPABASE_SERVICE_ROLE_KEY')

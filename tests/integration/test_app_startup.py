@@ -496,12 +496,17 @@ def test_auth_valid_token_allows_access(api_client):
     assert response.status_code == 200
 
 
-def test_auth_api_health_endpoint_is_public(api_client):
+def test_api_health_readiness_is_public_and_fails_without_database(api_client):
     client, _, _ = api_client
 
     response = client.get("/api/health")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "unhealthy",
+        "database": "disconnected",
+        "notification_worker": "disabled",
+    }
 
 
 def test_triage_missing_token_returns_401(api_client):

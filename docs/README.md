@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-07-03
+Last updated: 2026-07-13
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
@@ -34,9 +34,12 @@ This folder is the maintained documentation surface for the repository. It is in
 - `project-ops/DEMO_TARGET_WAF_PROOF.md`
   - Verified local PD2 proof for the realistic `localhost:8089` demo-target WAF path against the separate land-records portal.
 - `project-ops/SMOKE_TEST_RUNBOOK.md`
-  - Canonical smoke commands for the `8088` technical proof path and the `8089` realistic demo-target path.
+  - Canonical smoke commands for the `8088` technical proof path, the `8089` realistic demo-target path, and the verified Admin authentication journey.
+- `project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
+  - Migration-head, backup, downgrade, application rollback, and runtime kill-switch guidance.
 - `project-ops/README.md`
-  - Entry point for the operator-doc subset.
+  - Canonical routing table for setup, tests, migrations, enablement,
+    notifications, recovery, break glass, and thesis demonstrations.
 - `../reports/modsecurity-live-proof/e2e-proof.md`
   - Checked-in local proof evidence for ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest.
 
@@ -71,7 +74,7 @@ This folder is the maintained documentation surface for the repository. It is in
 - Targeted WAF checks passed: bridge tests `47 passed`, WAF ingest route tests `12 passed`, WAF ingest use-case tests `4 passed`; the combined boundary set passed `63` tests
 - Backend request/WAF/prediction boundaries and bridge operations emit structured JSON logs with request/trace/transaction correlation; bridge configuration failures are JSON on stderr
 - Starlette `TestClient` uses pinned `httpx2==2.5.0`; legacy `httpx==0.28.1` remains installed for existing consumers
-- Real user access management/RBAC is implemented for the named-account foundation; 2FA and email notifications after detection remain planned requirements tracked in `client-requirements.md`.
+- Real user access management/RBAC, TOTP MFA/recovery, and password-reset boundaries are implemented behind explicit server-side availability flags; the hosted Admin journey, live Resend delivery, and public Cloudflare deployment are verified. Deferred follow-ups remain tracked in `project-ops/STATUS.md`.
 - The `CRITICAL >=90%` model-confidence tier is implemented without retraining, recalibration, model artifact changes, or retroactive historical-row reclassification.
 - Frontend confidence distributions and styling use persisted `confidence_level`; enforcement-policy counts are non-Normal-only, and confidence-tier badges never replace the canonical tier with prediction labels.
 

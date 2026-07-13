@@ -1,0 +1,14 @@
+title = "CyberTrace gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Published RFC 6238 SHA-1 test vector in the TOTP regression suite"
+  condition = "AND"
+  regexTarget = "secret"
+  regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''']
+  paths = ['''^frontend/test-support/auth-e2e/totp\.test\.ts$''']

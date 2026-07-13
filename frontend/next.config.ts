@@ -20,6 +20,15 @@ export function buildContentSecurityPolicy(
 }
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['127.0.0.1'],
+  outputFileTracingRoot: process.cwd(),
+  turbopack: {
+    root: process.cwd(),
+  },
+  logging: {
+    browserToTerminal: false,
+    serverFunctions: false,
+  },
   poweredByHeader: false,
   async headers() {
     return [
@@ -49,6 +58,14 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      ...['/setup-password', '/verify-email', '/reset-password'].map((source) => ({
+        source,
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ],
+      })),
     ]
   },
 }

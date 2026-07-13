@@ -14,8 +14,8 @@ vi.mock('./SidebarNavItem', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./SidebarNavItem')>()
   return {
     ...actual,
-    SidebarNavItem: ({ children }: { children?: React.ReactNode }) => (
-      <div data-testid="sidebar-nav-item">{children}</div>
+    SidebarNavItem: ({ children, label }: { children?: React.ReactNode; label?: string }) => (
+      <div data-testid="sidebar-nav-item">{label}{children}</div>
     ),
   }
 })
@@ -44,6 +44,14 @@ describe('Sidebar', () => {
     render(<Sidebar displayName="SOC Analyst" secondaryLabel="soc@example.com" />)
     expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
     expect(screen.queryByText('soc@example.com')).not.toBeInTheDocument()
+  })
+
+  it('shows User Management only for ADMIN', () => {
+    const { rerender } = render(<Sidebar role="ADMIN" />)
+    expect(screen.getByText('User Management')).toBeInTheDocument()
+
+    rerender(<Sidebar role="ANALYST" />)
+    expect(screen.queryByText('User Management')).not.toBeInTheDocument()
   })
 
   it('uses set1 shell styling for the analyst identity badge', () => {

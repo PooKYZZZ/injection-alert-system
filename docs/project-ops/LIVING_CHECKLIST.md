@@ -3,10 +3,12 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-13
 
 Status note:
-- Current test baseline: pytest 528 passed, vitest 333 passed, typecheck passed, lint passed, build passed
+- Current PR #83 release status is maintained in `docs/project-ops/STATUS.md`.
+- Hosted Supabase is migrated through `20260712_000020`; disposable PostgreSQL downgrade/re-upgrade through the same head passed
+- Current frontend validation: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. Local-only browser session behavior remains a follow-up if it reappears.
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
@@ -29,12 +31,13 @@ Status note:
 
 ## Ops Runbooks / Operator Truth
 
-- [x] Production edge checklist exists: `docs/project-ops/PRODUCTION_EDGE_CHECKLIST.md`
+- [x] Production edge limitations are recorded in `docs/project-ops/STATUS.md` and `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
 - [x] Backup/restore runbook exists: `docs/project-ops/BACKUP_RESTORE_RUNBOOK.md`
 - [x] Migration rollback runbook exists: `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
 - [x] Retention policy exists: `docs/project-ops/RETENTION_POLICY.md`
 - [x] Supabase/RLS hardening notes exist: `docs/project-ops/SUPABASE_RLS_HARDENING.md`
 - [x] Stale task reconciliation exists: `docs/project-ops/TASKS_RECONCILIATION.md`
+- [x] CyberTrace V6.1 deployment and feature-gate guidance exists in `docs/SETUP.md`, `docs/architecture.md`, and `docs/project-ops/SMOKE_TEST_RUNBOOK.md`
 - [ ] Backup automation implemented
 - [ ] Restore automation tested against production-like target
 - [ ] Retention/archive job implemented
@@ -43,7 +46,7 @@ Status note:
 
 ---
 
-## Current Verified State (2026-07-05)
+## Current Verified State (historical baseline: 2026-07-05)
 
 ### Test Baseline
 - Backend: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
@@ -111,12 +114,26 @@ Status note:
 - [ ] Add email notifications after detection using a transactional email provider/API
 - [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
-- [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, generic errors, local identifier/global throttles, a two-slot password-hash cap, eight-hour sessions, current-row MFA fail-closed checks, and safe JSON login and route-guard audit logs; MFA enrollment/challenge, reset/recovery, distributed throttling, and persistent audit storage remain unimplemented
-- [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Live Supabase migration application remains a reviewed manual operation
+- [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, bounded per-identifier throttles, database-expiring password-level MFA challenges, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and safe JSON login/route-guard audit logs; distributed throttling, persistent audit storage, and external provider deployment remain deferred
+- [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Hosted Supabase is migrated through `20260712_000020`
 - [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
 - [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
 - [x] Stabilize PR #79 frontend CI native-addon loading: PR #81 uses pure mocks in non-hashing auth/provisioning tests, keeps real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice without changing the threaded Vitest pool or production auth code
-- [ ] Implement 2FA/MFA
+- [x] Implement encrypted TOTP enrollment, replay-safe MFA login completion, backup-code/email-OTP recovery, and mandatory re-enrollment routing; hosted Admin enrollment/login is verified and availability flags fail closed
+- [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and a restricted execute-only PostgreSQL break-glass role/CLI
+- [x] Add database-authoritative MFA completion claims, factor-aware enrollment, persistent MFA/OTP attempt accounting, retry-safe recovery handoff, and password-work preflight (PR #83)
+- [x] Add bounded notification deadlines, cancellation, terminal reconciliation/scrubbing, supported templates, lease-safe worker behavior, and provider/readiness validation (PR #83)
+- [x] Add required PostgreSQL and managed Chromium authentication CI jobs, including disposable setup and unconditional cleanup (PR #83)
+- [x] Encrypt active credential-equivalent notification payloads with a versioned AES-GCM envelope and fail-closed delivery decryption (PR #83; hosted key provisioning/rotation remains gated)
+- [x] Apply V6.1 migrations to a reviewed hosted Supabase target
+- [x] Verify Resend domain/live delivery and public Cloudflare deployment; Turnstile hostname rollout remains outside this PR
+- [ ] Redesign MFA enrollment UI (deferred)
+- [ ] Redesign backup-code UI (deferred)
+- [ ] Validate notification-worker retry, duplicate prevention, provider-failure handling, and required-worker health behavior (deferred)
+- [ ] Audit MFA feature-flag behavior when enrollment is disabled (deferred)
+- [ ] Investigate local-only Playwright null-session behavior if it reappears (deferred)
+- [ ] Review Auth.js beta upgrade in a separate PR (deferred)
+- [ ] Evaluate passkeys/WebAuthn as a later enhancement (deferred)
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
 - [ ] Repo-managed export and verification of Supabase policy / RLS state

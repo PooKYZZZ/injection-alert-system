@@ -17,6 +17,7 @@ type LoginAccount = {
 
 type CapturedConfig = {
   providers: Array<{
+    credentials: Record<string, unknown>
     authorize: (
       credentials: Record<string, unknown>
     ) => Promise<Record<string, unknown> | null>
@@ -38,6 +39,10 @@ const authHarness = vi.hoisted(() => ({
   findAccount: vi.fn(),
   verifyPasswordForAccount: vi.fn(),
   writeLoginAudit: vi.fn(),
+  beginMfaChallenge: vi.fn(),
+  consumeMfaCompletion: vi.fn(),
+  consumeRecoveryCompletion: vi.fn(),
+  setPreAuthCookie: vi.fn(),
 }))
 
 vi.mock('next-auth', () => ({
@@ -75,6 +80,18 @@ vi.mock('../server/db/auth-accounts', () => ({
 
 vi.mock('./login-audit', () => ({
   writeLoginAudit: authHarness.writeLoginAudit,
+}))
+
+vi.mock('server-only', () => ({}))
+vi.mock('../server/db/mfa-challenges', () => ({
+  beginLoginMfaChallenge: authHarness.beginMfaChallenge,
+  consumeMfaCompletionToken: authHarness.consumeMfaCompletion,
+}))
+vi.mock('../server/db/mfa-recovery', () => ({
+  consumeRecoveryCompletionToken: authHarness.consumeRecoveryCompletion,
+}))
+vi.mock('./preauth', () => ({
+  setPreAuthCookie: authHarness.setPreAuthCookie,
 }))
 
 function capturedConfig(): CapturedConfig {
@@ -131,11 +148,63 @@ beforeEach(() => {
   authHarness.verifyPasswordForAccount.mockReset()
   authHarness.verifyPasswordForAccount.mockResolvedValue(false)
   authHarness.writeLoginAudit.mockReset()
+  authHarness.beginMfaChallenge.mockReset()
+  authHarness.consumeMfaCompletion.mockReset()
+  authHarness.consumeRecoveryCompletion.mockReset()
+  authHarness.setPreAuthCookie.mockReset()
+  authHarness.beginMfaChallenge.mockResolvedValue({
+    challenge_id: 'challenge-1',
+    handle: 'a'.repeat(43),
+  })
+  authHarness.setPreAuthCookie.mockResolvedValue(undefined)
   process.env.AUTH_SECRET = 'test-auth-secret'
   delete process.env.AUTH_USERS_JSON
 })
 
 describe('Auth.js credential login', () => {
+  it('declares every credential field consumed by authorize', async () => {
+    await import('@/auth')
+
+    expect(Object.keys(capturedConfig().providers[0].credentials)).toEqual([
+      'identifier',
+      'password',
+      'mfa_completion_token',
+      'recovery_completion_token',
+    ])
+  })
+
+  it.each([
+    {
+      identifier: 'admin@example.test',
+      password: 'password',
+      mfa_completion_token: 'a'.repeat(43),
+    },
+    {
+      mfa_completion_token: 'a'.repeat(43),
+      recovery_completion_token: 'b'.repeat(43),
+    },
+  ])('rejects mixed credential modes before consuming or querying', async (credentials) => {
+    authHarness.consumeMfaCompletion.mockResolvedValue({
+      id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      name: 'SOC Admin',
+      email: 'admin@example.test',
+      role: 'ADMIN',
+      authz_version: 4,
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      verified_at: '2026-07-11T02:00:00.000Z',
+      completion_purpose: 'login_mfa',
+    })
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize(credentials)
+    ).resolves.toBeNull()
+    expect(authHarness.consumeMfaCompletion).not.toHaveBeenCalled()
+    expect(authHarness.consumeRecoveryCompletion).not.toHaveBeenCalled()
+    expect(authHarness.findAccount).not.toHaveBeenCalled()
+  })
+
   it('logs in a DB account and preserves JWT/session claim shape', async () => {
     const password = 'correct horse battery staple'
     authHarness.verifyPasswordForAccount.mockImplementation(
@@ -158,12 +227,15 @@ describe('Auth.js credential login', () => {
       password,
       TEST_ARGON2_HASH
     )
-    expect(user).toEqual({
+    expect(user).toMatchObject({
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       email: 'admin@example.test',
       name: 'SOC Admin',
       role: 'ADMIN',
       authz_version: 3,
+      auth_level: 'password',
+      auth_method: 'password',
+      auth_time: expect.any(Number),
     })
 
     const token = await config.callbacks.jwt({ token: {}, user })
@@ -203,6 +275,32 @@ describe('Auth.js credential login', () => {
         reasonCode: 'INVALID_CREDENTIALS',
       })
     )
+  })
+
+  it('bounds a password-level MFA session to the database challenge expiry', async () => {
+    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH, mfaRequired: true })
+    )
+    authHarness.beginMfaChallenge.mockResolvedValue({
+      challenge_id: 'challenge-1',
+      handle: 'a'.repeat(43),
+      purpose: 'login_mfa',
+      expires_at: '2030-01-01T00:10:00.000Z',
+    })
+    await import('@/auth')
+
+    const user = await capturedConfig().providers[0].authorize({
+      identifier: 'admin@example.test',
+      password: 'correct horse battery staple',
+    })
+    const token = await capturedConfig().callbacks.jwt({ token: {}, user })
+
+    expect(user).toMatchObject({
+      mfa_challenge_purpose: 'login_mfa',
+      mfa_challenge_expires_at: '2030-01-01T00:10:00.000Z',
+    })
+    expect(token.exp).toBe(Math.floor(Date.parse('2030-01-01T00:10:00.000Z') / 1_000))
   })
 
   it('uses the dummy-verification contract when the DB account is missing', async () => {
@@ -248,18 +346,22 @@ describe('Auth.js credential login', () => {
       )
       await import('@/auth')
 
-      await expect(
-        capturedConfig().providers[0].authorize({
+      const result = await capturedConfig().providers[0].authorize({
           identifier: 'admin@example.test',
           password,
         })
-      ).resolves.toBeNull()
-      expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          event: 'auth.login_failed',
-          reasonCode: 'INVALID_CREDENTIALS',
-        })
-      )
+      if ('mfaRequired' in overrides && overrides.mfaRequired) {
+        expect(result).toMatchObject({ auth_level: 'password', auth_method: 'password' })
+        expect(authHarness.beginMfaChallenge).toHaveBeenCalled()
+      } else {
+        expect(result).toBeNull()
+        expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'auth.login_failed',
+            reasonCode: 'INVALID_CREDENTIALS',
+          })
+        )
+      }
     }
   )
 
@@ -337,6 +439,46 @@ describe('Auth.js credential login', () => {
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       role: 'ADMIN',
     })
+  })
+
+  it('consumes a one-time MFA completion token into final MFA claims', async () => {
+    authHarness.consumeMfaCompletion.mockResolvedValue({
+      id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      role: 'ADMIN',
+      authz_version: 4,
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      verified_at: '2026-07-11T02:00:00.000Z',
+    })
+    await import('@/auth')
+    const user = await capturedConfig().providers[0].authorize({
+      mfa_completion_token: 'a'.repeat(43),
+    })
+    expect(user).toMatchObject({
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      auth_time: Math.floor(Date.parse('2026-07-11T02:00:00.000Z') / 1_000),
+    })
+    expect(authHarness.consumeMfaCompletion).toHaveBeenCalledWith('a'.repeat(43))
+  })
+
+  it('consumes a recovery completion token into restricted recovery claims', async () => {
+    authHarness.consumeRecoveryCompletion.mockResolvedValue({
+      id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      name: 'SOC Analyst',
+      email: 'analyst@example.test',
+      role: 'ANALYST',
+      authz_version: 5,
+      auth_level: 'recovery',
+      auth_method: 'backup_code',
+      verified_at: '2026-07-11T02:00:00.000Z',
+      completion_purpose: 'mfa_recovery',
+    })
+    await import('@/auth')
+    const user = await capturedConfig().providers[0].authorize({
+      recovery_completion_token: 'c'.repeat(43),
+    })
+    expect(user).toMatchObject({ auth_level: 'recovery', auth_method: 'backup_code' })
   })
 
   it('keeps audit payload inputs free of passwords and hashes', async () => {

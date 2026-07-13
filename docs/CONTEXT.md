@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-05
+Updated: 2026-07-13
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -51,7 +51,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
-### Checks run through 2026-07-05
+### Historical checks through 2026-07-05
 
 - Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
 - Frontend lint: `cd frontend && npm run lint` → **passed**
@@ -65,7 +65,28 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - PR #79 GitHub CI:
   - First Ubuntu 24.04 / Node `24.18.0` frontend attempt aborted during `npx vitest run` with native `Napi::Error` exit 134.
   - PR #81 replaced accidental partial/native Argon2 imports in auth and provisioning control-flow tests with pure mocks. Real Argon2id coverage remains in `password-hash.test.ts`.
-  - The full frontend CI job passed twice after the repair. Vitest remains on `threads`; package scripts, CI workflow, and production auth/Argon2id code are unchanged.
+- The full frontend CI job passed twice after the repair. Vitest remains on `threads`; package scripts, CI workflow, and production auth/Argon2id code are unchanged.
+
+### PR #83 remediation state (2026-07-13)
+
+- Additive migration head: `20260712_000020`, after deployed revision
+  `20260710_000014`.
+- Database-authoritative MFA/recovery, recent step-up, protected notification
+  payloads, durable worker accounting/readiness, required authentication E2E
+  CI, and restricted break glass are implemented. Availability flags fail
+  closed when absent and are evaluated at request time.
+- Disposable PostgreSQL validation passed: 650 full backend tests, 107
+  integration tests, 37 migration tests, and downgrade/re-upgrade of the two
+  final security revisions.
+- Frontend lint, typecheck, Vitest, production build, and remote authentication
+  E2E are passing. Local-only browser session behavior is deferred if it
+  reappears; current operator status is maintained in
+  `docs/project-ops/STATUS.md`.
+- Active credential-equivalent notification payloads use versioned AES-GCM
+  envelopes and terminal rows are scrubbed. Hosted Supabase is migrated through
+  `20260712_000020`, the public app is active through Cloudflare Tunnel,
+  `target.cybertracesystems.com` is protected by Cloudflare Access, and live
+  Resend delivery is verified.
 
 ### Backend
 
@@ -98,8 +119,8 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 - Dashboard routes exist under `frontend/app/(dashboard)/`
 - Authentication is implemented with Auth.js credentials auth
-- Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; target environments still require reviewed migration and account provisioning
-- Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow is the current foundation, while MFA remains planned and `mfa_required=true` accounts fail closed until it lands
+- Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; hosted account invitation, setup, password, TOTP, and MFA login flows are verified
+- Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow includes encrypted TOTP enrollment, replay-safe MFA completion, recovery-only claims, and password recovery behind fail-closed server-side availability flags
 - Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
@@ -141,13 +162,9 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
-- Client-required real user accounts / secure login replacement for demo auth
-- Client-required Admin/Analyst RBAC
-- Client-required 2FA
-- Client-required email notification after detection
+- Notification-worker failure/retry operational testing, MFA flag-semantics audit, Auth.js upgrade, and passkeys/WebAuthn
 - Client-required real-time/SSE dashboard alerts
 - Wazuh export-only integration
-- Backup/restore, migration rollback, and archive/hide retention runbooks
 
 ## Important Truths To Keep Straight
 

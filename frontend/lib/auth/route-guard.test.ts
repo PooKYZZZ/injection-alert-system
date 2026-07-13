@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+vi.mock('../server/db/mfa-challenges', () => ({
+  hasActiveMfaEnrollmentChallenge: vi.fn().mockResolvedValue(false),
+}))
+
 import { PERMISSIONS, ROLES } from './roles'
-import { requirePermission } from './route-guard'
+import {
+  requireMfaChallengePermission,
+  requireMfaEnrollmentPermission,
+  requireMfaPermission,
+  requirePermission,
+  requireRecentTotpAdmin,
+} from './route-guard'
 
 const guardHarness = vi.hoisted(() => ({
   getAccount: vi.fn(),
@@ -32,13 +43,18 @@ function currentAccount(
   }
 }
 
-function session(role: string = ROLES.ANALYST, authzVersion = 1) {
+function session(
+  role: string = ROLES.ANALYST,
+  authzVersion = 1,
+  authClaims: Record<string, unknown> = {}
+) {
   return {
     user: {
       id: accountId,
       email: 'analyst@example.test',
       role,
       authz_version: authzVersion,
+      ...authClaims,
     },
     expires: '2099-01-01T00:00:00.000Z',
   }
@@ -261,6 +277,170 @@ describe('requirePermission', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.response.status).toBe(403)
+    }
+  })
+
+  it('allows an MFA session for an account whose policy requires MFA', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+
+    await expect(
+      requireMfaPermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'mfa',
+          auth_method: 'totp',
+          auth_time: 1_000,
+        }),
+        PERMISSIONS.ACCOUNTS_READ
+      )
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('allows recovery-level sessions only for mandatory TOTP enrollment', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    await expect(
+      requireMfaEnrollmentPermission(
+        session(ROLES.ADMIN, 1, { auth_level: 'recovery', auth_method: 'backup_code' }),
+        PERMISSIONS.ACCOUNTS_READ
+      )
+    ).resolves.toEqual({ ok: true })
+    await expect(
+      requireMfaPermission(
+        session(ROLES.ANALYST, 1, { auth_level: 'recovery', auth_method: 'backup_code' }),
+        PERMISSIONS.ACCOUNTS_READ
+      )
+    ).resolves.toMatchObject({ ok: false })
+  })
+
+  it('allows password-level ADMIN/ANALYST sessions only into the MFA challenge boundary', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    await expect(
+      requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, { auth_level: 'password', auth_method: 'password' }),
+        PERMISSIONS.MFA_ENROLLMENT
+      )
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('allows only a bounded stale password session to finalize enrollment', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, authzVersion: 2, mfaRequired: true })
+    )
+    const enrollmentHandoff = session(ROLES.ADMIN, 1, {
+      auth_level: 'password',
+      auth_method: 'password',
+      mfa_challenge_purpose: 'mfa_enrollment',
+      mfa_challenge_expires_at: '2099-01-01T00:00:00.000Z',
+    })
+
+    await expect(
+      requireMfaChallengePermission(
+        enrollmentHandoff,
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowEnrollmentFinalization: true }
+      )
+    ).resolves.toEqual({ ok: true })
+
+    await expectGenericUnauthorized(
+      await requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'password',
+          auth_method: 'password',
+          mfa_challenge_purpose: 'login_mfa',
+          mfa_challenge_expires_at: '2099-01-01T00:00:00.000Z',
+        }),
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowEnrollmentFinalization: true }
+      )
+    )
+
+    await expect(
+      requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'password',
+          auth_method: 'password',
+          mfa_challenge_purpose: 'login_mfa',
+          mfa_challenge_expires_at: '2099-01-01T00:00:00.000Z',
+        }),
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowRecoveryFinalization: true }
+      )
+    ).resolves.toEqual({ ok: true })
+
+    await expectGenericUnauthorized(
+      await requireMfaChallengePermission(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'password',
+          auth_method: 'password',
+          mfa_challenge_purpose: 'login_mfa',
+          mfa_challenge_expires_at: '2020-01-01T00:00:00.000Z',
+        }),
+        PERMISSIONS.MFA_ENROLLMENT,
+        { allowRecoveryFinalization: true }
+      )
+    )
+  })
+
+  it('requires recent TOTP-authenticated ADMIN for account mutations', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    const recentAdmin = session(ROLES.ADMIN, 1, {
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      auth_time: 1_000,
+    })
+
+    await expect(
+      requireRecentTotpAdmin(
+        recentAdmin,
+        PERMISSIONS.ACCOUNTS_MANAGE,
+        () => 1_599
+      )
+    ).resolves.toEqual({ ok: true })
+
+    guardHarness.getAccount.mockResolvedValueOnce(
+      currentAccount({ role: ROLES.ANALYST, mfaRequired: true })
+    )
+    const analystResult = await requireRecentTotpAdmin(
+      session(ROLES.ANALYST, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 1_000,
+      }),
+      PERMISSIONS.ACCOUNTS_MANAGE,
+      () => 1_001
+    )
+    expect(analystResult.ok).toBe(false)
+    if (!analystResult.ok) expect(analystResult.response.status).toBe(403)
+
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    for (const deniedSession of [
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'password',
+        auth_method: 'password',
+        auth_time: 1_000,
+      }),
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 1_000,
+      }),
+    ]) {
+      const result = await requireRecentTotpAdmin(
+        deniedSession,
+        PERMISSIONS.ACCOUNTS_MANAGE,
+        () => 1_601
+      )
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect([401, 403]).toContain(result.response.status)
     }
   })
 })

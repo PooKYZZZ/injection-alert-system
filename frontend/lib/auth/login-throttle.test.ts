@@ -34,6 +34,18 @@ const authHarness = vi.hoisted(() => ({
   writeLoginAudit: vi.fn(),
 }))
 
+vi.mock('server-only', () => ({}))
+vi.mock('../server/db/mfa-challenges', () => ({
+  beginLoginMfaChallenge: vi.fn(),
+  consumeMfaCompletionToken: vi.fn(),
+}))
+vi.mock('../server/db/mfa-recovery', () => ({
+  consumeRecoveryCompletionToken: vi.fn(),
+}))
+vi.mock('./preauth', () => ({
+  setPreAuthCookie: vi.fn(),
+}))
+
 vi.mock('next-auth', () => ({
   default: vi.fn((config: CapturedAuthConfig) => {
     authHarness.config = config
@@ -135,7 +147,7 @@ describe('LoginThrottle', () => {
     expect(throttle.check('analyst@example.test').allowed).toBe(true)
   })
 
-  it('blocks all identifiers after the global threshold', () => {
+  it('does not block unrelated identifiers through a process-wide denial counter', () => {
     const throttle = createThrottle(() => 0)
 
     for (const identifier of ['one@example.test', 'two@example.test', 'three@example.test']) {
@@ -143,10 +155,32 @@ describe('LoginThrottle', () => {
       throttle.recordFailure(attempt.identifierHash)
     }
 
-    expect(throttle.check('new@example.test')).toMatchObject({
-      allowed: false,
-      reasonCode: 'GLOBAL_THROTTLED',
-    })
+    expect(throttle.check('new@example.test').allowed).toBe(true)
+  })
+
+  it('prunes expired identifiers and enforces a maximum map size', () => {
+    let now = 0
+    const throttle = new LoginThrottle(
+      {
+        identifierMaxFailures: 2,
+        identifierWindowMs: 1_000,
+        identifierCooldownMs: 2_000,
+        globalMaxFailures: 3,
+        globalWindowMs: 1_000,
+        globalCooldownMs: 2_000,
+        maxIdentifierEntries: 2,
+      },
+      () => now
+    )
+
+    throttle.check('one@example.test')
+    throttle.check('two@example.test')
+    throttle.check('three@example.test')
+    expect(throttle.trackedIdentifierCount).toBe(2)
+
+    now = 3_001
+    throttle.check('new@example.test')
+    expect(throttle.trackedIdentifierCount).toBe(1)
   })
 
   it('allows attempts again after cooldown without leaking a distinct user outcome', () => {
@@ -279,7 +313,7 @@ describe('Auth.js account integration', () => {
     await import('@/auth')
   })
 
-  it('uses identifier/password credentials and an eight-hour JWT session', () => {
+  it('declares exclusive password and completion credentials with an eight-hour JWT session', () => {
     const config = capturedAuthConfig()
     expect(config.session).toEqual({
       strategy: 'jwt',
@@ -289,6 +323,8 @@ describe('Auth.js account integration', () => {
     expect(config.providers[0].credentials).toEqual({
       identifier: expect.objectContaining({ type: 'text' }),
       password: expect.objectContaining({ type: 'password' }),
+      mfa_completion_token: expect.objectContaining({ type: 'password' }),
+      recovery_completion_token: expect.objectContaining({ type: 'password' }),
     })
   })
 
@@ -318,12 +354,15 @@ describe('Auth.js account integration', () => {
       password: 'correct-password',
     })
 
-    expect(user).toEqual({
+    expect(user).toMatchObject({
       id: 'analyst-1',
       email: 'analyst@example.test',
       name: 'SOC Analyst',
       role: 'ANALYST',
       authz_version: 3,
+      auth_level: 'password',
+      auth_method: 'password',
+      auth_time: expect.any(Number),
     })
 
     const token = await config.callbacks.jwt({ token: {}, user })

@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-07-05
+Last updated: 2026-07-13
 
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
@@ -47,11 +47,11 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
-| Email notifications | Planned | no transactional email integration found |
+| Notification outbox and worker | Implemented and enabled in the tested deployment | additive lifecycle migrations through `20260711_000019`, versioned PostgreSQL claim/transition functions, protected active credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, and Resend boundary; failure/retry operations remain follow-up testing |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
-| 2FA/MFA | Planned | no factor enrollment/challenge/recovery flow found |
+| 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | Partial | `action_taken` is recorded; no request-path block/throttle/challenge enforcement found |
 | Retraining pipeline | Planned | `ml_model/retraining/README.md` documents design-level only |
@@ -131,7 +131,18 @@ Implemented in the current foundation:
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
 - alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
 
-MFA and password recovery remain planned requirements. They should extend the existing Auth.js boundary or use a deliberately selected managed auth provider, not hand-rolled session handling.
+MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, trusted database verification timestamps, factor-aware enrollment, purpose-bound completion contracts, recent-TOTP step-up, and scanner-safe POST routes. Availability flags fail closed when absent and are evaluated at request time by `frontend/lib/server/runtime-config.ts`, which calls Next.js `connection()` before reading runtime environment values.
+
+### Auth.js session and MFA transition
+
+- Admin-managed account creation emits a one-time setup link; the setup token is consumed server-side to establish the password without exposing credentials to the browser or logs.
+- Credential authentication creates a password-level Auth.js session containing the account identity and current authorization metadata.
+- Accounts requiring MFA receive a short-lived, purpose-bound pre-auth challenge and an HttpOnly pre-auth handle; password-level sessions cannot reach protected dashboard or User Management routes.
+- Successful TOTP enrollment or verification completes the database challenge and transitions the browser to the MFA-authenticated session state. The pre-auth handle is cleared as part of the completion flow.
+- The route guard reloads the active account and validates disablement, role, `mfa_required`, `authz_version`, `auth_level`, `auth_method`, and permissions before protected work.
+- Recovery sessions carry separate assurance and are routed through the existing mandatory enrollment/recovery behavior; recovery is not treated as TOTP assurance.
+
+CyberTrace currently pins `next-auth` `5.0.0-beta.30`. The dependency is protected by unit, integration, and authentication E2E tests. Auth.js upgrades must be performed in a separate PR and must rerun the complete authentication test suite.
 
 ### Security boundary
 
@@ -161,6 +172,16 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - The alerts table and alert drawer now hide unavailable dense-row mutation controls for viewers and preserve triage/action control visibility according to the current role.
 - `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes.
 
+### Runtime configuration and authorization
+
+Runtime authentication feature flags are availability controls only; they never
+count as authentication or authorization. Page-level readers call
+`readPageRuntimeAuthFlags()` before reading `process.env`, and already-dynamic
+server code can use `readRuntimeAuthFlags()`. Authorization remains server-side
+through Auth.js session validation, active-account lookup, freshness checks, MFA
+assurance checks, and RBAC permission checks. Generic not-found responses remain
+the client-facing behavior for disabled or unauthorized pages.
+
 ## Data and Persistence
 
 ### Current database reality
@@ -170,7 +191,10 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
+- The repository migration head for the PR #83 remediation is `20260712_000020`; the new revisions are additive after `20260710_000014`
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
+- MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
+- Security-email outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, lease reconciliation, email-only channel enforcement, AES-GCM protection for active credential-equivalent payloads, and terminal payload scrubbing.
 - New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
 - `AUTH_USERS_JSON` is not read by runtime auth. Supabase query or configuration failure denies login and protected BFF access without an env fallback
 - `frontend/lib/server/db/client.ts` remains the `server-only` app-runtime boundary, while `script-client.mjs` is restricted to operational provisioning scripts
@@ -196,9 +220,10 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed IP blocklist, rate-limit state, and low-confidence queue only if shared runtime state is required
 - Full repo-managed export and automation of Supabase policy state
-- Client-required real user access management, RBAC, and secure login
-- Client-required 2FA
-- Client-required email notifications after detection
+- Hosted account provisioning and external deployment verification
+- Notification-worker failure/retry operational testing and required-worker health testing
+- MFA feature-flag semantics audit when enrollment is disabled
+- Auth.js beta upgrade and passkeys/WebAuthn evaluation
 - Wazuh export-only JSON/JSONL integration
 - Production edge checklist, backup/restore runbook, and archive/hide retention policy
 
@@ -213,6 +238,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - Confidence distributions include all predictions, while enforcement-policy counts include non-Normal predictions only. Normal predictions remain `ALLOWED` at every valid confidence tier.
 - Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
+- Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.
+- ADMIN MFA break glass is isolated behind the NOLOGIN `cybertrace_break_glass` role and one `SECURITY DEFINER` function. The runtime `service_role` cannot execute either the restricted or legacy operator function; hosted login membership remains approval-gated.
+- Browser-level authentication proof is automated by the managed disposable harness and the required `auth-e2e` CI job; it intentionally covers Chromium only.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
 ## Architecture Notes For Future Edits

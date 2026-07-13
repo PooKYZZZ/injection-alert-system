@@ -1,6 +1,10 @@
 # Migration Rollback Runbook
 
-**Last updated:** 2026-07-03  
+> General rollback policy background. Current V6.1 deployment configuration is
+> documented in [`../SETUP.md`](../SETUP.md) and the security architecture in
+> [`../architecture.md`](../architecture.md).
+
+**Last updated:** 2026-07-13
 **Audience:** developers, database operator, reviewer  
 **Scope:** CyberTrace database/schema migration safety and rollback decision-making  
 **Status:** operator documentation only; no migration or rollback automation is implemented by this file
@@ -22,14 +26,24 @@ Rollback exists only when the specific migration has a written, reviewed, and te
 
 ## 2. Current Project Truth
 
-Expected current truth:
+Current truth:
 
 - The project uses SQLAlchemy/Alembic-style migration concepts.
 - Production target is PostgreSQL/Supabase.
-- Some model/promotion safety exists separately, but database migration rollback is not fully documented/automated before this branch.
+- The hosted Supabase migration head is `20260712_000020`.
+- Hosted rollback must not be performed casually. The migration chain includes auth, MFA, notification, and authorization boundaries whose data and function contracts must remain compatible.
+- Disposable PostgreSQL is the required target for downgrade and re-upgrade testing before any hosted rollback decision.
 - This runbook does not create migrations.
 - This runbook does not change the database.
 - This runbook does not apply Supabase settings.
+
+## 3.1 Required rollback boundaries
+
+- **Application rollback:** first determine whether the failure is application-only. If the schema is valid, roll back or forward-fix the application while keeping the database at the current head.
+- **Database rollback:** take and verify a backup before any downgrade. Use a disposable PostgreSQL database to prove the exact downgrade and re-upgrade path. Hosted downgrade requires explicit approval and a tested restore fallback.
+- **Runtime feature kill switches:** disable the affected `AUTH_*` availability flag at container start when a feature must be stopped. Recreate or restart the frontend container so the new runtime values are used; flags do not replace authentication or authorization.
+- **Container recovery:** rebuild only when the image changed; otherwise recreate the frontend container with the reviewed runtime environment. Confirm the container sees the intended flag values and inspect logs after the first request.
+- **Compatibility warning:** old application code may not understand new auth/MFA/outbox schema or function contracts. Do not combine an application rollback with a database downgrade unless the older code/schema pair has been tested together.
 
 ---
 

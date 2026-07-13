@@ -25,6 +25,7 @@ export type LoginThrottleOptions = {
   globalMaxFailures: number
   globalWindowMs: number
   globalCooldownMs: number
+  maxIdentifierEntries?: number
 }
 
 function readPositiveInteger(name: string, fallback: number): number {
@@ -69,43 +70,57 @@ export function hashNormalizedIdentifier(identifier: string): string {
 
 export class LoginThrottle {
   private readonly identifiers = new Map<string, Counter>()
-  private globalCounter: Counter
 
   constructor(
     private readonly options: LoginThrottleOptions,
     private readonly now: () => number = Date.now
   ) {
-    this.globalCounter = counterAt(this.now())
+  }
+
+  get trackedIdentifierCount(): number {
+    return this.identifiers.size
+  }
+
+  private prune(now: number): void {
+    for (const [identifierHash, counter] of this.identifiers) {
+      if (
+        counter.blockedUntil <= now &&
+        (counter.blockedUntil > 0 ||
+          now - counter.windowStartedAt >= this.options.identifierWindowMs)
+      ) {
+        this.identifiers.delete(identifierHash)
+      }
+    }
+  }
+
+  private remember(identifierHash: string, counter: Counter): void {
+    if (!this.identifiers.has(identifierHash)) {
+      const maxEntries = this.options.maxIdentifierEntries ?? 1_024
+      while (this.identifiers.size >= maxEntries) {
+        const oldest = this.identifiers.keys().next().value
+        if (typeof oldest !== 'string') break
+        this.identifiers.delete(oldest)
+      }
+    }
+    this.identifiers.set(identifierHash, counter)
   }
 
   check(identifier: string): ThrottleCheck {
     const now = this.now()
+    this.prune(now)
     const identifierHash = hashNormalizedIdentifier(identifier)
     const identifierCounter = refreshCounter(
       this.identifiers.get(identifierHash),
       now,
       this.options.identifierWindowMs
     )
-    this.identifiers.set(identifierHash, identifierCounter)
+    this.remember(identifierHash, identifierCounter)
 
     if (identifierCounter.blockedUntil > now) {
       return {
         allowed: false,
         identifierHash,
         reasonCode: 'IDENTIFIER_THROTTLED',
-      }
-    }
-
-    this.globalCounter = refreshCounter(
-      this.globalCounter,
-      now,
-      this.options.globalWindowMs
-    )
-    if (this.globalCounter.blockedUntil > now) {
-      return {
-        allowed: false,
-        identifierHash,
-        reasonCode: 'GLOBAL_THROTTLED',
       }
     }
 
@@ -124,17 +139,7 @@ export class LoginThrottle {
       identifierCounter.blockedUntil =
         now + this.options.identifierCooldownMs
     }
-    this.identifiers.set(identifierHash, identifierCounter)
-
-    this.globalCounter = refreshCounter(
-      this.globalCounter,
-      now,
-      this.options.globalWindowMs
-    )
-    this.globalCounter.failures += 1
-    if (this.globalCounter.failures >= this.options.globalMaxFailures) {
-      this.globalCounter.blockedUntil = now + this.options.globalCooldownMs
-    }
+    this.remember(identifierHash, identifierCounter)
   }
 
   recordSuccess(identifierHash: string): void {
@@ -179,6 +184,10 @@ export const loginThrottle = new LoginThrottle({
     readPositiveInteger('AUTH_LOGIN_GLOBAL_WINDOW_SECONDS', 60) * 1_000,
   globalCooldownMs:
     readPositiveInteger('AUTH_LOGIN_GLOBAL_COOLDOWN_SECONDS', 60) * 1_000,
+  maxIdentifierEntries: readPositiveInteger(
+    'AUTH_LOGIN_MAX_IDENTIFIER_ENTRIES',
+    1_024
+  ),
 })
 
 export const passwordHashConcurrencyGate = new PasswordHashConcurrencyGate(

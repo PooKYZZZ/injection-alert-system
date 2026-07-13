@@ -7,6 +7,12 @@ vi.mock('next-auth', () => ({
   AuthError: class AuthError extends Error {},
 }))
 
+const { replaceMock } = vi.hoisted(() => ({ replaceMock: vi.fn() }))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: replaceMock }),
+}))
+
 import LoginPage from './page'
 import { loginAction } from './actions'
 
@@ -20,20 +26,6 @@ afterEach(() => {
   vi.clearAllMocks()
   cleanup()
 })
-
-function captureNodeUnhandledRejections() {
-  const reasons: unknown[] = []
-  const handler = (reason: unknown) => {
-    reasons.push(reason)
-  }
-
-  process.on('unhandledRejection', handler)
-
-  return {
-    reasons,
-    stop: () => process.off('unhandledRejection', handler),
-  }
-}
 
 describe('LoginPage', () => {
   it('renders identifier and password fields without a role selector', () => {
@@ -94,10 +86,9 @@ describe('LoginPage', () => {
     })
   })
 
-  it('does not swallow NEXT_REDIRECT error', async () => {
+  it('navigates explicitly after Auth.js completes without a framework redirect', async () => {
     const user = userEvent.setup()
-    const tracker = captureNodeUnhandledRejections()
-    mockedLoginAction.mockRejectedValue(new Error('NEXT_REDIRECT'))
+    mockedLoginAction.mockResolvedValue({ ok: true })
 
     render(<LoginPage />)
 
@@ -106,17 +97,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => {
-      expect(
-        tracker.reasons.some(
-          (reason) => reason instanceof Error && reason.message === 'NEXT_REDIRECT'
-        )
-      ).toBe(true)
+      expect(replaceMock).toHaveBeenCalledWith('/dashboard')
     })
-
-    expect(
-      screen.queryByText('Invalid username or password.')
-    ).not.toBeInTheDocument()
-
-    tracker.stop()
   })
 })

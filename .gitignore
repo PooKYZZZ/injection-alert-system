@@ -1,9 +1,20 @@
 # Secrets and env files
 .env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
 .env*.local
 frontend/.env.local
 frontend/.env.*.local
+!frontend/.env.example
+!frontend/.env.*.example
+
+# Local secret material — do not store credentials or recovery material in the repo
+secrets/
+*.secret
+*.totp
+*.recovery-codes.txt
 
 # Python environments and caches
 .venv/
@@ -75,15 +86,24 @@ pnpm-debug.log*
 .copilot/
 
 # Playwright E2E test artifacts
+test-results/
+playwright-report/
 frontend/e2e/screenshots/
 frontend/test-results/
 frontend/playwright-report/
 playwright/.cache/
 
+# Local screenshots and temporary evidence
+local-screenshots/
+tmp/
+
 # Local artifacts and external archive workspace
 artifacts/
 stitch_waf_ml_soc_dashboard_overview/
 archive/
+
+# Local planning tracker
+/PD2_PRIORITY_TRACKER.md
 
 # ML model weights — distributed via team shared drive, not committed to repo
 ml_model/model_registry/**/*.bin
@@ -155,7 +175,6 @@ frontend/temp/
 seed_demo.py
 sample_real_attacks.py
 seed_via_api.py
-frontend/.env.e2e.example
 frontend/playwright.config.ts
 frontend/e2e/README.md
 frontend/e2e/website.spec.ts

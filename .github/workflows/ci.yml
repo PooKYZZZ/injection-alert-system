@@ -28,6 +28,38 @@ jobs:
       - run: pytest -q
       - run: pip install pip-audit
       - run: pip-audit -r requirements.txt
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: cybertrace-ci-only
+          POSTGRES_DB: cybertrace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cybertrace"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
+      CYBERTRACE_POSTGRES_TEST_URL: postgresql://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
+      APP_ENV: testing
+      MODEL_PATH: ./ml_model/model_registry
+      MODEL_REGISTRY_PATH: ./ml_model/model_registry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: python scripts/prepare_ci_postgres_roles.py
+      - run: python -m alembic upgrade head
+      - run: pytest -q tests/integration
+      - run: pytest -q tests/migrations
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -51,6 +83,44 @@ jobs:
         working-directory: frontend
         env:
           AUTH_SECRET: ci-build-only-placeholder
+  auth-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run critical authentication journeys
+        run: npm run test:e2e:auth
+        working-directory: frontend
+      - name: Upload redacted authentication failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-e2e-failure-${{ github.run_attempt }}
+          path: |
+            frontend/playwright-report/auth
+            frontend/test-results/auth
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove disposable authentication resources
+        if: always()
+        run: |
+          docker ps -aq --filter "label=cybertrace.auth-e2e=true" | xargs -r docker rm -f
+          docker network ls -q --filter "label=cybertrace.auth-e2e=true" | xargs -r docker network rm
   secret-scan:
     runs-on: ubuntu-latest
     steps:

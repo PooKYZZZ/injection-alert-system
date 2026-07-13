@@ -12,7 +12,22 @@ import {
   verifyPasswordForAccount,
   verifyPasswordForUnknownAccount,
   verifyPasswordHash,
+  validateNewPassword,
 } from './password-hash'
+
+describe('new password policy', () => {
+  it('requires 15 characters, allows spaces, and never truncates', () => {
+    expect(validateNewPassword('short password')).toEqual({
+      ok: false,
+      code: 'PASSWORD_TOO_SHORT',
+    })
+    expect(validateNewPassword('a long pass phrase')).toEqual({ ok: true })
+    expect(validateNewPassword('x'.repeat(257))).toEqual({
+      ok: false,
+      code: 'PASSWORD_TOO_LONG',
+    })
+  })
+})
 
 describe('password hashing', () => {
   it('uses the approved Argon2id parameters', () => {
