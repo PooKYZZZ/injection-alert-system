@@ -2,9 +2,10 @@
 
 > Historical implementation evidence. For current setup, migration,
 > notification, recovery, break-glass, and demo instructions, use
-> [`CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`](CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md)
-> and [`PR83_THESIS_EVIDENCE.md`](PR83_THESIS_EVIDENCE.md). Intermediate counts
-> and migration heads below are intentionally preserved, not current truth.
+> [`../SETUP.md`](../SETUP.md), [`../architecture.md`](../architecture.md),
+> [`STATUS.md`](STATUS.md), and [`SMOKE_TEST_RUNBOOK.md`](SMOKE_TEST_RUNBOOK.md).
+> Intermediate counts and migration heads below are intentionally preserved,
+> not current truth.
 
 Status labels: `Implemented`, `Partial`, `Blocked`, `Planned`, `Deferred`.
 

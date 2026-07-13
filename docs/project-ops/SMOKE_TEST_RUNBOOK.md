@@ -1,11 +1,43 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-13
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
 > **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the technical CyberTrace WAF proof path is published on `localhost:8088`, the realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled, and the backend stays internal to the compose network as `8000/tcp`.
+
+---
+
+## Verified hosted Admin authentication journey
+
+The following journey was verified against the public deployment. Use a
+disposable test account and synthetic data only:
+
+1. **Admin creates an account.** Expected: the account is created with the
+   intended role and MFA requirement, and a one-time setup email is queued.
+2. **Setup email arrives.** Expected: the link opens the password-setup flow;
+   do not copy the link into screenshots, logs, or issue reports.
+3. **User sets a password.** Expected: the one-time setup token is consumed and
+   the user can sign in with the new password.
+4. **User enrolls TOTP.** Expected: `/mfa/enroll` renders the QR/manual setup
+   interface only for an active password-level enrollment challenge.
+5. **Invalid TOTP is submitted.** Expected: the code is rejected and the
+   enrollment remains incomplete.
+6. **Valid TOTP is submitted.** Expected: enrollment completes, the
+   password-level Auth.js session transitions to MFA-authenticated state, and
+   the pre-auth handle is cleared.
+7. **MFA-authenticated Admin logs in.** Expected: the login completes with the
+   required MFA assurance and current authorization metadata.
+8. **User Management opens.** Expected: the Admin with the current
+   `authz_version`, `auth_level=mfa`, `auth_method=totp`, and the required RBAC
+   permission can access User Management. Password-only sessions remain denied.
+
+For safe cleanup, disable or remove only the disposable test account through
+the supported account-management flow after the journey. Do not delete shared
+accounts or production data. Never capture passwords, setup links, TOTP seeds,
+recovery codes, session cookies, or authorization headers in screenshots or
+logs. Rotate credentials immediately after any accidental exposure.
 
 ---
 

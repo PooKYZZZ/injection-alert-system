@@ -13,8 +13,8 @@ CURRENT_DOCS = (
     Path("docs/project-ops/README.md"),
     Path("docs/project-ops/STATUS.md"),
     Path("docs/project-ops/LIVING_CHECKLIST.md"),
-    Path("docs/project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md"),
-    Path("docs/project-ops/PR83_THESIS_EVIDENCE.md"),
+    Path("docs/project-ops/SMOKE_TEST_RUNBOOK.md"),
+    Path("docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md"),
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
 

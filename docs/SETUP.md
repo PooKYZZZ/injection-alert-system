@@ -1,10 +1,10 @@
 # Local Setup
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
 
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. Public deployment, hosted migration/role membership, provider delivery, live smoke, and Turnstile hostname verification remain external gates.
+Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
 
 ## Prerequisites
 
@@ -71,13 +71,15 @@ RLS on the new public-schema auth/security tables is defense-in-depth only.
 Auth.js Credentials login and BFF session freshness checks now read
 `auth_accounts` through the server-only client. `AUTH_USERS_JSON` is not a
 runtime source or outage fallback.
-Do not run the auth/security migration against live Supabase without a separate
-reviewed deployment step.
+The hosted migration has been completed through `20260712_000020` using a
+reviewed deployment step. Do not rerun or downgrade the hosted database
+casually; use `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`.
 
 The V6.1 account/MFA/recovery feature switches are documented in
-`frontend/.env.example`; they remain disabled by default. The maintained
-operator/deployment boundary is documented in
-`docs/project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`.
+`frontend/.env.example`; they fail closed when absent. Runtime values are read
+at request time by the server-only frontend helper. The maintained operator
+boundaries are `docs/SETUP.md`, `docs/architecture.md`, and
+`docs/project-ops/SMOKE_TEST_RUNBOOK.md`.
 
 Notes:
 
@@ -134,9 +136,9 @@ quality approval.
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-The maintained execution evidence for the PR #83 remediation is in
-`docs/project-ops/PR83_EXECUTION_RECORD.md`. Do not copy historical test
-counts from this setup guide; rerun the repository commands for current totals.
+Do not copy historical test counts from this setup guide; rerun the repository
+commands for current totals. Current release evidence is summarized in
+`docs/project-ops/STATUS.md`.
 
 ### Start the backend
 
@@ -187,6 +189,11 @@ Use a local file with the variables the current frontend actually reads:
 ```dotenv
 AUTH_SECRET=replace-me
 AUTH_TRUST_HOST=true
+AUTH_APP_ORIGIN=https://<public-app-domain>
+AUTH_ACCOUNT_MANAGEMENT_ENABLED=false
+AUTH_MFA_ENROLLMENT_ENABLED=false
+AUTH_EMAIL_RECOVERY_ENABLED=false
+AUTH_PASSWORD_RESET_ENABLED=false
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<server-only-key>
 FASTAPI_BASE_URL=http://localhost:8000
@@ -199,6 +206,7 @@ NEXT_PUBLIC_APP_VERSION=0.0.0-LOCAL
 Notes:
 
 - `AUTH_SECRET` is the Auth.js signing secret. Keep `NEXTAUTH_SECRET` unset to avoid split secret sources.
+- `AUTH_APP_ORIGIN` must match the public application origin used by Auth.js redirects.
 - `AUTH_TRUST_HOST=true` is required for local `next start` validation so Auth.js trusts the local host.
 - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required for login and protected BFF access. Missing configuration or a Supabase outage fails closed; there is no `AUTH_USERS_JSON` fallback.
 - At least one `auth_accounts` row with an approved Argon2id `password_hash` must exist before login can succeed. Runtime verification requires PHC version `v=19` with at least `m=19456,t=2,p=1`; weak, null, old scrypt/bcrypt, malformed, and unsupported hashes are rejected before native verification.
@@ -212,9 +220,10 @@ Notes:
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
-- TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`; all remain disabled by default until the reviewed target migration, provider, hosted smoke, and rollback gates are complete. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
+- Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
+- TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current additive migration head is `20260712_000020`. Application functions remain purpose-bound and server-only; the restricted break-glass function is executable only through `cybertrace_break_glass`, not `service_role`. Do not apply migrations or role membership to hosted Supabase outside a reviewed deployment.
+- The current additive migration head is `20260712_000020`, and hosted Supabase has reached that revision. Application functions remain purpose-bound and server-only; the restricted break-glass function is executable only through `cybertrace_break_glass`, not `service_role`.
 - The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, decrypts protected credential payloads only at delivery, and scrubs terminal payloads.
 
 ### Manual PR 3 auth cutover and rollback
@@ -266,8 +275,9 @@ clearly if its required `traffic_logs` table is missing instead of silently
 reporting success. Use a reviewed deployment step for live Supabase.
 
 For current feature enablement, notification-key, recovery, and restricted
-break-glass operations, follow
-[`project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md`](project-ops/CYBERTRACE_V61_DEPLOYMENT_RUNBOOK.md).
+break-glass operations, follow this guide together with
+[`project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md)
+and [`project-ops/SMOKE_TEST_RUNBOOK.md`](project-ops/SMOKE_TEST_RUNBOOK.md).
 
 ### Run the disposable authentication browser project
 
@@ -372,8 +382,8 @@ The following are not yet available as runnable repo-level setup paths:
 - Redis-backed review queue or enforcement state
 - Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
 - Automatic repo-managed export of Supabase policies and operational guardrails
-- Public deployment, live Resend delivery, Turnstile widget/hostname rollout, managed identity, and distributed login throttling
-- Hosted notification-key provisioning, provider approval, controlled live smoke, and feature enablement
+- Production-grade ModSecurity-fronted deployment, Turnstile widget/hostname rollout, managed identity, and distributed login throttling
+- Notification failure/retry operational testing, MFA flag-semantics audit, and Auth.js/passkey follow-ups
 
 ## 5A. Docker Smoke Setup
 
@@ -485,6 +495,29 @@ Invoke-WebRequest -UseBasicParsing http://localhost:3000 | Select-Object -Expand
 ```
 
 Expected result: `200`
+
+### Public Cloudflare Tunnel verification
+
+The verified public deployment uses a Cloudflare Tunnel in the deployment
+environment. Start the tunnel using the operator-managed tunnel configuration;
+do not commit the tunnel token or credentials:
+
+```powershell
+cloudflared tunnel run <tunnel-name>
+```
+
+Verify the public application and protected target separately:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing https://app.cybertracesystems.com | Select-Object -ExpandProperty StatusCode
+Invoke-WebRequest -UseBasicParsing https://target.cybertracesystems.com | Select-Object -ExpandProperty StatusCode
+```
+
+Expected result: the application domain is publicly reachable and the target
+domain is challenged by Cloudflare Access for identities without access. The
+frontend runtime flags are injected at container start, not at image build
+time. After changing them, run `docker compose up -d --force-recreate frontend`
+and verify the value inside the recreated container.
 
 ### Demo data
 

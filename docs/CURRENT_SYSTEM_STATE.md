@@ -1,12 +1,24 @@
 # Current System State - Comprehensive Overview
 
-**Last Updated:** 2026-07-11
+**Last Updated:** 2026-07-13
 
 This document provides detailed answers about the current state of the Injection Alert System codebase.
 
-Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/server-side RBAC foundation, and alert UI role affordances are implemented. MFA/recovery/password-reset/step-up boundaries and the notification outbox/worker are implemented behind disabled rollout gates; hosted migration, provider, pending-payload protection, and browser proof remain incomplete.
+Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/server-side RBAC foundation, alert UI role affordances, MFA/recovery/password-reset/step-up boundaries, and notification outbox/worker are implemented. The hosted V6.1 deployment and live authentication journey are verified; the remaining follow-ups are listed as deferred work below.
 
 Verified WAF proof is tracked in `reports/modsecurity-live-proof/e2e-proof.md` and `docs/project-ops/DEMO_TARGET_WAF_PROOF.md`. The technical CyberTrace WAF proof path uses `localhost:8088`. The realistic protected demo website path uses `localhost:8089` with the separate land-records-portal running on host port `3010`. Backend remains internal-only in Docker Compose and should be queried with `docker compose exec`, not `localhost:8000` unless backend port 8000 is explicitly published.
+
+## Current V6.1 Hosted Verification
+
+- Hosted Supabase is migrated through Alembic revision `20260712_000020`.
+- The public deployment is active through a Cloudflare Tunnel at `app.cybertracesystems.com`.
+- `target.cybertracesystems.com` is protected by Cloudflare Access.
+- The Resend sending domain is verified and live delivery has been verified.
+- The notification worker is enabled in the tested deployment.
+- The Admin invitation flow, setup email, password setup, TOTP enrollment, invalid-code rejection, MFA-authenticated Admin login, and User Management access have been verified.
+- Frontend runtime feature flags are evaluated per request through the server-only runtime configuration helper; changing values requires container recreation or restart.
+- Approved post-merge deferrals are: MFA enrollment UI redesign, backup-code UI redesign, notification-worker failure/retry testing, MFA feature-flag semantics testing, local-only Playwright null-session investigation if it reappears, Auth.js upgrade, and passkeys/WebAuthn evaluation.
+- Auth.js remains pinned to the beta dependency described in `docs/architecture.md`; upgrades are separate work.
 
 ---
 
@@ -229,7 +241,7 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 
 - Current state: Auth.js Credentials login uses Supabase `auth_accounts`, approved Argon2id PHC password hashes, a precomputed same-profile unknown-account hash, database-expiring password-level MFA challenges, eight-hour maximum assured sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, bounded local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
 - All six BFF routes enforce server-side permissions and current DB account existence, disablement, `mfa_required`, role, and `authz_version` checks before downstream calls.
-- Remaining gates include hosted migration/role approval, provider deployment, controlled live smoke, and feature enablement. Active credential-equivalent outbox payload protection and five executable disposable browser journeys are implemented. Managed identity, distributed throttling, and external log retention remain future hardening.
+- Current hosted migration, provider, controlled live smoke, and feature enablement verification are recorded above. Active credential-equivalent outbox payload protection and five executable disposable browser journeys are implemented. Managed identity, distributed throttling, and external log retention remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
 ---
@@ -343,9 +355,9 @@ and auth behavior are unchanged.
 |-------------|----------------|
 | Secure login with named user accounts | Implemented for the env-backed capstone foundation |
 | Admin/Analyst/Viewer RBAC | Server-side BFF enforcement implemented; alerts UI role affordances are implemented for viewers, analysts, and admins |
-| 2FA | Implemented behind disabled rollout switches; browser/provider/hosted migration gates remain |
+| 2FA | Implemented and verified in the hosted authentication journey; availability remains controlled by server-side flags |
 | Timely push-style dashboard alerts | Planned |
-| Email notification after detection | Outbox/worker boundary implemented; live provider delivery gated |
+| Email notification after detection | Outbox/worker boundary implemented; live Resend delivery verified in the tested deployment |
 | `CRITICAL >=90%` confidence tier | Implemented |
 
 ## Summary: Deferred Or Conditional
