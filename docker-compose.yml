@@ -33,6 +33,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
     healthcheck:
       test:
         [
@@ -63,6 +65,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
     command:
       [
         "sh",

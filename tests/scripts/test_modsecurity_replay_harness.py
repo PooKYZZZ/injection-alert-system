@@ -4,6 +4,8 @@ from pathlib import Path
 from scripts.modsecurity_replay_harness import (
     DEFAULT_HELDOUT_JSON,
     DEFAULT_QUARANTINE_JSON,
+    _lookup_downstream,
+    _post_ingest_event,
     build_report_rows,
     build_waf_ingest_payload,
     detect_modsecurity_events,
@@ -11,6 +13,70 @@ from scripts.modsecurity_replay_harness import (
     normalize_sample_row,
     write_reports,
 )
+
+
+class _Response:
+    status = 200
+
+    def __init__(self, body: bytes = b'{"found":true}') -> None:
+        self._body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_replay_submission_uses_dedicated_waf_key(monkeypatch) -> None:
+    captured = {}
+
+    def _urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", _urlopen)
+
+    status = _post_ingest_event(
+        {"transaction_id": "tx-1"},
+        endpoint="http://backend/api/internal/waf-events",
+        waf_ingest_api_key="dedicated-waf-key",
+        timeout=7,
+    )
+
+    assert status == 200
+    assert captured == {
+        "authorization": "Bearer dedicated-waf-key",
+        "timeout": 7,
+    }
+
+
+def test_replay_lookup_keeps_general_internal_key(monkeypatch) -> None:
+    captured = {}
+
+    def _urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", _urlopen)
+
+    found, _body = _lookup_downstream(
+        "tx-1",
+        endpoint="http://backend/api/internal/waf-events",
+        internal_api_key="general-internal-key",
+        timeout=9,
+    )
+
+    assert found is True
+    assert captured == {
+        "authorization": "Bearer general-internal-key",
+        "timeout": 9,
+    }
 
 
 def test_default_sample_paths_resolve_under_repo_data_directory():

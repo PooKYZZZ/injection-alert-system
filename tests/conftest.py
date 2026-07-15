@@ -15,6 +15,7 @@ os.environ["MODEL_PATH"] = "ml_model/models/mock_model.py"
 # Set MODEL_REGISTRY_PATH to non-existent path to trigger mock fallback in tests
 os.environ["MODEL_REGISTRY_PATH"] = "ml_model/model_registry/does_not_exist"
 os.environ["API_SECRET_KEY"] = "test-secret-key"
+os.environ["WAF_INGEST_API_KEY"] = "test-waf-ingest-key-at-least-32-characters"
 
 
 @pytest.fixture(scope="session", autouse=True)

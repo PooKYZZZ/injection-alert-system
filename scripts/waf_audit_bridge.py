@@ -773,20 +773,20 @@ def main() -> int:
         help="Delay between retries in seconds",
     )
     parser.add_argument(
-        "--api-secret",
+        "--waf-ingest-api-key",
         default=None,
-        help="Internal API secret (defaults to API_SECRET_KEY env var)",
+        help="WAF submission key (defaults to WAF_INGEST_API_KEY env var)",
     )
     args = parser.parse_args()
 
-    api_secret = args.api_secret or os.getenv("API_SECRET_KEY")
+    api_secret = args.waf_ingest_api_key or os.getenv("WAF_INGEST_API_KEY")
     if not api_secret:
         _log_event(
             "bridge.configuration_failed",
-            "API secret is required",
+            "WAF ingest API key is required",
             level="ERROR",
             stream=sys.stderr,
-            reason="missing_api_secret",
+            reason="missing_waf_ingest_api_key",
         )
         return 2
 

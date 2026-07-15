@@ -5,6 +5,7 @@ import csv
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -289,7 +290,13 @@ def _run_compose_logs_since(since_iso: str) -> str:
     return (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
 
 
-def _post_ingest_event(payload: dict[str, Any], *, endpoint: str, internal_api_key: str, timeout: int) -> int:
+def _post_ingest_event(
+    payload: dict[str, Any],
+    *,
+    endpoint: str,
+    waf_ingest_api_key: str,
+    timeout: int,
+) -> int:
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         endpoint,
@@ -297,14 +304,19 @@ def _post_ingest_event(payload: dict[str, Any], *, endpoint: str, internal_api_k
         method="POST",
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {internal_api_key}",
+            "Authorization": f"Bearer {waf_ingest_api_key}",
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return int(response.status)
 
 
-def _post_ingest_event_via_backend_compose(payload: dict[str, Any], *, internal_api_key: str, timeout: int) -> int:
+def _post_ingest_event_via_backend_compose(
+    payload: dict[str, Any],
+    *,
+    waf_ingest_api_key: str,
+    timeout: int,
+) -> int:
     command = [
         "docker",
         "compose",
@@ -329,7 +341,7 @@ def _post_ingest_event_via_backend_compose(payload: dict[str, Any], *, internal_
             "except urllib.error.HTTPError as exc:\n"
             "  print(exc.code)\n"
         ),
-        internal_api_key,
+        waf_ingest_api_key,
         str(timeout),
     ]
     result = subprocess.run(
@@ -499,6 +511,7 @@ def run_replay_harness(
     modsec_base_url: str,
     ingest_endpoint: str,
     lookup_endpoint: str,
+    waf_ingest_api_key: str,
     internal_api_key: str,
     timeout_seconds: int,
     pause_after_request_seconds: float,
@@ -585,13 +598,13 @@ def run_replay_harness(
                     ingest_status = _post_ingest_event(
                         ingest_payload,
                         endpoint=ingest_endpoint,
-                        internal_api_key=internal_api_key,
+                        waf_ingest_api_key=waf_ingest_api_key,
                         timeout=timeout_seconds,
                     )
                 except Exception:
                     ingest_status = _post_ingest_event_via_backend_compose(
                         ingest_payload,
-                        internal_api_key=internal_api_key,
+                        waf_ingest_api_key=waf_ingest_api_key,
                         timeout=timeout_seconds,
                     )
 
@@ -659,6 +672,11 @@ def main() -> int:
         default="http://localhost:8088/api/internal/waf-events",
     )
     parser.add_argument(
+        "--waf-ingest-api-key",
+        default=None,
+        help="Defaults to WAF_INGEST_API_KEY from environment.",
+    )
+    parser.add_argument(
         "--internal-api-key",
         default=None,
         help="Defaults to API_SECRET_KEY from environment.",
@@ -668,18 +686,33 @@ def main() -> int:
     parser.add_argument("--report-root", type=Path, default=DEFAULT_REPORT_ROOT)
     args = parser.parse_args()
 
-    internal_api_key = args.internal_api_key
-    if not internal_api_key:
-        internal_api_key = str(
-            (Path(".env").read_text(encoding="utf-8") if Path(".env").exists() else "")
+    env_text = Path(".env").read_text(encoding="utf-8") if Path(".env").exists() else ""
+
+    def _dotenv_value(name: str) -> str:
+        prefix = f"{name}="
+        for line in env_text.splitlines():
+            if line.startswith(prefix):
+                return line.split("=", 1)[1].strip()
+        return ""
+
+    waf_ingest_api_key = (
+        args.waf_ingest_api_key
+        or os.getenv("WAF_INGEST_API_KEY")
+        or _dotenv_value("WAF_INGEST_API_KEY")
+    )
+    internal_api_key = (
+        args.internal_api_key
+        or os.getenv("API_SECRET_KEY")
+        or _dotenv_value("API_SECRET_KEY")
+    )
+
+    if not waf_ingest_api_key:
+        print(
+            "WAF ingest API key is required via --waf-ingest-api-key or "
+            ".env WAF_INGEST_API_KEY",
+            file=sys.stderr,
         )
-        if "API_SECRET_KEY=" in internal_api_key:
-            for line in internal_api_key.splitlines():
-                if line.startswith("API_SECRET_KEY="):
-                    internal_api_key = line.split("=", 1)[1].strip()
-                    break
-        else:
-            internal_api_key = ""
+        return 2
 
     if not internal_api_key:
         print("internal API key is required via --internal-api-key or .env API_SECRET_KEY", file=sys.stderr)
@@ -691,6 +724,7 @@ def main() -> int:
         modsec_base_url=args.modsec_base_url,
         ingest_endpoint=args.ingest_endpoint,
         lookup_endpoint=args.lookup_endpoint,
+        waf_ingest_api_key=waf_ingest_api_key,
         internal_api_key=internal_api_key,
         timeout_seconds=max(1, args.timeout),
         pause_after_request_seconds=max(0.0, args.pause_after_request),

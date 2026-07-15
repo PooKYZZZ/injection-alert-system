@@ -6,6 +6,10 @@ from pydantic import ValidationError
 from web_app.config import Settings, get_settings, reset_settings_cache
 
 
+VALID_API_KEY = "general-internal-key"
+VALID_WAF_KEY = "dedicated-waf-ingest-key-at-least-32-characters"
+
+
 @pytest.fixture(autouse=True)
 def clear_settings_cache():
     reset_settings_cache()
@@ -46,7 +50,8 @@ def test_production_env_disables_api_docs_by_default(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
     monkeypatch.setenv("MODEL_PATH", "test_model.py")
-    monkeypatch.setenv("API_SECRET_KEY", "test-key")
+    monkeypatch.setenv("API_SECRET_KEY", VALID_API_KEY)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", VALID_WAF_KEY)
     monkeypatch.setenv("ENABLE_API_DOCS", "false")  # Explicitly set to test override
 
     settings = get_settings()
@@ -62,7 +67,8 @@ def test_staging_env_disables_api_docs_by_default(monkeypatch):
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
     monkeypatch.setenv("MODEL_PATH", "test_model.py")
-    monkeypatch.setenv("API_SECRET_KEY", "test-key")
+    monkeypatch.setenv("API_SECRET_KEY", VALID_API_KEY)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", VALID_WAF_KEY)
     monkeypatch.setenv("ENABLE_API_DOCS", "true")  # Explicitly enable
 
     settings = get_settings()
@@ -103,40 +109,17 @@ def test_is_staging_property(monkeypatch):
     assert settings.is_development is False
 
 
-def test_production_env_requires_auth_no_bypass(monkeypatch):
-    """Test that production environment always requires auth - no bypass possible.
-    
-    Even if no API key is configured, production should NOT allow auth bypass.
-    The auth middleware will deny access (not bypass).
-    """
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///test.db")
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("LOG_LEVEL", "INFO")
-    monkeypatch.setenv("MODEL_PATH", "test_model.py")
-    # No API_SECRET_KEY set - production should NOT bypass
-    monkeypatch.delenv("API_SECRET_KEY", raising=False)
-
-    settings = get_settings()
-    
-    assert settings.is_production is True
-    assert settings.is_development is False
-    # In production without API key, auth should be required (not bypassed)
-    # The settings show production mode - auth middleware handles the rest
-
-
-def test_staging_env_requires_auth_no_bypass(monkeypatch):
-    """Test that staging environment always requires auth - no bypass possible."""
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///test.db")
-    monkeypatch.setenv("APP_ENV", "staging")
-    monkeypatch.setenv("LOG_LEVEL", "INFO")
-    monkeypatch.setenv("MODEL_PATH", "test_model.py")
-    monkeypatch.delenv("API_SECRET_KEY", raising=False)
-
-    settings = get_settings()
-    
-    assert settings.is_staging is True
-    assert settings.is_development is False
-    # In staging without API key, auth should be required
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_deployed_environment_requires_general_api_key(app_env):
+    with pytest.raises(ValueError, match="API_SECRET_KEY"):
+        Settings(
+            env_file=False,
+            database_url="sqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key="",
+            waf_ingest_api_key=VALID_WAF_KEY,
+        )
 
 
 def test_development_allows_auth_bypass_only_when_no_api_key(monkeypatch):
@@ -178,7 +161,8 @@ def test_staging_environment_properties(monkeypatch):
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
     monkeypatch.setenv("MODEL_PATH", "test_model.py")
-    monkeypatch.setenv("API_SECRET_KEY", "staging-key-456")
+    monkeypatch.setenv("API_SECRET_KEY", VALID_API_KEY)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", VALID_WAF_KEY)
 
     settings = get_settings()
     
@@ -186,7 +170,7 @@ def test_staging_environment_properties(monkeypatch):
     assert settings.is_production is False
     assert settings.is_development is False
     assert settings.is_testing is False
-    assert settings.api_secret_key == "staging-key-456"
+    assert settings.api_secret_key == VALID_API_KEY
 
 
 def test_production_environment_properties(monkeypatch):
@@ -195,7 +179,8 @@ def test_production_environment_properties(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
     monkeypatch.setenv("MODEL_PATH", "test_model.py")
-    monkeypatch.setenv("API_SECRET_KEY", "prod-key-789")
+    monkeypatch.setenv("API_SECRET_KEY", VALID_API_KEY)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", VALID_WAF_KEY)
 
     settings = get_settings()
     
@@ -203,7 +188,7 @@ def test_production_environment_properties(monkeypatch):
     assert settings.is_staging is False
     assert settings.is_development is False
     assert settings.is_testing is False
-    assert settings.api_secret_key == "prod-key-789"
+    assert settings.api_secret_key == VALID_API_KEY
 
 
 def test_notification_settings_are_safe_by_default():
@@ -241,9 +226,77 @@ def test_production_worker_rejects_fake_provider():
             database_url="sqlite+aiosqlite:///test.db",
             model_path="test_model.py",
             app_env="production",
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
             notification_worker_enabled=True,
             notification_payload_encryption_key=b64encode(bytes(32)).decode(),
             email_provider="fake",
+        )
+
+
+def test_waf_settings_are_safe_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("WAF_INGEST_API_KEY", raising=False)
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+    )
+
+    assert settings.waf_ingest_api_key == ""
+    assert settings.waf_source_verification_mode == "unverified"
+
+
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_deployed_environment_requires_waf_ingest_key(app_env: str) -> None:
+    with pytest.raises(ValueError, match="WAF_INGEST_API_KEY"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key="",
+        )
+
+
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_deployed_environment_rejects_short_waf_ingest_key(app_env: str) -> None:
+    with pytest.raises(ValueError, match="at least 32"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key="too-short",
+        )
+
+
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_deployed_environment_rejects_equal_internal_keys(app_env: str) -> None:
+    shared_key = "same-key-must-not-cross-auth-boundaries"
+    with pytest.raises(ValueError, match="must differ"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=shared_key,
+            waf_ingest_api_key=shared_key,
+        )
+
+
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_deployed_environment_rejects_controlled_private_network(app_env: str) -> None:
+    with pytest.raises(ValueError, match="controlled_private_network"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            waf_source_verification_mode="controlled_private_network",
         )
 
 

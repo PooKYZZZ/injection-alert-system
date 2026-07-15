@@ -16,6 +16,9 @@ from web_app.presentation.api.routes import get_inference_queue, get_model_servi
 from web_app.presentation.app import create_app
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
+WAF_HEADERS = {
+    "Authorization": "Bearer test-waf-ingest-key-at-least-32-characters"
+}
 
 
 class FakeWafModelService:
@@ -113,7 +116,7 @@ def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
             "/api/internal/waf-events",
             json=_waf_payload(),
             headers={
-                **INTERNAL_HEADERS,
+                **WAF_HEADERS,
                 "X-Request-ID": "waf-request-001",
             },
         )
@@ -168,7 +171,7 @@ def test_waf_ingest_queue_full_returns_503_with_retry_after(
             "/api/internal/waf-events",
             json=_waf_payload(),
             headers={
-                **INTERNAL_HEADERS,
+                **WAF_HEADERS,
                 "X-Request-ID": "waf-queue-full-request",
             },
         )
@@ -206,7 +209,7 @@ def test_waf_ingest_model_not_ready_is_logged(waf_api_client, caplog):
         response = client.post(
             "/api/internal/waf-events",
             json=_waf_payload(),
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
 
     assert response.status_code == 503
@@ -246,6 +249,35 @@ def test_waf_ingest_invalid_token_returns_401(waf_api_client):
     assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
+def test_general_internal_key_cannot_submit_waf_event(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=_waf_payload(),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 401
+
+
+def test_waf_key_cannot_read_waf_event_lookup(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.get(
+        "/api/internal/waf-events/missing",
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 401
+
+
 def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio
@@ -258,7 +290,7 @@ def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     response = client.post(
         "/api/internal/waf-events",
         json=invalid_payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
 
     assert response.status_code == 422
@@ -276,7 +308,7 @@ def test_waf_ingest_invalid_timestamp_returns_422(waf_api_client):
     response = client.post(
         "/api/internal/waf-events",
         json=invalid_payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
 
     assert response.status_code == 422
@@ -302,7 +334,7 @@ def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client
     ingest_response = client.post(
         "/api/internal/waf-events",
         json=payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
     assert ingest_response.status_code == 200
 
@@ -368,12 +400,12 @@ def test_waf_ingest_duplicate_transaction_id_returns_existing_alert(
     first = client.post(
         "/api/internal/waf-events",
         json=payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
     second = client.post(
         "/api/internal/waf-events",
         json=payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
 
     assert first.status_code == 200
@@ -430,7 +462,7 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
         response = client.post(
             "/api/internal/waf-events",
             json=payload,
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
 
     assert response.status_code == 409
@@ -482,14 +514,14 @@ def test_concurrent_duplicate_transaction_runs_inference_once(waf_api_client):
             client.post,
             "/api/internal/waf-events",
             json=payload,
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
         assert prediction_started.wait(timeout=5)
         second_future = executor.submit(
             client.post,
             "/api/internal/waf-events",
             json=payload,
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
         second = second_future.result(timeout=5)
         release_prediction.set()

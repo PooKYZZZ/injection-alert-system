@@ -40,7 +40,10 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
 )
 from web_app.observability.structured_logging import log_event
 from web_app.notifications.threats import enqueue_threat_notification_safely
-from web_app.presentation.dependencies.auth import verify_internal_token
+from web_app.presentation.dependencies.auth import (
+    verify_internal_token,
+    verify_waf_ingest_token,
+)
 from web_app.application.update_alert_triage_use_case import (
     UpdateAlertTriageUseCase,
     InvalidTriageStatusError,
@@ -71,9 +74,11 @@ from web_app.presentation.schemas import (
 logger = logging.getLogger(__name__)
 
 internal_auth_dependency = Depends(verify_internal_token)
+waf_ingest_auth_dependency = Depends(verify_waf_ingest_token)
 
 router = APIRouter()
 internal_router = APIRouter(dependencies=[internal_auth_dependency])
+waf_ingest_router = APIRouter(dependencies=[waf_ingest_auth_dependency])
 
 
 def get_model_service(request: Request):
@@ -155,7 +160,7 @@ async def predict(
     )
 
 
-@internal_router.post(
+@waf_ingest_router.post(
     "/internal/waf-events",
     response_model=TriageIngestResponse,
     responses={
@@ -583,3 +588,4 @@ async def update_alert_action(
 
 
 router.include_router(internal_router)
+router.include_router(waf_ingest_router)

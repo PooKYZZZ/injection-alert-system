@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     model_path: str
     model_registry_path: str = ""
     api_secret_key: str = ""
+    waf_ingest_api_key: str = ""
+    waf_source_verification_mode: Literal[
+        "unverified",
+        "cloudflare_tunnel",
+        "controlled_private_network",
+    ] = "unverified"
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000"]
@@ -86,6 +92,29 @@ class Settings(BaseSettings):
             raise ValueError(
                 "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
             )
+        if self.is_production or self.is_staging:
+            if not self.api_secret_key:
+                raise ValueError(
+                    "API_SECRET_KEY is required in production and staging"
+                )
+            if not self.waf_ingest_api_key:
+                raise ValueError(
+                    "WAF_INGEST_API_KEY is required in production and staging"
+                )
+            if len(self.waf_ingest_api_key) < 32:
+                raise ValueError(
+                    "WAF_INGEST_API_KEY must be at least 32 characters in "
+                    "production and staging"
+                )
+            if self.waf_ingest_api_key == self.api_secret_key:
+                raise ValueError(
+                    "WAF_INGEST_API_KEY must differ from API_SECRET_KEY"
+                )
+            if self.waf_source_verification_mode == "controlled_private_network":
+                raise ValueError(
+                    "controlled_private_network is prohibited in production "
+                    "and staging"
+                )
         if self.notification_worker_enabled:
             raw_key = (self.notification_payload_encryption_key or "").strip()
             try:

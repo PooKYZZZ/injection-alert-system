@@ -887,7 +887,7 @@ def test_main_follow_from_start_passes_start_at_end_false(
         captured.update(kwargs)
         return (0, 0, 0)
 
-    monkeypatch.setenv("API_SECRET_KEY", "test-secret")
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-secret")
     monkeypatch.setattr("scripts.waf_audit_bridge.follow_bridge", _fake_follow_bridge)
     monkeypatch.setattr(
         "sys.argv",
@@ -912,10 +912,10 @@ def test_main_follow_from_start_passes_start_at_end_false(
     assert logs[-1]["failed"] == 0
 
 
-def test_main_missing_api_secret_emits_json_configuration_error(
+def test_main_missing_waf_ingest_key_emits_json_configuration_error(
     monkeypatch, capsys
 ):
-    monkeypatch.delenv("API_SECRET_KEY", raising=False)
+    monkeypatch.delenv("WAF_INGEST_API_KEY", raising=False)
     monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
 
     exit_code = main()
@@ -925,18 +925,18 @@ def test_main_missing_api_secret_emits_json_configuration_error(
     assert exit_code == 2
     assert payload["event"] == "bridge.configuration_failed"
     assert payload["level"] == "ERROR"
-    assert payload["message"] == "API secret is required"
-    assert payload["reason"] == "missing_api_secret"
+    assert payload["message"] == "WAF ingest API key is required"
+    assert payload["reason"] == "missing_waf_ingest_api_key"
     assert payload["service"] == "cybertrace-waf-bridge"
     assert payload["component"] == "modsecurity-bridge"
-    assert "API_SECRET_KEY=" not in captured.err
+    assert "WAF_INGEST_API_KEY=" not in captured.err
 
 
 def test_main_follow_with_stdin_emits_json_configuration_error(
     monkeypatch, capsys
 ):
     secret = "bridge-secret-must-not-leak"
-    monkeypatch.setenv("API_SECRET_KEY", secret)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", secret)
     monkeypatch.setattr(
         "sys.argv",
         ["waf_audit_bridge.py", "--follow", "--input", "-"],

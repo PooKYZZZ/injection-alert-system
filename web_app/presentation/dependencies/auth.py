@@ -68,3 +68,19 @@ async def verify_internal_token(
 
     if not secrets.compare_digest(credentials.credentials, settings.api_secret_key):
         raise _UNAUTHORIZED
+
+
+async def verify_waf_ingest_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> None:
+    settings = get_settings()
+    key = settings.waf_ingest_api_key
+
+    if not key:
+        raise _UNAUTHORIZED
+
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise _UNAUTHORIZED
+
+    if not secrets.compare_digest(credentials.credentials, key):
+        raise _UNAUTHORIZED
