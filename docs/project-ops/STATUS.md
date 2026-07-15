@@ -37,11 +37,14 @@
   `8088`. Hosted rendering excludes that pair and publishes exactly one
   loopback `8089`. The controlled topology has separate trusted/untrusted
   networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
-- Local full backend regression: **695 passed, 31 skipped**. The required
-  focused suite plus executable SQLite migration cycle passed **132 tests**.
-- Disposable PostgreSQL 16 upgraded from `20260712_000020` to
-  `20260715_000021`; **112 integration** and **39 migration** tests passed;
-  downgrade to the parent and re-upgrade to the single head also passed.
+- Local full backend regression: **698 passed, 32 skipped**. The required
+  focused source/integrity/migration suite passed **83 tests** with one
+  PostgreSQL-only test skipped locally; the executable SQLite migration cycle
+  also passed.
+- Disposable PostgreSQL 16 CI upgraded from `20260712_000020` to
+  `20260715_000021`; **114 integration** and **39 migration** tests passed.
+  The earlier local parent/head downgrade and re-upgrade cycle also passed;
+  the final CI run exercised the updated constraint on the full chain.
 - Compose rendered in a clean exported checkout with no `.env`: all **4**
   topology tests passed. The same pinned Gitleaks 8.24.3 scan found no leaks.
 - A real `ModelService` initialization smoke using Transformers `5.5.0` and
@@ -54,8 +57,10 @@
 - Remote CI is recorded separately. Initial run `29384464612` failed backend
   because Compose tests required the absent developer `.env`, and secret-scan
   found one deterministic test fixture. Run `29393146395` fixed those failures
-  but exposed backend dependency-audit findings. After the dependency fix, run
-  `29393701878` passed **backend, postgres, frontend, auth-e2e, and secret-scan**.
+  but exposed backend dependency-audit findings. Run `29393701878` passed the
+  earlier remediation head; final run `29428801740` passed **backend, postgres,
+  frontend, auth-e2e, and secret-scan** after the database-invariant and driver
+  corrections.
 - Controlled packet-path proof is **Not Run** because the local backend image
   build exceeded five minutes before containers were created.
 - Hosted source verification is **Partial**: tunnel peer, Workers, Pseudo IPv4,

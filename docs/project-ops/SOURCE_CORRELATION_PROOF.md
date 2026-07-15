@@ -28,12 +28,14 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 
 - Alembic now has exactly one head, `20260715_000021`.
 - The full backend suite passed with process-only test settings:
-  `695 passed, 31 skipped`.
-- The required focused source-correlation suite plus the executable SQLite
-  migration cycle passed: `132 passed`.
-- A disposable PostgreSQL 16 database upgraded from `20260712_000020` to head;
-  `112` integration tests and `39` migration tests passed; downgrade to the
-  parent and re-upgrade to the single head also passed.
+  `698 passed, 32 skipped`.
+- The required focused source/integrity suite passed: `83 passed` with one
+  PostgreSQL-only test skipped locally; the executable SQLite migration cycle
+  passed.
+- PostgreSQL CI upgraded from `20260712_000020` to head; `114` integration
+  tests and `39` migration tests passed. The earlier local parent/head
+  downgrade and re-upgrade cycle also passed; CI exercised the updated
+  constraint on the full chain.
 - The SQLite migration cycle is intentionally a minimal parent-shaped isolated
   execution proof for this revision's add/backfill/constraint/downgrade path.
   PostgreSQL is the authoritative full-chain proof for historical schema,
@@ -48,7 +50,7 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 - Clean-checkout Compose tests clear runtime `env_file` declarations with
   test-only overrides and supply isolated SQLite/test credentials through the
   subprocess environment. The real runtime Compose files still require `.env`.
-- GitHub Actions run `29393701878` passed backend, postgres, frontend,
+- GitHub Actions run `29428801740` passed backend, postgres, frontend,
   auth-e2e, and secret-scan. Earlier red runs are retained in
   `docs/project-ops/STATUS.md` with their corrected root causes.
 - A real ModelService startup smoke after the Transformers `5.5.0` upgrade

@@ -15,12 +15,13 @@ Status note:
   `20260712_000020` and must not be described as migrated to the new head.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
-- Current PR validation: backend **695 passed, 31 skipped**; required focused
-  suite plus executable SQLite migration cycle **132 passed**; disposable
-  PostgreSQL integration **112 passed** and migrations **39 passed**, including
-  downgrade/re-upgrade; clean-checkout Compose **4 passed**; frontend lint,
+- Current PR validation: backend **698 passed, 32 skipped**; focused
+  source/integrity/migration suite **83 passed, 1 PostgreSQL-only skip**;
+  executable SQLite migration cycle passed; disposable PostgreSQL CI
+  integration **114 passed** and migrations **39 passed**; clean-checkout
+  Compose **4 passed**; frontend lint,
   typecheck, **84 files / 480 Vitest tests**, and production build passed.
-- [x] Required PR #84 GitHub jobs pass in run `29393701878`: backend,
+- [x] Required PR #84 GitHub jobs pass in run `29428801740`: backend,
   postgres, frontend, auth-e2e, and secret-scan. Earlier Compose/secret-scan
   failures and the intermediate dependency-audit failure are summarized in
   `docs/project-ops/STATUS.md` rather than hidden.
