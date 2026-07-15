@@ -71,9 +71,9 @@ class TrafficLogEntity:
     created_at: Optional[datetime] = None
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
-    source_provenance: SourceProvenance = SourceProvenance.LEGACY_UNKNOWN
+    source_provenance: SourceProvenance = SourceProvenance.DIRECT_REMOTE_ADDR
     source_verification_status: SourceVerificationStatus = (
-        SourceVerificationStatus.LEGACY_UNKNOWN
+        SourceVerificationStatus.UNVERIFIED
     )
     ingest_fingerprint_sha256: Optional[str] = None
     request_path: Optional[str] = None

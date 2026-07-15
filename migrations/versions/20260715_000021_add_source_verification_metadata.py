@@ -47,6 +47,47 @@ CHECKS = (
 )
 
 
+def _is_sqlite() -> bool:
+    return op.get_bind().dialect.name == "sqlite"
+
+
+def _make_source_columns_non_nullable() -> None:
+    if _is_sqlite():
+        with op.batch_alter_table("traffic_logs", recreate="always") as batch_op:
+            batch_op.alter_column(
+                "source_provenance",
+                existing_type=sa.String(length=32),
+                nullable=False,
+                server_default=None,
+            )
+            batch_op.alter_column(
+                "source_verification_status",
+                existing_type=sa.String(length=32),
+                nullable=False,
+                server_default=None,
+            )
+            for name, condition in CHECKS:
+                batch_op.create_check_constraint(name, condition)
+        return
+
+    op.alter_column(
+        "traffic_logs",
+        "source_provenance",
+        existing_type=sa.String(length=32),
+        nullable=False,
+        server_default=None,
+    )
+    op.alter_column(
+        "traffic_logs",
+        "source_verification_status",
+        existing_type=sa.String(length=32),
+        nullable=False,
+        server_default=None,
+    )
+    for name, condition in CHECKS:
+        op.create_check_constraint(name, "traffic_logs", condition)
+
+
 def upgrade() -> None:
     op.add_column(
         "traffic_logs",
@@ -82,26 +123,19 @@ WHERE source_provenance IS NULL
 """
         )
     )
-    op.alter_column(
-        "traffic_logs",
-        "source_provenance",
-        existing_type=sa.String(length=32),
-        nullable=False,
-        server_default=None,
-    )
-    op.alter_column(
-        "traffic_logs",
-        "source_verification_status",
-        existing_type=sa.String(length=32),
-        nullable=False,
-        server_default=None,
-    )
-
-    for name, condition in CHECKS:
-        op.create_check_constraint(name, "traffic_logs", condition)
+    _make_source_columns_non_nullable()
 
 
 def downgrade() -> None:
+    if _is_sqlite():
+        with op.batch_alter_table("traffic_logs", recreate="always") as batch_op:
+            for name, _condition in reversed(CHECKS):
+                batch_op.drop_constraint(name, type_="check")
+            batch_op.drop_column("ingest_fingerprint_sha256")
+            batch_op.drop_column("source_verification_status")
+            batch_op.drop_column("source_provenance")
+        return
+
     for name, _condition in reversed(CHECKS):
         op.drop_constraint(name, "traffic_logs", type_="check")
     op.drop_column("traffic_logs", "ingest_fingerprint_sha256")

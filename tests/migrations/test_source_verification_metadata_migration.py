@@ -1,61 +1,149 @@
+from __future__ import annotations
+
 from pathlib import Path
 
-
-MIGRATION = (
-    Path(__file__).parents[2]
-    / "migrations"
-    / "versions"
-    / "20260715_000021_add_source_verification_metadata.py"
+from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+import pytest
+from sqlalchemy import (
+    Column,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    create_engine,
+    inspect,
+    text,
 )
+from sqlalchemy.exc import IntegrityError
 
 
-def migration_source() -> str:
-    return MIGRATION.read_text(encoding="utf-8")
+ROOT = Path(__file__).parents[2]
+PARENT_REVISION = "20260712_000020"
+HEAD_REVISION = "20260715_000021"
 
 
-def test_migration_follows_current_single_head() -> None:
-    source = migration_source()
-    assert 'revision = "20260715_000021"' in source
-    assert 'down_revision = "20260712_000020"' in source
+def _alembic_config() -> Config:
+    config = Config()
+    config.set_main_option("script_location", str(ROOT / "migrations"))
+    return config
 
 
-def test_upgrade_backfills_legacy_metadata_then_drops_defaults() -> None:
-    source = migration_source()
-    upgrade = source.split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
-
-    assert '"source_provenance"' in upgrade
-    assert '"source_verification_status"' in upgrade
-    assert '"ingest_fingerprint_sha256"' in upgrade
-    assert "LEGACY_UNKNOWN" in upgrade
-    assert "nullable=False" in upgrade
-    assert "server_default=None" in upgrade
-
-
-def test_upgrade_defines_all_named_checks_and_no_fingerprint_index() -> None:
-    source = migration_source()
-    upgrade = source.split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
-
-    for name in (
-        "source_provenance_allowed",
-        "source_verification_status_allowed",
-        "verified_source_ip_present",
-        "invalid_source_ip_absent",
-        "legacy_source_metadata_paired",
-        "verified_source_not_legacy",
-        "missing_source_status_valid",
-        "ingest_fingerprint_length",
-    ):
-        assert name in source
-
-    assert "create_index" not in upgrade
-    assert "length(ingest_fingerprint_sha256) = 64" in source
+def _create_parent_traffic_logs(database_url: str) -> None:
+    engine = create_engine(database_url)
+    metadata = MetaData()
+    Table(
+        "traffic_logs",
+        metadata,
+        Column("id", Integer, primary_key=True),
+        Column("transaction_id", String(128), unique=True),
+        Column("source_ip", String(45), nullable=True),
+        Column("http_request", Text, nullable=False),
+    )
+    metadata.create_all(engine)
+    engine.dispose()
 
 
-def test_downgrade_removes_only_added_constraints_and_columns() -> None:
-    source = migration_source()
-    downgrade = source.split("def downgrade()", 1)[1]
+def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_path = tmp_path / "source-metadata-cycle.db"
+    database_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _alembic_config()
+    _create_parent_traffic_logs(database_url)
+    command.stamp(config, PARENT_REVISION)
 
-    assert "reversed(CHECKS)" in downgrade
-    assert "op.drop_constraint(name, \"traffic_logs\", type_=\"check\")" in downgrade
-    assert downgrade.count("op.drop_column(") == 3
-    assert "drop_table" not in downgrade
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO traffic_logs
+                    (transaction_id, source_ip, http_request)
+                VALUES
+                    ('historical-source', '203.0.113.10', 'GET /source'),
+                    ('historical-null', NULL, 'GET /null')
+                """
+            )
+        )
+    engine.dispose()
+
+    command.upgrade(config, HEAD_REVISION)
+
+    engine = create_engine(database_url)
+    columns = {
+        column["name"]: column
+        for column in inspect(engine).get_columns("traffic_logs")
+    }
+    assert columns["source_provenance"]["nullable"] is False
+    assert columns["source_verification_status"]["nullable"] is False
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                SELECT transaction_id, source_provenance,
+                       source_verification_status, ingest_fingerprint_sha256
+                FROM traffic_logs
+                ORDER BY transaction_id
+                """
+            )
+        ).mappings().all()
+    assert rows == [
+        {
+            "transaction_id": "historical-null",
+            "source_provenance": "LEGACY_UNKNOWN",
+            "source_verification_status": "LEGACY_UNKNOWN",
+            "ingest_fingerprint_sha256": None,
+        },
+        {
+            "transaction_id": "historical-source",
+            "source_provenance": "LEGACY_UNKNOWN",
+            "source_verification_status": "LEGACY_UNKNOWN",
+            "ingest_fingerprint_sha256": None,
+        },
+    ]
+    with pytest.raises(IntegrityError):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO traffic_logs
+                        (transaction_id, source_ip, http_request,
+                         source_provenance, source_verification_status)
+                    VALUES
+                        ('invalid-combination', NULL, 'GET /invalid',
+                         'DIRECT_REMOTE_ADDR', 'VERIFIED')
+                    """
+                )
+            )
+    engine.dispose()
+
+    command.downgrade(config, PARENT_REVISION)
+    engine = create_engine(database_url)
+    downgraded_columns = {
+        column["name"] for column in inspect(engine).get_columns("traffic_logs")
+    }
+    assert "source_provenance" not in downgraded_columns
+    assert "source_verification_status" not in downgraded_columns
+    assert "ingest_fingerprint_sha256" not in downgraded_columns
+    engine.dispose()
+
+    command.upgrade(config, "head")
+    engine = create_engine(database_url)
+    upgraded_columns = {
+        column["name"] for column in inspect(engine).get_columns("traffic_logs")
+    }
+    assert {
+        "source_provenance",
+        "source_verification_status",
+        "ingest_fingerprint_sha256",
+    } <= upgraded_columns
+    engine.dispose()
+
+
+def test_migration_remains_the_single_expected_head() -> None:
+    config = _alembic_config()
+    assert ScriptDirectory.from_config(config).get_heads() == [HEAD_REVISION]

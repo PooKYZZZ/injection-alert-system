@@ -1,7 +1,19 @@
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from web_app.infrastructure.database.database import Base, TrafficLog
+
+
+def test_traffic_log_omitting_source_metadata_fails() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    session.add(TrafficLog(source_ip="192.0.2.1", http_request="GET /raw"))
+
+    with pytest.raises(IntegrityError):
+        session.commit()
 
 
 def test_traffic_log_model_creation():
@@ -13,6 +25,8 @@ def test_traffic_log_model_creation():
 
     log = TrafficLog(
         source_ip="192.168.1.1",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
         http_request="GET /api/users?id=1",
         prediction="Normal",
         confidence=0.95,
@@ -39,6 +53,8 @@ def test_traffic_log_has_all_required_fields():
 
     log = TrafficLog(
         source_ip="10.0.0.1",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
         http_request="POST /login",
         prediction="SQL Injection",
         confidence=0.85,
@@ -86,6 +102,8 @@ def test_traffic_log_persists_waf_metadata_columns():
 
     log = TrafficLog(
         source_ip="203.0.113.10",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
         http_request="POST /login HTTP/1.1",
         crs_score=10,
         crs_rule_ids=["942100"],

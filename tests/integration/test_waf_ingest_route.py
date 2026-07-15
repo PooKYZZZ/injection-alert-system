@@ -554,6 +554,8 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
                     created_at=datetime.now(timezone.utc),
                     timestamp=datetime.now(timezone.utc),
                     source_ip="203.0.113.10",
+                    source_provenance="DIRECT_REMOTE_ADDR",
+                    source_verification_status="UNVERIFIED",
                     request_path="/login",
                     request_method="POST",
                     http_request="POST /login HTTP/1.1",

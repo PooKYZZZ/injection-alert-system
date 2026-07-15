@@ -126,12 +126,8 @@ class TrafficLog(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     source_ip = Column(String(45), index=True)
-    source_provenance = Column(
-        String(32), nullable=False, default="LEGACY_UNKNOWN", server_default="LEGACY_UNKNOWN"
-    )
-    source_verification_status = Column(
-        String(32), nullable=False, default="LEGACY_UNKNOWN", server_default="LEGACY_UNKNOWN"
-    )
+    source_provenance = Column(String(32), nullable=False)
+    source_verification_status = Column(String(32), nullable=False)
     ingest_fingerprint_sha256 = Column(String(64), nullable=True)
     request_path = Column(String(512), nullable=True)
     query_string = Column(String(4096), nullable=True)
