@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     waf_source_verification_mode: Literal[
         "unverified",
         "cloudflare_tunnel",
-        "controlled_private_network",
     ] = "unverified"
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(
@@ -109,11 +108,6 @@ class Settings(BaseSettings):
             if self.waf_ingest_api_key == self.api_secret_key:
                 raise ValueError(
                     "WAF_INGEST_API_KEY must differ from API_SECRET_KEY"
-                )
-            if self.waf_source_verification_mode == "controlled_private_network":
-                raise ValueError(
-                    "controlled_private_network is prohibited in production "
-                    "and staging"
                 )
         if self.notification_worker_enabled:
             raw_key = (self.notification_payload_encryption_key or "").strip()

@@ -120,7 +120,7 @@ def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None
     assert "0.0.0.0/0" not in json.dumps(config)
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
-    ] == "controlled_private_network"
+    ] == "unverified"
     assert config["services"]["backend"]["environment"]["DATABASE_URL"] == (
         "sqlite+aiosqlite:////tmp/source-correlation-test.db"
     )

@@ -286,16 +286,12 @@ def test_deployed_environment_rejects_equal_internal_keys(app_env: str) -> None:
         )
 
 
-@pytest.mark.parametrize("app_env", ["production", "staging"])
-def test_deployed_environment_rejects_controlled_private_network(app_env: str) -> None:
-    with pytest.raises(ValueError, match="controlled_private_network"):
+def test_settings_rejects_removed_controlled_private_network_mode() -> None:
+    with pytest.raises(ValidationError):
         Settings(
             env_file=False,
             database_url="sqlite+aiosqlite:///test.db",
             model_path="test_model.py",
-            app_env=app_env,
-            api_secret_key=VALID_API_KEY,
-            waf_ingest_api_key=VALID_WAF_KEY,
             waf_source_verification_mode="controlled_private_network",
         )
 

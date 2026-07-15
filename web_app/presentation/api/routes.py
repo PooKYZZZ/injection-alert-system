@@ -33,10 +33,7 @@ from web_app.application.triage_use_case import (
     TriageInProgressError,
     TriageUseCase,
 )
-from web_app.application.waf_ingest_use_case import (
-    SourceProvenanceModeError,
-    WafIngestUseCase,
-)
+from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
@@ -255,8 +252,6 @@ async def ingest_waf_event(
             **_queue_log_fields(inference_queue),
         )
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except SourceProvenanceModeError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except TriageMetadataConflictError as exc:
         raise HTTPException(
             status_code=409,

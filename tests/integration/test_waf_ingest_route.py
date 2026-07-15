@@ -15,6 +15,7 @@ from web_app.infrastructure.database.database import Base, TrafficLog
 from web_app.application.waf_event_fingerprint import build_waf_event_fingerprint
 from web_app.application.waf_event_sanitizer import sanitize_waf_event
 from web_app.domain.source_address import SourceProvenance
+import web_app.presentation.api.routes as routes_module
 from web_app.presentation.api.routes import get_inference_queue, get_model_service
 from web_app.presentation.app import create_app
 
@@ -345,6 +346,44 @@ def test_waf_ingest_invalid_timestamp_is_canonicalized_to_null(waf_api_client):
     )
 
     assert response.status_code == 200
+
+
+def test_cloudflare_mode_persists_direct_evidence_as_unverified(
+    waf_api_client, monkeypatch, caplog
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-mode-mismatch"
+
+    with caplog.at_level(logging.WARNING):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=payload,
+            headers=WAF_HEADERS,
+        )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-txn-mode-mismatch",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert lookup.json()["source_verification_status"] == "UNVERIFIED"
+    event = _structured_events(caplog, "source_provenance_mode_mismatch")[-1]
+    assert event["transaction_id"] == "waf-txn-mode-mismatch"
+    assert event["verification_mode"] == "cloudflare_tunnel"
+    assert event["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert "request_headers" not in event
+    assert "sanitized_body" not in event
+    assert "authorization" not in caplog.text.lower()
 
 
 def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):

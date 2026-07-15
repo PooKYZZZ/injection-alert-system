@@ -5,6 +5,7 @@ WAF Ingest Use Case — bridges validated WAF events to the existing triage flow
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 
 from web_app.application.source_verification import (
     VerificationMode,
@@ -23,10 +24,9 @@ from web_app.domain.source_address import (
     SourceProvenance,
     canonicalize_source_ip,
 )
+from web_app.observability.structured_logging import log_event
 
-
-class SourceProvenanceModeError(ValueError):
-    """Raised when a verifying runtime receives evidence from another topology."""
+logger = logging.getLogger(__name__)
 
 
 class WafIngestUseCase:
@@ -70,12 +70,15 @@ class WafIngestUseCase:
         if (
             self._source_verification_mode == "cloudflare_tunnel"
             and source_provenance is not SourceProvenance.CLOUDFLARE_CONNECTING_IP
-        ) or (
-            self._source_verification_mode == "controlled_private_network"
-            and source_provenance is not SourceProvenance.DIRECT_REMOTE_ADDR
         ):
-            raise SourceProvenanceModeError(
-                "Source provenance is incompatible with the active verification mode"
+            log_event(
+                logger,
+                "source_provenance_mode_mismatch",
+                "WAF source provenance does not match verification mode",
+                level="WARNING",
+                transaction_id=transaction_id,
+                verification_mode=self._source_verification_mode,
+                source_provenance=source_provenance.value,
             )
 
         source_ip = canonicalize_source_ip(source_ip)

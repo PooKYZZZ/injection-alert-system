@@ -15,7 +15,7 @@ services:
       DATABASE_URL: sqlite+aiosqlite:////tmp/source-correlation-test.db
       API_SECRET_KEY: ${SOURCE_TEST_API_SECRET_KEY:?Set SOURCE_TEST_API_SECRET_KEY for the isolated topology}
       WAF_INGEST_API_KEY: ${SOURCE_TEST_WAF_INGEST_API_KEY:?Set SOURCE_TEST_WAF_INGEST_API_KEY for the isolated topology}
-      WAF_SOURCE_VERIFICATION_MODE: controlled_private_network
+      WAF_SOURCE_VERIFICATION_MODE: unverified
       NOTIFICATION_WORKER_ENABLED: "false"
       NOTIFICATION_WORKER_REQUIRED: "false"
     networks:

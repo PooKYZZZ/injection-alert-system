@@ -52,13 +52,6 @@ from web_app.domain.source_address import (
             "203.0.113.10",
             SourceProvenance.DIRECT_REMOTE_ADDR,
             None,
-            "controlled_private_network",
-            SourceVerificationStatus.VERIFIED,
-        ),
-        (
-            "203.0.113.10",
-            SourceProvenance.DIRECT_REMOTE_ADDR,
-            None,
             "unverified",
             SourceVerificationStatus.UNVERIFIED,
         ),

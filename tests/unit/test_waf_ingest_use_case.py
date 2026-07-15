@@ -4,10 +4,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from web_app.application.triage_use_case import ModelNotReadyError
-from web_app.application.waf_ingest_use_case import (
-    SourceProvenanceModeError,
-    WafIngestUseCase,
-)
+import web_app.application.waf_ingest_use_case as waf_ingest_use_case_module
+from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.domain.source_address import (
     SourceProvenance,
     SourceVerificationStatus,
@@ -242,22 +240,69 @@ async def test_ingest_derives_status_and_fingerprints_sanitized_factual_input():
 
 
 @pytest.mark.asyncio
-async def test_verifying_mode_rejects_incompatible_provenance():
+async def test_cloudflare_mode_accepts_direct_evidence_as_unverified_and_warns(
+    monkeypatch,
+):
+    classifier = Mock()
+    classifier.loaded = True
+    classifier.model_version = "test"
+    classifier.predict.return_value = {
+        "prediction": "Normal",
+        "confidence": 0.3,
+        "confidence_level": "LOW",
+    }
+    repository = AsyncMock()
+
+    async def _claim(entity, *, owner_token, **_kwargs):
+        entity.id = 1
+        entity.processing_owner_token = owner_token
+        return entity
+
+    repository.claim_or_reclaim_processing.side_effect = _claim
+    repository.complete_processing.return_value = Mock(
+        id=1,
+        prediction="Normal",
+        confidence=0.3,
+        confidence_level="LOW",
+        action_taken="ALLOWED",
+        model_version="test",
+    )
+    logged: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        waf_ingest_use_case_module,
+        "log_event",
+        lambda *args, **kwargs: logged.append(kwargs | {"event": args[1]}),
+    )
     use_case = WafIngestUseCase(
-        classifier=Mock(),
-        repository=AsyncMock(),
+        classifier=classifier,
+        repository=repository,
         source_verification_mode="cloudflare_tunnel",
     )
 
-    with pytest.raises(SourceProvenanceModeError):
-        await use_case.execute(
-            transaction_id="tx-incompatible-provenance",
-            timestamp=None,
-            source_ip="203.0.113.10",
-            source_provenance=SourceProvenance.DIRECT_REMOTE_ADDR,
-            cf_connecting_ip_matches_client_ip=None,
-            request_method="GET",
-            request_path="/",
-            crs_score=0,
-            crs_rule_ids=["unknown-rule"],
-        )
+    await use_case.execute(
+        transaction_id="tx-incompatible-provenance",
+        timestamp=None,
+        source_ip="203.0.113.10",
+        source_provenance=SourceProvenance.DIRECT_REMOTE_ADDR,
+        cf_connecting_ip_matches_client_ip=None,
+        request_method="GET",
+        request_path="/",
+        request_headers={"Authorization": "Bearer must-not-log"},
+        sanitized_body="password=must-not-log",
+        crs_score=0,
+        crs_rule_ids=["unknown-rule"],
+    )
+
+    entity = repository.claim_or_reclaim_processing.call_args.args[0]
+    assert entity.source_provenance is SourceProvenance.DIRECT_REMOTE_ADDR
+    assert entity.source_verification_status is SourceVerificationStatus.UNVERIFIED
+    assert logged == [
+        {
+            "level": "WARNING",
+            "transaction_id": "tx-incompatible-provenance",
+            "verification_mode": "cloudflare_tunnel",
+            "source_provenance": "DIRECT_REMOTE_ADDR",
+            "event": "source_provenance_mode_mismatch",
+        }
+    ]
+    assert "must-not-log" not in repr(logged)
