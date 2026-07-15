@@ -1,6 +1,6 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-15
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
@@ -131,10 +131,12 @@ dashboard checks, and triage persistence.
 From the repo root:
 
 ```powershell
-docker compose up --build -d
+docker compose --profile technical-waf up --build -d
 ```
 
-**What this does:** Builds the backend (Python/FastAPI), frontend (Next.js), and ModSecurity (OWASP CRS + Nginx) images, then starts all three containers in detached mode.
+**What this does:** Builds the backend, frontend, technical ModSecurity WAF,
+and WAF bridge, then starts them in detached mode. Without
+`--profile technical-waf`, normal Compose starts only backend and frontend.
 
 Wait approximately 30–60 seconds for all containers to initialize.
 
@@ -146,13 +148,14 @@ Wait approximately 30–60 seconds for all containers to initialize.
 docker compose ps
 ```
 
-**Expected output:** Three services listed, all with status `Up` (or `running`):
+**Expected output:** Four services listed, all with status `Up` (or `running`):
 
 | Service      | Expected Status |
 |--------------|-----------------|
 | `modsecurity` | Up             |
 | `backend`     | Up             |
 | `frontend`    | Up             |
+| `bridge`      | Up             |
 
 If any container shows `Exit` or is missing, inspect its logs:
 
@@ -266,11 +269,12 @@ Expected services include:
 
 - `frontend`
 - `backend`
-- `modsecurity`
-- `bridge`
 - `demo-target-modsecurity`
 - `demo-target-bridge`
 - `demo-portal`
+
+The technical `modsecurity`/`bridge` pair is intentionally absent unless the
+separate `technical-waf` profile is also enabled.
 
 Confirm the protected demo website is reachable through the WAF:
 
@@ -341,6 +345,27 @@ curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/
 Expected: `8088 SQLi status: 403`.
 
 Latest verified demo-target evidence: marker `SMOKE002945`, transaction `178249138618.813428`, host `localhost:8089`, request path `/records/search`, bridge post `status=200`, backend lookup `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=15`.
+
+## Controlled Source-Correlation Proof
+
+This opt-in topology publishes no host ports and forces the backend to an
+isolated SQLite file. Supply distinct test-only values in the current shell;
+do not reuse runtime credentials:
+
+```powershell
+$env:SOURCE_TEST_API_SECRET_KEY = '<test-only-internal-key>'
+$env:SOURCE_TEST_WAF_INGEST_API_KEY = '<different-test-only-waf-key>'
+docker compose -f docker-compose.yml -f docker-compose.source-correlation-test.yml --profile source-correlation-test up -d --build
+```
+
+The topology contains controlled clients A and B behind one trusted proxy, a
+direct untrusted client on another network, ModSecurity attached to both, and
+one bridge/backend path. Only `172.30.10.2/32` is trusted for
+`CF-Connecting-IP`; no ordinary host-browser path exists. A proof is complete
+only after capturing both controlled client sources, the forged-header direct
+result, transaction IDs, persisted source/provenance/status, and SQLi HTTP 403.
+If the build or any correlation step fails, record `Not Run` or `Partial` and
+do not infer success from `docker compose config` alone.
 
 ---
 
@@ -480,7 +505,7 @@ docker compose down -v
 
 ```powershell
 # 1. Start stack
-docker compose up --build -d
+docker compose --profile technical-waf up --build -d
 
 # 2. Confirm containers
 docker compose ps

@@ -1,6 +1,6 @@
 # Trusted Source Correlation Evidence
 
-**Status:** Planned implementation; topology inputs recorded
+**Status:** Implemented and automatically validated; local packet-path proof Not Run
 **Observed:** 2026-07-15
 
 This document separates repository and local-runtime evidence from hosted
@@ -24,6 +24,21 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
   `public.claim_notification_outbox_batch_v61` function. No `.env` value was
   changed for this work.
 
+## Implemented Repository State
+
+- Alembic now has exactly one head, `20260715_000021`.
+- The full backend suite passed with process-only test settings:
+  `691 passed, 31 skipped`.
+- Compose rendering proves the default stack excludes the technical pair;
+  `--profile technical-waf` restores `modsecurity` and `bridge` with `8088`.
+- The hosted merge resolves only `backend`, `frontend`, `demo-portal`,
+  `demo-target-modsecurity`, and `demo-target-bridge`, with exactly one
+  `127.0.0.1:8089:8080` binding and no `8088`.
+- The controlled merge has no published ports, uses
+  `controlled_private_network`, and trusts only proxy peer `172.30.10.2/32`.
+- Its backend is forced to an isolated SQLite file and process-only test
+  credentials, so it cannot inherit the developer `.env` database URL.
+
 ## Existing WAF Paths
 
 | Path | Current services | Published boundary | Current network | Current verification |
@@ -31,15 +46,13 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 | Technical WAF | `modsecurity`, `bridge`, `backend` | `0.0.0.0:8088 -> modsecurity:8080`; backend is exposed only inside Compose | Compose `default` | `unverified` |
 | Realistic demo target | `demo-target-modsecurity`, `demo-target-bridge`, `demo-portal`, `backend` | `0.0.0.0:8089 -> demo-target-modsecurity:8080`; portal and backend are internal-only | Compose `default` | `unverified` |
 
-The current base file has no profile on `modsecurity` or `bridge`. Therefore,
-resolving the base and demo-target files with `--profile demo-target` currently
-includes both WAF/bridge pairs and both host ports, `8088` and `8089`. This is
-the topology Phase E must isolate.
+At baseline the base WAF pair had no profile. The implementation now puts both
+services behind `technical-waf`, so the demo-target merge no longer includes
+the technical pair or port `8088`.
 
 Both bridges read separate host-mounted JSONL audit logs and submit to
-`POST /api/internal/waf-events`. At this baseline they still inherit
-`API_SECRET_KEY` from `.env`; the atomic credential phase will move submission
-to `WAF_INGEST_API_KEY` while lookup remains on `API_SECRET_KEY`.
+`POST /api/internal/waf-events` with `WAF_INGEST_API_KEY`. Transaction lookup
+continues to require `API_SECRET_KEY`.
 
 ## CRS Real-IP Capability
 
@@ -51,11 +64,10 @@ Inspection of that image proved its NGINX template supports:
 - `REAL_IP_HEADER`; and
 - `REAL_IP_RECURSIVE`.
 
-Neither current Compose WAF service sets these variables. The image defaults
-observed locally are `SET_REAL_IP_FROM=127.0.0.1` and
-`REAL_IP_HEADER=X-REAL-IP`; those defaults do not establish the planned
-Cloudflare source contract. Phase E must supply a narrow, topology-specific
-peer or network and must not trust `0.0.0.0/0` or all RFC1918 space.
+The controlled topology sets `REAL_IP_HEADER=CF-Connecting-IP` and trusts only
+`172.30.10.2/32`. The hosted override requires the operator to supply the
+observed narrow `HOSTED_WAF_TRUSTED_PEER`; it deliberately has no guessed
+default. Neither topology trusts `0.0.0.0/0` or all RFC1918 space.
 
 ## Cloudflare Evidence Gate
 
@@ -77,7 +89,7 @@ and the persisted PostgreSQL row.
 
 ## Hosted Replacement Strategy
 
-Because Compose `5.1.4` supports `!override`, the hosted file will replace the
+Because Compose `5.1.4` supports `!override`, the hosted file replaces the
 demo-target port list with exactly:
 
 ```yaml
@@ -85,10 +97,26 @@ ports: !override
   - "127.0.0.1:8089:8080"
 ```
 
-The hosted resolved service set must contain only `backend`, `frontend`,
-`demo-portal`, `demo-target-modsecurity`, and `demo-target-bridge`. It must not
-contain the technical `modsecurity` or `bridge`, must not publish `8088`, and
-must contain exactly one loopback `8089` mapping.
+The hosted resolved service set contains only `backend`, `frontend`,
+`demo-portal`, `demo-target-modsecurity`, and `demo-target-bridge`. It does not
+contain the technical `modsecurity` or `bridge`, does not publish `8088`, and
+contains exactly one loopback `8089` mapping.
+
+## Local Controlled Proof
+
+**Result: Not Run.** The opt-in stack build exceeded the five-minute local
+timeout before any containers were created. The orphaned build processes were
+identified by exact command line and stopped; no request, transaction ID,
+persisted source row, or SQLi response was produced. Therefore the following
+remain unproved at runtime in this session:
+
+- distinct persisted source addresses for controlled clients A and B;
+- rejection of a forged Cloudflare header from the direct untrusted network;
+- correlated transaction IDs and persisted provenance/status; and
+- SQLi HTTP 403 through the controlled proxy path.
+
+Automated Compose rendering is evidence of topology configuration only, not of
+packet-path behavior.
 
 ## Stop Conditions
 
