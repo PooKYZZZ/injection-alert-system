@@ -48,6 +48,9 @@ LOG_LEVEL=INFO
 MODEL_PATH=ml_model/models/mock_model.py
 MODEL_REGISTRY_PATH=
 API_SECRET_KEY=local-dev-secret
+WAF_INGEST_API_KEY=<different-generated-secret>
+WAF_SOURCE_VERIFICATION_MODE=unverified
+WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
 CONFIDENCE_LOW_THRESHOLD=0.50
@@ -56,6 +59,20 @@ STALE_PROCESSING_TIMEOUT_SECONDS=30
 MAX_SEQ_LEN=128
 TEMPERATURE=0.596868
 ```
+
+Generate the two bearer keys independently; never copy one into the other:
+
+```powershell
+.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Run that command twice and place each result only in `.env`. In production and
+staging both keys are required, `WAF_INGEST_API_KEY` must be at least 32
+characters, and it must differ from `API_SECRET_KEY`. The bridge uses the WAF
+key only for `POST /api/internal/waf-events`; BFF calls and WAF transaction
+lookup continue to use `API_SECRET_KEY`. If either key is exposed, replace it
+manually and recreate the backend plus every affected bridge; no automatic key
+rotation exists.
 
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:
@@ -223,7 +240,12 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current additive migration head is `20260712_000020`, and hosted Supabase has reached that revision. Application functions remain purpose-bound and server-only; the restricted break-glass function is executable only through `cybertrace_break_glass`, not `service_role`.
+- The current additive migration head is `20260715_000021`. Hosted Supabase is
+  only confirmed through `20260712_000020`; the source-verification migration
+  is not claimed as hosted until a reviewed deployment proves it. Application
+  functions remain purpose-bound and server-only; the restricted break-glass
+  function is executable only through `cybertrace_break_glass`, not
+  `service_role`.
 - The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, decrypts protected credential payloads only at delivery, and scrubs terminal payloads.
 
 ### Manual PR 3 auth cutover and rollback
@@ -397,7 +419,7 @@ Those files are mounted into the containers via `docker-compose.yml`.
 ### Start the stack
 
 ```powershell
-docker compose up --build -d
+docker compose --profile technical-waf up --build -d
 docker compose ps
 ```
 
@@ -407,6 +429,9 @@ Expected services:
 - `backend`
 - `modsecurity`
 - `bridge`
+
+Without `--profile technical-waf`, normal Compose starts only `frontend` and
+`backend`; the historical `8088` WAF pair is now explicitly opt-in.
 
 ### Current Docker network truth
 
@@ -450,6 +475,16 @@ localhost:8089
 The land-records-portal source stays separate from this repository. This repo's Compose override references it as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
 
 Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
+
+For hosted rendering, first observe the actual narrow tunnel peer or subnet;
+do not guess it. Keep `WAF_SOURCE_VERIFICATION_MODE=unverified`, set
+`HOSTED_WAF_TRUSTED_PEER`, and include `docker-compose.hosted-target.yml`.
+The resolved topology must contain one realistic WAF/bridge pair, no `8088`,
+and exactly one loopback `127.0.0.1:8089:8080` binding. Do not switch to
+`cloudflare_tunnel` or `cloudflare_connecting_ip` until Workers, Pseudo IPv4,
+direct-origin isolation, restored source, bridge correlation, and the hosted
+PostgreSQL row are all proved. Current hosted verification status is Partial;
+mode remains `unverified`.
 
 ### Backend health checks in Docker
 

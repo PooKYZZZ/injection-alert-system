@@ -116,6 +116,9 @@ For each important WAF event, preserve these fields when available:
 transaction_id
 timestamp
 source_ip
+source_provenance
+source_verification_status
+cf_connecting_ip_matches_client_ip when emitted by the bridge log
 request_method
 request_path
 query_string
@@ -138,6 +141,7 @@ Minimum proof-quality event evidence:
 ```text id="dfkgph"
 transaction_id present
 source_ip present
+source provenance and verification status present for new WAF rows
 request path present
 query string present when applicable
 CRS score present when blocked/logged
@@ -216,6 +220,7 @@ Do not log or paste:
 
 ```text id="i58g02"
 API_SECRET_KEY
+WAF_INGEST_API_KEY
 INTERNAL_API_KEY
 Authorization headers
 Bearer tokens
@@ -235,6 +240,8 @@ Allowed in normal proof summaries:
 transaction_id
 timestamp
 source_ip
+source_provenance
+source_verification_status
 request method
 request path
 query string if needed for attack proof
@@ -249,6 +256,18 @@ action_taken
 ```
 
 Raw request bodies should only be captured when they are necessary for a specific test, and only if the payload is safe test data.
+
+`ingest_fingerprint_sha256` is internal duplicate-integrity metadata. Do not
+expose it through lookup responses, dashboard contracts, screenshots, or proof
+reports. Structured mismatch logs use only an eight-character prefix and must
+not include headers, bodies, bearer keys, or full fingerprints.
+
+For new WAF rows, source IP is canonicalized (including IPv4-mapped IPv6 to
+IPv4); absent or malformed source becomes null rather than `"unknown"`.
+Historical rows preserve their original source value with `LEGACY_UNKNOWN`
+provenance/status and a null fingerprint. Verification status is an ingest-time
+fact, not a future authorization decision, and `cf_connecting_ip_matches_client_ip`
+is a consistency signal rather than an enforcement-trust Boolean.
 
 If a raw body is included in a local artifact, the artifact must be treated as local evidence and not pasted into public docs or screenshots without review.
 

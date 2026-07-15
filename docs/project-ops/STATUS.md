@@ -2,13 +2,13 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-15
 
 ---
 
 ## Current Verified Repo State
 
-- Working branch for PR #83 remediation: `feat/cybertrace-v6-1`
+- Working branch: `feat/trusted-source-correlation`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -25,6 +25,35 @@
 - Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, bounded per-identifier failure throttles, a default two-operation password-hash cap, database-expiring password-level MFA sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
 - Operational account scripts load `frontend/.env.local` for ordinary provisioning. ADMIN MFA break glass instead uses `scripts/operator_reset_admin_mfa.py` with a dedicated direct PostgreSQL login whose only membership is the execute-only `cybertrace_break_glass` role. TOTP, recovery, and password-reset feature flags fail closed when absent and are evaluated at request time.
 - PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, protected notification payloads, notification lifecycle/worker hardening, required PostgreSQL and authentication-browser CI jobs, and the hosted Admin journey. Public deployment is active through Cloudflare Tunnel at `app.cybertracesystems.com`; `target.cybertracesystems.com` is protected by Cloudflare Access; the Resend domain and live delivery are verified.
+
+### Trusted source correlation PR state
+
+- Repo implementation is complete through Alembic head `20260715_000021`:
+  canonical source/provenance contracts, separate WAF submission credential,
+  ingest-time verification derivation, factual SHA-256 fingerprints, immutable
+  duplicate metadata, and atomic matching stale reclaim.
+- Default Compose now excludes the technical WAF pair; `technical-waf` restores
+  `8088`. Hosted rendering excludes that pair and publishes exactly one
+  loopback `8089`. The controlled topology has separate trusted/untrusted
+  networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
+- Full backend regression: **691 passed, 31 skipped**. Final targeted
+  source/auth/duplicate/migration/tooling/Compose suite: **247 passed**.
+- Frontend lint and typecheck passed. The first cold full Vitest run timed out
+  in two BFF tests and caused one downstream mock failure; that file then
+  passed **34/34** alone, the warmed full suite passed **84 files / 480 tests**,
+  and the production build passed. No frontend source changed.
+- Disposable PostgreSQL upgraded to `20260715_000021`; 149/150 integration and
+  migration tests passed after repo role preparation. The remaining unrelated
+  break-glass assertion hardcodes database session user `postgres` while the
+  plan's container user is `cybertrace_test`. Two new source constraints were
+  directly observed rejecting invalid rows. A clean downgrade/re-upgrade cycle
+  for the new head is **not fully proved** in this session.
+- Controlled packet-path proof is **Not Run** because the local backend image
+  build exceeded five minutes before containers were created.
+- Hosted source verification is **Partial**: tunnel peer, Workers, Pseudo IPv4,
+  direct-origin isolation, restored source, and hosted PostgreSQL correlation
+  remain Unknown/Not Run. `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`;
+  no hosted `VERIFIED` claim is made.
 
 ### PR #83 completed release checks
 
