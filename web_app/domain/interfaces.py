@@ -18,6 +18,11 @@ from typing import Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from web_app.domain.source_address import (
+    SourceProvenance,
+    SourceVerificationStatus,
+)
+
 
 @dataclass
 class DriftMetrics:
@@ -66,6 +71,11 @@ class TrafficLogEntity:
     created_at: Optional[datetime] = None
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
+    source_provenance: SourceProvenance = SourceProvenance.LEGACY_UNKNOWN
+    source_verification_status: SourceVerificationStatus = (
+        SourceVerificationStatus.LEGACY_UNKNOWN
+    )
+    ingest_fingerprint_sha256: Optional[str] = None
     request_path: Optional[str] = None
     query_string: Optional[str] = None
     request_method: Optional[str] = None

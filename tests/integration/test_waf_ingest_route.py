@@ -12,6 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database import database as db_module
 from web_app.infrastructure.database.database import Base, TrafficLog
+from web_app.application.waf_event_fingerprint import build_waf_event_fingerprint
+from web_app.application.waf_event_sanitizer import sanitize_waf_event
+from web_app.domain.source_address import SourceProvenance
 from web_app.presentation.api.routes import get_inference_queue, get_model_service
 from web_app.presentation.app import create_app
 
@@ -84,6 +87,7 @@ def _waf_payload() -> dict:
         "transaction_id": "waf-txn-001",
         "timestamp": "2026-03-24T10:00:00Z",
         "source_ip": "203.0.113.10",
+        "source_provenance": "DIRECT_REMOTE_ADDR",
         "request_method": "POST",
         "request_path": "/login",
         "query_string": "user=admin",
@@ -103,6 +107,35 @@ def _structured_events(caplog, event_name):
         if record.getMessage().startswith("{")
         and json.loads(record.getMessage()).get("event") == event_name
     ]
+
+
+def _payload_fingerprint(payload: dict) -> str:
+    sanitized = sanitize_waf_event(
+        {
+            "request_headers": payload.get("request_headers") or {},
+            "sanitized_body": payload.get("sanitized_body"),
+        }
+    )
+    return build_waf_event_fingerprint(
+        source_event_timestamp=datetime.fromisoformat(
+            payload["timestamp"].replace("Z", "+00:00")
+        ),
+        source_ip=payload.get("source_ip"),
+        source_provenance=SourceProvenance(payload["source_provenance"]),
+        cf_connecting_ip_matches_client_ip=payload.get(
+            "cf_connecting_ip_matches_client_ip"
+        ),
+        request_method=payload["request_method"],
+        request_path=payload["request_path"],
+        query_string=payload.get("query_string"),
+        request_headers=sanitized.get("request_headers") or {},
+        sanitized_body=sanitized.get("sanitized_body"),
+        crs_score=payload["crs_score"],
+        crs_rule_ids=payload["crs_rule_ids"],
+        ingest_source=payload["ingest_source"],
+        matched_rule_messages=payload.get("matched_rule_messages"),
+        matched_rule_tags=payload.get("matched_rule_tags"),
+    )
 
 
 def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
@@ -296,7 +329,7 @@ def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     assert response.status_code == 422
 
 
-def test_waf_ingest_invalid_timestamp_returns_422(waf_api_client):
+def test_waf_ingest_invalid_timestamp_is_canonicalized_to_null(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio
 
@@ -311,7 +344,7 @@ def test_waf_ingest_invalid_timestamp_returns_422(waf_api_client):
         headers=WAF_HEADERS,
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
 
 
 def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):
@@ -355,6 +388,9 @@ def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client
         assert key in body
         assert body[key] is not None
     assert body["source_ip"] == "172.21.0.1"
+    assert body["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert body["source_verification_status"] == "UNVERIFIED"
+    assert "ingest_fingerprint_sha256" not in body
     assert body["request_path"] == "/api/health"
     assert body["query_string"] == "id=15%27%20OR%2015%3D15--"
     assert body["crs_score"] == 5
@@ -428,6 +464,8 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
 ):
     client, init_tables = waf_api_client
     import asyncio
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-processing-1"
 
     async def _seed_processing() -> None:
         await init_tables()
@@ -449,14 +487,12 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
                     + timedelta(seconds=30),
                     processing_owner_token="owner-old",
                     processing_attempt=1,
+                    ingest_fingerprint_sha256=_payload_fingerprint(payload),
                 )
             )
             await session.commit()
 
     asyncio.run(_seed_processing())
-
-    payload = _waf_payload()
-    payload["transaction_id"] = "waf-txn-processing-1"
 
     with caplog.at_level(logging.INFO):
         response = client.post(

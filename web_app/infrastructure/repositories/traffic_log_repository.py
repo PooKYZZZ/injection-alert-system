@@ -35,6 +35,7 @@ from web_app.domain.interfaces import (
     SourceIPSummary,
     TargetPathSummary,
 )
+from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
 from web_app.infrastructure.database.database import TrafficLog
 from web_app.infrastructure.database.database import AsyncSessionLocal
 
@@ -229,6 +230,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         kwargs = {
             "transaction_id": entity.transaction_id,
             "source_ip": entity.source_ip,
+            "source_provenance": entity.source_provenance.value,
+            "source_verification_status": entity.source_verification_status.value,
+            "ingest_fingerprint_sha256": entity.ingest_fingerprint_sha256,
             "request_path": entity.request_path,
             "query_string": entity.query_string,
             "request_method": entity.request_method,
@@ -271,6 +275,11 @@ class TrafficLogRepository(ITrafficLogRepository):
             created_at=orm_obj.created_at,
             timestamp=orm_obj.timestamp,
             source_ip=orm_obj.source_ip,
+            source_provenance=SourceProvenance(orm_obj.source_provenance),
+            source_verification_status=SourceVerificationStatus(
+                orm_obj.source_verification_status
+            ),
+            ingest_fingerprint_sha256=orm_obj.ingest_fingerprint_sha256,
             request_path=orm_obj.request_path,
             query_string=orm_obj.query_string,
             request_method=orm_obj.request_method,
@@ -320,6 +329,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "transaction_id": entity.transaction_id,
             "timestamp": entity.timestamp,
             "source_ip": entity.source_ip,
+            "source_provenance": entity.source_provenance.value,
+            "source_verification_status": entity.source_verification_status.value,
+            "ingest_fingerprint_sha256": entity.ingest_fingerprint_sha256,
             "request_path": entity.request_path,
             "query_string": entity.query_string,
             "request_method": entity.request_method,
@@ -376,6 +388,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "transaction_id": entity.transaction_id,
             "timestamp": entity.timestamp,
             "source_ip": entity.source_ip,
+            "source_provenance": entity.source_provenance.value,
+            "source_verification_status": entity.source_verification_status.value,
+            "ingest_fingerprint_sha256": entity.ingest_fingerprint_sha256,
             "request_path": entity.request_path,
             "query_string": entity.query_string,
             "request_method": entity.request_method,
@@ -418,6 +433,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "transaction_id": entity.transaction_id,
             "timestamp": entity.timestamp,
             "source_ip": entity.source_ip,
+            "source_provenance": entity.source_provenance.value,
+            "source_verification_status": entity.source_verification_status.value,
+            "ingest_fingerprint_sha256": entity.ingest_fingerprint_sha256,
             "request_path": entity.request_path,
             "query_string": entity.query_string,
             "request_method": entity.request_method,
@@ -462,36 +480,25 @@ class TrafficLogRepository(ITrafficLogRepository):
                     TrafficLog.status == "PROCESSING",
                     TrafficLog.lease_expires_at.isnot(None),
                     TrafficLog.lease_expires_at < now,
+                    TrafficLog.ingest_fingerprint_sha256
+                    == entity.ingest_fingerprint_sha256,
                 )
             )
             .values(
-                timestamp=entity.timestamp,
-                source_ip=entity.source_ip,
-                request_path=entity.request_path,
-                query_string=entity.query_string,
-                request_method=entity.request_method,
-                http_request=entity.http_request,
-                crs_score=entity.crs_score,
-                crs_rule_ids=entity.crs_rule_ids,
-                ingest_source=entity.ingest_source,
-                matched_rule_messages=entity.matched_rule_messages,
-                matched_rule_tags=entity.matched_rule_tags,
-                status="PROCESSING",
                 lease_expires_at=lease_expires_at,
                 processing_owner_token=owner_token,
                 processing_attempt=TrafficLog.processing_attempt + 1,
             )
+            .returning(TrafficLog)
         )
         result = await self._session.execute(update_stmt)
+        reclaimed = result.scalar_one_or_none()
         await self._session.commit()
 
+        if reclaimed is not None:
+            return self._orm_to_entity(reclaimed)
+
         existing = await self.get_by_transaction_id(entity.transaction_id)
-        if (
-            existing is not None
-            and existing.status == "PROCESSING"
-            and existing.processing_owner_token == owner_token
-        ):
-            return existing
         if existing is not None and existing.status == "COMPLETED":
             return existing
         return None

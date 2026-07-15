@@ -17,12 +17,17 @@ import pytest
 from web_app.application import triage_use_case as triage_use_case_module
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
+    TriageMetadataConflictError,
     TriageIngestCommand,
     TriageInProgressError,
     TriageResult,
     TriageUseCase,
 )
 from web_app.domain.interfaces import TrafficLogEntity
+from web_app.domain.source_address import (
+    SourceProvenance,
+    SourceVerificationStatus,
+)
 
 
 @pytest.fixture
@@ -282,6 +287,9 @@ async def test_ingest_returns_existing_alert_without_reinferring(
         confidence_level="HIGH",
         model_version="stored-model-v1",
         action_taken="BLOCKED",
+        source_provenance=SourceProvenance.DIRECT_REMOTE_ADDR,
+        source_verification_status=SourceVerificationStatus.UNVERIFIED,
+        ingest_fingerprint_sha256="a" * 64,
     )
     mock_repository.get_by_transaction_id.return_value = existing
     mock_repository.claim_or_reclaim_processing.return_value = existing
@@ -299,6 +307,7 @@ async def test_ingest_returns_existing_alert_without_reinferring(
             http_request="POST /login HTTP/1.1",
             crs_score=7,
             crs_rule_ids=["942100"],
+            ingest_fingerprint_sha256="a" * 64,
         )
     )
 
@@ -306,6 +315,155 @@ async def test_ingest_returns_existing_alert_without_reinferring(
     mock_repository.complete_processing.assert_not_called()
     assert result.alert_id == 7
     assert result.prediction == "SQL Injection"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["COMPLETED", "PROCESSING"])
+async def test_ingest_rejects_duplicate_with_mismatching_fingerprint(
+    mock_classifier,
+    mock_repository,
+    monkeypatch,
+    status,
+):
+    existing = TrafficLogEntity(
+        id=17,
+        transaction_id="txn-conflict",
+        created_at=datetime.now(timezone.utc),
+        status=status,
+        ingest_fingerprint_sha256="a" * 64,
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = (
+        existing if status == "COMPLETED" else None
+    )
+    mock_repository.get_by_transaction_id.return_value = existing
+    logged: list[dict] = []
+    monkeypatch.setattr(
+        triage_use_case_module,
+        "log_event",
+        lambda *args, **kwargs: logged.append(kwargs | {"event": args[1]}),
+    )
+
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+    with pytest.raises(TriageMetadataConflictError):
+        await use_case.ingest(
+            TriageIngestCommand(
+                transaction_id="txn-conflict",
+                timestamp=datetime.now(timezone.utc),
+                source_ip="203.0.113.17",
+                request_method="POST",
+                request_uri="/login",
+                request_headers={},
+                request_body="",
+                http_request="POST /login?q=incoming HTTP/1.1",
+                crs_score=8,
+                crs_rule_ids=["942100"],
+                ingest_fingerprint_sha256="b" * 64,
+            )
+        )
+
+    mock_classifier.predict.assert_not_called()
+    assert logged == [
+        {
+            "level": "WARNING",
+            "transaction_id": "txn-conflict",
+            "stored_fingerprint_prefix": "aaaaaaaa",
+            "incoming_fingerprint_prefix": "bbbbbbbb",
+            "transaction_status": status,
+            "event": "ingest_metadata_mismatch",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ingest_rejects_legacy_duplicate_without_fingerprint(
+    mock_classifier,
+    mock_repository,
+):
+    mock_repository.claim_or_reclaim_processing.return_value = None
+    mock_repository.get_by_transaction_id.return_value = TrafficLogEntity(
+        id=18,
+        transaction_id="txn-legacy",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        ingest_fingerprint_sha256=None,
+    )
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    with pytest.raises(TriageMetadataConflictError):
+        await use_case.ingest(
+            TriageIngestCommand(
+                transaction_id="txn-legacy",
+                timestamp=datetime.now(timezone.utc),
+                source_ip="203.0.113.18",
+                request_method="POST",
+                request_uri="/login",
+                request_headers={},
+                request_body="",
+                http_request="POST /login HTTP/1.1",
+                crs_score=8,
+                crs_rule_ids=["942100"],
+                ingest_fingerprint_sha256="c" * 64,
+            )
+        )
+
+    mock_classifier.predict.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_matching_retry_preserves_first_verification_status_and_logs_change(
+    mock_classifier,
+    mock_repository,
+    monkeypatch,
+):
+    existing = TrafficLogEntity(
+        id=19,
+        transaction_id="txn-context-change",
+        created_at=datetime.now(timezone.utc),
+        status="COMPLETED",
+        prediction="Normal",
+        confidence=0.4,
+        confidence_level="LOW",
+        action_taken="ALLOWED",
+        source_verification_status=SourceVerificationStatus.UNVERIFIED,
+        ingest_fingerprint_sha256="d" * 64,
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = existing
+    logged: list[dict] = []
+    monkeypatch.setattr(
+        triage_use_case_module,
+        "log_event",
+        lambda *args, **kwargs: logged.append(kwargs | {"event": args[1]}),
+    )
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    result = await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-context-change",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="203.0.113.19",
+            request_method="GET",
+            request_uri="/",
+            request_headers={},
+            request_body="",
+            http_request="GET / HTTP/1.1",
+            crs_score=0,
+            crs_rule_ids=[],
+            source_verification_status=SourceVerificationStatus.VERIFIED,
+            ingest_fingerprint_sha256="d" * 64,
+        )
+    )
+
+    assert result.prediction == "Normal"
+    assert existing.source_verification_status is SourceVerificationStatus.UNVERIFIED
+    assert logged == [
+        {
+            "level": "WARNING",
+            "transaction_id": "txn-context-change",
+            "stored_verification_status": "UNVERIFIED",
+            "incoming_verification_status": "VERIFIED",
+            "event": "verification_context_changed",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -391,6 +549,7 @@ async def test_ingest_folds_headers_and_body_into_persisted_http_request(
         transaction_id="txn-fold-1",
         created_at=datetime.now(timezone.utc),
         status="PROCESSING",
+        ingest_fingerprint_sha256="b" * 64,
         processing_owner_token="owner-token",
         processing_attempt=1,
     )
@@ -525,6 +684,7 @@ async def test_ingest_loser_with_processing_row_returns_in_progress(
         transaction_id="txn-processing",
         created_at=datetime.now(timezone.utc),
         status="PROCESSING",
+        ingest_fingerprint_sha256="b" * 64,
     )
 
     use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
@@ -542,6 +702,7 @@ async def test_ingest_loser_with_processing_row_returns_in_progress(
                 http_request="POST /login HTTP/1.1",
                 crs_score=8,
                 crs_rule_ids=["942100"],
+                ingest_fingerprint_sha256="b" * 64,
             )
     )
 
@@ -560,6 +721,7 @@ async def test_ingest_reclaims_expired_processing_lease_and_completes(
         status="PROCESSING",
         processing_owner_token="new-owner",
         processing_attempt=2,
+        ingest_fingerprint_sha256="c" * 64,
     )
     completed_row = TrafficLogEntity(
         id=12,
@@ -588,6 +750,7 @@ async def test_ingest_reclaims_expired_processing_lease_and_completes(
         classifier=mock_classifier,
         repository=mock_repository,
         stale_processing_timeout_seconds=30,
+        enable_preprocessing=False,
     )
 
     result = await use_case.ingest(
@@ -599,13 +762,17 @@ async def test_ingest_reclaims_expired_processing_lease_and_completes(
             request_uri="/login",
             request_headers={"Host": "example.test"},
             request_body="username=admin",
-            http_request="POST /login HTTP/1.1",
+            http_request="POST /login?id=1%20OR%201=1 HTTP/1.1",
             crs_score=8,
             crs_rule_ids=["942100"],
+            ingest_fingerprint_sha256="c" * 64,
         )
     )
 
     mock_classifier.predict.assert_called_once()
+    mock_classifier.predict.assert_called_once_with(
+        "POST /login?id=1%20OR%201=1 HTTP/1.1"
+    )
     assert result.alert_id == 12
     assert result.prediction == "SQL Injection"
     assert result.action_taken == "BLOCKED"
@@ -654,6 +821,7 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
                 processing_owner_token=owner_token,
                 processing_attempt=1,
                 lease_expires_at=lease_expires_at,
+                ingest_fingerprint_sha256=entity.ingest_fingerprint_sha256,
             )
             return self.completed
 
@@ -723,6 +891,7 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
         http_request="POST /login HTTP/1.1",
         crs_score=9,
         crs_rule_ids=["942100"],
+        ingest_fingerprint_sha256="d" * 64,
     )
 
     first, second = await asyncio.gather(

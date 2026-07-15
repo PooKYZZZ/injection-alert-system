@@ -133,6 +133,115 @@ def test_normalize_event_supports_modsecurity_style_payload():
     assert normalized["matched_rule_tags"] == ["attack-sqli", "paranoia-level/1"]
 
 
+def test_direct_mode_uses_canonical_client_ip_and_ignores_forged_cf_header():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-direct",
+                "client_ip": " ::ffff:192.0.2.128 ",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"CF-Connecting-IP": "198.51.100.50"},
+                },
+            }
+        }
+    )
+
+    assert normalized["source_ip"] == "192.0.2.128"
+    assert normalized["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_cloudflare_mode_compares_header_case_insensitively():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare",
+                "client_ip": "2001:0db8:0:0:0:0:0:1",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"cf-connecting-ip": "2001:db8::1"},
+                },
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert normalized["source_ip"] == "2001:db8::1"
+    assert normalized["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is True
+
+
+def test_cloudflare_mode_records_false_only_when_both_addresses_are_valid():
+    mismatch = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare-mismatch",
+                "client_ip": "192.0.2.10",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"CF-Connecting-IP": "192.0.2.11"},
+                },
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+    invalid = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare-invalid",
+                "client_ip": "192.0.2.10",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"CF-Connecting-IP": "192.0.2.11, 192.0.2.12"},
+                },
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert mismatch["cf_connecting_ip_matches_client_ip"] is False
+    assert invalid["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_missing_source_and_source_timestamp_remain_null():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-missing-source",
+                "request": {"method": "GET", "uri": "/"},
+            }
+        }
+    )
+
+    assert normalized["source_ip"] is None
+    assert normalized["timestamp"] is None
+
+
+def test_malformed_source_timestamp_becomes_null_without_echoing_value(capsys):
+    malformed = "malformed-secret-like-source-time"
+
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-bad-source-time",
+                "time": malformed,
+                "client_ip": "192.0.2.10",
+                "request": {"method": "GET", "uri": "/"},
+            }
+        }
+    )
+
+    assert normalized["timestamp"] is None
+    output = capsys.readouterr().out
+    assert "bridge.source_timestamp_invalid" in output
+    assert malformed not in output
+
+
 def test_normalize_event_preserves_real_modsecurity_unique_id_traceability():
     payload = {
         "transaction": {
@@ -930,6 +1039,21 @@ def test_main_missing_waf_ingest_key_emits_json_configuration_error(
     assert payload["service"] == "cybertrace-waf-bridge"
     assert payload["component"] == "modsecurity-bridge"
     assert "WAF_INGEST_API_KEY=" not in captured.err
+
+
+def test_main_rejects_unknown_source_provenance_mode(monkeypatch, capsys):
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-secret")
+    monkeypatch.setenv("WAF_SOURCE_PROVENANCE_MODE", "header_auto_detect")
+    monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert exit_code == 2
+    assert payload["event"] == "bridge.configuration_failed"
+    assert payload["reason"] == "invalid_source_provenance_mode"
+    assert "header_auto_detect" not in captured.err
 
 
 def test_main_follow_with_stdin_emits_json_configuration_error(

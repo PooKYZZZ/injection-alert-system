@@ -29,10 +29,14 @@ from web_app.application.inference_queue import (
 )
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
+    TriageMetadataConflictError,
     TriageInProgressError,
     TriageUseCase,
 )
-from web_app.application.waf_ingest_use_case import WafIngestUseCase
+from web_app.application.waf_ingest_use_case import (
+    SourceProvenanceModeError,
+    WafIngestUseCase,
+)
 from web_app.config import get_settings
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
@@ -140,7 +144,7 @@ async def predict(
 
     result = await use_case.execute(
         http_request=prediction_request.http_request,
-        source_ip=request.client.host if request.client else "unknown",
+        source_ip=request.client.host if request.client else None,
     )
     log_event(
         logger,
@@ -183,6 +187,7 @@ async def ingest_waf_event(
         repository=repository,
         stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
         enable_preprocessing=settings.enable_http_model_preprocessing,
+        source_verification_mode=settings.waf_source_verification_mode,
     )
     queue_fields = _queue_log_fields(inference_queue)
     log_event(
@@ -205,6 +210,10 @@ async def ingest_waf_event(
                 timestamp=payload.timestamp,
                 ingest_source=payload.ingest_source,
                 source_ip=payload.source_ip,
+                source_provenance=payload.source_provenance,
+                cf_connecting_ip_matches_client_ip=(
+                    payload.cf_connecting_ip_matches_client_ip
+                ),
                 request_method=payload.request_method,
                 request_path=payload.request_path,
                 query_string=payload.query_string,
@@ -246,6 +255,13 @@ async def ingest_waf_event(
             **_queue_log_fields(inference_queue),
         )
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except SourceProvenanceModeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TriageMetadataConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Transaction metadata conflicts with the stored event",
+        ) from exc
     except TriageInProgressError as exc:
         log_event(
             logger,
@@ -286,7 +302,7 @@ async def ingest_waf_event(
                 repository=outbox_repository,
                 settings=settings,
                 alert_id=result.alert_id,
-                timestamp=payload.timestamp.isoformat(),
+                timestamp=(payload.timestamp or datetime.now(timezone.utc)).isoformat(),
                 attack_category=result.prediction,
                 confidence_tier=result.confidence_level,
                 action_taken=result.action_taken,
@@ -329,6 +345,8 @@ async def get_waf_ingest_by_transaction_id(
         action_taken=entity.action_taken,
         ingest_source=entity.ingest_source,
         source_ip=entity.source_ip,
+        source_provenance=entity.source_provenance,
+        source_verification_status=entity.source_verification_status,
         request_path=entity.request_path,
         query_string=entity.query_string,
         crs_score=entity.crs_score,

@@ -1,7 +1,17 @@
 from datetime import datetime
 from typing import AsyncGenerator
 
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime, JSON, MetaData
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    JSON,
+    MetaData,
+    String,
+    Text,
+)
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
@@ -72,6 +82,40 @@ class TrafficLog(Base):
     """Database model for storing traffic logs and predictions."""
 
     __tablename__ = "traffic_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "source_provenance IN ('CLOUDFLARE_CONNECTING_IP', 'DIRECT_REMOTE_ADDR', 'LEGACY_UNKNOWN')",
+            name="source_provenance_allowed",
+        ),
+        CheckConstraint(
+            "source_verification_status IN ('VERIFIED', 'UNVERIFIED', 'INVALID', 'LEGACY_UNKNOWN')",
+            name="source_verification_status_allowed",
+        ),
+        CheckConstraint(
+            "source_verification_status <> 'VERIFIED' OR source_ip IS NOT NULL",
+            name="verified_source_ip_present",
+        ),
+        CheckConstraint(
+            "source_verification_status <> 'INVALID' OR source_ip IS NULL",
+            name="invalid_source_ip_absent",
+        ),
+        CheckConstraint(
+            "(source_provenance = 'LEGACY_UNKNOWN') = (source_verification_status = 'LEGACY_UNKNOWN')",
+            name="legacy_source_metadata_paired",
+        ),
+        CheckConstraint(
+            "source_verification_status <> 'VERIFIED' OR source_provenance <> 'LEGACY_UNKNOWN'",
+            name="verified_source_not_legacy",
+        ),
+        CheckConstraint(
+            "source_ip IS NOT NULL OR source_verification_status IN ('INVALID', 'LEGACY_UNKNOWN')",
+            name="missing_source_status_valid",
+        ),
+        CheckConstraint(
+            "ingest_fingerprint_sha256 IS NULL OR length(ingest_fingerprint_sha256) = 64",
+            name="ingest_fingerprint_length",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     transaction_id = Column(String(128), unique=True, nullable=True)
@@ -82,6 +126,13 @@ class TrafficLog(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     source_ip = Column(String(45), index=True)
+    source_provenance = Column(
+        String(32), nullable=False, default="LEGACY_UNKNOWN", server_default="LEGACY_UNKNOWN"
+    )
+    source_verification_status = Column(
+        String(32), nullable=False, default="LEGACY_UNKNOWN", server_default="LEGACY_UNKNOWN"
+    )
+    ingest_fingerprint_sha256 = Column(String(64), nullable=True)
     request_path = Column(String(512), nullable=True)
     query_string = Column(String(4096), nullable=True)
     request_method = Column(String(16), nullable=True)

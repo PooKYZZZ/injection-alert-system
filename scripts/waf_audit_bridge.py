@@ -16,6 +16,11 @@ import urllib.request
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from uuid import uuid4
 
+from web_app.domain.source_address import (
+    SourceProvenance,
+    canonicalize_source_ip,
+)
+
 
 _SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie"}
 _SENSITIVE_SUBSTRINGS = ("token", "secret", "key", "credential")
@@ -24,6 +29,10 @@ _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _RETRYABLE_ERRNOS = {61, 111, 10061}
 _MAX_RETRY_DELAY_SECONDS = 60.0
 _TOTAL_SCORE_RE = re.compile(r"Total Score:\s*`?(\d+)`?", re.IGNORECASE)
+_SOURCE_PROVENANCE_MODES = {
+    "direct_remote_addr",
+    "cloudflare_connecting_ip",
+}
 
 
 def _safe_log_value(value: Any) -> Any:
@@ -119,9 +128,9 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def normalize_timestamp(value: Any) -> str:
+def normalize_timestamp(value: Any) -> str | None:
     if value is None or str(value).strip() == "":
-        return _now_iso()
+        return None
 
     timestamp = str(value).strip()
 
@@ -137,7 +146,48 @@ def normalize_timestamp(value: Any) -> str:
             return parsed.isoformat()
         return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     except ValueError:
-        return timestamp
+        _log_event(
+            "bridge.source_timestamp_invalid",
+            "Source event timestamp is invalid; canonical value is null",
+            level="WARNING",
+        )
+        return None
+
+
+def _source_evidence(
+    *,
+    client_ip: Any,
+    request_headers: dict[str, Any],
+    provenance_mode: str,
+) -> tuple[str | None, str, bool | None]:
+    canonical_client_ip = canonicalize_source_ip(client_ip)
+    if provenance_mode == "direct_remote_addr":
+        return (
+            canonical_client_ip,
+            SourceProvenance.DIRECT_REMOTE_ADDR.value,
+            None,
+        )
+    if provenance_mode != "cloudflare_connecting_ip":
+        raise ValueError("unsupported source provenance mode")
+
+    cf_values = [
+        value
+        for key, value in request_headers.items()
+        if str(key).strip().lower() == "cf-connecting-ip"
+    ]
+    canonical_cf_ip = (
+        canonicalize_source_ip(cf_values[0]) if len(cf_values) == 1 else None
+    )
+    matches = (
+        canonical_client_ip == canonical_cf_ip
+        if canonical_client_ip is not None and canonical_cf_ip is not None
+        else None
+    )
+    return (
+        canonical_client_ip,
+        SourceProvenance.CLOUDFLARE_CONNECTING_IP.value,
+        matches,
+    )
 
 
 def _http_error_detail(exc: urllib.error.HTTPError) -> str:
@@ -220,7 +270,11 @@ def _resolve_crs_score(
     return 0
 
 
-def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
+def normalize_event(
+    raw_event: dict[str, Any],
+    *,
+    provenance_mode: str = "direct_remote_addr",
+) -> dict[str, Any]:
     transaction = raw_event.get("transaction")
     if isinstance(transaction, dict):
         request = transaction.get("request")
@@ -233,6 +287,13 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
             _redact_headers(request_headers_raw)
             if isinstance(request_headers_raw, dict)
             else {}
+        )
+        source_ip, source_provenance, cf_matches = _source_evidence(
+            client_ip=transaction.get("client_ip") or raw_event.get("source_ip"),
+            request_headers=request_headers_raw
+            if isinstance(request_headers_raw, dict)
+            else {},
+            provenance_mode=provenance_mode,
         )
 
         rule_ids, messages, tags = _extract_rule_metadata(
@@ -254,9 +315,9 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
                 or transaction.get("time_stamp")
                 or raw_event.get("timestamp")
             ),
-            "source_ip": str(
-                transaction.get("client_ip") or raw_event.get("source_ip") or "unknown"
-            ),
+            "source_ip": source_ip,
+            "source_provenance": source_provenance,
+            "cf_connecting_ip_matches_client_ip": cf_matches,
             "request_method": str(
                 request.get("method") or raw_event.get("request_method") or "GET"
             ),
@@ -282,6 +343,13 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
         if isinstance(request_headers_raw, dict)
         else {}
     )
+    source_ip, source_provenance, cf_matches = _source_evidence(
+        client_ip=raw_event.get("source_ip"),
+        request_headers=request_headers_raw
+        if isinstance(request_headers_raw, dict)
+        else {},
+        provenance_mode=provenance_mode,
+    )
 
     transaction_id = str(raw_event.get("transaction_id") or uuid4().hex)
     request_path = str(raw_event.get("request_path") or "/")
@@ -304,8 +372,10 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
     return {
         "ingest_source": "modsec_audit_bridge",
         "transaction_id": transaction_id,
-        "timestamp": str(raw_event.get("timestamp") or _now_iso()),
-        "source_ip": str(raw_event.get("source_ip") or "unknown"),
+        "timestamp": normalize_timestamp(raw_event.get("timestamp")),
+        "source_ip": source_ip,
+        "source_provenance": source_provenance,
+        "cf_connecting_ip_matches_client_ip": cf_matches,
         "request_method": str(raw_event.get("request_method") or "GET"),
         "request_path": request_path,
         "query_string": raw_event.get("query_string"),
@@ -483,6 +553,7 @@ def run_bridge(
     timeout: int,
     max_retries: int = 20,
     retry_delay_seconds: float = 2.0,
+    provenance_mode: str = "direct_remote_addr",
 ) -> tuple[int, int, int]:
     total = 0
     success = 0
@@ -499,7 +570,7 @@ def run_bridge(
             event = json.loads(line)
             if not isinstance(event, dict):
                 raise ValueError("event line must be a JSON object")
-            payload = normalize_event(event)
+            payload = normalize_event(event, provenance_mode=provenance_mode)
             transaction_id = str(payload.get("transaction_id") or "unknown")
             status = _post_event_with_retry(
                 payload,
@@ -518,6 +589,9 @@ def run_bridge(
                     transaction_id=transaction_id,
                     crs_score=payload.get("crs_score"),
                     crs_rule_ids=payload.get("crs_rule_ids"),
+                    cf_connecting_ip_matches_client_ip=payload.get(
+                        "cf_connecting_ip_matches_client_ip"
+                    ),
                 )
             else:
                 failed += 1
@@ -561,6 +635,7 @@ def _process_event_line(
     timeout: int,
     max_retries: int,
     retry_delay_seconds: float,
+    provenance_mode: str,
     seen_transaction_ids: set[str] | None = None,
 ) -> tuple[bool, bool]:
     transaction_id = "unknown"
@@ -569,7 +644,7 @@ def _process_event_line(
         if not isinstance(event, dict):
             raise ValueError("event line must be a JSON object")
 
-        payload = normalize_event(event)
+        payload = normalize_event(event, provenance_mode=provenance_mode)
         transaction_id = str(payload.get("transaction_id") or "")
         if seen_transaction_ids is not None and transaction_id in seen_transaction_ids:
             _log_event(
@@ -597,6 +672,9 @@ def _process_event_line(
                 transaction_id=transaction_id,
                 crs_score=payload.get("crs_score"),
                 crs_rule_ids=payload.get("crs_rule_ids"),
+                cf_connecting_ip_matches_client_ip=payload.get(
+                    "cf_connecting_ip_matches_client_ip"
+                ),
             )
             return True, True
 
@@ -643,6 +721,7 @@ def follow_bridge(
     stop_event: threading.Event | None = None,
     idle_timeout_seconds: float | None = None,
     start_at_end: bool = True,
+    provenance_mode: str = "direct_remote_addr",
 ) -> tuple[int, int, int]:
     total = 0
     success = 0
@@ -717,6 +796,7 @@ def follow_bridge(
                     timeout=timeout,
                     max_retries=max_retries,
                     retry_delay_seconds=retry_delay_seconds,
+                    provenance_mode=provenance_mode,
                     seen_transaction_ids=seen_transaction_ids,
                 )
                 if posted:
@@ -790,6 +870,19 @@ def main() -> int:
         )
         return 2
 
+    provenance_mode = os.getenv(
+        "WAF_SOURCE_PROVENANCE_MODE", "direct_remote_addr"
+    )
+    if provenance_mode not in _SOURCE_PROVENANCE_MODES:
+        _log_event(
+            "bridge.configuration_failed",
+            "WAF source provenance mode is invalid",
+            level="ERROR",
+            stream=sys.stderr,
+            reason="invalid_source_provenance_mode",
+        )
+        return 2
+
     endpoint = _build_endpoint(args.endpoint)
     _log_event(
         "bridge.started",
@@ -818,6 +911,7 @@ def main() -> int:
             max_retries=max(0, args.max_retries),
             retry_delay_seconds=max(0.0, args.retry_delay),
             start_at_end=not args.from_start,
+            provenance_mode=provenance_mode,
         )
     elif args.input == "-":
         total, success, failed = run_bridge(
@@ -827,6 +921,7 @@ def main() -> int:
             timeout=args.timeout,
             max_retries=max(0, args.max_retries),
             retry_delay_seconds=max(0.0, args.retry_delay),
+            provenance_mode=provenance_mode,
         )
     else:
         with open(args.input, "r", encoding="utf-8") as handle:
@@ -837,6 +932,7 @@ def main() -> int:
                 timeout=args.timeout,
                 max_retries=max(0, args.max_retries),
                 retry_delay_seconds=max(0.0, args.retry_delay),
+                provenance_mode=provenance_mode,
             )
 
     _log_event(

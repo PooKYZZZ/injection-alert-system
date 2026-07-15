@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from web_app.domain.interfaces import TrafficLogEntity
+from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
 from web_app.infrastructure.database.database import Base
 from web_app.infrastructure.repositories import traffic_log_repository as repo_module
 from web_app.infrastructure.repositories.traffic_log_repository import (
@@ -182,6 +183,9 @@ async def test_get_by_transaction_id_returns_entity(
         TrafficLogEntity(
             transaction_id="txn-123",
             source_ip="10.0.0.3",
+            source_provenance=SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+            source_verification_status=SourceVerificationStatus.VERIFIED,
+            ingest_fingerprint_sha256="e" * 64,
             request_path="/api/users",
             request_method="GET",
             http_request="GET /api/users?id=1",
@@ -192,6 +196,12 @@ async def test_get_by_transaction_id_returns_entity(
             action_taken="THROTTLED",
         )
     )
+
+    loaded = await repository.get_by_transaction_id("txn-123")
+    assert loaded is not None
+    assert loaded.source_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
+    assert loaded.source_verification_status is SourceVerificationStatus.VERIFIED
+    assert loaded.ingest_fingerprint_sha256 == "e" * 64
 
     found = await repository.get_by_transaction_id("txn-123")
 
@@ -371,6 +381,7 @@ async def test_claim_or_reclaim_processing_reclaims_stale_row(
             crs_score=7,
             crs_rule_ids=["942100"],
             status="PROCESSING",
+            ingest_fingerprint_sha256="f" * 64,
         ),
         owner_token="old-owner",
         lease_expires_at=stale_now - timedelta(seconds=1),
@@ -388,6 +399,7 @@ async def test_claim_or_reclaim_processing_reclaims_stale_row(
             crs_score=7,
             crs_rule_ids=["942100"],
             status="PROCESSING",
+            ingest_fingerprint_sha256="f" * 64,
         ),
         owner_token="new-owner",
         lease_expires_at=stale_now + timedelta(seconds=30),
@@ -397,6 +409,63 @@ async def test_claim_or_reclaim_processing_reclaims_stale_row(
     assert reclaimed is not None
     assert reclaimed.processing_owner_token == "new-owner"
     assert reclaimed.processing_attempt == 2
+
+
+@pytest.mark.asyncio
+async def test_stale_reclaim_requires_matching_fingerprint_and_preserves_evidence(
+    repository: TrafficLogRepository,
+):
+    stale_now = datetime.now(timezone.utc)
+    original_timestamp = stale_now - timedelta(seconds=31)
+    await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-reclaim-conflict",
+            timestamp=original_timestamp,
+            source_ip="198.51.100.13",
+            source_provenance=SourceProvenance.DIRECT_REMOTE_ADDR,
+            source_verification_status=SourceVerificationStatus.VERIFIED,
+            ingest_fingerprint_sha256="a" * 64,
+            request_path="/original",
+            request_method="POST",
+            http_request="POST /original HTTP/1.1",
+            crs_score=7,
+            crs_rule_ids=["942100"],
+            status="PROCESSING",
+        ),
+        owner_token="old-owner",
+        lease_expires_at=stale_now - timedelta(seconds=1),
+        now=stale_now - timedelta(seconds=1),
+    )
+
+    reclaimed = await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-reclaim-conflict",
+            timestamp=stale_now,
+            source_ip="203.0.113.99",
+            source_provenance=SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+            source_verification_status=SourceVerificationStatus.UNVERIFIED,
+            ingest_fingerprint_sha256="b" * 64,
+            request_path="/changed",
+            request_method="GET",
+            http_request="GET /changed HTTP/1.1",
+            crs_score=99,
+            crs_rule_ids=["999999"],
+            status="PROCESSING",
+        ),
+        owner_token="new-owner",
+        lease_expires_at=stale_now + timedelta(seconds=30),
+        now=stale_now,
+    )
+
+    stored = await repository.get_by_transaction_id("txn-reclaim-conflict")
+    assert reclaimed is None
+    assert stored is not None
+    assert stored.processing_owner_token == "old-owner"
+    assert stored.timestamp == original_timestamp.replace(tzinfo=None)
+    assert stored.source_ip == "198.51.100.13"
+    assert stored.request_path == "/original"
+    assert stored.crs_score == 7
+    assert stored.ingest_fingerprint_sha256 == "a" * 64
 
 
 @pytest.mark.asyncio
@@ -453,6 +522,7 @@ async def test_complete_processing_rejects_late_owner(
             crs_score=7,
             crs_rule_ids=["942100"],
             status="PROCESSING",
+            ingest_fingerprint_sha256="9" * 64,
         ),
         owner_token="owner-old",
         lease_expires_at=now + timedelta(seconds=30),
@@ -469,6 +539,7 @@ async def test_complete_processing_rejects_late_owner(
             crs_score=7,
             crs_rule_ids=["942100"],
             status="PROCESSING",
+            ingest_fingerprint_sha256="9" * 64,
         ),
         owner_token="owner-new",
         lease_expires_at=now + timedelta(seconds=61),

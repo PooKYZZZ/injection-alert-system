@@ -312,6 +312,8 @@ class WafIngestLookupResponse(BaseModel):
     action_taken: ActionTaken | None = None
     ingest_source: str | None = None
     source_ip: str | None = None
+    source_provenance: str | None = None
+    source_verification_status: str | None = None
     request_path: str | None = None
     query_string: str | None = None
     crs_score: int | None = None
