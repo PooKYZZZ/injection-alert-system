@@ -12,7 +12,10 @@ POSTGRES_URL = os.getenv("CYBERTRACE_POSTGRES_TEST_URL")
 
 @pytest.mark.skipif(not POSTGRES_URL, reason="disposable PostgreSQL URL not configured")
 def test_postgres_rejects_verified_direct_source() -> None:
-    engine = create_engine(POSTGRES_URL)
+    database_url = POSTGRES_URL.replace(
+        "postgresql://", "postgresql+psycopg://", 1
+    )
+    engine = create_engine(database_url)
     with engine.connect() as connection:
         transaction = connection.begin()
         try:
