@@ -44,6 +44,24 @@ def test_traffic_log_model_creation():
     assert retrieved.confidence == 0.95
 
 
+def test_traffic_log_rejects_verified_direct_source() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    session.add(
+        TrafficLog(
+            source_ip="192.0.2.1",
+            source_provenance="DIRECT_REMOTE_ADDR",
+            source_verification_status="VERIFIED",
+            http_request="GET /invalid",
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
 def test_traffic_log_has_all_required_fields():
     """Test that TrafficLog has all required fields from schema"""
     engine = create_engine("sqlite:///:memory:")

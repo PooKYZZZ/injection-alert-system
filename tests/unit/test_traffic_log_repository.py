@@ -422,7 +422,7 @@ async def test_stale_reclaim_requires_matching_fingerprint_and_preserves_evidenc
             transaction_id="txn-reclaim-conflict",
             timestamp=original_timestamp,
             source_ip="198.51.100.13",
-            source_provenance=SourceProvenance.DIRECT_REMOTE_ADDR,
+            source_provenance=SourceProvenance.CLOUDFLARE_CONNECTING_IP,
             source_verification_status=SourceVerificationStatus.VERIFIED,
             ingest_fingerprint_sha256="a" * 64,
             request_path="/original",

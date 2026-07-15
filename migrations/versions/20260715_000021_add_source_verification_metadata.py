@@ -37,6 +37,10 @@ CHECKS = (
         "source_verification_status <> 'VERIFIED' OR source_provenance <> 'LEGACY_UNKNOWN'",
     ),
     (
+        "verified_source_requires_cloudflare_provenance",
+        "source_verification_status <> 'VERIFIED' OR source_provenance = 'CLOUDFLARE_CONNECTING_IP'",
+    ),
+    (
         "missing_source_status_valid",
         "source_ip IS NOT NULL OR source_verification_status IN ('INVALID', 'LEGACY_UNKNOWN')",
     ),

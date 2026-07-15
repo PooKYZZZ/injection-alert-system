@@ -96,6 +96,20 @@ def test_null_and_empty_query_strings_remain_distinct() -> None:
     ) != build_waf_event_fingerprint(**_event(query_string=""))
 
 
+def test_case_insensitive_header_collisions_retain_sorted_values() -> None:
+    first = build_waf_event_fingerprint(
+        **_event(request_headers={"Content-Type": " application/json ", "content-type": "text/plain"})
+    )
+    second = build_waf_event_fingerprint(
+        **_event(request_headers={"content-type": "text/plain", "Content-Type": "application/json"})
+    )
+
+    assert first == second
+    assert first != build_waf_event_fingerprint(
+        **_event(request_headers={"Content-Type": "application/json", "content-type": "text/html"})
+    )
+
+
 def test_runtime_verification_conclusions_are_not_fingerprint_inputs() -> None:
     parameters = inspect.signature(build_waf_event_fingerprint).parameters
 

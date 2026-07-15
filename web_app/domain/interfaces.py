@@ -71,6 +71,9 @@ class TrafficLogEntity:
     created_at: Optional[datetime] = None
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
+    # Backward-compatible conservative defaults for domain callers that omit
+    # source metadata; they never imply verified trust. The ORM/database still
+    # require non-null persisted values.
     source_provenance: SourceProvenance = SourceProvenance.DIRECT_REMOTE_ADDR
     source_verification_status: SourceVerificationStatus = (
         SourceVerificationStatus.UNVERIFIED

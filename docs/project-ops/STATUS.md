@@ -44,6 +44,11 @@
   downgrade to the parent and re-upgrade to the single head also passed.
 - Compose rendered in a clean exported checkout with no `.env`: all **4**
   topology tests passed. The same pinned Gitleaks 8.24.3 scan found no leaks.
+- A real `ModelService` initialization smoke using Transformers `5.5.0` and
+  the configured staged DistilBERT registry loaded
+  `distilbert_v3_907k_cleaned_20260312_133755` as
+  `DistilBertForSequenceClassification`; no new dependency error occurred.
+  The separate model-packaging/classifier-head follow-up remains out of scope.
 - Frontend lint, typecheck, **84 files / 480 Vitest tests**, and production
   build passed locally. No frontend source changed.
 - Remote CI is recorded separately. Initial run `29384464612` failed backend

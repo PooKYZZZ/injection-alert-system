@@ -105,6 +105,31 @@ def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
             "ingest_fingerprint_sha256": None,
         },
     ]
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO traffic_logs
+                    (transaction_id, source_ip, http_request,
+                     source_provenance, source_verification_status)
+                VALUES
+                    ('valid-cloudflare-verified', '203.0.113.20', 'GET /valid',
+                     'CLOUDFLARE_CONNECTING_IP', 'VERIFIED'),
+                    ('valid-cloudflare-unverified', '203.0.113.21', 'GET /valid',
+                     'CLOUDFLARE_CONNECTING_IP', 'UNVERIFIED'),
+                    ('valid-direct-unverified', '203.0.113.22', 'GET /valid',
+                     'DIRECT_REMOTE_ADDR', 'UNVERIFIED'),
+                    ('valid-direct-invalid', NULL, 'GET /valid',
+                     'DIRECT_REMOTE_ADDR', 'INVALID'),
+                    ('valid-legacy', NULL, 'GET /valid',
+                     'LEGACY_UNKNOWN', 'LEGACY_UNKNOWN')
+                """
+            )
+        )
+    # This is an isolated executable proof of this revision's add/backfill/
+    # constraint/downgrade behavior against a minimal parent-shaped table. The
+    # disposable PostgreSQL chain tests the complete historical schema,
+    # relationships, indexes, and PostgreSQL-specific behavior.
     with pytest.raises(IntegrityError):
         with engine.begin() as connection:
             connection.execute(
@@ -116,6 +141,21 @@ def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
                     VALUES
                         ('invalid-combination', NULL, 'GET /invalid',
                          'DIRECT_REMOTE_ADDR', 'VERIFIED')
+                    """
+                )
+            )
+
+    with pytest.raises(IntegrityError):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO traffic_logs
+                        (transaction_id, source_ip, http_request,
+                         source_provenance, source_verification_status)
+                    VALUES
+                        ('invalid-null-verified', NULL, 'GET /invalid-null',
+                         'CLOUDFLARE_CONNECTING_IP', 'VERIFIED')
                     """
                 )
             )

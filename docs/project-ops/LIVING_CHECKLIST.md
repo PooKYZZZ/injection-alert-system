@@ -24,6 +24,10 @@ Status note:
   postgres, frontend, auth-e2e, and secret-scan. Earlier Compose/secret-scan
   failures and the intermediate dependency-audit failure are summarized in
   `docs/project-ops/STATUS.md` rather than hidden.
+- [ ] Dependency exception owner: backend dependency-maintenance; review by
+  2026-09-30. Remove `PYSEC-2026-3447` when active PyTorch permits
+  `setuptools>=83`, or earlier if macOS packaging/source-distribution jobs are
+  introduced. The current Linux wheel-only CI still ignores this one advisory.
 - Canonical source/provenance/status and factual fingerprint duplicate handling
   are implemented. The fingerprint is internal and omitted from lookup/UI.
 - [x] Compose profile/service/port/network configuration is automatically

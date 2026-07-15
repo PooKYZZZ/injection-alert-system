@@ -34,6 +34,10 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 - A disposable PostgreSQL 16 database upgraded from `20260712_000020` to head;
   `112` integration tests and `39` migration tests passed; downgrade to the
   parent and re-upgrade to the single head also passed.
+- The SQLite migration cycle is intentionally a minimal parent-shaped isolated
+  execution proof for this revision's add/backfill/constraint/downgrade path.
+  PostgreSQL is the authoritative full-chain proof for historical schema,
+  relationships, indexes, and PostgreSQL-specific behavior.
 - Compose rendering proves the default stack excludes the technical pair;
   `--profile technical-waf` restores `modsecurity` and `bridge` with `8088`.
 - The hosted merge resolves only `backend`, `frontend`, `demo-portal`,
@@ -47,6 +51,11 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 - GitHub Actions run `29393701878` passed backend, postgres, frontend,
   auth-e2e, and secret-scan. Earlier red runs are retained in
   `docs/project-ops/STATUS.md` with their corrected root causes.
+- A real ModelService startup smoke after the Transformers `5.5.0` upgrade
+  loaded the configured staged DistilBERT artifact and produced the expected
+  `DistilBertForSequenceClassification` service; no unrelated initialization
+  error was observed. Model artifact/classifier-head repair remains out of
+  scope.
 
 ## Existing WAF Paths
 

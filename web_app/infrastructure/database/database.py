@@ -108,6 +108,10 @@ class TrafficLog(Base):
             name="verified_source_not_legacy",
         ),
         CheckConstraint(
+            "source_verification_status <> 'VERIFIED' OR source_provenance = 'CLOUDFLARE_CONNECTING_IP'",
+            name="verified_source_requires_cloudflare_provenance",
+        ),
+        CheckConstraint(
             "source_ip IS NOT NULL OR source_verification_status IN ('INVALID', 'LEGACY_UNKNOWN')",
             name="missing_source_status_valid",
         ),

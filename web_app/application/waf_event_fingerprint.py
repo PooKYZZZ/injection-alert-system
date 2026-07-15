@@ -29,14 +29,16 @@ def _normalize_source_timestamp(value: datetime | str | None) -> str | None:
     return normalized.replace("+00:00", "Z")
 
 
-def _canonical_headers(headers: dict[str, Any] | None) -> dict[str, str]:
-    canonical: dict[str, str] = {}
-    items = sorted(
-        (headers or {}).items(),
-        key=lambda item: (str(item[0]).strip().lower(), str(item[0])),
-    )
-    for key, value in items:
-        canonical[str(key).strip().lower()] = str(value).strip()
+def _canonical_headers(headers: dict[str, Any] | None) -> dict[str, str | list[str]]:
+    grouped: dict[str, list[str]] = {}
+    for key, value in (headers or {}).items():
+        normalized_key = str(key).strip().lower()
+        grouped.setdefault(normalized_key, []).append(str(value).strip())
+
+    canonical: dict[str, str | list[str]] = {}
+    for key in sorted(grouped):
+        values = sorted(grouped[key])
+        canonical[key] = values[0] if len(values) == 1 else values
     return canonical
 
 
