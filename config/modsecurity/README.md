@@ -32,7 +32,7 @@ Do not document ModSecurity as processing all incoming production requests. The 
 docker compose --profile technical-waf up --build
 ```
 
-The controlled topology has no ordinary host-browser route and trusts only `172.30.10.2/32` for `CF-Connecting-IP` restoration. Its separate untrusted network reaches ModSecurity directly, so a forged Cloudflare header from that network is ignored by the CRS image's real-IP mechanism.
+The controlled topology has no ordinary host-browser route and trusts only `172.30.10.2/32` for `CF-Connecting-IP` restoration. Its separate untrusted network reaches ModSecurity directly, so a forged Cloudflare header from that network is ignored by the CRS image's real-IP mechanism. The backend remains in `unverified` mode for the entire topology: trusted-proxy traffic proves source restoration, not authorization trust, and both proxied and direct-client events must persist as `UNVERIFIED`.
 
 ## Audit Log Decisions
 

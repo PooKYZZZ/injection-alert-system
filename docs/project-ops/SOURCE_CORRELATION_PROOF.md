@@ -1,6 +1,6 @@
 # Trusted Source Correlation Evidence
 
-**Status:** Implemented and automatically validated; local packet-path proof Not Run
+**Status:** Repository checks passed; local packet-path proof Not Run; hosted verification Partial
 **Observed:** 2026-07-15
 
 This document separates repository and local-runtime evidence from hosted
@@ -11,7 +11,7 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 
 - Git base: `master` at `ac86422` (`feat: implement CyberTrace V6.1 account security`).
 - Feature branch: `feat/trusted-source-correlation`.
-- Alembic: exactly one head, `20260712_000020`.
+- Alembic parent revision at feature start: `20260712_000020`.
 - Docker Compose: `5.1.4`; this is newer than the plan's minimum `2.24.4`, so
   the hosted override may use `ports: !override` rather than relying on port-list
   merging.
@@ -28,16 +28,25 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 
 - Alembic now has exactly one head, `20260715_000021`.
 - The full backend suite passed with process-only test settings:
-  `691 passed, 31 skipped`.
+  `695 passed, 31 skipped`.
+- The required focused source-correlation suite plus the executable SQLite
+  migration cycle passed: `132 passed`.
+- A disposable PostgreSQL 16 database upgraded from `20260712_000020` to head;
+  `112` integration tests and `39` migration tests passed; downgrade to the
+  parent and re-upgrade to the single head also passed.
 - Compose rendering proves the default stack excludes the technical pair;
   `--profile technical-waf` restores `modsecurity` and `bridge` with `8088`.
 - The hosted merge resolves only `backend`, `frontend`, `demo-portal`,
   `demo-target-modsecurity`, and `demo-target-bridge`, with exactly one
   `127.0.0.1:8089:8080` binding and no `8088`.
-- The controlled merge has no published ports, uses
-  `controlled_private_network`, and trusts only proxy peer `172.30.10.2/32`.
-- Its backend is forced to an isolated SQLite file and process-only test
-  credentials, so it cannot inherit the developer `.env` database URL.
+- The controlled merge has no published ports, uses `unverified`, and trusts
+  only proxy peer `172.30.10.2/32`.
+- Clean-checkout Compose tests clear runtime `env_file` declarations with
+  test-only overrides and supply isolated SQLite/test credentials through the
+  subprocess environment. The real runtime Compose files still require `.env`.
+- GitHub Actions run `29393701878` passed backend, postgres, frontend,
+  auth-e2e, and secret-scan. Earlier red runs are retained in
+  `docs/project-ops/STATUS.md` with their corrected root causes.
 
 ## Existing WAF Paths
 
@@ -111,8 +120,10 @@ persisted source row, or SQLi response was produced. Therefore the following
 remain unproved at runtime in this session:
 
 - distinct persisted source addresses for controlled clients A and B;
-- rejection of a forged Cloudflare header from the direct untrusted network;
-- correlated transaction IDs and persisted provenance/status; and
+- proof that a forged Cloudflare header from the direct untrusted network does
+  not replace that client's real address;
+- correlated transaction IDs and persisted `DIRECT_REMOTE_ADDR` provenance
+  with `UNVERIFIED` status for every controlled event; and
 - SQLi HTTP 403 through the controlled proxy path.
 
 Automated Compose rendering is evidence of topology configuration only, not of

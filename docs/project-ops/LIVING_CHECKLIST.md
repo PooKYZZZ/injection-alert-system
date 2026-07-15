@@ -10,15 +10,20 @@ Status note:
 - Hosted Supabase is migrated through `20260712_000020`; disposable PostgreSQL downgrade/re-upgrade through the same head passed
 - Current frontend validation: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. Local-only browser session behavior remains a follow-up if it reappears.
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
-- Repo source-correlation implementation is complete at Alembic head
+- PR #84 source-correlation remediation is complete at Alembic head
   `20260715_000021`; hosted Supabase is only confirmed through
   `20260712_000020` and must not be described as migrated to the new head.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
-- Current PR validation: backend **691 passed, 31 skipped**; targeted
-  source/auth/duplicate/migration/tooling/Compose **247 passed**; frontend lint,
-  typecheck, **84 files / 480 Vitest tests**, and production build passed after
-  a successful focused rerun of the initially timed-out BFF test file.
+- Current PR validation: backend **695 passed, 31 skipped**; required focused
+  suite plus executable SQLite migration cycle **132 passed**; disposable
+  PostgreSQL integration **112 passed** and migrations **39 passed**, including
+  downgrade/re-upgrade; clean-checkout Compose **4 passed**; frontend lint,
+  typecheck, **84 files / 480 Vitest tests**, and production build passed.
+- [x] Required PR #84 GitHub jobs pass in run `29393701878`: backend,
+  postgres, frontend, auth-e2e, and secret-scan. Earlier Compose/secret-scan
+  failures and the intermediate dependency-audit failure are summarized in
+  `docs/project-ops/STATUS.md` rather than hidden.
 - Canonical source/provenance/status and factual fingerprint duplicate handling
   are implemented. The fingerprint is internal and omitted from lookup/UI.
 - [x] Compose profile/service/port/network configuration is automatically

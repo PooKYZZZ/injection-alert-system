@@ -28,7 +28,8 @@
 
 ### Trusted source correlation PR state
 
-- Repo implementation is complete through Alembic head `20260715_000021`:
+- PR #84 remediation is implemented through the single Alembic head
+  `20260715_000021`:
   canonical source/provenance contracts, separate WAF submission credential,
   ingest-time verification derivation, factual SHA-256 fingerprints, immutable
   duplicate metadata, and atomic matching stale reclaim.
@@ -36,18 +37,20 @@
   `8088`. Hosted rendering excludes that pair and publishes exactly one
   loopback `8089`. The controlled topology has separate trusted/untrusted
   networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
-- Full backend regression: **691 passed, 31 skipped**. Final targeted
-  source/auth/duplicate/migration/tooling/Compose suite: **247 passed**.
-- Frontend lint and typecheck passed. The first cold full Vitest run timed out
-  in two BFF tests and caused one downstream mock failure; that file then
-  passed **34/34** alone, the warmed full suite passed **84 files / 480 tests**,
-  and the production build passed. No frontend source changed.
-- Disposable PostgreSQL upgraded to `20260715_000021`; 149/150 integration and
-  migration tests passed after repo role preparation. The remaining unrelated
-  break-glass assertion hardcodes database session user `postgres` while the
-  plan's container user is `cybertrace_test`. Two new source constraints were
-  directly observed rejecting invalid rows. A clean downgrade/re-upgrade cycle
-  for the new head is **not fully proved** in this session.
+- Local full backend regression: **695 passed, 31 skipped**. The required
+  focused suite plus executable SQLite migration cycle passed **132 tests**.
+- Disposable PostgreSQL 16 upgraded from `20260712_000020` to
+  `20260715_000021`; **112 integration** and **39 migration** tests passed;
+  downgrade to the parent and re-upgrade to the single head also passed.
+- Compose rendered in a clean exported checkout with no `.env`: all **4**
+  topology tests passed. The same pinned Gitleaks 8.24.3 scan found no leaks.
+- Frontend lint, typecheck, **84 files / 480 Vitest tests**, and production
+  build passed locally. No frontend source changed.
+- Remote CI is recorded separately. Initial run `29384464612` failed backend
+  because Compose tests required the absent developer `.env`, and secret-scan
+  found one deterministic test fixture. Run `29393146395` fixed those failures
+  but exposed backend dependency-audit findings. After the dependency fix, run
+  `29393701878` passed **backend, postgres, frontend, auth-e2e, and secret-scan**.
 - Controlled packet-path proof is **Not Run** because the local backend image
   build exceeded five minutes before containers were created.
 - Hosted source verification is **Partial**: tunnel peer, Workers, Pseudo IPv4,

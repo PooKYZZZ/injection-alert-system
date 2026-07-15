@@ -361,9 +361,14 @@ docker compose -f docker-compose.yml -f docker-compose.source-correlation-test.y
 The topology contains controlled clients A and B behind one trusted proxy, a
 direct untrusted client on another network, ModSecurity attached to both, and
 one bridge/backend path. Only `172.30.10.2/32` is trusted for
-`CF-Connecting-IP`; no ordinary host-browser path exists. A proof is complete
-only after capturing both controlled client sources, the forged-header direct
-result, transaction IDs, persisted source/provenance/status, and SQLi HTTP 403.
+`CF-Connecting-IP`; no ordinary host-browser path exists. The Compose file
+forces `WAF_SOURCE_VERIFICATION_MODE=unverified`. The trusted-proxy requests
+prove source restoration only, not authorization trust; clients A and B and
+the direct untrusted client must all persist with `UNVERIFIED` status. A proof
+is complete only after capturing both controlled client sources, proving the
+direct client's forged header did not replace its real address, recording
+transaction IDs and persisted source/provenance/status, and observing SQLi
+HTTP 403.
 If the build or any correlation step fails, record `Not Run` or `Partial` and
 do not infer success from `docker compose config` alone.
 

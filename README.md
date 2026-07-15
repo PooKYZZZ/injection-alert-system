@@ -177,11 +177,18 @@ docker compose up --build -d
 docker compose ps
 ```
 
+That default command starts only `backend` and `frontend`. Start the historical
+technical WAF proof pair explicitly with:
+
+```powershell
+docker compose --profile technical-waf up --build -d
+```
+
 Important constraints:
 
 - The frontend is published on `http://localhost:3000`
 - The backend is internal to the Compose network and is not published to the host
-- The technical WAF proof path is published on `http://localhost:8088`
+- The opt-in technical WAF profile publishes its proof path on `http://localhost:8088`
 - The realistic demo-target WAF path is published on `http://localhost:8089` when the `demo-target` profile is enabled; the profile also starts `demo-target-app` from the separate land-records portal repo
 - The active browser path remains `Browser -> Next.js -> FastAPI`
 - Backend transaction lookup proof should use `docker compose exec`, not `localhost:8000`

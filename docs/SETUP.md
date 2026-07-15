@@ -284,13 +284,17 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic upgrade head
 .venv\Scripts\python.exe -m pytest -q tests/integration
 .venv\Scripts\python.exe -m pytest -q tests/migrations
-.venv\Scripts\python.exe -m alembic downgrade 20260710_000014
+.venv\Scripts\python.exe -m alembic downgrade 20260712_000020
 .venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m alembic heads
+.venv\Scripts\python.exe -m alembic current
 ```
 
-The current head is `20260712_000020`, with additive PR #83 revisions after
-`20260710_000014`. Revision `20260704_000008` is intentionally part of normal
-`upgrade head`.
+The repository has exactly one current head, `20260715_000021`. The downgrade
+target above is its parent, `20260712_000020`, so the cycle directly exercises
+the source-verification migration. Hosted Supabase is confirmed only through
+`20260712_000020`; do not infer that the repository head has been deployed
+there. Revision `20260704_000008` is intentionally part of normal `upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,
 and creates no browser-facing policies. Revision `20260324_000007` now fails
 clearly if its required `traffic_logs` table is missing instead of silently
