@@ -10,24 +10,29 @@ This directory contains ModSecurity engine configuration files.
 Audit-log evidence handling, sensitive-data rules, local retention, and the rotation target are documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; automatic rotation is not implemented here.
 
 ## Current Repo State
-- This directory is currently a documented placeholder for future custom ModSecurity configuration.
-- Runnable custom ModSecurity config files are not checked into this directory yet.
-- Root `docker-compose.yml` configures the CRS container to write a host-mounted JSON audit log for the PD2 demo bridge path.
-- Local WAF proof is verified through `localhost:8088`; see `reports/modsecurity-live-proof/e2e-proof.md`.
-- Optional demo-target proof is configured through `docker-compose.demo-target.yml` using the official CRS image reverse-proxy template and `BACKEND=http://host.docker.internal:3010`.
+- Root `docker-compose.yml` keeps the technical `8088` WAF/bridge pair behind the opt-in `technical-waf` profile.
+- `docker-compose.demo-target.yml` contains the realistic `8089` target pair.
+- `docker-compose.hosted-target.yml` replaces the `8089` binding with one loopback-only binding and requires an observed narrow `HOSTED_WAF_TRUSTED_PEER`; it does not guess that peer.
+- `docker-compose.source-correlation-test.yml` is an isolated, no-host-port topology for controlled source-correlation proof.
+- `source-correlation-proxy.conf` is used only by that controlled topology. It represents the one trusted proxy and overwrites `CF-Connecting-IP` with its direct client's address.
 
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
 
 Current repo state:
 - Root `docker-compose.yml` includes a ModSecurity CRS container that proxies to the backend.
-- Runnable ModSecurity config files are not checked into this directory yet.
 - The verified WAF proof path is `localhost:8088 -> ModSecurity/OWASP CRS -> backend`.
-- The optional demo-target proof path is `localhost:8089 -> ModSecurity/OWASP CRS -> host.docker.internal:3010`.
+- The optional demo-target proof path is `localhost:8089 -> ModSecurity/OWASP CRS -> demo-portal:3010`.
 - The dashboard browser path remains `Browser -> Next.js -> FastAPI`; this proof is not a production-grade WAF deployment claim.
 - The bridge input path for Compose is `logs/modsecurity/modsec_audit.jsonl` on the host, mounted as `/var/log/modsecurity/modsec_audit.jsonl` in the ModSecurity and bridge containers.
 
-Do not document ModSecurity as processing all incoming production requests. Document the verified local proof path as `localhost:8088`.
+Do not document ModSecurity as processing all incoming production requests. The historical verified local proof remains `localhost:8088`, but starting that pair now requires:
+
+```powershell
+docker compose --profile technical-waf up --build
+```
+
+The controlled topology has no ordinary host-browser route and trusts only `172.30.10.2/32` for `CF-Connecting-IP` restoration. Its separate untrusted network reaches ModSecurity directly, so a forged Cloudflare header from that network is ignored by the CRS image's real-IP mechanism.
 
 ## Audit Log Decisions
 

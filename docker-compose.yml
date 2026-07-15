@@ -1,6 +1,8 @@
 services:
   modsecurity:
     image: owasp/modsecurity-crs:nginx-alpine
+    profiles:
+      - technical-waf
     expose:
       - "80"
     ports:
@@ -62,6 +64,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bridge
+    profiles:
+      - technical-waf
     env_file:
       - path: .env
         required: true
