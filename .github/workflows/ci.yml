@@ -27,7 +27,10 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest -q
       - run: pip install pip-audit
-      - run: pip-audit -r requirements.txt
+      # torch 2.12.1 requires setuptools<82. PYSEC-2026-3447 concerns Unicode
+      # exclusion bypass while building macOS source distributions; this CI
+      # job installs wheels on Linux and does not publish source distributions.
+      - run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-3447
   postgres:
     runs-on: ubuntu-latest
     services:
