@@ -7,7 +7,7 @@ from web_app.config import Settings, get_settings, reset_settings_cache
 
 
 VALID_API_KEY = "general-internal-key"
-VALID_WAF_KEY = "dedicated-waf-ingest-key-at-least-32-characters"
+VALID_WAF_KEY = "test-waf-key-" * 3
 
 
 @pytest.fixture(autouse=True)

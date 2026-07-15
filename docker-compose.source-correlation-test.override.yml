@@ -1,0 +1,3 @@
+services:
+  source-test-bridge:
+    env_file: !override []

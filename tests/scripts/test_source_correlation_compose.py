@@ -7,16 +7,27 @@ import subprocess
 
 
 ROOT = Path(__file__).parents[2]
+BASE_TEST_OVERRIDE = "docker-compose.test.yml"
+DEMO_TEST_OVERRIDE = "docker-compose.demo-target.test.yml"
+SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
 
 
-def _compose_config(*files: str, profile: str) -> dict:
+def _compose_config(*files: str, profile: str | None = None) -> dict:
     command = ["docker", "compose"]
-    for file in files:
+    rendered_files = [*files, BASE_TEST_OVERRIDE]
+    if "docker-compose.demo-target.yml" in files:
+        rendered_files.append(DEMO_TEST_OVERRIDE)
+    if "docker-compose.source-correlation-test.yml" in files:
+        rendered_files.append(SOURCE_TEST_OVERRIDE)
+    for file in rendered_files:
         command.extend(["-f", file])
-    command.extend(["--profile", profile, "config", "--format", "json"])
+    if profile is not None:
+        command.extend(["--profile", profile])
+    command.extend(["config", "--format", "json"])
     env = os.environ.copy()
     env.update(
         {
+            "COMPOSE_DISABLE_ENV_FILE": "1",
             "HOSTED_WAF_TRUSTED_PEER": "172.30.20.2/32",
             "WAF_INGEST_API_KEY": "compose-test-waf-key-not-a-runtime-secret",
             "SOURCE_TEST_API_SECRET_KEY": "compose-test-internal-key",
@@ -35,19 +46,13 @@ def _compose_config(*files: str, profile: str) -> dict:
 
 
 def _base_config_without_profile() -> dict:
-    result = subprocess.run(
-        ["docker", "compose", "-f", "docker-compose.yml", "config", "--format", "json"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads(result.stdout)
+    return _compose_config("docker-compose.yml")
 
 
 def test_default_compose_excludes_opt_in_technical_waf_pair() -> None:
     config = _base_config_without_profile()
     assert set(config["services"]) == {"backend", "frontend"}
+    assert all("env_file" not in service for service in config["services"].values())
 
 
 def test_technical_profile_contains_the_existing_8088_pair() -> None:
@@ -62,6 +67,11 @@ def test_technical_profile_contains_the_existing_8088_pair() -> None:
             "protocol": "tcp",
         }
     ]
+    assert sum(
+        port.get("published") == "8088"
+        for service in config["services"].values()
+        for port in service.get("ports", [])
+    ) == 1
 
 
 def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> None:
@@ -128,3 +138,4 @@ def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None
     assert not any(
         service.get("ports") for service in config["services"].values()
     )
+    assert all("env_file" not in service for service in config["services"].values())

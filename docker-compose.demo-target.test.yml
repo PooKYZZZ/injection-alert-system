@@ -1,0 +1,3 @@
+services:
+  demo-target-bridge:
+    env_file: !override []
