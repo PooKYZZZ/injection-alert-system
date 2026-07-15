@@ -18,6 +18,11 @@ from web_app.domain.source_address import SourceProvenance
 import web_app.presentation.api.routes as routes_module
 from web_app.presentation.api.routes import get_inference_queue, get_model_service
 from web_app.presentation.app import create_app
+from scripts.modsecurity_replay_harness import (
+    build_waf_ingest_payload,
+    detect_modsecurity_events,
+    normalize_sample_row,
+)
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 WAF_HEADERS = {
@@ -346,6 +351,39 @@ def test_waf_ingest_invalid_timestamp_is_canonicalized_to_null(waf_api_client):
     )
 
     assert response.status_code == 200
+
+
+def test_replay_generated_payload_is_accepted_by_real_waf_route(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    replay = normalize_sample_row(
+        {
+            "request_http_method": "GET",
+            "request_http_request": "/replay?id=1",
+        },
+        replay_tx="tx-route-replay",
+    )
+    logs = (
+        'modsecurity-1 | {"transaction":{"client_ip":"::ffff:203.0.113.21",'
+        '"unique_id":"route-replay-1","request":{"headers":'
+        '{"X-Replay-Tx":"tx-route-replay"}},"messages":'
+        '[{"details":{"ruleId":"942100"},"message":"SQL Injection"}]}}'
+    )
+    payload = build_waf_ingest_payload(
+        replay,
+        detect_modsecurity_events(logs, replay_tx="tx-route-replay"),
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.status_code != 422
 
 
 def test_cloudflare_mode_persists_direct_evidence_as_unverified(

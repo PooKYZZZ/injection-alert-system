@@ -16,6 +16,11 @@ import urllib.request
 from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
+from web_app.domain.source_address import (
+    SourceProvenance,
+    canonicalize_source_ip,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SAMPLES_ROOT = REPO_ROOT / "data" / "processed" / "v3_907k_cleaned" / "sample_exports"
@@ -215,7 +220,7 @@ def detect_modsecurity_events(logs_text: str, *, replay_tx: str) -> ModSecurityD
         return ModSecurityDetection(
             detected=len(messages_raw) > 0,
             transaction_id=str(transaction.get("unique_id") or transaction.get("id") or replay_tx),
-            source_ip=str(transaction.get("client_ip") or "unknown"),
+            source_ip=canonicalize_source_ip(transaction.get("client_ip")),
             timestamp=_utc_now(),
             rule_ids=list(dict.fromkeys(rule_ids)),
             messages=list(dict.fromkeys(message_texts)),
@@ -245,7 +250,9 @@ def build_waf_ingest_payload(replay: ReplayRow, detection: ModSecurityDetection)
         "ingest_source": "modsec_audit_bridge",
         "transaction_id": detection.transaction_id or replay.replay_tx,
         "timestamp": detection.timestamp,
-        "source_ip": detection.source_ip or "unknown",
+        "source_ip": canonicalize_source_ip(detection.source_ip),
+        "source_provenance": SourceProvenance.DIRECT_REMOTE_ADDR.value,
+        "cf_connecting_ip_matches_client_ip": None,
         "request_method": replay.method,
         "request_path": replay.path,
         "query_string": replay.query_string,

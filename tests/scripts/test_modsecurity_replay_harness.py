@@ -13,6 +13,8 @@ from scripts.modsecurity_replay_harness import (
     normalize_sample_row,
     write_reports,
 )
+from web_app.domain.source_address import SourceProvenance
+from web_app.presentation.schemas import WafIngestRequest
 
 
 class _Response:
@@ -198,11 +200,36 @@ def test_build_waf_ingest_payload_uses_detection_evidence_fields():
     detection = detect_modsecurity_events(logs, replay_tx="tx-003")
 
     payload = build_waf_ingest_payload(replay, detection)
+    validated = WafIngestRequest.model_validate(payload)
 
     assert payload["transaction_id"] == "u-1"
     assert payload["request_path"] == "/api/health"
     assert payload["query_string"] == "x=1"
     assert payload["crs_rule_ids"] == ["942100"]
+    assert validated.source_ip == "203.0.113.10"
+    assert validated.source_provenance is SourceProvenance.DIRECT_REMOTE_ADDR
+    assert validated.cf_connecting_ip_matches_client_ip is None
+
+
+def test_replay_payload_canonicalizes_missing_or_malformed_source_to_null():
+    replay = normalize_sample_row(
+        {"request_http_method": "GET", "request_http_request": "/"},
+        replay_tx="tx-null-source",
+    )
+    logs = (
+        'modsecurity-1 | {"transaction":{"client_ip":"not-an-ip",'
+        '"unique_id":"u-null","request":{"headers":'
+        '{"X-Replay-Tx":"tx-null-source"}},"messages":'
+        '[{"details":{"ruleId":"942100"}}]}}'
+    )
+
+    detection = detect_modsecurity_events(logs, replay_tx="tx-null-source")
+    payload = build_waf_ingest_payload(replay, detection)
+    validated = WafIngestRequest.model_validate(payload)
+
+    assert detection.source_ip is None
+    assert validated.source_ip is None
+    assert "unknown" not in payload.values()
 
 
 def test_build_report_rows_counts_detection_only_with_response_and_evidence():
