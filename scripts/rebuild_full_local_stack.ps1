@@ -24,7 +24,7 @@ try {
     }
 
     Write-Host "Building and starting backend, frontend, technical WAF, bridge, and demo target..."
-    $upArgs = $composeArgs + @("up", "-d")
+    $upArgs = $composeArgs + @("up", "-d", "--force-recreate")
     if (-not $NoBuild) {
         $upArgs += "--build"
     }
