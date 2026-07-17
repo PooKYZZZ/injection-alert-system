@@ -21,6 +21,9 @@ try {
     if ($Reset) {
         Write-Host "Stopping the existing full local stack (volumes are preserved)..."
         & docker @composeArgs down --remove-orphans
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker Compose shutdown failed with exit code $LASTEXITCODE."
+        }
     }
 
     Write-Host "Building and starting backend, frontend, technical WAF, bridge, and demo target..."
@@ -35,6 +38,9 @@ try {
 
     Write-Host "`nRunning services:"
     & docker @composeArgs ps
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker Compose status check failed with exit code $LASTEXITCODE."
+    }
 }
 finally {
     Pop-Location
