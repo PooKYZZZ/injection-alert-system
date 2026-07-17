@@ -184,6 +184,10 @@ the new raw audit file contained no `Authorization`, `Cookie`, or
 This is local Docker evidence only. It is not hosted Cloudflare proof and does
 not authorize enabling `cloudflare_tunnel` verification.
 
+`source_ip` identifies the observed network egress address, not a guaranteed
+person or device. Shared home NAT, carrier-grade NAT, VPNs, and other egress
+concentrators can legitimately make multiple visitors share one public address.
+
 ## Stop Conditions
 
 - Do not enable `VERIFIED` hosted mode from unit, integration, migration, or
