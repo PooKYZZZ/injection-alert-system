@@ -76,6 +76,7 @@ def test_normalize_event_redacts_sensitive_header_variants():
             "X-Client-Secret": "secret-value",
             "X-Api-Key": "key-value",
             "X-Credential-Id": "credential-value",
+            "Cf-Access-Jwt-Assertion": "jwt-value",
             "User-Agent": "curl/8.0",
         },
         "crs_score": 8,
@@ -91,6 +92,7 @@ def test_normalize_event_redacts_sensitive_header_variants():
     assert normalized["request_headers"]["X-Client-Secret"] == "[REDACTED]"
     assert normalized["request_headers"]["X-Api-Key"] == "[REDACTED]"
     assert normalized["request_headers"]["X-Credential-Id"] == "[REDACTED]"
+    assert normalized["request_headers"]["Cf-Access-Jwt-Assertion"] == "[REDACTED]"
     assert normalized["request_headers"]["User-Agent"] == "curl/8.0"
 
 
@@ -131,6 +133,37 @@ def test_normalize_event_supports_modsecurity_style_payload():
         "SQL Injection Attack Detected via libinjection"
     ]
     assert normalized["matched_rule_tags"] == ["attack-sqli", "paranoia-level/1"]
+
+
+def test_normalize_event_accepts_modsecurity_audit_without_request_headers():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "unique_id": "tx-no-request-headers",
+                "client_ip": "203.0.113.10",
+                "request": {
+                    "method": "GET",
+                    "uri": "/records/search?query=marker",
+                },
+                "messages": [
+                    {
+                        "message": "SQL Injection",
+                        "details": {"ruleId": "942100", "tags": ["attack-sqli"]},
+                    }
+                ],
+                "anomaly_score": 5,
+            }
+        }
+    )
+
+    assert normalized["source_ip"] == "203.0.113.10"
+    assert normalized["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is None
+    assert normalized["request_headers"] == {}
+    assert normalized["request_path"] == "/records/search"
+    assert normalized["query_string"] == "query=marker"
+    assert normalized["crs_score"] == 5
+    assert normalized["crs_rule_ids"] == ["942100"]
 
 
 def test_direct_mode_uses_canonical_client_ip_and_ignores_forged_cf_header():

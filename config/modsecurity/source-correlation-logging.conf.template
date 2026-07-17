@@ -1,0 +1,4 @@
+log_format source_correlation '$request_id remote_addr=$remote_addr realip_remote_addr=$realip_remote_addr cf_connecting_ip=$http_cf_connecting_ip method=$request_method request_path="$uri" status=$status';
+access_log /var/log/nginx/source-correlation-test.log source_correlation;
+access_log /dev/null combined;
+error_log /var/log/nginx/error.log warn;

@@ -15,6 +15,11 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
 - `docker-compose.hosted-target.yml` replaces the `8089` binding with one loopback-only binding and requires an observed narrow `HOSTED_WAF_TRUSTED_PEER`; it does not guess that peer.
 - `docker-compose.source-correlation-test.yml` is an isolated, no-host-port topology for controlled source-correlation proof.
 - `source-correlation-proxy.conf` is used only by that controlled topology. It represents the one trusted proxy and overwrites `CF-Connecting-IP` with its direct client's address.
+- `source-correlation-proxy-backend.conf.template` removes the official image's
+  location-level real-IP directives from the proxy include.
+- `source-correlation-realip.conf.template` applies the real-IP directives at
+  HTTP context, where the controlled proof confirmed that NGINX restores the
+  address before ModSecurity sees the request.
 
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
@@ -39,6 +44,9 @@ The controlled topology has no ordinary host-browser route and trusts only `172.
 - Format: JSON audit log entries, one JSON object per appended line for bridge ingestion.
 - Type: Serial audit log for the PD2 demo unless a checked-in ModSecurity config later proves a different live setup.
 - Compose path: `MODSEC_AUDIT_LOG=/var/log/modsecurity/modsec_audit.jsonl`, mounted from host `logs/modsecurity/`.
+- Audit parts: `AIJDEFHZ`. Part `B` (raw request headers) is intentionally not
+  persisted; CRS still inspects request headers, while the bridge receives the
+  transaction URI, source, CRS metadata, and audit status needed for ingest.
 - Bridge command: `scripts/waf_audit_bridge.py --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events`.
 - Policy reference: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
@@ -65,12 +73,12 @@ Optional demo-target proof:
 - Compose override: `docker-compose.demo-target.yml`
 - WAF path: `localhost:8089`
 - Upstream: `host.docker.internal:3010`
-- Nginx template: official `owasp/modsecurity-crs:nginx-alpine` generated config; `config/modsecurity/demo-target-nginx.conf` is not mounted
+- Nginx image: pinned `owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`; the demo target mounts the narrow proxy-backend template and only the hosted override adds the observed real-IP template
 - Observed report path: `reports/modsecurity-live-proof/demo-target-crs-proof.md`
 - Template path: `reports/modsecurity-live-proof/demo-target-crs-proof.md.template`
 
 Sensitive data handling:
-- The bridge redacts sensitive headers such as `Authorization`, `Cookie`, `Set-Cookie`, and header names containing `token`, `secret`, `key`, or `credential`.
+- The bridge redacts sensitive headers such as `Authorization`, `Cookie`, `Set-Cookie`, `Proxy-Authorization`, and `CF-Access-Jwt-Assertion`, plus header names containing `token`, `secret`, `key`, `credential`, `jwt`, or `assertion` when processing legacy or test records.
 - Request body content is truncated before ingest. Do not use full raw bodies as an operator-facing source of truth.
 
 Rotation and retention:

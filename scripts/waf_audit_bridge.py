@@ -22,8 +22,14 @@ from web_app.domain.source_address import (
 )
 
 
-_SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie"}
-_SENSITIVE_SUBSTRINGS = ("token", "secret", "key", "credential")
+_SENSITIVE_HEADERS = {
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "proxy-authorization",
+    "cf-access-jwt-assertion",
+}
+_SENSITIVE_SUBSTRINGS = ("token", "secret", "key", "credential", "jwt", "assertion")
 _MAX_BODY_LENGTH = 1024
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _RETRYABLE_ERRNOS = {61, 111, 10061}

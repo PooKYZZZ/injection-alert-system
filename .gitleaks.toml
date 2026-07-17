@@ -12,3 +12,9 @@ id = "generic-api-key"
   regexTarget = "secret"
   regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''']
   paths = ['''^frontend/test-support/auth-e2e/totp\.test\.ts$''']
+
+[allowlist]
+description = "Historical runbook examples used a redacted bearer placeholder, not a credential."
+commits = ["9938ae2d8852ab17c48a609bd93a4b794faf2e0f"]
+paths = ["docs/project-ops/SMOKE_TEST_RUNBOOK.md"]
+rules = ["curl-auth-header"]

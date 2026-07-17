@@ -1,6 +1,6 @@
 services:
   modsecurity:
-    image: owasp/modsecurity-crs:nginx-alpine
+    image: owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e
     profiles:
       - technical-waf
     expose:
@@ -14,7 +14,7 @@ services:
       MODSEC_AUDIT_LOG_FORMAT: JSON
       MODSEC_AUDIT_LOG_TYPE: Serial
       MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
-      MODSEC_AUDIT_LOG_PARTS: ABIJDEFHZ
+      MODSEC_AUDIT_LOG_PARTS: AIJDEFHZ
       MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
     volumes:
       - ./logs/modsecurity:/var/log/modsecurity

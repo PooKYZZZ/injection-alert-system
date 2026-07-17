@@ -65,7 +65,7 @@ services:
         ipv4_address: 172.30.11.4
 
   source-test-modsecurity:
-    image: owasp/modsecurity-crs:nginx-alpine
+    image: owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e
     profiles:
       - source-correlation-test
     expose:
@@ -81,14 +81,18 @@ services:
       MODSEC_AUDIT_LOG_FORMAT: JSON
       MODSEC_AUDIT_LOG_TYPE: Serial
       MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
-      MODSEC_AUDIT_LOG_PARTS: ABIJDEFHZ
+      MODSEC_AUDIT_LOG_PARTS: AIJDEFHZ
       MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
       REAL_IP_HEADER: CF-Connecting-IP
       REAL_IP_PROXY_HEADER: CF-Connecting-IP
-      REAL_IP_RECURSIVE: "on"
+      REAL_IP_RECURSIVE: "off"
       SET_REAL_IP_FROM: 172.30.10.2/32
     volumes:
       - ./logs/modsecurity/source-correlation-test:/var/log/modsecurity
+      - ./config/modsecurity/source-correlation-proxy-backend.conf.template:/etc/nginx/templates/includes/proxy_backend.conf.template:ro
+      - ./config/modsecurity/source-correlation-realip.conf.template:/etc/nginx/templates/conf.d/realip.conf.template:ro
+      - ./config/modsecurity/source-correlation-logging.conf.template:/etc/nginx/templates/conf.d/logging.conf.template:ro
+      - ./logs/modsecurity/source-correlation-test/nginx_access.log:/var/log/nginx/source-correlation-test.log
     networks:
       source_test_trusted:
         ipv4_address: 172.30.10.3

@@ -5,5 +5,7 @@ services:
     environment:
       REAL_IP_HEADER: CF-Connecting-IP
       REAL_IP_PROXY_HEADER: CF-Connecting-IP
-      REAL_IP_RECURSIVE: "on"
+      REAL_IP_RECURSIVE: "off"
       SET_REAL_IP_FROM: ${HOSTED_WAF_TRUSTED_PEER:?Set HOSTED_WAF_TRUSTED_PEER to the observed narrow tunnel peer or subnet}
+    volumes:
+      - ./config/modsecurity/source-correlation-realip.conf.template:/etc/nginx/templates/conf.d/realip.conf.template:ro

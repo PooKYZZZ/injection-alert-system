@@ -372,6 +372,120 @@ HTTP 403.
 If the build or any correlation step fails, record `Not Run` or `Partial` and
 do not infer success from `docker compose config` alone.
 
+For the controlled real-IP diagnosis, inspect the running ModSecurity service
+without printing unrelated configuration or secrets:
+
+```powershell
+docker compose -p source-correlation-proof `
+  -f docker-compose.yml `
+  -f docker-compose.source-correlation-test.yml `
+  -f docker-compose.source-correlation-test.override.yml `
+  --profile source-correlation-test exec source-test-modsecurity nginx -V
+
+docker compose -p source-correlation-proof `
+  -f docker-compose.yml `
+  -f docker-compose.source-correlation-test.yml `
+  -f docker-compose.source-correlation-test.override.yml `
+  --profile source-correlation-test exec source-test-modsecurity sh -c `
+  "nginx -T 2>&1 | grep -E 'set_real_ip_from|real_ip_header|real_ip_recursive|source_correlation'"
+```
+
+The expected controlled configuration is exactly `set_real_ip_from
+172.30.10.2/32`, `real_ip_header CF-Connecting-IP`, and
+`real_ip_recursive off`. The diagnostic file
+`logs/modsecurity/source-correlation-test/nginx_access.log` contains only the
+request ID, `$remote_addr`, `$realip_remote_addr`, CF header candidate, method,
+safe path, and status. A passing row has `remote_addr=172.30.10.4` or
+`172.30.10.5` while `realip_remote_addr=172.30.10.2`; ModSecurity's
+`transaction.client_ip` and the backend `source_ip` must match that restored
+address. The direct untrusted row must retain its actual `172.30.11.4` source
+even when it sends `CF-Connecting-IP: 203.0.113.123` and
+`X-Forwarded-For: 203.0.113.123`.
+
+The current WAF services use `MODSEC_AUDIT_LOG_PARTS=AIJDEFHZ`. Part `B` is
+omitted so raw `Authorization`, `Cookie`, and Cloudflare Access JWT headers do
+not enter new audit files. Do not re-enable `B` merely to make a screenshot or
+fingerprint look richer. The live controlled proof confirmed that CRS blocking,
+bridge ingestion, source provenance, and fingerprint persistence still work.
+
+## Hosted Cloudflare Source-Correlation Proof (operator-only)
+
+This is a separate manual proof. Keep `WAF_SOURCE_VERIFICATION_MODE=unverified`
+until every row below is confirmed. Run one request from home Wi-Fi and a
+second from mobile data; do not use the same NAT for both. On each device record
+the public egress address without sending it to the application:
+
+```powershell
+curl.exe -s https://api.ipify.org
+```
+
+Send a unique safe SQLi marker through the Access-protected target (replace the
+marker for each device):
+
+```text
+https://target.cybertracesystems.com/records/search?query=%27%20UNION%20SELECT%20null,null,null--%20SOURCE_PROOF_WIFI_001
+```
+
+The expected response is CRS HTTP 403. On the host running the target, extract
+only safe fields from the fresh audit event; never print the raw event,
+`Authorization`, cookies, or query values outside the marker:
+
+```powershell
+$marker = 'SOURCE_PROOF_WIFI_001'
+$event = Get-Content .\logs\modsecurity\demo-target\modsec_audit.jsonl -Encoding UTF8 |
+  ForEach-Object { try { $_ | ConvertFrom-Json } catch {} } |
+  Where-Object { $_.transaction.request.uri -like "*$marker*" } |
+  Select-Object -Last 1
+$txid = $event.transaction.unique_id
+[pscustomobject]@{
+  transaction_id = $txid
+  modsecurity_client_ip = $event.transaction.client_ip
+  received_cf_connecting_ip = $event.transaction.request.headers.'CF-Connecting-IP'
+  request_uri = $event.transaction.request.uri
+}
+```
+
+Correlate the same `$txid` in the bridge without exposing its payload:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml `
+  --profile demo-target logs --no-color --tail=200 demo-target-bridge |
+  Select-String -Pattern $txid
+```
+
+Use the internal lookup with `API_SECRET_KEY` kept inside the backend container:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml `
+  --profile demo-target exec -e TXID=$txid backend python -c "import os,urllib.request; txid=os.environ['TXID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}',headers={'Authorization':'Bearer '+os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+```
+
+The lookup must show the same canonical `source_ip`,
+`source_provenance=CLOUDFLARE_CONNECTING_IP` only when that mode is explicitly
+configured, and the persisted `source_verification_status`. The fingerprint is
+not in the lookup contract; inspect it only through a protected database query
+using the operator's normal Supabase procedure:
+
+```sql
+SELECT transaction_id, source_ip, source_provenance,
+       source_verification_status, ingest_fingerprint_sha256
+FROM traffic_logs
+WHERE transaction_id = '<txid>';
+```
+
+Repeat with a mobile-data marker. PASS requires both known public egress IPs to
+match ModSecurity, bridge-selected source, and the persisted database source;
+they must not collapse to a Docker gateway. Separately send a local/direct
+request with forged `CF-Connecting-IP: 203.0.113.123` and
+`X-Forwarded-For: 203.0.113.123`. It must persist the actual direct source with
+`DIRECT_REMOTE_ADDR` and never become `VERIFIED`.
+
+Before any hosted `VERIFIED` decision, prove that the origin cannot be reached
+directly, identify the actual immediate tunnel peer, inspect Cloudflare
+Workers and Network → Pseudo IPv4 (prefer `Off` or `Add Header`), and confirm
+the fresh audit file contains no Access credentials. Unit, integration, Compose,
+and local Docker evidence cannot replace this hosted packet-path proof.
+
 ---
 
 ## Step 6 — Log In to the Dashboard

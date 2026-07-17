@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-17
 
 ---
 
@@ -37,6 +37,16 @@
   `8088`. Hosted rendering excludes that pair and publishes exactly one
   loopback `8089`. The controlled topology has separate trusted/untrusted
   networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
+- The pinned CRS image is
+  `owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`
+  (NGINX `1.28.2`, ModSecurity `3.0.14`, connector `1.0.4`, CRS `3.3.8`).
+  The controlled real-IP fix moves the directives to HTTP context because the
+  image's generated location include did not rewrite `$remote_addr` before
+  ModSecurity observed the request.
+- WAF audit parts are now `AIJDEFHZ`; part `B` is excluded so raw request
+  headers, including Cloudflare Access material, are not retained. The bridge
+  and CRS correlation path passed without that part, and the three confirmed
+  disposable local audit files were cleared after their writers were stopped.
 - Local full backend regression: **698 passed, 32 skipped**. The required
   focused source/integrity/migration suite passed **83 tests** with one
   PostgreSQL-only test skipped locally; the executable SQLite migration cycle
@@ -61,8 +71,13 @@
   earlier remediation head; final run `29428801740` passed **backend, postgres,
   frontend, auth-e2e, and secret-scan** after the database-invariant and driver
   corrections.
-- Controlled packet-path proof is **Not Run** because the local backend image
-  build exceeded five minutes before containers were created.
+- Local controlled packet-path proof **passed on 2026-07-17**: Client A
+  `172.30.10.4`, Client B `172.30.10.5`, and the direct forged-header client
+  `172.30.11.4` remained distinct and persisted as `DIRECT_REMOTE_ADDR` with
+  `UNVERIFIED` status; all three SQLi requests returned HTTP 403.
+- The current local head has not been pushed, so GitHub Actions status for this
+  exact head is **Not Verified**. The historical green run above does not prove
+  the new unpushed remediation commits.
 - Hosted source verification is **Partial**: tunnel peer, Workers, Pseudo IPv4,
   direct-origin isolation, restored source, and hosted PostgreSQL correlation
   remain Unknown/Not Run. `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`;
@@ -186,7 +201,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### CRS baseline and demo-target proof
 
 - CRS-only baseline is documented in `reports/modsecurity-live-proof/crs-baseline.md`.
-- Demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the demo-target service uses the official CRS image `BACKEND` reverse-proxy behavior without mounting a custom Nginx template.
+- Demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the demo-target service uses the pinned CRS image and the narrow proxy-backend template, while hosted real-IP directives are added only by the hosted override.
 - The demo-target Compose profile is optional for normal developer startup and required for the final realistic WAF demonstration.
 - Demo-target WAF path is `localhost:8089 -> demo-target-modsecurity -> demo-portal`.
 - Demo-target CyberTrace ingest uses `demo-target-bridge`, which watches `logs/modsecurity/demo-target/modsec_audit.jsonl` separately from the default `8088` audit log.

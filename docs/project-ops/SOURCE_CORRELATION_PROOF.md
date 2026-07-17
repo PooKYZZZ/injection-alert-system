@@ -1,7 +1,8 @@
 # Trusted Source Correlation Evidence
 
-**Status:** Repository checks passed; local packet-path proof Not Run; hosted verification Partial
-**Observed:** 2026-07-15
+**Status:** Local repository and controlled packet-path checks passed; remote CI for
+the current unpushed head is not verified; hosted verification Partial
+**Observed:** 2026-07-17
 
 This document separates repository and local-runtime evidence from hosted
 Cloudflare facts that have not yet been proved. Until every hosted prerequisite
@@ -47,6 +48,9 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
   `127.0.0.1:8089:8080` binding and no `8088`.
 - The controlled merge has no published ports, uses `unverified`, and trusts
   only proxy peer `172.30.10.2/32`.
+- The controlled ModSecurity audit parts are `AIJDEFHZ`; part `B` (raw request
+  headers) is intentionally excluded. The bridge still receives transaction
+  identity, URI, client address, CRS messages, rule IDs, and status metadata.
 - Clean-checkout Compose tests clear runtime `env_file` declarations with
   test-only overrides and supply isolated SQLite/test credentials through the
   subprocess environment. The real runtime Compose files still require `.env`.
@@ -78,16 +82,51 @@ continues to require `API_SECRET_KEY`.
 
 The locally resolved image is `owasp/modsecurity-crs:nginx-alpine` at digest
 `sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`.
-Inspection of that image proved its NGINX template supports:
+Inspection of that image proved its NGINX build includes `ngx_http_realip_module`
+and its generated template accepts the real-IP environment variables. The
+initial diagnostic also proved that the image placed those directives inside
+the generated `location` include, where the running request remained at the
+proxy address. The controlled fix uses narrowly mounted templates instead:
+
+- `config/modsecurity/source-correlation-proxy-backend.conf.template` keeps
+  proxy forwarding but contains no real-IP directives;
+- `config/modsecurity/source-correlation-realip.conf.template` emits the
+  directives at HTTP context; and
+- the controlled values are exactly:
+  `set_real_ip_from 172.30.10.2/32`,
+  `real_ip_header CF-Connecting-IP`, and `real_ip_recursive off`.
+
+The pinned image is:
+`owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`.
+The inspected components are NGINX `1.28.2`, ModSecurity `3.0.14`,
+ModSecurity-nginx connector `1.0.4`, and CRS `3.3.8`. The image's generated
+template also supports:
 
 - comma-separated `SET_REAL_IP_FROM`, expanded into `set_real_ip_from` lines;
 - `REAL_IP_HEADER`; and
 - `REAL_IP_RECURSIVE`.
 
-The controlled topology sets `REAL_IP_HEADER=CF-Connecting-IP` and trusts only
-`172.30.10.2/32`. The hosted override requires the operator to supply the
+The hosted override requires the operator to supply the
 observed narrow `HOSTED_WAF_TRUSTED_PEER`; it deliberately has no guessed
 default. Neither topology trusts `0.0.0.0/0` or all RFC1918 space.
+
+The diagnostic before the template fix was:
+
+```text
+header CF-Connecting-IP=172.30.10.4
+$remote_addr=172.30.10.2
+$realip_remote_addr=172.30.10.2
+transaction.client_ip=172.30.10.2
+```
+
+After the fix, the same request was:
+
+```text
+header CF-Connecting-IP=172.30.10.4
+$remote_addr=172.30.10.4
+$realip_remote_addr=172.30.10.2
+transaction.client_ip=172.30.10.4
+```
 
 ## Cloudflare Evidence Gate
 
@@ -124,21 +163,26 @@ contains exactly one loopback `8089` mapping.
 
 ## Local Controlled Proof
 
-**Result: Not Run.** The opt-in stack build exceeded the five-minute local
-timeout before any containers were created. The orphaned build processes were
-identified by exact command line and stopped; no request, transaction ID,
-persisted source row, or SQLi response was produced. Therefore the following
-remain unproved at runtime in this session:
+**Result: Passed locally on 2026-07-17.** The isolated stack was recreated with
+fresh disposable audit files. All three SQLi requests returned HTTP 403 and the
+bridge posted each event with status 200. The diagnostic access log, ModSecurity
+transaction, bridge payload, and backend lookup agreed:
 
-- distinct persisted source addresses for controlled clients A and B;
-- proof that a forged Cloudflare header from the direct untrusted network does
-  not replace that client's real address;
-- correlated transaction IDs and persisted `DIRECT_REMOTE_ADDR` provenance
-  with `UNVERIFIED` status for every controlled event; and
-- SQLi HTTP 403 through the controlled proxy path.
+| Request | NGINX original peer | Restored / persisted source | Provenance | Status |
+|---|---|---|---|---|
+| Client A via trusted proxy | `172.30.10.2` | `172.30.10.4` | `DIRECT_REMOTE_ADDR` | `UNVERIFIED` |
+| Client B via trusted proxy | `172.30.10.2` | `172.30.10.5` | `DIRECT_REMOTE_ADDR` | `UNVERIFIED` |
+| Direct client with forged headers | `172.30.11.4` | `172.30.11.4` | `DIRECT_REMOTE_ADDR` | `UNVERIFIED` |
 
-Automated Compose rendering is evidence of topology configuration only, not of
-packet-path behavior.
+The final observed transaction IDs were `178427404768.801613`,
+`178427404739.083371`, and `178427404733.523349`. The no-`B` audit
+configuration still preserved method,
+URI/query, CRS score/rules, source, provenance, and deterministic fingerprint;
+the new raw audit file contained no `Authorization`, `Cookie`, or
+`CF-Access-Jwt-Assertion` header names.
+
+This is local Docker evidence only. It is not hosted Cloudflare proof and does
+not authorize enabling `cloudflare_tunnel` verification.
 
 ## Stop Conditions
 

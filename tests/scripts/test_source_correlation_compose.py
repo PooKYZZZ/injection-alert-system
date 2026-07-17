@@ -67,6 +67,9 @@ def test_technical_profile_contains_the_existing_8088_pair() -> None:
             "protocol": "tcp",
         }
     ]
+    assert "B" not in config["services"]["modsecurity"]["environment"][
+        "MODSEC_AUDIT_LOG_PARTS"
+    ]
     assert sum(
         port.get("published") == "8088"
         for service in config["services"].values()
@@ -101,6 +104,12 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
     ]
     rendered = json.dumps(config)
     assert '"published": "8088"' not in rendered
+    assert "B" not in config["services"]["demo-target-modsecurity"]["environment"][
+        "MODSEC_AUDIT_LOG_PARTS"
+    ]
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "REAL_IP_RECURSIVE"
+    ] == "off"
 
 
 def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None:
@@ -127,6 +136,11 @@ def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None
     }
     assert waf["environment"]["SET_REAL_IP_FROM"] == "172.30.10.2/32"
     assert waf["environment"]["REAL_IP_HEADER"] == "CF-Connecting-IP"
+    assert waf["environment"]["REAL_IP_RECURSIVE"] == "off"
+    assert "B" not in waf["environment"]["MODSEC_AUDIT_LOG_PARTS"]
+    rendered_waf = json.dumps(waf)
+    assert "source-correlation-proxy-backend.conf.template" in rendered_waf
+    assert "source-correlation-realip.conf.template" in rendered_waf
     assert "0.0.0.0/0" not in json.dumps(config)
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
