@@ -29,10 +29,10 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 
 - Alembic now has exactly one head, `20260715_000021`.
 - The full backend suite passed with process-only test settings:
-  `698 passed, 32 skipped`.
-- The required focused source/integrity suite passed: `83 passed` with one
-  PostgreSQL-only test skipped locally; the executable SQLite migration cycle
-  passed.
+  `699 passed, 32 skipped`.
+- The latest focused source/integrity suite passed `173`; the migration-focused
+  run passed `2` with one PostgreSQL-only test skipped locally, and the
+  executable SQLite migration cycle passed.
 - PostgreSQL CI upgraded from `20260712_000020` to head; `114` integration
   tests and `39` migration tests passed. The earlier local parent/head
   downgrade and re-upgrade cycle also passed; CI exercised the updated

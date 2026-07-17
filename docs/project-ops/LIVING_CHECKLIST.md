@@ -15,8 +15,9 @@ Status note:
   `20260712_000020` and must not be described as migrated to the new head.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
-- Current PR validation: backend **698 passed, 32 skipped**; focused
-  source/integrity/migration suite **83 passed, 1 PostgreSQL-only skip**;
+- Current PR validation: backend **699 passed, 32 skipped**; focused
+  source/integrity suite **173 passed**; migration-focused run **2 passed, 1
+  PostgreSQL-only skip**;
   executable SQLite migration cycle passed; disposable PostgreSQL CI
   integration **114 passed** and migrations **39 passed**; clean-checkout
   Compose **4 passed**; frontend lint,

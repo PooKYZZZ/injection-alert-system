@@ -47,10 +47,10 @@
   headers, including Cloudflare Access material, are not retained. The bridge
   and CRS correlation path passed without that part, and the three confirmed
   disposable local audit files were cleared after their writers were stopped.
-- Local full backend regression: **698 passed, 32 skipped**. The required
-  focused source/integrity/migration suite passed **83 tests** with one
-  PostgreSQL-only test skipped locally; the executable SQLite migration cycle
-  also passed.
+- Local full backend regression: **699 passed, 32 skipped**. The latest
+  focused source/integrity suite passed **173 tests**; the migration-focused
+  run passed **2 tests** with one PostgreSQL-only test skipped locally; the
+  executable SQLite migration cycle also passed.
 - Disposable PostgreSQL 16 CI upgraded from `20260712_000020` to
   `20260715_000021`; **114 integration** and **39 migration** tests passed.
   The earlier local parent/head downgrade and re-upgrade cycle also passed;
