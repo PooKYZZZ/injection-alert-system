@@ -115,7 +115,7 @@ services:
       [
         "sh",
         "-c",
-        "while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u scripts/waf_audit_bridge.py --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events",
+        "while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events",
       ]
     volumes:
       - ./logs/modsecurity/source-correlation-test:/var/log/modsecurity:ro
