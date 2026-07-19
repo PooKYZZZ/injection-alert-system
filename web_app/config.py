@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     resend_live_test_enabled: bool = False
     threat_email_enabled: bool = False
     threat_email_to: str | None = None
+    threat_telegram_enabled: bool = False
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    telegram_live_test_enabled: bool = False
     dashboard_base_url: str = "http://localhost:3000"
     max_seq_len: int = 128
     # dev-time default — source from artifact metadata in production
@@ -167,6 +171,14 @@ class Settings(BaseSettings):
     @property
     def is_staging(self) -> bool:
         return self.app_env == "staging"
+
+    @property
+    def telegram_available(self) -> bool:
+        return bool(
+            self.threat_telegram_enabled
+            and (self.telegram_bot_token or "").strip()
+            and (self.telegram_chat_id or "").strip()
+        )
 
 
 @lru_cache()

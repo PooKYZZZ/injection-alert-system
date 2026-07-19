@@ -63,6 +63,22 @@ def test_log_event_includes_context_ids_and_redacts_nested_secrets(caplog):
     assert "top-secret" not in caplog.records[-1].getMessage()
 
 
+def test_log_event_redacts_telegram_bot_token(caplog):
+    logger = logging.getLogger("tests.structured.telegram")
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        log_event(
+            logger,
+            "notification.telegram_unavailable",
+            "Telegram unavailable",
+            TELEGRAM_BOT_TOKEN="telegram-secret",
+        )
+
+    payload = json.loads(caplog.records[-1].getMessage())
+    assert payload["TELEGRAM_BOT_TOKEN"] == "[REDACTED]"
+    assert "telegram-secret" not in caplog.records[-1].getMessage()
+
+
 def test_log_event_safely_serializes_unknown_values(caplog):
     class UnknownValue:
         def __str__(self):
