@@ -1,6 +1,6 @@
 # Client Requirements
 
-Last updated: 2026-07-13
+Last updated: 2026-07-20
 
 This document records client-stated requirements that must be considered when planning PD2 work. It does not claim that every item is already implemented.
 
@@ -17,7 +17,7 @@ This document records client-stated requirements that must be considered when pl
 
 | Client Requirement | Engineering Consideration | Current Repo State | Tracker Direction |
 |---|---|---|---|
-| The system should provide timely alerts for detected threats. | Alerts should flow from WAF/ML detection to dashboard without manual refresh where feasible. | Implemented in code: post-commit SSE signals flow through the authenticated BFF to one dashboard EventSource and invalidate canonical REST queries. Local automated coverage exists; live no-refresh, reconnect, and hosted proof remain unverified. | Execute and retain live browser/reconnect evidence; use shared fan-out only if a future multi-instance runtime requires it. |
+| The system should provide timely alerts for detected threats. | Alerts should flow from WAF/ML detection to dashboard without manual refresh where feasible. | Implemented and manually verified in the tested deployment: post-commit SSE signals flow through the authenticated BFF to one dashboard EventSource, no-refresh updates appear, browser reconnect/catch-up passes, and the named hosted domain delivered SSE. | Keep single-process fan-out for the thesis runtime; shared fan-out remains future work for multi-instance deployment. |
 | The system shall send email notifications after detection. | Use a transactional email provider/API; avoid building mail delivery infrastructure. Add duplicate-send protection and failure visibility. | The email-only outbox/worker boundary, supported templates, idempotency, deadlines, cancellation, lease reconciliation, terminal scrubbing, and protected active payloads are implemented. Resend domain/live delivery are verified in the tested deployment. | Validate notification-worker retry, duplicate prevention, provider-failure handling, and required-worker health behavior. |
 
 ## Confidence Policy
