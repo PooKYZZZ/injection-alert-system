@@ -2,7 +2,7 @@
 
 **Project:** CyberTrace / Injection Alert System
 **File:** `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-17
 **Scope:** Local PD2 WAF proof, audit evidence handling, and operator documentation
 
 ---
@@ -104,6 +104,31 @@ one ModSecurity audit event per line
 
 The raw ModSecurity audit log is the main evidence source for WAF-layer events. Keep the `8088` and `8089` audit files separate to avoid confusing proof evidence or bridge reads.
 
+### Audit parts and sensitive headers
+
+The Compose WAF services use `MODSEC_AUDIT_LOG_PARTS=AIJDEFHZ`. Part `B`, which
+persists all request headers, is intentionally excluded. CRS still inspects
+request headers; the bridge receives the transaction metadata, URI, source
+address, CRS messages/rule IDs, response status, and audit trailer needed for
+correlation. A controlled live check confirmed that bridge parsing, source
+provenance, CRS score/rules, backend persistence, and fingerprint generation
+continue to work with no request-header object in the raw audit JSON.
+
+ModSecurity v3 does not provide a reliable `sanitiseRequestHeader` directive
+for this setup. Therefore sensitive header names are prevented from reaching
+new raw audit files by omitting part `B`, while the bridge retains redaction
+for legacy/test records (`Authorization`, `Cookie`, `Set-Cookie`,
+`Proxy-Authorization`, `CF-Access-Jwt-Assertion`, and token-like names).
+
+On 2026-07-17, only the disposable local files below were cleared after their
+writers were stopped; no database volumes or application logs were removed:
+
+```text
+logs/modsecurity/modsec_audit.jsonl
+logs/modsecurity/demo-target/modsec_audit.jsonl
+logs/modsecurity/source-correlation-test/modsec_audit.jsonl
+```
+
 Database alert records and dashboard cards are derived application records. They are useful, but they do not replace the raw WAF audit log when proving where an alert came from.
 
 ---
@@ -116,6 +141,9 @@ For each important WAF event, preserve these fields when available:
 transaction_id
 timestamp
 source_ip
+source_provenance
+source_verification_status
+cf_connecting_ip_matches_client_ip when emitted by the bridge log
 request_method
 request_path
 query_string
@@ -138,6 +166,7 @@ Minimum proof-quality event evidence:
 ```text id="dfkgph"
 transaction_id present
 source_ip present
+source provenance and verification status present for new WAF rows
 request path present
 query string present when applicable
 CRS score present when blocked/logged
@@ -216,6 +245,7 @@ Do not log or paste:
 
 ```text id="i58g02"
 API_SECRET_KEY
+WAF_INGEST_API_KEY
 INTERNAL_API_KEY
 Authorization headers
 Bearer tokens
@@ -235,6 +265,8 @@ Allowed in normal proof summaries:
 transaction_id
 timestamp
 source_ip
+source_provenance
+source_verification_status
 request method
 request path
 query string if needed for attack proof
@@ -249,6 +281,18 @@ action_taken
 ```
 
 Raw request bodies should only be captured when they are necessary for a specific test, and only if the payload is safe test data.
+
+`ingest_fingerprint_sha256` is internal duplicate-integrity metadata. Do not
+expose it through lookup responses, dashboard contracts, screenshots, or proof
+reports. Structured mismatch logs use only an eight-character prefix and must
+not include headers, bodies, bearer keys, or full fingerprints.
+
+For new WAF rows, source IP is canonicalized (including IPv4-mapped IPv6 to
+IPv4); absent or malformed source becomes null rather than `"unknown"`.
+Historical rows preserve their original source value with `LEGACY_UNKNOWN`
+provenance/status and a null fingerprint. Verification status is an ingest-time
+fact, not a future authorization decision, and `cf_connecting_ip_matches_client_ip`
+is a consistency signal rather than an enforcement-trust Boolean.
 
 If a raw body is included in a local artifact, the artifact must be treated as local evidence and not pasted into public docs or screenshots without review.
 

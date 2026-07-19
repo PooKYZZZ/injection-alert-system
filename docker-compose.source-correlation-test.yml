@@ -1,0 +1,146 @@
+services:
+  frontend:
+    profiles:
+      - dashboard
+
+  backend:
+    command:
+      [
+        "sh",
+        "-c",
+        "python -c 'import asyncio; from web_app.infrastructure.database.database import init_db; asyncio.run(init_db())' && uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+      ]
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: sqlite+aiosqlite:////tmp/source-correlation-test.db
+      API_SECRET_KEY: ${SOURCE_TEST_API_SECRET_KEY:?Set SOURCE_TEST_API_SECRET_KEY for the isolated topology}
+      WAF_INGEST_API_KEY: ${SOURCE_TEST_WAF_INGEST_API_KEY:?Set SOURCE_TEST_WAF_INGEST_API_KEY for the isolated topology}
+      WAF_SOURCE_VERIFICATION_MODE: unverified
+      NOTIFICATION_WORKER_ENABLED: "false"
+      NOTIFICATION_WORKER_REQUIRED: "false"
+    networks:
+      - source_test_backend
+
+  source-test-trusted-proxy:
+    image: nginx:alpine
+    profiles:
+      - source-correlation-test
+    volumes:
+      - ./config/modsecurity/source-correlation-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      source_test_trusted:
+        ipv4_address: 172.30.10.2
+    depends_on:
+      source-test-modsecurity:
+        condition: service_started
+
+  source-test-client-a:
+    image: curlimages/curl:latest
+    profiles:
+      - source-correlation-test
+    entrypoint: ["sh", "-c"]
+    command: ["sleep infinity"]
+    networks:
+      source_test_trusted:
+        ipv4_address: 172.30.10.4
+
+  source-test-client-b:
+    image: curlimages/curl:latest
+    profiles:
+      - source-correlation-test
+    entrypoint: ["sh", "-c"]
+    command: ["sleep infinity"]
+    networks:
+      source_test_trusted:
+        ipv4_address: 172.30.10.5
+
+  source-test-untrusted-client:
+    image: curlimages/curl:latest
+    profiles:
+      - source-correlation-test
+    entrypoint: ["sh", "-c"]
+    command: ["sleep infinity"]
+    networks:
+      source_test_untrusted:
+        ipv4_address: 172.30.11.4
+
+  source-test-modsecurity:
+    image: owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e
+    profiles:
+      - source-correlation-test
+    expose:
+      - "8080"
+    environment:
+      BACKEND: http://backend:8000
+      PORT: 8080
+      PARANOIA: 1
+      BLOCKING_PARANOIA: 1
+      ALLOWED_METHODS: GET POST PATCH
+      MODSEC_RULE_ENGINE: On
+      MODSEC_AUDIT_ENGINE: RelevantOnly
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      MODSEC_AUDIT_LOG_TYPE: Serial
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
+      MODSEC_AUDIT_LOG_PARTS: AIJDEFHZ
+      MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
+      REAL_IP_HEADER: CF-Connecting-IP
+      REAL_IP_PROXY_HEADER: CF-Connecting-IP
+      REAL_IP_RECURSIVE: "off"
+      SET_REAL_IP_FROM: 172.30.10.2/32
+    volumes:
+      - ./logs/modsecurity/source-correlation-test:/var/log/modsecurity
+      - ./config/modsecurity/source-correlation-proxy-backend.conf.template:/etc/nginx/templates/includes/proxy_backend.conf.template:ro
+      - ./config/modsecurity/source-correlation-realip.conf.template:/etc/nginx/templates/conf.d/realip.conf.template:ro
+      - ./config/modsecurity/source-correlation-logging.conf.template:/etc/nginx/templates/conf.d/logging.conf.template:ro
+      - ./logs/modsecurity/source-correlation-test/nginx_access.log:/var/log/nginx/source-correlation-test.log
+    networks:
+      source_test_trusted:
+        ipv4_address: 172.30.10.3
+      source_test_untrusted:
+        ipv4_address: 172.30.11.3
+      source_test_backend: {}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  source-test-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    profiles:
+      - source-correlation-test
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      WAF_INGEST_API_KEY: ${SOURCE_TEST_WAF_INGEST_API_KEY:?Set SOURCE_TEST_WAF_INGEST_API_KEY for the isolated topology}
+      WAF_SOURCE_PROVENANCE_MODE: direct_remote_addr
+    command:
+      [
+        "sh",
+        "-c",
+        "while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events",
+      ]
+    volumes:
+      - ./logs/modsecurity/source-correlation-test:/var/log/modsecurity:ro
+    networks:
+      - source_test_backend
+    depends_on:
+      backend:
+        condition: service_healthy
+      source-test-modsecurity:
+        condition: service_started
+
+networks:
+  source_test_trusted:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.10.0/29
+  source_test_untrusted:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.11.0/29
+  source_test_backend:
+    internal: true

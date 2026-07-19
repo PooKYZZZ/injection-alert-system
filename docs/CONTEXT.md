@@ -111,7 +111,14 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
   `TriageIngestResponse`
 - In production mode, the backend requires an explicit `MODEL_REGISTRY_PATH`
 - In development or testing, missing model artifacts fall back to a mock model service with a warning
-- Internal backend routes are protected by bearer-token auth using `API_SECRET_KEY`
+- Internal backend routes and WAF lookup are protected by bearer-token auth
+  using `API_SECRET_KEY`; WAF submission uses the distinct
+  `WAF_INGEST_API_KEY` and rejects the general internal key
+- New WAF events canonicalize source IPs, persist explicit provenance and
+  ingest-time verification status, and use a deterministic factual fingerprint
+  for duplicate integrity. Historical rows retain `LEGACY_UNKNOWN` metadata
+  and a null fingerprint. The fingerprint excludes derived verification status
+  and generated receive time.
 - Request context middleware preserves or generates safe request IDs, supports W3C version-00 `traceparent`, and returns `X-Request-ID` on handled and generic unhandled `500` responses
 - Structured JSON logs cover request completion/failure, WAF ingest outcomes, direct prediction outcomes, and bridge operational/configuration events; sensitive keyed fields are recursively redacted with case/separator-insensitive key matching and cycle/depth bounds
 
@@ -154,8 +161,15 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 - Root `docker-compose.yml`
 - Dockerfiles for frontend and backend
-- Compose ModSecurity/OWASP CRS proof path on `localhost:8088`
+- Compose ModSecurity/OWASP CRS proof path on `localhost:8088` behind the
+  opt-in `technical-waf` profile
 - Internal WAF ingest endpoint, WAF ingest use case, JSONL bridge, replay harness, and demo-target bridge. The demo-target profile is optional for normal startup and required for the final realistic WAF demonstration.
+- Hosted source correlation is verified through operator home/mobile evidence:
+  distinct public sources matched ModSecurity, bridge, FastAPI, PostgreSQL, and
+  dashboard records, and forged-header resistance passed. Hosted identity
+  verification is still Partial: Workers, Pseudo IPv4, origin isolation, and
+  independent immediate-peer confirmation remain open. Hosted mode remains
+  `unverified`.
 
 ## Not Yet Implemented
 

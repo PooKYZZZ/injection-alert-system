@@ -1,8 +1,15 @@
 # Local Setup
 
-Last updated: 2026-07-13
+Last updated: 2026-07-19
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
+
+PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
+controlled proof, hosted source-correlation proof, and restart/recreate proof
+are complete. SSE, Telegram, rate limiting, enforcement, portal behavior, and
+retraining are separate future PRs. Hosted verification remains
+`WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
+trust checks are completed.
 
 Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
 
@@ -48,6 +55,9 @@ LOG_LEVEL=INFO
 MODEL_PATH=ml_model/models/mock_model.py
 MODEL_REGISTRY_PATH=
 API_SECRET_KEY=local-dev-secret
+WAF_INGEST_API_KEY=<different-generated-secret>
+WAF_SOURCE_VERIFICATION_MODE=unverified
+WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
 CONFIDENCE_LOW_THRESHOLD=0.50
@@ -56,6 +66,20 @@ STALE_PROCESSING_TIMEOUT_SECONDS=30
 MAX_SEQ_LEN=128
 TEMPERATURE=0.596868
 ```
+
+Generate the two bearer keys independently; never copy one into the other:
+
+```powershell
+.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Run that command twice and place each result only in `.env`. In production and
+staging both keys are required, `WAF_INGEST_API_KEY` must be at least 32
+characters, and it must differ from `API_SECRET_KEY`. The bridge uses the WAF
+key only for `POST /api/internal/waf-events`; BFF calls and WAF transaction
+lookup continue to use `API_SECRET_KEY`. If either key is exposed, replace it
+manually and recreate the backend plus every affected bridge; no automatic key
+rotation exists.
 
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:
@@ -223,7 +247,12 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current additive migration head is `20260712_000020`, and hosted Supabase has reached that revision. Application functions remain purpose-bound and server-only; the restricted break-glass function is executable only through `cybertrace_break_glass`, not `service_role`.
+- The current additive migration head is `20260715_000021`. Hosted Supabase is
+  only confirmed through `20260712_000020`; the source-verification migration
+  is not claimed as hosted until a reviewed deployment proves it. Application
+  functions remain purpose-bound and server-only; the restricted break-glass
+  function is executable only through `cybertrace_break_glass`, not
+  `service_role`.
 - The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, decrypts protected credential payloads only at delivery, and scrubs terminal payloads.
 
 ### Manual PR 3 auth cutover and rollback
@@ -262,13 +291,17 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic upgrade head
 .venv\Scripts\python.exe -m pytest -q tests/integration
 .venv\Scripts\python.exe -m pytest -q tests/migrations
-.venv\Scripts\python.exe -m alembic downgrade 20260710_000014
+.venv\Scripts\python.exe -m alembic downgrade 20260712_000020
 .venv\Scripts\python.exe -m alembic upgrade head
+.venv\Scripts\python.exe -m alembic heads
+.venv\Scripts\python.exe -m alembic current
 ```
 
-The current head is `20260712_000020`, with additive PR #83 revisions after
-`20260710_000014`. Revision `20260704_000008` is intentionally part of normal
-`upgrade head`.
+The repository has exactly one current head, `20260715_000021`. The downgrade
+target above is its parent, `20260712_000020`, so the cycle directly exercises
+the source-verification migration. Hosted Supabase is confirmed only through
+`20260712_000020`; do not infer that the repository head has been deployed
+there. Revision `20260704_000008` is intentionally part of normal `upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,
 and creates no browser-facing policies. Revision `20260324_000007` now fails
 clearly if its required `traffic_logs` table is missing instead of silently
@@ -397,7 +430,7 @@ Those files are mounted into the containers via `docker-compose.yml`.
 ### Start the stack
 
 ```powershell
-docker compose up --build -d
+docker compose --profile technical-waf up --build -d
 docker compose ps
 ```
 
@@ -407,6 +440,9 @@ Expected services:
 - `backend`
 - `modsecurity`
 - `bridge`
+
+Without `--profile technical-waf`, normal Compose starts only `frontend` and
+`backend`; the historical `8088` WAF pair is now explicitly opt-in.
 
 ### Current Docker network truth
 
@@ -450,6 +486,32 @@ localhost:8089
 The land-records-portal source stays separate from this repository. This repo's Compose override references it as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
 
 Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
+
+For hosted rendering, first observe the actual narrow tunnel peer or subnet;
+do not guess it. Store the observed value in the ignored root `.env`, not only
+in a temporary PowerShell session:
+
+```dotenv
+HOSTED_WAF_TRUSTED_PEER=<observed-narrow-peer-or-subnet>
+WAF_SOURCE_VERIFICATION_MODE=unverified
+```
+
+Use the hosted launcher so the persistent file is loaded and validated on every
+recreate:
+
+```powershell
+pwsh -NoProfile -File scripts/start_hosted_target.ps1 -ValidateOnly
+pwsh -NoProfile -File scripts/start_hosted_target.ps1 -Build
+```
+
+The launcher fails if the peer is missing, malformed, broad, or if hosted mode
+is anything other than `unverified`. The resolved topology must contain one
+realistic WAF/bridge pair, no `8088`, and exactly one loopback
+`127.0.0.1:8089:8080` binding. Source correlation and restart/recreate proof
+are complete. Do not switch to `cloudflare_tunnel` until Workers, Pseudo IPv4,
+direct-origin isolation, and the immediate tunnel-side peer are independently
+proved. Current hosted identity verification status is Partial; mode remains
+`unverified`.
 
 ### Backend health checks in Docker
 

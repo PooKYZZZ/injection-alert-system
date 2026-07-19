@@ -76,6 +76,7 @@ def test_normalize_event_redacts_sensitive_header_variants():
             "X-Client-Secret": "secret-value",
             "X-Api-Key": "key-value",
             "X-Credential-Id": "credential-value",
+            "Cf-Access-Jwt-Assertion": "jwt-value",
             "User-Agent": "curl/8.0",
         },
         "crs_score": 8,
@@ -91,6 +92,7 @@ def test_normalize_event_redacts_sensitive_header_variants():
     assert normalized["request_headers"]["X-Client-Secret"] == "[REDACTED]"
     assert normalized["request_headers"]["X-Api-Key"] == "[REDACTED]"
     assert normalized["request_headers"]["X-Credential-Id"] == "[REDACTED]"
+    assert normalized["request_headers"]["Cf-Access-Jwt-Assertion"] == "[REDACTED]"
     assert normalized["request_headers"]["User-Agent"] == "curl/8.0"
 
 
@@ -131,6 +133,146 @@ def test_normalize_event_supports_modsecurity_style_payload():
         "SQL Injection Attack Detected via libinjection"
     ]
     assert normalized["matched_rule_tags"] == ["attack-sqli", "paranoia-level/1"]
+
+
+def test_normalize_event_accepts_modsecurity_audit_without_request_headers():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "unique_id": "tx-no-request-headers",
+                "client_ip": "203.0.113.10",
+                "request": {
+                    "method": "GET",
+                    "uri": "/records/search?query=marker",
+                },
+                "messages": [
+                    {
+                        "message": "SQL Injection",
+                        "details": {"ruleId": "942100", "tags": ["attack-sqli"]},
+                    }
+                ],
+                "anomaly_score": 5,
+            }
+        }
+    )
+
+    assert normalized["source_ip"] == "203.0.113.10"
+    assert normalized["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is None
+    assert normalized["request_headers"] == {}
+    assert normalized["request_path"] == "/records/search"
+    assert normalized["query_string"] == "query=marker"
+    assert normalized["crs_score"] == 5
+    assert normalized["crs_rule_ids"] == ["942100"]
+
+
+def test_direct_mode_uses_canonical_client_ip_and_ignores_forged_cf_header():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-direct",
+                "client_ip": " ::ffff:192.0.2.128 ",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"CF-Connecting-IP": "198.51.100.50"},
+                },
+            }
+        }
+    )
+
+    assert normalized["source_ip"] == "192.0.2.128"
+    assert normalized["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_cloudflare_mode_compares_header_case_insensitively():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare",
+                "client_ip": "2001:0db8:0:0:0:0:0:1",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"cf-connecting-ip": "2001:db8::1"},
+                },
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert normalized["source_ip"] == "2001:db8::1"
+    assert normalized["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is True
+
+
+def test_cloudflare_mode_records_false_only_when_both_addresses_are_valid():
+    mismatch = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare-mismatch",
+                "client_ip": "192.0.2.10",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"CF-Connecting-IP": "192.0.2.11"},
+                },
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+    invalid = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare-invalid",
+                "client_ip": "192.0.2.10",
+                "request": {
+                    "method": "GET",
+                    "uri": "/",
+                    "headers": {"CF-Connecting-IP": "192.0.2.11, 192.0.2.12"},
+                },
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert mismatch["cf_connecting_ip_matches_client_ip"] is False
+    assert invalid["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_missing_source_and_source_timestamp_remain_null():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-missing-source",
+                "request": {"method": "GET", "uri": "/"},
+            }
+        }
+    )
+
+    assert normalized["source_ip"] is None
+    assert normalized["timestamp"] is None
+
+
+def test_malformed_source_timestamp_becomes_null_without_echoing_value(capsys):
+    malformed = "malformed-secret-like-source-time"
+
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-bad-source-time",
+                "time": malformed,
+                "client_ip": "192.0.2.10",
+                "request": {"method": "GET", "uri": "/"},
+            }
+        }
+    )
+
+    assert normalized["timestamp"] is None
+    output = capsys.readouterr().out
+    assert "bridge.source_timestamp_invalid" in output
+    assert malformed not in output
 
 
 def test_normalize_event_preserves_real_modsecurity_unique_id_traceability():
@@ -887,7 +1029,7 @@ def test_main_follow_from_start_passes_start_at_end_false(
         captured.update(kwargs)
         return (0, 0, 0)
 
-    monkeypatch.setenv("API_SECRET_KEY", "test-secret")
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-secret")
     monkeypatch.setattr("scripts.waf_audit_bridge.follow_bridge", _fake_follow_bridge)
     monkeypatch.setattr(
         "sys.argv",
@@ -912,10 +1054,10 @@ def test_main_follow_from_start_passes_start_at_end_false(
     assert logs[-1]["failed"] == 0
 
 
-def test_main_missing_api_secret_emits_json_configuration_error(
+def test_main_missing_waf_ingest_key_emits_json_configuration_error(
     monkeypatch, capsys
 ):
-    monkeypatch.delenv("API_SECRET_KEY", raising=False)
+    monkeypatch.delenv("WAF_INGEST_API_KEY", raising=False)
     monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
 
     exit_code = main()
@@ -925,18 +1067,33 @@ def test_main_missing_api_secret_emits_json_configuration_error(
     assert exit_code == 2
     assert payload["event"] == "bridge.configuration_failed"
     assert payload["level"] == "ERROR"
-    assert payload["message"] == "API secret is required"
-    assert payload["reason"] == "missing_api_secret"
+    assert payload["message"] == "WAF ingest API key is required"
+    assert payload["reason"] == "missing_waf_ingest_api_key"
     assert payload["service"] == "cybertrace-waf-bridge"
     assert payload["component"] == "modsecurity-bridge"
-    assert "API_SECRET_KEY=" not in captured.err
+    assert "WAF_INGEST_API_KEY=" not in captured.err
+
+
+def test_main_rejects_unknown_source_provenance_mode(monkeypatch, capsys):
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-secret")
+    monkeypatch.setenv("WAF_SOURCE_PROVENANCE_MODE", "header_auto_detect")
+    monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
+
+    exit_code = main()
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert exit_code == 2
+    assert payload["event"] == "bridge.configuration_failed"
+    assert payload["reason"] == "invalid_source_provenance_mode"
+    assert "header_auto_detect" not in captured.err
 
 
 def test_main_follow_with_stdin_emits_json_configuration_error(
     monkeypatch, capsys
 ):
     secret = "bridge-secret-must-not-leak"
-    monkeypatch.setenv("API_SECRET_KEY", secret)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", secret)
     monkeypatch.setattr(
         "sys.argv",
         ["waf_audit_bridge.py", "--follow", "--input", "-"],

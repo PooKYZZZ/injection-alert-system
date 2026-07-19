@@ -1,22 +1,34 @@
 from datetime import datetime
+import logging
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from web_app.domain.source_address import (
+    SourceProvenance,
+    canonicalize_source_ip,
+)
+from web_app.observability.structured_logging import log_event
 
 IngestSource = Literal["modsec_audit_bridge"]
+logger = logging.getLogger(__name__)
 
 
 class WafIngestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     ingest_source: IngestSource = Field(
         ..., description="Source of the WAF event ingestion"
     )
     transaction_id: str = Field(
         ..., min_length=1, max_length=128, description="Unique transaction ID for dedup"
     )
-    timestamp: datetime = Field(..., description="ISO 8601 timestamp of the event")
-    source_ip: str = Field(
-        ..., min_length=1, max_length=45, description="Source IP address"
+    timestamp: datetime | None = Field(
+        default=None, description="ISO 8601 source timestamp of the event"
     )
+    source_ip: str | None = Field(default=None, description="Canonical source IP")
+    source_provenance: SourceProvenance
+    cf_connecting_ip_matches_client_ip: bool | None = None
     request_method: str = Field(
         ..., min_length=1, max_length=16, description="HTTP request method"
     )
@@ -42,3 +54,41 @@ class WafIngestRequest(BaseModel):
     matched_rule_tags: list[str] | None = Field(
         default=None, description="Tags from matched WAF rules"
     )
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def normalize_source_timestamp(cls, value):
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if isinstance(value, datetime):
+            return value
+        try:
+            datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        except ValueError:
+            log_event(
+                logger,
+                "waf_ingest.source_timestamp_invalid",
+                "WAF source timestamp is invalid; canonical value is null",
+                level="WARNING",
+                component="waf-ingest-schema",
+            )
+            return None
+        return value
+
+    @field_validator("source_ip", mode="before")
+    @classmethod
+    def canonicalize_source(cls, value):
+        return canonicalize_source_ip(value)
+
+    @model_validator(mode="after")
+    def validate_source_evidence(self) -> "WafIngestRequest":
+        if self.source_provenance is SourceProvenance.LEGACY_UNKNOWN:
+            raise ValueError("LEGACY_UNKNOWN is not valid for live WAF ingest")
+        if (
+            self.source_provenance is SourceProvenance.DIRECT_REMOTE_ADDR
+            and self.cf_connecting_ip_matches_client_ip is not None
+        ):
+            raise ValueError(
+                "direct source provenance requires a null Cloudflare match value"
+            )
+        return self

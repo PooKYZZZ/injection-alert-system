@@ -12,10 +12,22 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database import database as db_module
 from web_app.infrastructure.database.database import Base, TrafficLog
+from web_app.application.waf_event_fingerprint import build_waf_event_fingerprint
+from web_app.application.waf_event_sanitizer import sanitize_waf_event
+from web_app.domain.source_address import SourceProvenance
+import web_app.presentation.api.routes as routes_module
 from web_app.presentation.api.routes import get_inference_queue, get_model_service
 from web_app.presentation.app import create_app
+from scripts.modsecurity_replay_harness import (
+    build_waf_ingest_payload,
+    detect_modsecurity_events,
+    normalize_sample_row,
+)
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
+WAF_HEADERS = {
+    "Authorization": "Bearer test-waf-ingest-key-at-least-32-characters"
+}
 
 
 class FakeWafModelService:
@@ -81,6 +93,7 @@ def _waf_payload() -> dict:
         "transaction_id": "waf-txn-001",
         "timestamp": "2026-03-24T10:00:00Z",
         "source_ip": "203.0.113.10",
+        "source_provenance": "DIRECT_REMOTE_ADDR",
         "request_method": "POST",
         "request_path": "/login",
         "query_string": "user=admin",
@@ -102,6 +115,35 @@ def _structured_events(caplog, event_name):
     ]
 
 
+def _payload_fingerprint(payload: dict) -> str:
+    sanitized = sanitize_waf_event(
+        {
+            "request_headers": payload.get("request_headers") or {},
+            "sanitized_body": payload.get("sanitized_body"),
+        }
+    )
+    return build_waf_event_fingerprint(
+        source_event_timestamp=datetime.fromisoformat(
+            payload["timestamp"].replace("Z", "+00:00")
+        ),
+        source_ip=payload.get("source_ip"),
+        source_provenance=SourceProvenance(payload["source_provenance"]),
+        cf_connecting_ip_matches_client_ip=payload.get(
+            "cf_connecting_ip_matches_client_ip"
+        ),
+        request_method=payload["request_method"],
+        request_path=payload["request_path"],
+        query_string=payload.get("query_string"),
+        request_headers=sanitized.get("request_headers") or {},
+        sanitized_body=sanitized.get("sanitized_body"),
+        crs_score=payload["crs_score"],
+        crs_rule_ids=payload["crs_rule_ids"],
+        ingest_source=payload["ingest_source"],
+        matched_rule_messages=payload.get("matched_rule_messages"),
+        matched_rule_tags=payload.get("matched_rule_tags"),
+    )
+
+
 def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
     client, init_tables = waf_api_client
     import asyncio
@@ -113,7 +155,7 @@ def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
             "/api/internal/waf-events",
             json=_waf_payload(),
             headers={
-                **INTERNAL_HEADERS,
+                **WAF_HEADERS,
                 "X-Request-ID": "waf-request-001",
             },
         )
@@ -168,7 +210,7 @@ def test_waf_ingest_queue_full_returns_503_with_retry_after(
             "/api/internal/waf-events",
             json=_waf_payload(),
             headers={
-                **INTERNAL_HEADERS,
+                **WAF_HEADERS,
                 "X-Request-ID": "waf-queue-full-request",
             },
         )
@@ -206,7 +248,7 @@ def test_waf_ingest_model_not_ready_is_logged(waf_api_client, caplog):
         response = client.post(
             "/api/internal/waf-events",
             json=_waf_payload(),
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
 
     assert response.status_code == 503
@@ -246,6 +288,35 @@ def test_waf_ingest_invalid_token_returns_401(waf_api_client):
     assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
+def test_general_internal_key_cannot_submit_waf_event(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=_waf_payload(),
+        headers=INTERNAL_HEADERS,
+    )
+
+    assert response.status_code == 401
+
+
+def test_waf_key_cannot_read_waf_event_lookup(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+
+    response = client.get(
+        "/api/internal/waf-events/missing",
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 401
+
+
 def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio
@@ -258,13 +329,13 @@ def test_waf_ingest_invalid_payload_returns_422(waf_api_client):
     response = client.post(
         "/api/internal/waf-events",
         json=invalid_payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
 
     assert response.status_code == 422
 
 
-def test_waf_ingest_invalid_timestamp_returns_422(waf_api_client):
+def test_waf_ingest_invalid_timestamp_is_canonicalized_to_null(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio
 
@@ -276,10 +347,81 @@ def test_waf_ingest_invalid_timestamp_returns_422(waf_api_client):
     response = client.post(
         "/api/internal/waf-events",
         json=invalid_payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+
+
+def test_replay_generated_payload_is_accepted_by_real_waf_route(waf_api_client):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    replay = normalize_sample_row(
+        {
+            "request_http_method": "GET",
+            "request_http_request": "/replay?id=1",
+        },
+        replay_tx="tx-route-replay",
+    )
+    logs = (
+        'modsecurity-1 | {"transaction":{"client_ip":"::ffff:203.0.113.21",'
+        '"unique_id":"route-replay-1","request":{"headers":'
+        '{"X-Replay-Tx":"tx-route-replay"}},"messages":'
+        '[{"details":{"ruleId":"942100"},"message":"SQL Injection"}]}}'
+    )
+    payload = build_waf_ingest_payload(
+        replay,
+        detect_modsecurity_events(logs, replay_tx="tx-route-replay"),
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.status_code != 422
+
+
+def test_cloudflare_mode_persists_direct_evidence_as_unverified(
+    waf_api_client, monkeypatch, caplog
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-mode-mismatch"
+
+    with caplog.at_level(logging.WARNING):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=payload,
+            headers=WAF_HEADERS,
+        )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-txn-mode-mismatch",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert lookup.json()["source_verification_status"] == "UNVERIFIED"
+    event = _structured_events(caplog, "source_provenance_mode_mismatch")[-1]
+    assert event["transaction_id"] == "waf-txn-mode-mismatch"
+    assert event["verification_mode"] == "cloudflare_tunnel"
+    assert event["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert "request_headers" not in event
+    assert "sanitized_body" not in event
+    assert "authorization" not in caplog.text.lower()
 
 
 def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):
@@ -302,7 +444,7 @@ def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client
     ingest_response = client.post(
         "/api/internal/waf-events",
         json=payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
     assert ingest_response.status_code == 200
 
@@ -323,6 +465,9 @@ def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client
         assert key in body
         assert body[key] is not None
     assert body["source_ip"] == "172.21.0.1"
+    assert body["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert body["source_verification_status"] == "UNVERIFIED"
+    assert "ingest_fingerprint_sha256" not in body
     assert body["request_path"] == "/api/health"
     assert body["query_string"] == "id=15%27%20OR%2015%3D15--"
     assert body["crs_score"] == 5
@@ -368,12 +513,12 @@ def test_waf_ingest_duplicate_transaction_id_returns_existing_alert(
     first = client.post(
         "/api/internal/waf-events",
         json=payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
     second = client.post(
         "/api/internal/waf-events",
         json=payload,
-        headers=INTERNAL_HEADERS,
+        headers=WAF_HEADERS,
     )
 
     assert first.status_code == 200
@@ -396,6 +541,8 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
 ):
     client, init_tables = waf_api_client
     import asyncio
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-processing-1"
 
     async def _seed_processing() -> None:
         await init_tables()
@@ -407,6 +554,8 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
                     created_at=datetime.now(timezone.utc),
                     timestamp=datetime.now(timezone.utc),
                     source_ip="203.0.113.10",
+                    source_provenance="DIRECT_REMOTE_ADDR",
+                    source_verification_status="UNVERIFIED",
                     request_path="/login",
                     request_method="POST",
                     http_request="POST /login HTTP/1.1",
@@ -417,20 +566,18 @@ def test_waf_ingest_processing_duplicate_returns_409_with_retry_after(
                     + timedelta(seconds=30),
                     processing_owner_token="owner-old",
                     processing_attempt=1,
+                    ingest_fingerprint_sha256=_payload_fingerprint(payload),
                 )
             )
             await session.commit()
 
     asyncio.run(_seed_processing())
 
-    payload = _waf_payload()
-    payload["transaction_id"] = "waf-txn-processing-1"
-
     with caplog.at_level(logging.INFO):
         response = client.post(
             "/api/internal/waf-events",
             json=payload,
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
 
     assert response.status_code == 409
@@ -482,14 +629,14 @@ def test_concurrent_duplicate_transaction_runs_inference_once(waf_api_client):
             client.post,
             "/api/internal/waf-events",
             json=payload,
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
         assert prediction_started.wait(timeout=5)
         second_future = executor.submit(
             client.post,
             "/api/internal/waf-events",
             json=payload,
-            headers=INTERNAL_HEADERS,
+            headers=WAF_HEADERS,
         )
         second = second_future.result(timeout=5)
         release_prediction.set()

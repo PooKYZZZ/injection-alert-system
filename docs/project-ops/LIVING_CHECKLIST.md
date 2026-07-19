@@ -3,13 +3,56 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-19
 
 Status note:
 - Current PR #83 release status is maintained in `docs/project-ops/STATUS.md`.
 - Hosted Supabase is migrated through `20260712_000020`; disposable PostgreSQL downgrade/re-upgrade through the same head passed
 - Current frontend validation: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. Local-only browser session behavior remains a follow-up if it reappears.
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
+- PR #84 source-correlation implementation is locally complete at Alembic head
+  `20260715_000021`; hosted Supabase is only confirmed through
+  `20260712_000020` and must not be described as migrated to the new head.
+- PR #84 implementation is frozen at baseline
+  `6cfe67bd331e55d4309c201c8c254668bc2ea688`; this maintenance pass is
+  documentation-only. SSE, Telegram, rate limiting, enforcement, portal
+  behavior, and retraining are outside this PR.
+- WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
+  `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
+- Current PR validation: backend **703 passed, 32 skipped**; focused
+  source/integrity suite **189 passed**; migration-focused run **2 passed, 1
+  PostgreSQL-only skip**;
+  executable SQLite migration cycle passed; disposable PostgreSQL CI
+  integration **114 passed** and migrations **39 passed**; clean-checkout
+  Compose **8 passed**; frontend lint,
+  typecheck, **84 files / 480 Vitest tests**, and production build passed.
+- [x] Required PR #84 GitHub jobs passed for implementation head `6cfe67b`:
+  backend, postgres, frontend, auth-e2e, and secret-scan. Earlier
+  Compose/secret-scan failures and the intermediate dependency-audit failure
+  remain summarized in
+  `docs/project-ops/STATUS.md` rather than hidden.
+- [ ] Dependency exception owner: backend dependency-maintenance; review by
+  2026-09-30. Remove `PYSEC-2026-3447` when active PyTorch permits
+  `setuptools>=83`, or earlier if macOS packaging/source-distribution jobs are
+  introduced. The current Linux wheel-only CI still ignores this one advisory.
+- Canonical source/provenance/status and factual fingerprint duplicate handling
+  are implemented. The fingerprint is internal and omitted from lookup/UI.
+- [x] Compose profile/service/port/network configuration is automatically
+  verified for technical, demo, hosted, and controlled topologies.
+- [x] Complete the controlled packet-path proof (two client sources, forged
+  direct header, correlated rows, SQLi 403) locally on 2026-07-17. This is
+  Docker evidence only; it does not prove hosted Cloudflare trust.
+- [x] Complete the hosted home Wi-Fi and mobile-data source-correlation proof:
+  distinct public sources matched ModSecurity, bridge, FastAPI, PostgreSQL,
+  and dashboard records; forged-header resistance, fresh-audit leakage review,
+  and restart/recreate proof also passed.
+- [ ] Complete the final hosted trust gate: review Cloudflare Pseudo IPv4,
+  confirm no Worker rewrites `CF-Connecting-IP`, prove direct-origin isolation,
+  and independently confirm the immediate tunnel-side peer before enabling
+  `cloudflare_tunnel`; current mode remains `unverified`.
+- Hosted recreate configuration is now persistent through the ignored root
+  `.env` and `scripts/start_hosted_target.ps1`; the launcher refuses missing or
+  broad peers and any mode other than `unverified`.
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
 - Confidence-tier naming is clarified in code/docs: `confidence_tier` is the preferred filter name, legacy `severity` remains a compatibility alias, current tiers remain `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`, and `CRITICAL >=90%` is implemented as the confidence threshold

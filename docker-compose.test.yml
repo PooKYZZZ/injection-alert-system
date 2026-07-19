@@ -1,0 +1,9 @@
+services:
+  backend:
+    env_file: !override []
+
+  frontend:
+    env_file: !override []
+
+  bridge:
+    env_file: !override []

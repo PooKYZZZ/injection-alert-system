@@ -12,6 +12,11 @@ This repository is active in its current app-plus-BFF form and now has a verifie
 - Frontend lint currently passes: `cd frontend && npm run lint`
 - Frontend build currently passes: `cd frontend && npm run build`
 - Latest verification counts are recorded in [docs/project-ops/STATUS.md](docs/project-ops/STATUS.md).
+- PR #84 is frozen at trusted WAF source correlation. CI, controlled proof,
+  hosted Wi-Fi/mobile source correlation, forged-header resistance, and
+  restart/recreate proof passed; hosted `VERIFIED` mode intentionally remains
+  disabled pending final Cloudflare/origin trust checks. Later roadmap work is
+  not part of this PR.
 - The dashboard BFF routes for alerts, alert detail, triage, stats, and ML health are wired to FastAPI in non-mock mode
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist
@@ -177,11 +182,18 @@ docker compose up --build -d
 docker compose ps
 ```
 
+That default command starts only `backend` and `frontend`. Start the historical
+technical WAF proof pair explicitly with:
+
+```powershell
+docker compose --profile technical-waf up --build -d
+```
+
 Important constraints:
 
 - The frontend is published on `http://localhost:3000`
 - The backend is internal to the Compose network and is not published to the host
-- The technical WAF proof path is published on `http://localhost:8088`
+- The opt-in technical WAF profile publishes its proof path on `http://localhost:8088`
 - The realistic demo-target WAF path is published on `http://localhost:8089` when the `demo-target` profile is enabled; the profile also starts `demo-target-app` from the separate land-records portal repo
 - The active browser path remains `Browser -> Next.js -> FastAPI`
 - Backend transaction lookup proof should use `docker compose exec`, not `localhost:8000`

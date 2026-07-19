@@ -2,13 +2,13 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-19
 
 ---
 
 ## Current Verified Repo State
 
-- Working branch for PR #83 remediation: `feat/cybertrace-v6-1`
+- Working branch: `feat/trusted-source-correlation`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -25,6 +25,81 @@
 - Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, bounded per-identifier failure throttles, a default two-operation password-hash cap, database-expiring password-level MFA sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
 - Operational account scripts load `frontend/.env.local` for ordinary provisioning. ADMIN MFA break glass instead uses `scripts/operator_reset_admin_mfa.py` with a dedicated direct PostgreSQL login whose only membership is the execute-only `cybertrace_break_glass` role. TOTP, recovery, and password-reset feature flags fail closed when absent and are evaluated at request time.
 - PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, protected notification payloads, notification lifecycle/worker hardening, required PostgreSQL and authentication-browser CI jobs, and the hosted Admin journey. Public deployment is active through Cloudflare Tunnel at `app.cybertracesystems.com`; `target.cybertracesystems.com` is protected by Cloudflare Access; the Resend domain and live delivery are verified.
+
+### Trusted source correlation PR state
+
+- PR #84 implementation is frozen at baseline
+  `6cfe67bd331e55d4309c201c8c254668bc2ea688`. The branch was clean, remote CI
+  was green, and this maintenance pass adds documentation only; no PR1 feature
+  work remains.
+  SSE, Telegram, rate limiting, enforcement, portal behavior, and retraining
+  belong in later PRs.
+
+- PR #84 remediation is implemented through the single Alembic head
+  `20260715_000021`:
+  canonical source/provenance contracts, separate WAF submission credential,
+  ingest-time verification derivation, factual SHA-256 fingerprints, immutable
+  duplicate metadata, and atomic matching stale reclaim.
+- Default Compose now excludes the technical WAF pair; `technical-waf` restores
+  `8088`. Hosted rendering excludes that pair and publishes exactly one
+  loopback `8089`. The controlled topology has separate trusted/untrusted
+  networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
+- Hosted startup now has one explicit persistent path:
+  `scripts/start_hosted_target.ps1` reads the ignored root `.env`, validates the
+  observed narrow `HOSTED_WAF_TRUSTED_PEER`, requires
+  `WAF_SOURCE_VERIFICATION_MODE=unverified`, and then renders the hosted
+  overlay. Missing or broad trust values fail before Compose starts.
+- The pinned CRS image is
+  `owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`
+  (NGINX `1.28.2`, ModSecurity `3.0.14`, connector `1.0.4`, CRS `3.3.8`).
+  The controlled real-IP fix moves the directives to HTTP context because the
+  image's generated location include did not rewrite `$remote_addr` before
+  ModSecurity observed the request.
+- WAF audit parts are now `AIJDEFHZ`; part `B` is excluded so raw request
+  headers, including Cloudflare Access material, are not retained. The bridge
+  and CRS correlation path passed without that part, and the three confirmed
+  disposable local audit files were cleared after their writers were stopped.
+- Local full backend regression: **703 passed, 32 skipped**. The latest
+  focused source/integrity suite passed **189 tests**; the migration-focused
+  run passed **2 tests** with one PostgreSQL-only test skipped locally; the
+  executable SQLite migration cycle also passed.
+- Disposable PostgreSQL 16 CI upgraded from `20260712_000020` to
+  `20260715_000021`; **114 integration** and **39 migration** tests passed.
+  The earlier local parent/head downgrade and re-upgrade cycle also passed;
+  the final CI run exercised the updated constraint on the full chain.
+- Compose rendered in a clean exported checkout with no `.env`: all **8**
+  topology and hosted-persistence tests passed. The same pinned Gitleaks 8.24.3
+  scan found no leaks.
+- A real `ModelService` initialization smoke using Transformers `5.5.0` and
+  the configured staged DistilBERT registry loaded
+  `distilbert_v3_907k_cleaned_20260312_133755` as
+  `DistilBertForSequenceClassification`; no new dependency error occurred.
+  The separate model-packaging/classifier-head follow-up remains out of scope.
+- Frontend lint, typecheck, **84 files / 480 Vitest tests**, and production
+  build passed locally. No frontend source changed.
+- Remote CI is recorded separately. Initial run `29384464612` failed backend
+  because Compose tests required the absent developer `.env`, and secret-scan
+  found one deterministic test fixture. Run `29393146395` fixed those failures
+  but exposed backend dependency-audit findings. Run `29393701878` passed the
+  earlier remediation head; final run `29428801740` passed **backend, postgres,
+  frontend, auth-e2e, and secret-scan** after the database-invariant and driver
+  corrections. Implementation head `6cfe67b` also passed all five required jobs
+  after the Torch `2.13.0` security upgrade.
+- Local controlled packet-path proof **passed on 2026-07-17**: Client A
+  `172.30.10.4`, Client B `172.30.10.5`, and the direct forged-header client
+  `172.30.11.4` remained distinct and persisted as `DIRECT_REMOTE_ADDR` with
+  `UNVERIFIED` status; all three SQLi requests returned HTTP 403.
+- Operator hosted proof also passed for home Wi-Fi and mobile data: each public
+  egress source remained distinct and matched the ModSecurity, bridge, FastAPI,
+  PostgreSQL, and dashboard records. Forged-header resistance, the fresh-audit
+  credential-leakage check, and hosted restart/recreate proof also passed.
+  Exact operator addresses are retained in private evidence rather than this
+  repository.
+- Hosted identity verification remains **Partial by design**. The remaining
+  checks are Cloudflare Pseudo IPv4, Worker header behavior, direct-origin
+  isolation, and independent confirmation that the configured `/32` is the
+  immediate tunnel-side peer. `WAF_SOURCE_VERIFICATION_MODE` remains
+  `unverified`; no hosted `VERIFIED` claim is made.
 
 ### PR #83 completed release checks
 
@@ -144,7 +219,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### CRS baseline and demo-target proof
 
 - CRS-only baseline is documented in `reports/modsecurity-live-proof/crs-baseline.md`.
-- Demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the demo-target service uses the official CRS image `BACKEND` reverse-proxy behavior without mounting a custom Nginx template.
+- Demo-target WAF proof exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`; the demo-target service uses the pinned CRS image and the narrow proxy-backend template, while hosted real-IP directives are added only by the hosted override.
 - The demo-target Compose profile is optional for normal developer startup and required for the final realistic WAF demonstration.
 - Demo-target WAF path is `localhost:8089 -> demo-target-modsecurity -> demo-portal`.
 - Demo-target CyberTrace ingest uses `demo-target-bridge`, which watches `logs/modsecurity/demo-target/modsec_audit.jsonl` separately from the default `8088` audit log.
