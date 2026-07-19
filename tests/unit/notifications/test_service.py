@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from web_app.notifications.providers import FakeEmailProvider
+from web_app.notifications import service as notification_service
 from web_app.notifications.service import NotificationWorkerService
 
 
@@ -34,6 +35,26 @@ class EmptyRepository:
 @dataclass
 class RequiredSettings(WorkerSettings):
     notification_worker_required: bool = True
+
+
+@dataclass
+class TelegramSettings(WorkerSettings):
+    telegram_available: bool = False
+    telegram_bot_token: str | None = None
+
+
+def test_build_telegram_provider_returns_none_when_channel_is_unavailable() -> None:
+    assert hasattr(notification_service, "build_telegram_provider")
+    assert notification_service.build_telegram_provider(TelegramSettings()) is None
+
+
+def test_build_telegram_provider_constructs_without_network_validation() -> None:
+    assert hasattr(notification_service, "build_telegram_provider")
+    provider = notification_service.build_telegram_provider(
+        TelegramSettings(telegram_available=True, telegram_bot_token="test-token")
+    )
+
+    assert provider is not None
 
 
 @pytest.mark.asyncio
