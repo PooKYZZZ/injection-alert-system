@@ -16,12 +16,23 @@ Status note:
 - PR #84 implementation is frozen at baseline
   `6cfe67bd331e55d4309c201c8c254668bc2ea688`; that maintenance pass was
   documentation-only. The current `feat/real-time-alert-sse` PR2 branch is a
-  distinct implementation slice. Telegram, rate limiting, enforcement, portal
-  behavior, and retraining remain outside this PR.
+  distinct implementation slice. The current PR3 branch implements Telegram;
+  rate limiting, enforcement, portal behavior, and retraining remain outside it.
 - PR #85 automated validation is green for backend, frontend, postgres,
   auth-e2e, and secret-scan. Manual WAF repetition, no-refresh dashboard
   updates, hosted SSE delivery, browser reconnect, and source-correlation
   regression evidence are recorded in `docs/project-ops/STATUS.md`.
+- [x] Add Telegram as a database-backed outbox channel restricted to
+  `threat_detected`, with versioned V6.2 claiming and channel-specific dedupe.
+- [x] Enqueue Telegram only for persisted non-Normal HIGH/CRITICAL alerts while
+  preserving email and isolating each channel's enqueue failure.
+- [x] Add plain-text HTTPX `sendMessage` delivery, explicit timeouts, bounded
+  429/5xx retry classification, ambiguous-delivery handling, and secret-safe logs.
+- [x] Add mocked provider/worker/WAF failure-isolation tests and an explicitly
+  guarded provider smoke. Live/hosted Telegram proof remains unverified.
+- [x] PR3 local verification: focused matrix **165 passed**, full backend
+  **754 passed, 34 skipped**, disposable PostgreSQL notification tests
+  **10 passed**, and V6.2 downgrade/re-upgrade ended at the single expected head.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
 - Current PR validation: backend **703 passed, 32 skipped**; focused

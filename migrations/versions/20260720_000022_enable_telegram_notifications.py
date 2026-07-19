@@ -13,6 +13,16 @@ depends_on = None
 _CLAIM_SIGNATURE = (
     "public.claim_notification_outbox_batch_v62(text, integer, integer)"
 )
+_PROTECTED_KINDS = (
+    "password_setup",
+    "password_reset",
+    "email_verification",
+    "email_recovery_otp",
+)
+
+
+def _is_sqlite() -> bool:
+    return op.get_bind().dialect.name == "sqlite"
 
 
 def _restrict_function(signature: str) -> None:
@@ -39,6 +49,7 @@ $$
 
 
 def _replace_guard(*, telegram_enabled: bool) -> None:
+    protected_sql = ", ".join(f"'{kind}'" for kind in _PROTECTED_KINDS)
     channel_check = (
         "IF NEW.channel NOT IN ('email', 'telegram') THEN"
         if telegram_enabled
@@ -108,6 +119,15 @@ BEGIN
   IF NEW.status IN ('sent', 'cancelled', 'expired', 'permanent_failure') THEN
     NEW.payload_safe_json := '{{}}'::jsonb;
     NEW.terminalized_at := COALESCE(NEW.terminalized_at, clock_timestamp());
+  ELSIF NEW.kind IN ({protected_sql}) AND NOT (
+    jsonb_typeof(NEW.payload_safe_json) = 'object'
+    AND NEW.payload_safe_json ?& ARRAY['ciphertext', 'nonce', 'key_version']
+    AND NEW.payload_safe_json - ARRAY['ciphertext', 'nonce', 'key_version'] = '{{}}'::jsonb
+    AND NEW.payload_safe_json->>'ciphertext' ~ '^[A-Za-z0-9_-]+$'
+    AND NEW.payload_safe_json->>'nonce' ~ '^[A-Za-z0-9_-]+$'
+    AND NEW.payload_safe_json->>'key_version' = '1'
+  ) THEN
+    RAISE EXCEPTION 'notification payload protection is required';
   END IF;
   RETURN NEW;
 END
@@ -118,6 +138,10 @@ $$
 
 
 def upgrade() -> None:
+    # The durable notification outbox and its RPC lifecycle are PostgreSQL-only.
+    # SQLite remains the isolated application-test boundary and has no RPCs.
+    if _is_sqlite():
+        return
     op.drop_constraint(
         "ck_notification_outbox_channel_v61",
         "notification_outbox",
@@ -234,6 +258,8 @@ $$
 
 
 def downgrade() -> None:
+    if _is_sqlite():
+        return
     op.execute(
         sa.text(
             """

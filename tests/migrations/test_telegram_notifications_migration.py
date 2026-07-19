@@ -20,6 +20,7 @@ def test_telegram_migration_is_additive_and_channel_safe() -> None:
     assert "o.channel IN ('email', 'telegram')" in source
     assert "SECURITY INVOKER" in source
     assert "SET search_path = ''" in source
+    assert "notification payload protection is required" in source
 
 
 def test_telegram_migration_downgrade_refuses_data_loss() -> None:

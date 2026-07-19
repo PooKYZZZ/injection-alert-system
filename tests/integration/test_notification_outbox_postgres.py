@@ -120,7 +120,7 @@ def test_telegram_jobs_are_claimed_and_deduplicated() -> None:
 def test_telegram_channel_rejects_account_security_kinds() -> None:
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
-            with pytest.raises(psycopg.errors.CheckViolation):
+            with pytest.raises(psycopg.Error):
                 cursor.execute(
                     """
 INSERT INTO public.notification_outbox (

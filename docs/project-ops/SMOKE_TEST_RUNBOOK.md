@@ -1,11 +1,31 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-20
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
 
 > **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the technical CyberTrace WAF proof path is published on `localhost:8088`, the realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled, and the backend stays internal to the compose network as `8000/tcp`.
+
+---
+
+## Guarded Telegram provider smoke
+
+The provider-only Telegram smoke refuses to send unless all three server-side
+values are deliberately configured:
+
+```powershell
+$env:TELEGRAM_LIVE_TEST_ENABLED = "true"
+$env:TELEGRAM_BOT_TOKEN = "<bot-token>"
+$env:TELEGRAM_CHAT_ID = "<analyst-chat-id>"
+.venv\Scripts\python.exe scripts\run_telegram_smoke.py
+```
+
+With the live flag absent or false, the command prints a safe `SKIP` and sends
+nothing. It never prints the token or chat ID and sends only a fixed harmless
+connectivity message. This does not prove the real WAF-to-alert-to-outbox flow;
+thesis evidence must correlate a persisted HIGH/CRITICAL alert ID with its
+Telegram message and database lifecycle. Do not run live provider tests in CI.
 
 ---
 

@@ -7,9 +7,10 @@ This guide reflects the repo as it exists now. It supports direct local developm
 PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
 controlled proof, hosted source-correlation proof, and restart/recreate proof
 are complete. The separate PR2 SSE slice is implemented with automated and
-manual no-refresh, browser-reconnect, and named-domain hosted proof. Telegram,
-rate limiting, enforcement, portal behavior, and retraining remain separate
-future work. Hosted verification remains
+manual no-refresh, browser-reconnect, and named-domain hosted proof. The local
+PR3 branch implements Telegram threat alerts separately; rate limiting,
+enforcement, portal behavior, and retraining remain future work. Telegram has
+no hosted proof. Hosted source verification remains
 `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
 trust checks are completed.
 
@@ -249,13 +250,39 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current additive migration head is `20260715_000021`. Hosted Supabase is
+- The current additive migration head is `20260720_000022`. Hosted Supabase is
   only confirmed through `20260712_000020`; the source-verification migration
   is not claimed as hosted until a reviewed deployment proves it. Application
   functions remain purpose-bound and server-only; the restricted break-glass
   function is executable only through `cybertrace_break_glass`, not
   `service_role`.
-- The notification worker is email-only, claims one job per poll by default, reconciles expired leases/deadlines, cancels superseded jobs, decrypts protected credential payloads only at delivery, and scrubs terminal payloads.
+- The notification worker is channel-aware for email and Telegram, claims one
+  job per poll by default, reconciles expired leases/deadlines, cancels
+  superseded jobs, decrypts protected credential payloads only at email
+  delivery, and scrubs terminal payloads. Telegram is restricted by the
+  database to `threat_detected` jobs and cannot carry password, MFA, or account
+  notifications.
+
+### Telegram threat notifications
+
+Telegram is a secondary notification channel for persisted non-Normal `HIGH`
+and `CRITICAL` confidence-tier alerts. Configure server-only values:
+
+```dotenv
+THREAT_TELEGRAM_ENABLED=false
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+TELEGRAM_LIVE_TEST_ENABLED=false
+```
+
+Disabled or incomplete configuration does not stop the backend and does not
+affect alert persistence, SSE, dashboard visibility, or existing email. The
+worker uses Telegram Bot API `sendMessage` through HTTPX with bounded retries;
+429 responses honor a bounded `retry_after`. Ambiguous delivery is not blindly
+retried because Telegram provides no general idempotency key. The database
+prevents duplicate jobs, but the project does not claim exactly-once external
+delivery. Telegram messages intentionally omit source IP, query/body content,
+headers, cookies, and credentials.
 
 ### Manual PR 3 auth cutover and rollback
 
@@ -293,15 +320,16 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic upgrade head
 .venv\Scripts\python.exe -m pytest -q tests/integration
 .venv\Scripts\python.exe -m pytest -q tests/migrations
-.venv\Scripts\python.exe -m alembic downgrade 20260712_000020
+.venv\Scripts\python.exe -m alembic downgrade 20260715_000021
 .venv\Scripts\python.exe -m alembic upgrade head
 .venv\Scripts\python.exe -m alembic heads
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260715_000021`. The downgrade
-target above is its parent, `20260712_000020`, so the cycle directly exercises
-the source-verification migration. Hosted Supabase is confirmed only through
+The repository has exactly one current head, `20260720_000022`. The downgrade
+target above is its parent, `20260715_000021`, so the cycle directly exercises
+the Telegram notification migration. Downgrade rejects while Telegram rows
+exist rather than silently deleting notification history. Hosted Supabase is confirmed only through
 `20260712_000020`; do not infer that the repository head has been deployed
 there. Revision `20260704_000008` is intentionally part of normal `upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,
