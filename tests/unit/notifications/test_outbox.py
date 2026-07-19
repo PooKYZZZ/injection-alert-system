@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from web_app.notifications import outbox
 from web_app.notifications.outbox import (
     LeaseLostError,
     PostgresNotificationOutboxRepository,
@@ -21,6 +22,9 @@ class ResultStub:
         return self._rows
 
     def scalar_one(self):
+        return self._scalar
+
+    def scalar_one_or_none(self):
         return self._scalar
 
 
@@ -59,6 +63,7 @@ async def test_repository_maps_claimed_rows_and_uses_narrow_rpc() -> None:
                         "provider_idempotency_key": "password-changed/account-1/v2",
                         "attempts": 1,
                         "max_attempts": 5,
+                        "channel": "telegram",
                     }
                 ]
             )
@@ -70,7 +75,8 @@ async def test_repository_maps_claimed_rows_and_uses_narrow_rpc() -> None:
 
     assert jobs[0].id == "job-1"
     assert jobs[0].attempt_count == 1
-    assert "claim_notification_outbox_batch_v61" in session.calls[0][0]
+    assert jobs[0].channel == "telegram"
+    assert "claim_notification_outbox_batch_v62" in session.calls[0][0]
     assert session.calls[0][1] == {
         "worker_id": "worker-a",
         "batch_size": 10,
@@ -104,3 +110,58 @@ def test_build_threat_notification_excludes_query_and_raw_request_data() -> None
     assert "raw" not in notification.safe_payload
     assert notification.dedupe_key == "threat/42"
     assert notification.provider_idempotency_key == "threat/42"
+    assert notification.channel == "email"
+
+
+def test_build_telegram_threat_notification_is_channel_specific_and_short_lived() -> None:
+    assert hasattr(outbox, "build_telegram_threat_notification")
+    notification = outbox.build_telegram_threat_notification(
+        alert_id=42,
+        timestamp="2026-07-20T09:00:00Z",
+        attack_category="SQL Injection",
+        confidence_tier="CRITICAL",
+        confidence=0.961,
+        request_method="POST",
+        request_path="/records/search?secret=raw#fragment",
+        dashboard_base_url="https://dashboard.example.test",
+        recipient="-100123",
+    )
+
+    assert notification.channel == "telegram"
+    assert notification.kind == "threat_detected"
+    assert notification.safe_payload == {
+        "event_id": "42",
+        "timestamp": "2026-07-20T09:00:00Z",
+        "attack_category": "SQL Injection",
+        "confidence_tier": "CRITICAL",
+        "confidence": 0.961,
+        "request_method": "POST",
+        "route_path": "/records/search",
+        "dashboard_url": "https://dashboard.example.test/alerts/42",
+    }
+    assert notification.dedupe_key == "threat/42/telegram"
+    assert notification.provider_idempotency_key == "threat/42/telegram"
+    assert notification.deliver_before is not None
+
+
+@pytest.mark.asyncio
+async def test_repository_enqueues_notification_channel() -> None:
+    session = SessionStub([ResultStub(scalar="job-1")])
+    repository = PostgresNotificationOutboxRepository(lambda: session)
+    assert hasattr(outbox, "build_telegram_threat_notification")
+    notification = outbox.build_telegram_threat_notification(
+        alert_id=42,
+        timestamp="2026-07-20T09:00:00Z",
+        attack_category="SQL Injection",
+        confidence_tier="HIGH",
+        confidence=0.874,
+        request_method="GET",
+        request_path="/records/search",
+        dashboard_base_url="https://dashboard.example.test",
+        recipient="-100123",
+    )
+
+    assert await repository.enqueue(notification) is True
+    sql, params = session.calls[0]
+    assert ":channel" in sql
+    assert params["channel"] == "telegram"

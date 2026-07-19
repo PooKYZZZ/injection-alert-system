@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import text
@@ -26,7 +27,7 @@ class PostgresNotificationOutboxRepository:
                 result = await session.execute(
                     text(
                         """
-SELECT * FROM public.claim_notification_outbox_batch_v61(
+SELECT * FROM public.claim_notification_outbox_batch_v62(
   :worker_id, :batch_size, :lease_seconds
 )
 """
@@ -50,6 +51,7 @@ SELECT * FROM public.claim_notification_outbox_batch_v61(
                 attempt_count=row["attempts"],
                 max_attempts=row["max_attempts"],
                 deliver_before=row.get("deliver_before"),
+                channel=row["channel"],
             )
             for row in rows
         ]
@@ -108,7 +110,7 @@ INSERT INTO public.notification_outbox (
   template_version, dedupe_key, provider_idempotency_key, deliver_before
 )
 VALUES (
-  :kind, 'email', :recipient, 'pending',
+  :kind, :channel, :recipient, 'pending',
   CAST(:safe_payload AS jsonb), :template_version,
   :dedupe_key, :provider_idempotency_key,
   COALESCE(:deliver_before, now() + interval '24 hours')
@@ -119,6 +121,7 @@ RETURNING id
                     ),
                     {
                         "kind": notification.kind,
+                        "channel": notification.channel,
                         "recipient": notification.recipient,
                         "safe_payload": json.dumps(
                             notification.safe_payload,
@@ -170,4 +173,44 @@ def build_threat_notification(
         template_version=1,
         dedupe_key=key,
         provider_idempotency_key=key,
+    )
+
+
+def build_telegram_threat_notification(
+    *,
+    alert_id: int,
+    timestamp: str,
+    attack_category: str,
+    confidence_tier: str,
+    confidence: float,
+    request_method: str,
+    request_path: str,
+    dashboard_base_url: str,
+    recipient: str,
+) -> PendingNotification:
+    safe_path = request_path.split("?", 1)[0].split("#", 1)[0]
+    if not safe_path.startswith("/"):
+        safe_path = "/"
+    safe_method = request_method.strip().upper()
+    if not safe_method.isalpha() or len(safe_method) > 16:
+        safe_method = "UNKNOWN"
+    key = f"threat/{alert_id}/telegram"
+    return PendingNotification(
+        kind="threat_detected",
+        channel="telegram",
+        recipient=recipient,
+        safe_payload={
+            "event_id": str(alert_id),
+            "timestamp": timestamp,
+            "attack_category": attack_category,
+            "confidence_tier": confidence_tier,
+            "confidence": confidence,
+            "request_method": safe_method,
+            "route_path": safe_path,
+            "dashboard_url": f"{dashboard_base_url.rstrip('/')}/alerts/{alert_id}",
+        },
+        template_version=1,
+        dedupe_key=key,
+        provider_idempotency_key=key,
+        deliver_before=datetime.now(timezone.utc) + timedelta(minutes=30),
     )
