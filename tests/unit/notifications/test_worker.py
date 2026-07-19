@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from web_app.notifications.delivery import DeliveryRouter
 from web_app.notifications.models import OutboxJob, ProviderSendResult
 from web_app.notifications.payload_crypto import encrypt_notification_payload
 from web_app.notifications import providers
@@ -185,6 +186,52 @@ async def test_worker_prefers_provider_retry_after() -> None:
     assert repository.failed == [
         (claimed.id, "worker-a", "telegram_rate_limited", True, 17)
     ]
+
+
+@pytest.mark.asyncio
+async def test_worker_logs_safe_delivery_retry_without_recipient_or_payload(
+    caplog,
+) -> None:
+    claimed = replace(
+        job(attempt_count=2),
+        channel="telegram",
+        recipient="-100123",
+        safe_payload={
+            "event_id": "alert-42",
+            "timestamp": "2026-07-20T09:00:00Z",
+            "attack_category": "SQL Injection",
+            "confidence_tier": "HIGH",
+            "confidence": 0.91,
+            "request_method": "POST",
+            "route_path": "/records/search",
+            "dashboard_url": "https://dashboard.example.test/alerts/42",
+        },
+    )
+    repository = RepositoryStub([claimed])
+    worker = OutboxWorker(
+        repository=repository,
+        delivery=DeliveryRouter(
+            email_provider=SuccessfulProvider(),
+            telegram_provider=RetryAfterProvider(),
+        ),
+        worker_id="worker-a",
+    )
+
+    with caplog.at_level(logging.INFO):
+        await worker.run_once()
+
+    event = next(
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+        and json.loads(record.getMessage()).get("event")
+        == "notification.delivery_retry_scheduled"
+    )
+    assert event["channel"] == "telegram"
+    assert event["error_class"] == "telegram_rate_limited"
+    assert event["retry_delay_seconds"] == 17
+    assert "-100123" not in caplog.text
+    assert "records/search" not in caplog.text
 
 
 @pytest.mark.asyncio

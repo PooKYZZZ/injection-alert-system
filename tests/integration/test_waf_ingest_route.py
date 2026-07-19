@@ -647,3 +647,46 @@ def test_concurrent_duplicate_transaction_runs_inference_once(waf_api_client):
     assert second.headers["Retry-After"] == "5"
     assert prediction_count == 1
     assert asyncio.run(_count_traffic_logs(db_module.AsyncSessionLocal)) == 1
+
+
+def test_telegram_enqueue_failure_cannot_rollback_persisted_waf_alert(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    actual_settings = routes_module.get_settings()
+    telegram_settings = actual_settings.model_copy(
+        update={
+            "threat_email_enabled": False,
+            "threat_telegram_enabled": True,
+            "telegram_bot_token": "test-token",
+            "telegram_chat_id": "-100123",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: telegram_settings)
+
+    class FailingOutbox:
+        def __init__(self) -> None:
+            self.channels: list[str] = []
+
+        async def enqueue(self, notification):
+            self.channels.append(notification.channel)
+            raise RuntimeError("telegram unavailable")
+
+    failing_outbox = FailingOutbox()
+    client.app.state.notification_outbox_repository = failing_outbox
+    payload = _waf_payload()
+    payload["transaction_id"] = "waf-txn-telegram-failure"
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["alert_id"] is not None
+    assert failing_outbox.channels == ["telegram"]
+    assert asyncio.run(_count_traffic_logs(db_module.AsyncSessionLocal)) == 1

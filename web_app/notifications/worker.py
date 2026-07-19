@@ -106,17 +106,25 @@ class OutboxWorker:
                 await self._safe_fail(job, "template_payload_invalid", False, 0)
             except NotificationProviderError as exc:
                 failed += 1
+                retry_delay = (
+                    exc.retry_after_seconds
+                    if exc.retryable and exc.retry_after_seconds is not None
+                    else self._retry_delay(job.attempt_count)
+                    if exc.retryable
+                    else 0
+                )
                 await self._safe_fail(
                     job,
                     exc.error_class,
                     exc.retryable,
-                    (
-                        exc.retry_after_seconds
-                        if exc.retryable and exc.retry_after_seconds is not None
-                        else self._retry_delay(job.attempt_count)
-                        if exc.retryable
-                        else 0
-                    ),
+                    retry_delay,
+                )
+                self._log_delivery_failure(
+                    job=job,
+                    error_class=exc.error_class,
+                    retryable=exc.retryable,
+                    retry_delay_seconds=retry_delay,
+                    delivery_ambiguous=exc.delivery_ambiguous,
                 )
             except Exception:
                 failed += 1
@@ -152,6 +160,16 @@ class OutboxWorker:
                     )
                 else:
                     sent += 1
+                    log_event(
+                        logger,
+                        "notification.delivery_sent",
+                        "Notification delivery completed",
+                        component="notification-worker",
+                        notification_event_id=job.id,
+                        channel=job.channel,
+                        provider_message_id=result.message_id,
+                        attempt_number=job.attempt_count,
+                    )
         return WorkerRunResult(
             claimed=len(jobs),
             sent=sent,
@@ -207,6 +225,39 @@ class OutboxWorker:
                 "notification outbox failure transition failed",
                 extra={"error_type": type(exc).__name__},
             )
+
+    @staticmethod
+    def _log_delivery_failure(
+        *,
+        job: OutboxJob,
+        error_class: str,
+        retryable: bool,
+        retry_delay_seconds: int,
+        delivery_ambiguous: bool,
+    ) -> None:
+        event = (
+            "notification.delivery_retry_scheduled"
+            if retryable
+            else "notification.delivery_failed"
+        )
+        log_event(
+            logger,
+            event,
+            (
+                "Notification delivery retry scheduled"
+                if retryable
+                else "Notification delivery failed"
+            ),
+            level="WARNING" if not retryable else "INFO",
+            component="notification-worker",
+            notification_event_id=job.id,
+            channel=job.channel,
+            error_class=error_class,
+            attempt_number=job.attempt_count,
+            retryable=retryable,
+            retry_delay_seconds=retry_delay_seconds,
+            delivery_ambiguous=delivery_ambiguous,
+        )
 
     def _retry_delay(self, attempt_count: int) -> int:
         exponent = max(0, attempt_count - 1)
