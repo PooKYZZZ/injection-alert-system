@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { DashboardTopBar } from '@/components/layout/TopBar'
+import { AlertStreamSync } from '@/components/alerts/AlertStreamSync'
 
 export default async function DashboardLayout({
   children,
@@ -39,6 +40,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-main">
+      <AlertStreamSync />
       <Sidebar
         displayName={session.user?.name ?? null}
         secondaryLabel={session.user?.email ?? null}

@@ -71,6 +71,7 @@ describe('BFF route handlers', () => {
   it('awaits the central DB-backed permission guard in every protected BFF route', () => {
     const routeFiles = [
       'alerts/route.ts',
+      'alerts/stream/route.ts',
       'alerts/[id]/route.ts',
       'alerts/[id]/triage/route.ts',
       'alerts/[id]/action/route.ts',

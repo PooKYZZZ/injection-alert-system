@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process'
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer, request as createHttpRequest } from 'node:http'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -86,14 +88,21 @@ export function buildAuthE2EEnvironment({
   mfaEncryptionKey,
   emailOtpKey,
   notificationPayloadKey,
+  useMockApi = true,
+  fastapiBaseUrl = '',
+  internalApiKey = '',
+  frontendOrigin = FRONTEND_ORIGIN,
 }) {
-  return {
+  if (!useMockApi && (!fastapiBaseUrl || !internalApiKey)) {
+    throw new Error('Real API E2E configuration is incomplete.')
+  }
+  const environment = {
     SUPABASE_URL: supabaseUrl,
     SUPABASE_SERVICE_ROLE_KEY: serviceRoleToken,
     AUTH_SECRET: authSecret,
-    NEXTAUTH_URL: FRONTEND_ORIGIN,
+    NEXTAUTH_URL: frontendOrigin,
     AUTH_TRUST_HOST: 'true',
-    AUTH_APP_ORIGIN: FRONTEND_ORIGIN,
+    AUTH_APP_ORIGIN: frontendOrigin,
     AUTH_MFA_ENCRYPTION_KEY: mfaEncryptionKey,
     AUTH_EMAIL_OTP_KEY: emailOtpKey,
     NOTIFICATION_PAYLOAD_ENCRYPTION_KEY: notificationPayloadKey,
@@ -102,10 +111,15 @@ export function buildAuthE2EEnvironment({
     AUTH_EMAIL_RECOVERY_ENABLED: 'true',
     AUTH_PASSWORD_RESET_ENABLED: 'true',
     AUTH_TURNSTILE_ENABLED: 'false',
-    USE_MOCK_API: 'true',
-    PLAYWRIGHT_BASE_URL: FRONTEND_ORIGIN,
+    USE_MOCK_API: useMockApi ? 'true' : 'false',
+    PLAYWRIGHT_BASE_URL: frontendOrigin,
     CYBERTRACE_E2E_MANAGED: 'true',
   }
+  if (!useMockApi) {
+    environment.FASTAPI_BASE_URL = fastapiBaseUrl
+    environment.INTERNAL_API_KEY = internalApiKey
+  }
+  return environment
 }
 
 export function buildMigrationEnvironment({
@@ -118,7 +132,7 @@ export function buildMigrationEnvironment({
     'model_registry'
   )
   return {
-    ...baseEnvironment,
+    ...allowlistedChildEnvironment(baseEnvironment),
     DATABASE_URL: databaseUrl,
     CYBERTRACE_POSTGRES_TEST_URL: databaseUrl,
     MODEL_PATH: modelPath,
@@ -126,16 +140,105 @@ export function buildMigrationEnvironment({
   }
 }
 
+const CHILD_ENVIRONMENT_KEYS = [
+  'PATH',
+  'Path',
+  'SystemRoot',
+  'ComSpec',
+  'PATHEXT',
+  'TEMP',
+  'TMP',
+  'CI',
+  'FORCE_COLOR',
+  'NO_COLOR',
+]
+
+function allowlistedChildEnvironment(baseEnvironment = process.env) {
+  const environment = {}
+  for (const key of CHILD_ENVIRONMENT_KEYS) {
+    const value = baseEnvironment[key]
+    if (typeof value === 'string' && value.length > 0) {
+      environment[key] = value
+    }
+  }
+  return environment
+}
+
+export function backendDatabaseUrl(databaseUrl) {
+  let parsed
+  try {
+    parsed = new URL(databaseUrl)
+  } catch {
+    throw new Error('Disposable backend database URL is invalid.')
+  }
+  if (
+    parsed.protocol !== 'postgresql+psycopg:' ||
+    parsed.hostname !== '127.0.0.1' ||
+    parsed.pathname !== '/cybertrace' ||
+    !Number.isInteger(Number(parsed.port)) ||
+    Number(parsed.port) < 1_024
+  ) {
+    throw new Error('Disposable backend database URL is invalid.')
+  }
+  return databaseUrl.replace(/^postgresql\+psycopg:/, 'postgresql:')
+}
+
+export function buildBackendE2EEnvironment({
+  databaseUrl,
+  repositoryDirectory: repositoryPath,
+  modelDirectory,
+  internalApiKey,
+  wafApiKey,
+  baseEnvironment = process.env,
+}) {
+  if (!path.isAbsolute(repositoryPath) || !path.isAbsolute(modelDirectory)) {
+    throw new Error('Disposable backend paths must be absolute.')
+  }
+  if (
+    typeof internalApiKey !== 'string' ||
+    typeof wafApiKey !== 'string' ||
+    internalApiKey.length < 32 ||
+    wafApiKey.length < 32 ||
+    internalApiKey === wafApiKey
+  ) {
+    throw new Error('Disposable backend keys are invalid.')
+  }
+  return {
+    ...allowlistedChildEnvironment(baseEnvironment),
+    APP_ENV: 'testing',
+    DATABASE_URL: backendDatabaseUrl(databaseUrl),
+    MODEL_PATH: modelDirectory,
+    MODEL_REGISTRY_PATH: modelDirectory,
+    API_SECRET_KEY: internalApiKey,
+    WAF_INGEST_API_KEY: wafApiKey,
+    WAF_SOURCE_VERIFICATION_MODE: 'unverified',
+    NOTIFICATION_WORKER_ENABLED: 'false',
+    NOTIFICATION_WORKER_REQUIRED: 'false',
+    EMAIL_PROVIDER: 'fake',
+    THREAT_EMAIL_ENABLED: 'false',
+    PYTHONPATH: repositoryPath,
+    PYTHONUNBUFFERED: '1',
+  }
+}
+
+export function redactChildOutput(output) {
+  return String(output)
+    .replace(/:\/\/[^:@/\s]+:[^@/\s]+@/g, '://[redacted]@')
+    .replace(/(Authorization:\s*Bearer\s+)[^\s]+/gi, '$1[redacted]')
+    .replace(/((?:API_SECRET_KEY|WAF_INGEST_API_KEY)\s*=\s*)[^\s]+/gi, '$1[redacted]')
+}
+
 export function playwrightInvocation(
   nodeExecutable = process.execPath,
-  playwrightArgs = []
+  playwrightArgs = [],
+  configFile = 'playwright.auth.config.ts'
 ) {
   return {
     command: nodeExecutable,
     args: [
       path.join(frontendDirectory, 'node_modules', 'playwright', 'cli.js'),
       'test',
-      '--config=playwright.auth.config.ts',
+      `--config=${configFile}`,
       ...playwrightArgs,
     ],
   }
@@ -190,12 +293,141 @@ async function startSupabaseRestProxy(postgrestUrl) {
     server.close()
     throw new Error('Supabase REST compatibility proxy did not start.')
   }
+  let closed = false
   return {
     url: `http://127.0.0.1:${address.port}`,
-    close: () =>
-      new Promise((resolve, reject) => {
+    close: () => {
+      if (closed) return Promise.resolve()
+      closed = true
+      return new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()))
-      }),
+      })
+    },
+  }
+}
+
+async function allocateLoopbackPort() {
+  const server = createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') {
+    server.close()
+    throw new Error('Disposable loopback port allocation failed.')
+  }
+  const port = address.port
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()))
+  })
+  return port
+}
+
+function appendBoundedTail(current, chunk, limit = 32 * 1_024) {
+  return `${current}${String(chunk)}`.slice(-limit)
+}
+
+async function startManagedFastApi(databaseUrl, signal) {
+  const port = await allocateLoopbackPort()
+  const temporaryDirectory = await mkdtemp(
+    path.join(os.tmpdir(), 'cybertrace-sse-e2e-')
+  )
+  let child = null
+  let stdoutTail = ''
+  let stderrTail = ''
+  let spawnError = null
+  let stopped = false
+  const close = async () => {
+    if (stopped) return
+    stopped = true
+    signal?.removeEventListener('abort', abortListener)
+    if (child && child.exitCode === null && child.signalCode === null) {
+      child.kill()
+      await Promise.race([
+        new Promise((resolve) => child.once('close', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 5_000)),
+      ])
+    }
+    if (
+      process.platform === 'win32' &&
+      child &&
+      child.exitCode === null &&
+      child.signalCode === null &&
+      Number.isInteger(child.pid)
+    ) {
+      await runProcess(
+        'taskkill',
+        ['/PID', String(child.pid), '/T', '/F'],
+        { capture: true, allowFailure: true, label: 'FastAPI tree cleanup' }
+      )
+    }
+    await rm(temporaryDirectory, { recursive: true, force: true })
+  }
+  const abortListener = () => {
+    void close()
+  }
+
+  const url = `http://127.0.0.1:${port}`
+  try {
+    signal?.throwIfAborted()
+    const internalApiKey = randomHex(32)
+    const wafApiKey = randomHex(32)
+    const environment = buildBackendE2EEnvironment({
+      databaseUrl,
+      repositoryDirectory,
+      modelDirectory: path.join(temporaryDirectory, 'missing-model'),
+      internalApiKey,
+      wafApiKey,
+    })
+    child = spawn(
+      pythonExecutable(),
+      [
+        '-m',
+        'uvicorn',
+        'web_app.presentation.app:create_app',
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(port),
+      ],
+      {
+        cwd: temporaryDirectory,
+        env: environment,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    )
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk) => {
+      stdoutTail = appendBoundedTail(stdoutTail, chunk)
+    })
+    child.stderr.on('data', (chunk) => {
+      stderrTail = appendBoundedTail(stderrTail, chunk)
+    })
+    child.once('error', (error) => {
+      spawnError = error
+    })
+    signal?.addEventListener('abort', abortListener, { once: true })
+    await waitFor('Disposable FastAPI', async () => {
+      if (spawnError || child.exitCode !== null || child.signalCode !== null) {
+        const output = redactChildOutput(`${stdoutTail}\n${stderrTail}`).trim()
+        throw new Error(
+          `Disposable FastAPI exited before readiness${output ? `:\n${output}` : '.'}`
+        )
+      }
+      try {
+        const response = await fetch(`${url}/api/health`)
+        return response.ok
+      } catch {
+        return false
+      }
+    }, 60_000, signal)
+    return { url, internalApiKey, wafApiKey, close }
+  } catch (error) {
+    await close()
+    throw error
   }
 }
 
@@ -217,9 +449,14 @@ function runProcess(
     capture = false,
     allowFailure = false,
     label = command,
+    signal,
   } = {}
 ) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
     let child
     try {
       child = spawn(command, args, {
@@ -238,6 +475,29 @@ function runProcess(
     }
     let stdout = ''
     let stderr = ''
+    let settled = false
+    const settle = (callback, value) => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener('abort', abortListener)
+      callback(value)
+    }
+    const abortListener = () => {
+      if (child.exitCode !== null || child.signalCode !== null) return
+      if (process.platform === 'win32' && Number.isInteger(child.pid)) {
+        try {
+          spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+            windowsHide: true,
+            stdio: 'ignore',
+          })
+        } catch {
+          child.kill()
+        }
+      } else {
+        child.kill()
+      }
+    }
+    signal?.addEventListener('abort', abortListener, { once: true })
     if (capture) {
       child.stdout.setEncoding('utf8')
       child.stderr.setEncoding('utf8')
@@ -252,38 +512,43 @@ function runProcess(
       child.stdin.end(input)
     }
     child.on('error', () => {
-      reject(new Error(`${label} could not start.`))
+      settle(reject, new Error(`${label} could not start.`))
     })
     child.on('close', (code) => {
+      if (signal?.aborted) {
+        settle(reject, signal.reason)
+        return
+      }
       const result = { code: code ?? 1, stdout, stderr }
       if (result.code === 0 || allowFailure) {
-        resolve(result)
+        settle(resolve, result)
       } else {
-        reject(new Error(`${label} failed.`))
+        settle(reject, new Error(`${label} failed.`))
       }
     })
   })
 }
 
-async function waitFor(description, probe, timeoutMs = 60_000) {
+async function waitFor(description, probe, timeoutMs = 60_000, signal) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
+    signal?.throwIfAborted()
     if (await probe()) return
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
   throw new Error(`${description} did not become ready.`)
 }
 
-async function dockerPublishedPort(container, containerPort) {
+async function dockerPublishedPort(container, containerPort, signal) {
   const result = await runProcess(
     'docker',
     ['port', container, `${containerPort}/tcp`],
-    { capture: true, label: 'Docker port lookup' }
+    { capture: true, label: 'Docker port lookup', signal }
   )
   return parsePublishedPort(result.stdout)
 }
 
-async function runPsql(container, sql) {
+async function runPsql(container, sql, signal) {
   await runProcess(
     'docker',
     [
@@ -298,7 +563,7 @@ async function runPsql(container, sql) {
       '-v',
       'ON_ERROR_STOP=1',
     ],
-    { input: sql, label: 'Disposable PostgreSQL setup' }
+    { input: sql, label: 'Disposable PostgreSQL setup', signal }
   )
 }
 
@@ -331,7 +596,14 @@ export function pythonExecutable({
   throw new Error('Repository Python virtual environment is unavailable.')
 }
 
-async function provisionAndRun(names, playwrightArgs) {
+async function provisionAndRun(
+  names,
+  playwrightArgs,
+  options = {},
+  registerCleanup = () => () => undefined,
+  signal
+) {
+  signal?.throwIfAborted()
   const postgresPassword = randomHex(24)
   const authenticatorPassword = randomHex(24)
   const jwtSecret = randomHex(32)
@@ -341,6 +613,7 @@ async function provisionAndRun(names, playwrightArgs) {
   await runProcess('docker', ['version'], {
     capture: true,
     label: 'Docker availability check',
+    signal,
   })
   await runProcess('docker', [
     'network',
@@ -351,6 +624,7 @@ async function provisionAndRun(names, playwrightArgs) {
   ], {
     capture: true,
     label: 'Docker network creation',
+    signal,
   })
   await runProcess(
     'docker',
@@ -388,6 +662,7 @@ async function provisionAndRun(names, playwrightArgs) {
         POSTGRES_PASSWORD: postgresPassword,
       },
       label: 'Disposable PostgreSQL container',
+      signal,
     }
   )
   await waitFor('Disposable PostgreSQL', async () => {
@@ -404,10 +679,10 @@ async function provisionAndRun(names, playwrightArgs) {
         '-tAc',
         'SELECT 1',
       ],
-      { capture: true, allowFailure: true }
+      { capture: true, allowFailure: true, signal }
     )
     return result.code === 0 && result.stdout.trim() === '1'
-  })
+  }, 60_000, signal)
 
   await runPsql(
     names.postgres,
@@ -417,15 +692,17 @@ CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN BYPASSRLS;
 CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD '${authenticatorPassword}';
 GRANT anon, authenticated, service_role TO authenticator;
-`
+`,
+    signal
   )
 
-  const postgresPort = await dockerPublishedPort(names.postgres, 5432)
+  const postgresPort = await dockerPublishedPort(names.postgres, 5432, signal)
   const databaseUrl = `postgresql+psycopg://${POSTGRES_USER}:${postgresPassword}@127.0.0.1:${postgresPort}/${DATABASE_NAME}`
   console.log('AUTH_E2E: applying the real Alembic migration chain')
   await runProcess(pythonExecutable(), ['-m', 'alembic', 'upgrade', 'head'], {
     env: buildMigrationEnvironment({ databaseUrl }),
     label: 'Alembic upgrade',
+    signal,
   })
   await runPsql(
     names.postgres,
@@ -434,7 +711,8 @@ GRANT USAGE ON SCHEMA public TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
-`
+`,
+    signal
   )
 
   const postgrestDbUri = `postgres://authenticator:${authenticatorPassword}@postgres:5432/${DATABASE_NAME}`
@@ -469,10 +747,11 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
         PGRST_JWT_SECRET: jwtSecret,
       },
       label: 'Disposable PostgREST container',
+      signal,
     }
   )
 
-  const postgrestPort = await dockerPublishedPort(names.postgrest, 3000)
+  const postgrestPort = await dockerPublishedPort(names.postgrest, 3000, signal)
   const supabaseUrl = `http://127.0.0.1:${postgrestPort}`
   await waitFor('Disposable PostgREST', async () => {
     try {
@@ -489,10 +768,21 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
     } catch {
       return false
     }
-  })
+  }, 60_000, signal)
 
+  signal?.throwIfAborted()
   const restProxy = await startSupabaseRestProxy(supabaseUrl)
+  const unregisterRestProxy = registerCleanup(() => restProxy.close())
+  let backend = null
+  let unregisterBackend = () => undefined
   try {
+    if (options.realApi) {
+      backend = await startManagedFastApi(databaseUrl, signal)
+      unregisterBackend = registerCleanup(() => backend.close())
+    }
+    const frontendOrigin = options.realApi
+      ? `http://127.0.0.1:${await allocateLoopbackPort()}`
+      : FRONTEND_ORIGIN
     const authEnvironment = buildAuthE2EEnvironment({
       supabaseUrl: restProxy.url,
       serviceRoleToken,
@@ -500,24 +790,108 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
       mfaEncryptionKey: randomBytes(32).toString('base64'),
       emailOtpKey: randomHex(32),
       notificationPayloadKey: randomBytes(32).toString('base64'),
+      frontendOrigin,
+      useMockApi: !backend,
+      fastapiBaseUrl: backend?.url,
+      internalApiKey: backend?.internalApiKey,
     })
     console.log('AUTH_E2E: running critical Chromium authentication journeys')
-    const playwright = playwrightInvocation(process.execPath, playwrightArgs)
+    const playwright = playwrightInvocation(
+      process.execPath,
+      playwrightArgs,
+      options.playwrightConfig
+    )
     await runProcess(playwright.command, playwright.args, {
       cwd: frontendDirectory,
-      env: { ...process.env, ...authEnvironment },
+      env: {
+        ...(options.realApi
+          ? allowlistedChildEnvironment(process.env)
+          : process.env),
+        ...authEnvironment,
+        ...(backend
+          ? {
+              CYBERTRACE_E2E_FASTAPI_URL: backend.url,
+              CYBERTRACE_E2E_WAF_KEY: backend.wafApiKey,
+            }
+          : {}),
+      },
       label: 'Authentication Playwright suite',
+      signal,
     })
   } finally {
+    if (backend) await backend.close()
+    unregisterBackend()
     await restProxy.close()
+    unregisterRestProxy()
   }
 }
 
-export async function runManagedAuthE2E(playwrightArgs = []) {
+export async function runManagedAuthE2E(playwrightArgs = [], options = {}) {
   const names = createDisposableNames()
-  return withDisposableCleanup(
-    names,
-    (resources) => provisionAndRun(resources, playwrightArgs),
-    removeDisposableResources
+  const cleanupEntries = []
+  let cleanupPromise = null
+  const registerCleanup = (callback) => {
+    const entry = { active: true, callback }
+    cleanupEntries.push(entry)
+    return () => {
+      entry.active = false
+    }
+  }
+  registerCleanup(() => removeDisposableResources(names))
+  const cleanup = () => {
+    if (cleanupPromise) return cleanupPromise
+    cleanupPromise = (async () => {
+      let firstError = null
+      for (const entry of cleanupEntries.toReversed()) {
+        if (!entry.active) continue
+        entry.active = false
+        try {
+          await entry.callback()
+        } catch (error) {
+          firstError ??= error
+        }
+      }
+      if (firstError) throw firstError
+    })()
+    return cleanupPromise
+  }
+  return withManagedSignalCleanup(
+    (signal) =>
+      provisionAndRun(
+        names,
+        playwrightArgs,
+        options,
+        registerCleanup,
+        signal
+      ),
+    cleanup
   )
+}
+
+export async function withManagedSignalCleanup(
+  execute,
+  cleanup,
+  {
+    processObject = process,
+    abortController = new AbortController(),
+  } = {}
+) {
+  let receivedSignal = null
+  const handleSignal = (signal) => {
+    if (receivedSignal) return
+    receivedSignal = signal
+    processObject.exitCode = signal === 'SIGINT' ? 130 : 143
+    abortController.abort(new Error(`Managed E2E interrupted by ${signal}.`))
+  }
+  const onSigint = () => handleSignal('SIGINT')
+  const onSigterm = () => handleSignal('SIGTERM')
+  processObject.once('SIGINT', onSigint)
+  processObject.once('SIGTERM', onSigterm)
+  try {
+    return await execute(abortController.signal)
+  } finally {
+    await cleanup()
+    processObject.off('SIGINT', onSigint)
+    processObject.off('SIGTERM', onSigterm)
+  }
 }

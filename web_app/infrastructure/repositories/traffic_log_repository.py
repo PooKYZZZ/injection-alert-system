@@ -78,6 +78,10 @@ class _StatsCache:
             value,
         )
 
+    def clear(self) -> None:
+        """Invalidate all aggregate views after a visible traffic-log write."""
+        self._store.clear()
+
 
 _stats_cache = _StatsCache()
 
@@ -314,6 +318,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj = self._entity_to_orm(entity)
         self._session.add(orm_obj)
         await self._session.commit()
+        _stats_cache.clear()
         await self._session.refresh(orm_obj)
         return self._orm_to_entity(orm_obj)
 
@@ -377,6 +382,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         created = await self.get_by_id(inserted_id)
         if created is None:
             raise RuntimeError("Inserted traffic log could not be reloaded")
+        _stats_cache.clear()
         return created, True
 
     async def claim_processing(self, entity: TrafficLogEntity) -> bool:
@@ -514,8 +520,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         inference_latency_ms: Optional[float],
         model_version: Optional[str],
         action_taken: str,
-    ) -> TrafficLogEntity:
-        """Complete a previously claimed PROCESSING row."""
+    ) -> tuple[TrafficLogEntity, bool]:
+        """Complete a claimed row and report whether this owner won the update."""
         result = await self._session.execute(
             update(TrafficLog)
             .where(
@@ -540,11 +546,12 @@ class TrafficLogRepository(ITrafficLogRepository):
             existing = await self.get_by_transaction_id(transaction_id)
             if existing is None:
                 raise RuntimeError("Completed traffic log could not be reloaded")
-            return existing
+            return existing, False
+        _stats_cache.clear()
         completed = await self.get_by_transaction_id(transaction_id)
         if completed is None:
             raise RuntimeError("Completed traffic log could not be reloaded")
-        return completed
+        return completed, True
 
     async def get_by_id(self, traffic_id: int) -> Optional[TrafficLogEntity]:
         """Retrieve a single traffic log by its ID."""

@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 
+from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.source_verification import (
     VerificationMode,
     derive_source_verification_status,
@@ -39,12 +40,14 @@ class WafIngestUseCase:
         stale_processing_timeout_seconds: int = 30,
         enable_preprocessing: bool = True,
         source_verification_mode: VerificationMode = "unverified",
+        alert_event_publisher: IAlertEventPublisher | None = None,
     ):
         self._triage = TriageUseCase(
             classifier=classifier,
             repository=repository,
             stale_processing_timeout_seconds=stale_processing_timeout_seconds,
             enable_preprocessing=enable_preprocessing,
+            alert_event_publisher=alert_event_publisher,
         )
         self._source_verification_mode = source_verification_mode
 

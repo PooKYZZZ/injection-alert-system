@@ -21,6 +21,7 @@ from uuid import uuid4
 
 from starlette.concurrency import run_in_threadpool
 
+from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.http_parsing import parse_http_request_line
 from web_app.application.http_preprocessor import preprocess_http_request
 from web_app.application.waf_event_sanitizer import (
@@ -112,11 +113,13 @@ class TriageUseCase:
         repository: ITrafficLogRepository,
         stale_processing_timeout_seconds: int = 30,
         enable_preprocessing: bool = True,
+        alert_event_publisher: IAlertEventPublisher | None = None,
     ):
         self._classifier = classifier
         self._repository = repository
         self._stale_processing_timeout_seconds = stale_processing_timeout_seconds
         self._enable_preprocessing = enable_preprocessing
+        self._alert_event_publisher = alert_event_publisher
 
     async def execute(
         self,
@@ -158,6 +161,7 @@ class TriageUseCase:
                 action_taken=action_taken,
             )
         )
+        self._publish_alert_created_safely()
         return self._result_from_entity(saved)
 
     async def ingest(self, command: TriageIngestCommand) -> TriageResult:
@@ -222,7 +226,7 @@ class TriageUseCase:
             prediction=prediction["prediction"],
             confidence_level=prediction["confidence_level"],
         )
-        saved = await self._repository.complete_processing(
+        saved, completed_by_owner = await self._repository.complete_processing(
             command.transaction_id,
             owner_token=owner_token,
             prediction=prediction["prediction"],
@@ -232,7 +236,33 @@ class TriageUseCase:
             model_version=prediction.get("model_version"),
             action_taken=action_taken,
         )
+        if not completed_by_owner:
+            if saved.status == "PROCESSING":
+                raise TriageInProgressError(
+                    "Triage ingest ownership changed before completion"
+                )
+            if saved.status != "COMPLETED":
+                raise RuntimeError(
+                    f"Unsupported triage completion status '{saved.status}'"
+                )
+        else:
+            self._publish_alert_created_safely()
         return self._result_from_entity(saved)
+
+    def _publish_alert_created_safely(self) -> None:
+        """Publish post-commit invalidation without changing write success."""
+        if self._alert_event_publisher is None:
+            return
+        try:
+            self._alert_event_publisher.publish_alert_created()
+        except Exception as exc:
+            log_event(
+                logger,
+                "alert_event.publish_failed",
+                "Persisted alert invalidation could not be published",
+                level="WARNING",
+                error_type=type(exc).__name__,
+            )
 
     @staticmethod
     def _require_matching_fingerprint(

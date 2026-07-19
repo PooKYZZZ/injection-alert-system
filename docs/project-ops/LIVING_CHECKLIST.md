@@ -14,9 +14,10 @@ Status note:
   `20260715_000021`; hosted Supabase is only confirmed through
   `20260712_000020` and must not be described as migrated to the new head.
 - PR #84 implementation is frozen at baseline
-  `6cfe67bd331e55d4309c201c8c254668bc2ea688`; this maintenance pass is
-  documentation-only. SSE, Telegram, rate limiting, enforcement, portal
-  behavior, and retraining are outside this PR.
+  `6cfe67bd331e55d4309c201c8c254668bc2ea688`; that maintenance pass was
+  documentation-only. The current `feat/real-time-alert-sse` PR2 branch is a
+  distinct implementation slice. Telegram, rate limiting, enforcement, portal
+  behavior, and retraining remain outside this PR.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
 - Current PR validation: backend **703 passed, 32 skipped**; focused
@@ -153,14 +154,17 @@ Status note:
   transactions, model unavailable behavior, and queue overflow
 - [~] Minimal metrics use existing `/api/stats`, `/api/ml-health` queue health, and JSON bridge summary counts; no separate bridge/email metrics endpoint is implemented
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
-- [ ] Add real-time dashboard alerting for timely threat visibility
+- [~] Add real-time dashboard alerting for timely threat visibility: the
+  post-commit SSE/BFF/EventSource/TanStack Query path and focused tests are
+  implemented; disposable real-stack Chromium no-refresh proof passes, while
+  browser-native reconnect and named-tunnel/hosted proxy proof remain open
 - [ ] Add email notifications after detection using a transactional email provider/API
 - [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
 - [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, bounded per-identifier throttles, database-expiring password-level MFA challenges, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and safe JSON login/route-guard audit logs; distributed throttling, persistent audit storage, and external provider deployment remain deferred
 - [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Hosted Supabase is migrated through `20260712_000020`
 - [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
-- [x] Cut Auth.js Credentials login and all six BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
+- [x] Cut Auth.js Credentials login and all seven BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
 - [x] Stabilize PR #79 frontend CI native-addon loading: PR #81 uses pure mocks in non-hashing auth/provisioning tests, keeps real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice without changing the threaded Vitest pool or production auth code
 - [x] Implement encrypted TOTP enrollment, replay-safe MFA login completion, backup-code/email-OTP recovery, and mandatory re-enrollment routing; hosted Admin enrollment/login is verified and availability flags fail closed
 - [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and a restricted execute-only PostgreSQL break-glass role/CLI
@@ -196,7 +200,9 @@ Status note:
 - [x] confidence tier is recorded
 - [x] dashboard alert is visible; replacement screenshot evidence exists in `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`, including `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15` in the `8089` alerts table
 - [x] action is recorded; real enforcement only if separately implemented
-- [ ] email/SSE evidence is captured only after those features exist
+- [~] SSE edge automation and disposable real-stack Chromium no-refresh proof
+  exist; browser-native reconnect and hosted proxy evidence remain open. Email
+  evidence remains separate and pending.
 
 ## Abuse Smoke Expectations
 
@@ -210,7 +216,9 @@ Status note:
 - [x] failed/model-unavailable inference
 - [x] invalid triage update
 - [x] dashboard API access without session (existing BFF route tests)
-- [ ] email/SSE/RBAC/2FA abuse cases only after those features exist
+- [~] SSE backend bearer denial and BFF fail-closed permission behavior are
+  covered; disposable cleanup and no-reload behavior are covered, while live
+  disconnect/reconnect abuse proof remains open. Email follow-up remains separate.
 
 ---
 

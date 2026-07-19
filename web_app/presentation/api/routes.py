@@ -14,14 +14,18 @@ Dependency rule:
   - Gets DB session from infrastructure/ DI only to construct repositories
 """
 
+import asyncio
 import logging
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from web_app.application.alert_events import AlertEventBroadcaster
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.application.inference_queue import (
     InferenceQueueFullError,
@@ -74,6 +78,8 @@ from web_app.presentation.schemas import (
 
 logger = logging.getLogger(__name__)
 
+ALERT_STREAM_MAX_AGE_SECONDS = 5 * 60
+
 internal_auth_dependency = Depends(verify_internal_token)
 waf_ingest_auth_dependency = Depends(verify_waf_ingest_token)
 
@@ -90,6 +96,11 @@ def get_model_service(request: Request):
 def get_inference_queue(request: Request) -> InferenceQueueService:
     """Dependency that retrieves the singleton inference queue from app.state."""
     return request.app.state.inference_queue
+
+
+def get_alert_event_broadcaster(request: Request) -> AlertEventBroadcaster:
+    """Retrieve the lifespan-managed alert event broadcaster."""
+    return request.app.state.alert_event_broadcaster
 
 
 def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
@@ -137,6 +148,7 @@ async def predict(
         classifier=model_service,
         repository=repository,
         enable_preprocessing=settings.enable_http_model_preprocessing,
+        alert_event_publisher=get_alert_event_broadcaster(request),
     )
 
     result = await use_case.execute(
@@ -185,6 +197,7 @@ async def ingest_waf_event(
         stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
         enable_preprocessing=settings.enable_http_model_preprocessing,
         source_verification_mode=settings.waf_source_verification_mode,
+        alert_event_publisher=get_alert_event_broadcaster(request),
     )
     queue_fields = _queue_log_fields(inference_queue)
     log_event(
@@ -489,6 +502,27 @@ async def get_ml_health(
         prediction_distribution=eval_metadata.get("prediction_distribution") or {},
         queue=queue_health,
     )
+
+
+@internal_router.get("/alerts/stream", response_class=EventSourceResponse)
+async def stream_alert_events(
+    broadcaster: AlertEventBroadcaster = Depends(get_alert_event_broadcaster),
+) -> AsyncIterator[ServerSentEvent]:
+    """Stream minimal change signals and periodically refresh authorization."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + ALERT_STREAM_MAX_AGE_SECONDS
+    async with broadcaster.subscribe() as events:
+        while True:
+            remaining_seconds = deadline - loop.time()
+            if remaining_seconds <= 0:
+                return
+            try:
+                signal = await asyncio.wait_for(
+                    events.get(), timeout=remaining_seconds
+                )
+            except TimeoutError:
+                return
+            yield ServerSentEvent(event="alert.created", data=signal)
 
 
 @internal_router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)

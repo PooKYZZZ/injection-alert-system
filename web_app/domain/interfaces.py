@@ -210,8 +210,8 @@ class ITrafficLogRepository(ABC):
         inference_latency_ms: Optional[float],
         model_version: Optional[str],
         action_taken: str,
-    ) -> TrafficLogEntity:
-        """Complete a claimed placeholder row after inference succeeds."""
+    ) -> tuple[TrafficLogEntity, bool]:
+        """Return the authoritative row and whether this owner completed it."""
         ...
 
     @abstractmethod

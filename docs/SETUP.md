@@ -6,8 +6,10 @@ This guide reflects the repo as it exists now. It supports direct local developm
 
 PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
 controlled proof, hosted source-correlation proof, and restart/recreate proof
-are complete. SSE, Telegram, rate limiting, enforcement, portal behavior, and
-retraining are separate future PRs. Hosted verification remains
+are complete. The separate PR2 SSE slice is implemented in code with local
+automated coverage; its live browser/reconnect proof remains open. Telegram,
+rate limiting, enforcement, portal behavior, and retraining remain separate
+future work. Hosted verification remains
 `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
 trust checks are completed.
 
@@ -405,7 +407,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- All six BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
+- All seven BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
 
 ## 5. What This Setup Does Not Cover
 
