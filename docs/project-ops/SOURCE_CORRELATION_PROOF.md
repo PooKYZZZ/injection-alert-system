@@ -106,9 +106,12 @@ template also supports:
 - `REAL_IP_HEADER`; and
 - `REAL_IP_RECURSIVE`.
 
-The hosted override requires the operator to supply the
-observed narrow `HOSTED_WAF_TRUSTED_PEER`; it deliberately has no guessed
-default. Neither topology trusts `0.0.0.0/0` or all RFC1918 space.
+The hosted override requires the operator to supply the observed narrow
+`HOSTED_WAF_TRUSTED_PEER`; it deliberately has no guessed default. The value is
+persisted in the ignored root `.env` and loaded by
+`scripts/start_hosted_target.ps1`, which rejects missing or broad peers and
+requires `WAF_SOURCE_VERIFICATION_MODE=unverified`. Neither topology trusts
+`0.0.0.0/0` or all RFC1918 space.
 
 The diagnostic before the template fix was:
 
@@ -133,8 +136,8 @@ transaction.client_ip=172.30.10.4
 | Required fact | Evidence | Status |
 |---|---|---|
 | Tunnel placement | One host `cloudflared` process was observed; no `cloudflare/cloudflared` container was present. Process arguments and tunnel configuration were not inspected because they may contain credentials. | Partial: host-managed process observed |
-| Immediate peer/network seen by ModSecurity | Not represented in the repository and not measured from a hosted request. | Unknown |
-| Narrow `set_real_ip_from` value | Not configured in the current Compose files. | Planned |
+| Immediate peer/network seen by ModSecurity | Operator-provided hosted observation is `172.18.0.1`; the value is deployment-specific and must be rechecked after topology changes. | Partial |
+| Narrow `set_real_ip_from` value | Hosted overlay renders the persisted `HOSTED_WAF_TRUSTED_PEER` through the checked-in launcher; current local value is `172.18.0.1/32`. | Partial |
 | Cloudflare Workers in the request path | No operator-managed Cloudflare configuration is stored in the repository. | Unknown |
 | Pseudo IPv4 mode | No operator-managed Cloudflare configuration is stored in the repository. | Unknown |
 | Direct-origin isolation | Not proved by repository configuration or an external origin-bypass test. | Unknown |

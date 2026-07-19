@@ -13,6 +13,7 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
 - Root `docker-compose.yml` keeps the technical `8088` WAF/bridge pair behind the opt-in `technical-waf` profile.
 - `docker-compose.demo-target.yml` contains the realistic `8089` target pair.
 - `docker-compose.hosted-target.yml` replaces the `8089` binding with one loopback-only binding and requires an observed narrow `HOSTED_WAF_TRUSTED_PEER`; it does not guess that peer.
+- `scripts/start_hosted_target.ps1` loads that value from the ignored root `.env`, rejects broad or missing peers, and refuses hosted verification modes other than `unverified` before starting the overlay.
 - `docker-compose.source-correlation-test.yml` is an isolated, no-host-port topology for controlled source-correlation proof.
 - `source-correlation-proxy.conf` is used only by that controlled topology. It represents the one trusted proxy and overwrites `CF-Connecting-IP` with its direct client's address.
 - `source-correlation-proxy-backend.conf.template` removes the official image's

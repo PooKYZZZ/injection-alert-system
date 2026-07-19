@@ -481,14 +481,30 @@ The land-records-portal source stays separate from this repository. This repo's 
 Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 
 For hosted rendering, first observe the actual narrow tunnel peer or subnet;
-do not guess it. Keep `WAF_SOURCE_VERIFICATION_MODE=unverified`, set
-`HOSTED_WAF_TRUSTED_PEER`, and include `docker-compose.hosted-target.yml`.
-The resolved topology must contain one realistic WAF/bridge pair, no `8088`,
-and exactly one loopback `127.0.0.1:8089:8080` binding. Do not switch to
-`cloudflare_tunnel` or `cloudflare_connecting_ip` until Workers, Pseudo IPv4,
-direct-origin isolation, restored source, bridge correlation, and the hosted
-PostgreSQL row are all proved. Current hosted verification status is Partial;
-mode remains `unverified`.
+do not guess it. Store the observed value in the ignored root `.env`, not only
+in a temporary PowerShell session:
+
+```dotenv
+HOSTED_WAF_TRUSTED_PEER=<observed-narrow-peer-or-subnet>
+WAF_SOURCE_VERIFICATION_MODE=unverified
+```
+
+Use the hosted launcher so the persistent file is loaded and validated on every
+recreate:
+
+```powershell
+pwsh -NoProfile -File scripts/start_hosted_target.ps1 -ValidateOnly
+pwsh -NoProfile -File scripts/start_hosted_target.ps1 -Build
+```
+
+The launcher fails if the peer is missing, malformed, broad, or if hosted mode
+is anything other than `unverified`. The resolved topology must contain one
+realistic WAF/bridge pair, no `8088`, and exactly one loopback
+`127.0.0.1:8089:8080` binding. Do not switch to `cloudflare_tunnel` or
+`cloudflare_connecting_ip` until Workers, Pseudo IPv4, direct-origin isolation,
+restored source, bridge correlation, and the hosted PostgreSQL row are all
+proved. Current hosted verification status is Partial; mode remains
+`unverified`.
 
 ### Backend health checks in Docker
 

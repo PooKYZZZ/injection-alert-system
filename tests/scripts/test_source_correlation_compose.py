@@ -10,9 +10,46 @@ ROOT = Path(__file__).parents[2]
 BASE_TEST_OVERRIDE = "docker-compose.test.yml"
 DEMO_TEST_OVERRIDE = "docker-compose.demo-target.test.yml"
 SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
+HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
+
+
+def _run_hosted_launcher(env_file: Path) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["COMPOSE_DISABLE_ENV_FILE"] = "1"
+    return subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-File",
+            str(HOSTED_LAUNCHER),
+            "-EnvFile",
+            str(env_file),
+            "-ValidateOnly",
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _compose_config(*files: str, profile: str | None = None) -> dict:
+    result = _compose_config_result(*files, profile=profile)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            result.args,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return json.loads(result.stdout)
+
+
+def _compose_config_result(
+    *files: str,
+    profile: str | None = None,
+    hosted_peer: str | None = "172.30.20.2/32",
+) -> subprocess.CompletedProcess[str]:
     command = ["docker", "compose"]
     rendered_files = [*files, BASE_TEST_OVERRIDE]
     if "docker-compose.demo-target.yml" in files:
@@ -28,21 +65,23 @@ def _compose_config(*files: str, profile: str | None = None) -> dict:
     env.update(
         {
             "COMPOSE_DISABLE_ENV_FILE": "1",
-            "HOSTED_WAF_TRUSTED_PEER": "172.30.20.2/32",
             "WAF_INGEST_API_KEY": "compose-test-waf-key-not-a-runtime-secret",
             "SOURCE_TEST_API_SECRET_KEY": "compose-test-internal-key",
             "SOURCE_TEST_WAF_INGEST_API_KEY": "compose-test-waf-key",
         }
     )
-    result = subprocess.run(
+    if hosted_peer is None:
+        env.pop("HOSTED_WAF_TRUSTED_PEER", None)
+    else:
+        env["HOSTED_WAF_TRUSTED_PEER"] = hosted_peer
+    env["WAF_SOURCE_VERIFICATION_MODE"] = "unverified"
+    return subprocess.run(
         command,
         cwd=ROOT,
         env=env,
-        check=True,
         capture_output=True,
         text=True,
     )
-    return json.loads(result.stdout)
 
 
 def _base_config_without_profile() -> dict:
@@ -110,6 +149,79 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "REAL_IP_RECURSIVE"
     ] == "off"
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "REAL_IP_HEADER"
+    ] == "CF-Connecting-IP"
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "SET_REAL_IP_FROM"
+    ] == "172.30.20.2/32"
+    assert config["services"]["backend"]["environment"][
+        "WAF_SOURCE_VERIFICATION_MODE"
+    ] == "unverified"
+
+
+def test_hosted_compose_fails_clearly_without_trusted_peer() -> None:
+    result = _compose_config_result(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.hosted-target.yml",
+        profile="demo-target",
+        hosted_peer=None,
+    )
+
+    assert result.returncode != 0
+    assert "HOSTED_WAF_TRUSTED_PEER" in result.stderr
+
+
+def test_hosted_launcher_loads_persistent_env_and_validates_it(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env.hosted"
+    env_file.write_text(
+        "HOSTED_WAF_TRUSTED_PEER=172.30.20.2/32\n"
+        "WAF_SOURCE_VERIFICATION_MODE=unverified\n",
+        encoding="utf-8",
+    )
+
+    result = _run_hosted_launcher(env_file)
+
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_hosted_launcher_rejects_missing_trusted_peer(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env.hosted"
+    env_file.write_text(
+        "WAF_SOURCE_VERIFICATION_MODE=unverified\n",
+        encoding="utf-8",
+    )
+
+    result = _run_hosted_launcher(env_file)
+
+    assert result.returncode != 0
+    assert "HOSTED_WAF_TRUSTED_PEER" in result.stderr
+
+
+def test_hosted_launcher_rejects_broad_or_verified_configuration(
+    tmp_path: Path,
+) -> None:
+    broad_peer = tmp_path / ".env.broad"
+    broad_peer.write_text(
+        "HOSTED_WAF_TRUSTED_PEER=0.0.0.0/0\n"
+        "WAF_SOURCE_VERIFICATION_MODE=unverified\n",
+        encoding="utf-8",
+    )
+    verified_mode = tmp_path / ".env.verified"
+    verified_mode.write_text(
+        "HOSTED_WAF_TRUSTED_PEER=172.30.20.2/32\n"
+        "WAF_SOURCE_VERIFICATION_MODE=cloudflare_tunnel\n",
+        encoding="utf-8",
+    )
+
+    broad_result = _run_hosted_launcher(broad_peer)
+    verified_result = _run_hosted_launcher(verified_mode)
+
+    assert broad_result.returncode != 0
+    assert "narrow" in broad_result.stderr.lower()
+    assert verified_result.returncode != 0
+    assert "unverified" in verified_result.stderr.lower()
 
 
 def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None:

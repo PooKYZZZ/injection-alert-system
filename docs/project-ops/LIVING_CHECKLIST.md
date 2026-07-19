@@ -3,7 +3,7 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-19
 
 Status note:
 - Current PR #83 release status is maintained in `docs/project-ops/STATUS.md`.
@@ -15,12 +15,12 @@ Status note:
   `20260712_000020` and must not be described as migrated to the new head.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
-- Current PR validation: backend **699 passed, 32 skipped**; focused
-  source/integrity suite **173 passed**; migration-focused run **2 passed, 1
+- Current PR validation: backend **703 passed, 32 skipped**; focused
+  source/integrity suite **189 passed**; migration-focused run **2 passed, 1
   PostgreSQL-only skip**;
   executable SQLite migration cycle passed; disposable PostgreSQL CI
   integration **114 passed** and migrations **39 passed**; clean-checkout
-  Compose **4 passed**; frontend lint,
+  Compose **8 passed**; frontend lint,
   typecheck, **84 files / 480 Vitest tests**, and production build passed.
 - [ ] Required PR #84 GitHub jobs pass for the current remediation head. The
   historical run `29428801740` passed backend,
@@ -41,6 +41,9 @@ Status note:
 - [ ] Prove hosted tunnel peer, Workers/Pseudo IPv4 decisions, direct-origin
   isolation, restored ModSecurity source, bridge correlation, and PostgreSQL
   row before enabling `cloudflare_tunnel`; current mode remains `unverified`.
+- Hosted recreate configuration is now persistent through the ignored root
+  `.env` and `scripts/start_hosted_target.ps1`; the launcher refuses missing or
+  broad peers and any mode other than `unverified`.
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`
 - Confidence-tier naming is clarified in code/docs: `confidence_tier` is the preferred filter name, legacy `severity` remains a compatibility alias, current tiers remain `LOW`/`MEDIUM`/`HIGH`/`CRITICAL`, and `CRITICAL >=90%` is implemented as the confidence threshold

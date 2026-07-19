@@ -37,6 +37,11 @@
   `8088`. Hosted rendering excludes that pair and publishes exactly one
   loopback `8089`. The controlled topology has separate trusted/untrusted
   networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
+- Hosted startup now has one explicit persistent path:
+  `scripts/start_hosted_target.ps1` reads the ignored root `.env`, validates the
+  observed narrow `HOSTED_WAF_TRUSTED_PEER`, requires
+  `WAF_SOURCE_VERIFICATION_MODE=unverified`, and then renders the hosted
+  overlay. Missing or broad trust values fail before Compose starts.
 - The pinned CRS image is
   `owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`
   (NGINX `1.28.2`, ModSecurity `3.0.14`, connector `1.0.4`, CRS `3.3.8`).
@@ -47,16 +52,17 @@
   headers, including Cloudflare Access material, are not retained. The bridge
   and CRS correlation path passed without that part, and the three confirmed
   disposable local audit files were cleared after their writers were stopped.
-- Local full backend regression: **699 passed, 32 skipped**. The latest
-  focused source/integrity suite passed **173 tests**; the migration-focused
+- Local full backend regression: **703 passed, 32 skipped**. The latest
+  focused source/integrity suite passed **189 tests**; the migration-focused
   run passed **2 tests** with one PostgreSQL-only test skipped locally; the
   executable SQLite migration cycle also passed.
 - Disposable PostgreSQL 16 CI upgraded from `20260712_000020` to
   `20260715_000021`; **114 integration** and **39 migration** tests passed.
   The earlier local parent/head downgrade and re-upgrade cycle also passed;
   the final CI run exercised the updated constraint on the full chain.
-- Compose rendered in a clean exported checkout with no `.env`: all **4**
-  topology tests passed. The same pinned Gitleaks 8.24.3 scan found no leaks.
+- Compose rendered in a clean exported checkout with no `.env`: all **8**
+  topology and hosted-persistence tests passed. The same pinned Gitleaks 8.24.3
+  scan found no leaks.
 - A real `ModelService` initialization smoke using Transformers `5.5.0` and
   the configured staged DistilBERT registry loaded
   `distilbert_v3_907k_cleaned_20260312_133755` as

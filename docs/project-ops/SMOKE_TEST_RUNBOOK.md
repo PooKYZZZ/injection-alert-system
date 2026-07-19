@@ -410,6 +410,26 @@ bridge ingestion, source provenance, and fingerprint persistence still work.
 
 ## Hosted Cloudflare Source-Correlation Proof (operator-only)
 
+Before starting the hosted overlay, persist the observed narrow peer in the
+ignored root `.env`. Do not rely on a session-only `$env:` assignment:
+
+```dotenv
+HOSTED_WAF_TRUSTED_PEER=<observed-narrow-peer-or-subnet>
+WAF_SOURCE_VERIFICATION_MODE=unverified
+```
+
+Validate and start the hosted target through the checked-in launcher:
+
+```powershell
+pwsh -NoProfile -File scripts/start_hosted_target.ps1 -ValidateOnly
+pwsh -NoProfile -File scripts/start_hosted_target.ps1 -Build
+```
+
+The launcher rejects missing or broad trust values and refuses any verification
+mode other than `unverified`. It preserves the hosted overlay's exact
+`CF-Connecting-IP` and `real_ip_recursive off` contract across fresh shells and
+Compose recreates.
+
 This is a separate manual proof. Keep `WAF_SOURCE_VERIFICATION_MODE=unverified`
 until every row below is confirmed. Run one request from home Wi-Fi and a
 second from mobile data; do not use the same NAT for both. On each device record
