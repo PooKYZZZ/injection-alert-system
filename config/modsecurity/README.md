@@ -10,6 +10,10 @@ This directory contains ModSecurity engine configuration files.
 Audit-log evidence handling, sensitive-data rules, local retention, and the rotation target are documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`; automatic rotation is not implemented here.
 
 ## Current Repo State
+- PR #84 is frozen at trusted source correlation. Source restoration and
+  correlation are verified, but hosted identity authorization remains gated;
+  keep `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare and
+  direct-origin checks pass.
 - Root `docker-compose.yml` keeps the technical `8088` WAF/bridge pair behind the opt-in `technical-waf` profile.
 - `docker-compose.demo-target.yml` contains the realistic `8089` target pair.
 - `docker-compose.hosted-target.yml` replaces the `8089` binding with one loopback-only binding and requires an observed narrow `HOSTED_WAF_TRUSTED_PEER`; it does not guess that peer.

@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-17
+**Last updated:** 2026-07-19
 
 ---
 
@@ -27,6 +27,13 @@
 - PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, protected notification payloads, notification lifecycle/worker hardening, required PostgreSQL and authentication-browser CI jobs, and the hosted Admin journey. Public deployment is active through Cloudflare Tunnel at `app.cybertracesystems.com`; `target.cybertracesystems.com` is protected by Cloudflare Access; the Resend domain and live delivery are verified.
 
 ### Trusted source correlation PR state
+
+- PR #84 implementation is frozen at baseline
+  `6cfe67bd331e55d4309c201c8c254668bc2ea688`. The branch was clean, remote CI
+  was green, and this maintenance pass adds documentation only; no PR1 feature
+  work remains.
+  SSE, Telegram, rate limiting, enforcement, portal behavior, and retraining
+  belong in later PRs.
 
 - PR #84 remediation is implemented through the single Alembic head
   `20260715_000021`:
@@ -76,18 +83,23 @@
   but exposed backend dependency-audit findings. Run `29393701878` passed the
   earlier remediation head; final run `29428801740` passed **backend, postgres,
   frontend, auth-e2e, and secret-scan** after the database-invariant and driver
-  corrections.
+  corrections. Implementation head `6cfe67b` also passed all five required jobs
+  after the Torch `2.13.0` security upgrade.
 - Local controlled packet-path proof **passed on 2026-07-17**: Client A
   `172.30.10.4`, Client B `172.30.10.5`, and the direct forged-header client
   `172.30.11.4` remained distinct and persisted as `DIRECT_REMOTE_ADDR` with
   `UNVERIFIED` status; all three SQLi requests returned HTTP 403.
-- The current local head has not been pushed, so GitHub Actions status for this
-  exact head is **Not Verified**. The historical green run above does not prove
-  the new unpushed remediation commits.
-- Hosted source verification is **Partial**: tunnel peer, Workers, Pseudo IPv4,
-  direct-origin isolation, restored source, and hosted PostgreSQL correlation
-  remain Unknown/Not Run. `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`;
-  no hosted `VERIFIED` claim is made.
+- Operator hosted proof also passed for home Wi-Fi and mobile data: each public
+  egress source remained distinct and matched the ModSecurity, bridge, FastAPI,
+  PostgreSQL, and dashboard records. Forged-header resistance, the fresh-audit
+  credential-leakage check, and hosted restart/recreate proof also passed.
+  Exact operator addresses are retained in private evidence rather than this
+  repository.
+- Hosted identity verification remains **Partial by design**. The remaining
+  checks are Cloudflare Pseudo IPv4, Worker header behavior, direct-origin
+  isolation, and independent confirmation that the configured `/32` is the
+  immediate tunnel-side peer. `WAF_SOURCE_VERIFICATION_MODE` remains
+  `unverified`; no hosted `VERIFIED` claim is made.
 
 ### PR #83 completed release checks
 

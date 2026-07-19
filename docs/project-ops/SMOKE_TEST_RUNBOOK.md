@@ -431,8 +431,10 @@ mode other than `unverified`. It preserves the hosted overlay's exact
 Compose recreates.
 
 This is a separate manual proof. Keep `WAF_SOURCE_VERIFICATION_MODE=unverified`
-until every row below is confirmed. Run one request from home Wi-Fi and a
-second from mobile data; do not use the same NAT for both. On each device record
+until every trust-gate row below is confirmed. The final operator proof already
+passed for one home-Wi-Fi request and one mobile-data request; the procedure
+below remains the repeatable evidence path. Do not use the same NAT for both.
+On each device record
 the public egress address without sending it to the application:
 
 ```powershell
@@ -499,6 +501,12 @@ they must not collapse to a Docker gateway. Separately send a local/direct
 request with forged `CF-Connecting-IP: 203.0.113.123` and
 `X-Forwarded-For: 203.0.113.123`. It must persist the actual direct source with
 `DIRECT_REMOTE_ADDR` and never become `VERIFIED`.
+
+Final evidence status: home/mobile correlation, two-network separation,
+forged-header resistance, fresh-audit credential-leakage review, and hosted
+restart/recreate all passed. The remaining trust gates are limited to Cloudflare
+Pseudo IPv4, Worker header behavior, direct-origin isolation, and independent
+confirmation of the immediate tunnel-side peer.
 
 Before any hosted `VERIFIED` decision, prove that the origin cannot be reached
 directly, identify the actual immediate tunnel peer, inspect Cloudflare

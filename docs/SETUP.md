@@ -1,8 +1,15 @@
 # Local Setup
 
-Last updated: 2026-07-13
+Last updated: 2026-07-19
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
+
+PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
+controlled proof, hosted source-correlation proof, and restart/recreate proof
+are complete. SSE, Telegram, rate limiting, enforcement, portal behavior, and
+retraining are separate future PRs. Hosted verification remains
+`WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
+trust checks are completed.
 
 Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
 
@@ -500,10 +507,10 @@ pwsh -NoProfile -File scripts/start_hosted_target.ps1 -Build
 The launcher fails if the peer is missing, malformed, broad, or if hosted mode
 is anything other than `unverified`. The resolved topology must contain one
 realistic WAF/bridge pair, no `8088`, and exactly one loopback
-`127.0.0.1:8089:8080` binding. Do not switch to `cloudflare_tunnel` or
-`cloudflare_connecting_ip` until Workers, Pseudo IPv4, direct-origin isolation,
-restored source, bridge correlation, and the hosted PostgreSQL row are all
-proved. Current hosted verification status is Partial; mode remains
+`127.0.0.1:8089:8080` binding. Source correlation and restart/recreate proof
+are complete. Do not switch to `cloudflare_tunnel` until Workers, Pseudo IPv4,
+direct-origin isolation, and the immediate tunnel-side peer are independently
+proved. Current hosted identity verification status is Partial; mode remains
 `unverified`.
 
 ### Backend health checks in Docker

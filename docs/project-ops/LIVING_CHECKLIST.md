@@ -13,6 +13,10 @@ Status note:
 - PR #84 source-correlation implementation is locally complete at Alembic head
   `20260715_000021`; hosted Supabase is only confirmed through
   `20260712_000020` and must not be described as migrated to the new head.
+- PR #84 implementation is frozen at baseline
+  `6cfe67bd331e55d4309c201c8c254668bc2ea688`; this maintenance pass is
+  documentation-only. SSE, Telegram, rate limiting, enforcement, portal
+  behavior, and retraining are outside this PR.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
 - Current PR validation: backend **703 passed, 32 skipped**; focused
@@ -22,10 +26,10 @@ Status note:
   integration **114 passed** and migrations **39 passed**; clean-checkout
   Compose **8 passed**; frontend lint,
   typecheck, **84 files / 480 Vitest tests**, and production build passed.
-- [ ] Required PR #84 GitHub jobs pass for the current remediation head. The
-  historical run `29428801740` passed backend,
-  postgres, frontend, auth-e2e, and secret-scan. Earlier Compose/secret-scan
-  failures and the intermediate dependency-audit failure are summarized in
+- [x] Required PR #84 GitHub jobs passed for implementation head `6cfe67b`:
+  backend, postgres, frontend, auth-e2e, and secret-scan. Earlier
+  Compose/secret-scan failures and the intermediate dependency-audit failure
+  remain summarized in
   `docs/project-ops/STATUS.md` rather than hidden.
 - [ ] Dependency exception owner: backend dependency-maintenance; review by
   2026-09-30. Remove `PYSEC-2026-3447` when active PyTorch permits
@@ -38,9 +42,14 @@ Status note:
 - [x] Complete the controlled packet-path proof (two client sources, forged
   direct header, correlated rows, SQLi 403) locally on 2026-07-17. This is
   Docker evidence only; it does not prove hosted Cloudflare trust.
-- [ ] Prove hosted tunnel peer, Workers/Pseudo IPv4 decisions, direct-origin
-  isolation, restored ModSecurity source, bridge correlation, and PostgreSQL
-  row before enabling `cloudflare_tunnel`; current mode remains `unverified`.
+- [x] Complete the hosted home Wi-Fi and mobile-data source-correlation proof:
+  distinct public sources matched ModSecurity, bridge, FastAPI, PostgreSQL,
+  and dashboard records; forged-header resistance, fresh-audit leakage review,
+  and restart/recreate proof also passed.
+- [ ] Complete the final hosted trust gate: review Cloudflare Pseudo IPv4,
+  confirm no Worker rewrites `CF-Connecting-IP`, prove direct-origin isolation,
+  and independently confirm the immediate tunnel-side peer before enabling
+  `cloudflare_tunnel`; current mode remains `unverified`.
 - Hosted recreate configuration is now persistent through the ignored root
   `.env` and `scripts/start_hosted_target.ps1`; the launcher refuses missing or
   broad peers and any mode other than `unverified`.

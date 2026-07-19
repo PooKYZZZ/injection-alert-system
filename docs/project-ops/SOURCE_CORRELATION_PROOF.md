@@ -1,8 +1,8 @@
 # Trusted Source Correlation Evidence
 
-**Status:** Local repository and controlled packet-path checks passed; remote CI for
-the current unpushed head is not verified; hosted verification Partial
-**Observed:** 2026-07-17
+**Status:** PR #84 code, controlled packet-path proof, hosted source-correlation
+proof, and remote CI passed; hosted identity verification remains Partial
+**Observed:** 2026-07-19
 
 This document separates repository and local-runtime evidence from hosted
 Cloudflare facts that have not yet been proved. Until every hosted prerequisite
@@ -29,8 +29,8 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 
 - Alembic now has exactly one head, `20260715_000021`.
 - The full backend suite passed with process-only test settings:
-  `699 passed, 32 skipped`.
-- The latest focused source/integrity suite passed `173`; the migration-focused
+  `703 passed, 32 skipped`.
+- The latest focused source/integrity suite passed `189`; the migration-focused
   run passed `2` with one PostgreSQL-only test skipped locally, and the
   executable SQLite migration cycle passed.
 - PostgreSQL CI upgraded from `20260712_000020` to head; `114` integration
@@ -54,8 +54,8 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 - Clean-checkout Compose tests clear runtime `env_file` declarations with
   test-only overrides and supply isolated SQLite/test credentials through the
   subprocess environment. The real runtime Compose files still require `.env`.
-- GitHub Actions run `29428801740` passed backend, postgres, frontend,
-  auth-e2e, and secret-scan. Earlier red runs are retained in
+- GitHub Actions for implementation head `6cfe67b` passed backend, postgres,
+  frontend, auth-e2e, and secret-scan. Earlier red runs are retained in
   `docs/project-ops/STATUS.md` with their corrected root causes.
 - A real ModelService startup smoke after the Transformers `5.5.0` upgrade
   loaded the configured staged DistilBERT artifact and produced the expected
@@ -141,13 +141,30 @@ transaction.client_ip=172.30.10.4
 | Cloudflare Workers in the request path | No operator-managed Cloudflare configuration is stored in the repository. | Unknown |
 | Pseudo IPv4 mode | No operator-managed Cloudflare configuration is stored in the repository. | Unknown |
 | Direct-origin isolation | Not proved by repository configuration or an external origin-bypass test. | Unknown |
-| Restored source in ModSecurity | Existing local proofs record Docker-network source addresses, not a reviewed Cloudflare-restored source. | Not Found |
+| Restored source in ModSecurity | Operator home/mobile evidence showed each known public egress source matching the ModSecurity, bridge, FastAPI, PostgreSQL, and dashboard records. | Passed: operator evidence |
+| Bridge and database correlation | The same hosted transaction path was correlated through bridge logs, FastAPI lookup, PostgreSQL, and dashboard evidence. | Passed: operator evidence |
+| New audit-log credential leakage | Fresh hosted audit output was checked for Authorization, Cookie, and Access JWT material. | Passed |
 
-These unknowns do not block the code phases, but they prohibit enabling hosted
-`cloudflare_tunnel` verification. Hosted mode must remain `unverified` until a
-new request proves the narrow peer/network, Workers and Pseudo IPv4 decisions,
-failed direct-origin access, restored ModSecurity source, bridge correlation,
-and the persisted PostgreSQL row.
+These remaining unknowns do not block the frozen PR1 code, but they prohibit
+enabling hosted `cloudflare_tunnel` verification. Hosted mode must remain
+`unverified` until the Pseudo IPv4 decision, Worker header behavior,
+direct-origin isolation, and immediate tunnel-side peer are independently
+confirmed.
+
+## Final Hosted Source-Correlation Evidence
+
+The operator completed the hosted packet-path proof from two independent
+networks. Home Wi-Fi and mobile data produced different public egress sources,
+and each source remained consistent through ModSecurity, the bridge, FastAPI,
+PostgreSQL, and the dashboard. A direct forged `CF-Connecting-IP` and
+`X-Forwarded-For` request did not replace the actual direct source or produce
+`VERIFIED`. The fresh audit-log review found no authentication, cookie, or
+Cloudflare Access credential leakage. Hosted restart/recreate also preserved
+the narrow real-IP configuration and removed the stale technical WAF pair.
+
+These results prove hosted source correlation, not hosted authorization trust.
+The four Cloudflare/origin checks in the evidence gate remain required before
+changing the mode from `unverified`.
 
 ## Hosted Replacement Strategy
 
