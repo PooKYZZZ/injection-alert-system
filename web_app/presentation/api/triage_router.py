@@ -34,6 +34,7 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
     },
 )
 async def ingest_triage(
+    request: Request,
     payload: TriageIngestRequest,
     model_service=Depends(get_model_service),
     repository: TrafficLogRepository = Depends(get_repository),
@@ -44,6 +45,7 @@ async def ingest_triage(
         repository=repository,
         stale_processing_timeout_seconds=settings.stale_processing_timeout_seconds,
         enable_preprocessing=settings.enable_http_model_preprocessing,
+        alert_event_publisher=request.app.state.alert_event_broadcaster,
     )
 
     try:

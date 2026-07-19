@@ -51,6 +51,11 @@ async def test_ingest_triage_passes_preprocessing_flag(monkeypatch):
     )
 
     result = await triage_router.ingest_triage(
+        request=SimpleNamespace(
+            app=SimpleNamespace(
+                state=SimpleNamespace(alert_event_broadcaster="alert-publisher")
+            )
+        ),
         payload=payload,
         model_service="model-service",
         repository="repository",
@@ -61,6 +66,7 @@ async def test_ingest_triage_passes_preprocessing_flag(monkeypatch):
         "repository": "repository",
         "stale_processing_timeout_seconds": 17,
         "enable_preprocessing": False,
+        "alert_event_publisher": "alert-publisher",
     }
     assert DummyUseCase.ingest_called_with.transaction_id == "txn-1"
     assert DummyUseCase.ingest_called_with.http_request == "POST /login HTTP/1.1"

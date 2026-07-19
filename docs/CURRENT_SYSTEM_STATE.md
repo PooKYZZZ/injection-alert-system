@@ -240,7 +240,7 @@ Current sidebar navigation includes Dashboard, Alerts, and ML Health as the acti
 ### Current Auth State and Remaining Gaps
 
 - Current state: Auth.js Credentials login uses Supabase `auth_accounts`, approved Argon2id PHC password hashes, a precomputed same-profile unknown-account hash, database-expiring password-level MFA challenges, eight-hour maximum assured sessions, `ADMIN`/`ANALYST`/`VIEWER` claims, bounded local login throttling, and safe JSON login and route-guard audit events. `AUTH_USERS_JSON` is not a runtime source or fallback.
-- All six BFF routes enforce server-side permissions and current DB account existence, disablement, `mfa_required`, role, and `authz_version` checks before downstream calls.
+- All seven BFF routes enforce server-side permissions and current DB account existence, disablement, `mfa_required`, role, and `authz_version` checks before downstream calls.
 - Current hosted migration, provider, controlled live smoke, and feature enablement verification are recorded above. Active credential-equivalent outbox payload protection and five executable disposable browser journeys are implemented. Managed identity, distributed throttling, and external log retention remain future hardening.
 - This password-only foundation is AAL1-style and is not an AAL2 compliance claim.
 
@@ -356,7 +356,7 @@ and auth behavior are unchanged.
 | Secure login with named user accounts | Implemented for the env-backed capstone foundation |
 | Admin/Analyst/Viewer RBAC | Server-side BFF enforcement implemented; alerts UI role affordances are implemented for viewers, analysts, and admins |
 | 2FA | Implemented and verified in the hosted authentication journey; availability remains controlled by server-side flags |
-| Timely push-style dashboard alerts | Planned |
+| Timely push-style dashboard alerts | Implemented and manually verified through the named hosted deployment; no-refresh and reconnect passed, while durable replay, multi-worker fan-out, and latency benchmarking remain out of scope |
 | Email notification after detection | Outbox/worker boundary implemented; live Resend delivery verified in the tested deployment |
 | `CRITICAL >=90%` confidence tier | Implemented |
 

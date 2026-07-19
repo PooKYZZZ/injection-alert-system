@@ -47,7 +47,7 @@ flowchart LR
 | Inference queue | Implemented | `web_app/application/inference_queue.py`; targeted tests cover synchronous WAF ingest, queue overflow, and queue health |
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
-| Real-time dashboard alerts | Planned | no SSE/EventSource implementation found |
+| Real-time dashboard alerts | Implemented and manually verified in the tested hosted deployment | post-commit in-process broadcaster -> native FastAPI SSE -> authenticated Next.js streaming BFF -> one dashboard EventSource -> TanStack Query alert/stats invalidation; no-refresh, browser reconnect, and named-domain hosted SSE proof passed; no durable replay or multi-worker fan-out |
 | Notification outbox and worker | Implemented and enabled in the tested deployment | additive lifecycle migrations through `20260711_000019`, versioned PostgreSQL claim/transition functions, protected active credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, and Resend boundary; failure/retry operations remain follow-up testing |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
@@ -157,21 +157,47 @@ This remains the correct direction for the project. Browser-to-FastAPI direct ca
 
 Next.js route handlers remain the browser-facing boundary, but the implemented handlers are not anonymous: the dashboard BFF handlers call `auth()` and return `401` without a valid session. They are still the right place to proxy or reshape backend data for the dashboard.
 
-### Current BFF status (2026-07-04)
+### Current BFF status
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
-- All six route handlers wired:
+- All seven route handlers wired:
   - `frontend/app/api/alerts/route.ts` (GET list)
+  - `frontend/app/api/alerts/stream/route.ts` (GET SSE stream)
   - `frontend/app/api/alerts/[id]/route.ts` (GET detail)
   - `frontend/app/api/alerts/[id]/triage/route.ts` (PATCH triage)
   - `frontend/app/api/alerts/[id]/action/route.ts` (PATCH action)
   - `frontend/app/api/stats/route.ts`
   - `frontend/app/api/ml-health/route.ts`
-- Those six handlers require a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work.
+- Those seven handlers require a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work.
 - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
 - The alerts table and alert drawer now hide unavailable dense-row mutation controls for viewers and preserve triage/action control visibility according to the current role.
 - `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes.
+
+### Real-time alert synchronization
+
+SSE is a notification channel, not a second alert-data contract. After a new
+alert is committed and becomes visible, `TriageUseCase` publishes the minimal
+named event `alert.created` with `{"changed": true}`. The authenticated BFF
+streams it to the browser without exposing `API_SECRET_KEY`; `AlertStreamSync`
+coalesces bursts for 200 ms and invalidates the existing alerts and stats query
+families. Initial connection and native EventSource reconnection both emit
+`open`, which triggers the same canonical REST refetch and recovers alerts
+created while disconnected.
+
+Each backend stream ends after five minutes. Native EventSource reconnection
+therefore re-enters the authenticated BFF and re-runs current account and RBAC
+checks. The BFF limits upstream connection establishment to ten seconds,
+rejects redirects and non-exact SSE media types, returns generic upstream
+errors, and emits private/no-store, no-transform, no-buffer, and nosniff
+response controls. Post-commit publisher failure is warning-only because it
+must not change the result of an already-successful database write.
+
+The broadcaster uses one bounded queue per subscriber (`maxsize=1`), so slow
+clients cannot block ingest and repeated unread signals coalesce. It is
+in-process only: a future multi-worker/multi-instance runtime would need shared
+fan-out such as PostgreSQL `LISTEN/NOTIFY` or Redis, neither of which is
+implemented here. There is no durable replay log or `Last-Event-ID` recovery.
 
 ### Runtime configuration and authorization
 

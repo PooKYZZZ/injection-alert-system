@@ -240,6 +240,74 @@ function getUpstreamConfig(): BffResult<{ baseUrl: string; apiKey: string }> {
   return ok({ baseUrl, apiKey })
 }
 
+export async function openAlertStream(
+  signal: AbortSignal
+): Promise<BffResult<Response>> {
+  const config = getUpstreamConfig()
+  if (!config.ok) return config
+  if (isMockMode()) {
+    return err(503, 'UPSTREAM_ERROR', 'Real-time alert updates are unavailable in mock mode.')
+  }
+
+  let response: Response
+  const handshakeController = new AbortController()
+  const handshakeTimeout = setTimeout(
+    () => handshakeController.abort(),
+    10_000
+  )
+  try {
+    response = await fetch(`${config.data.baseUrl}/api/alerts/stream`, {
+      method: 'GET',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.any([signal, handshakeController.signal]),
+      headers: {
+        Authorization: `Bearer ${config.data.apiKey}`,
+      },
+    })
+  } catch {
+    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+  } finally {
+    clearTimeout(handshakeTimeout)
+  }
+
+  if (!response.ok) {
+    cancelResponseBody(response)
+    if (response.status === 401 || response.status === 403) {
+      return err(
+        500,
+        'INTERNAL_SERVICE_AUTH_FAILED',
+        'Internal service authentication failed.'
+      )
+    }
+    return err(
+      response.status >= 500 ? response.status : 502,
+      'UPSTREAM_ERROR',
+      'Upstream service failed.'
+    )
+  }
+
+  const mediaType = response.headers
+    .get('Content-Type')
+    ?.split(';', 1)[0]
+    ?.trim()
+    .toLowerCase()
+  if (mediaType !== 'text/event-stream') {
+    cancelResponseBody(response)
+    return err(502, 'UPSTREAM_ERROR', 'Upstream response was not an event stream.')
+  }
+
+  return ok(response)
+}
+
+function cancelResponseBody(response: Response): void {
+  try {
+    void response.body?.cancel().catch(() => undefined)
+  } catch {
+    // A rejected upstream response must not replace the generic BFF error.
+  }
+}
+
 function normalizeWithSchema<T>(
   schema: z.ZodType<T>,
   payload: unknown

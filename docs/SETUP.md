@@ -1,13 +1,15 @@
 # Local Setup
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
-This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
+This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service. PR2 SSE no-refresh and browser reconnect behavior are manually verified through the named hosted deployment; see `docs/project-ops/STATUS.md` for evidence and limitations.
 
 PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
 controlled proof, hosted source-correlation proof, and restart/recreate proof
-are complete. SSE, Telegram, rate limiting, enforcement, portal behavior, and
-retraining are separate future PRs. Hosted verification remains
+are complete. The separate PR2 SSE slice is implemented with automated and
+manual no-refresh, browser-reconnect, and named-domain hosted proof. Telegram,
+rate limiting, enforcement, portal behavior, and retraining remain separate
+future work. Hosted verification remains
 `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
 trust checks are completed.
 
@@ -405,7 +407,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- All six BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
+- All seven BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
 
 ## 5. What This Setup Does Not Cover
 

@@ -96,6 +96,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
     - `POST /api/predict`
     - `POST /api/triage`
     - `GET /api/alerts`
+    - `GET /api/alerts/stream`
     - `GET /api/alerts/{id}`
     - `PATCH /api/alerts/{id}/triage`
     - `GET /api/stats`
@@ -121,6 +122,11 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
   and generated receive time.
 - Request context middleware preserves or generates safe request IDs, supports W3C version-00 `traceparent`, and returns `X-Request-ID` on handled and generic unhandled `500` responses
 - Structured JSON logs cover request completion/failure, WAF ingest outcomes, direct prediction outcomes, and bridge operational/configuration events; sensitive keyed fields are recursively redacted with case/separator-insensitive key matching and cycle/depth bounds
+- A finalized visible alert publishes a coalesced `alert.created` signal through
+  `web_app/application/alert_events.py`. Publication happens after repository
+  commit; duplicate completed ingests do not republish. The in-process
+  broadcaster is intentionally limited to the current single-backend-process
+  runtime and is not durable replay or multi-instance fan-out.
 
 ### Frontend
 
@@ -135,12 +141,19 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Current BFF status in the working tree:
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client
   - `frontend/app/api/alerts/route.ts` proxies to FastAPI in non-mock mode
+  - `frontend/app/api/alerts/stream/route.ts` authenticates and streams the FastAPI SSE response with private/no-store, no-transform, no-buffer, and nosniff response controls
   - `frontend/app/api/alerts/[id]/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/alerts/[id]/triage/route.ts` handles PATCH triage
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode
   - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**)
-  - all six handlers await the central DB-backed permission guard before downstream work
+  - all seven handlers await the central DB-backed permission guard before downstream work
+  - one dashboard-level `AlertStreamSync` connection invalidates the existing
+    alert and stats TanStack Query families on `alert.created` and `open`; the
+    latter provides canonical REST catch-up after native EventSource reconnect
+  - backend streams recycle after five minutes so reconnect re-runs the BFF's
+    DB-backed account and permission checks; backend connection establishment
+    is capped at ten seconds and upstream redirects are rejected
   - canonical alert contract values live in `frontend/features/alerts/contract.ts`:
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
     - `confidence_level`: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
@@ -177,7 +190,6 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 - Notification-worker failure/retry operational testing, MFA flag-semantics audit, Auth.js upgrade, and passkeys/WebAuthn
-- Client-required real-time/SSE dashboard alerts
 - Wazuh export-only integration
 
 ## Important Truths To Keep Straight

@@ -17,7 +17,11 @@ This repository is active in its current app-plus-BFF form and now has a verifie
   restart/recreate proof passed; hosted `VERIFIED` mode intentionally remains
   disabled pending final Cloudflare/origin trust checks. Later roadmap work is
   not part of this PR.
-- The dashboard BFF routes for alerts, alert detail, triage, stats, and ML health are wired to FastAPI in non-mock mode
+- PR #85 SSE synchronization is implemented and manually verified for
+  no-refresh alerts, browser reconnect/catch-up, and the named hosted domain.
+  It remains single-process and in-memory with no durable replay, multi-worker
+  fan-out, or latency benchmark.
+- The dashboard BFF routes for alerts, alert detail, triage, stats, ML health, and the authenticated alert SSE stream are wired to FastAPI in non-mock mode
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist
 - Verified WAF proof path: `localhost:8088` -> ModSecurity/OWASP CRS -> JSON audit log -> bridge -> FastAPI internal WAF ingest
@@ -59,6 +63,7 @@ In the current repo, the application code, model-loading path, tests, dashboard 
   - `POST /api/predict`
   - `POST /api/triage`
   - `GET /api/alerts`
+  - `GET /api/alerts/stream`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
@@ -80,6 +85,11 @@ In the current repo, the application code, model-loading path, tests, dashboard 
   fail-closed DB-backed RBAC freshness checks
 - Marker-correlated final-demo smoke with optional required Docker-internal
   backend lookup
+- Real-time dashboard cache synchronization: a finalized alert publishes a
+  minimal `alert.created` SSE signal through the authenticated Next.js BFF;
+  TanStack Query then refetches canonical alert and stats REST state. The
+  broadcaster is in-process and supports the current single-backend-process
+  runtime only.
 
 ### Not fully implemented yet
 
@@ -87,7 +97,6 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 - Redis-backed enforcement state
 - Client-required two-factor authentication
 - Client-required email notification after threat detection
-- Client-required timely push/SSE-style dashboard alerts
 
 ## Tech Stack
 

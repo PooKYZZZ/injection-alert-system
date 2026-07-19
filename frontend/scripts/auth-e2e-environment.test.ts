@@ -1,8 +1,12 @@
 import { createHmac } from 'node:crypto'
+import { EventEmitter } from 'node:events'
+import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  backendDatabaseUrl,
+  buildBackendE2EEnvironment,
   buildAuthE2EEnvironment,
   buildMigrationEnvironment,
   createDisposableNames,
@@ -12,6 +16,8 @@ import {
   playwrightInvocation,
   postgrestTargetUrl,
   pythonExecutable,
+  redactChildOutput,
+  withManagedSignalCleanup,
   withDisposableCleanup,
 } from './auth-e2e-environment.mjs'
 
@@ -95,6 +101,44 @@ describe('disposable authentication E2E environment', () => {
     })
   })
 
+  it('supports an explicit real FastAPI boundary', () => {
+    expect(
+      buildAuthE2EEnvironment({
+        supabaseUrl: 'http://127.0.0.1:54321',
+        serviceRoleToken: 'test-jwt',
+        authSecret: 'test-auth-secret',
+        mfaEncryptionKey: 'test-mfa-key',
+        emailOtpKey: 'test-email-otp-key',
+        notificationPayloadKey: 'test-notification-payload-key',
+        useMockApi: false,
+        fastapiBaseUrl: 'http://127.0.0.1:49152',
+        internalApiKey: 'generated-internal-key',
+      })
+    ).toMatchObject({
+      USE_MOCK_API: 'false',
+      FASTAPI_BASE_URL: 'http://127.0.0.1:49152',
+      INTERNAL_API_KEY: 'generated-internal-key',
+    })
+  })
+
+  it('supports an isolated loopback frontend origin', () => {
+    expect(
+      buildAuthE2EEnvironment({
+        supabaseUrl: 'http://127.0.0.1:54321',
+        serviceRoleToken: 'test-jwt',
+        authSecret: 'test-auth-secret',
+        mfaEncryptionKey: 'test-mfa-key',
+        emailOtpKey: 'test-email-otp-key',
+        notificationPayloadKey: 'test-notification-payload-key',
+        frontendOrigin: 'http://127.0.0.1:49153',
+      })
+    ).toMatchObject({
+      NEXTAUTH_URL: 'http://127.0.0.1:49153',
+      AUTH_APP_ORIGIN: 'http://127.0.0.1:49153',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:49153',
+    })
+  })
+
   it('launches Playwright through Node instead of a platform shell shim', () => {
     const invocation = playwrightInvocation('test-node', [
       '--grep',
@@ -111,6 +155,22 @@ describe('disposable authentication E2E environment', () => {
       '--grep',
       'normal login',
     ])
+  })
+
+  it('accepts a dedicated Playwright config', () => {
+    const invocation = playwrightInvocation(
+      'test-node',
+      ['--grep', 'SSE'],
+      'playwright.sse.config.ts'
+    )
+
+    expect(invocation.args.slice(1)).toEqual([
+      'test',
+      '--config=playwright.sse.config.ts',
+      '--grep',
+      'SSE',
+    ])
+    expect(invocation.args).not.toContain('--config=playwright.auth.config.ts')
   })
 
   it('uses setup-python on CI but still requires the local repository venv', () => {
@@ -131,19 +191,94 @@ describe('disposable authentication E2E environment', () => {
   })
 
   it('supplies every required backend setting to Alembic explicitly', () => {
-    expect(
-      buildMigrationEnvironment({
-        databaseUrl: 'postgresql+psycopg://disposable',
-        baseEnvironment: { NODE_ENV: 'test', PATH: 'test-path' },
-      })
-    ).toMatchObject({
-      NODE_ENV: 'test',
+    const environment = buildMigrationEnvironment({
+      databaseUrl: 'postgresql+psycopg://disposable',
+      baseEnvironment: {
+        NODE_ENV: 'test',
+        PATH: 'test-path',
+        SUPABASE_SERVICE_ROLE_KEY: 'hosted-supabase-secret',
+        RESEND_API_KEY: 'live-resend-secret',
+        GROQ_API_KEY: 'live-groq-secret',
+      },
+    })
+
+    expect(environment).toMatchObject({
       PATH: 'test-path',
       DATABASE_URL: 'postgresql+psycopg://disposable',
       CYBERTRACE_POSTGRES_TEST_URL: 'postgresql+psycopg://disposable',
       MODEL_PATH: expect.stringContaining('ml_model'),
       MODEL_REGISTRY_PATH: expect.stringContaining('ml_model'),
     })
+    expect(environment).not.toHaveProperty('NODE_ENV')
+    expect(environment).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY')
+    expect(environment).not.toHaveProperty('RESEND_API_KEY')
+    expect(environment).not.toHaveProperty('GROQ_API_KEY')
+  })
+
+  it('converts only the disposable loopback psycopg URL for FastAPI', () => {
+    expect(
+      backendDatabaseUrl(
+        'postgresql+psycopg://postgres:fake@127.0.0.1:49154/cybertrace'
+      )
+    ).toBe('postgresql://postgres:fake@127.0.0.1:49154/cybertrace')
+    expect(() =>
+      backendDatabaseUrl(
+        'postgresql+psycopg://postgres:fake@db.example.test:5432/cybertrace'
+      )
+    ).toThrow('Disposable backend database URL is invalid.')
+    expect(() =>
+      backendDatabaseUrl(
+        'postgresql+psycopg://postgres:fake@127.0.0.1:49154/production'
+      )
+    ).toThrow('Disposable backend database URL is invalid.')
+  })
+
+  it('allowlists safe FastAPI test settings without forwarding hosted secrets', () => {
+    const repositoryDirectory = path.resolve('cybertrace-test-repo')
+    const modelDirectory = path.resolve('cybertrace-missing-model')
+    const environment = buildBackendE2EEnvironment({
+      databaseUrl:
+        'postgresql+psycopg://postgres:fake@127.0.0.1:49154/cybertrace',
+      repositoryDirectory,
+      modelDirectory,
+      internalApiKey: 'i'.repeat(64),
+      wafApiKey: 'w'.repeat(64),
+      baseEnvironment: {
+        NODE_ENV: 'test',
+        PATH: 'test-path',
+        SystemRoot: 'C:\\Windows',
+        RESEND_API_KEY: 'live-resend-secret',
+        GROQ_API_KEY: 'live-groq-secret',
+      },
+    })
+
+    expect(environment).toMatchObject({
+      PATH: 'test-path',
+      SystemRoot: 'C:\\Windows',
+      APP_ENV: 'testing',
+      NOTIFICATION_WORKER_ENABLED: 'false',
+      NOTIFICATION_WORKER_REQUIRED: 'false',
+      EMAIL_PROVIDER: 'fake',
+      API_SECRET_KEY: 'i'.repeat(64),
+      WAF_INGEST_API_KEY: 'w'.repeat(64),
+      DATABASE_URL:
+        'postgresql://postgres:fake@127.0.0.1:49154/cybertrace',
+      MODEL_PATH: modelDirectory,
+      MODEL_REGISTRY_PATH: modelDirectory,
+      PYTHONPATH: repositoryDirectory,
+    })
+    expect(environment).not.toHaveProperty('RESEND_API_KEY')
+    expect(environment).not.toHaveProperty('GROQ_API_KEY')
+  })
+
+  it('redacts credentials from managed child output', () => {
+    expect(
+      redactChildOutput(
+        'postgresql://postgres:db-password@127.0.0.1/db Authorization: Bearer bearer-secret API_SECRET_KEY=internal-secret'
+      )
+    ).toBe(
+      'postgresql://[redacted]@127.0.0.1/db Authorization: Bearer [redacted] API_SECRET_KEY=[redacted]'
+    )
   })
 
   it('maps only the Supabase REST prefix to standalone PostgREST', () => {
@@ -183,5 +318,44 @@ describe('disposable authentication E2E environment', () => {
     ).rejects.toThrow('test failed')
     expect(cleanup).toHaveBeenNthCalledWith(1, { id: 'success' })
     expect(cleanup).toHaveBeenNthCalledWith(2, { id: 'failure' })
+  })
+
+  it('aborts active work on a signal and cleans up only after it unwinds', async () => {
+    const processObject = new EventEmitter() as EventEmitter & {
+      exitCode?: number
+    }
+    const events: string[] = []
+    const cleanup = vi.fn(async () => {
+      events.push('cleanup')
+    })
+    let releaseExecution: (() => void) | undefined
+
+    const running = withManagedSignalCleanup(
+      async (signal: AbortSignal) => {
+        events.push('execute')
+        await new Promise<void>((resolve) => {
+          releaseExecution = resolve
+          signal.addEventListener('abort', () => events.push('aborted'), {
+            once: true,
+          })
+        })
+        events.push('unwound')
+        throw signal.reason
+      },
+      cleanup,
+      { processObject: processObject as unknown as NodeJS.Process }
+    )
+
+    processObject.emit('SIGINT')
+    expect(events).toEqual(['execute', 'aborted'])
+    expect(cleanup).not.toHaveBeenCalled()
+    releaseExecution?.()
+
+    await expect(running).rejects.toThrow('SIGINT')
+    expect(events).toEqual(['execute', 'aborted', 'unwound', 'cleanup'])
+    expect(cleanup).toHaveBeenCalledOnce()
+    expect(processObject.exitCode).toBe(130)
+    expect(processObject.listenerCount('SIGINT')).toBe(0)
+    expect(processObject.listenerCount('SIGTERM')).toBe(0)
   })
 })

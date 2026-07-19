@@ -24,6 +24,13 @@ def test_auth_health_endpoint_is_public(client):
     assert "database" in data
 
 
+def test_alert_stream_requires_internal_auth_and_is_not_shadowed_by_alert_id(client):
+    response = client.get("/api/alerts/stream")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Unauthorized"}
+
+
 def test_response_includes_preserved_request_id(client):
     response = client.get(
         "/health",

@@ -2,13 +2,13 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 ---
 
 ## Current Verified Repo State
 
-- Working branch: `feat/trusted-source-correlation`
+- Working branch: `feat/real-time-alert-sse`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -32,8 +32,39 @@
   `6cfe67bd331e55d4309c201c8c254668bc2ea688`. The branch was clean, remote CI
   was green, and this maintenance pass adds documentation only; no PR1 feature
   work remains.
-  SSE, Telegram, rate limiting, enforcement, portal behavior, and retraining
-  belong in later PRs.
+  The current PR2 branch implements SSE separately. Telegram, rate limiting,
+  enforcement, portal behavior, and retraining belong in later PRs.
+
+### Real-time alert SSE PR state
+
+- PR #85 implementation and all five GitHub checks are green: backend,
+  frontend, postgres, auth-e2e, and secret-scan. Frontend lint, typecheck,
+  audit gate, Vitest, and production build also passed.
+- Local PR2 validation passed: backend **717 passed, 32 skipped**, frontend
+  **87 files / 498 Vitest tests**, the named SSE edge matrix passed **97 backend
+  tests and 31 frontend tests**, and disposable Chromium SSE E2E passed.
+- Manual technical WAF verification on 2026-07-19 passed four consecutive
+  `waf-8088 --require-backend-lookup` runs. Each passed healthz, API health,
+  SQLi block, audit transaction, backend lookup, and final summary. Markers:
+  `CYBERTRACE_SMOKE_20260719T160600_dbbf110dfbb14c3088b9fe34cc16c0a4`,
+  `CYBERTRACE_SMOKE_20260719T160811_dec1f89a858441d88f1561881993cd68`,
+  `CYBERTRACE_SMOKE_20260719T160849_b17bd52a0f1749a1a198c64ca1b210c0`,
+  and `CYBERTRACE_SMOKE_20260719T161013_1e6a73a29fb54694afc3524dde70c9e4`.
+- Manual browser verification passed: an open Alerts page received new
+  persisted alerts without refresh; the browser connected to the authenticated
+  hosted `/api/alerts/stream` endpoint with `text/event-stream`; offline/online
+  recovery reconnected EventSource, refetched canonical REST state, and showed
+  the missed alert without a page reload.
+- Hosted SSE delivery and browser reconnect were manually verified through
+  `https://app.cybertracesystems.com`. This proves the tested deployment path,
+  not every possible Cloudflare or proxy configuration.
+- Hosted source-correlation regression also passed from two independent phone
+  network paths: `112.201.129.141` and `111.90.241.210` remained distinct in
+  new `/records/search` alerts and did not collapse to `172.18.0.1`. This is
+  regression evidence only; hosted WAF verification remains `unverified`.
+- PR2 remains intentionally bounded: the broadcaster is single-process and
+  in-memory, there is no durable replay or `Last-Event-ID`, no multi-worker
+  fan-out, and no latency benchmark was performed.
 
 - PR #84 remediation is implemented through the single Alembic head
   `20260715_000021`:
@@ -129,6 +160,20 @@
 
 ### Latest local verification results
 
+- PR2 SSE slice: backend full suite **717 passed, 32 skipped** with local
+  notification-worker overrides; frontend full Vitest **87 files / 498 tests
+  passed**; lint, typecheck, and production build passed. The named SSE edge
+  matrix passed **97 backend tests** and **31 frontend tests**.
+- Disposable real-stack SSE browser proof:
+  `cd frontend && node scripts/run-sse-e2e.mjs` → **1/1 Chromium test passed**.
+  The managed run applied the real Alembic chain to disposable PostgreSQL,
+  seeded real password/TOTP auth through PostgREST, started loopback FastAPI and
+  Next.js on ephemeral ports with generated keys, and proved a unique WAF alert
+  was committed, signaled through the authenticated SSE BFF, refetched, and
+  rendered without another main-frame navigation request. Cleanup left **0**
+  labeled containers, **0** labeled networks, and **0** backend temp directories.
+  Browser-native reconnect and named-domain hosted SSE proof were subsequently
+  verified manually on 2026-07-19.
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
 - Click vulnerability remediation: `click==8.3.3`; `.venv\Scripts\python.exe -m pip_audit -r requirements.txt` → **no known vulnerabilities**
 - Backend full suite with local worker flags disabled for SQLite tests: `.venv\Scripts\python.exe -m pytest -q` → **619 passed, 31 skipped**
@@ -249,6 +294,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - `POST /api/predict`
   - `POST /api/triage`
   - `GET /api/alerts`
+  - `GET /api/alerts/stream`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
@@ -258,6 +304,10 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - `GET /api/health`
 - Reservation-first triage flow is active (`PROCESSING` placeholders, lease reclaim support, winner/loser behavior).
 - `PROCESSING` rows are excluded from normal alerts and stats reads.
+- New visible alerts publish a minimal post-commit `alert.created` signal to a
+  bounded in-process broadcaster. The authenticated Next.js SSE BFF streams it
+  to one dashboard EventSource, which invalidates canonical alert and stats
+  queries on events and reconnect `open`.
 - Frontend boundary remains:
   - `Browser -> Next.js route handlers/BFF -> FastAPI`
 - Route protection and proxy entrypoint:
@@ -305,7 +355,20 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - MFA, recovery, password reset, and recent-TOTP step-up are implemented behind server-side availability switches; the hosted Admin enrollment/login journey is verified and disabled values still fail closed.
 - Active credential-equivalent notification payload encryption and terminal scrubbing are implemented. Hosted key provisioning and rotation remain approval-gated.
 - Live Resend delivery is verified in the tested deployment; notification-worker failure/retry and required-worker health operations remain deferred testing.
-- Real-time SSE/EventSource dashboard alerting is not yet implemented.
+- Real-time SSE/EventSource dashboard alerting is implemented in code with
+  focused backend/frontend automated coverage. Local disposable Chromium
+  no-refresh behavior, browser-native reconnect, and the named hosted
+  deployment path are manually verified. The current in-process
+  broadcaster does not provide multi-worker or multi-instance fan-out. Streams
+  recycle after five minutes to re-run BFF account/RBAC checks; upstream BFF
+  connection establishment has a ten-second deadline, rejects redirects and
+  non-exact SSE media types, and returns only generic connection errors.
+- Residual SSE risk is intentionally thesis-scoped: fan-out is single-process,
+  events are not durably replayed, HTTP/1.1 browsers have limited per-origin
+  streaming connections, and hosted proxy buffering/reconnect behavior is not
+  yet verified. Roll back this synchronization slice by removing the dashboard
+  `AlertStreamSync`, BFF/backend stream routes, and publisher wiring; canonical
+  REST alert and stats contracts remain unchanged and usable throughout.
 - Automated final-demo HTTP/audit checks and opt-in Docker-internal backend
   lookup are implemented; full dashboard interaction remains a manual runbook
   step rather than always-on CI.

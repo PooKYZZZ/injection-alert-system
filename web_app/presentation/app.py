@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from web_app.application.alert_events import AlertEventBroadcaster
 from web_app.application.inference_queue import InferenceQueueService
 from web_app.config import get_settings
 from web_app.infrastructure.database import init_db
@@ -85,6 +86,7 @@ async def lifespan(app: FastAPI):
         model_service = ModelService.create_mock()
 
     app.state.model_service = model_service
+    app.state.alert_event_broadcaster = AlertEventBroadcaster()
     app.state.notification_outbox_repository = (
         PostgresNotificationOutboxRepository(db_module.AsyncSessionLocal)
     )

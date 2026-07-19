@@ -490,7 +490,7 @@ async def test_complete_processing_updates_placeholder_row(
         now=now,
     )
 
-    completed = await repository.complete_processing(
+    completed, completed_by_owner = await repository.complete_processing(
         "txn-complete-1",
         owner_token="owner-complete",
         prediction="SQL Injection",
@@ -504,6 +504,7 @@ async def test_complete_processing_updates_placeholder_row(
     assert completed.status == "COMPLETED"
     assert completed.prediction == "SQL Injection"
     assert completed.action_taken == "BLOCKED"
+    assert completed_by_owner is True
 
 
 @pytest.mark.asyncio
@@ -546,7 +547,7 @@ async def test_complete_processing_rejects_late_owner(
         now=now + timedelta(seconds=31),
     )
 
-    completed = await repository.complete_processing(
+    completed, completed_by_owner = await repository.complete_processing(
         "txn-complete-late-1",
         owner_token="owner-old",
         prediction="SQL Injection",
@@ -559,6 +560,65 @@ async def test_complete_processing_rejects_late_owner(
 
     assert completed.processing_owner_token == "owner-new"
     assert completed.status == "PROCESSING"
+    assert completed_by_owner is False
+
+
+@pytest.mark.asyncio
+async def test_save_invalidates_cached_stats(repository: TrafficLogRepository):
+    assert (await repository.get_stats_summary()).total_requests == 0
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-cache-save",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="198.51.100.22",
+            request_path="/cache/save",
+            request_method="GET",
+            http_request="GET /cache/save",
+            prediction="Normal",
+            confidence=0.99,
+            confidence_level="HIGH",
+            action_taken="ALLOWED",
+        )
+    )
+
+    assert (await repository.get_stats_summary()).total_requests == 1
+
+
+@pytest.mark.asyncio
+async def test_complete_processing_invalidates_cached_stats(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+    await repository.claim_or_reclaim_processing(
+        TrafficLogEntity(
+            transaction_id="txn-cache-complete",
+            timestamp=now,
+            source_ip="198.51.100.23",
+            request_path="/cache/complete",
+            request_method="POST",
+            http_request="POST /cache/complete",
+            status="PROCESSING",
+        ),
+        owner_token="owner-cache",
+        lease_expires_at=now + timedelta(seconds=30),
+        now=now,
+    )
+    assert (await repository.get_stats_summary()).total_requests == 0
+
+    _, completed_by_owner = await repository.complete_processing(
+        "txn-cache-complete",
+        owner_token="owner-cache",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        inference_latency_ms=3.4,
+        model_version="test-model-v1",
+        action_taken="BLOCKED",
+    )
+
+    assert completed_by_owner is True
+    assert (await repository.get_stats_summary()).total_requests == 1
 
 
 @pytest.mark.asyncio

@@ -581,6 +581,47 @@ If stat cards show `—`, the backend may not be responding. Check `docker compo
 
 ---
 
+## Step 8a — Verify Real-Time Alerts Without Refresh
+
+Manual status as of 2026-07-19: PASS. The Alerts page received new persisted
+alerts without refresh, the hosted browser connected to
+`https://app.cybertracesystems.com/api/alerts/stream` with
+`Accept: text/event-stream`, and the offline/online catch-up test reconnected
+EventSource, refetched canonical REST state, and displayed the missed alert
+without a page reload. The procedure below remains the repeatable operator
+check.
+
+Keep `http://localhost:3000/alerts` open and do not reload the page. In another
+PowerShell window, create a fresh marker through the realistic WAF path:
+
+```powershell
+$marker = "SSE_$(Get-Date -Format 'yyyyMMddHHmmss')"
+$url = "http://localhost:8089/records/search?query=%27%20UNION%20SELECT%20null,null,null--%20$marker"
+curl.exe -s -o NUL -w "%{http_code}`n" $url
+```
+
+Confirm the bridge posts the transaction and the new alert appears in the open
+dashboard without F5/manual reload. Record the persistence and visible-update
+times if latency is being measured; report observed median/p95/max only from
+actual controlled trials.
+
+Then test catch-up:
+
+1. In browser developer tools, temporarily switch the browser network offline
+   or block `/api/alerts/stream`.
+2. Generate another unique marker while the stream is disconnected.
+3. Restore connectivity without reloading the page.
+4. Confirm native EventSource reconnects, `open` causes canonical alert/stats
+   refetch, and the missed alert appears automatically.
+
+For hosted proof, the named CyberTrace deployment has now passed this check.
+Do not generalize that result to every Cloudflare or proxy configuration, and do
+not use a `trycloudflare.com` Quick Tunnel as authoritative SSE proof. Never
+capture cookies, Authorization headers, API keys, passwords, TOTP secrets,
+recovery codes, or database credentials in evidence.
+
+---
+
 ## Step 9 — Verify ML Health Page Loads
 
 **URL:** `http://localhost:3000/ml-health`

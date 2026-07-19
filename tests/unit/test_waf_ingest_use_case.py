@@ -12,6 +12,10 @@ from web_app.domain.source_address import (
 )
 
 
+def _completed(**kwargs):
+    return Mock(**kwargs), True
+
+
 @pytest.mark.asyncio
 async def test_ingest_classifies_and_persists_waf_event():
     classifier = Mock()
@@ -30,7 +34,7 @@ async def test_ingest_classifies_and_persists_waf_event():
         status="PROCESSING",
         processing_owner_token="owner",
     )
-    repository.complete_processing.return_value = Mock(
+    repository.complete_processing.return_value = _completed(
         id=1,
         prediction="SQL Injection",
         confidence=0.91,
@@ -74,7 +78,7 @@ async def test_ingest_builds_http_request_from_structured_fields():
     repository.claim_or_reclaim_processing.return_value = Mock(
         id=1, status="PROCESSING", processing_owner_token="owner"
     )
-    repository.complete_processing.return_value = Mock(
+    repository.complete_processing.return_value = _completed(
         id=1,
         prediction="Normal",
         confidence=0.3,
@@ -161,7 +165,7 @@ async def test_ingest_applies_action_policy():
             "confidence_level": confidence_level,
         }
 
-        repository.complete_processing.return_value = Mock(
+        repository.complete_processing.return_value = _completed(
             id=1,
             prediction="SQL Injection",
             confidence=0.9,
@@ -203,7 +207,7 @@ async def test_ingest_derives_status_and_fingerprints_sanitized_factual_input():
         return entity
 
     repository.claim_or_reclaim_processing.side_effect = _claim
-    repository.complete_processing.return_value = Mock(
+    repository.complete_processing.return_value = _completed(
         id=1,
         prediction="Normal",
         confidence=0.3,
@@ -259,7 +263,7 @@ async def test_cloudflare_mode_accepts_direct_evidence_as_unverified_and_warns(
         return entity
 
     repository.claim_or_reclaim_processing.side_effect = _claim
-    repository.complete_processing.return_value = Mock(
+    repository.complete_processing.return_value = _completed(
         id=1,
         prediction="Normal",
         confidence=0.3,

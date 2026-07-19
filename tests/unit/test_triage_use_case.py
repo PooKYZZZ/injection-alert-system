@@ -60,7 +60,7 @@ def mock_repository():
     async def complete_processing_side_effect(
         transaction_id: str,
         **kwargs,
-    ) -> TrafficLogEntity:
+    ) -> tuple[TrafficLogEntity, bool]:
         status = kwargs.get("status", "COMPLETED")
         entity.id = 1
         entity.transaction_id = transaction_id
@@ -72,7 +72,7 @@ def mock_repository():
         entity.action_taken = kwargs["action_taken"]
         entity.status = status
         entity.processing_owner_token = kwargs.get("owner_token", "owner-token")
-        return entity
+        return entity, True
 
     entity = TrafficLogEntity(
         source_ip="127.0.0.1",
@@ -315,6 +315,264 @@ async def test_ingest_returns_existing_alert_without_reinferring(
     mock_repository.complete_processing.assert_not_called()
     assert result.alert_id == 7
     assert result.prediction == "SQL Injection"
+
+
+@pytest.mark.asyncio
+async def test_ingest_publishes_only_after_visible_alert_is_persisted(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_tier": "HIGH",
+    }
+    call_order: list[str] = []
+    original_complete = mock_repository.complete_processing.side_effect
+
+    async def complete_then_record(*args, **kwargs):
+        result = await original_complete(*args, **kwargs)
+        call_order.append("persisted")
+        return result
+
+    mock_repository.complete_processing.side_effect = complete_then_record
+    publisher = MagicMock()
+    publisher.publish_alert_created.side_effect = lambda: call_order.append("published")
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+
+    await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-publish-1",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="203.0.113.10",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={},
+            request_body="",
+            http_request="POST /login HTTP/1.1",
+            crs_score=8,
+            crs_rule_ids=["942100"],
+        )
+    )
+
+    assert call_order == ["persisted", "published"]
+    publisher.publish_alert_created.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_execute_returns_persisted_result_when_event_publication_fails(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_tier": "HIGH",
+    }
+    publisher = MagicMock()
+    publisher.publish_alert_created.side_effect = RuntimeError("publisher failed")
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+
+    result = await use_case.execute(
+        http_request="POST /login HTTP/1.1",
+        source_ip="203.0.113.10",
+    )
+
+    assert result.alert_id == 1
+    publisher.publish_alert_created.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_ingest_returns_persisted_result_when_event_publication_fails(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_tier": "HIGH",
+    }
+    publisher = MagicMock()
+    publisher.publish_alert_created.side_effect = RuntimeError("publisher failed")
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+
+    result = await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-publisher-failure",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="203.0.113.10",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={},
+            request_body="",
+            http_request="POST /login HTTP/1.1",
+            crs_score=8,
+            crs_rule_ids=["942100"],
+        )
+    )
+
+    assert result.alert_id == 1
+    publisher.publish_alert_created.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_ingest_does_not_publish_for_duplicate_or_failed_persistence(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_tier": "HIGH",
+    }
+    publisher = MagicMock()
+    existing = TrafficLogEntity(
+        id=21,
+        transaction_id="txn-existing",
+        created_at=datetime.now(timezone.utc),
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.91,
+        confidence_level="HIGH",
+        action_taken="BLOCKED",
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = existing
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+    command = TriageIngestCommand(
+        transaction_id="txn-existing",
+        timestamp=datetime.now(timezone.utc),
+        source_ip="203.0.113.10",
+        request_method="POST",
+        request_uri="/login",
+        request_headers={},
+        request_body="",
+        http_request="POST /login HTTP/1.1",
+        crs_score=8,
+        crs_rule_ids=["942100"],
+    )
+
+    await use_case.ingest(command)
+    publisher.publish_alert_created.assert_not_called()
+
+    mock_repository.claim_or_reclaim_processing.return_value = TrafficLogEntity(
+        id=22,
+        transaction_id="txn-failure",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        processing_owner_token="owner-token",
+    )
+    mock_repository.complete_processing.side_effect = RuntimeError("commit failed")
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await use_case.ingest(command)
+    publisher.publish_alert_created.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ingest_does_not_publish_when_completion_ownership_was_lost(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_tier": "HIGH",
+    }
+    existing = TrafficLogEntity(
+        id=23,
+        transaction_id="txn-lost-owner",
+        created_at=datetime.now(timezone.utc),
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.91,
+        confidence_level="HIGH",
+        action_taken="BLOCKED",
+    )
+    mock_repository.complete_processing.side_effect = None
+    mock_repository.complete_processing.return_value = (existing, False)
+    publisher = MagicMock()
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+
+    command = TriageIngestCommand(
+        transaction_id="txn-lost-owner",
+        timestamp=datetime.now(timezone.utc),
+        source_ip="203.0.113.10",
+        request_method="POST",
+        request_uri="/login",
+        request_headers={},
+        request_body="",
+        http_request="POST /login HTTP/1.1",
+        crs_score=8,
+        crs_rule_ids=["942100"],
+    )
+    result = await use_case.ingest(command)
+
+    assert result.alert_id == 23
+    publisher.publish_alert_created.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ingest_reports_in_progress_when_lost_owner_row_is_unfinished(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_tier": "HIGH",
+    }
+    unfinished = TrafficLogEntity(
+        id=24,
+        transaction_id="txn-reclaimed-owner",
+        created_at=datetime.now(timezone.utc),
+        status="PROCESSING",
+        processing_owner_token="new-owner",
+    )
+    mock_repository.complete_processing.side_effect = None
+    mock_repository.complete_processing.return_value = (unfinished, False)
+    publisher = MagicMock()
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+
+    with pytest.raises(TriageInProgressError):
+        await use_case.ingest(
+            TriageIngestCommand(
+                transaction_id="txn-reclaimed-owner",
+                timestamp=datetime.now(timezone.utc),
+                source_ip="203.0.113.10",
+                request_method="POST",
+                request_uri="/login",
+                request_headers={},
+                request_body="",
+                http_request="POST /login HTTP/1.1",
+                crs_score=8,
+                crs_rule_ids=["942100"],
+            )
+        )
+
+    publisher.publish_alert_created.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -737,7 +995,7 @@ async def test_ingest_reclaims_expired_processing_lease_and_completes(
     )
     mock_repository.claim_or_reclaim_processing.return_value = claimed_row
     mock_repository.complete_processing.side_effect = None
-    mock_repository.complete_processing.return_value = completed_row
+    mock_repository.complete_processing.return_value = completed_row, True
     mock_classifier.predict.return_value = {
         "prediction": "SQL Injection",
         "confidence": 0.97,
@@ -837,7 +1095,7 @@ async def test_concurrent_duplicate_transaction_id_runs_inference_once():
             self.completed.action_taken = kwargs["action_taken"]
             self.completed.status = "COMPLETED"
             self.completed.processing_owner_token = None
-            return self.completed
+            return self.completed, True
 
         async def get_by_id(self, traffic_id):
             return self.completed
