@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 ---
 
@@ -34,6 +34,37 @@
   work remains.
   The current PR2 branch implements SSE separately. Telegram, rate limiting,
   enforcement, portal behavior, and retraining belong in later PRs.
+
+### Real-time alert SSE PR state
+
+- PR #85 implementation and all five GitHub checks are green: backend,
+  frontend, postgres, auth-e2e, and secret-scan. Frontend lint, typecheck,
+  audit gate, Vitest, and production build also passed.
+- Local PR2 validation passed: backend **717 passed, 32 skipped**, frontend
+  **87 files / 498 Vitest tests**, the named SSE edge matrix passed **97 backend
+  tests and 31 frontend tests**, and disposable Chromium SSE E2E passed.
+- Manual technical WAF verification on 2026-07-19 passed four consecutive
+  `waf-8088 --require-backend-lookup` runs. Each passed healthz, API health,
+  SQLi block, audit transaction, backend lookup, and final summary. Markers:
+  `CYBERTRACE_SMOKE_20260719T160600_dbbf110dfbb14c3088b9fe34cc16c0a4`,
+  `CYBERTRACE_SMOKE_20260719T160811_dec1f89a858441d88f1561881993cd68`,
+  `CYBERTRACE_SMOKE_20260719T160849_b17bd52a0f1749a1a198c64ca1b210c0`,
+  and `CYBERTRACE_SMOKE_20260719T161013_1e6a73a29fb54694afc3524dde70c9e4`.
+- Manual browser verification passed: an open Alerts page received new
+  persisted alerts without refresh; the browser connected to the authenticated
+  hosted `/api/alerts/stream` endpoint with `text/event-stream`; offline/online
+  recovery reconnected EventSource, refetched canonical REST state, and showed
+  the missed alert without a page reload.
+- Hosted SSE delivery and browser reconnect were manually verified through
+  `https://app.cybertracesystems.com`. This proves the tested deployment path,
+  not every possible Cloudflare or proxy configuration.
+- Hosted source-correlation regression also passed from two independent phone
+  network paths: `112.201.129.141` and `111.90.241.210` remained distinct in
+  new `/records/search` alerts and did not collapse to `172.18.0.1`. This is
+  regression evidence only; hosted WAF verification remains `unverified`.
+- PR2 remains intentionally bounded: the broadcaster is single-process and
+  in-memory, there is no durable replay or `Last-Event-ID`, no multi-worker
+  fan-out, and no latency benchmark was performed.
 
 - PR #84 remediation is implemented through the single Alembic head
   `20260715_000021`:
@@ -141,7 +172,8 @@
   was committed, signaled through the authenticated SSE BFF, refetched, and
   rendered without another main-frame navigation request. Cleanup left **0**
   labeled containers, **0** labeled networks, and **0** backend temp directories.
-  Browser-native reconnect and named-tunnel/hosted proxy proof remain unverified.
+  Browser-native reconnect and named-domain hosted SSE proof were subsequently
+  verified manually on 2026-07-19.
 - Backend dependency integrity: `.venv\Scripts\python.exe -m pip check` → **pass**
 - Click vulnerability remediation: `click==8.3.3`; `.venv\Scripts\python.exe -m pip_audit -r requirements.txt` → **no known vulnerabilities**
 - Backend full suite with local worker flags disabled for SQLite tests: `.venv\Scripts\python.exe -m pytest -q` → **619 passed, 31 skipped**
@@ -325,9 +357,8 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Live Resend delivery is verified in the tested deployment; notification-worker failure/retry and required-worker health operations remain deferred testing.
 - Real-time SSE/EventSource dashboard alerting is implemented in code with
   focused backend/frontend automated coverage. Local disposable Chromium
-  no-refresh behavior is verified through the real FastAPI/PostgreSQL/Next.js
-  path. Browser-native reconnect and named Cloudflare Tunnel/proxy behavior are
-  still unverified. The current in-process
+  no-refresh behavior, browser-native reconnect, and the named hosted
+  deployment path are manually verified. The current in-process
   broadcaster does not provide multi-worker or multi-instance fan-out. Streams
   recycle after five minutes to re-run BFF account/RBAC checks; upstream BFF
   connection establishment has a ten-second deadline, rejects redirects and

@@ -3,7 +3,7 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 Status note:
 - Current PR #83 release status is maintained in `docs/project-ops/STATUS.md`.
@@ -18,6 +18,10 @@ Status note:
   documentation-only. The current `feat/real-time-alert-sse` PR2 branch is a
   distinct implementation slice. Telegram, rate limiting, enforcement, portal
   behavior, and retraining remain outside this PR.
+- PR #85 automated validation is green for backend, frontend, postgres,
+  auth-e2e, and secret-scan. Manual WAF repetition, no-refresh dashboard
+  updates, hosted SSE delivery, browser reconnect, and source-correlation
+  regression evidence are recorded in `docs/project-ops/STATUS.md`.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
 - Current PR validation: backend **703 passed, 32 skipped**; focused
@@ -154,10 +158,12 @@ Status note:
   transactions, model unavailable behavior, and queue overflow
 - [~] Minimal metrics use existing `/api/stats`, `/api/ml-health` queue health, and JSON bridge summary counts; no separate bridge/email metrics endpoint is implemented
 - [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
-- [~] Add real-time dashboard alerting for timely threat visibility: the
-  post-commit SSE/BFF/EventSource/TanStack Query path and focused tests are
-  implemented; disposable real-stack Chromium no-refresh proof passes, while
-  browser-native reconnect and named-tunnel/hosted proxy proof remain open
+- [x] Add real-time dashboard alerting for timely threat visibility: the
+  post-commit SSE/BFF/EventSource/TanStack Query path, focused tests,
+  disposable Chromium no-refresh proof, browser-native reconnect proof, and
+  named-domain hosted SSE proof all pass. Single-process fan-out, durable
+  replay, multi-worker distribution, and latency benchmarking remain out of
+  scope.
 - [ ] Add email notifications after detection using a transactional email provider/API
 - [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
 - [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
@@ -200,8 +206,8 @@ Status note:
 - [x] confidence tier is recorded
 - [x] dashboard alert is visible; replacement screenshot evidence exists in `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`, including `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15` in the `8089` alerts table
 - [x] action is recorded; real enforcement only if separately implemented
-- [~] SSE edge automation and disposable real-stack Chromium no-refresh proof
-  exist; browser-native reconnect and hosted proxy evidence remain open. Email
+- [x] SSE edge automation, disposable real-stack Chromium no-refresh proof,
+  browser-native reconnect, and named-domain hosted SSE evidence passed. Email
   evidence remains separate and pending.
 
 ## Abuse Smoke Expectations
@@ -216,9 +222,9 @@ Status note:
 - [x] failed/model-unavailable inference
 - [x] invalid triage update
 - [x] dashboard API access without session (existing BFF route tests)
-- [~] SSE backend bearer denial and BFF fail-closed permission behavior are
-  covered; disposable cleanup and no-reload behavior are covered, while live
-  disconnect/reconnect abuse proof remains open. Email follow-up remains separate.
+- [x] SSE backend bearer denial and BFF fail-closed permission behavior are
+  covered; disposable cleanup, no-reload behavior, and live disconnect/reconnect
+  recovery proof passed. Email follow-up remains separate.
 
 ---
 

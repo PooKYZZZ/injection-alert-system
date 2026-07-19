@@ -356,7 +356,7 @@ and auth behavior are unchanged.
 | Secure login with named user accounts | Implemented for the env-backed capstone foundation |
 | Admin/Analyst/Viewer RBAC | Server-side BFF enforcement implemented; alerts UI role affordances are implemented for viewers, analysts, and admins |
 | 2FA | Implemented and verified in the hosted authentication journey; availability remains controlled by server-side flags |
-| Timely push-style dashboard alerts | Implemented in code with local automated coverage; live no-refresh, reconnect, and hosted proof remain unverified |
+| Timely push-style dashboard alerts | Implemented and manually verified through the named hosted deployment; no-refresh and reconnect passed, while durable replay, multi-worker fan-out, and latency benchmarking remain out of scope |
 | Email notification after detection | Outbox/worker boundary implemented; live Resend delivery verified in the tested deployment |
 | `CRITICAL >=90%` confidence tier | Implemented |
 

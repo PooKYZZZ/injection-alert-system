@@ -583,6 +583,14 @@ If stat cards show `—`, the backend may not be responding. Check `docker compo
 
 ## Step 8a — Verify Real-Time Alerts Without Refresh
 
+Manual status as of 2026-07-19: PASS. The Alerts page received new persisted
+alerts without refresh, the hosted browser connected to
+`https://app.cybertracesystems.com/api/alerts/stream` with
+`Accept: text/event-stream`, and the offline/online catch-up test reconnected
+EventSource, refetched canonical REST state, and displayed the missed alert
+without a page reload. The procedure below remains the repeatable operator
+check.
+
 Keep `http://localhost:3000/alerts` open and do not reload the page. In another
 PowerShell window, create a fresh marker through the realistic WAF path:
 
@@ -606,11 +614,11 @@ Then test catch-up:
 4. Confirm native EventSource reconnects, `open` causes canonical alert/stats
    refetch, and the missed alert appears automatically.
 
-For hosted proof, repeat through the actual named Cloudflare Tunnel and confirm
-the browser-facing response retains `Content-Type: text/event-stream`. Do not
-use a `trycloudflare.com` Quick Tunnel as authoritative SSE proof. Never capture
-cookies, Authorization headers, API keys, passwords, TOTP secrets, recovery
-codes, or database credentials in evidence.
+For hosted proof, the named CyberTrace deployment has now passed this check.
+Do not generalize that result to every Cloudflare or proxy configuration, and do
+not use a `trycloudflare.com` Quick Tunnel as authoritative SSE proof. Never
+capture cookies, Authorization headers, API keys, passwords, TOTP secrets,
+recovery codes, or database credentials in evidence.
 
 ---
 

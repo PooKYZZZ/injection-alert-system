@@ -17,6 +17,10 @@ This repository is active in its current app-plus-BFF form and now has a verifie
   restart/recreate proof passed; hosted `VERIFIED` mode intentionally remains
   disabled pending final Cloudflare/origin trust checks. Later roadmap work is
   not part of this PR.
+- PR #85 SSE synchronization is implemented and manually verified for
+  no-refresh alerts, browser reconnect/catch-up, and the named hosted domain.
+  It remains single-process and in-memory with no durable replay, multi-worker
+  fan-out, or latency benchmark.
 - The dashboard BFF routes for alerts, alert detail, triage, stats, ML health, and the authenticated alert SSE stream are wired to FastAPI in non-mock mode
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist

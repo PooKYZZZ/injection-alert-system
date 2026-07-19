@@ -1,13 +1,13 @@
 # Local Setup
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
-This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service.
+This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service. PR2 SSE no-refresh and browser reconnect behavior are manually verified through the named hosted deployment; see `docs/project-ops/STATUS.md` for evidence and limitations.
 
 PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
 controlled proof, hosted source-correlation proof, and restart/recreate proof
-are complete. The separate PR2 SSE slice is implemented in code with local
-automated coverage; its live browser/reconnect proof remains open. Telegram,
+are complete. The separate PR2 SSE slice is implemented with automated and
+manual no-refresh, browser-reconnect, and named-domain hosted proof. Telegram,
 rate limiting, enforcement, portal behavior, and retraining remain separate
 future work. Hosted verification remains
 `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
