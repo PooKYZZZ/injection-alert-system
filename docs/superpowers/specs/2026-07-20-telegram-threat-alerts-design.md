@@ -23,9 +23,10 @@ model.
 
 The WAF ingest use case persists and commits the alert before notification
 orchestration runs. The presentation route then independently attempts the
-existing email enqueue and the new Telegram enqueue. An enqueue exception or an
-unavailable Telegram configuration is recorded safely and cannot change the
-successful detection response.
+existing email enqueue and the new Telegram enqueue, with a separate exception
+boundary around each attempt so one channel cannot prevent attempting the
+other. An enqueue exception or an unavailable Telegram configuration is
+recorded safely and cannot change the successful detection response.
 
 Telegram jobs use the existing outbox and worker. The worker continues to own
 claiming, leases, deadlines, bounded retry, completion, failure transitions,
@@ -57,8 +58,11 @@ active channel constraint from email-only to `email | telegram`, adds a database
 constraint that permits Telegram only for `threat_detected`, extends the
 claimable index to cover both channels, and introduces a versioned claim RPC
 that returns `channel`. Existing V6.1 functions remain available for migration
-compatibility. The downgrade safely restores the email-only contract and must
-not silently preserve incompatible Telegram rows.
+compatibility. The downgrade first rejects with an actionable error when any
+Telegram rows exist; an operator must explicitly remove only disposable/test
+Telegram rows or otherwise resolve them before retrying. It never silently
+deletes notification history or preserves rows that violate the restored
+email-only contract.
 
 `PendingNotification` and `OutboxJob` gain a typed channel field, defaulted or
 positioned compatibly for existing email producers. Repository enqueue writes
@@ -84,6 +88,8 @@ eligibility and configuration policy.
 The safe Telegram outbox payload contains only alert ID, timestamp, attack
 category, confidence tier, numeric confidence percentage, HTTP method,
 sanitized path without query or fragment, and an authenticated dashboard link.
+The link is constructed from the existing server-side `dashboard_base_url`
+setting, using the same canonical source as threat email links.
 It excludes source IP, headers, cookies, credentials, request/query bodies,
 raw model input, sessions, and WAF payloads. Telegram threat jobs expire after
 30 minutes; the dashboard remains the historical source of truth.
@@ -111,7 +117,8 @@ The existing email error remains compatible with it.
 
 - Connection establishment/pool failures and Telegram 5xx responses are
   retryable with the existing capped exponential backoff and jitter.
-- Telegram 429 is retryable and honors a valid bounded `retry_after` value.
+- Telegram 429 is retryable and honors an integer `retry_after` clamped to the
+  worker's existing 0-to-3,600-second retry-delay range.
 - 400, 401, 403, invalid destination/configuration, and malformed requests are
   permanent failures.
 - Read/write timeouts after delivery may have begun and malformed success
