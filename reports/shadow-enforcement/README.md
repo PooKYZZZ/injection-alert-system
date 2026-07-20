@@ -18,7 +18,9 @@ bodies, or unredacted audit-log lines.
 
 ## Evidence status
 
-No live Compose or hosted proof is claimed until the opt-in smoke and latency
-commands have been run with a disposable key. Add only summarized timestamps,
-transaction/recommendation IDs, tier/action, policy version, response status,
-and observed limitations after those commands complete.
+Sanitized local single-stack proof is recorded in `e2e-proof.md` and
+`local-compose-proof-2026-07-21.md`. It covers the final WAF/CRS-to-backend
+recommendation path, later shadow matching, fail-open behavior, credential and
+asset-boundary checks, and portal latency. Hosted or production enforcement is
+not claimed. Live expiration was not destructively forced; expiry semantics are
+covered by the automated use-case and repository tests.
