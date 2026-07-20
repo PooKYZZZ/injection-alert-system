@@ -31,6 +31,11 @@ class Settings(BaseSettings):
         "unverified",
         "cloudflare_tunnel",
     ] = "unverified"
+    enforcement_mode: Literal["off", "shadow"] = "off"
+    enforcement_check_api_key: str = ""
+    enforcement_recommendation_ttl_seconds: int = Field(
+        default=900, ge=60, le=86400
+    )
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000"]
@@ -95,6 +100,20 @@ class Settings(BaseSettings):
             raise ValueError(
                 "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
             )
+        if self.enforcement_mode == "shadow":
+            key = self.enforcement_check_api_key.strip()
+            if not key:
+                raise ValueError(
+                    "ENFORCEMENT_CHECK_API_KEY is required when enforcement mode is shadow"
+                )
+            if len(key) < 32:
+                raise ValueError(
+                    "ENFORCEMENT_CHECK_API_KEY must be at least 32 characters"
+                )
+            if key in {self.api_secret_key, self.waf_ingest_api_key}:
+                raise ValueError(
+                    "ENFORCEMENT_CHECK_API_KEY must differ from API_SECRET_KEY and WAF_INGEST_API_KEY"
+                )
         if self.is_production or self.is_staging:
             if not self.api_secret_key:
                 raise ValueError(

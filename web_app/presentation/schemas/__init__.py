@@ -28,6 +28,10 @@ from web_app.presentation.schemas.schemas import (
 from web_app.presentation.schemas.waf_ingest import (
     WafIngestRequest,
 )
+from web_app.presentation.schemas.enforcement import (
+    EnforcementCheckRequest,
+    EnforcementCheckResponse,
+)
 
 __all__ = [
     "ActivityBucketSchema",
@@ -51,4 +55,6 @@ __all__ = [
     "ActionUpdateRequest",
     "WafIngestLookupResponse",
     "WafIngestRequest",
+    "EnforcementCheckRequest",
+    "EnforcementCheckResponse",
 ]

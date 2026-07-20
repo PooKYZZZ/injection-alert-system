@@ -26,6 +26,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.application.alert_events import AlertEventBroadcaster
+from web_app.application.enforcement_use_cases import (
+    CheckShadowEnforcementUseCase,
+    RecordShadowRecommendationUseCase,
+)
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.application.inference_queue import (
     InferenceQueueFullError,
@@ -39,13 +43,18 @@ from web_app.application.triage_use_case import (
 )
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
+from web_app.domain.enforcement import EnforcementScope
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
+from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
+    EnforcementRecommendationRepository,
+)
 from web_app.observability.structured_logging import log_event
 from web_app.notifications.threats import enqueue_threat_notifications_safely
 from web_app.presentation.dependencies.auth import (
+    verify_enforcement_check_token,
     verify_internal_token,
     verify_waf_ingest_token,
 )
@@ -74,6 +83,8 @@ from web_app.presentation.schemas import (
     TriageUpdateRequest,
     WafIngestRequest,
     WafIngestLookupResponse,
+    EnforcementCheckRequest,
+    EnforcementCheckResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,6 +97,9 @@ waf_ingest_auth_dependency = Depends(verify_waf_ingest_token)
 router = APIRouter()
 internal_router = APIRouter(dependencies=[internal_auth_dependency])
 waf_ingest_router = APIRouter(dependencies=[waf_ingest_auth_dependency])
+enforcement_check_router = APIRouter(
+    dependencies=[Depends(verify_enforcement_check_token)]
+)
 
 
 def get_model_service(request: Request):
@@ -109,6 +123,12 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
 
     session_factory = getattr(db_module, "AsyncSessionLocal", None)
     return TrafficLogRepository(db, session_factory=session_factory)
+
+
+def get_enforcement_repository(
+    db: AsyncSession = Depends(get_db),
+) -> EnforcementRecommendationRepository:
+    return EnforcementRecommendationRepository(db)
 
 
 def _queue_log_fields(inference_queue: object) -> dict[str, object]:
@@ -137,6 +157,9 @@ async def predict(
     prediction_request: PredictionRequest,
     model_service=Depends(get_model_service),
     repository: TrafficLogRepository = Depends(get_repository),
+    enforcement_repository: EnforcementRecommendationRepository = Depends(
+        get_enforcement_repository
+    ),
 ):
     """Classify an HTTP request as normal or injection attack.
 
@@ -198,6 +221,11 @@ async def ingest_waf_event(
         enable_preprocessing=settings.enable_http_model_preprocessing,
         source_verification_mode=settings.waf_source_verification_mode,
         alert_event_publisher=get_alert_event_broadcaster(request),
+        recommendation_recorder=RecordShadowRecommendationUseCase(
+            repository=enforcement_repository,
+            mode=settings.enforcement_mode,
+            ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+        ),
     )
     queue_fields = _queue_log_fields(inference_queue)
     log_event(
@@ -613,6 +641,26 @@ async def update_alert_triage(
     return AlertDetailResponse.model_validate(result.alert)
 
 
+@enforcement_check_router.post(
+    "/internal/enforcement/check",
+    response_model=EnforcementCheckResponse,
+)
+async def check_shadow_enforcement(
+    payload: EnforcementCheckRequest,
+    repository: EnforcementRecommendationRepository = Depends(
+        get_enforcement_repository
+    ),
+):
+    result = await CheckShadowEnforcementUseCase(
+        repository=repository,
+        mode=get_settings().enforcement_mode,
+    ).execute(
+        source_ip=str(payload.source_ip),
+        scope=EnforcementScope(payload.scope),
+    )
+    return EnforcementCheckResponse(decision=result.decision)
+
+
 @internal_router.patch("/alerts/{alert_id}/action", response_model=AlertDetailResponse)
 async def update_alert_action(
     alert_id: int,
@@ -638,3 +686,4 @@ async def update_alert_action(
 
 router.include_router(internal_router)
 router.include_router(waf_ingest_router)
+router.include_router(enforcement_check_router)

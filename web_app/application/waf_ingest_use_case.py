@@ -30,6 +30,17 @@ from web_app.observability.structured_logging import log_event
 logger = logging.getLogger(__name__)
 
 
+class IShadowRecommendationRecorder:
+    async def execute(
+        self,
+        *,
+        alert_id: int | None,
+        prediction: str,
+        confidence_level: str,
+        request_path: str,
+    ) -> bool: ...
+
+
 class WafIngestUseCase:
     """Thin wrapper that converts WAF events into the existing triage flow."""
 
@@ -41,6 +52,7 @@ class WafIngestUseCase:
         enable_preprocessing: bool = True,
         source_verification_mode: VerificationMode = "unverified",
         alert_event_publisher: IAlertEventPublisher | None = None,
+        recommendation_recorder: IShadowRecommendationRecorder | None = None,
     ):
         self._triage = TriageUseCase(
             classifier=classifier,
@@ -50,6 +62,7 @@ class WafIngestUseCase:
             alert_event_publisher=alert_event_publisher,
         )
         self._source_verification_mode = source_verification_mode
+        self._recommendation_recorder = recommendation_recorder
 
     async def execute(
         self,
@@ -149,4 +162,22 @@ class WafIngestUseCase:
             ingest_fingerprint_sha256=ingest_fingerprint_sha256,
         )
 
-        return await self._triage.ingest(command)
+        result = await self._triage.ingest(command)
+        if self._recommendation_recorder is not None and result.alert_id is not None:
+            try:
+                await self._recommendation_recorder.execute(
+                    alert_id=result.alert_id,
+                    prediction=result.prediction,
+                    confidence_level=result.confidence_level,
+                    request_path=request_path,
+                )
+            except Exception as exc:  # shadow recording must not affect ingest
+                log_event(
+                    logger,
+                    "enforcement.shadow_recommendation_failed",
+                    "Shadow recommendation failed after triage; ingest result is unchanged",
+                    level="WARNING",
+                    transaction_id=transaction_id,
+                    error_type=type(exc).__name__,
+                )
+        return result
