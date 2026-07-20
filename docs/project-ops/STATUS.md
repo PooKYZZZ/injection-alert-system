@@ -53,13 +53,18 @@
 
 - Code is implemented locally through Alembic head `20260720_000023`: completed
   WAF triage can create one expiring recommendation for `/records/search`, and
-  the dedicated-key internal check returns `ALLOW` while logging match metadata.
+  the dedicated-key internal check returns `ALLOW` for completed evaluations,
+  returns `503` when lookup is unavailable, and logs match metadata.
 - The separate land-records portal calls that check server-side only from
   `/records/search`; it makes one bounded attempt and fails open. No browser
   bundle, middleware, or real block/throttle control is involved.
-- Focused PR4 tests are passing locally. Full backend, PostgreSQL concurrency,
-  Compose live proof, latency captures, and hosted enablement remain separate
-  verification items and are not claimed here.
+- Verification currently observed: backend `801 passed, 35 skipped`; disposable
+  PostgreSQL migration/concurrency `1 passed`; SQLite migration cycle `2 passed`;
+  Compose rendering passed; portal enforcement tests `8 passed`; portal
+  typecheck, lint, and production build passed. Backend lookup latency measured
+  locally over 100 authenticated requests at p50 `4.67 ms`, p95 `27.15 ms`,
+  p99 `30.09 ms`, max `30.83 ms`. A live browser-to-backend portal run and
+  hosted enablement are not claimed.
 
 ### Trusted source correlation PR state
 
