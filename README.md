@@ -40,6 +40,15 @@ server environment and never expose it through a `NEXT_PUBLIC_*` variable.
 
 ## 💾 Standard Setup & Run Guide
 
+### Shadow enforcement check
+
+The server-rendered `/records/search` page can perform one authenticated,
+shadow-only check against CyberTrace when `ENFORCEMENT_MODE=shadow`. The portal
+never sends this credential to the browser and always continues with its normal
+response when CyberTrace is unavailable, times out, rejects the request, or
+returns an invalid response. PR4 does not block, throttle, or deny portal
+requests.
+
 Follow these simple phases to build and run the target sandbox locally.
 
 ### 1. Install Node Dependencies
