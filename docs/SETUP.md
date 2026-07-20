@@ -268,6 +268,12 @@ Notes:
 Telegram is a secondary notification channel for persisted non-Normal `HIGH`
 and `CRITICAL` confidence-tier alerts. Configure server-only values:
 
+Notification links use the dashboard-neutral alert review contract
+`/alerts?alert_id=<id>`. The existing Alerts workspace validates the identifier,
+fetches detail through the authenticated Next.js BFF, and opens the existing
+drawer without implicitly changing triage state. Closing the drawer removes
+only `alert_id` while preserving other alert filters.
+
 ```dotenv
 THREAT_TELEGRAM_ENABLED=false
 TELEGRAM_BOT_TOKEN=

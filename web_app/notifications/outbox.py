@@ -168,7 +168,9 @@ def build_threat_notification(
             "confidence_tier": confidence_tier,
             "action_taken": action_taken,
             "route_path": safe_path,
-            "dashboard_url": f"{dashboard_base_url.rstrip('/')}/alerts/{alert_id}",
+            "dashboard_url": (
+                f"{dashboard_base_url.rstrip('/')}/alerts?alert_id={alert_id}"
+            ),
         },
         template_version=1,
         dedupe_key=key,
@@ -207,7 +209,9 @@ def build_telegram_threat_notification(
             "confidence": confidence,
             "request_method": safe_method,
             "route_path": safe_path,
-            "dashboard_url": f"{dashboard_base_url.rstrip('/')}/alerts/{alert_id}",
+            "dashboard_url": (
+                f"{dashboard_base_url.rstrip('/')}/alerts?alert_id={alert_id}"
+            ),
         },
         template_version=1,
         dedupe_key=key,

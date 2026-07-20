@@ -106,6 +106,9 @@ def test_build_threat_notification_excludes_query_and_raw_request_data() -> None
     )
 
     assert notification.safe_payload["route_path"] == "/records/search"
+    assert notification.safe_payload["dashboard_url"] == (
+        "https://dashboard.example.test/alerts?alert_id=42"
+    )
     assert "query_string" not in notification.safe_payload
     assert "raw" not in notification.safe_payload
     assert notification.dedupe_key == "threat/42"
@@ -137,7 +140,7 @@ def test_build_telegram_threat_notification_is_channel_specific_and_short_lived(
         "confidence": 0.961,
         "request_method": "POST",
         "route_path": "/records/search",
-        "dashboard_url": "https://dashboard.example.test/alerts/42",
+        "dashboard_url": "https://dashboard.example.test/alerts?alert_id=42",
     }
     assert notification.dedupe_key == "threat/42/telegram"
     assert notification.provider_idempotency_key == "threat/42/telegram"
