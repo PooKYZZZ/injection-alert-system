@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 BASE_TEST_OVERRIDE = "docker-compose.test.yml"
@@ -92,6 +91,27 @@ def test_default_compose_excludes_opt_in_technical_waf_pair() -> None:
     config = _base_config_without_profile()
     assert set(config["services"]) == {"backend", "frontend"}
     assert all("env_file" not in service for service in config["services"].values())
+    assert config["services"]["backend"]["environment"]["ENFORCEMENT_MODE"] == "off"
+    assert "ENFORCEMENT_CHECK_API_KEY" in config["services"]["backend"]["environment"]
+    assert "ENFORCEMENT_CHECK_URL" not in config["services"]["frontend"]["environment"]
+    assert (
+        "ENFORCEMENT_CHECK_API_KEY"
+        not in config["services"]["frontend"]["environment"]
+    )
+
+
+def test_demo_portal_receives_internal_shadow_check_wiring() -> None:
+    config = _compose_config(
+        "docker-compose.yml", "docker-compose.demo-target.yml", profile="demo-target"
+    )
+    portal = config["services"]["demo-portal"]
+    assert portal["environment"]["ENFORCEMENT_CHECK_URL"] == (
+        "http://backend:8000/api/internal/enforcement/check"
+    )
+    assert portal["environment"]["ENFORCEMENT_MODE"] == "off"
+    assert "ENFORCEMENT_CHECK_API_KEY" in portal["environment"]
+    assert "ENFORCEMENT_CHECK_TIMEOUT_MS" in portal["environment"]
+    assert "ports" not in portal
 
 
 def test_technical_profile_contains_the_existing_8088_pair() -> None:

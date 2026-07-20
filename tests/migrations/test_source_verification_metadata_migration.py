@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 
 ROOT = Path(__file__).parents[2]
 PARENT_REVISION = "20260712_000020"
-HEAD_REVISION = "20260720_000022"
+HEAD_REVISION = "20260720_000023"
 
 
 def _alembic_config() -> Config:

@@ -26,6 +26,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.application.alert_events import AlertEventBroadcaster
+from web_app.application.enforcement_use_cases import (
+    CheckShadowEnforcementUseCase,
+    RecordShadowRecommendationUseCase,
+)
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.application.inference_queue import (
     InferenceQueueFullError,
@@ -33,36 +37,43 @@ from web_app.application.inference_queue import (
 )
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
-    TriageMetadataConflictError,
     TriageInProgressError,
+    TriageMetadataConflictError,
     TriageUseCase,
+)
+from web_app.application.update_alert_action_use_case import (
+    InvalidAlertActionError,
+    UpdateAlertActionUseCase,
+)
+from web_app.application.update_alert_triage_use_case import (
+    InvalidTriageStatusError,
+    UpdateAlertTriageUseCase,
 )
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
+from web_app.domain.enforcement import EnforcementScope
 from web_app.infrastructure.database import get_db
+from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
+    EnforcementRecommendationRepository,
+)
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
-from web_app.observability.structured_logging import log_event
 from web_app.notifications.threats import enqueue_threat_notifications_safely
+from web_app.observability.structured_logging import log_event
 from web_app.presentation.dependencies.auth import (
+    verify_enforcement_check_token,
     verify_internal_token,
     verify_waf_ingest_token,
 )
-from web_app.application.update_alert_triage_use_case import (
-    UpdateAlertTriageUseCase,
-    InvalidTriageStatusError,
-)
-from web_app.application.update_alert_action_use_case import (
-    UpdateAlertActionUseCase,
-    InvalidAlertActionError,
-)
 from web_app.presentation.schemas import (
-    ActivityBucketSchema,
     ActionUpdateRequest,
+    ActivityBucketSchema,
     AlertDetailResponse,
     AlertListResponse,
     AlertQueryParams,
+    EnforcementCheckRequest,
+    EnforcementCheckResponse,
     FeedbackRequest,
     MLHealthResponse,
     PredictionRequest,
@@ -72,8 +83,8 @@ from web_app.presentation.schemas import (
     TargetPathSummarySchema,
     TriageIngestResponse,
     TriageUpdateRequest,
-    WafIngestRequest,
     WafIngestLookupResponse,
+    WafIngestRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,6 +97,9 @@ waf_ingest_auth_dependency = Depends(verify_waf_ingest_token)
 router = APIRouter()
 internal_router = APIRouter(dependencies=[internal_auth_dependency])
 waf_ingest_router = APIRouter(dependencies=[waf_ingest_auth_dependency])
+enforcement_check_router = APIRouter(
+    dependencies=[Depends(verify_enforcement_check_token)]
+)
 
 
 def get_model_service(request: Request):
@@ -109,6 +123,12 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
 
     session_factory = getattr(db_module, "AsyncSessionLocal", None)
     return TrafficLogRepository(db, session_factory=session_factory)
+
+
+def get_enforcement_repository(
+    db: AsyncSession = Depends(get_db),
+) -> EnforcementRecommendationRepository:
+    return EnforcementRecommendationRepository(db)
 
 
 def _queue_log_fields(inference_queue: object) -> dict[str, object]:
@@ -189,6 +209,9 @@ async def ingest_waf_event(
     model_service=Depends(get_model_service),
     inference_queue: InferenceQueueService = Depends(get_inference_queue),
     repository: TrafficLogRepository = Depends(get_repository),
+    enforcement_repository: EnforcementRecommendationRepository = Depends(
+        get_enforcement_repository
+    ),
 ):
     settings = get_settings()
     use_case = WafIngestUseCase(
@@ -286,6 +309,30 @@ async def ingest_waf_event(
             detail=str(exc),
             headers={"Retry-After": "5"},
         ) from exc
+
+    if result.alert_id is not None:
+        try:
+            await RecordShadowRecommendationUseCase(
+                repository=enforcement_repository,
+                mode=settings.enforcement_mode,
+                ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+            ).execute(
+                alert_id=result.alert_id,
+                prediction=result.prediction,
+                confidence_level=result.confidence_level,
+                request_path=payload.request_path,
+                occurred_at=result.occurred_at,
+            )
+        except Exception as exc:  # shadow recording must not affect ingest
+            log_event(
+                logger,
+                "enforcement.shadow_recommendation_failed",
+                "Shadow recommendation failed after triage; ingest result is unchanged",
+                level="WARNING",
+                transaction_id=payload.transaction_id,
+                alert_id=result.alert_id,
+                error_type=type(exc).__name__,
+            )
 
     log_event(
         logger,
@@ -391,7 +438,8 @@ async def get_stats(
         window=window,
         reference_time=reference_time,
     )
-    # Get real activity buckets from database for hero activity strip (graceful degradation)
+    # Get real activity buckets from database for hero activity strip
+    # (graceful degradation)
     activity_buckets_list = []
     try:
         activity_buckets = await repository.get_activity_buckets(
@@ -613,6 +661,31 @@ async def update_alert_triage(
     return AlertDetailResponse.model_validate(result.alert)
 
 
+@enforcement_check_router.post(
+    "/internal/enforcement/check",
+    response_model=EnforcementCheckResponse,
+)
+async def check_shadow_enforcement(
+    payload: EnforcementCheckRequest,
+    repository: EnforcementRecommendationRepository = Depends(
+        get_enforcement_repository
+    ),
+):
+    result = await CheckShadowEnforcementUseCase(
+        repository=repository,
+        mode=get_settings().enforcement_mode,
+    ).execute(
+        source_ip=str(payload.source_ip),
+        scope=EnforcementScope(payload.scope),
+    )
+    if result.degraded:
+        raise HTTPException(
+            status_code=503,
+            detail="Shadow enforcement lookup unavailable",
+        )
+    return EnforcementCheckResponse(decision=result.decision)
+
+
 @internal_router.patch("/alerts/{alert_id}/action", response_model=AlertDetailResponse)
 async def update_alert_action(
     alert_id: int,
@@ -638,3 +711,4 @@ async def update_alert_action(
 
 router.include_router(internal_router)
 router.include_router(waf_ingest_router)
+router.include_router(enforcement_check_router)

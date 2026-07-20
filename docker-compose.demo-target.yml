@@ -12,6 +12,10 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: 3010
       DATABASE_URL: file:./dev.db
+      ENFORCEMENT_MODE: ${ENFORCEMENT_MODE:-off}
+      ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
+      ENFORCEMENT_CHECK_TIMEOUT_MS: ${ENFORCEMENT_CHECK_TIMEOUT_MS:-250}
     volumes:
       - ${DEMO_PORTAL_CONTEXT:-../../land-records-portal}/prisma:/app/prisma
     healthcheck:
@@ -57,9 +61,6 @@ services:
       dockerfile: Dockerfile.bridge
     profiles:
       - demo-target
-    env_file:
-      - path: .env
-        required: true
     environment:
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
       WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}

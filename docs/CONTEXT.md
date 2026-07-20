@@ -187,7 +187,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 ## Not Yet Implemented
 
 - Production-grade ModSecurity-fronted deployment
-- Redis-backed enforcement and review queue behavior; use only if shared runtime state is required
+- Redis-backed enforcement and review queue behavior; use only if shared runtime state is required. PR4 now has a bounded, database-backed shadow recommendation path without Redis.
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 - Notification-worker failure/retry operational testing, MFA flag-semantics audit, Auth.js upgrade, and passkeys/WebAuthn
 - Wazuh export-only integration
@@ -198,7 +198,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - The repo already has more backend startup work and frontend structure than older docs suggested.
 - The repo has a verified local WAF ingest proof. It is not a production-grade WAF deployment.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
-- `BLOCKED`, `THROTTLED`, and `ALLOWED` are currently recorded action values, not proof of live request-path enforcement.
+- `action_taken` remains the existing alert metadata (`BLOCKED`, `THROTTLED`, or `ALLOWED`). PR4 `recommended_action` is a versioned, expiring future intent; `actual_decision` is always `ALLOW` and is not proof of live block/throttle enforcement.
 - Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
 - Frontend policy displays keep prediction, confidence tier, and `action_taken` separate: confidence tier alone does not imply an action, and `CRITICAL` is never an `action_taken` value.
 - Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

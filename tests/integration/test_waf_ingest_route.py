@@ -16,7 +16,11 @@ from web_app.application.waf_event_fingerprint import build_waf_event_fingerprin
 from web_app.application.waf_event_sanitizer import sanitize_waf_event
 from web_app.domain.source_address import SourceProvenance
 import web_app.presentation.api.routes as routes_module
-from web_app.presentation.api.routes import get_inference_queue, get_model_service
+from web_app.presentation.api.routes import (
+    get_enforcement_repository,
+    get_inference_queue,
+    get_model_service,
+)
 from web_app.presentation.app import create_app
 from scripts.modsecurity_replay_harness import (
     build_waf_ingest_payload,
@@ -184,6 +188,56 @@ def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
     assert request_completed["route"] == "/api/internal/waf-events"
     assert "test-secret-key" not in caplog.text
     assert "' OR 1=1 --" not in caplog.text
+
+
+def test_shadow_persistence_starts_after_inference_queue_releases_worker(
+    waf_api_client,
+    monkeypatch,
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    monkeypatch.setenv("ENFORCEMENT_MODE", "shadow")
+    monkeypatch.setenv(
+        "ENFORCEMENT_CHECK_API_KEY", "test-enforcement-key-at-least-32-characters"
+    )
+    from web_app.config import get_settings
+
+    get_settings.cache_clear()
+    events: list[str] = []
+
+    class TrackingQueue:
+        def health(self):
+            return {"depth": 0}
+
+        async def submit(self, coro_factory):
+            events.append("queue_started")
+            result = await coro_factory()
+            events.append("queue_released")
+            return result
+
+    class TrackingEnforcementRepository:
+        async def insert_if_absent(self, recommendation):
+            events.append("shadow_persistence")
+            return True
+
+    client.app.dependency_overrides[get_inference_queue] = lambda: TrackingQueue()
+    client.app.dependency_overrides[get_enforcement_repository] = (
+        lambda: TrackingEnforcementRepository()
+    )
+
+    payload = _waf_payload()
+    payload["timestamp"] = datetime.now(timezone.utc).isoformat()
+    payload["request_path"] = "/records/search"
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert events == ["queue_started", "queue_released", "shadow_persistence"]
 
 
 def test_waf_ingest_queue_full_returns_503_with_retry_after(

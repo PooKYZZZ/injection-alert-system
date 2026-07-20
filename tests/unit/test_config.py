@@ -336,3 +336,57 @@ def test_enabled_worker_requires_a_valid_payload_encryption_key(key):
             notification_worker_enabled=True,
             notification_payload_encryption_key=key,
         )
+
+
+def test_shadow_enforcement_defaults_to_off() -> None:
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+    )
+
+    assert settings.enforcement_mode == "off"
+    assert settings.enforcement_check_api_key == ""
+    assert settings.enforcement_recommendation_ttl_seconds == 900
+
+
+def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+        api_secret_key="general-key",
+        waf_ingest_api_key="waf-key",
+        enforcement_mode="shadow",
+        enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+    )
+
+    assert settings.enforcement_mode == "shadow"
+    assert settings.enforcement_recommendation_ttl_seconds == 900
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"enforcement_mode": "enforce"},
+        {"enforcement_mode": "shadow", "enforcement_check_api_key": ""},
+        {
+            "enforcement_mode": "shadow",
+            "enforcement_check_api_key": "short",
+        },
+        {
+            "enforcement_mode": "shadow",
+            "api_secret_key": "shared-key-that-is-long-enough-123456",
+            "enforcement_check_api_key": "shared-key-that-is-long-enough-123456",
+        },
+        {"enforcement_recommendation_ttl_seconds": 59},
+    ],
+)
+def test_enforcement_configuration_rejects_unsafe_values(kwargs) -> None:
+    with pytest.raises((ValueError, ValidationError)):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            **kwargs,
+        )

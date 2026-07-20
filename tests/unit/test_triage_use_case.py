@@ -9,17 +9,17 @@ verifying that the use case correctly:
 
 import asyncio
 from datetime import datetime, timezone
-from urllib.parse import parse_qsl
 from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import parse_qsl
 
 import pytest
 
 from web_app.application import triage_use_case as triage_use_case_module
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
-    TriageMetadataConflictError,
     TriageIngestCommand,
     TriageInProgressError,
+    TriageMetadataConflictError,
     TriageResult,
     TriageUseCase,
 )
@@ -267,6 +267,7 @@ async def test_triage_offloads_sync_predict_via_threadpool(
         confidence_level="LOW",
         action_taken="ALLOWED",
         model_version="test-model-v1",
+        occurred_at=None,
     )
 
 

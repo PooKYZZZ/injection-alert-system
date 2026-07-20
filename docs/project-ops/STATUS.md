@@ -49,6 +49,36 @@
   `20260720_000022 (head)` all passed. The full suite skips PostgreSQL unless an
   explicit disposable URL is supplied, so these evidence classes remain separate.
 
+### PR4 shadow enforcement state
+
+- Code is implemented locally through Alembic head `20260720_000023`: completed
+  WAF triage can create one expiring recommendation for `/records/search`.
+  Recommendation persistence runs after the single inference queue releases its
+  worker, and expiry is anchored to the authoritative WAF event timestamp so a
+  late replay cannot resurrect stale state. The dedicated-key internal check
+  returns `ALLOW` for completed evaluations,
+  returns `503` when lookup is unavailable, and logs match metadata.
+- The separate land-records portal calls that check server-side only from
+  `/records/search`; it makes one bounded attempt and fails open. No browser
+  bundle, middleware, or real block/throttle control is involved.
+- Final tested source pair: CyberTrace
+  `7587bdf24df58adf534328ff468520bb9932cfef`, land-records-portal PR89
+  `8e8dabc725d1ea0d171210296f2bfe4569e995ab`. The portal Docker runtime files
+  are committed in PR89; no uncommitted source is required for the tested image.
+  Focused backend PR4 validation passed `52` tests with `1` PostgreSQL test
+  skipped; portal enforcement tests, typecheck, lint, and production build
+  passed. The final single-stack WAF smoke and a backend-unavailable fail-open
+  smoke both passed, and `/records/search` was sanity-checked in the in-app
+  browser.
+- Final portal-path latency was material: shadow healthy p50 `320.0 ms` versus
+  enforcement-off p50 `20.3 ms`; the portal-container-to-backend check alone
+  measured p50 `297.1 ms`. The earlier p50 `4.67 ms` backend-only result came
+  from a different measurement/runtime and is not comparable. Shadow mode does
+  not change allow/block outcomes, but it introduces synchronous latency while
+  enabled. Hosted shadow enablement remains deferred pending target-topology
+  measurement and timeout selection; live expiration was not destructively
+  forced because active recommendations were preserved.
+
 ### Trusted source correlation PR state
 
 - PR #84 implementation is frozen at baseline

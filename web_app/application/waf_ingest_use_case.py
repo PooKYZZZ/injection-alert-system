@@ -4,8 +4,8 @@ WAF Ingest Use Case — bridges validated WAF events to the existing triage flow
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
+from datetime import datetime
 
 from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.source_verification import (
@@ -18,8 +18,8 @@ from web_app.application.triage_use_case import (
     TriageResult,
     TriageUseCase,
 )
-from web_app.application.waf_event_sanitizer import sanitize_waf_event
 from web_app.application.waf_event_fingerprint import build_waf_event_fingerprint
+from web_app.application.waf_event_sanitizer import sanitize_waf_event
 from web_app.domain.interfaces import ITrafficLogRepository
 from web_app.domain.source_address import (
     SourceProvenance,

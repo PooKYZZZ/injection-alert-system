@@ -6,7 +6,9 @@ from sqlalchemy import (
     Column,
     DateTime,
     Float,
+    ForeignKey,
     Integer,
+    Index,
     JSON,
     MetaData,
     String,
@@ -158,6 +160,62 @@ class TrafficLog(Base):
     labeled_at = Column(DateTime(timezone=True), nullable=True)
     labeled_by = Column(String(100), nullable=True)
     triage_status = Column(String(32), nullable=True)
+
+
+class EnforcementRecommendationRow(Base):
+    """Durable, shadow-only policy intent linked to one completed alert."""
+
+    __tablename__ = "enforcement_recommendations"
+    __table_args__ = (
+        CheckConstraint(
+            "scope = 'RECORD_SEARCH'",
+            name="enforcement_recommendations_scope_allowed",
+        ),
+        CheckConstraint(
+            "enforcement_tier IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')",
+            name="enforcement_recommendations_tier_allowed",
+        ),
+        CheckConstraint(
+            "recommended_action IN ('MONITOR', 'THROTTLE', 'APPLICATION_BLOCK', 'WAF_BLOCK')",
+            name="enforcement_recommendations_action_allowed",
+        ),
+        CheckConstraint(
+            "enforcement_mode = 'SHADOW'",
+            name="enforcement_recommendations_mode_allowed",
+        ),
+        CheckConstraint(
+            "length(policy_version) BETWEEN 1 AND 64",
+            name="enforcement_recommendations_policy_version_length",
+        ),
+        CheckConstraint(
+            "expires_at > created_at",
+            name="enforcement_recommendations_expiry_after_creation",
+        ),
+        Index(
+            "ix_enforcement_recommendations_scope_expires_at",
+            "scope",
+            "expires_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    trigger_traffic_log_id = Column(
+        Integer,
+        ForeignKey("traffic_logs.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    scope = Column(String(32), nullable=False)
+    enforcement_tier = Column(String(10), nullable=False)
+    recommended_action = Column(String(32), nullable=False)
+    enforcement_mode = Column(
+        String(16), nullable=False, server_default="SHADOW"
+    )
+    policy_version = Column(String(64), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
 async def init_db():

@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from web_app.application.triage_use_case import ModelNotReadyError
 import web_app.application.waf_ingest_use_case as waf_ingest_use_case_module
+from web_app.application.triage_use_case import ModelNotReadyError
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.domain.source_address import (
     SourceProvenance,

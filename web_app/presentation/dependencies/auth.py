@@ -84,3 +84,16 @@ async def verify_waf_ingest_token(
 
     if not secrets.compare_digest(credentials.credentials, key):
         raise _UNAUTHORIZED
+
+
+async def verify_enforcement_check_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> None:
+    """Verify the dedicated server-to-server enforcement check credential."""
+    key = get_settings().enforcement_check_api_key
+    if not key:
+        raise _UNAUTHORIZED
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise _UNAUTHORIZED
+    if not secrets.compare_digest(credentials.credentials, key):
+        raise _UNAUTHORIZED

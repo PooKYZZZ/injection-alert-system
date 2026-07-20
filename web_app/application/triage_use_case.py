@@ -13,9 +13,9 @@ Dependency rule:
   - Does NOT import from infrastructure/ or presentation/
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import logging
 from typing import Protocol
 from uuid import uuid4
 
@@ -35,7 +35,6 @@ from web_app.domain.source_address import (
     canonicalize_source_ip,
 )
 from web_app.observability.structured_logging import log_event
-
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +83,7 @@ class TriageResult:
     confidence_level: str
     action_taken: str
     model_version: str | None
+    occurred_at: datetime | None
 
     @property
     def class_label(self) -> str:
@@ -402,4 +402,5 @@ class TriageUseCase:
             confidence_level=entity.confidence_level or "LOW",
             action_taken=entity.action_taken or "ALLOWED",
             model_version=entity.model_version,
+            occurred_at=entity.timestamp,
         )
