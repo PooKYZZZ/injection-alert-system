@@ -68,7 +68,8 @@
   typecheck, lint, and production build passed. Backend lookup latency measured
   locally over 100 authenticated requests at p50 `4.67 ms`, p95 `27.15 ms`,
   p99 `30.09 ms`, max `30.83 ms`. A live browser-to-backend portal run and
-  hosted enablement are not claimed.
+  hosted enablement are not claimed. Validated implementation pairing for this
+  remediation: CyberTrace `c126d3a`, land-records-portal `3d05a92`.
 
 ### Trusted source correlation PR state
 
