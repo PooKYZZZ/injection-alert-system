@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from web_app.domain.enforcement import (
     EffectiveRecommendation,
@@ -24,6 +24,7 @@ class ShadowCheckResult:
     decision: str = "ALLOW"
     matched: bool = False
     recommendation: EffectiveRecommendation | None = None
+    degraded: bool = False
 
 
 class RecordShadowRecommendationUseCase:
@@ -136,7 +137,7 @@ class CheckShadowEnforcementUseCase:
                 scope=scope.value,
                 error_type=type(exc).__name__,
             )
-            return ShadowCheckResult()
+            return ShadowCheckResult(degraded=True)
 
         if recommendation is None:
             log_event(

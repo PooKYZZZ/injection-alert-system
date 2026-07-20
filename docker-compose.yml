@@ -61,8 +61,6 @@ services:
         required: false
     environment:
       FASTAPI_BASE_URL: http://backend:8000
-      ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
-      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
     depends_on:
       - backend
 

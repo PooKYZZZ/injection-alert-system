@@ -141,3 +141,4 @@ async def test_check_shadow_enforcement_invalid_ip_or_failure_allows():
     ).execute(source_ip="192.0.2.10", scope=EnforcementScope.RECORD_SEARCH)
     assert result.decision == "ALLOW"
     assert result.matched is False
+    assert result.degraded is True

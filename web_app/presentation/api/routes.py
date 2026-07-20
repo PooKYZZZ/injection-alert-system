@@ -37,41 +37,43 @@ from web_app.application.inference_queue import (
 )
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
-    TriageMetadataConflictError,
     TriageInProgressError,
+    TriageMetadataConflictError,
     TriageUseCase,
+)
+from web_app.application.update_alert_action_use_case import (
+    InvalidAlertActionError,
+    UpdateAlertActionUseCase,
+)
+from web_app.application.update_alert_triage_use_case import (
+    InvalidTriageStatusError,
+    UpdateAlertTriageUseCase,
 )
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.enforcement import EnforcementScope
 from web_app.infrastructure.database import get_db
-from web_app.infrastructure.repositories.traffic_log_repository import (
-    TrafficLogRepository,
-)
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
     EnforcementRecommendationRepository,
 )
-from web_app.observability.structured_logging import log_event
+from web_app.infrastructure.repositories.traffic_log_repository import (
+    TrafficLogRepository,
+)
 from web_app.notifications.threats import enqueue_threat_notifications_safely
+from web_app.observability.structured_logging import log_event
 from web_app.presentation.dependencies.auth import (
     verify_enforcement_check_token,
     verify_internal_token,
     verify_waf_ingest_token,
 )
-from web_app.application.update_alert_triage_use_case import (
-    UpdateAlertTriageUseCase,
-    InvalidTriageStatusError,
-)
-from web_app.application.update_alert_action_use_case import (
-    UpdateAlertActionUseCase,
-    InvalidAlertActionError,
-)
 from web_app.presentation.schemas import (
-    ActivityBucketSchema,
     ActionUpdateRequest,
+    ActivityBucketSchema,
     AlertDetailResponse,
     AlertListResponse,
     AlertQueryParams,
+    EnforcementCheckRequest,
+    EnforcementCheckResponse,
     FeedbackRequest,
     MLHealthResponse,
     PredictionRequest,
@@ -81,10 +83,8 @@ from web_app.presentation.schemas import (
     TargetPathSummarySchema,
     TriageIngestResponse,
     TriageUpdateRequest,
-    WafIngestRequest,
     WafIngestLookupResponse,
-    EnforcementCheckRequest,
-    EnforcementCheckResponse,
+    WafIngestRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -419,7 +419,8 @@ async def get_stats(
         window=window,
         reference_time=reference_time,
     )
-    # Get real activity buckets from database for hero activity strip (graceful degradation)
+    # Get real activity buckets from database for hero activity strip
+    # (graceful degradation)
     activity_buckets_list = []
     try:
         activity_buckets = await repository.get_activity_buckets(
@@ -658,6 +659,11 @@ async def check_shadow_enforcement(
         source_ip=str(payload.source_ip),
         scope=EnforcementScope(payload.scope),
     )
+    if result.degraded:
+        raise HTTPException(
+            status_code=503,
+            detail="Shadow enforcement lookup unavailable",
+        )
     return EnforcementCheckResponse(decision=result.decision)
 
 

@@ -92,8 +92,10 @@ third, independently generated `ENFORCEMENT_CHECK_API_KEY` (at least 32
 characters and different from both existing backend keys). The backend records
 only expiring recommendations for `/records/search`; the dedicated
 `POST /api/internal/enforcement/check` endpoint and the separate portal
-server-side client always fail open and return `{"decision":"ALLOW"}`. This
-does not block, throttle, challenge, or otherwise change a request.
+server-side client always fails open locally. A healthy backend evaluation
+returns `{"decision":"ALLOW"}`; a backend lookup failure returns `503`, which
+the portal treats as local `ALLOW`. This does not block, throttle, challenge,
+or otherwise change a request.
 
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:
