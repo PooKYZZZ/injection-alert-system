@@ -1,9 +1,5 @@
 import { isIP } from "node:net";
 
-const DEFAULT_ENDPOINT =
-  "http://backend:8000/api/internal/enforcement/check";
-const DEFAULT_TIMEOUT_MS = 250;
-
 export type ShadowEnforcementConfig = {
   mode: "off" | "shadow";
   endpoint: string;
@@ -11,10 +7,18 @@ export type ShadowEnforcementConfig = {
   timeoutMs: number;
 };
 
-export type ShadowCheckResult = {
-  decision: "ALLOW";
-  status: "skipped" | "checked" | "degraded";
-};
+export type ShadowCheckResult =
+  | { decision: "ALLOW"; status: "skipped"; reason: "MODE_OFF" | "NO_SOURCE_IP" }
+  | { decision: "ALLOW"; status: "checked" }
+  | {
+      decision: "ALLOW";
+      status: "degraded";
+      reason:
+        | "CONFIG_INVALID"
+        | "HTTP_ERROR"
+        | "TIMEOUT_OR_NETWORK"
+        | "INVALID_RESPONSE";
+    };
 
 type FetchLike = (
   input: RequestInfo | URL,
@@ -52,20 +56,6 @@ function exactAllowResponse(value: unknown): value is { decision: "ALLOW" } {
   );
 }
 
-function runtimeConfig(): ShadowEnforcementConfig {
-  const rawTimeout = Number(process.env.ENFORCEMENT_CHECK_TIMEOUT_MS);
-  return {
-    mode: process.env.ENFORCEMENT_MODE === "shadow" ? "shadow" : "off",
-    endpoint:
-      process.env.ENFORCEMENT_CHECK_URL?.trim() || DEFAULT_ENDPOINT,
-    apiKey: process.env.ENFORCEMENT_CHECK_API_KEY?.trim() || "",
-    timeoutMs:
-      Number.isFinite(rawTimeout) && rawTimeout > 0
-        ? rawTimeout
-        : DEFAULT_TIMEOUT_MS,
-  };
-}
-
 export async function checkRecordSearchShadowEnforcement({
   requestHeaders,
   config,
@@ -75,12 +65,17 @@ export async function checkRecordSearchShadowEnforcement({
   config: ShadowEnforcementConfig;
   fetchImpl?: FetchLike;
 }): Promise<ShadowCheckResult> {
-  if (config.mode !== "shadow" || !config.apiKey) {
-    return { decision: "ALLOW", status: "skipped" };
+  if (config.mode !== "shadow") {
+    return { decision: "ALLOW", status: "skipped", reason: "MODE_OFF" };
   }
 
   const sourceIp = requestSourceIp(requestHeaders);
-  if (!sourceIp) return { decision: "ALLOW", status: "skipped" };
+  if (!config.apiKey || !config.endpoint || config.timeoutMs <= 0) {
+    return { decision: "ALLOW", status: "degraded", reason: "CONFIG_INVALID" };
+  }
+  if (!sourceIp) {
+    return { decision: "ALLOW", status: "skipped", reason: "NO_SOURCE_IP" };
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -95,28 +90,34 @@ export async function checkRecordSearchShadowEnforcement({
       cache: "no-store",
       signal: controller.signal,
     });
-    if (!response.ok) return { decision: "ALLOW", status: "degraded" };
+    if (!response.ok) {
+      return { decision: "ALLOW", status: "degraded", reason: "HTTP_ERROR" };
+    }
 
     let body: unknown;
     try {
       body = await response.json();
     } catch {
-      return { decision: "ALLOW", status: "degraded" };
+      return {
+        decision: "ALLOW",
+        status: "degraded",
+        reason: "INVALID_RESPONSE",
+      };
     }
     return exactAllowResponse(body)
       ? { decision: "ALLOW", status: "checked" }
-      : { decision: "ALLOW", status: "degraded" };
+      : {
+          decision: "ALLOW",
+          status: "degraded",
+          reason: "INVALID_RESPONSE",
+        };
   } catch {
-    return { decision: "ALLOW", status: "degraded" };
+    return {
+      decision: "ALLOW",
+      status: "degraded",
+      reason: "TIMEOUT_OR_NETWORK",
+    };
   } finally {
     clearTimeout(timeout);
   }
-}
-
-export async function checkRecordSearchShadowEnforcementFromRuntime(): Promise<ShadowCheckResult> {
-  const { headers } = await import("next/headers");
-  return checkRecordSearchShadowEnforcement({
-    requestHeaders: await headers(),
-    config: runtimeConfig(),
-  });
 }

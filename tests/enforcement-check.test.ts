@@ -50,7 +50,11 @@ test("skips the check when shadow mode is off", async () => {
     },
   });
 
-  assert.deepEqual(result, { decision: "ALLOW", status: "skipped" });
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "skipped",
+    reason: "MODE_OFF",
+  });
   assert.equal(calls, 0);
 });
 
@@ -72,7 +76,11 @@ test("fails open when the backend returns 503", async () => {
     fetchImpl: async () => new Response("unavailable", { status: 503 }),
   });
 
-  assert.deepEqual(result, { decision: "ALLOW", status: "degraded" });
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "HTTP_ERROR",
+  });
 });
 
 test("fails open on malformed success responses and never retries", async () => {
@@ -86,7 +94,11 @@ test("fails open on malformed success responses and never retries", async () => 
     },
   });
 
-  assert.deepEqual(result, { decision: "ALLOW", status: "degraded" });
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "INVALID_RESPONSE",
+  });
   assert.equal(calls, 1);
 });
 
@@ -100,5 +112,25 @@ test("fails open when the backend request times out", async () => {
       }),
   });
 
-  assert.deepEqual(result, { decision: "ALLOW", status: "degraded" });
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "TIMEOUT_OR_NETWORK",
+  });
+});
+
+test("reports shadow misconfiguration as degraded rather than skipped", async () => {
+  const result = await checkRecordSearchShadowEnforcement({
+    requestHeaders: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+    config: { ...config, apiKey: "" },
+    fetchImpl: async () => {
+      throw new Error("must not call backend");
+    },
+  });
+
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "CONFIG_INVALID",
+  });
 });

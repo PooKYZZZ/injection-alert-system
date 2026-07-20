@@ -3,7 +3,7 @@ import Link from "next/link";
 import { MOCK_RECORDS } from "../../../lib/db";
 import { Search, Map, ArrowRight, Layers, FileSpreadsheet } from "lucide-react";
 import { SITE_CONFIG } from "../../../lib/demo-config";
-import { checkRecordSearchShadowEnforcementFromRuntime } from "../../../lib/enforcement-check";
+import { checkRecordSearchShadowEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
 
 export const dynamic = "force-dynamic";
 
