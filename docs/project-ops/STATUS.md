@@ -51,6 +51,11 @@
 
 ### PR4 shadow enforcement state
 
+- PR4 End-to-End Shadow Enforcement ✅ MERGED: portal PR #89 merged into
+  `stable/portal-pre-waf` as `bdeef868a8a3d9e56f9593f3b3f776cff165c26a`, and
+  backend PR #88 merged into `master` as
+  `ad170c36462eb12293a268a9a049c6fd2188f933`. The post-merge
+  `demo-target-8089` smoke passed on the merged stack.
 - Code is implemented locally through Alembic head `20260720_000023`: completed
   WAF triage can create one expiring recommendation for `/records/search`.
   Recommendation persistence runs after the single inference queue releases its
