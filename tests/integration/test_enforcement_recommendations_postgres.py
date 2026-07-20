@@ -2,29 +2,16 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from threading import Barrier
 
 import psycopg
 import pytest
-from alembic import command
-from alembic.config import Config
 
 POSTGRES_URL = os.getenv("CYBERTRACE_POSTGRES_TEST_URL")
 pytestmark = pytest.mark.skipif(
     not POSTGRES_URL,
     reason="requires an explicit disposable PostgreSQL URL",
 )
-
-ROOT = Path(__file__).parents[2]
-PARENT_REVISION = "20260720_000022"
-REVISION = "20260720_000023"
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", str(ROOT / "migrations"))
-    return config
 
 
 @pytest.fixture(autouse=True)
@@ -33,42 +20,37 @@ def migrated_database(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DATABASE_URL", POSTGRES_URL)
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS enforcement_recommendations CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS traffic_logs CASCADE")
-            cursor.execute(
-                """
-                CREATE TABLE traffic_logs (
-                    id integer PRIMARY KEY,
-                    source_ip varchar(45),
-                    source_verification_status varchar(32) NOT NULL
-                )
-                """
-            )
-
-    config = _alembic_config()
-    command.stamp(config, PARENT_REVISION)
-    command.upgrade(config, REVISION)
-    yield
-
-    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS enforcement_recommendations CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS traffic_logs CASCADE")
-
-
-def test_concurrent_recommendation_inserts_are_idempotent() -> None:
-    assert POSTGRES_URL is not None
-    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
-        with connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO traffic_logs (
-                    id, source_ip, source_verification_status
-                ) VALUES (1, %s, 'UNVERIFIED')
-                """,
-                ("203.0.113.10",),
+                    source_ip, source_provenance,
+                    source_verification_status, http_request
+                ) VALUES (
+                    '203.0.113.10', 'DIRECT_REMOTE_ADDR',
+                    'UNVERIFIED', 'GET /records/search'
+                )
+                RETURNING id
+                """
             )
+            trigger_id = cursor.fetchone()[0]
 
+    yield trigger_id
+
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM enforcement_recommendations "
+                "WHERE trigger_traffic_log_id = %s",
+                (trigger_id,),
+            )
+            cursor.execute("DELETE FROM traffic_logs WHERE id = %s", (trigger_id,))
+
+
+def test_concurrent_recommendation_inserts_are_idempotent(
+    migrated_database: int,
+) -> None:
+    assert POSTGRES_URL is not None
+    trigger_id = migrated_database
     barrier = Barrier(2)
 
     def insert_recommendation() -> int | None:
@@ -82,13 +64,14 @@ def test_concurrent_recommendation_inserts_are_idempotent() -> None:
                         recommended_action, enforcement_mode, policy_version,
                         created_at, expires_at
                     ) VALUES (
-                        1, 'RECORD_SEARCH', 'HIGH', 'APPLICATION_BLOCK',
+                        %s, 'RECORD_SEARCH', 'HIGH', 'APPLICATION_BLOCK',
                         'SHADOW', 'confidence-enforcement-v1', now(),
                         now() + interval '15 minutes'
                     )
                     ON CONFLICT (trigger_traffic_log_id) DO NOTHING
                     RETURNING id
-                    """
+                    """,
+                    (trigger_id,),
                 )
                 row = cursor.fetchone()
             connection.commit()
@@ -97,8 +80,13 @@ def test_concurrent_recommendation_inserts_are_idempotent() -> None:
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(lambda _: insert_recommendation(), range(2)))
 
-    assert sorted(value for value in results if value is not None) == [1]
+    inserted_ids = [value for value in results if value is not None]
+    assert len(inserted_ids) == 1
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT count(*) FROM enforcement_recommendations")
+            cursor.execute(
+                "SELECT count(*) FROM enforcement_recommendations "
+                "WHERE trigger_traffic_log_id = %s",
+                (trigger_id,),
+            )
             assert cursor.fetchone()[0] == 1
