@@ -38,6 +38,9 @@ services:
     environment:
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
       WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}
+      ENFORCEMENT_MODE: ${ENFORCEMENT_MODE:-off}
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
+      ENFORCEMENT_RECOMMENDATION_TTL_SECONDS: ${ENFORCEMENT_RECOMMENDATION_TTL_SECONDS:-900}
     healthcheck:
       test:
         [
@@ -58,6 +61,8 @@ services:
         required: false
     environment:
       FASTAPI_BASE_URL: http://backend:8000
+      ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
     depends_on:
       - backend
 

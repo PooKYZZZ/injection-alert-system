@@ -77,6 +77,17 @@ Backend-only smoke against a directly reachable FastAPI process:
 The backend default is `http://127.0.0.1:8000`. Override it only for an
 intentionally reachable backend:
 
+### PR4 shadow check (opt-in)
+
+Enable in the reviewed order: migrate to Alembic head `20260720_000023`, deploy
+backend and portal with `ENFORCEMENT_MODE=off`, validate health, measure the
+`/records/search` tail, then set `ENFORCEMENT_MODE=shadow` and recreate only the
+backend and portal. The portal calls the dedicated internal check only from its
+server-rendered `/records/search` page. A matching recommendation is evidence
+of shadow correlation only: `recommended_action` is an intent, while
+`actual_decision=ALLOW` and the browser response remain unchanged. Keep hosted
+mode `off` until hosted latency and identity evidence exists.
+
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend --base-url http://127.0.0.1:8000 --timeout 5
 ```

@@ -49,6 +49,18 @@
   `20260720_000022 (head)` all passed. The full suite skips PostgreSQL unless an
   explicit disposable URL is supplied, so these evidence classes remain separate.
 
+### PR4 shadow enforcement state
+
+- Code is implemented locally through Alembic head `20260720_000023`: completed
+  WAF triage can create one expiring recommendation for `/records/search`, and
+  the dedicated-key internal check returns `ALLOW` while logging match metadata.
+- The separate land-records portal calls that check server-side only from
+  `/records/search`; it makes one bounded attempt and fails open. No browser
+  bundle, middleware, or real block/throttle control is involved.
+- Focused PR4 tests are passing locally. Full backend, PostgreSQL concurrency,
+  Compose live proof, latency captures, and hosted enablement remain separate
+  verification items and are not claimed here.
+
 ### Trusted source correlation PR state
 
 - PR #84 implementation is frozen at baseline

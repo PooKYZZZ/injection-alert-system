@@ -61,6 +61,9 @@ API_SECRET_KEY=local-dev-secret
 WAF_INGEST_API_KEY=<different-generated-secret>
 WAF_SOURCE_VERIFICATION_MODE=unverified
 WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr
+ENFORCEMENT_MODE=off
+ENFORCEMENT_CHECK_API_KEY=<different-generated-secret>
+ENFORCEMENT_RECOMMENDATION_TTL_SECONDS=900
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
 CONFIDENCE_LOW_THRESHOLD=0.50
@@ -83,6 +86,14 @@ key only for `POST /api/internal/waf-events`; BFF calls and WAF transaction
 lookup continue to use `API_SECRET_KEY`. If either key is exposed, replace it
 manually and recreate the backend plus every affected bridge; no automatic key
 rotation exists.
+
+PR4 shadow enforcement is opt-in. Set `ENFORCEMENT_MODE=shadow` and provide a
+third, independently generated `ENFORCEMENT_CHECK_API_KEY` (at least 32
+characters and different from both existing backend keys). The backend records
+only expiring recommendations for `/records/search`; the dedicated
+`POST /api/internal/enforcement/check` endpoint and the separate portal
+server-side client always fail open and return `{"decision":"ALLOW"}`. This
+does not block, throttle, challenge, or otherwise change a request.
 
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:

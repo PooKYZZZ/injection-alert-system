@@ -36,6 +36,9 @@ Current truth:
 - This runbook does not create migrations.
 - This runbook does not change the database.
 - This runbook does not apply Supabase settings.
+- The PR4 shadow recommendation migration is `20260720_000023`, child of
+  `20260720_000022`. Its downgrade removes only `enforcement_recommendations`
+  after explicit evidence export/review; it never deletes `traffic_logs`.
 
 ## 3.1 Required rollback boundaries
 

@@ -92,6 +92,24 @@ def test_default_compose_excludes_opt_in_technical_waf_pair() -> None:
     config = _base_config_without_profile()
     assert set(config["services"]) == {"backend", "frontend"}
     assert all("env_file" not in service for service in config["services"].values())
+    assert config["services"]["backend"]["environment"]["ENFORCEMENT_MODE"] == "off"
+    assert "ENFORCEMENT_CHECK_API_KEY" in config["services"]["backend"]["environment"]
+    assert config["services"]["frontend"]["environment"]["ENFORCEMENT_CHECK_URL"].endswith(
+        "/api/internal/enforcement/check"
+    )
+    assert "ENFORCEMENT_CHECK_API_KEY" in config["services"]["frontend"]["environment"]
+
+
+def test_demo_portal_receives_internal_shadow_check_wiring() -> None:
+    config = _compose_config(
+        "docker-compose.yml", "docker-compose.demo-target.yml", profile="demo-target"
+    )
+    portal = config["services"]["demo-portal"]
+    assert portal["environment"]["ENFORCEMENT_CHECK_URL"] == (
+        "http://backend:8000/api/internal/enforcement/check"
+    )
+    assert "ENFORCEMENT_CHECK_API_KEY" in portal["environment"]
+    assert "ports" not in portal
 
 
 def test_technical_profile_contains_the_existing_8088_pair() -> None:

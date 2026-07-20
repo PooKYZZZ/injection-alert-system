@@ -216,7 +216,7 @@ Status note:
 - [x] ML triage runs
 - [x] confidence tier is recorded
 - [x] dashboard alert is visible; replacement screenshot evidence exists in `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`, including `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15` in the `8089` alerts table
-- [x] action is recorded; real enforcement only if separately implemented
+- [x] action is recorded; PR4 shadow recommendations are separately persisted and checked for later `/records/search` requests; `actual_decision=ALLOW` and no real control is applied
 - [x] SSE edge automation, disposable real-stack Chromium no-refresh proof,
   browser-native reconnect, and named-domain hosted SSE evidence passed. Email
   evidence remains separate and pending.
