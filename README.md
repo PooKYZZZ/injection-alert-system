@@ -4,6 +4,15 @@ A realistic, boring, and highly structured public-service citizen records regist
 
 The app includes local demo routes, native HTML forms, and explicit route handlers so request flows are easy to inspect in a local lab setup.
 
+## CyberTrace shadow check
+
+The `/records/search` server component may call the internal CyberTrace
+`POST /api/internal/enforcement/check` endpoint when
+`ENFORCEMENT_CHECK_API_KEY` is configured. The call is server-side only,
+single-attempt, and fail-open; PR4 always receives `{"decision":"ALLOW"}` and
+does not block, throttle, or challenge portal requests. Keep the key in the
+server environment and never expose it through a `NEXT_PUBLIC_*` variable.
+
 ---
 
 ## 🚀 Key Features Enclosed
@@ -30,6 +39,15 @@ The app includes local demo routes, native HTML forms, and explicit route handle
 ---
 
 ## 💾 Standard Setup & Run Guide
+
+### Shadow enforcement check
+
+The server-rendered `/records/search` page can perform one authenticated,
+shadow-only check against CyberTrace when `ENFORCEMENT_MODE=shadow`. The portal
+never sends this credential to the browser and always continues with its normal
+response when CyberTrace is unavailable, times out, rejects the request, or
+returns an invalid response. PR4 does not block, throttle, or deny portal
+requests.
 
 Follow these simple phases to build and run the target sandbox locally.
 

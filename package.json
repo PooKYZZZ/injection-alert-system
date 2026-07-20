@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
+    "test:unit": "tsx --test tests/enforcement-check.test.ts",
     "test:live": "playwright test",
     "test:live:report": "playwright show-report",
     "db:generate": "prisma generate",
@@ -25,6 +26,7 @@
     "next": "15.5.19",
     "react": "19.0.1",
     "react-dom": "19.0.1",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.25.0"
   },
