@@ -55,6 +55,45 @@ async def test_record_shadow_recommendation_persists_expiring_policy():
 
 
 @pytest.mark.asyncio
+async def test_record_shadow_recommendation_anchors_expiry_to_authoritative_event():
+    repo = RecordingRepository()
+    event_time = datetime(2026, 7, 20, 10, tzinfo=timezone.utc)
+    now = event_time + timedelta(seconds=10)
+    use_case = RecordShadowRecommendationUseCase(
+        repository=repo, mode=EnforcementMode.SHADOW, ttl_seconds=900, clock=lambda: now
+    )
+
+    assert await use_case.execute(
+        alert_id=42,
+        prediction="SQL Injection",
+        confidence_level="HIGH",
+        request_path="/records/search",
+        occurred_at=event_time,
+    ) is True
+    assert repo.inserted[0].created_at == now
+    assert repo.inserted[0].expires_at == event_time + timedelta(seconds=900)
+
+
+@pytest.mark.asyncio
+async def test_record_shadow_recommendation_does_not_resurrect_expired_event():
+    repo = RecordingRepository()
+    event_time = datetime(2026, 7, 20, 10, tzinfo=timezone.utc)
+    now = event_time + timedelta(hours=5)
+    use_case = RecordShadowRecommendationUseCase(
+        repository=repo, mode=EnforcementMode.SHADOW, ttl_seconds=900, clock=lambda: now
+    )
+
+    assert await use_case.execute(
+        alert_id=42,
+        prediction="SQL Injection",
+        confidence_level="HIGH",
+        request_path="/records/search",
+        occurred_at=event_time,
+    ) is False
+    assert repo.inserted == []
+
+
+@pytest.mark.asyncio
 async def test_record_shadow_recommendation_skips_off_normal_and_unsupported():
     repo = RecordingRepository()
     use_case = RecordShadowRecommendationUseCase(

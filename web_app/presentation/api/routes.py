@@ -221,11 +221,6 @@ async def ingest_waf_event(
         enable_preprocessing=settings.enable_http_model_preprocessing,
         source_verification_mode=settings.waf_source_verification_mode,
         alert_event_publisher=get_alert_event_broadcaster(request),
-        recommendation_recorder=RecordShadowRecommendationUseCase(
-            repository=enforcement_repository,
-            mode=settings.enforcement_mode,
-            ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
-        ),
     )
     queue_fields = _queue_log_fields(inference_queue)
     log_event(
@@ -314,6 +309,30 @@ async def ingest_waf_event(
             detail=str(exc),
             headers={"Retry-After": "5"},
         ) from exc
+
+    if result.alert_id is not None:
+        try:
+            await RecordShadowRecommendationUseCase(
+                repository=enforcement_repository,
+                mode=settings.enforcement_mode,
+                ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+            ).execute(
+                alert_id=result.alert_id,
+                prediction=result.prediction,
+                confidence_level=result.confidence_level,
+                request_path=payload.request_path,
+                occurred_at=result.occurred_at,
+            )
+        except Exception as exc:  # shadow recording must not affect ingest
+            log_event(
+                logger,
+                "enforcement.shadow_recommendation_failed",
+                "Shadow recommendation failed after triage; ingest result is unchanged",
+                level="WARNING",
+                transaction_id=payload.transaction_id,
+                alert_id=result.alert_id,
+                error_type=type(exc).__name__,
+            )
 
     log_event(
         logger,

@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from web_app.application.triage_use_case import ModelNotReadyError
 import web_app.application.waf_ingest_use_case as waf_ingest_use_case_module
+from web_app.application.triage_use_case import ModelNotReadyError
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.domain.source_address import (
     SourceProvenance,
@@ -61,50 +61,6 @@ async def test_ingest_classifies_and_persists_waf_event():
     assert result.prediction == "SQL Injection"
     assert result.confidence == pytest.approx(0.91)
     assert result.confidence_level == "HIGH"
-
-
-@pytest.mark.asyncio
-async def test_ingest_records_shadow_recommendation_after_completed_triage():
-    classifier = Mock(loaded=True, model_version="test")
-    classifier.predict.return_value = {
-        "prediction": "SQL Injection",
-        "confidence": 0.91,
-        "confidence_level": "HIGH",
-        "model_version": "test",
-    }
-    repository = AsyncMock()
-    repository.claim_or_reclaim_processing.return_value = Mock(
-        id=7, status="PROCESSING", processing_owner_token="owner"
-    )
-    repository.complete_processing.return_value = _completed(
-        id=7,
-        prediction="SQL Injection",
-        confidence=0.91,
-        confidence_level="HIGH",
-        action_taken="BLOCKED",
-        model_version="test",
-    )
-    recorder = AsyncMock()
-    use_case = WafIngestUseCase(
-        classifier=classifier, repository=repository, recommendation_recorder=recorder
-    )
-
-    await use_case.execute(
-        transaction_id="tx-shadow-001",
-        timestamp=datetime.now(timezone.utc),
-        source_ip="203.0.113.10",
-        request_method="GET",
-        request_path="/records/search",
-        crs_score=8,
-        crs_rule_ids=["942100"],
-    )
-
-    recorder.execute.assert_awaited_once_with(
-        alert_id=7,
-        prediction="SQL Injection",
-        confidence_level="HIGH",
-        request_path="/records/search",
-    )
 
 
 @pytest.mark.asyncio

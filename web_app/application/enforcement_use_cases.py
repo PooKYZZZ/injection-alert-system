@@ -50,6 +50,7 @@ class RecordShadowRecommendationUseCase:
         prediction: str,
         confidence_level: str,
         request_path: str,
+        occurred_at: datetime | None = None,
     ) -> bool:
         if self._mode is EnforcementMode.OFF or alert_id is None:
             return False
@@ -65,6 +66,12 @@ class RecordShadowRecommendationUseCase:
             return False
 
         created_at = self._clock()
+        event_time = occurred_at if isinstance(occurred_at, datetime) else created_at
+        if event_time.tzinfo is None:
+            event_time = event_time.replace(tzinfo=timezone.utc)
+        expires_at = event_time + timedelta(seconds=self._ttl_seconds)
+        if expires_at <= created_at:
+            return False
         row = NewEnforcementRecommendation(
             trigger_traffic_log_id=alert_id,
             scope=recommendation.scope,
@@ -73,7 +80,7 @@ class RecordShadowRecommendationUseCase:
             mode=EnforcementMode.SHADOW,
             policy_version=recommendation.policy_version,
             created_at=created_at,
-            expires_at=created_at + timedelta(seconds=self._ttl_seconds),
+            expires_at=expires_at,
         )
         try:
             inserted = await self._repository.insert_if_absent(row)

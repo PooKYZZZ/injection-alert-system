@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import os
-from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from datetime import datetime, timedelta, timezone
 
 import psycopg
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from web_app.domain.enforcement import (
+    EnforcementMode,
+    EnforcementScope,
+    EnforcementTier,
+    NewEnforcementRecommendation,
+    RecommendedAction,
+)
+from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
+    EnforcementRecommendationRepository,
+)
 
 POSTGRES_URL = os.getenv("CYBERTRACE_POSTGRES_TEST_URL")
 pytestmark = pytest.mark.skipif(
@@ -46,42 +58,40 @@ def migrated_database(monkeypatch: pytest.MonkeyPatch):
             cursor.execute("DELETE FROM traffic_logs WHERE id = %s", (trigger_id,))
 
 
-def test_concurrent_recommendation_inserts_are_idempotent(
+@pytest.mark.asyncio
+async def test_concurrent_repository_inserts_are_idempotent(
     migrated_database: int,
 ) -> None:
     assert POSTGRES_URL is not None
     trigger_id = migrated_database
-    barrier = Barrier(2)
 
-    def insert_recommendation() -> int | None:
-        with psycopg.connect(POSTGRES_URL) as connection:
-            barrier.wait(timeout=5)
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO enforcement_recommendations (
-                        trigger_traffic_log_id, scope, enforcement_tier,
-                        recommended_action, enforcement_mode, policy_version,
-                        created_at, expires_at
-                    ) VALUES (
-                        %s, 'RECORD_SEARCH', 'HIGH', 'APPLICATION_BLOCK',
-                        'SHADOW', 'confidence-enforcement-v1', now(),
-                        now() + interval '15 minutes'
-                    )
-                    ON CONFLICT (trigger_traffic_log_id) DO NOTHING
-                    RETURNING id
-                    """,
-                    (trigger_id,),
-                )
-                row = cursor.fetchone()
-            connection.commit()
-            return row[0] if row else None
+    async_url = POSTGRES_URL
+    if async_url.startswith("postgresql://"):
+        async_url = "postgresql+asyncpg://" + async_url.removeprefix("postgresql://")
+    elif async_url.startswith("postgres://"):
+        async_url = "postgresql+asyncpg://" + async_url.removeprefix("postgres://")
+    engine = create_async_engine(async_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    now = datetime.now(timezone.utc)
+    recommendation = NewEnforcementRecommendation(
+        trigger_traffic_log_id=trigger_id,
+        scope=EnforcementScope.RECORD_SEARCH,
+        tier=EnforcementTier.HIGH,
+        action=RecommendedAction.APPLICATION_BLOCK,
+        mode=EnforcementMode.SHADOW,
+        policy_version="confidence-enforcement-v1",
+        created_at=now,
+        expires_at=now + timedelta(minutes=15),
+    )
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        results = list(executor.map(lambda _: insert_recommendation(), range(2)))
+    async def insert_once() -> bool:
+        async with session_factory() as session:
+            return await EnforcementRecommendationRepository(session).insert_if_absent(
+                recommendation
+            )
 
-    inserted_ids = [value for value in results if value is not None]
-    assert len(inserted_ids) == 1
+    results = await asyncio.gather(insert_once(), insert_once())
+    assert sorted(results) == [False, True]
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -90,3 +100,4 @@ def test_concurrent_recommendation_inserts_are_idempotent(
                 (trigger_id,),
             )
             assert cursor.fetchone()[0] == 1
+    await engine.dispose()
