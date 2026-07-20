@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MOCK_RECORDS } from "../../../lib/db";
 import { Search, Map, ArrowRight, Layers, FileSpreadsheet } from "lucide-react";
 import { SITE_CONFIG } from "../../../lib/demo-config";
+import { checkRecordSearchShadowEnforcement } from "../../../lib/enforcement-check";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await checkRecordSearchShadowEnforcement();
   const { query } = await searchParams;
   const lowercaseQuery = (query || "").toLowerCase().trim();
 
