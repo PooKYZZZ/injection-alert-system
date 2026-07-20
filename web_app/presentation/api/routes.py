@@ -44,7 +44,7 @@ from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
 from web_app.observability.structured_logging import log_event
-from web_app.notifications.threats import enqueue_threat_notification_safely
+from web_app.notifications.threats import enqueue_threat_notifications_safely
 from web_app.presentation.dependencies.auth import (
     verify_internal_token,
     verify_waf_ingest_token,
@@ -306,14 +306,16 @@ async def ingest_waf_event(
             request.app.state, "notification_outbox_repository", None
         )
         if outbox_repository is not None:
-            await enqueue_threat_notification_safely(
+            await enqueue_threat_notifications_safely(
                 repository=outbox_repository,
                 settings=settings,
                 alert_id=result.alert_id,
                 timestamp=(payload.timestamp or datetime.now(timezone.utc)).isoformat(),
                 attack_category=result.prediction,
                 confidence_tier=result.confidence_level,
+                confidence=result.confidence,
                 action_taken=result.action_taken,
+                request_method=payload.request_method,
                 request_path=payload.request_path,
             )
 

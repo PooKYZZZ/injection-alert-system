@@ -204,6 +204,36 @@ def test_notification_settings_are_safe_by_default():
     assert settings.email_provider == "fake"
     assert settings.resend_api_key is None
     assert settings.resend_live_test_enabled is False
+    assert settings.threat_telegram_enabled is False
+    assert settings.telegram_bot_token is None
+    assert settings.telegram_chat_id is None
+    assert settings.telegram_live_test_enabled is False
+    assert settings.telegram_available is False
+
+
+def test_telegram_is_available_only_with_complete_enabled_configuration():
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+        threat_telegram_enabled=True,
+        telegram_bot_token="bot-token",
+        telegram_chat_id="-100123",
+    )
+
+    assert settings.telegram_available is True
+
+
+def test_incomplete_telegram_configuration_degrades_without_failing_settings():
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+        threat_telegram_enabled=True,
+        telegram_bot_token="bot-token",
+    )
+
+    assert settings.telegram_available is False
 
 
 def test_required_worker_rejects_fake_provider():

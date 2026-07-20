@@ -29,6 +29,13 @@ export const alertKeys = {
   detail: (id: string) => ['alerts', 'detail', id] as const,
 }
 
+export class AlertDetailError extends Error {
+  constructor(readonly status: number) {
+    super(`Alert detail request failed: ${status}`)
+    this.name = 'AlertDetailError'
+  }
+}
+
 export function alertListOptions(filters: DashboardFilters) {
   return queryOptions<PaginatedAlerts>({
     queryKey: alertKeys.list(toQueryString(filters)),
@@ -49,10 +56,14 @@ export function alertDetailOptions(id: string | null) {
       if (!id) throw new Error('Alert ID is required')
       const url = `/api/alerts/${id}`
       const r = await fetch(url)
-      if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
+      if (!r.ok) throw new AlertDetailError(r.status)
       return r.json()
     },
     enabled: id !== null,
+    retry: (failureCount, error) =>
+      error instanceof AlertDetailError
+        ? error.status >= 500 && failureCount < 1
+        : failureCount < 1,
   })
 }
 

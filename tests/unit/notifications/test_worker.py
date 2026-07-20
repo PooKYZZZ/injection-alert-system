@@ -9,8 +9,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from web_app.notifications.delivery import DeliveryRouter
 from web_app.notifications.models import OutboxJob, ProviderSendResult
 from web_app.notifications.payload_crypto import encrypt_notification_payload
+from web_app.notifications import providers
 from web_app.notifications.providers import EmailProviderError
 from web_app.notifications.worker import OutboxWorker
 from web_app.observability.context import reset_request_context, set_request_context
@@ -85,6 +87,16 @@ class FailingProvider:
         raise EmailProviderError("rate_limit_exceeded", retryable=True)
 
 
+class RetryAfterProvider:
+    async def send(self, _message):
+        assert hasattr(providers, "NotificationProviderError")
+        raise providers.NotificationProviderError(
+            "telegram_rate_limited",
+            retryable=True,
+            retry_after_seconds=17,
+        )
+
+
 @dataclass
 class TransitionFailureRepository(RepositoryStub):
     fail_transitions: bool = False
@@ -156,6 +168,70 @@ async def test_worker_records_retry_without_raising_or_mutating_job_contract() -
     ]
     assert claimed.provider_idempotency_key == "threat/alert-42"
     assert claimed.safe_payload["event_id"] == "alert-42"
+
+
+@pytest.mark.asyncio
+async def test_worker_prefers_provider_retry_after() -> None:
+    claimed = job(attempt_count=2)
+    repository = RepositoryStub([claimed])
+    worker = OutboxWorker(
+        repository=repository,
+        provider=RetryAfterProvider(),
+        worker_id="worker-a",
+        jitter=lambda _low, _high: 0,
+    )
+
+    await worker.run_once()
+
+    assert repository.failed == [
+        (claimed.id, "worker-a", "telegram_rate_limited", True, 17)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_worker_logs_safe_delivery_retry_without_recipient_or_payload(
+    caplog,
+) -> None:
+    claimed = replace(
+        job(attempt_count=2),
+        channel="telegram",
+        recipient="-100123",
+        safe_payload={
+            "event_id": "alert-42",
+            "timestamp": "2026-07-20T09:00:00Z",
+            "attack_category": "SQL Injection",
+            "confidence_tier": "HIGH",
+            "confidence": 0.91,
+            "request_method": "POST",
+            "route_path": "/records/search",
+            "dashboard_url": "https://dashboard.example.test/alerts/42",
+        },
+    )
+    repository = RepositoryStub([claimed])
+    worker = OutboxWorker(
+        repository=repository,
+        delivery=DeliveryRouter(
+            email_provider=SuccessfulProvider(),
+            telegram_provider=RetryAfterProvider(),
+        ),
+        worker_id="worker-a",
+    )
+
+    with caplog.at_level(logging.INFO):
+        await worker.run_once()
+
+    event = next(
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+        and json.loads(record.getMessage()).get("event")
+        == "notification.delivery_retry_scheduled"
+    )
+    assert event["channel"] == "telegram"
+    assert event["error_class"] == "telegram_rate_limited"
+    assert event["retry_delay_seconds"] == 17
+    assert "-100123" not in caplog.text
+    assert "records/search" not in caplog.text
 
 
 @pytest.mark.asyncio

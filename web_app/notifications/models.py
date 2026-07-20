@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Mapping
+from typing import Literal, Mapping
+
+NotificationChannel = Literal["email", "telegram"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +30,18 @@ class ProviderSendResult:
 
 
 @dataclass(frozen=True, slots=True)
+class TelegramMessage:
+    chat_id: str
+    text: str
+
+    def __post_init__(self) -> None:
+        if not self.chat_id.strip():
+            raise ValueError("A Telegram chat id is required.")
+        if not 1 <= len(self.text) <= 4096:
+            raise ValueError("Telegram message text is invalid.")
+
+
+@dataclass(frozen=True, slots=True)
 class OutboxJob:
     id: str
     kind: str
@@ -39,6 +53,7 @@ class OutboxJob:
     attempt_count: int
     max_attempts: int
     deliver_before: datetime | None = None
+    channel: NotificationChannel = "email"
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +65,7 @@ class PendingNotification:
     dedupe_key: str
     provider_idempotency_key: str
     deliver_before: datetime | None = None
+    channel: NotificationChannel = "email"
 
 
 @dataclass(frozen=True, slots=True)

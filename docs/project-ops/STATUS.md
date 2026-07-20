@@ -8,7 +8,7 @@
 
 ## Current Verified Repo State
 
-- Working branch: `feat/real-time-alert-sse`
+- Working branch: `feat/telegram-threat-alerts`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -26,14 +26,37 @@
 - Operational account scripts load `frontend/.env.local` for ordinary provisioning. ADMIN MFA break glass instead uses `scripts/operator_reset_admin_mfa.py` with a dedicated direct PostgreSQL login whose only membership is the execute-only `cybertrace_break_glass` role. TOTP, recovery, and password-reset feature flags fail closed when absent and are evaluated at request time.
 - PR #83 adds database-authoritative MFA/recovery handoffs, recent-TOTP step-up, password-work preflight, protected notification payloads, notification lifecycle/worker hardening, required PostgreSQL and authentication-browser CI jobs, and the hosted Admin journey. Public deployment is active through Cloudflare Tunnel at `app.cybertracesystems.com`; `target.cybertracesystems.com` is protected by Cloudflare Access; the Resend domain and live delivery are verified.
 
+### Telegram threat alerts PR state
+
+- The local PR3 branch adds Telegram as a second durable outbox channel at
+  Alembic head `20260720_000022`. Only persisted non-Normal `HIGH` and
+  `CRITICAL` confidence-tier alerts are eligible.
+- Detection persistence and SSE remain authoritative. Email and Telegram
+  enqueue attempts have separate failure boundaries; provider/API work remains
+  in the worker and cannot change a successful WAF response.
+- Telegram uses existing HTTPX and Bot API `sendMessage`, plain text, explicit
+  timeouts, bounded 429/5xx retry behavior, a 30-minute deadline, safe logs,
+  database-enforced channel/kind restrictions, and channel-specific dedupe.
+- External exactly-once Telegram delivery is not claimed. A post-commit enqueue
+  crash window and provider-accepted/database-completion ambiguity remain
+  documented limitations.
+- Automated provider tests use mocks only. No live Telegram message, hosted
+  deployment, or hosted migration is claimed in this status.
+- Local verification after implementation: focused Telegram/config/migration/WAF
+  matrix **165 passed**; canonical backend suite **754 passed, 34 skipped**;
+  disposable PostgreSQL notification outbox/lifecycle **10 passed**; migration
+  upgrade, downgrade to `20260715_000021`, re-upgrade, and final
+  `20260720_000022 (head)` all passed. The full suite skips PostgreSQL unless an
+  explicit disposable URL is supplied, so these evidence classes remain separate.
+
 ### Trusted source correlation PR state
 
 - PR #84 implementation is frozen at baseline
   `6cfe67bd331e55d4309c201c8c254668bc2ea688`. The branch was clean, remote CI
   was green, and this maintenance pass adds documentation only; no PR1 feature
   work remains.
-  The current PR2 branch implements SSE separately. Telegram, rate limiting,
-  enforcement, portal behavior, and retraining belong in later PRs.
+  PR2 implements SSE separately. Rate limiting, enforcement, portal behavior,
+  and retraining remain later work; Telegram is isolated in the current PR3 branch.
 
 ### Real-time alert SSE PR state
 

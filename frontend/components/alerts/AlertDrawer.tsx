@@ -195,6 +195,12 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
                     </h3>
                     <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Alert ID
+                      </dt>
+                      <dd className="font-mono text-[var(--color-text-primary)]">
+                        {alert.alert_id}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Time
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
@@ -426,4 +432,3 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
     </Dialog.Root>
   )
 }
-

@@ -17,14 +17,27 @@ class EmailProvider(Protocol):
     async def close(self) -> None: ...
 
 
-class EmailProviderError(RuntimeError):
-    def __init__(self, error_class: str, *, retryable: bool) -> None:
+class NotificationProviderError(RuntimeError):
+    def __init__(
+        self,
+        error_class: str,
+        *,
+        retryable: bool,
+        retry_after_seconds: int | None = None,
+        delivery_ambiguous: bool = False,
+    ) -> None:
         safe_class = (
             error_class if _SAFE_ERROR_CLASS.fullmatch(error_class) else "provider_error"
         )
         super().__init__(safe_class)
         self.error_class = safe_class
         self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
+        self.delivery_ambiguous = delivery_ambiguous
+
+
+class EmailProviderError(NotificationProviderError):
+    pass
 
 
 class FakeEmailProvider:

@@ -9,6 +9,7 @@ from contextlib import suppress
 from typing import Protocol
 from uuid import uuid4
 
+from web_app.notifications.delivery import DeliveryRouter
 from web_app.notifications.outbox import PostgresNotificationOutboxRepository
 from web_app.notifications.providers import (
     EmailProvider,
@@ -16,6 +17,7 @@ from web_app.notifications.providers import (
     ResendEmailProvider,
 )
 from web_app.notifications.worker import OutboxRepository, OutboxWorker
+from web_app.notifications.telegram import TelegramProvider
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,8 @@ class ProviderSettings(WorkerSettings, Protocol):
     email_provider: str
     resend_api_key: str | None
     resend_from_email: str
+    telegram_available: bool
+    telegram_bot_token: str | None
 
 
 def build_email_provider(settings: ProviderSettings) -> EmailProvider:
@@ -46,19 +50,33 @@ def build_email_provider(settings: ProviderSettings) -> EmailProvider:
     raise RuntimeError("Email provider configuration is invalid.")
 
 
+def build_telegram_provider(settings: ProviderSettings) -> TelegramProvider | None:
+    if not settings.telegram_available:
+        return None
+    if not settings.telegram_bot_token:
+        return None
+    return TelegramProvider(bot_token=settings.telegram_bot_token)
+
+
 class NotificationWorkerService:
     def __init__(
         self,
         *,
         settings: WorkerSettings,
         repository: OutboxRepository,
-        provider: EmailProvider,
+        provider: EmailProvider | None = None,
+        delivery: DeliveryRouter | None = None,
         worker_id: str,
     ) -> None:
         self._settings = settings
+        if delivery is None:
+            if provider is None:
+                raise ValueError("Notification delivery is required.")
+            delivery = DeliveryRouter(email_provider=provider)
+        self._delivery = delivery
         self._worker = OutboxWorker(
             repository=repository,
-            provider=provider,
+            delivery=delivery,
             worker_id=worker_id,
             batch_size=settings.notification_worker_batch_size,
             lease_seconds=settings.notification_worker_lease_seconds,
@@ -84,7 +102,10 @@ class NotificationWorkerService:
             repository=PostgresNotificationOutboxRepository(
                 db_module.AsyncSessionLocal
             ),
-            provider=build_email_provider(settings),
+            delivery=DeliveryRouter(
+                email_provider=build_email_provider(settings),
+                telegram_provider=build_telegram_provider(settings),
+            ),
             worker_id=worker_id,
         )
 
@@ -114,9 +135,7 @@ class NotificationWorkerService:
             with suppress(asyncio.CancelledError):
                 await self._task
             self._task = None
-        close = getattr(self._worker._provider, "close", None)
-        if close is not None:
-            await close()
+        await self._delivery.close()
 
     async def wait_until_polled(self) -> None:
         await asyncio.wait_for(self._polled.wait(), timeout=2.0)

@@ -34,6 +34,7 @@ _SENSITIVE_KEYS = {
     "nextauthsecret",
     "apisecretkey",
     "groqapikey",
+    "telegrambottoken",
 }
 
 
