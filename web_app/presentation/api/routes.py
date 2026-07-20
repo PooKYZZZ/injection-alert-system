@@ -157,9 +157,6 @@ async def predict(
     prediction_request: PredictionRequest,
     model_service=Depends(get_model_service),
     repository: TrafficLogRepository = Depends(get_repository),
-    enforcement_repository: EnforcementRecommendationRepository = Depends(
-        get_enforcement_repository
-    ),
 ):
     """Classify an HTTP request as normal or injection attack.
 
@@ -212,6 +209,9 @@ async def ingest_waf_event(
     model_service=Depends(get_model_service),
     inference_queue: InferenceQueueService = Depends(get_inference_queue),
     repository: TrafficLogRepository = Depends(get_repository),
+    enforcement_repository: EnforcementRecommendationRepository = Depends(
+        get_enforcement_repository
+    ),
 ):
     settings = get_settings()
     use_case = WafIngestUseCase(
