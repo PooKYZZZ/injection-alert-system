@@ -9,6 +9,7 @@ services:
       - "3010"
     environment:
       NODE_ENV: production
+      APP_ENV: ${APP_ENV:-development}
       HOSTNAME: 0.0.0.0
       PORT: 3010
       DATABASE_URL: file:./dev.db
@@ -16,8 +17,10 @@ services:
       ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
       ENFORCEMENT_CHALLENGE_URL: http://backend:8000/api/internal/enforcement/challenge
       ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
-      ENFORCEMENT_CHECK_TIMEOUT_MS: ${ENFORCEMENT_CHECK_TIMEOUT_MS:-250}
+      ENFORCEMENT_CHECK_TIMEOUT_MS: ${ENFORCEMENT_CHECK_TIMEOUT_MS:-1000}
+      ENFORCEMENT_CHALLENGE_TIMEOUT_MS: ${ENFORCEMENT_CHALLENGE_TIMEOUT_MS:-5000}
       ENFORCEMENT_TURNSTILE_SITE_KEY: ${ENFORCEMENT_TURNSTILE_SITE_KEY:-}
+      ENFORCEMENT_SOURCE_TRUST_MODE: ${ENFORCEMENT_SOURCE_TRUST_MODE:-unverified}
       ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: ${ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS:-false}
     volumes:
       - ${DEMO_PORTAL_CONTEXT:-../../land-records-portal}/prisma:/app/prisma

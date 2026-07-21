@@ -4,9 +4,13 @@ import httpx
 
 from web_app.domain.enforcement import TurnstileVerificationResult
 
-
 SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 TURNSTILE_ACTION = "record_search_enforcement"
+TURNSTILE_TEST_SECRETS = {
+    "1x0000000000000000000000000000000AA",
+    "2x0000000000000000000000000000000AA",
+    "3x0000000000000000000000000000000AA",
+}
 
 
 class TurnstileVerifier:
@@ -18,11 +22,13 @@ class TurnstileVerifier:
         secret_key: str,
         expected_hostname: str,
         timeout_seconds: float = 3.0,
+        test_mode: bool = False,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._secret_key = secret_key.strip()
         self._expected_hostname = expected_hostname.strip()
         self._timeout = httpx.Timeout(timeout_seconds)
+        self._test_mode = test_mode and self._secret_key in TURNSTILE_TEST_SECRETS
         self._client = client
 
     async def verify(
@@ -55,13 +61,22 @@ class TurnstileVerifier:
                 return TurnstileVerificationResult(success=False, unavailable=True)
             if not isinstance(payload, dict):
                 return TurnstileVerificationResult(success=False, unavailable=True)
+            error_codes = payload.get("error-codes", [])
+            if (
+                payload.get("success") is not True
+                and isinstance(error_codes, list)
+                and "internal-error" in error_codes
+            ):
+                return TurnstileVerificationResult(success=False, unavailable=True)
+            if self._test_mode and payload.get("success") is True:
+                return TurnstileVerificationResult(success=True)
             success = (
                 payload.get("success") is True
                 and payload.get("action") == TURNSTILE_ACTION
                 and payload.get("hostname") == self._expected_hostname
             )
             return TurnstileVerificationResult(success=success)
-        except (httpx.TimeoutException, httpx.TransportError):
+        except httpx.TimeoutException, httpx.TransportError:
             return TurnstileVerificationResult(success=False, unavailable=True)
         finally:
             if close_client:

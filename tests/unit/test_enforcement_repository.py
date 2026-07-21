@@ -27,17 +27,29 @@ async def repository():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
     async with session_factory() as session:
         yield EnforcementRecommendationRepository(session)
     await engine.dispose()
 
 
-async def _insert_traffic_log(session: AsyncSession, source_ip: str) -> int:
+async def _insert_traffic_log(
+    session: AsyncSession,
+    source_ip: str,
+    *,
+    verification_status: SourceVerificationStatus = SourceVerificationStatus.UNVERIFIED,
+) -> int:
+    provenance = (
+        SourceProvenance.CLOUDFLARE_CONNECTING_IP
+        if verification_status is SourceVerificationStatus.VERIFIED
+        else SourceProvenance.DIRECT_REMOTE_ADDR
+    )
     row = TrafficLog(
         source_ip=source_ip,
-        source_provenance=SourceProvenance.DIRECT_REMOTE_ADDR.value,
-        source_verification_status=SourceVerificationStatus.UNVERIFIED.value,
+        source_provenance=provenance.value,
+        source_verification_status=verification_status.value,
         request_path="/records/search",
         request_method="GET",
         http_request="GET /records/search HTTP/1.1",
@@ -72,7 +84,9 @@ def _recommendation(
 
 
 @pytest.mark.asyncio
-async def test_insert_is_idempotent_and_lookup_excludes_expired_rows(repository) -> None:
+async def test_insert_is_idempotent_and_lookup_excludes_expired_rows(
+    repository,
+) -> None:
     now = datetime.now(timezone.utc).replace(microsecond=0)
     session = repository._session
     alert_id = await _insert_traffic_log(session, "203.0.113.10")
@@ -116,8 +130,18 @@ async def test_lookup_uses_tier_precedence_then_newest_row(repository) -> None:
     critical_id = await _insert_traffic_log(session, "203.0.113.11")
     for alert_id, tier, action, created_at in [
         (low_id, EnforcementTier.LOW, RecommendedAction.MONITOR, now),
-        (high_id, EnforcementTier.HIGH, RecommendedAction.APPLICATION_BLOCK, now + timedelta(seconds=1)),
-        (critical_id, EnforcementTier.CRITICAL, RecommendedAction.WAF_BLOCK, now + timedelta(seconds=2)),
+        (
+            high_id,
+            EnforcementTier.HIGH,
+            RecommendedAction.APPLICATION_BLOCK,
+            now + timedelta(seconds=1),
+        ),
+        (
+            critical_id,
+            EnforcementTier.CRITICAL,
+            RecommendedAction.WAF_BLOCK,
+            now + timedelta(seconds=2),
+        ),
     ]:
         assert await repository.insert_if_absent(
             _recommendation(
@@ -142,7 +166,9 @@ async def test_lookup_uses_tier_precedence_then_newest_row(repository) -> None:
 
 
 @pytest.mark.asyncio
-async def test_active_lookup_ignores_shadow_and_deferred_highest_tiers(repository) -> None:
+async def test_active_lookup_ignores_shadow_and_deferred_highest_tiers(
+    repository,
+) -> None:
     now = datetime.now(timezone.utc).replace(microsecond=0)
     session = repository._session
     low_id = await _insert_traffic_log(session, "203.0.113.12")
@@ -173,12 +199,65 @@ async def test_active_lookup_ignores_shadow_and_deferred_highest_tiers(repositor
         scope=EnforcementScope.RECORD_SEARCH,
         now=now + timedelta(seconds=2),
         policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=True,
     )
     assert selected is None
 
 
 @pytest.mark.asyncio
-async def test_request_window_upsert_returns_authoritative_count_and_window(repository) -> None:
+async def test_active_lookup_applies_source_eligibility_before_tier_precedence(
+    repository,
+) -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session = repository._session
+    low_id = await _insert_traffic_log(
+        session,
+        "203.0.113.16",
+        verification_status=SourceVerificationStatus.VERIFIED,
+    )
+    medium_id = await _insert_traffic_log(session, "203.0.113.16")
+    for alert_id, tier, action in [
+        (low_id, EnforcementTier.LOW, RecommendedAction.CHALLENGE),
+        (medium_id, EnforcementTier.MEDIUM, RecommendedAction.THROTTLE),
+    ]:
+        recommendation = replace(
+            _recommendation(
+                alert_id=alert_id,
+                tier=tier,
+                action=action,
+                created_at=now,
+                expires_at=now + timedelta(minutes=15),
+            ),
+            mode=EnforcementMode.ENFORCE,
+            policy_version=ACTIVE_POLICY_VERSION,
+        )
+        assert await repository.insert_if_absent(recommendation)
+
+    verified_only = await repository.find_effective_enforceable(
+        source_ip="203.0.113.16",
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(seconds=1),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=True,
+    )
+    bypassed = await repository.find_effective_enforceable(
+        source_ip="203.0.113.16",
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(seconds=1),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=False,
+    )
+
+    assert verified_only is not None
+    assert verified_only.tier is EnforcementTier.LOW
+    assert bypassed is not None
+    assert bypassed.tier is EnforcementTier.MEDIUM
+
+
+@pytest.mark.asyncio
+async def test_request_window_upsert_returns_authoritative_count_and_window(
+    repository,
+) -> None:
     now = datetime(2026, 7, 21, 10, 0, 7, tzinfo=timezone.utc)
     first = await repository.increment_request_window(
         source_ip="203.0.113.13",
@@ -205,7 +284,9 @@ async def test_request_window_upsert_returns_authoritative_count_and_window(repo
 
 
 @pytest.mark.asyncio
-async def test_challenge_grant_is_tier_bound_and_expiry_is_retrievable(repository) -> None:
+async def test_challenge_grant_is_tier_bound_and_expiry_is_retrievable(
+    repository,
+) -> None:
     now = datetime.now(timezone.utc).replace(microsecond=0)
     grant = ChallengeGrant(
         source_ip="203.0.113.14",
@@ -217,17 +298,23 @@ async def test_challenge_grant_is_tier_bound_and_expiry_is_retrievable(repositor
     )
     await repository.upsert_challenge_grant(grant)
 
-    assert await repository.find_valid_challenge_grant(
-        source_ip="203.0.113.14",
-        scope=EnforcementScope.RECORD_SEARCH,
-        tier=EnforcementTier.LOW,
-        policy_version=ACTIVE_POLICY_VERSION,
-        now=now + timedelta(seconds=1),
-    ) is not None
-    assert await repository.find_valid_challenge_grant(
-        source_ip="203.0.113.14",
-        scope=EnforcementScope.RECORD_SEARCH,
-        tier=EnforcementTier.MEDIUM,
-        policy_version=ACTIVE_POLICY_VERSION,
-        now=now + timedelta(seconds=1),
-    ) is None
+    assert (
+        await repository.find_valid_challenge_grant(
+            source_ip="203.0.113.14",
+            scope=EnforcementScope.RECORD_SEARCH,
+            tier=EnforcementTier.LOW,
+            policy_version=ACTIVE_POLICY_VERSION,
+            now=now + timedelta(seconds=1),
+        )
+        is not None
+    )
+    assert (
+        await repository.find_valid_challenge_grant(
+            source_ip="203.0.113.14",
+            scope=EnforcementScope.RECORD_SEARCH,
+            tier=EnforcementTier.MEDIUM,
+            policy_version=ACTIVE_POLICY_VERSION,
+            now=now + timedelta(seconds=1),
+        )
+        is None
+    )

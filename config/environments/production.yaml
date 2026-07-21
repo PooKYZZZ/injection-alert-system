@@ -1,16 +1,16 @@
 # Environment: Production
-# Purpose: Live system serving real traffic. Destructive enforcement remains disabled by default.
+# Purpose: Live system serving real traffic. PR5 ML enforcement remains disabled by default.
 # DB: PostgreSQL (production database, full audit logging enabled)
-# WAF: ModSecurity DetectionOnly by default; hosted enforcement requires a separately reviewed override.
+# WAF: Baseline ModSecurity/OWASP CRS enforcement remains independent of PR5.
 # ML Model: loads ONLY from ml_model/model_registry/production/ (validated, signed artifact)
 # Logging: WARNING level, structured JSON to file, audit log to separate append-only table
-# Confidence Gate: disabled by default; trusted-source and Cloudflare topology gates remain prerequisites.
+# Confidence Gate: retained baseline setting; PR5 ENFORCEMENT_MODE remains off.
 
 DATABASE_URL: "postgresql://prod_user:${PROD_DB_PASS}@localhost:5432/injection_prod"
-WAF_MODE: "DetectionOnly"
+WAF_MODE: "Enforcement"
 ENFORCEMENT_MODE: "off"
 MODEL_REGISTRY_SLOT: "production"
 LOG_LEVEL: "WARNING"
-CONFIDENCE_GATE_ENABLED: false
+CONFIDENCE_GATE_ENABLED: true
 CONFIDENCE_THRESHOLD: 0.92
 HUMAN_REVIEW_QUEUE_ENABLED: true

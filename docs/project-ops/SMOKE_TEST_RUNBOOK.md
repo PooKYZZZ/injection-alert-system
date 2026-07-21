@@ -93,7 +93,9 @@ mode `off` until hosted latency and identity evidence exists.
 PR5 `ENFORCE` proof requires the new Alembic head
 `20260721_000024`, a disposable database, a dedicated enforcement key, and
 explicit `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=true` in local/test
-only. Keep this setting false in staging/production. The controlled matrix must
+only, published Turnstile test credentials with explicit test mode, a 1000 ms
+check timeout, and a 5000 ms challenge timeout. Keep test settings false in
+staging/production. The controlled matrix must
 show LOW `1..5=ALLOW`, LOW `6=CHALLENGE`, MEDIUM without a grant=`CHALLENGE`,
 MEDIUM verified `1..10=ALLOW`, and the next request=`THROTTLE` with a positive
 `retry_after_seconds`. Also record source-A/source-B isolation, grant expiry,

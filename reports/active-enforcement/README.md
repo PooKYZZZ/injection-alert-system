@@ -12,6 +12,10 @@ image builds, or local Compose results as hosted destructive-enforcement proof.
 - MEDIUM challenges before access, then allows the configured post-challenge window (default 10) and returns `retry_after_seconds` on the first excess request.
 - Request windows use PostgreSQL atomic upserts; challenge grants are tier-bound and capped by recommendation expiry.
 - Turnstile Siteverify is server-side only, validates action `record_search_enforcement` and configured hostname, and persists no token.
+- Cloudflare's published dummy response was observed without the production
+  action field, so controlled provider proof uses explicit test mode with a
+  published test secret. Test mode is forbidden in staging/production; normal
+  mode still requires the production action and hostname.
 - The portal applies `ALLOW`, `CHALLENGE`, and `THROTTLE` only at `/records/search`.
 
 ## Not proven here

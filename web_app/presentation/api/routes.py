@@ -75,10 +75,10 @@ from web_app.presentation.schemas import (
     AlertDetailResponse,
     AlertListResponse,
     AlertQueryParams,
-    EnforcementCheckRequest,
-    EnforcementCheckResponse,
     EnforcementChallengeRequest,
     EnforcementChallengeResponse,
+    EnforcementCheckRequest,
+    EnforcementCheckResponse,
     FeedbackRequest,
     MLHealthResponse,
     PredictionRequest,
@@ -142,6 +142,7 @@ def get_turnstile_verifier() -> TurnstileVerifier:
         secret_key=settings.enforcement_turnstile_secret_key,
         expected_hostname=settings.enforcement_turnstile_expected_hostname,
         timeout_seconds=settings.enforcement_turnstile_timeout_seconds,
+        test_mode=settings.enforcement_turnstile_test_mode,
     )
 
 
@@ -581,9 +582,7 @@ async def stream_alert_events(
             if remaining_seconds <= 0:
                 return
             try:
-                signal = await asyncio.wait_for(
-                    events.get(), timeout=remaining_seconds
-                )
+                signal = await asyncio.wait_for(events.get(), timeout=remaining_seconds)
             except TimeoutError:
                 return
             yield ServerSentEvent(event="alert.created", data=signal)

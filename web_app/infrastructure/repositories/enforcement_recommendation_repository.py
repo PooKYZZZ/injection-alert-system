@@ -8,9 +8,9 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.domain.enforcement import (
-    EffectiveRecommendation,
     ChallengeGrant,
     CounterKind,
+    EffectiveRecommendation,
     EnforcementMode,
     EnforcementScope,
     EnforcementTier,
@@ -52,9 +52,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
         }
         dialect_name = self._session.bind.dialect.name if self._session.bind else ""
         if dialect_name == "postgresql":
-            statement = postgresql_insert(EnforcementRecommendationRow).values(
-                **values
-            )
+            statement = postgresql_insert(EnforcementRecommendationRow).values(**values)
         else:
             statement = sqlite_insert(EnforcementRecommendationRow).values(**values)
 
@@ -124,6 +122,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
         scope: EnforcementScope,
         now: datetime,
         policy_version: str,
+        require_verified: bool,
     ) -> EffectiveRecommendation | None:
         tier_rank = case(
             (EnforcementRecommendationRow.enforcement_tier == "MEDIUM", 2),
@@ -151,6 +150,10 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             )
             .limit(1)
         )
+        if require_verified:
+            statement = statement.where(
+                TrafficLog.source_verification_status == "VERIFIED"
+            )
         row = (await self._session.execute(statement)).first()
         if row is None:
             return None

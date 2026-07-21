@@ -5,7 +5,6 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
-
 POLICY_VERSION = "confidence-enforcement-v1"
 ACTIVE_POLICY_VERSION = "confidence-enforcement-v2"
 
@@ -127,6 +126,7 @@ class IEnforcementRecommendationRepository(Protocol):
         scope: EnforcementScope,
         now: datetime,
         policy_version: str,
+        require_verified: bool,
     ) -> EffectiveRecommendation | None: ...
 
     async def increment_request_window(

@@ -5,6 +5,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from time import perf_counter
 
 from web_app.domain.enforcement import (
     ACTIVE_POLICY_VERSION,
@@ -18,7 +19,6 @@ from web_app.domain.enforcement import (
     EnforcementTier,
     IEnforcementRecommendationRepository,
     NewEnforcementRecommendation,
-    TurnstileVerificationResult,
 )
 from web_app.domain.source_address import canonicalize_source_ip
 from web_app.observability.structured_logging import log_event
@@ -83,6 +83,32 @@ class VerifyEnforcementChallengeUseCase:
         ):
             return EnforcementChallengeResult()
 
+        started_at = perf_counter()
+
+        def finish(
+            result: EnforcementChallengeResult,
+            *,
+            tier: EnforcementTier | None = None,
+        ) -> EnforcementChallengeResult:
+            event = (
+                "enforcement.challenge_verification_succeeded"
+                if result.verified
+                else "enforcement.challenge_verification_failed"
+            )
+            log_event(
+                logger,
+                event,
+                "Enforcement challenge verification completed",
+                level="INFO" if result.verified else "WARNING",
+                scope=scope.value,
+                mode=self._mode.value,
+                tier=tier.value if tier is not None else None,
+                policy_version=ACTIVE_POLICY_VERSION,
+                verification_status=result.status,
+                duration_ms=round((perf_counter() - started_at) * 1000, 3),
+            )
+            return result
+
         now = self._clock()
         try:
             recommendation = await self._repository.find_effective_enforceable(
@@ -90,14 +116,20 @@ class VerifyEnforcementChallengeUseCase:
                 scope=scope,
                 now=now,
                 policy_version=ACTIVE_POLICY_VERSION,
+                require_verified=not self._allow_unverified_source_for_tests,
             )
             if recommendation is None:
-                return EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT")
+                return finish(
+                    EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT")
+                )
             if (
                 recommendation.source_verification_status != "VERIFIED"
                 and not self._allow_unverified_source_for_tests
             ):
-                return EnforcementChallengeResult(status="SOURCE_INELIGIBLE")
+                return finish(
+                    EnforcementChallengeResult(status="SOURCE_INELIGIBLE"),
+                    tier=recommendation.tier,
+                )
 
             tier = recommendation.tier
             existing = await self._repository.find_valid_challenge_grant(
@@ -108,10 +140,13 @@ class VerifyEnforcementChallengeUseCase:
                 now=now,
             )
             if existing is not None:
-                return EnforcementChallengeResult(
-                    verified=True,
-                    status="VERIFIED",
-                    grant_expires_at=existing.expires_at,
+                return finish(
+                    EnforcementChallengeResult(
+                        verified=True,
+                        status="VERIFIED",
+                        grant_expires_at=existing.expires_at,
+                    ),
+                    tier=tier,
                 )
 
             verification = await self._verifier.verify(
@@ -119,39 +154,55 @@ class VerifyEnforcementChallengeUseCase:
                 remote_ip=canonical_ip,
             )
             if not verification.success:
-                return EnforcementChallengeResult(
-                    status="UNAVAILABLE" if verification.unavailable else "INVALID"
+                return finish(
+                    EnforcementChallengeResult(
+                        status=(
+                            "UNAVAILABLE" if verification.unavailable else "INVALID"
+                        )
+                    ),
+                    tier=tier,
                 )
 
             # Siteverify is external: bind a grant only after the recommendation
             # is read again and remains eligible.
+            post_verify_now = self._clock()
             current = await self._repository.find_effective_enforceable(
                 source_ip=canonical_ip,
                 scope=scope,
-                now=now,
+                now=post_verify_now,
                 policy_version=ACTIVE_POLICY_VERSION,
+                require_verified=not self._allow_unverified_source_for_tests,
             )
             if current is None or current.tier is not tier:
-                return EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT")
+                return finish(
+                    EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT"),
+                    tier=tier,
+                )
             expires_at = min(
-                now + timedelta(seconds=self._grant_ttl_seconds),
+                post_verify_now + timedelta(seconds=self._grant_ttl_seconds),
                 current.expires_at,
             )
-            if expires_at <= now:
-                return EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT")
+            if expires_at <= post_verify_now:
+                return finish(
+                    EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT"),
+                    tier=tier,
+                )
             grant = ChallengeGrant(
                 source_ip=canonical_ip,
                 scope=scope,
                 tier=tier,
                 policy_version=ACTIVE_POLICY_VERSION,
-                verified_at=now,
+                verified_at=post_verify_now,
                 expires_at=expires_at,
             )
             await self._repository.upsert_challenge_grant(grant)
-            return EnforcementChallengeResult(
-                verified=True,
-                status="VERIFIED",
-                grant_expires_at=expires_at,
+            return finish(
+                EnforcementChallengeResult(
+                    verified=True,
+                    status="VERIFIED",
+                    grant_expires_at=expires_at,
+                ),
+                tier=tier,
             )
         except Exception as exc:  # challenge failure never creates a bypass grant
             log_event(
@@ -162,7 +213,7 @@ class VerifyEnforcementChallengeUseCase:
                 scope=scope.value,
                 error_type=type(exc).__name__,
             )
-            return EnforcementChallengeResult(status="UNAVAILABLE")
+            return finish(EnforcementChallengeResult(status="UNAVAILABLE"))
 
 
 class EvaluateEnforcementUseCase:
@@ -196,6 +247,39 @@ class EvaluateEnforcementUseCase:
         if self._mode is not EnforcementMode.ENFORCE or canonical_ip is None:
             return ActiveEnforcementResult()
 
+        started_at = perf_counter()
+
+        def finish(
+            result: ActiveEnforcementResult,
+            *,
+            counter_kind: CounterKind | None = None,
+            threshold_crossed: bool = False,
+        ) -> ActiveEnforcementResult:
+            recommendation = result.recommendation
+            log_event(
+                logger,
+                "enforcement.evaluated",
+                "Active enforcement evaluation completed",
+                scope=scope.value,
+                mode=self._mode.value,
+                tier=(
+                    recommendation.tier.value if recommendation is not None else None
+                ),
+                policy_version=(
+                    recommendation.policy_version
+                    if recommendation is not None
+                    else ACTIVE_POLICY_VERSION
+                ),
+                actual_decision=result.decision,
+                counter_kind=counter_kind.value if counter_kind is not None else None,
+                threshold_crossed=threshold_crossed,
+                retry_after_seconds=result.retry_after_seconds,
+                matched=result.matched,
+                degraded=result.degraded,
+                duration_ms=round((perf_counter() - started_at) * 1000, 3),
+            )
+            return result
+
         now = self._clock()
         try:
             recommendation = await self._repository.find_effective_enforceable(
@@ -203,9 +287,10 @@ class EvaluateEnforcementUseCase:
                 scope=scope,
                 now=now,
                 policy_version=ACTIVE_POLICY_VERSION,
+                require_verified=not self._allow_unverified_source_for_tests,
             )
             if recommendation is None:
-                return ActiveEnforcementResult()
+                return finish(ActiveEnforcementResult())
             if (
                 recommendation.source_verification_status != "VERIFIED"
                 and not self._allow_unverified_source_for_tests
@@ -213,13 +298,13 @@ class EvaluateEnforcementUseCase:
                 log_event(
                     logger,
                     "enforcement.active_source_ineligible",
-                    "Active enforcement source is not verified; request remains allowed",
+                    "Active source is not verified; request remains allowed",
                     level="WARNING",
                     scope=scope.value,
                     source_verification_status=recommendation.source_verification_status,
                     policy_version=recommendation.policy_version,
                 )
-                return ActiveEnforcementResult()
+                return finish(ActiveEnforcementResult())
 
             if recommendation.tier is EnforcementTier.LOW:
                 grant = await self._repository.find_valid_challenge_grant(
@@ -230,9 +315,11 @@ class EvaluateEnforcementUseCase:
                     now=now,
                 )
                 if grant is not None:
-                    return ActiveEnforcementResult(
-                        matched=True,
-                        recommendation=recommendation,
+                    return finish(
+                        ActiveEnforcementResult(
+                            matched=True,
+                            recommendation=recommendation,
+                        )
                     )
                 state = await self._repository.increment_request_window(
                     source_ip=canonical_ip,
@@ -243,15 +330,22 @@ class EvaluateEnforcementUseCase:
                     window_seconds=self._low_window_seconds,
                 )
                 if state.request_count > self._low_max_unchallenged_requests:
-                    return ActiveEnforcementResult(
-                        decision=EnforcementDecision.CHALLENGE.value,
+                    return finish(
+                        ActiveEnforcementResult(
+                            decision=EnforcementDecision.CHALLENGE.value,
+                            matched=True,
+                            recommendation=recommendation,
+                            challenge_tier=EnforcementTier.LOW.value,
+                        ),
+                        counter_kind=CounterKind.LOW_LIGHT,
+                        threshold_crossed=True,
+                    )
+                return finish(
+                    ActiveEnforcementResult(
                         matched=True,
                         recommendation=recommendation,
-                        challenge_tier=EnforcementTier.LOW.value,
-                    )
-                return ActiveEnforcementResult(
-                    matched=True,
-                    recommendation=recommendation,
+                    ),
+                    counter_kind=CounterKind.LOW_LIGHT,
                 )
 
             grant = await self._repository.find_valid_challenge_grant(
@@ -262,11 +356,13 @@ class EvaluateEnforcementUseCase:
                 now=now,
             )
             if grant is None:
-                return ActiveEnforcementResult(
-                    decision=EnforcementDecision.CHALLENGE.value,
-                    matched=True,
-                    recommendation=recommendation,
-                    challenge_tier=EnforcementTier.MEDIUM.value,
+                return finish(
+                    ActiveEnforcementResult(
+                        decision=EnforcementDecision.CHALLENGE.value,
+                        matched=True,
+                        recommendation=recommendation,
+                        challenge_tier=EnforcementTier.MEDIUM.value,
+                    )
                 )
             state = await self._repository.increment_request_window(
                 source_ip=canonical_ip,
@@ -277,16 +373,25 @@ class EvaluateEnforcementUseCase:
                 window_seconds=self._medium_window_seconds,
             )
             if state.request_count > self._medium_max_requests:
-                retry_after = max(1, math.ceil((state.window_end - now).total_seconds()))
-                return ActiveEnforcementResult(
-                    decision=EnforcementDecision.THROTTLE.value,
+                retry_after = max(
+                    1, math.ceil((state.window_end - now).total_seconds())
+                )
+                return finish(
+                    ActiveEnforcementResult(
+                        decision=EnforcementDecision.THROTTLE.value,
+                        matched=True,
+                        recommendation=recommendation,
+                        retry_after_seconds=retry_after,
+                    ),
+                    counter_kind=CounterKind.MEDIUM_HARD,
+                    threshold_crossed=True,
+                )
+            return finish(
+                ActiveEnforcementResult(
                     matched=True,
                     recommendation=recommendation,
-                    retry_after_seconds=retry_after,
-                )
-            return ActiveEnforcementResult(
-                matched=True,
-                recommendation=recommendation,
+                ),
+                counter_kind=CounterKind.MEDIUM_HARD,
             )
         except Exception as exc:  # protected request path is fail-open
             log_event(
@@ -297,7 +402,7 @@ class EvaluateEnforcementUseCase:
                 scope=scope.value,
                 error_type=type(exc).__name__,
             )
-            return ActiveEnforcementResult(degraded=True)
+            return finish(ActiveEnforcementResult(degraded=True))
 
 
 class RecordShadowRecommendationUseCase:
@@ -334,7 +439,7 @@ class RecordShadowRecommendationUseCase:
                 request_path=request_path,
                 mode=self._mode,
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return False
         if recommendation is None:
             return False
@@ -362,7 +467,7 @@ class RecordShadowRecommendationUseCase:
             log_event(
                 logger,
                 "enforcement.recommendation_failed",
-                "Enforcement recommendation persistence failed; triage result is unchanged",
+                "Recommendation persistence failed; triage result is unchanged",
                 level="WARNING",
                 alert_id=alert_id,
                 error_type=type(exc).__name__,

@@ -100,7 +100,7 @@
 ### PR5 controlled active enforcement state
 
 - PR5 LOW/MEDIUM active enforcement is implemented on the feature branches
-  `feat/pr5-active-enforcement` in CyberTrace and `land-records-portal`.
+  `feat/pr5-cybertrace-enforcement` and `feat/pr5-portal-enforcement`.
 - Controlled `ENFORCE` behavior uses PostgreSQL fixed-window state and server-side
   Turnstile verification. LOW challenges after its configured allowance; MEDIUM
   requires a valid grant and then returns bounded `THROTTLE` after its window.
@@ -113,6 +113,10 @@
 - Hosted/production `ENFORCEMENT_MODE` defaults to `off`; no hosted destructive
   enforcement readiness or real-user rollout is claimed. Cloudflare trusted-source,
   Pseudo IPv4, origin-isolation, and related topology gates remain open.
+- Remediation requires source eligibility before tier precedence, complete
+  Turnstile configuration, separate check/challenge timeout budgets, fresh
+  post-Siteverify time, browser-safe challenge statuses, and explicit
+  `cloudflare_verified` deployment acknowledgement before staged/production use.
 
 ### Trusted source correlation PR state
 
