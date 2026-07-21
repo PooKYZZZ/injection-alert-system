@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   checkRecordSearchShadowEnforcement,
+  checkRecordSearchEnforcement,
+  verifyRecordSearchEnforcementChallenge,
   requestSourceIp,
   type ShadowEnforcementConfig,
 } from "../lib/enforcement-check";
@@ -133,4 +135,111 @@ test("reports shadow misconfiguration as degraded rather than skipped", async ()
     status: "degraded",
     reason: "CONFIG_INVALID",
   });
+});
+
+test("parses active challenge and throttle decisions", async () => {
+  const enforceConfig = {
+    ...config,
+    mode: "enforce" as const,
+    allowUnverifiedSourceForTests: true,
+  };
+  const challenge = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: enforceConfig,
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ decision: "CHALLENGE", enforcement_tier: "LOW" }), {
+        status: 200,
+      }),
+  });
+  const throttle = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: enforceConfig,
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ decision: "THROTTLE", retry_after_seconds: 4 }), {
+        status: 200,
+      }),
+  });
+
+  assert.deepEqual(challenge, {
+    decision: "CHALLENGE",
+    status: "checked",
+    tier: "LOW",
+  });
+  assert.deepEqual(throttle, {
+    decision: "THROTTLE",
+    status: "checked",
+    retryAfterSeconds: 4,
+  });
+});
+
+test("active mode does not fall back to arbitrary forwarded headers", async () => {
+  const result = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+    config: { ...config, mode: "enforce" },
+    fetchImpl: async () => {
+      throw new Error("must not call backend");
+    },
+  });
+
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "skipped",
+    reason: "NO_SOURCE_IP",
+  });
+});
+
+test("active malformed decisions fail open", async () => {
+  const result = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: { ...config, mode: "enforce" },
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ decision: "DENY" }), { status: 200 }),
+  });
+
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "INVALID_RESPONSE",
+  });
+});
+
+test("challenge verification stays server-side and accepts only verified status", async () => {
+  let requestBody = "";
+  const result = await verifyRecordSearchEnforcementChallenge({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: {
+      ...config,
+      mode: "enforce",
+      challengeEndpoint: "http://backend:8000/api/internal/enforcement/challenge",
+    },
+    token: "turnstile-token",
+    fetchImpl: async (_input, init) => {
+      requestBody = String(init?.body);
+      return new Response(JSON.stringify({ verified: true, status: "VERIFIED" }), {
+        status: 200,
+      });
+    },
+  });
+
+  assert.deepEqual(result, { verified: true, status: "VERIFIED" });
+  assert.match(requestBody, /turnstile-token/);
+  assert.match(requestBody, /203\.0\.113\.10/);
+});
+
+test("challenge verification does not turn provider failure into a bypass", async () => {
+  const result = await verifyRecordSearchEnforcementChallenge({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: {
+      ...config,
+      mode: "enforce",
+      challengeEndpoint: "http://backend:8000/api/internal/enforcement/challenge",
+    },
+    token: "turnstile-token",
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ verified: false, status: "UNAVAILABLE" }), {
+        status: 200,
+      }),
+  });
+
+  assert.deepEqual(result, { verified: false, status: "UNAVAILABLE" });
 });
