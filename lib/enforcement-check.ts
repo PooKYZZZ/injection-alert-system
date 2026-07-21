@@ -1,6 +1,14 @@
 import { isIP } from "node:net";
 
 export type EnforcementMode = "off" | "shadow" | "enforce";
+export type AppEnv =
+  | "development"
+  | "testing"
+  | "staging"
+  | "production"
+  | "invalid";
+
+export const MIN_CHALLENGE_TIMEOUT_MS = 4000;
 
 export type EnforcementConfig = {
   mode: EnforcementMode;
@@ -12,7 +20,7 @@ export type EnforcementConfig = {
   siteKey?: string;
   allowUnverifiedSourceForTests?: boolean;
   sourceTrustMode?: "unverified" | "cloudflare_verified";
-  appEnv?: string;
+  appEnv?: AppEnv;
 };
 
 export type ShadowEnforcementConfig = Omit<EnforcementConfig, "mode"> & {
@@ -71,15 +79,17 @@ export function validateActiveEnforcementConfig(
   config: EnforcementConfig,
 ): boolean {
   if (config.mode !== "enforce") return true;
-  const deployed = config.appEnv === "production" || config.appEnv === "staging";
+  const appEnv = config.appEnv ?? "development";
+  const deployed = appEnv === "production" || appEnv === "staging";
+  const controlledTestEnvironment =
+    appEnv === "development" || appEnv === "testing";
   return Boolean(
     config.challengeEndpoint &&
       config.siteKey &&
       config.challengeTimeoutMs &&
-      config.challengeTimeoutMs > config.timeoutMs &&
-      !(
-        deployed && config.allowUnverifiedSourceForTests
-      ) &&
+      config.challengeTimeoutMs >= MIN_CHALLENGE_TIMEOUT_MS &&
+      appEnv !== "invalid" &&
+      (!config.allowUnverifiedSourceForTests || controlledTestEnvironment) &&
       (config.allowUnverifiedSourceForTests ||
         config.sourceTrustMode === "cloudflare_verified") &&
       !(deployed && TURNSTILE_TEST_SITE_KEYS.has(config.siteKey)),

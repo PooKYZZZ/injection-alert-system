@@ -272,7 +272,7 @@ test("deployed active mode rejects the unverified-source test bypass", async () 
   let calls = 0;
   const config = {
     ...activeConfig,
-    appEnv: "production",
+    appEnv: "production" as const,
     allowUnverifiedSourceForTests: true,
     sourceTrustMode: "unverified" as const,
   };
@@ -300,7 +300,7 @@ test("challenge verification rejects the same invalid deployed configuration", a
     requestHeaders: new Headers({ "x-forwarded-for": "203.0.113.10" }),
     config: {
       ...activeConfig,
-      appEnv: "production",
+      appEnv: "production" as const,
       allowUnverifiedSourceForTests: true,
       sourceTrustMode: "unverified",
     },
@@ -329,7 +329,7 @@ test("active mode requires explicit trusted ingress unless controlled test bypas
 test("challenge verification uses its longer provider-aware timeout", async () => {
   const result = await verifyRecordSearchEnforcementChallenge({
     requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
-    config: { ...activeConfig, timeoutMs: 1, challengeTimeoutMs: 50 },
+    config: { ...activeConfig, timeoutMs: 1, challengeTimeoutMs: 4000 },
     token: "turnstile-token",
     fetchImpl: (_input, init) =>
       new Promise((resolve, reject) => {
@@ -368,4 +368,42 @@ test("internal challenge statuses are normalized before reaching the browser", (
     }),
     { verified: false, status: "NO_LONGER_REQUIRED" },
   );
+});
+
+test("active mode rejects an unknown app environment", async () => {
+  const config = { ...activeConfig, appEnv: "invalid" as const };
+
+  assert.equal(validateActiveEnforcementConfig(config), false);
+  const result = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config,
+    fetchImpl: async () => {
+      throw new Error("must not call backend");
+    },
+  });
+
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "CONFIG_INVALID",
+  });
+});
+
+test("active mode rejects a challenge timeout below the provider safety floor", async () => {
+  const config = { ...activeConfig, challengeTimeoutMs: 3999 };
+
+  assert.equal(validateActiveEnforcementConfig(config), false);
+  const result = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config,
+    fetchImpl: async () => {
+      throw new Error("must not call backend");
+    },
+  });
+
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "CONFIG_INVALID",
+  });
 });

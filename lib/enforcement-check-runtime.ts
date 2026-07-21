@@ -6,6 +6,7 @@ import {
   type ChallengeVerificationResult,
   type EnforcementCheckResult,
   type EnforcementConfig,
+  type AppEnv,
 } from "./enforcement-check";
 
 const DEFAULT_ENDPOINT =
@@ -14,6 +15,18 @@ const DEFAULT_CHALLENGE_ENDPOINT =
   "http://backend:8000/api/internal/enforcement/challenge";
 const DEFAULT_TIMEOUT_MS = 1000;
 const DEFAULT_CHALLENGE_TIMEOUT_MS = 5000;
+
+function parseAppEnv(value: string | undefined): AppEnv {
+  if (
+    value === "development" ||
+    value === "testing" ||
+    value === "staging" ||
+    value === "production"
+  ) {
+    return value;
+  }
+  return value ? "invalid" : "development";
+}
 
 function runtimeConfig(): EnforcementConfig {
   const rawTimeout = Number(process.env.ENFORCEMENT_CHECK_TIMEOUT_MS);
@@ -48,7 +61,7 @@ function runtimeConfig(): EnforcementConfig {
       process.env.ENFORCEMENT_SOURCE_TRUST_MODE === "cloudflare_verified"
         ? "cloudflare_verified"
         : "unverified",
-    appEnv: process.env.APP_ENV || process.env.NODE_ENV || "development",
+    appEnv: parseAppEnv(process.env.APP_ENV || process.env.NODE_ENV),
   };
 }
 
