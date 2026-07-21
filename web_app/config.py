@@ -6,6 +6,12 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+TURNSTILE_TEST_SECRETS = {
+    "1x0000000000000000000000000000000AA",
+    "2x0000000000000000000000000000000AA",
+    "3x0000000000000000000000000000000AA",
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -21,7 +27,9 @@ class Settings(BaseSettings):
         super().__init__(**values)
 
     database_url: str
-    app_env: str = "development"
+    app_env: Literal["development", "testing", "staging", "production"] = (
+        "development"
+    )
     log_level: str = "INFO"
     model_path: str
     model_registry_path: str = ""
@@ -31,10 +39,21 @@ class Settings(BaseSettings):
         "unverified",
         "cloudflare_tunnel",
     ] = "unverified"
-    enforcement_mode: Literal["off", "shadow"] = "off"
+    enforcement_mode: Literal["off", "shadow", "enforce"] = "off"
     enforcement_check_api_key: str = ""
-    enforcement_recommendation_ttl_seconds: int = Field(
-        default=900, ge=60, le=86400
+    enforcement_recommendation_ttl_seconds: int = Field(default=900, ge=60, le=86400)
+    enforcement_low_window_seconds: int = Field(default=60, ge=1, le=3600)
+    enforcement_medium_window_seconds: int = Field(default=60, ge=1, le=3600)
+    enforcement_low_max_unchallenged_requests: int = Field(default=5, ge=1, le=10000)
+    enforcement_medium_max_requests: int = Field(default=10, ge=1, le=10000)
+    enforcement_challenge_grant_ttl_seconds: int = Field(default=300, ge=1, le=3600)
+    enforcement_turnstile_secret_key: str = ""
+    enforcement_turnstile_expected_hostname: str = ""
+    enforcement_turnstile_timeout_seconds: float = Field(default=3.0, gt=0, le=3)
+    enforcement_turnstile_test_mode: bool = False
+    enforcement_allow_unverified_source_for_tests: bool = False
+    enforcement_source_trust_mode: Literal["unverified", "cloudflare_verified"] = (
+        "unverified"
     )
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(
@@ -100,11 +119,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
             )
-        if self.enforcement_mode == "shadow":
+        if self.enforcement_mode in {"shadow", "enforce"}:
             key = self.enforcement_check_api_key.strip()
             if not key:
                 raise ValueError(
-                    "ENFORCEMENT_CHECK_API_KEY is required when enforcement mode is shadow"
+                    "ENFORCEMENT_CHECK_API_KEY is required when enforcement is active"
                 )
             if len(key) < 32:
                 raise ValueError(
@@ -112,13 +131,70 @@ class Settings(BaseSettings):
                 )
             if key in {self.api_secret_key, self.waf_ingest_api_key}:
                 raise ValueError(
-                    "ENFORCEMENT_CHECK_API_KEY must differ from API_SECRET_KEY and WAF_INGEST_API_KEY"
+                    "ENFORCEMENT_CHECK_API_KEY must differ from API_SECRET_KEY "
+                    "and WAF_INGEST_API_KEY"
+                )
+        if self.enforcement_allow_unverified_source_for_tests and (
+            self.is_production or self.is_staging
+        ):
+            raise ValueError(
+                "unverified source bypass is forbidden in staging and production"
+            )
+        if (
+            self.enforcement_mode == "enforce"
+            and self.enforcement_challenge_grant_ttl_seconds
+            > self.enforcement_recommendation_ttl_seconds
+        ):
+            raise ValueError("challenge grant TTL cannot exceed recommendation TTL")
+        if self.enforcement_mode == "enforce":
+            if not self.enforcement_turnstile_secret_key.strip():
+                raise ValueError(
+                    "ENFORCE mode requires enforcement Turnstile secret configuration"
+                )
+            if not self.enforcement_turnstile_expected_hostname.strip():
+                raise ValueError(
+                    "ENFORCE mode requires enforcement Turnstile hostname configuration"
+                )
+            if (
+                self.is_production or self.is_staging
+            ) and self.enforcement_source_trust_mode != "cloudflare_verified":
+                raise ValueError(
+                    "ENFORCE mode requires explicit cloudflare_verified source trust "
+                    "in staging and production"
+                )
+            if (
+                self.is_production or self.is_staging
+            ) and self.waf_source_verification_mode != "cloudflare_tunnel":
+                raise ValueError(
+                    "ENFORCE mode requires cloudflare_tunnel WAF source verification "
+                    "in staging and production"
+                )
+            if self.enforcement_turnstile_test_mode:
+                if self.is_production or self.is_staging:
+                    raise ValueError(
+                        "enforcement Turnstile test mode is forbidden in staging "
+                        "and production"
+                    )
+                if (
+                    self.enforcement_turnstile_secret_key.strip()
+                    not in TURNSTILE_TEST_SECRETS
+                ):
+                    raise ValueError(
+                        "enforcement Turnstile test mode requires a published "
+                        "Turnstile test secret"
+                    )
+            if (
+                (self.is_production or self.is_staging)
+                and self.enforcement_turnstile_secret_key.strip()
+                in TURNSTILE_TEST_SECRETS
+            ):
+                raise ValueError(
+                    "Cloudflare Turnstile test credentials are forbidden in staging "
+                    "and production"
                 )
         if self.is_production or self.is_staging:
             if not self.api_secret_key:
-                raise ValueError(
-                    "API_SECRET_KEY is required in production and staging"
-                )
+                raise ValueError("API_SECRET_KEY is required in production and staging")
             if not self.waf_ingest_api_key:
                 raise ValueError(
                     "WAF_INGEST_API_KEY is required in production and staging"
@@ -129,9 +205,7 @@ class Settings(BaseSettings):
                     "production and staging"
                 )
             if self.waf_ingest_api_key == self.api_secret_key:
-                raise ValueError(
-                    "WAF_INGEST_API_KEY must differ from API_SECRET_KEY"
-                )
+                raise ValueError("WAF_INGEST_API_KEY must differ from API_SECRET_KEY")
         if self.notification_worker_enabled:
             raw_key = (self.notification_payload_encryption_key or "").strip()
             try:
@@ -140,7 +214,7 @@ class Settings(BaseSettings):
                     if re.fullmatch(r"[0-9a-fA-F]{64}", raw_key)
                     else base64.b64decode(raw_key, validate=True)
                 )
-            except (ValueError, base64.binascii.Error):
+            except ValueError, base64.binascii.Error:
                 payload_key = b""
             if len(payload_key) != 32:
                 raise ValueError(
@@ -174,9 +248,7 @@ class Settings(BaseSettings):
                 "the fake email provider"
             )
         if self.threat_email_enabled and not self.threat_email_to:
-            raise ValueError(
-                "enabled threat email notifications require a recipient"
-            )
+            raise ValueError("enabled threat email notifications require a recipient")
         return self
 
     @property

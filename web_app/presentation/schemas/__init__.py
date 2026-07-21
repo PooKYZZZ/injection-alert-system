@@ -29,6 +29,8 @@ from web_app.presentation.schemas.waf_ingest import (
     WafIngestRequest,
 )
 from web_app.presentation.schemas.enforcement import (
+    EnforcementChallengeRequest,
+    EnforcementChallengeResponse,
     EnforcementCheckRequest,
     EnforcementCheckResponse,
 )
@@ -57,4 +59,6 @@ __all__ = [
     "WafIngestRequest",
     "EnforcementCheckRequest",
     "EnforcementCheckResponse",
+    "EnforcementChallengeRequest",
+    "EnforcementChallengeResponse",
 ]

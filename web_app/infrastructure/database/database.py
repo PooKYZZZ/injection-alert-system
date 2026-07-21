@@ -13,6 +13,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -176,11 +177,11 @@ class EnforcementRecommendationRow(Base):
             name="enforcement_recommendations_tier_allowed",
         ),
         CheckConstraint(
-            "recommended_action IN ('MONITOR', 'THROTTLE', 'APPLICATION_BLOCK', 'WAF_BLOCK')",
+            "recommended_action IN ('MONITOR', 'CHALLENGE', 'THROTTLE', 'APPLICATION_BLOCK', 'WAF_BLOCK')",
             name="enforcement_recommendations_action_allowed",
         ),
         CheckConstraint(
-            "enforcement_mode = 'SHADOW'",
+            "enforcement_mode IN ('SHADOW', 'ENFORCE')",
             name="enforcement_recommendations_mode_allowed",
         ),
         CheckConstraint(
@@ -216,6 +217,102 @@ class EnforcementRecommendationRow(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class EnforcementRequestWindowRow(Base):
+    """Atomic fixed-window counters for active LOW/MEDIUM enforcement."""
+
+    __tablename__ = "enforcement_request_windows"
+    __table_args__ = (
+        CheckConstraint(
+            "scope = 'RECORD_SEARCH'",
+            name="enforcement_request_windows_scope_allowed",
+        ),
+        CheckConstraint(
+            "counter_kind IN ('LOW_LIGHT', 'MEDIUM_HARD')",
+            name="enforcement_request_windows_counter_kind_allowed",
+        ),
+        CheckConstraint(
+            "request_count >= 0",
+            name="enforcement_request_windows_count_nonnegative",
+        ),
+        CheckConstraint(
+            "window_end > window_start",
+            name="enforcement_request_windows_valid_window",
+        ),
+        CheckConstraint(
+            "length(policy_version) BETWEEN 1 AND 64",
+            name="enforcement_request_windows_policy_version_length",
+        ),
+        UniqueConstraint(
+            "source_ip",
+            "scope",
+            "counter_kind",
+            "policy_version",
+            "window_start",
+            name="uq_enforcement_request_window_key",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_ip = Column(String(45), nullable=False)
+    scope = Column(String(32), nullable=False)
+    counter_kind = Column(String(32), nullable=False)
+    policy_version = Column(String(64), nullable=False)
+    window_start = Column(DateTime(timezone=True), nullable=False)
+    window_end = Column(DateTime(timezone=True), nullable=False)
+    request_count = Column(Integer, nullable=False, server_default="0")
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class EnforcementChallengeGrantRow(Base):
+    """Bounded server-verified challenge state, separated by confidence tier."""
+
+    __tablename__ = "enforcement_challenge_grants"
+    __table_args__ = (
+        CheckConstraint(
+            "scope = 'RECORD_SEARCH'",
+            name="enforcement_challenge_grants_scope_allowed",
+        ),
+        CheckConstraint(
+            "enforcement_tier IN ('LOW', 'MEDIUM')",
+            name="enforcement_challenge_grants_tier_allowed",
+        ),
+        CheckConstraint(
+            "expires_at > verified_at",
+            name="enforcement_challenge_grants_expiry_after_verification",
+        ),
+        CheckConstraint(
+            "length(policy_version) BETWEEN 1 AND 64",
+            name="enforcement_challenge_grants_policy_version_length",
+        ),
+        UniqueConstraint(
+            "source_ip",
+            "scope",
+            "enforcement_tier",
+            "policy_version",
+            name="uq_enforcement_challenge_grant_key",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_ip = Column(String(45), nullable=False)
+    scope = Column(String(32), nullable=False)
+    enforcement_tier = Column(String(10), nullable=False)
+    policy_version = Column(String(64), nullable=False)
+    verified_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 async def init_db():

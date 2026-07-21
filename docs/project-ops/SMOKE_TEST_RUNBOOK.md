@@ -88,6 +88,38 @@ of shadow correlation only: `recommended_action` is an intent, while
 `actual_decision=ALLOW` and the browser response remain unchanged. Keep hosted
 mode `off` until hosted latency and identity evidence exists.
 
+### PR5 controlled active check (local/test only)
+
+The canonical completed E2E report is
+[`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`](../../reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md).
+It covers the protected route `http://localhost:8089/records/search`, scope
+`RECORD_SEARCH`, local Docker Compose, and disposable PostgreSQL 16.
+
+PR5 `ENFORCE` reruns require the new Alembic head
+`20260721_000024`, a disposable database, a dedicated enforcement key, and
+explicit `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=true` in local/test
+only, published Turnstile test credentials with explicit test mode, a 1000 ms
+check timeout, and a 5000 ms challenge timeout. Keep test settings false in
+staging/production. The controlled matrix must
+show LOW `1..5=ALLOW`, LOW `6=CHALLENGE`, MEDIUM without a grant=`CHALLENGE`,
+MEDIUM verified `1..10=ALLOW`, and the next request=`THROTTLE` with a positive
+`retry_after_seconds`. Also record source-A/source-B isolation, grant expiry,
+invalid/provider-failed challenge behavior, and backend/database fail-open
+behavior. This is local/test evidence; it does not prove Cloudflare topology
+trust or authorize hosted enforcement.
+
+The completed run used `APP_ENV=development`, `ENFORCEMENT_MODE=enforce`, and
+Cloudflare-published always-pass and always-fail test credentials. Always-pass
+verification must create a tier-bound grant; always-fail verification must leave
+the page at `Verification required`, create no grant, and expose no protected
+records. If policy evaluation is unavailable, the portal should fail open to
+normal search without creating a grant or request window. Inspect PostgreSQL
+after each request when rerunning so recommendation, grant, and counter state can
+be correlated cleanly. Browser refreshes can make exact manual boundary counts
+noisy; the prior PASS functionally observed LOW threshold challenge and MEDIUM
+post-grant throttling, but did not preserve clean exact 5→6 or 10→11 screenshot
+pairs.
+
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend --base-url http://127.0.0.1:8000 --timeout 5
 ```

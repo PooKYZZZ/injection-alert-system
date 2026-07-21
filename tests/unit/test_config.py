@@ -5,7 +5,6 @@ from pydantic import ValidationError
 
 from web_app.config import Settings, get_settings, reset_settings_cache
 
-
 VALID_API_KEY = "general-internal-key"
 VALID_WAF_KEY = "test-waf-key-" * 3
 
@@ -55,7 +54,7 @@ def test_production_env_disables_api_docs_by_default(monkeypatch):
     monkeypatch.setenv("ENABLE_API_DOCS", "false")  # Explicitly set to test override
 
     settings = get_settings()
-    
+
     assert settings.app_env == "production"
     assert settings.is_production is True
     assert settings.enable_api_docs is False
@@ -72,7 +71,7 @@ def test_staging_env_disables_api_docs_by_default(monkeypatch):
     monkeypatch.setenv("ENABLE_API_DOCS", "true")  # Explicitly enable
 
     settings = get_settings()
-    
+
     assert settings.app_env == "staging"
     assert settings.is_staging is True
     assert settings.enable_api_docs is True  # Explicit override works
@@ -87,7 +86,7 @@ def test_development_env_enables_api_docs_by_default(monkeypatch):
     monkeypatch.setenv("API_SECRET_KEY", "test-key")
 
     settings = get_settings()
-    
+
     assert settings.app_env == "development"
     assert settings.is_development is True
     assert settings.enable_api_docs is True
@@ -102,7 +101,7 @@ def test_is_staging_property(monkeypatch):
     monkeypatch.setenv("API_SECRET_KEY", "test-key")
 
     settings = get_settings()
-    
+
     assert settings.is_staging is True
     assert settings.is_production is False
     assert settings.is_testing is False
@@ -124,7 +123,7 @@ def test_deployed_environment_requires_general_api_key(app_env):
 
 def test_development_allows_auth_bypass_only_when_no_api_key(monkeypatch):
     """Test that development allows auth bypass ONLY when no API key is configured.
-    
+
     This is intentional for local development ergonomics.
     """
     monkeypatch.setenv("DATABASE_URL", "sqlite:///test.db")
@@ -134,7 +133,7 @@ def test_development_allows_auth_bypass_only_when_no_api_key(monkeypatch):
     monkeypatch.delenv("API_SECRET_KEY", raising=False)
 
     settings = get_settings()
-    
+
     assert settings.is_development is True
     assert settings.is_production is False
     # No API key + development = bypass possible (intentional)
@@ -149,7 +148,7 @@ def test_development_with_api_key_requires_auth(monkeypatch):
     monkeypatch.setenv("API_SECRET_KEY", "dev-key-123")
 
     settings = get_settings()
-    
+
     assert settings.is_development is True
     assert settings.api_secret_key == "dev-key-123"
     # With API key in development, auth is required
@@ -165,7 +164,7 @@ def test_staging_environment_properties(monkeypatch):
     monkeypatch.setenv("WAF_INGEST_API_KEY", VALID_WAF_KEY)
 
     settings = get_settings()
-    
+
     assert settings.is_staging is True
     assert settings.is_production is False
     assert settings.is_development is False
@@ -183,7 +182,7 @@ def test_production_environment_properties(monkeypatch):
     monkeypatch.setenv("WAF_INGEST_API_KEY", VALID_WAF_KEY)
 
     settings = get_settings()
-    
+
     assert settings.is_production is True
     assert settings.is_staging is False
     assert settings.is_development is False
@@ -365,10 +364,176 @@ def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
     assert settings.enforcement_recommendation_ttl_seconds == 900
 
 
+def test_active_enforcement_accepts_explicit_controlled_configuration() -> None:
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+        api_secret_key="general-key",
+        waf_ingest_api_key="waf-key",
+        enforcement_mode="enforce",
+        enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+        enforcement_turnstile_secret_key="turnstile-secret",
+        enforcement_turnstile_expected_hostname="localhost",
+        enforcement_allow_unverified_source_for_tests=True,
+    )
+
+    assert settings.enforcement_mode == "enforce"
+    assert settings.enforcement_low_window_seconds == 60
+    assert settings.enforcement_low_max_unchallenged_requests == 5
+    assert settings.enforcement_medium_max_requests == 10
+    assert settings.enforcement_challenge_grant_ttl_seconds == 300
+
+
+@pytest.mark.parametrize(
+    "missing",
+    ["enforcement_turnstile_secret_key", "enforcement_turnstile_expected_hostname"],
+)
+def test_active_enforcement_requires_complete_turnstile_configuration(
+    missing: str,
+) -> None:
+    values = {
+        "enforcement_turnstile_secret_key": "turnstile-secret",
+        "enforcement_turnstile_expected_hostname": "localhost",
+    }
+    values[missing] = ""
+    with pytest.raises(ValueError, match="Turnstile"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_allow_unverified_source_for_tests=True,
+            **values,
+        )
+
+
+@pytest.mark.parametrize("app_env", ["staging", "production"])
+def test_deployed_active_enforcement_requires_explicit_cloudflare_trust(
+    app_env: str,
+) -> None:
+    with pytest.raises(ValueError, match="source trust"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_turnstile_secret_key="real-secret",
+            enforcement_turnstile_expected_hostname="app.example.com",
+        )
+
+
+@pytest.mark.parametrize("app_env", ["staging", "production"])
+def test_deployed_active_enforcement_requires_cloudflare_tunnel_source_verification(
+    app_env: str,
+) -> None:
+    with pytest.raises(ValueError, match="cloudflare_tunnel"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_turnstile_secret_key="real-secret",
+            enforcement_turnstile_expected_hostname="app.example.com",
+            enforcement_source_trust_mode="cloudflare_verified",
+            waf_source_verification_mode="unverified",
+        )
+
+
+def test_app_env_rejects_unknown_values() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env="prod",
+        )
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "1x0000000000000000000000000000000AA",
+        "2x0000000000000000000000000000000AA",
+        "3x0000000000000000000000000000000AA",
+    ],
+)
+def test_deployed_active_enforcement_rejects_turnstile_test_secrets(
+    secret: str,
+) -> None:
+    with pytest.raises(ValueError, match="test credential"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env="production",
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_turnstile_secret_key=secret,
+            enforcement_turnstile_expected_hostname="app.example.com",
+            enforcement_source_trust_mode="cloudflare_verified",
+            waf_source_verification_mode="cloudflare_tunnel",
+        )
+
+
+def test_low_maximum_must_allow_at_least_one_request() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            enforcement_low_max_unchallenged_requests=0,
+        )
+
+
+def test_turnstile_test_mode_requires_published_test_secret() -> None:
+    with pytest.raises(ValueError, match="published Turnstile test secret"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_turnstile_secret_key="not-a-test-secret",
+            enforcement_turnstile_expected_hostname="localhost",
+            enforcement_turnstile_test_mode=True,
+            enforcement_allow_unverified_source_for_tests=True,
+        )
+
+
+def test_deployed_active_enforcement_rejects_turnstile_test_mode() -> None:
+    with pytest.raises(ValueError, match="test mode"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env="production",
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_turnstile_secret_key="1x0000000000000000000000000000000AA",
+            enforcement_turnstile_expected_hostname="localhost",
+            enforcement_turnstile_test_mode=True,
+            enforcement_source_trust_mode="cloudflare_verified",
+            waf_source_verification_mode="cloudflare_tunnel",
+        )
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"enforcement_mode": "enforce"},
         {"enforcement_mode": "shadow", "enforcement_check_api_key": ""},
         {
             "enforcement_mode": "shadow",
@@ -380,6 +545,7 @@ def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
             "enforcement_check_api_key": "shared-key-that-is-long-enough-123456",
         },
         {"enforcement_recommendation_ttl_seconds": 59},
+        {"enforcement_mode": "enforce", "enforcement_check_api_key": ""},
     ],
 )
 def test_enforcement_configuration_rejects_unsafe_values(kwargs) -> None:

@@ -2,13 +2,14 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-22
 
 ---
 
 ## Current Verified Repo State
 
-- Working branch: `master`
+- Working branch: `feat/pr5-cybertrace-enforcement` (portal counterpart:
+  `feat/pr5-portal-enforcement`)
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -96,6 +97,45 @@
   enabled. Hosted shadow enablement remains deferred pending target-topology
   measurement and timeout selection; live expiration was not destructively
   forced because active recommendations were preserved.
+
+### PR5 controlled active enforcement state
+
+- PR5 LOW/MEDIUM active enforcement is complete on the feature branches
+  `feat/pr5-cybertrace-enforcement` and `feat/pr5-portal-enforcement`. Backend PR
+  #90 (`ea3ad66`) and portal PR #91 (`665cb83`) passed their required CI checks.
+- Controlled local full-stack E2E is PASS through the realistic
+  `http://localhost:8089/records/search` path using Docker Compose and disposable
+  PostgreSQL 16. The canonical evidence is
+  [`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`](../../reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md).
+- The E2E run validated LOW challenge/grant persistence and valid-grant counter
+  bypass; MEDIUM immediate challenge, grant persistence, fixed-window counting,
+  positive retry countdown, and throttling; invalid Turnstile with no grant/window;
+  and backend-evaluation outage fail-open with no fabricated grant/window.
+- LOW 1–5 ALLOW and sixth-request CHALLENGE, and MEDIUM 10→11 throttling, were
+  functionally observed. Clean one-request-at-a-time screenshot pairs for those
+  exact boundaries were not preserved because refreshes were rapid during parts
+  of the manual run.
+- PR4 `SHADOW` remains advisory and preserves historical recommendation rows and
+  `action_taken` values. HIGH/CRITICAL active blocking, WAF enforcement, Redis,
+  and global middleware are out of scope.
+- The PostgreSQL concurrency test and the controlled E2E used disposable local
+  database state; no hosted database mutation is claimed.
+- Hosted/production `ENFORCEMENT_MODE` defaults to `off`; no hosted destructive
+  enforcement readiness or real-user rollout is claimed. Cloudflare trusted-source,
+  Pseudo IPv4, origin-isolation, and related topology gates remain open.
+- Remediation requires source eligibility before tier precedence, complete
+  Turnstile configuration, separate check/challenge timeout budgets, fresh
+  post-Siteverify time, browser-safe challenge statuses, and explicit
+  `cloudflare_verified` deployment acknowledgement before staged/production use.
+
+### PR5 acceptance state
+
+- Implementation: **complete**.
+- Controlled local full-stack E2E: **PASS**.
+- Hosted Cloudflare topology proof: **pending**.
+- Production ENFORCE and rollout: **intentionally disabled**.
+- Next implementation phase: **PR6 HIGH application blocking**. PR7 remains
+  CRITICAL/WAF enforcement; PR8 model packaging; PR9 candidate retraining.
 
 ### Trusted source correlation PR state
 

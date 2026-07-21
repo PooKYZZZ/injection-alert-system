@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-13
+Updated: 2026-07-21
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -68,7 +68,29 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   one second of degraded-path latency but did not deny portal availability.
 - A transient startup/readiness report and successful shadow-check log
   visibility remain non-blocking follow-ups. Hosted shadow remains deferred;
-  PR5 is the next implementation phase.
+  PR5 is now recorded below as locally E2E-validated, with hosted topology and
+  production rollout still gated.
+
+### PR5 controlled active enforcement (2026-07-21)
+
+- LOW/MEDIUM `ENFORCE` implementation and controlled local full-stack E2E are
+  complete. The canonical PASS evidence is
+  `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`.
+- The E2E used local Docker Compose, disposable PostgreSQL 16, the protected
+  `http://localhost:8089/records/search` route, `APP_ENV=development`, and
+  Cloudflare-published Turnstile test credentials with the source bypass enabled
+  only for local testing. PR4 `SHADOW` remains advisory and historical.
+- LOW uses a PostgreSQL fixed window before issuing `CHALLENGE`; MEDIUM uses a
+  Turnstile grant and then a PostgreSQL fixed window before issuing `THROTTLE`.
+  Policy-evaluation failures, unavailable enforcement state, and ineligible
+  sources fail open to `ALLOW`. Invalid or unavailable Turnstile verification
+  remains unsatisfied and creates no challenge grant.
+- Portal challenge verification is server-side and only accepts a verified
+  Turnstile result. The browser never calls FastAPI directly.
+- Hosted/production `ENFORCEMENT_MODE` remains `off` by default. Trusted
+  Cloudflare source/topology verification is still pending and production
+  rollout remains intentionally disabled. PR6 HIGH application blocking is the
+  next implementation phase.
 
 ### Historical checks through 2026-07-05
 

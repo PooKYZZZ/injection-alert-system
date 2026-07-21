@@ -200,6 +200,26 @@ Status note:
 - [ ] Evaluate passkeys/WebAuthn as a later enhancement (deferred)
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
+- [x] PR5 implementation and controlled local full-stack E2E are complete: backend
+  PR #90 and portal PR #91 passed CI; canonical evidence is recorded in
+  `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`
+- [x] PR5 LOW threshold challenge behavior and LOW challenge-grant persistence
+  were validated; valid LOW grants bypassed LOW request-counter recreation
+- [x] PR5 MEDIUM immediate challenge, grant persistence, request-window counting,
+  fixed-window rollover, throttle behavior, and positive retry countdown were
+  validated
+- [x] PR5 invalid Turnstile validation created no grant and no MEDIUM request
+  window
+- [x] PR5 backend-evaluation outage failed open to usable search without a fake
+  grant or request window
+- [ ] Preserve the E2E evidence limitation: clean exact LOW 5→6 and MEDIUM
+  10→11 screenshot pairs were not preserved during rapid manual refreshes
+- [ ] Enable hosted/production ENFORCE only after trusted-source, Cloudflare
+  Pseudo IPv4, and origin-isolation topology gates are directly verified
+- [ ] PR6 HIGH application blocking (next implementation phase)
+- [ ] PR7 CRITICAL/WAF enforcement
+- [ ] PR8 model packaging
+- [ ] PR9 candidate retraining
 - [ ] Repo-managed export and verification of Supabase policy / RLS state
 - [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
 

@@ -1,13 +1,14 @@
 # Environment: Production
-# Purpose: Live system serving real traffic. All enforcement active.
+# Purpose: Live system serving real traffic. PR5 ML enforcement remains disabled by default.
 # DB: PostgreSQL (production database, full audit logging enabled)
-# WAF: ModSecurity in Enforcement mode (CRS rules + ML confidence gate active)
+# WAF: Baseline ModSecurity/OWASP CRS enforcement remains independent of PR5.
 # ML Model: loads ONLY from ml_model/model_registry/production/ (validated, signed artifact)
 # Logging: WARNING level, structured JSON to file, audit log to separate append-only table
-# Confidence Gate: enabled at full threshold — LOW confidence triggers human review queue
+# Confidence Gate: retained baseline setting; PR5 ENFORCEMENT_MODE remains off.
 
 DATABASE_URL: "postgresql://prod_user:${PROD_DB_PASS}@localhost:5432/injection_prod"
 WAF_MODE: "Enforcement"
+ENFORCEMENT_MODE: "off"
 MODEL_REGISTRY_SLOT: "production"
 LOG_LEVEL: "WARNING"
 CONFIDENCE_GATE_ENABLED: true

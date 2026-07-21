@@ -97,6 +97,31 @@ returns `{"decision":"ALLOW"}`; a backend lookup failure returns `503`, which
 the portal treats as local `ALLOW`. This does not block, throttle, challenge,
 or otherwise change a request.
 
+PR5 active enforcement is a controlled local/test path only. The completed
+controlled full-stack evidence is recorded in
+`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`. Keep the default
+`ENFORCEMENT_MODE=off` for hosted and production environments. For a disposable
+local environment, set `ENFORCEMENT_MODE=enforce`, provide the dedicated check
+key, set `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=true` in both CyberTrace
+and the portal, and configure Cloudflare's published test Turnstile credentials
+with `ENFORCEMENT_TURNSTILE_TEST_MODE=true`. Set the portal check timeout to at
+least 1000 ms and its challenge timeout above the backend Siteverify budget
+(5000 ms for the current controlled defaults). Test mode and the source bypass
+are rejected in staging/production. Real deployed ENFORCE additionally requires
+`ENFORCEMENT_SOURCE_TRUST_MODE=cloudflare_verified`, which records completion of
+the separate origin-isolation and proxy-header topology gate. LOW defaults to five
+unchallenged requests per 60-second window; MEDIUM challenges immediately and
+allows ten verified requests per 60-second window before returning
+`THROTTLE` with `retry_after_seconds`. The portal applies these decisions only
+to `/records/search`. Enforcement evaluation failures fail open; an invalid or
+unavailable challenge remains unsatisfied and never creates a grant.
+
+Active enforcement uses additive migration
+`20260721_000024_add_active_enforcement_state.py`. It preserves PR4 SHADOW rows,
+adds `enforcement_request_windows` and `enforcement_challenge_grants`, and does
+not delete traffic logs on downgrade. Local/test proof belongs in
+`reports/active-enforcement/`; it is not hosted readiness evidence.
+
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:
 
