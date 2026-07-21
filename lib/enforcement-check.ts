@@ -8,8 +8,11 @@ export type EnforcementConfig = {
   challengeEndpoint?: string;
   apiKey: string;
   timeoutMs: number;
+  challengeTimeoutMs?: number;
   siteKey?: string;
   allowUnverifiedSourceForTests?: boolean;
+  sourceTrustMode?: "unverified" | "cloudflare_verified";
+  appEnv?: string;
 };
 
 export type ShadowEnforcementConfig = Omit<EnforcementConfig, "mode"> & {
@@ -36,7 +39,7 @@ export type ShadowCheckResult = Extract<
   { decision: "ALLOW" }
 >;
 
-type ChallengeFailureStatus =
+type InternalChallengeFailureStatus =
   | "INVALID"
   | "UNAVAILABLE"
   | "NO_ACTIVE_ENFORCEMENT"
@@ -46,8 +49,23 @@ export type ChallengeVerificationResult =
   | { verified: true; status: "VERIFIED" }
   | {
       verified: false;
-      status: ChallengeFailureStatus;
+      status: InternalChallengeFailureStatus;
     };
+
+export type BrowserChallengeVerificationResult =
+  | { verified: true; status: "VERIFIED" }
+  | {
+      verified: false;
+      status: "INVALID" | "UNAVAILABLE" | "NO_LONGER_REQUIRED";
+    };
+
+const TURNSTILE_TEST_SITE_KEYS = new Set([
+  "1x00000000000000000000AA",
+  "2x00000000000000000000AB",
+  "1x00000000000000000000BB",
+  "2x00000000000000000000BB",
+  "3x00000000000000000000FF",
+]);
 
 type FetchLike = (
   input: RequestInfo | URL,
@@ -129,13 +147,28 @@ export async function checkRecordSearchEnforcement({
   }
 
   const active = config.mode === "enforce";
+  const deployed = config.appEnv === "production" || config.appEnv === "staging";
+  const activeConfigInvalid =
+    active &&
+    (!config.challengeEndpoint ||
+      !config.siteKey ||
+      !config.challengeTimeoutMs ||
+      config.challengeTimeoutMs <= config.timeoutMs ||
+      (!config.allowUnverifiedSourceForTests &&
+        config.sourceTrustMode !== "cloudflare_verified") ||
+      (deployed && TURNSTILE_TEST_SITE_KEYS.has(config.siteKey)));
+  if (
+    !config.apiKey ||
+    !config.endpoint ||
+    config.timeoutMs <= 0 ||
+    activeConfigInvalid
+  ) {
+    return { decision: "ALLOW", status: "degraded", reason: "CONFIG_INVALID" };
+  }
   const sourceIp = requestSourceIp(requestHeaders, {
     active,
     allowUnverifiedSourceForTests: config.allowUnverifiedSourceForTests,
   });
-  if (!config.apiKey || !config.endpoint || config.timeoutMs <= 0) {
-    return { decision: "ALLOW", status: "degraded", reason: "CONFIG_INVALID" };
-  }
   if (!sourceIp) {
     return { decision: "ALLOW", status: "skipped", reason: "NO_SOURCE_IP" };
   }
@@ -231,7 +264,10 @@ export async function verifyRecordSearchEnforcementChallenge({
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    config.challengeTimeoutMs ?? config.timeoutMs,
+  );
   try {
     const response = await fetchImpl(config.challengeEndpoint, {
       method: "POST",
@@ -257,7 +293,10 @@ export async function verifyRecordSearchEnforcementChallenge({
         "SOURCE_INELIGIBLE",
       ].includes(body.status as string)
     ) {
-      return { verified: false, status: body.status as ChallengeFailureStatus };
+      return {
+        verified: false,
+        status: body.status as InternalChallengeFailureStatus,
+      };
     }
     return { verified: false, status: "UNAVAILABLE" };
   } catch {
@@ -265,4 +304,17 @@ export async function verifyRecordSearchEnforcementChallenge({
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function normalizeBrowserChallengeResult(
+  result: ChallengeVerificationResult,
+): BrowserChallengeVerificationResult {
+  if (result.verified) return result;
+  if (
+    result.status === "NO_ACTIVE_ENFORCEMENT" ||
+    result.status === "SOURCE_INELIGIBLE"
+  ) {
+    return { verified: false, status: "NO_LONGER_REQUIRED" };
+  }
+  return { verified: false, status: result.status };
 }

@@ -2,6 +2,11 @@
 
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
+import {
+  challengeUiAction,
+  removeTurnstileWidget,
+  type BrowserChallengeStatus,
+} from "../lib/enforcement-challenge-ui";
 
 declare global {
   interface Window {
@@ -17,6 +22,7 @@ declare global {
         },
       ) => string;
       reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
     };
   }
 }
@@ -25,11 +31,19 @@ export function EnforcementChallenge({ siteKey }: { siteKey: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | undefined>(undefined);
   const [scriptReady, setScriptReady] = useState(false);
+  const [scriptFailed, setScriptFailed] = useState(false);
   const [message, setMessage] = useState("Complete the verification to continue.");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!siteKey || !scriptReady || !containerRef.current || !window.turnstile) return;
+    if (
+      !siteKey ||
+      !scriptReady ||
+      !containerRef.current ||
+      !window.turnstile ||
+      widgetIdRef.current
+    )
+      return;
     widgetIdRef.current = window.turnstile.render(containerRef.current, {
       sitekey: siteKey,
       action: "record_search_enforcement",
@@ -44,14 +58,15 @@ export function EnforcementChallenge({ siteKey }: { siteKey: string }) {
           });
           const body = (await response.json()) as {
             verified?: boolean;
-            status?: string;
+            status?: BrowserChallengeStatus;
           };
-          if (body.verified === true && body.status === "VERIFIED") {
+          const action = body.status ? challengeUiAction(body.status) : "RESET_UNAVAILABLE";
+          if (action === "RELOAD") {
             window.location.reload();
             return;
           }
           setMessage(
-            body.status === "UNAVAILABLE"
+            action === "RESET_UNAVAILABLE"
               ? "Verification is temporarily unavailable. Please try again."
               : "Verification was not accepted. Please try again.",
           );
@@ -67,6 +82,7 @@ export function EnforcementChallenge({ siteKey }: { siteKey: string }) {
       "expired-callback": () => setMessage("Verification expired. Please try again."),
     });
     return () => {
+      removeTurnstileWidget(window.turnstile, widgetIdRef.current);
       widgetIdRef.current = undefined;
     };
   }, [scriptReady, siteKey]);
@@ -81,8 +97,12 @@ export function EnforcementChallenge({ siteKey }: { siteKey: string }) {
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         strategy="afterInteractive"
         onLoad={() => setScriptReady(true)}
+        onError={() => {
+          setScriptFailed(true);
+          setMessage("Verification is temporarily unavailable. Please try again.");
+        }}
       />
-      <div ref={containerRef} />
+      {!scriptFailed && <div ref={containerRef} />}
       <p className="text-sm text-slate-600">{submitting ? "Verifying…" : message}</p>
     </div>
   );

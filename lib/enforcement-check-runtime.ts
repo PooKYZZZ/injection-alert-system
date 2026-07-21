@@ -12,10 +12,14 @@ const DEFAULT_ENDPOINT =
   "http://backend:8000/api/internal/enforcement/check";
 const DEFAULT_CHALLENGE_ENDPOINT =
   "http://backend:8000/api/internal/enforcement/challenge";
-const DEFAULT_TIMEOUT_MS = 250;
+const DEFAULT_TIMEOUT_MS = 1000;
+const DEFAULT_CHALLENGE_TIMEOUT_MS = 5000;
 
 function runtimeConfig(): EnforcementConfig {
   const rawTimeout = Number(process.env.ENFORCEMENT_CHECK_TIMEOUT_MS);
+  const rawChallengeTimeout = Number(
+    process.env.ENFORCEMENT_CHALLENGE_TIMEOUT_MS,
+  );
   const mode =
     process.env.ENFORCEMENT_MODE === "enforce"
       ? "enforce"
@@ -33,9 +37,18 @@ function runtimeConfig(): EnforcementConfig {
       Number.isFinite(rawTimeout) && rawTimeout > 0
         ? rawTimeout
         : DEFAULT_TIMEOUT_MS,
+    challengeTimeoutMs:
+      Number.isFinite(rawChallengeTimeout) && rawChallengeTimeout > 0
+        ? rawChallengeTimeout
+        : DEFAULT_CHALLENGE_TIMEOUT_MS,
     siteKey: process.env.ENFORCEMENT_TURNSTILE_SITE_KEY?.trim() || "",
     allowUnverifiedSourceForTests:
       process.env.ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS === "true",
+    sourceTrustMode:
+      process.env.ENFORCEMENT_SOURCE_TRUST_MODE === "cloudflare_verified"
+        ? "cloudflare_verified"
+        : "unverified",
+    appEnv: process.env.APP_ENV || process.env.NODE_ENV || "development",
   };
 }
 
