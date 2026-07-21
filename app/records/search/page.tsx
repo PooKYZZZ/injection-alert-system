@@ -3,7 +3,11 @@ import Link from "next/link";
 import { MOCK_RECORDS } from "../../../lib/db";
 import { Search, Map, ArrowRight, Layers, FileSpreadsheet } from "lucide-react";
 import { SITE_CONFIG } from "../../../lib/demo-config";
-import { checkRecordSearchShadowEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
+import { EnforcementChallenge } from "../../../components/EnforcementChallenge";
+import {
+  checkRecordSearchEnforcementFromRuntime,
+  enforcementRuntimeConfig,
+} from "../../../lib/enforcement-check-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +20,34 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await checkRecordSearchShadowEnforcementFromRuntime();
+  const enforcement = await checkRecordSearchEnforcementFromRuntime();
+  if (enforcement.decision === "CHALLENGE") {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+          Verification required
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Complete the security verification before searching the public land-record index.
+        </p>
+        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 text-left shadow-xs">
+          <EnforcementChallenge siteKey={enforcementRuntimeConfig().siteKey || ""} />
+        </div>
+      </div>
+    );
+  }
+  if (enforcement.decision === "THROTTLE") {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+          Search temporarily limited
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Please wait {enforcement.retryAfterSeconds} seconds before trying again.
+        </p>
+      </div>
+    );
+  }
   const { query } = await searchParams;
   const lowercaseQuery = (query || "").toLowerCase().trim();
 
