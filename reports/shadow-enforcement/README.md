@@ -19,8 +19,11 @@ bodies, or unredacted audit-log lines.
 ## Evidence status
 
 Sanitized local single-stack proof is recorded in `e2e-proof.md` and
-`local-compose-proof-2026-07-21.md`. It covers the final WAF/CRS-to-backend
-recommendation path, later shadow matching, fail-open behavior, credential and
-asset-boundary checks, and portal latency. Hosted or production enforcement is
-not claimed. Live expiration was not destructively forced; expiry semantics are
-covered by the automated use-case and repository tests.
+`local-compose-proof-2026-07-21.md`. The canonical `e2e-proof.md` now includes
+fresh post-merge validation: healthy recommendation matching, backend-down
+fail-open, recovery, and a second complete WAF correlation smoke. The reports
+cover the WAF/CRS-to-backend recommendation path, later shadow matching,
+fail-open behavior, credential and asset-boundary checks, and portal latency.
+Hosted or production enforcement is not claimed. Live expiration was not
+destructively forced; expiry semantics are covered by the automated use-case
+and repository tests.

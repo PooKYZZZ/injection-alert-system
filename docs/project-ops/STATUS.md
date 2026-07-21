@@ -2,13 +2,13 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-21
 
 ---
 
 ## Current Verified Repo State
 
-- Working branch: `feat/telegram-threat-alerts`
+- Working branch: `master`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -55,7 +55,20 @@
   `stable/portal-pre-waf` as `bdeef868a8a3d9e56f9593f3b3f776cff165c26a`, and
   backend PR #88 merged into `master` as
   `ad170c36462eb12293a268a9a049c6fd2188f933`. The post-merge
-  `demo-target-8089` smoke passed on the merged stack.
+  `demo-target-8089` smoke passed on the merged stack. Fresh post-merge
+  evidence, including healthy recommendation matching, backend-down fail-open,
+  recovery, and a second full smoke is recorded in
+  `reports/shadow-enforcement/e2e-proof.md`.
+- Post-merge manual validation passed: the maintained demo-target smoke
+  correlated a fresh CRS HTTP 403 event through audit, bridge, and backend;
+  the later benign `/records/search` request returned HTTP 200; the active
+  recommendation matched as `CRITICAL` with hypothetical `WAF_BLOCK`, while
+  `actual_decision=ALLOW` and `degraded=False` remained true.
+- Backend-down validation passed with portal HTTP 200 and sanitized
+  `TIMEOUT_OR_NETWORK` degradation; backend recovery and a second complete
+  WAF correlation smoke also passed. A transient startup/readiness timing
+  report and successful shadow-check log visibility remain non-blocking
+  follow-ups only.
 - Code is implemented locally through Alembic head `20260720_000023`: completed
   WAF triage can create one expiring recommendation for `/records/search`.
   Recommendation persistence runs after the single inference queue releases its

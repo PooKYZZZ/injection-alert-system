@@ -51,6 +51,25 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 - Backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 - `localhost:8088` SQLi smoke still returned HTTP 403 after the demo-target bridge fix.
 
+### PR4 post-merge shadow runtime validation (2026-07-21)
+
+Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
+
+- PR4 is merged and frozen: backend PR #88 merged into `master`; portal PR #89
+  merged into `stable/portal-pre-waf`.
+- Fresh single-stack validation passed the maintained demo-target smoke:
+  ModSecurity/CRS returned HTTP 403 for the controlled SQLi, audit and backend
+  transaction correlation passed, and a later `/records/search` request
+  returned HTTP 200.
+- The real active recommendation matched as `CRITICAL` with hypothetical
+  `recommended_action=WAF_BLOCK`; PR4 still reported `actual_decision=ALLOW`
+  and `degraded=False`. The ML pipeline did not block the original request.
+- Backend-down fail-open and recovery passed. The outage added approximately
+  one second of degraded-path latency but did not deny portal availability.
+- A transient startup/readiness report and successful shadow-check log
+  visibility remain non-blocking follow-ups. Hosted shadow remains deferred;
+  PR5 is the next implementation phase.
+
 ### Historical checks through 2026-07-05
 
 - Backend tests: `.venv\Scripts\python.exe -m pytest -q` → **528 passed**
