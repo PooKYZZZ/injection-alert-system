@@ -67,6 +67,25 @@ const TURNSTILE_TEST_SITE_KEYS = new Set([
   "3x00000000000000000000FF",
 ]);
 
+export function validateActiveEnforcementConfig(
+  config: EnforcementConfig,
+): boolean {
+  if (config.mode !== "enforce") return true;
+  const deployed = config.appEnv === "production" || config.appEnv === "staging";
+  return Boolean(
+    config.challengeEndpoint &&
+      config.siteKey &&
+      config.challengeTimeoutMs &&
+      config.challengeTimeoutMs > config.timeoutMs &&
+      !(
+        deployed && config.allowUnverifiedSourceForTests
+      ) &&
+      (config.allowUnverifiedSourceForTests ||
+        config.sourceTrustMode === "cloudflare_verified") &&
+      !(deployed && TURNSTILE_TEST_SITE_KEYS.has(config.siteKey)),
+  );
+}
+
 type FetchLike = (
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -147,16 +166,7 @@ export async function checkRecordSearchEnforcement({
   }
 
   const active = config.mode === "enforce";
-  const deployed = config.appEnv === "production" || config.appEnv === "staging";
-  const activeConfigInvalid =
-    active &&
-    (!config.challengeEndpoint ||
-      !config.siteKey ||
-      !config.challengeTimeoutMs ||
-      config.challengeTimeoutMs <= config.timeoutMs ||
-      (!config.allowUnverifiedSourceForTests &&
-        config.sourceTrustMode !== "cloudflare_verified") ||
-      (deployed && TURNSTILE_TEST_SITE_KEYS.has(config.siteKey)));
+  const activeConfigInvalid = active && !validateActiveEnforcementConfig(config);
   if (
     !config.apiKey ||
     !config.endpoint ||
@@ -252,7 +262,12 @@ export async function verifyRecordSearchEnforcementChallenge({
   token: string;
   fetchImpl?: FetchLike;
 }): Promise<ChallengeVerificationResult> {
-  if (config.mode !== "enforce" || !config.apiKey || !config.challengeEndpoint) {
+  if (
+    config.mode !== "enforce" ||
+    !config.apiKey ||
+    !config.endpoint ||
+    !validateActiveEnforcementConfig(config)
+  ) {
     return { verified: false, status: "UNAVAILABLE" };
   }
   const sourceIp = requestSourceIp(requestHeaders, {
@@ -262,6 +277,10 @@ export async function verifyRecordSearchEnforcementChallenge({
   if (!sourceIp || !token || token.length > 2048) {
     return { verified: false, status: "INVALID" };
   }
+  const challengeEndpoint = config.challengeEndpoint;
+  if (!challengeEndpoint) {
+    return { verified: false, status: "UNAVAILABLE" };
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -269,7 +288,7 @@ export async function verifyRecordSearchEnforcementChallenge({
     config.challengeTimeoutMs ?? config.timeoutMs,
   );
   try {
-    const response = await fetchImpl(config.challengeEndpoint, {
+    const response = await fetchImpl(challengeEndpoint, {
       method: "POST",
       headers: {
         authorization: `Bearer ${config.apiKey}`,

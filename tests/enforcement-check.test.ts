@@ -6,6 +6,7 @@ import {
   verifyRecordSearchEnforcementChallenge,
   normalizeBrowserChallengeResult,
   requestSourceIp,
+  validateActiveEnforcementConfig,
   type ShadowEnforcementConfig,
 } from "../lib/enforcement-check";
 
@@ -265,6 +266,51 @@ test("active mode fails open before calling the backend when challenge configura
     reason: "CONFIG_INVALID",
   });
   assert.equal(calls, 0);
+});
+
+test("deployed active mode rejects the unverified-source test bypass", async () => {
+  let calls = 0;
+  const config = {
+    ...activeConfig,
+    appEnv: "production",
+    allowUnverifiedSourceForTests: true,
+    sourceTrustMode: "unverified" as const,
+  };
+
+  assert.equal(validateActiveEnforcementConfig(config), false);
+  const result = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+    config,
+    fetchImpl: async () => {
+      calls += 1;
+      throw new Error("must not call backend");
+    },
+  });
+
+  assert.deepEqual(result, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "CONFIG_INVALID",
+  });
+  assert.equal(calls, 0);
+});
+
+test("challenge verification rejects the same invalid deployed configuration", async () => {
+  const result = await verifyRecordSearchEnforcementChallenge({
+    requestHeaders: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+    config: {
+      ...activeConfig,
+      appEnv: "production",
+      allowUnverifiedSourceForTests: true,
+      sourceTrustMode: "unverified",
+    },
+    token: "turnstile-token",
+    fetchImpl: async () => {
+      throw new Error("must not call backend");
+    },
+  });
+
+  assert.deepEqual(result, { verified: false, status: "UNAVAILABLE" });
 });
 
 test("active mode requires explicit trusted ingress unless controlled test bypass is enabled", async () => {
