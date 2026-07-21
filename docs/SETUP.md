@@ -97,7 +97,9 @@ returns `{"decision":"ALLOW"}`; a backend lookup failure returns `503`, which
 the portal treats as local `ALLOW`. This does not block, throttle, challenge,
 or otherwise change a request.
 
-PR5 active enforcement is a controlled local/test path only. Keep the default
+PR5 active enforcement is a controlled local/test path only. The completed
+controlled full-stack evidence is recorded in
+`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`. Keep the default
 `ENFORCEMENT_MODE=off` for hosted and production environments. For a disposable
 local environment, set `ENFORCEMENT_MODE=enforce`, provide the dedicated check
 key, set `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=true` in both CyberTrace

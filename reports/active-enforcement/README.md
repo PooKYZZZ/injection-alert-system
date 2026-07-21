@@ -5,6 +5,14 @@
 This report folder is reserved for observed PR5 evidence. Do not use unit tests,
 image builds, or local Compose results as hosted destructive-enforcement proof.
 
+## Canonical controlled E2E evidence
+
+[`PR5_CONTROLLED_E2E_PROOF.md`](PR5_CONTROLLED_E2E_PROOF.md) records the PASS
+result for the controlled local Docker Compose full-stack validation through
+`http://localhost:8089/records/search` using disposable PostgreSQL 16 and
+Cloudflare-published Turnstile test credentials. It is local acceptance evidence,
+not hosted destructive-enforcement proof.
+
 ## Implemented locally
 
 - `ENFORCE` creates explicit `confidence-enforcement-v2` recommendations.
@@ -17,6 +25,9 @@ image builds, or local Compose results as hosted destructive-enforcement proof.
   published test secret. Test mode is forbidden in staging/production; normal
   mode still requires the production action and hostname.
 - The portal applies `ALLOW`, `CHALLENGE`, and `THROTTLE` only at `/records/search`.
+- The controlled E2E report validates LOW/MEDIUM challenge, grant, counter,
+  throttle, invalid-challenge, and evaluation-outage behavior; hosted Cloudflare
+  topology and production ENFORCE remain pending/disabled.
 
 ## Not proven here
 
