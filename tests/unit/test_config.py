@@ -428,6 +428,37 @@ def test_deployed_active_enforcement_requires_explicit_cloudflare_trust(
         )
 
 
+@pytest.mark.parametrize("app_env", ["staging", "production"])
+def test_deployed_active_enforcement_requires_cloudflare_tunnel_source_verification(
+    app_env: str,
+) -> None:
+    with pytest.raises(ValueError, match="cloudflare_tunnel"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env=app_env,
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            enforcement_mode="enforce",
+            enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+            enforcement_turnstile_secret_key="real-secret",
+            enforcement_turnstile_expected_hostname="app.example.com",
+            enforcement_source_trust_mode="cloudflare_verified",
+            waf_source_verification_mode="unverified",
+        )
+
+
+def test_app_env_rejects_unknown_values() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env="prod",
+        )
+
+
 @pytest.mark.parametrize(
     "secret",
     [
@@ -452,6 +483,7 @@ def test_deployed_active_enforcement_rejects_turnstile_test_secrets(
             enforcement_turnstile_secret_key=secret,
             enforcement_turnstile_expected_hostname="app.example.com",
             enforcement_source_trust_mode="cloudflare_verified",
+            waf_source_verification_mode="cloudflare_tunnel",
         )
 
 
@@ -495,6 +527,7 @@ def test_deployed_active_enforcement_rejects_turnstile_test_mode() -> None:
             enforcement_turnstile_expected_hostname="localhost",
             enforcement_turnstile_test_mode=True,
             enforcement_source_trust_mode="cloudflare_verified",
+            waf_source_verification_mode="cloudflare_tunnel",
         )
 
 

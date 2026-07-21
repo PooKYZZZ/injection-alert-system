@@ -1,4 +1,12 @@
 services:
+  backend:
+    environment:
+      APP_ENV: ${APP_ENV:?APP_ENV must be explicitly set for hosted deployment}
+
+  demo-portal:
+    environment:
+      APP_ENV: ${APP_ENV:?APP_ENV must be explicitly set for hosted deployment}
+
   demo-target-modsecurity:
     ports: !override
       - "127.0.0.1:8089:8080"

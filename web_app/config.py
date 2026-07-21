@@ -27,7 +27,9 @@ class Settings(BaseSettings):
         super().__init__(**values)
 
     database_url: str
-    app_env: str = "development"
+    app_env: Literal["development", "testing", "staging", "production"] = (
+        "development"
+    )
     log_level: str = "INFO"
     model_path: str
     model_registry_path: str = ""
@@ -47,7 +49,7 @@ class Settings(BaseSettings):
     enforcement_challenge_grant_ttl_seconds: int = Field(default=300, ge=1, le=3600)
     enforcement_turnstile_secret_key: str = ""
     enforcement_turnstile_expected_hostname: str = ""
-    enforcement_turnstile_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
+    enforcement_turnstile_timeout_seconds: float = Field(default=3.0, gt=0, le=3)
     enforcement_turnstile_test_mode: bool = False
     enforcement_allow_unverified_source_for_tests: bool = False
     enforcement_source_trust_mode: Literal["unverified", "cloudflare_verified"] = (
@@ -158,6 +160,13 @@ class Settings(BaseSettings):
             ) and self.enforcement_source_trust_mode != "cloudflare_verified":
                 raise ValueError(
                     "ENFORCE mode requires explicit cloudflare_verified source trust "
+                    "in staging and production"
+                )
+            if (
+                self.is_production or self.is_staging
+            ) and self.waf_source_verification_mode != "cloudflare_tunnel":
+                raise ValueError(
+                    "ENFORCE mode requires cloudflare_tunnel WAF source verification "
                     "in staging and production"
                 )
             if self.enforcement_turnstile_test_mode:

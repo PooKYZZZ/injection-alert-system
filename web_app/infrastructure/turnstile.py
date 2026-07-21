@@ -11,6 +11,12 @@ TURNSTILE_TEST_SECRETS = {
     "2x0000000000000000000000000000000AA",
     "3x0000000000000000000000000000000AA",
 }
+TURNSTILE_UNAVAILABLE_ERROR_CODES = {
+    "internal-error",
+    "invalid-input-secret",
+    "missing-input-secret",
+    "bad-request",
+}
 
 
 class TurnstileVerifier:
@@ -65,7 +71,10 @@ class TurnstileVerifier:
             if (
                 payload.get("success") is not True
                 and isinstance(error_codes, list)
-                and "internal-error" in error_codes
+                and any(
+                    code in TURNSTILE_UNAVAILABLE_ERROR_CODES
+                    for code in error_codes
+                )
             ):
                 return TurnstileVerificationResult(success=False, unavailable=True)
             if self._test_mode and payload.get("success") is True:

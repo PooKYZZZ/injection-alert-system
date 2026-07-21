@@ -85,6 +85,18 @@ async def test_turnstile_rejects_bad_token_without_provider_call():
             ["internal-error"],
             TurnstileVerificationResult(success=False, unavailable=True),
         ),
+        (
+            ["invalid-input-secret"],
+            TurnstileVerificationResult(success=False, unavailable=True),
+        ),
+        (
+            ["missing-input-secret"],
+            TurnstileVerificationResult(success=False, unavailable=True),
+        ),
+        (
+            ["bad-request"],
+            TurnstileVerificationResult(success=False, unavailable=True),
+        ),
         (["timeout-or-duplicate"], TurnstileVerificationResult(success=False)),
         (["invalid-input-response"], TurnstileVerificationResult(success=False)),
     ],
