@@ -7,6 +7,7 @@ from typing import Protocol
 
 
 POLICY_VERSION = "confidence-enforcement-v1"
+ACTIVE_POLICY_VERSION = "confidence-enforcement-v2"
 
 
 class EnforcementScope(StrEnum):
@@ -21,8 +22,9 @@ class EnforcementTier(StrEnum):
 
 
 class RecommendedAction(StrEnum):
-    # These are shadow policy intents only. They do not apply controls.
+    # v1 values are historical shadow policy intents. v2 adds CHALLENGE for LOW.
     MONITOR = "MONITOR"
+    CHALLENGE = "CHALLENGE"
     THROTTLE = "THROTTLE"
     APPLICATION_BLOCK = "APPLICATION_BLOCK"
     WAF_BLOCK = "WAF_BLOCK"
@@ -31,6 +33,18 @@ class RecommendedAction(StrEnum):
 class EnforcementMode(StrEnum):
     OFF = "off"
     SHADOW = "shadow"
+    ENFORCE = "enforce"
+
+
+class EnforcementDecision(StrEnum):
+    ALLOW = "ALLOW"
+    CHALLENGE = "CHALLENGE"
+    THROTTLE = "THROTTLE"
+
+
+class CounterKind(StrEnum):
+    LOW_LIGHT = "LOW_LIGHT"
+    MEDIUM_HARD = "MEDIUM_HARD"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +80,33 @@ class EffectiveRecommendation:
     source_verification_status: str
 
 
+@dataclass(frozen=True, slots=True)
+class RequestWindowState:
+    source_ip: str
+    scope: EnforcementScope
+    counter_kind: CounterKind
+    policy_version: str
+    window_start: datetime
+    window_end: datetime
+    request_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ChallengeGrant:
+    source_ip: str
+    scope: EnforcementScope
+    tier: EnforcementTier
+    policy_version: str
+    verified_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TurnstileVerificationResult:
+    success: bool
+    unavailable: bool = False
+
+
 class IEnforcementRecommendationRepository(Protocol):
     async def insert_if_absent(
         self, recommendation: NewEnforcementRecommendation
@@ -78,6 +119,38 @@ class IEnforcementRecommendationRepository(Protocol):
         scope: EnforcementScope,
         now: datetime,
     ) -> EffectiveRecommendation | None: ...
+
+    async def find_effective_enforceable(
+        self,
+        *,
+        source_ip: str,
+        scope: EnforcementScope,
+        now: datetime,
+        policy_version: str,
+    ) -> EffectiveRecommendation | None: ...
+
+    async def increment_request_window(
+        self,
+        *,
+        source_ip: str,
+        scope: EnforcementScope,
+        counter_kind: CounterKind,
+        policy_version: str,
+        now: datetime,
+        window_seconds: int,
+    ) -> RequestWindowState: ...
+
+    async def find_valid_challenge_grant(
+        self,
+        *,
+        source_ip: str,
+        scope: EnforcementScope,
+        tier: EnforcementTier,
+        policy_version: str,
+        now: datetime,
+    ) -> ChallengeGrant | None: ...
+
+    async def upsert_challenge_grant(self, grant: ChallengeGrant) -> ChallengeGrant: ...
 
 
 class EnforcementPolicy:
@@ -97,6 +170,7 @@ class EnforcementPolicy:
         prediction: str,
         confidence_level: str,
         request_path: str,
+        mode: EnforcementMode | str = EnforcementMode.SHADOW,
     ) -> PolicyRecommendation | None:
         if not prediction:
             raise ValueError("prediction is required")
@@ -111,8 +185,19 @@ class EnforcementPolicy:
         if request_path != "/records/search" or prediction == "Normal":
             return None
 
+        selected_mode = EnforcementMode(mode)
+        actions = cls._ACTIONS
+        policy_version = POLICY_VERSION
+        if selected_mode is EnforcementMode.ENFORCE:
+            actions = {
+                **cls._ACTIONS,
+                EnforcementTier.LOW: RecommendedAction.CHALLENGE,
+            }
+            policy_version = ACTIVE_POLICY_VERSION
+
         return PolicyRecommendation(
             scope=EnforcementScope.RECORD_SEARCH,
             tier=tier,
-            action=cls._ACTIONS[tier],
+            action=actions[tier],
+            policy_version=policy_version,
         )

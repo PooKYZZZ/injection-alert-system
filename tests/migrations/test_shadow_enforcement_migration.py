@@ -11,6 +11,7 @@ from sqlalchemy import Column, Integer, MetaData, String, Table, Text, create_en
 
 ROOT = Path(__file__).parents[2]
 REVISION = "20260720_000023"
+CURRENT_HEAD = "20260721_000024"
 PARENT_REVISION = "20260720_000022"
 MIGRATION = ROOT / "migrations" / "versions" / f"{REVISION}_add_shadow_enforcement_recommendations.py"
 
@@ -37,7 +38,7 @@ def _create_parent_traffic_logs(database_url: str) -> None:
 
 def test_shadow_enforcement_migration_is_the_single_new_head() -> None:
     config = _alembic_config()
-    assert ScriptDirectory.from_config(config).get_heads() == [REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
     source = MIGRATION.read_text(encoding="utf-8")
     assert 'down_revision = "20260720_000022"' in source
     assert '"enforcement_recommendations"' in source
@@ -85,5 +86,5 @@ def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
     engine = create_engine(database_url)
     assert "enforcement_recommendations" in inspect(engine).get_table_names()
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == REVISION
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == CURRENT_HEAD
     engine.dispose()

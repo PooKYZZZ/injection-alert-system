@@ -31,11 +31,20 @@ class Settings(BaseSettings):
         "unverified",
         "cloudflare_tunnel",
     ] = "unverified"
-    enforcement_mode: Literal["off", "shadow"] = "off"
+    enforcement_mode: Literal["off", "shadow", "enforce"] = "off"
     enforcement_check_api_key: str = ""
     enforcement_recommendation_ttl_seconds: int = Field(
         default=900, ge=60, le=86400
     )
+    enforcement_low_window_seconds: int = Field(default=60, ge=1, le=3600)
+    enforcement_medium_window_seconds: int = Field(default=60, ge=1, le=3600)
+    enforcement_low_max_unchallenged_requests: int = Field(default=5, ge=0, le=10000)
+    enforcement_medium_max_requests: int = Field(default=10, ge=1, le=10000)
+    enforcement_challenge_grant_ttl_seconds: int = Field(default=300, ge=1, le=3600)
+    enforcement_turnstile_secret_key: str = ""
+    enforcement_turnstile_expected_hostname: str = ""
+    enforcement_turnstile_timeout_seconds: float = Field(default=3.0, gt=0, le=10)
+    enforcement_allow_unverified_source_for_tests: bool = False
     groq_api_key: str | None = None
     allowed_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:3000"]
@@ -100,11 +109,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "confidence thresholds must satisfy 0.0 <= low < high < critical <= 1.0"
             )
-        if self.enforcement_mode == "shadow":
+        if self.enforcement_mode in {"shadow", "enforce"}:
             key = self.enforcement_check_api_key.strip()
             if not key:
                 raise ValueError(
-                    "ENFORCEMENT_CHECK_API_KEY is required when enforcement mode is shadow"
+                    "ENFORCEMENT_CHECK_API_KEY is required when enforcement mode is active"
                 )
             if len(key) < 32:
                 raise ValueError(
@@ -114,6 +123,20 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "ENFORCEMENT_CHECK_API_KEY must differ from API_SECRET_KEY and WAF_INGEST_API_KEY"
                 )
+        if self.enforcement_allow_unverified_source_for_tests and (
+            self.is_production or self.is_staging
+        ):
+            raise ValueError(
+                "unverified enforcement source bypass is forbidden in staging and production"
+            )
+        if (
+            self.enforcement_mode == "enforce"
+            and self.enforcement_challenge_grant_ttl_seconds
+            > self.enforcement_recommendation_ttl_seconds
+        ):
+            raise ValueError(
+                "challenge grant TTL cannot exceed recommendation TTL"
+            )
         if self.is_production or self.is_staging:
             if not self.api_secret_key:
                 raise ValueError(

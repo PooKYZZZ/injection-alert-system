@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-13
+Updated: 2026-07-21
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -69,6 +69,20 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - A transient startup/readiness report and successful shadow-check log
   visibility remain non-blocking follow-ups. Hosted shadow remains deferred;
   PR5 is the next implementation phase.
+
+### PR5 controlled active enforcement (2026-07-21)
+
+- LOW/MEDIUM `ENFORCE` is implemented for controlled local/test environments;
+  PR4 `SHADOW` remains advisory and historical recommendations are preserved.
+- LOW uses a PostgreSQL fixed window before issuing `CHALLENGE`; MEDIUM uses a
+  Turnstile grant and then a PostgreSQL fixed window before issuing `THROTTLE`.
+  Provider failures, unavailable state, unverified sources, and internal
+  evaluation errors fail open to `ALLOW` without granting an enforcement bypass.
+- Portal challenge verification is server-side and only accepts a verified
+  Turnstile result. The browser never calls FastAPI directly.
+- Hosted/production `ENFORCEMENT_MODE` remains `off` by default. Trusted
+  Cloudflare source/topology verification is still required before any hosted
+  destructive-enforcement rollout.
 
 ### Historical checks through 2026-07-05
 

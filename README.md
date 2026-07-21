@@ -29,7 +29,7 @@ This repository is active in its current app-plus-BFF form and now has a verifie
 - Verified SQLi proof: `/api/health?id=17%27%20OR%2017%3D17--` through `localhost:8088` returned HTTP 403
 - Verified backend lookup result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
 - In Compose, the backend is internal-only (`8000/tcp`). Do not use `localhost:8000` for WAF proof unless port 8000 is explicitly published.
-- Redis-backed enforcement is planned/conditional and not implemented in the current runtime
+- PR5 controlled local/test enforcement uses PostgreSQL fixed-window state and server-side Turnstile for LOW/MEDIUM `/records/search`; hosted/production `ENFORCE` remains disabled, and Redis/global enforcement are not implemented.
 
 If you need the current implementation truth rather than the thesis target architecture, start with [docs/CONTEXT.md](docs/CONTEXT.md) and [docs/architecture.md](docs/architecture.md).
 

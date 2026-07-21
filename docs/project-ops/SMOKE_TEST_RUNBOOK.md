@@ -88,6 +88,19 @@ of shadow correlation only: `recommended_action` is an intent, while
 `actual_decision=ALLOW` and the browser response remain unchanged. Keep hosted
 mode `off` until hosted latency and identity evidence exists.
 
+### PR5 controlled active check (local/test only)
+
+PR5 `ENFORCE` proof requires the new Alembic head
+`20260721_000024`, a disposable database, a dedicated enforcement key, and
+explicit `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=true` in local/test
+only. Keep this setting false in staging/production. The controlled matrix must
+show LOW `1..5=ALLOW`, LOW `6=CHALLENGE`, MEDIUM without a grant=`CHALLENGE`,
+MEDIUM verified `1..10=ALLOW`, and the next request=`THROTTLE` with a positive
+`retry_after_seconds`. Also record source-A/source-B isolation, grant expiry,
+invalid/provider-failed challenge behavior, and backend/database fail-open
+behavior. This is local/test evidence; it does not prove Cloudflare topology
+trust or authorize hosted enforcement.
+
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend --base-url http://127.0.0.1:8000 --timeout 5
 ```

@@ -365,10 +365,30 @@ def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
     assert settings.enforcement_recommendation_ttl_seconds == 900
 
 
+def test_active_enforcement_accepts_explicit_controlled_configuration() -> None:
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+        api_secret_key="general-key",
+        waf_ingest_api_key="waf-key",
+        enforcement_mode="enforce",
+        enforcement_check_api_key="enforcement-key-that-is-at-least-32-chars",
+        enforcement_turnstile_secret_key="turnstile-secret",
+        enforcement_turnstile_expected_hostname="localhost",
+        enforcement_allow_unverified_source_for_tests=True,
+    )
+
+    assert settings.enforcement_mode == "enforce"
+    assert settings.enforcement_low_window_seconds == 60
+    assert settings.enforcement_low_max_unchallenged_requests == 5
+    assert settings.enforcement_medium_max_requests == 10
+    assert settings.enforcement_challenge_grant_ttl_seconds == 300
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"enforcement_mode": "enforce"},
         {"enforcement_mode": "shadow", "enforcement_check_api_key": ""},
         {
             "enforcement_mode": "shadow",
@@ -380,6 +400,7 @@ def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
             "enforcement_check_api_key": "shared-key-that-is-long-enough-123456",
         },
         {"enforcement_recommendation_ttl_seconds": 59},
+        {"enforcement_mode": "enforce", "enforcement_check_api_key": ""},
     ],
 )
 def test_enforcement_configuration_rejects_unsafe_values(kwargs) -> None:

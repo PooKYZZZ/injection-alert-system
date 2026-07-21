@@ -97,6 +97,24 @@ returns `{"decision":"ALLOW"}`; a backend lookup failure returns `503`, which
 the portal treats as local `ALLOW`. This does not block, throttle, challenge,
 or otherwise change a request.
 
+PR5 active enforcement is a controlled local/test path only. Keep the default
+`ENFORCEMENT_MODE=off` for hosted and production environments. For a disposable
+local environment, set `ENFORCEMENT_MODE=enforce`, provide the dedicated check
+key, set `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=true` in both CyberTrace
+and the portal, and configure a test Turnstile secret/hostname. The test bypass
+must never be enabled in staging or production. LOW defaults to five
+unchallenged requests per 60-second window; MEDIUM challenges immediately and
+allows ten verified requests per 60-second window before returning
+`THROTTLE` with `retry_after_seconds`. The portal applies these decisions only
+to `/records/search`; evaluation failures fail open, while failed challenge
+verification never creates a grant.
+
+Active enforcement uses additive migration
+`20260721_000024_add_active_enforcement_state.py`. It preserves PR4 SHADOW rows,
+adds `enforcement_request_windows` and `enforcement_challenge_grants`, and does
+not delete traffic logs on downgrade. Local/test proof belongs in
+`reports/active-enforcement/`; it is not hosted readiness evidence.
+
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:
 

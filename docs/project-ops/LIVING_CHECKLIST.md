@@ -200,6 +200,12 @@ Status note:
 - [ ] Evaluate passkeys/WebAuthn as a later enhancement (deferred)
 - [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
 - [ ] Redis-backed enforcement or review-queue state
+- [~] PR5 controlled local/test LOW/MEDIUM enforcement: backend ENFORCE policy,
+  PostgreSQL windows, Turnstile verification, portal CHALLENGE/THROTTLE, and
+  documented fail-open paths are implemented on the active feature branches;
+  disposable-PostgreSQL concurrency evidence remains environment-gated
+- [ ] Enable hosted/production ENFORCE only after trusted-source, Cloudflare
+  Pseudo IPv4, and origin-isolation topology gates are directly verified
 - [ ] Repo-managed export and verification of Supabase policy / RLS state
 - [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
 

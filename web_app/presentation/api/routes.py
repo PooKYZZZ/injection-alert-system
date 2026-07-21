@@ -28,7 +28,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from web_app.application.alert_events import AlertEventBroadcaster
 from web_app.application.enforcement_use_cases import (
     CheckShadowEnforcementUseCase,
+    EvaluateEnforcementUseCase,
     RecordShadowRecommendationUseCase,
+    VerifyEnforcementChallengeUseCase,
 )
 from web_app.application.feedback_use_case import FeedbackUseCase
 from web_app.application.inference_queue import (
@@ -51,7 +53,7 @@ from web_app.application.update_alert_triage_use_case import (
 )
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
-from web_app.domain.enforcement import EnforcementScope
+from web_app.domain.enforcement import EnforcementMode, EnforcementScope
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
     EnforcementRecommendationRepository,
@@ -59,6 +61,7 @@ from web_app.infrastructure.repositories.enforcement_recommendation_repository i
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
+from web_app.infrastructure.turnstile import TurnstileVerifier
 from web_app.notifications.threats import enqueue_threat_notifications_safely
 from web_app.observability.structured_logging import log_event
 from web_app.presentation.dependencies.auth import (
@@ -74,6 +77,8 @@ from web_app.presentation.schemas import (
     AlertQueryParams,
     EnforcementCheckRequest,
     EnforcementCheckResponse,
+    EnforcementChallengeRequest,
+    EnforcementChallengeResponse,
     FeedbackRequest,
     MLHealthResponse,
     PredictionRequest,
@@ -129,6 +134,15 @@ def get_enforcement_repository(
     db: AsyncSession = Depends(get_db),
 ) -> EnforcementRecommendationRepository:
     return EnforcementRecommendationRepository(db)
+
+
+def get_turnstile_verifier() -> TurnstileVerifier:
+    settings = get_settings()
+    return TurnstileVerifier(
+        secret_key=settings.enforcement_turnstile_secret_key,
+        expected_hostname=settings.enforcement_turnstile_expected_hostname,
+        timeout_seconds=settings.enforcement_turnstile_timeout_seconds,
+    )
 
 
 def _queue_log_fields(inference_queue: object) -> dict[str, object]:
@@ -664,6 +678,7 @@ async def update_alert_triage(
 @enforcement_check_router.post(
     "/internal/enforcement/check",
     response_model=EnforcementCheckResponse,
+    response_model_exclude_none=True,
 )
 async def check_shadow_enforcement(
     payload: EnforcementCheckRequest,
@@ -671,9 +686,38 @@ async def check_shadow_enforcement(
         get_enforcement_repository
     ),
 ):
+    settings = get_settings()
+    if settings.enforcement_mode == EnforcementMode.ENFORCE.value:
+        result = await EvaluateEnforcementUseCase(
+            repository=repository,
+            mode=settings.enforcement_mode,
+            low_window_seconds=settings.enforcement_low_window_seconds,
+            low_max_unchallenged_requests=(
+                settings.enforcement_low_max_unchallenged_requests
+            ),
+            medium_window_seconds=settings.enforcement_medium_window_seconds,
+            medium_max_requests=settings.enforcement_medium_max_requests,
+            allow_unverified_source_for_tests=(
+                settings.enforcement_allow_unverified_source_for_tests
+            ),
+        ).execute(
+            source_ip=str(payload.source_ip),
+            scope=EnforcementScope(payload.scope),
+        )
+        if result.degraded:
+            raise HTTPException(
+                status_code=503,
+                detail="Active enforcement evaluation unavailable",
+            )
+        return EnforcementCheckResponse(
+            decision=result.decision,
+            enforcement_tier=result.challenge_tier,
+            retry_after_seconds=result.retry_after_seconds,
+        )
+
     result = await CheckShadowEnforcementUseCase(
         repository=repository,
-        mode=get_settings().enforcement_mode,
+        mode=settings.enforcement_mode,
     ).execute(
         source_ip=str(payload.source_ip),
         scope=EnforcementScope(payload.scope),
@@ -684,6 +728,38 @@ async def check_shadow_enforcement(
             detail="Shadow enforcement lookup unavailable",
         )
     return EnforcementCheckResponse(decision=result.decision)
+
+
+@enforcement_check_router.post(
+    "/internal/enforcement/challenge",
+    response_model=EnforcementChallengeResponse,
+    response_model_exclude_none=True,
+)
+async def verify_enforcement_challenge(
+    payload: EnforcementChallengeRequest,
+    repository: EnforcementRecommendationRepository = Depends(
+        get_enforcement_repository
+    ),
+    verifier: TurnstileVerifier = Depends(get_turnstile_verifier),
+):
+    settings = get_settings()
+    result = await VerifyEnforcementChallengeUseCase(
+        repository=repository,
+        verifier=verifier,
+        mode=settings.enforcement_mode,
+        grant_ttl_seconds=settings.enforcement_challenge_grant_ttl_seconds,
+        allow_unverified_source_for_tests=(
+            settings.enforcement_allow_unverified_source_for_tests
+        ),
+    ).execute(
+        source_ip=str(payload.source_ip),
+        scope=EnforcementScope(payload.scope),
+        token=payload.token,
+    )
+    return EnforcementChallengeResponse(
+        verified=result.verified,
+        status=result.status,
+    )
 
 
 @internal_router.patch("/alerts/{alert_id}/action", response_model=AlertDetailResponse)

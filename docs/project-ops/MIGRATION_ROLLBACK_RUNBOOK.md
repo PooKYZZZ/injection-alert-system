@@ -39,6 +39,10 @@ Current truth:
 - The PR4 shadow recommendation migration is `20260720_000023`, child of
   `20260720_000022`. Its downgrade removes only `enforcement_recommendations`
   after explicit evidence export/review; it never deletes `traffic_logs`.
+- PR5 active enforcement migration is `20260721_000024`, child of the PR4
+  migration. Its downgrade removes only request-window/grant state and restores
+  the SHADOW-only recommendation constraint; it refuses to downgrade while
+  `ENFORCE` recommendation rows remain and never deletes `traffic_logs`.
 
 ## 3.1 Required rollback boundaries
 

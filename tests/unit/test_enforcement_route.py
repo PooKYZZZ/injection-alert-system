@@ -24,7 +24,7 @@ async def test_enforcement_check_returns_exact_allow_response(monkeypatch):
         repository=EmptyRepository(),
     )
 
-    assert response.model_dump() == {"decision": "ALLOW"}
+    assert response.model_dump(exclude_none=True) == {"decision": "ALLOW"}
 
 
 def test_enforcement_check_request_rejects_extra_fields():

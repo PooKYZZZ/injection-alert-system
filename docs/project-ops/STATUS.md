@@ -8,7 +8,7 @@
 
 ## Current Verified Repo State
 
-- Working branch: `master`
+- Working branch: `feat/pr5-active-enforcement`
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -96,6 +96,23 @@
   enabled. Hosted shadow enablement remains deferred pending target-topology
   measurement and timeout selection; live expiration was not destructively
   forced because active recommendations were preserved.
+
+### PR5 controlled active enforcement state
+
+- PR5 LOW/MEDIUM active enforcement is implemented on the feature branches
+  `feat/pr5-active-enforcement` in CyberTrace and `land-records-portal`.
+- Controlled `ENFORCE` behavior uses PostgreSQL fixed-window state and server-side
+  Turnstile verification. LOW challenges after its configured allowance; MEDIUM
+  requires a valid grant and then returns bounded `THROTTLE` after its window.
+- PR4 `SHADOW` remains advisory and preserves historical recommendation rows and
+  `action_taken` values. HIGH/CRITICAL active blocking, WAF enforcement, Redis,
+  and global middleware are out of scope.
+- The PostgreSQL concurrency test is opt-in through
+  `CYBERTRACE_POSTGRES_TEST_URL`; no disposable database means no concurrency
+  pass is claimed.
+- Hosted/production `ENFORCEMENT_MODE` defaults to `off`; no hosted destructive
+  enforcement readiness or real-user rollout is claimed. Cloudflare trusted-source,
+  Pseudo IPv4, origin-isolation, and related topology gates remain open.
 
 ### Trusted source correlation PR state
 

@@ -1,7 +1,9 @@
 import pytest
 
 from web_app.domain.enforcement import (
+    ACTIVE_POLICY_VERSION,
     POLICY_VERSION,
+    EnforcementMode,
     EnforcementPolicy,
     EnforcementScope,
     EnforcementTier,
@@ -85,3 +87,33 @@ def test_policy_recommendation_is_immutable() -> None:
     assert recommendation is not None
     with pytest.raises((AttributeError, TypeError)):
         recommendation.action = RecommendedAction.WAF_BLOCK  # type: ignore[misc]
+
+
+def test_enforce_policy_uses_v2_active_actions_without_changing_shadow_mapping() -> None:
+    low = EnforcementPolicy.recommend(
+        prediction="SQL Injection",
+        confidence_level="LOW",
+        request_path="/records/search",
+        mode=EnforcementMode.ENFORCE,
+    )
+    medium = EnforcementPolicy.recommend(
+        prediction="Other Attacks",
+        confidence_level="MEDIUM",
+        request_path="/records/search",
+        mode=EnforcementMode.ENFORCE,
+    )
+    shadow_low = EnforcementPolicy.recommend(
+        prediction="SQL Injection",
+        confidence_level="LOW",
+        request_path="/records/search",
+    )
+
+    assert low is not None
+    assert low.action is RecommendedAction.CHALLENGE
+    assert low.policy_version == ACTIVE_POLICY_VERSION
+    assert medium is not None
+    assert medium.action is RecommendedAction.THROTTLE
+    assert medium.policy_version == ACTIVE_POLICY_VERSION
+    assert shadow_low is not None
+    assert shadow_low.action is RecommendedAction.MONITOR
+    assert shadow_low.policy_version == POLICY_VERSION

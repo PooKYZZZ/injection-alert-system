@@ -9,6 +9,8 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from web_app.domain.enforcement import (
+    ACTIVE_POLICY_VERSION,
+    CounterKind,
     EnforcementMode,
     EnforcementScope,
     EnforcementTier,
@@ -50,6 +52,12 @@ def migrated_database(monkeypatch: pytest.MonkeyPatch):
 
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM enforcement_request_windows WHERE source_ip = '203.0.113.15'"
+            )
+            cursor.execute(
+                "DELETE FROM enforcement_challenge_grants WHERE source_ip = '203.0.113.15'"
+            )
             cursor.execute(
                 "DELETE FROM enforcement_recommendations "
                 "WHERE trigger_traffic_log_id = %s",
@@ -100,4 +108,41 @@ async def test_concurrent_repository_inserts_are_idempotent(
                 (trigger_id,),
             )
             assert cursor.fetchone()[0] == 1
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_active_counter_increments_are_exactly_twenty(
+    migrated_database: int,
+) -> None:
+    assert POSTGRES_URL is not None
+    async_url = POSTGRES_URL
+    if async_url.startswith("postgresql://"):
+        async_url = "postgresql+asyncpg://" + async_url.removeprefix("postgresql://")
+    elif async_url.startswith("postgres://"):
+        async_url = "postgresql+asyncpg://" + async_url.removeprefix("postgres://")
+    engine = create_async_engine(async_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    now = datetime.now(timezone.utc)
+
+    async def increment_once():
+        async with session_factory() as session:
+            return await EnforcementRecommendationRepository(session).increment_request_window(
+                source_ip="203.0.113.15",
+                scope=EnforcementScope.RECORD_SEARCH,
+                counter_kind=CounterKind.LOW_LIGHT,
+                policy_version=ACTIVE_POLICY_VERSION,
+                now=now,
+                window_seconds=60,
+            )
+
+    states = await asyncio.gather(*(increment_once() for _ in range(20)))
+    assert sorted(state.request_count for state in states) == list(range(1, 21))
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT request_count FROM enforcement_request_windows "
+                "WHERE source_ip = '203.0.113.15'"
+            )
+            assert cursor.fetchone()[0] == 20
     await engine.dispose()
