@@ -82,8 +82,9 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   only for local testing. PR4 `SHADOW` remains advisory and historical.
 - LOW uses a PostgreSQL fixed window before issuing `CHALLENGE`; MEDIUM uses a
   Turnstile grant and then a PostgreSQL fixed window before issuing `THROTTLE`.
-  Provider failures, unavailable state, unverified sources, and internal
-  evaluation errors fail open to `ALLOW` without granting an enforcement bypass.
+  Policy-evaluation failures, unavailable enforcement state, and ineligible
+  sources fail open to `ALLOW`. Invalid or unavailable Turnstile verification
+  remains unsatisfied and creates no challenge grant.
 - Portal challenge verification is server-side and only accepts a verified
   Turnstile result. The browser never calls FastAPI directly.
 - Hosted/production `ENFORCEMENT_MODE` remains `off` by default. Trusted
