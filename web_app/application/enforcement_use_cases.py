@@ -19,6 +19,7 @@ from web_app.domain.enforcement import (
     EnforcementTier,
     IEnforcementRecommendationRepository,
     NewEnforcementRecommendation,
+    RecommendedAction,
 )
 from web_app.domain.source_address import canonicalize_source_ip
 from web_app.observability.structured_logging import log_event
@@ -305,6 +306,29 @@ class EvaluateEnforcementUseCase:
                     policy_version=recommendation.policy_version,
                 )
                 return finish(ActiveEnforcementResult())
+
+            if recommendation.tier is EnforcementTier.HIGH:
+                if recommendation.action is not RecommendedAction.APPLICATION_BLOCK:
+                    log_event(
+                        logger,
+                        "enforcement.invalid_high_recommendation",
+                        (
+                            "HIGH recommendation action is invalid; "
+                            "request remains allowed"
+                        ),
+                        level="WARNING",
+                        scope=scope.value,
+                        recommended_action=recommendation.action.value,
+                        policy_version=recommendation.policy_version,
+                    )
+                    return finish(ActiveEnforcementResult())
+                return finish(
+                    ActiveEnforcementResult(
+                        decision=EnforcementDecision.BLOCK.value,
+                        matched=True,
+                        recommendation=recommendation,
+                    )
+                )
 
             if recommendation.tier is EnforcementTier.LOW:
                 grant = await self._repository.find_valid_challenge_grant(

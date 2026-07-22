@@ -116,11 +116,12 @@ def _active_recommendation(tier: EnforcementTier, *, source_status="VERIFIED"):
         trigger_traffic_log_id=42,
         scope=EnforcementScope.RECORD_SEARCH,
         tier=tier,
-        action=(
-            RecommendedAction.CHALLENGE
-            if tier is EnforcementTier.LOW
-            else RecommendedAction.THROTTLE
-        ),
+        action={
+            EnforcementTier.LOW: RecommendedAction.CHALLENGE,
+            EnforcementTier.MEDIUM: RecommendedAction.THROTTLE,
+            EnforcementTier.HIGH: RecommendedAction.APPLICATION_BLOCK,
+            EnforcementTier.CRITICAL: RecommendedAction.WAF_BLOCK,
+        }[tier],
         mode=EnforcementMode.ENFORCE,
         policy_version=ACTIVE_POLICY_VERSION,
         created_at=datetime(2026, 7, 21, tzinfo=timezone.utc),
@@ -415,6 +416,54 @@ async def test_medium_requires_grant_then_throttles_after_authoritative_limit():
     assert first.decision == "CHALLENGE"
     assert [result.decision for result in results] == ["ALLOW", "ALLOW", "THROTTLE"]
     assert results[-1].retry_after_seconds == 60
+
+
+@pytest.mark.asyncio
+async def test_high_enforcement_blocks_without_challenge_or_counter_state():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    repo = ActiveRepository(_active_recommendation(EnforcementTier.HIGH))
+
+    result = await EvaluateEnforcementUseCase(
+        repository=repo,
+        mode=EnforcementMode.ENFORCE,
+        low_window_seconds=60,
+        low_max_unchallenged_requests=5,
+        medium_window_seconds=60,
+        medium_max_requests=10,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH)
+
+    assert result.decision == "BLOCK"
+    assert result.matched is True
+    assert result.recommendation is repo.effective
+    assert result.challenge_tier is None
+    assert result.retry_after_seconds is None
+    assert repo.grants == {}
+    assert repo.counts == {}
+
+
+@pytest.mark.asyncio
+async def test_high_enforcement_requires_application_block_policy_action():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    malformed = replace(
+        _active_recommendation(EnforcementTier.HIGH),
+        action=RecommendedAction.THROTTLE,
+    )
+
+    result = await EvaluateEnforcementUseCase(
+        repository=ActiveRepository(malformed),
+        mode=EnforcementMode.ENFORCE,
+        low_window_seconds=60,
+        low_max_unchallenged_requests=5,
+        medium_window_seconds=60,
+        medium_max_requests=10,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH)
+
+    assert result.decision == "ALLOW"
+    assert result.matched is False
 
 
 @pytest.mark.asyncio

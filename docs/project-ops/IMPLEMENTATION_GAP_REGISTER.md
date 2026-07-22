@@ -1,8 +1,8 @@
 # Cumulative Implementation Gap Register
 
-**Reviewed:** 2026-07-22
+**Reviewed:** 2026-07-23
 
-**Repository baseline:** `master` merge `62fc168` / merged PR #90
+**Repository baseline:** `master` at `485a091`; PR #90 is merged in its history
 
 This is the canonical cumulative register for unresolved implementation work. Only
 code, configuration, tests, and current runtime wiring outrank documentation.
@@ -15,7 +15,7 @@ evidence are distinct evidence classes.
 |---|---|---|---|---|
 | BLOCK-001 | HIGH | BLOCKED | Production rollout | Deployment gate |
 | BLOCK-002 | HIGH | BLOCKED | Trusted source proof | Deployment gate |
-| GAP-001 | HIGH | NOT_STARTED | HIGH enforcement | PR6 |
+| GAP-001 | HIGH | COMPLETE | HIGH enforcement | PR6 |
 | GAP-002 | HIGH | NOT_STARTED | CRITICAL/WAF enforcement | PR7 |
 | BUG-001 | HIGH | KNOWN_BUG | Enforcement | Maintenance |
 | BUG-002 | MEDIUM | KNOWN_BUG | Migration | Maintenance |
@@ -91,7 +91,7 @@ Last reviewed: 2026-07-22
 
 ### GAP-001 — PR6 HIGH application blocking
 
-Status: NOT_STARTED
+Status: COMPLETE
 
 Priority:
 HIGH
@@ -99,27 +99,34 @@ HIGH
 Area:
 Active enforcement
 
-Current implementation: HIGH recommendations exist, but the active query excludes them.
+Current implementation: Valid active applicable HIGH recommendations return exact
+`BLOCK`; the portal enforces the decision before record-search work.
 
-Missing: HIGH application-blocking behavior.
+Missing: No implementation item remains in the approved local PR6 scope. Hosted
+activation remains separately blocked by `BLOCK-001` and `BLOCK-002`.
 
 Evidence:
 
 - `docs/project-ops/STATUS.md`
 - `docs/architecture.md`
 - `web_app/infrastructure/repositories/enforcement_recommendation_repository.py`
+- `web_app/application/enforcement_use_cases.py`
+- `web_app/presentation/schemas/enforcement.py`
+- `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`
 
 Requirement: Separately scoped PR6.
 
-Impact: HIGH remains non-disruptive.
+Impact: HIGH is disruptive only for later matching `/records/search` requests in
+explicit ENFORCE mode; hosted/production ENFORCE remains disabled.
 
-Dependencies / blockers: PR6 scope and deployment topology.
+Dependencies / blockers: None for local implementation. Hosted/production use is
+still gated by `BLOCK-001` and `BLOCK-002`.
 
-Recommended next step: Create a separately scoped PR6.
+Recommended next step: Review and publish the two coordinated PR6 branches.
 
 Introduced / identified: PR5 acceptance state.
 
-Last reviewed: 2026-07-22
+Last reviewed: 2026-07-23
 
 ### GAP-002 — PR7 CRITICAL/WAF enforcement
 

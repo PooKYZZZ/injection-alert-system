@@ -154,8 +154,13 @@ operator snapshot.
 
 - PR5 LOW/MEDIUM is locally complete and controlled-local E2E-evidenced;
   `LIMIT-001` preserves the exact screenshot-sequence limitation.
+- PR6 HIGH application blocking is implemented, automated-tested, and
+  controlled-local E2E-evidenced; the portal blocks before record filtering.
+  Exact distinct-source local E2E remains topology-limited, and the stable page
+  response uses generic HTTP 200 block content rather than experimental 403.
 - `BLOCK-001` and `BLOCK-002` gate hosted/production rollout.
-- `GAP-001` and `GAP-002` cover the separately approved HIGH/CRITICAL phases.
+- `GAP-001` is complete for PR6; `GAP-002` remains the separately approved
+  CRITICAL/WAF phase for PR7.
 
 ---
 

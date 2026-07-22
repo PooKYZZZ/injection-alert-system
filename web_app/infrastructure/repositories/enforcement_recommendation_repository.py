@@ -125,6 +125,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
         require_verified: bool,
     ) -> EffectiveRecommendation | None:
         tier_rank = case(
+            (EnforcementRecommendationRow.enforcement_tier == "HIGH", 3),
             (EnforcementRecommendationRow.enforcement_tier == "MEDIUM", 2),
             (EnforcementRecommendationRow.enforcement_tier == "LOW", 1),
             else_=0,
@@ -140,7 +141,9 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
                 EnforcementRecommendationRow.scope == scope.value,
                 EnforcementRecommendationRow.enforcement_mode == "ENFORCE",
                 EnforcementRecommendationRow.policy_version == policy_version,
-                EnforcementRecommendationRow.enforcement_tier.in_(["LOW", "MEDIUM"]),
+                EnforcementRecommendationRow.enforcement_tier.in_(
+                    ["LOW", "MEDIUM", "HIGH"]
+                ),
                 EnforcementRecommendationRow.expires_at > now,
             )
             .order_by(

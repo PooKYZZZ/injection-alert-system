@@ -39,6 +39,7 @@ class EnforcementDecision(StrEnum):
     ALLOW = "ALLOW"
     CHALLENGE = "CHALLENGE"
     THROTTLE = "THROTTLE"
+    BLOCK = "BLOCK"
 
 
 class CounterKind(StrEnum):
