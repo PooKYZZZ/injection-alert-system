@@ -10,8 +10,9 @@ The `/records/search` server component may call the internal CyberTrace
 `POST /api/internal/enforcement/check` endpoint when
 `ENFORCEMENT_CHECK_API_KEY` is configured. The call is server-side only and
 fail-open for policy-evaluation failures. PR4 `shadow` remains advisory;
-controlled local/test PR5 `enforce`
-can render a Turnstile `CHALLENGE` or bounded `THROTTLE` for LOW/MEDIUM only.
+controlled local/test `enforce` can render a Turnstile `CHALLENGE`, bounded
+`THROTTLE`, or PR6 generic `BLOCK` for a valid applicable HIGH recommendation.
+BLOCK is evaluated before record filtering and the response is non-cacheable.
 Hosted/production `enforce` remains disabled by default. Keep the key in the
 server environment and never expose it through a `NEXT_PUBLIC_*` variable.
 
@@ -52,7 +53,9 @@ Use separate check/challenge timeouts (controlled defaults: 1000 ms and 5000 ms)
 and explicit source-trust or local-test settings. The portal never sends the
 service credential to the browser. Backend evaluation failure degrades to
 `ALLOW`; Turnstile provider failure does not create a grant and keeps the
-challenge unsatisfied. Hosted destructive-enforcement readiness is not claimed.
+challenge unsatisfied. Only the exact `{"decision":"BLOCK"}` contract blocks;
+malformed or unknown responses remain fail-open. Hosted destructive-enforcement
+readiness is not claimed.
 
 Follow these simple phases to build and run the target sandbox locally.
 

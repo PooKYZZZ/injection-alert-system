@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   checkRecordSearchEnforcement,
+  enforcementRuntimeLogEvent,
   verifyRecordSearchEnforcementChallenge,
   type ChallengeVerificationResult,
   type EnforcementCheckResult,
@@ -75,14 +76,9 @@ export async function checkRecordSearchEnforcementFromRuntime(): Promise<Enforce
     requestHeaders: await headers(),
     config: runtimeConfig(),
   });
-  if (result.status === "degraded") {
-    console.warn(
-      JSON.stringify({
-        event: "enforcement.check_degraded",
-        reason: result.reason,
-        actual_decision: result.decision,
-      }),
-    );
+  const logEntry = enforcementRuntimeLogEvent(result);
+  if (logEntry) {
+    console.warn(JSON.stringify(logEntry));
   }
   return result;
 }

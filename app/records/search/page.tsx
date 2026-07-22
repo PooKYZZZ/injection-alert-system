@@ -8,6 +8,7 @@ import {
   checkRecordSearchEnforcementFromRuntime,
   enforcementRuntimeConfig,
 } from "../../../lib/enforcement-check-runtime";
+import { runRecordSearchProtectedWork } from "./record-search-protection";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,35 @@ export default async function SearchPage({
   searchParams: Promise<SearchParams>;
 }) {
   const enforcement = await checkRecordSearchEnforcementFromRuntime();
+  const protectedSearch = await runRecordSearchProtectedWork(
+    enforcement,
+    async () => {
+      const { query } = await searchParams;
+      const lowercaseQuery = (query || "").toLowerCase().trim();
+      const results = MOCK_RECORDS.filter((record) => {
+        if (!lowercaseQuery) return true;
+        return (
+          record.recordNo.toLowerCase().includes(lowercaseQuery) ||
+          record.owner.toLowerCase().includes(lowercaseQuery) ||
+          record.location.toLowerCase().includes(lowercaseQuery) ||
+          record.classification.toLowerCase().includes(lowercaseQuery)
+        );
+      });
+      return { query, lowercaseQuery, results };
+    },
+  );
+  if (enforcement.decision === "BLOCK") {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+          Access temporarily blocked
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Access to this request is temporarily blocked.
+        </p>
+      </div>
+    );
+  }
   if (enforcement.decision === "CHALLENGE") {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
@@ -48,19 +78,10 @@ export default async function SearchPage({
       </div>
     );
   }
-  const { query } = await searchParams;
-  const lowercaseQuery = (query || "").toLowerCase().trim();
-
-  // Filter records
-  const results = MOCK_RECORDS.filter((record) => {
-    if (!lowercaseQuery) return true;
-    return (
-      record.recordNo.toLowerCase().includes(lowercaseQuery) ||
-      record.owner.toLowerCase().includes(lowercaseQuery) ||
-      record.location.toLowerCase().includes(lowercaseQuery) ||
-      record.classification.toLowerCase().includes(lowercaseQuery)
-    );
-  });
+  if (protectedSearch === null) {
+    throw new Error("Record search work was not available after an ALLOW decision");
+  }
+  const { query, lowercaseQuery, results } = protectedSearch;
 
   const getStatusBadgeClass = (status: string) => {
     const s = status.toLowerCase();

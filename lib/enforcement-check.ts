@@ -32,6 +32,7 @@ export type EnforcementCheckResult =
   | { decision: "ALLOW"; status: "checked" }
   | { decision: "CHALLENGE"; status: "checked"; tier: "LOW" | "MEDIUM" }
   | { decision: "THROTTLE"; status: "checked"; retryAfterSeconds: number }
+  | { decision: "BLOCK"; status: "checked" }
   | {
       decision: "ALLOW";
       status: "degraded";
@@ -136,10 +137,14 @@ function parseActiveResponse(value: unknown):
   | { decision: "ALLOW" }
   | { decision: "CHALLENGE"; tier: "LOW" | "MEDIUM" }
   | { decision: "THROTTLE"; retryAfterSeconds: number }
+  | { decision: "BLOCK" }
   | null {
   if (value === null || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   if (exactAllowResponse(value)) return { decision: "ALLOW" };
+  if (Object.keys(record).length === 1 && record.decision === "BLOCK") {
+    return { decision: "BLOCK" };
+  }
   if (
     Object.keys(record).length === 2 &&
     record.decision === "CHALLENGE" &&
@@ -229,6 +234,9 @@ export async function checkRecordSearchEnforcement({
     if (parsed.decision === "CHALLENGE") {
       return { decision: "CHALLENGE", status: "checked", tier: parsed.tier };
     }
+    if (parsed.decision === "BLOCK") {
+      return { decision: "BLOCK", status: "checked" };
+    }
     return {
       decision: "THROTTLE",
       status: "checked",
@@ -243,6 +251,24 @@ export async function checkRecordSearchEnforcement({
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function enforcementRuntimeLogEvent(result: EnforcementCheckResult) {
+  if (result.decision === "BLOCK") {
+    return {
+      event: "enforcement.high_block_applied",
+      scope: "RECORD_SEARCH",
+      actual_decision: "BLOCK",
+    } as const;
+  }
+  if (result.status === "degraded") {
+    return {
+      event: "enforcement.check_degraded",
+      reason: result.reason,
+      actual_decision: result.decision,
+    } as const;
+  }
+  return null;
 }
 
 export async function checkRecordSearchShadowEnforcement({
