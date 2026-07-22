@@ -10,7 +10,8 @@ are complete. The separate PR2 SSE slice is implemented with automated and
 manual no-refresh, browser-reconnect, and named-domain hosted proof. PR5 adds
 local/test-only LOW/MEDIUM active enforcement for the protected portal route;
 hosted/production enforcement remains off and HIGH/CRITICAL remain
-non-disruptive. Telegram has no hosted proof. Hosted source verification remains
+non-disruptive. Current Telegram provider/hosted verification is recorded in
+`docs/project-ops/STATUS.md`. Hosted source verification remains
 `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
 trust checks are completed. See
 `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md` for remaining PR5 and hosted
@@ -51,7 +52,10 @@ If PowerShell blocks activation, either adjust execution policy for the current 
 
 ### Create `.env`
 
-The backend currently reads settings from `.env`. Use your current Supabase PostgreSQL connection string for normal app runtime work. A minimal local development file looks like this:
+The backend currently reads settings from `.env`. For ordinary local development,
+use a local or disposable PostgreSQL database (or SQLite where supported); do
+not point `DATABASE_URL` at hosted Supabase. Hosted Supabase is for explicitly
+authorized operator work documented in the runbooks. A minimal local development file looks like this:
 
 ```dotenv
 DATABASE_URL=postgresql+asyncpg://postgres:<password>@<project-ref>.supabase.co:6543/postgres
@@ -378,9 +382,9 @@ The repository has exactly one current head, `20260721_000024`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).
-target above is its parent, `20260715_000021`, so the cycle directly exercises
-the Telegram notification migration. Downgrade rejects while Telegram rows
-exist rather than silently deleting notification history. Hosted Supabase is confirmed only through
+Do not choose a downgrade target from this setup guide. Follow
+[`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md) for
+reviewed downgrade/re-upgrade testing. Hosted Supabase is confirmed only through
 `20260712_000020`; do not infer that the repository head has been deployed
 there. Revision `20260704_000008` is intentionally part of normal `upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,

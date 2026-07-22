@@ -33,7 +33,7 @@ This repository is active in its current app-plus-BFF form and now has a verifie
   through Docker Compose with disposable PostgreSQL 16; see
   [`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`](reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md).
   Hosted/production `ENFORCE` remains intentionally disabled pending Cloudflare
-  trusted-source topology proof, and Redis/global enforcement are not implemented.
+  trusted-source topology proof, and global HIGH/CRITICAL enforcement are not implemented.
 
 If you need the current implementation truth rather than the thesis target architecture, start with [docs/CONTEXT.md](docs/CONTEXT.md) and [docs/architecture.md](docs/architecture.md).
 

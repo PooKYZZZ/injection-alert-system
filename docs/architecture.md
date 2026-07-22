@@ -45,7 +45,7 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Implemented and manually verified in the tested hosted deployment | post-commit in-process broadcaster -> native FastAPI SSE -> authenticated Next.js streaming BFF -> one dashboard EventSource -> TanStack Query alert/stats invalidation; no-refresh, browser reconnect, and named-domain hosted SSE proof passed; no durable replay or multi-worker fan-out |
-| Notification outbox and worker | Implemented locally; Telegram not hosted-verified | additive migrations through repository head `20260721_000024`, versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts; Telegram failures are isolated from detection/SSE and exactly-once external delivery is not claimed |
+| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260721_000024`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
@@ -229,7 +229,11 @@ the client-facing behavior for disabled or unauthorized pages.
 - A demo-target WAF profile through `localhost:8089`; the profile is optional for normal developer startup, but required for the final realistic WAF demonstration. It builds `demo-portal` from the separate land-records portal repo path, runs it as an internal Compose service on port `3010`, and does not publish portal port `3010` to the host by default.
 - Internal WAF event ingest route and JSONL bridge tooling
 
-## What Is Planned, Not Implemented
+## Known architectural gaps
+
+See [`IMPLEMENTATION_GAP_REGISTER.md`](project-ops/IMPLEMENTATION_GAP_REGISTER.md)
+for the canonical backlog. Runbooks and policies are implemented; automation
+and hosted deployment gates remain separately tracked there.
 
 - Production-grade ModSecurity-fronted deployment
 - Full repo-managed export and automation of Supabase policy state
@@ -243,7 +247,6 @@ the client-facing behavior for disabled or unauthorized pages.
 ## Current limitations
 
 - `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
-- `ModelService.predict()` still returns compatibility aliases such as `class` and `confidence_level` alongside the canonical `prediction` and `confidence_tier` fields.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
 - Current confidence tiers are `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
 - `CRITICAL >=90%` is implemented as the top confidence threshold, and historical rows are not retroactively reclassified.

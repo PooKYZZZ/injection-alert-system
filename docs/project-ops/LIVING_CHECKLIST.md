@@ -95,7 +95,7 @@ Status note:
 - [x] Migration rollback runbook exists: `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
 - [x] Retention policy exists: `docs/project-ops/RETENTION_POLICY.md`
 - [x] Supabase/RLS hardening notes exist: `docs/project-ops/SUPABASE_RLS_HARDENING.md`
-- [x] Stale task reconciliation exists: `docs/project-ops/TASKS_RECONCILIATION.md`
+- [x] Stale task reconciliation was archived; current work is tracked in the gap register.
 - [x] CyberTrace V6.1 deployment and feature-gate guidance exists in `docs/SETUP.md`, `docs/architecture.md`, and `docs/project-ops/SMOKE_TEST_RUNBOOK.md`
 - [ ] Backup automation implemented
 - [ ] Restore automation tested against production-like target

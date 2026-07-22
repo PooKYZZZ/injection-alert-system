@@ -172,7 +172,7 @@ production evidence boundary only. **Technical debt:** none newly classified.
   `https://app.cybertracesystems.com`. This proves the tested deployment path,
   not every possible Cloudflare or proxy configuration.
 - Hosted source-correlation regression also passed from two independent phone
-  network paths: `112.201.129.141` and `111.90.241.210` remained distinct in
+  two independent network paths remained distinct in
   new `/records/search` alerts and did not collapse to `172.18.0.1`. This is
   regression evidence only; hosted WAF verification remains `unverified`.
 - PR2 remains intentionally bounded: the broadcaster is single-process and
@@ -346,7 +346,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
   - `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
   - `docs/project-ops/RETENTION_POLICY.md`
   - `docs/project-ops/SUPABASE_RLS_HARDENING.md`
-  - `docs/project-ops/TASKS_RECONCILIATION.md`
+  - Historical task reconciliation is archived under `docs/archive/`; it is not an operational asset.
 - These docs do not implement production deployment, backup automation, restore automation, database migrations, retention/archive jobs, Supabase dashboard changes, RLS policies, Wazuh export, or SIEM deployment.
 
 ### Automated final demo and abuse smoke proof
