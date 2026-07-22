@@ -1,6 +1,6 @@
 # Documentation
 
-Last updated: 2026-07-13
+Last updated: 2026-07-22
 
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
@@ -19,14 +19,15 @@ This folder is the maintained documentation surface for the repository. It is in
   - Detailed snapshot of pages, contracts, and runtime behavior.
 - `DESIGN_SYSTEM.md`
   - Frontend token, pattern, and styling guidance.
-- `agent-tooling.md`
-  - Repo-maintained MCP and CLI routing guidance.
 - `../CONTRIBUTING.md`
   - Workflow, guardrails, and validation steps for contributors.
 
 ### Operator docs
 - `project-ops/STATUS.md`
   - Team and implementation status notes for current operator workflows.
+- `project-ops/IMPLEMENTATION_GAP_REGISTER.md`
+  - Canonical cumulative stable-ID register for unresolved implementation work;
+    local, CI, manual, and hosted evidence remain distinct.
 - `project-ops/LIVING_CHECKLIST.md`
   - Ongoing implementation checklist and handoff material.
 - `project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`

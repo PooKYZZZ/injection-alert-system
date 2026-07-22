@@ -99,8 +99,12 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 
 - Production-grade ModSecurity-fronted deployment
 - Redis-backed enforcement state
-- Client-required two-factor authentication
-- Client-required email notification after threat detection
+- Notification-worker operational failure, retry, duplicate-prevention, and
+  required-worker-health validation
+- Hosted PR5 source/topology verification and production rollout; the local
+  LOW/MEDIUM implementation is not hosted evidence, and HIGH/CRITICAL active
+  enforcement remains outside the implemented scope. See
+  [`docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`](docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md).
 
 ## Tech Stack
 

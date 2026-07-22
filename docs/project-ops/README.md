@@ -15,16 +15,22 @@ below before following older execution logs or broad policy background.
 | Recovery | [`../architecture.md`](../architecture.md) | Recovery assurance and password/MFA boundaries. |
 | Break glass | [`MIGRATION_ROLLBACK_RUNBOOK.md`](MIGRATION_ROLLBACK_RUNBOOK.md) | Restricted-role and compatibility safeguards. |
 | Thesis demo | [`SMOKE_TEST_RUNBOOK.md`](SMOKE_TEST_RUNBOOK.md) | WAF proof commands and the verified Admin authentication journey. |
+| Cumulative unresolved implementation work | [`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md) | Stable-ID register; distinguishes implementation, local/CI/manual, and hosted evidence. |
 
-[`STATUS.md`](STATUS.md) is the current operator snapshot and
-[`LIVING_CHECKLIST.md`](LIVING_CHECKLIST.md) is the maintained task ledger.
+[`STATUS.md`](STATUS.md) is the current operator snapshot;
+[`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md) owns
+cumulative unresolved implementation work; and
+[`LIVING_CHECKLIST.md`](LIVING_CHECKLIST.md) remains the operational execution
+checklist and handoff material.
 
 ## Files
 
 - `STATUS.md`
   - current implementation status and known repo gaps
+- `IMPLEMENTATION_GAP_REGISTER.md`
+  - canonical cumulative stable-ID register for unresolved implementation work
 - `LIVING_CHECKLIST.md`
-  - ongoing task checklist and handoff material
+  - operational execution checklist and handoff material
 - `DEMO_TARGET_WAF_PROOF.md`
   - verified local PD2 proof for the realistic `localhost:8089 -> demo-target-modsecurity -> demo-target-app` WAF path and `demo-target-bridge` ingest
 - `SMOKE_TEST_RUNBOOK.md`

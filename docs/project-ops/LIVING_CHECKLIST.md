@@ -3,21 +3,21 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-22
 
 Status note:
-- Current PR #83 release status is maintained in `docs/project-ops/STATUS.md`.
+- Current repository status is maintained in `docs/project-ops/STATUS.md`;
+  backend PR #90 is merged into synchronized `master` at `62fc168`.
 - Hosted Supabase is migrated through `20260712_000020`; disposable PostgreSQL downgrade/re-upgrade through the same head passed
 - Current frontend validation: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. Local-only browser session behavior remains a follow-up if it reappears.
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
 - PR #84 source-correlation implementation is locally complete at Alembic head
   `20260715_000021`; hosted Supabase is only confirmed through
   `20260712_000020` and must not be described as migrated to the new head.
-- PR #84 implementation is frozen at baseline
+- PR #84 implementation is historical and frozen at baseline
   `6cfe67bd331e55d4309c201c8c254668bc2ea688`; that maintenance pass was
-  documentation-only. The current `feat/real-time-alert-sse` PR2 branch is a
-  distinct implementation slice. The current PR3 branch implements Telegram;
-  rate limiting, enforcement, portal behavior, and retraining remain outside it.
+  documentation-only. PR2 SSE and PR3 Telegram are completed historical slices;
+  their evidence remains in `docs/project-ops/STATUS.md`.
 - PR #85 automated validation is green for backend, frontend, postgres,
   auth-e2e, and secret-scan. Manual WAF repetition, no-refresh dashboard
   updates, hosted SSE delivery, browser reconnect, and source-correlation
@@ -145,83 +145,17 @@ Status note:
 
 ---
 
-## Open Backlog
+## Implementation Gap Routing
 
-- [x] Build/verify external demo target website (`G:\AI\land-records-portal`)
-- [x] Verify local WAF path through `localhost:8088` with ModSecurity/OWASP CRS block, audit log, bridge post, backend ingest, and transaction lookup proof
-- [x] Verify WAF JSONL bridge and internal FastAPI ingest route with live ModSecurity audit-log evidence
-- [~] ModSecurity audit-log policy is documented, but automatic rotation and production retention are not implemented
-- [~] Decide whether ModSecurity becomes a production browser-facing path or remains a local proof/demo path; current dashboard path remains `Browser -> Next.js -> FastAPI`
-- [ ] Decide ModSecurity audit-log format, captured fields, transaction ID strategy, log rotation, and retention
-- [x] Create CRS-only baseline report for normal and attack traffic; report exists at `reports/modsecurity-live-proof/crs-baseline.md`
-- [x] Demo-target WAF config exists for `localhost:8089 -> demo-target-modsecurity -> demo-portal`; the profile is optional for normal startup and required for the final realistic WAF demonstration; `demo-portal` builds from the separate land-records portal repo path, runs internally on Compose port `3010`, and is not host-published by default; `demo-target-bridge` watches `logs/modsecurity/demo-target/modsec_audit.jsonl` for CyberTrace ingest
-- [x] Final observed demo-target report exists at `reports/modsecurity-live-proof/demo-target-crs-proof.md`
-- [x] Add bounded `asyncio.Queue(maxsize=N)` inference queue and queue health visibility
-- [x] Add structured JSON logs with backend request/trace IDs and bridge-to-backend `transaction_id` correlation; scope is request/WAF/prediction boundaries and bridge operational events, not every application log
-- [x] Return a safe `X-Request-ID` on generic unhandled `500` responses while preserving sanitized `request.failed` logs
-- [x] Emit bridge configuration failures as JSON stderr and normalize unsupported backend structured-log levels to `INFO`
-- [x] Migrate Starlette `TestClient` to pinned `httpx2==2.5.0` while retaining legacy `httpx` for current consumers
-- [x] Add a standalone final-demo smoke script with explicit backend, `8088`,
-  and `8089` modes, JSON output, timeouts, safe failures, and deterministic
-  script tests
-- [x] Add current-backend API abuse/resource proof for malformed input, auth
-  correlation and token non-leakage, body limits, duplicate/unknown WAF
-  transactions, model unavailable behavior, and queue overflow
-- [~] Minimal metrics use existing `/api/stats`, `/api/ml-health` queue health, and JSON bridge summary counts; no separate bridge/email metrics endpoint is implemented
-- [x] Add client-standard `CRITICAL >=90%` confidence tier across backend/frontend contracts and tests
-- [x] Add real-time dashboard alerting for timely threat visibility: the
-  post-commit SSE/BFF/EventSource/TanStack Query path, focused tests,
-  disposable Chromium no-refresh proof, browser-native reconnect proof, and
-  named-domain hosted SSE proof all pass. Single-process fan-out, durable
-  replay, multi-worker distribution, and latency benchmarking remain out of
-  scope.
-- [ ] Add email notifications after detection using a transactional email provider/API
-- [x] Replace demo password login with Supabase `auth_accounts` and Argon2id password hashes; no env fallback remains
-- [x] Implement server-side Admin/Analyst/Viewer RBAC with per-account `authz_version`
-- [~] Login hardening includes approved Argon2id PHC verification, a precomputed dummy hash, bounded per-identifier throttles, database-expiring password-level MFA challenges, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and safe JSON login/route-guard audit logs; distributed throttling, persistent audit storage, and external provider deployment remain deferred
-- [x] Auth/security schema and runtime account boundary implemented: additive migration, nine public-schema tables, RLS enabled, public-role revocations, no policies, server-only login/freshness queries, and no `AUTH_USERS_JSON` fallback. Hosted Supabase is migrated through `20260712_000020`
-- [x] Add safe Supabase account provisioning scripts for create/list/disable/set-password using Argon2id; username normalization matches runtime login
-- [x] Cut Auth.js Credentials login and all seven BFF freshness checks over to `auth_accounts`; missing, disabled, role-changed, stale, and DB-unavailable accounts fail closed
-- [x] Stabilize PR #79 frontend CI native-addon loading: PR #81 uses pure mocks in non-hashing auth/provisioning tests, keeps real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice without changing the threaded Vitest pool or production auth code
-- [x] Implement encrypted TOTP enrollment, replay-safe MFA login completion, backup-code/email-OTP recovery, and mandatory re-enrollment routing; hosted Admin enrollment/login is verified and availability flags fail closed
-- [x] Implement generic password reset, scanner-safe POST consumption, ADMIN recent-TOTP MFA reset, and a restricted execute-only PostgreSQL break-glass role/CLI
-- [x] Add database-authoritative MFA completion claims, factor-aware enrollment, persistent MFA/OTP attempt accounting, retry-safe recovery handoff, and password-work preflight (PR #83)
-- [x] Add bounded notification deadlines, cancellation, terminal reconciliation/scrubbing, supported templates, lease-safe worker behavior, and provider/readiness validation (PR #83)
-- [x] Add required PostgreSQL and managed Chromium authentication CI jobs, including disposable setup and unconditional cleanup (PR #83)
-- [x] Encrypt active credential-equivalent notification payloads with a versioned AES-GCM envelope and fail-closed delivery decryption (PR #83; hosted key provisioning/rotation remains gated)
-- [x] Apply V6.1 migrations to a reviewed hosted Supabase target
-- [x] Verify Resend domain/live delivery and public Cloudflare deployment; Turnstile hostname rollout remains outside this PR
-- [ ] Redesign MFA enrollment UI (deferred)
-- [ ] Redesign backup-code UI (deferred)
-- [ ] Validate notification-worker retry, duplicate prevention, provider-failure handling, and required-worker health behavior (deferred)
-- [ ] Audit MFA feature-flag behavior when enrollment is disabled (deferred)
-- [ ] Investigate local-only Playwright null-session behavior if it reappears (deferred)
-- [ ] Review Auth.js beta upgrade in a separate PR (deferred)
-- [ ] Evaluate passkeys/WebAuthn as a later enhancement (deferred)
-- [ ] Decide whether local Docker Compose is experimental smoke support or a fully supported operator path
-- [ ] Redis-backed enforcement or review-queue state
-- [x] PR5 implementation and controlled local full-stack E2E are complete: backend
-  PR #90 and portal PR #91 passed CI; canonical evidence is recorded in
-  `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`
-- [x] PR5 LOW threshold challenge behavior and LOW challenge-grant persistence
-  were validated; valid LOW grants bypassed LOW request-counter recreation
-- [x] PR5 MEDIUM immediate challenge, grant persistence, request-window counting,
-  fixed-window rollover, throttle behavior, and positive retry countdown were
-  validated
-- [x] PR5 invalid Turnstile validation created no grant and no MEDIUM request
-  window
-- [x] PR5 backend-evaluation outage failed open to usable search without a fake
-  grant or request window
-- [ ] Preserve the E2E evidence limitation: clean exact LOW 5→6 and MEDIUM
-  10→11 screenshot pairs were not preserved during rapid manual refreshes
-- [ ] Enable hosted/production ENFORCE only after trusted-source, Cloudflare
-  Pseudo IPv4, and origin-isolation topology gates are directly verified
-- [ ] PR6 HIGH application blocking (next implementation phase)
-- [ ] PR7 CRITICAL/WAF enforcement
-- [ ] PR8 model packaging
-- [ ] PR9 candidate retraining
-- [ ] Repo-managed export and verification of Supabase policy / RLS state
-- [ ] Re-assess any remaining chart container sizing warnings only after stable UI reproduction
+All prior unresolved items were normalized into the canonical
+[`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md); do not
+duplicate their full entries here. [`STATUS.md`](STATUS.md) remains the current
+operator snapshot.
+
+- PR5 LOW/MEDIUM is locally complete and controlled-local E2E-evidenced;
+  `LIMIT-001` preserves the exact screenshot-sequence limitation.
+- `BLOCK-001` and `BLOCK-002` gate hosted/production rollout.
+- `GAP-001` and `GAP-002` cover the separately approved HIGH/CRITICAL phases.
 
 ---
 

@@ -1,18 +1,20 @@
 # Local Setup
 
-Last updated: 2026-07-20
+Last updated: 2026-07-22
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service. PR2 SSE no-refresh and browser reconnect behavior are manually verified through the named hosted deployment; see `docs/project-ops/STATUS.md` for evidence and limitations.
 
 PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
 controlled proof, hosted source-correlation proof, and restart/recreate proof
 are complete. The separate PR2 SSE slice is implemented with automated and
-manual no-refresh, browser-reconnect, and named-domain hosted proof. The local
-PR3 branch implements Telegram threat alerts separately; rate limiting,
-enforcement, portal behavior, and retraining remain future work. Telegram has
-no hosted proof. Hosted source verification remains
+manual no-refresh, browser-reconnect, and named-domain hosted proof. PR5 adds
+local/test-only LOW/MEDIUM active enforcement for the protected portal route;
+hosted/production enforcement remains off and HIGH/CRITICAL remain
+non-disruptive. Telegram has no hosted proof. Hosted source verification remains
 `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
-trust checks are completed.
+trust checks are completed. See
+`docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md` for remaining PR5 and hosted
+work.
 
 Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
 

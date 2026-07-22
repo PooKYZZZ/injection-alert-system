@@ -8,8 +8,8 @@
 
 ## Current Verified Repo State
 
-- Working branch: `feat/pr5-cybertrace-enforcement` (portal counterpart:
-  `feat/pr5-portal-enforcement`)
+- Working branch: synchronized `master` at merged backend PR #90 commit
+  `62fc168` (PR base `master`, head `feat/pr5-cybertrace-enforcement`).
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
@@ -98,11 +98,11 @@
   measurement and timeout selection; live expiration was not destructively
   forced because active recommendations were preserved.
 
-### PR5 controlled active enforcement state
+### PR #90 — PR5: add controlled LOW/MEDIUM active enforcement
 
-- PR5 LOW/MEDIUM active enforcement is complete on the feature branches
-  `feat/pr5-cybertrace-enforcement` and `feat/pr5-portal-enforcement`. Backend PR
-  #90 (`ea3ad66`) and portal PR #91 (`665cb83`) passed their required CI checks.
+- Backend PR #90 is merged into `master` at `62fc168`; its five CI jobs passed.
+  The separately evidenced portal PR #91 passed its recorded CI checks; no portal
+  merge state is asserted here.
 - Controlled local full-stack E2E is PASS through the realistic
   `http://localhost:8089/records/search` path using Docker Compose and disposable
   PostgreSQL 16. The canonical evidence is
@@ -123,19 +123,21 @@
 - Hosted/production `ENFORCEMENT_MODE` defaults to `off`; no hosted destructive
   enforcement readiness or real-user rollout is claimed. Cloudflare trusted-source,
   Pseudo IPv4, origin-isolation, and related topology gates remain open.
-- Remediation requires source eligibility before tier precedence, complete
-  Turnstile configuration, separate check/challenge timeout budgets, fresh
-  post-Siteverify time, browser-safe challenge statuses, and explicit
-  `cloudflare_verified` deployment acknowledgement before staged/production use.
 
-### PR5 acceptance state
+**Completed:** implemented, wired, automated-tested, and controlled-local
+E2E-validated LOW/MEDIUM check, challenge, grants, counters, and throttling;
+five PR #90 CI jobs succeeded. Evidence: `web_app/presentation/api/routes.py`,
+`web_app/application/enforcement_use_cases.py`, enforcement tests, and
+`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`.
 
-- Implementation: **complete**.
-- Controlled local full-stack E2E: **PASS**.
-- Hosted Cloudflare topology proof: **pending**.
-- Production ENFORCE and rollout: **intentionally disabled**.
-- Next implementation phase: **PR6 HIGH application blocking**. PR7 remains
-  CRITICAL/WAF enforcement; PR8 model packaging; PR9 candidate retraining.
+**Partially completed:** none within the approved PR5 local scope; hosted rollout
+is a separate gate. **Resolved gaps:** stale tracker claims that LOW/MEDIUM and
+Turnstile were absent (no stable prior IDs). **New gaps:** `BUG-001`, `BUG-002`,
+`LIMIT-005`, `BUG-003`. **Known limitations:** `LIMIT-001` and the local-versus-
+production evidence boundary only. **Technical debt:** none newly classified.
+**Deferred:** `DEFER-001` only. **Still open:** `BLOCK-001`, `BLOCK-002`,
+`GAP-001`, `GAP-002`, `BUG-001`, `BUG-002`, `LIMIT-005`, and `BUG-003`. See
+`IMPLEMENTATION_GAP_REGISTER.md` for definitions and cumulative state.
 
 ### Trusted source correlation PR state
 
@@ -143,8 +145,8 @@
   `6cfe67bd331e55d4309c201c8c254668bc2ea688`. The branch was clean, remote CI
   was green, and this maintenance pass adds documentation only; no PR1 feature
   work remains.
-  PR2 implements SSE separately. Rate limiting, enforcement, portal behavior,
-  and retraining remain later work; Telegram is isolated in the current PR3 branch.
+  PR2 implemented SSE separately. This historical PR #84 note does not describe
+  current work; Telegram is a completed historical PR3 slice.
 
 ### Real-time alert SSE PR state
 
@@ -456,35 +458,11 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
 ## Open Gaps (Current, Not Historical)
 
-- Docker Compose WAF ingest proof is verified locally through `localhost:8088`, but this is not a production-grade ModSecurity-fronted deployment.
-- Portal-target WAF proof through `localhost:8089` is runtime-verified locally. The profile is optional for normal startup, but required for the final realistic WAF demonstration.
-- Bridge follow-mode transient `readline()` `OSError` resilience is implemented and unit-tested; automatic log rotation and production retention remain TODO.
-- Bounded in-process inference queue and queue health visibility are implemented for synchronous WAF ingest.
-- Redis-backed enforcement state is not implemented and should stay conditional on shared runtime state.
-- Some Supabase policy and operational hardening steps remain outside automated repo verification/export; the auth/security foundation uses RLS only as defense-in-depth because service-role access bypasses it.
-- Named env-backed account access and BFF RBAC are implemented; account-management UI, managed identity, distributed throttling, persistent audit storage, and immediate stolen-token revocation remain future work.
-- MFA, recovery, password reset, and recent-TOTP step-up are implemented behind server-side availability switches; the hosted Admin enrollment/login journey is verified and disabled values still fail closed.
-- Active credential-equivalent notification payload encryption and terminal scrubbing are implemented. Hosted key provisioning and rotation remain approval-gated.
-- Live Resend delivery is verified in the tested deployment; notification-worker failure/retry and required-worker health operations remain deferred testing.
-- Real-time SSE/EventSource dashboard alerting is implemented in code with
-  focused backend/frontend automated coverage. Local disposable Chromium
-  no-refresh behavior, browser-native reconnect, and the named hosted
-  deployment path are manually verified. The current in-process
-  broadcaster does not provide multi-worker or multi-instance fan-out. Streams
-  recycle after five minutes to re-run BFF account/RBAC checks; upstream BFF
-  connection establishment has a ten-second deadline, rejects redirects and
-  non-exact SSE media types, and returns only generic connection errors.
-- Residual SSE risk is intentionally thesis-scoped: fan-out is single-process,
-  events are not durably replayed, HTTP/1.1 browsers have limited per-origin
-  streaming connections, and hosted proxy buffering/reconnect behavior is not
-  yet verified. Roll back this synchronization slice by removing the dashboard
-  `AlertStreamSync`, BFF/backend stream routes, and publisher wiring; canonical
-  REST alert and stats contracts remain unchanged and usable throughout.
-- Automated final-demo HTTP/audit checks and opt-in Docker-internal backend
-  lookup are implemented; full dashboard interaction remains a manual runbook
-  step rather than always-on CI.
-- Wazuh export-only integration is not yet implemented; full Wazuh/SIEM deployment is deferred.
-- Retraining remains design-level in `ml_model/retraining/`; promotion/rollback tooling exists separately under `ml_model/export/`.
+Previous prose items were normalized into stable IDs in
+[`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md); the complete
+current inventory lives there. Highest-priority current items are `BLOCK-001`,
+`BLOCK-002`, `BUG-001`, `GAP-001`, and `GAP-002`. This status snapshot does not
+replace the register or restate its full entries.
 
 ---
 
@@ -495,5 +473,6 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Local setup: `docs/SETUP.md`
 - Client requirements: `docs/client-requirements.md`
 - Detailed current-state snapshot: `docs/CURRENT_SYSTEM_STATE.md`
-- Operator checklist: `docs/project-ops/LIVING_CHECKLIST.md`
+- Implementation gaps: `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`
+- Operational/demo checklist: `docs/project-ops/LIVING_CHECKLIST.md`
 - ModSecurity audit log policy: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`

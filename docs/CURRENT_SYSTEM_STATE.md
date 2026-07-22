@@ -315,7 +315,7 @@ and auth behavior are unchanged.
 | Bounded WAF inference queue | Implemented; `web_app/application/inference_queue.py` gates synchronous WAF inference and `/api/ml-health` exposes queue health |
 | Request/trace correlation | Implemented; handled and generic unhandled `500` responses return `X-Request-ID`, and valid W3C version-00 `traceparent` IDs are preserved |
 | Structured observability logs | Implemented for backend request/WAF/prediction boundaries, bridge operational/configuration events, and login/route-guard audit events; recursive case/separator-insensitive sensitive-field redaction is tested |
-| Action policy values | Partial; actions are recorded, not proven as live request-path enforcement |
+| PR5 LOW/MEDIUM active enforcement | Implemented and controlled-local E2E-evidenced for `/records/search`: server-side check/challenge/throttle uses bounded grants and request windows. Production remains off; HIGH/CRITICAL are excluded. See `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`, `docs/project-ops/STATUS.md`, and `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`. |
 
 ## Summary: Verified WAF Proof (2026-06-22)
 
