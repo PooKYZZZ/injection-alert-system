@@ -4,7 +4,7 @@ Injection Alert System is an academic capstone project for SQL injection detecti
 
 ## Status
 
-This repository is active in its current app-plus-BFF form and now has a verified local ModSecurity/OWASP CRS proof path for WAF ingest. It is still not a finished production Docker/Redis deployment target.
+This repository is active in its current app-plus-BFF form and now has a verified local ModSecurity/OWASP CRS proof path for WAF ingest. It is not yet a fully production-validated deployment.
 
 - Backend tests currently pass: `.venv\Scripts\python.exe -m pytest -q`
 - Frontend tests currently pass: `cd frontend && npx vitest run`
@@ -98,7 +98,7 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 ### Not fully implemented yet
 
 - Production-grade ModSecurity-fronted deployment
-- Redis-backed enforcement state
+- Additional high-throughput enforcement state, if a demonstrated scale requirement justifies it
 - Notification-worker operational failure, retry, duplicate-prevention, and
   required-worker-health validation
 - Hosted PR5 source/topology verification and production rollout; the local

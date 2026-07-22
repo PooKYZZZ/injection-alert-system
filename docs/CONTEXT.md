@@ -18,7 +18,7 @@ The repository currently contains:
 - A verified local ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest proof path through Docker Compose
 - A demo-target WAF profile for `localhost:8089`, with a separate `demo-target-bridge` that forwards protected demo website audit events to CyberTrace. The profile is optional for normal developer startup and required for the final realistic WAF demonstration.
 
-This is not yet a production Docker/Redis deployment. The codebase includes Dockerfiles and a `docker-compose.yml`; the technical CyberTrace backend WAF proof path uses `localhost:8088`, the protected demo website WAF path uses profile port `localhost:8089`, and the dashboard browser path remains the Next.js BFF path.
+This is not yet a fully production-validated deployment. The codebase includes Dockerfiles and a `docker-compose.yml`; the technical CyberTrace backend WAF proof path uses `localhost:8088`, the protected demo website WAF path uses profile port `localhost:8089`, and the dashboard browser path remains the Next.js BFF path.
 
 Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. They include secure login, RBAC, strong account security with 2FA, timely threat alerts, email notification after detection, and a `CRITICAL >=90%` confidence tier.
 
@@ -228,7 +228,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 ## Not Yet Implemented
 
 - Production-grade ModSecurity-fronted deployment
-- Redis-backed enforcement and review queue behavior; use only if shared runtime state is required. PR4 now has a bounded, database-backed shadow recommendation path without Redis.
+- An additional Redis-style enforcement or review-state layer; PostgreSQL currently provides durable shared counters and PR4 has a bounded database-backed shadow recommendation path.
 - Richer backend-native dashboard stats and ML health payloads beyond the current BFF normalization layer
 - Notification-worker failure/retry operational testing, MFA flag-semantics audit, Auth.js upgrade, and passkeys/WebAuthn
 - Wazuh export-only integration

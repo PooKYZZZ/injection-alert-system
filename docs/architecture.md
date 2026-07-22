@@ -80,7 +80,15 @@ The backend follows the intended Clean Architecture split:
 - Lifespan startup initializes the database, loads `ModelService`, and starts
   the bounded in-process inference queue used by WAF ingest.
 
-### Current routes (2026-07-03)
+### API surface
+
+FastAPI exposes protected application APIs, internal WAF ingest and lookup
+boundaries, public health checks, and the authenticated alert stream. Exact
+methods and paths are maintained by route tests and the generated OpenAPI
+surface; this document describes boundaries rather than duplicating a complete
+route reference.
+
+<!-- Legacy route inventory retained only in git history; do not maintain a second copy here.
 
 - Protected by backend bearer auth:
   - `POST /api/predict`
@@ -96,7 +104,8 @@ The backend follows the intended Clean Architecture split:
   - `POST /api/feedback`
 - Public backend endpoints:
   - `GET /health`
-  - `GET /api/health`
+- `GET /api/health`
+-->
 
 ### Model loading behavior
 

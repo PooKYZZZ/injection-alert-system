@@ -75,6 +75,12 @@ Do not change the confidence thresholds without explicit approval:
 - Keep setup instructions runnable on the current repo
 - Preserve academic documents, but clearly separate them from implementation-status docs
 
+When a PR changes runtime behavior, API routes, configuration, migrations,
+deployment behavior, security boundaries, or known limitations, update the
+appropriate canonical documentation in the same PR. Update `STATUS.md` when
+current state changes, update existing gap IDs instead of duplicating them,
+and add an evidence report for significant manual validation.
+
 ## Sensitive Data
 
 Never commit:

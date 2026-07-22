@@ -9,6 +9,19 @@ code, configuration, tests, and current runtime wiring outrank documentation.
 Entries are cumulative: IDs never renumber, and local, CI, manual, and hosted
 evidence are distinct evidence classes.
 
+## Active backlog summary
+
+| ID | Priority | Status | Area | Target |
+|---|---|---|---|---|
+| BLOCK-001 | HIGH | BLOCKED | Production rollout | Deployment gate |
+| BLOCK-002 | HIGH | BLOCKED | Trusted source proof | Deployment gate |
+| GAP-001 | HIGH | NOT_STARTED | HIGH enforcement | PR6 |
+| GAP-002 | HIGH | NOT_STARTED | CRITICAL/WAF enforcement | PR7 |
+| BUG-001 | MEDIUM | KNOWN_BUG | Enforcement | Maintenance |
+| BUG-002 | MEDIUM | KNOWN_BUG | Migration | Maintenance |
+
+Detailed entries below remain grouped by stable ID and are the source of truth.
+
 ### BLOCK-001 — Hosted PR5 topology and production rollout gate
 
 Status: BLOCKED
@@ -135,7 +148,7 @@ Introduced / identified: PR5 acceptance state.
 
 Last reviewed: 2026-07-22
 
-### DEFER-001 — Shared/distributed enforcement state
+### DEFER-001 — Alternative high-throughput enforcement state backend
 
 Status: DEFERRED
 
@@ -147,14 +160,16 @@ Enforcement scalability
 
 Current implementation: PostgreSQL counters exist.
 
-Missing: Redis/shared multi-instance coordination.
+Current: PostgreSQL provides durable shared counters and grants.
+
+Deferred: An additional Redis-style state layer.
 
 Evidence:
 
 - `docs/project-ops/STATUS.md`
 - `migrations/versions/20260721_000024_add_active_enforcement_state.py`
 
-Requirement: Conditional on approved topology.
+Requirement: Reassess only if a demonstrated scale requirement justifies another state system.
 
 Impact: No shared-runtime coordination is claimed.
 
@@ -261,7 +276,7 @@ Last reviewed: 2026-07-22
 
 ### GAP-006 — Wazuh export-only compatibility
 
-Status: NOT_STARTED
+Status: DEFERRED
 
 Priority:
 LOW
@@ -383,7 +398,7 @@ Last reviewed: 2026-07-22
 
 ### LIMIT-002 — Minimal metrics boundary
 
-Status: KNOWN_LIMITATION
+Status: DEFERRED
 
 Priority:
 LOW
@@ -657,7 +672,7 @@ Last reviewed: 2026-07-22
 
 ### GAP-012 — Backup, restore, and retention automation
 
-Status: PARTIAL
+Status: DEFERRED
 
 Priority:
 LOW

@@ -8,8 +8,8 @@
 
 ## Current Verified Repo State
 
-- Working branch: synchronized `master` at merged backend PR #90 commit
-  `62fc168` (PR base `master`, head `feat/pr5-cybertrace-enforcement`).
+- Historical PR5 merge reference: backend PR #90 commit `62fc168`.
+  Git is authoritative for the current branch and HEAD.
 - Python runtime target: `3.14+`
 - Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`

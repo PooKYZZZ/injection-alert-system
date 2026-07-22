@@ -50,35 +50,30 @@ This folder is the maintained documentation surface for the repository. It is in
 - `DATASET_BASELINE_SR_BH_v3.1.0.md`
   - Frozen baseline statistics and training metadata for the current dataset version.
 
-## Verified Repo State
+## Current project state
 
-- Backend tests currently pass: `.venv\Scripts\python.exe -m pytest -q`
-- Frontend lint currently passes: `cd frontend && npm run lint`
-- Frontend typecheck currently passes: `cd frontend && npm run typecheck`
-- Frontend tests currently pass: `cd frontend && npx vitest run`
-- Frontend production build currently passes: `cd frontend && npm run build`
-- Latest verification counts are recorded in `project-ops/STATUS.md`.
-- Current backend API surface includes:
-  - protected: `POST /api/predict`, `POST /api/triage`, `GET /api/alerts`, `GET /api/alerts/{id}`, `PATCH /api/alerts/{id}/triage`, `GET /api/stats`, `GET /api/ml-health`, `POST /api/feedback`
-  - public: `GET /health`, `GET /api/health`
-- The Next.js dashboard BFF is wired for alerts, alert detail, triage, stats, and ML health through `frontend/lib/bff-client.ts`
-- Alerts UI role affordances are implemented in the dashboard: dense-row mutation controls are hidden for viewers, triage stays available for analysts, and admins keep the full control set
-- USE_MOCK_API=false (hitting real FastAPI)
-- Supabase is the active hosted PostgreSQL boundary for the app runtime
-- Dockerfiles and `docker-compose.yml` are present for local smoke testing
-- The local Compose stack currently publishes the frontend on `localhost:3000`
-- The technical CyberTrace WAF proof path is published on `localhost:8088`
-- The realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled; Compose builds the separate land-records portal as internal service `demo-portal:3010`, so no manual portal dev server is required
-- The backend stays internal to the Compose network and is shown as `8000/tcp`; do not use `localhost:8000` unless backend port 8000 is explicitly published
-- PR4 shadow enforcement remains opt-in and historical (`ENFORCEMENT_MODE=shadow`); PR5 controlled local full-stack E2E for LOW/MEDIUM `/records/search` passed through Docker Compose with disposable PostgreSQL and server-side Turnstile grants. See [`reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`](../reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md). Hosted/production `ENFORCE` remains disabled pending trusted Cloudflare source/topology proof; HIGH/CRITICAL remain non-disruptive.
-- Verified local WAF proof: `/healthz` and `/api/health` returned HTTP 200 through `localhost:8088`; SQLi probe `/api/health?id=17%27%20OR%2017%3D17--` returned HTTP 403; bridge posted to FastAPI; Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
-- Verified demo-target WAF proof: `localhost:8089` home returned HTTP 200; SQLi marker `SMOKE002945` returned HTTP 403; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `/records/search`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`
-- Targeted WAF checks passed: bridge tests `47 passed`, WAF ingest route tests `12 passed`, WAF ingest use-case tests `4 passed`; the combined boundary set passed `63` tests
-- Backend request/WAF/prediction boundaries and bridge operations emit structured JSON logs with request/trace/transaction correlation; bridge configuration failures are JSON on stderr
-- Starlette `TestClient` uses pinned `httpx2==2.5.0`; legacy `httpx==0.28.1` remains installed for existing consumers
-- Real user access management/RBAC, TOTP MFA/recovery, and password-reset boundaries are implemented behind explicit server-side availability flags; the hosted Admin journey, live Resend delivery, and public Cloudflare deployment are verified. Deferred follow-ups remain tracked in `project-ops/STATUS.md`.
-- The `CRITICAL >=90%` model-confidence tier is implemented without retraining, recalibration, model artifact changes, or retroactive historical-row reclassification.
-- Frontend confidence distributions and styling use persisted `confidence_level`; enforcement-policy counts are non-Normal-only, and confidence-tier badges never replace the canonical tier with prediction labels.
+This index intentionally avoids duplicating fast-changing status, route, and
+evidence details. Use the canonical documents below:
+
+- [Project context](CONTEXT.md)
+- [Architecture](architecture.md)
+- [Developer setup](SETUP.md)
+- [Operator status](project-ops/STATUS.md)
+- [Implementation gap register](project-ops/IMPLEMENTATION_GAP_REGISTER.md)
+- [Execution checklist](project-ops/LIVING_CHECKLIST.md)
+
+## Documentation ownership
+
+| Subject | Canonical source |
+|---|---|
+| Project overview | `README.md` |
+| Current implementation | `CONTEXT.md` |
+| Runtime architecture | `architecture.md` |
+| Developer setup | `SETUP.md` |
+| Operator snapshot | `project-ops/STATUS.md` |
+| Outstanding work | `project-ops/IMPLEMENTATION_GAP_REGISTER.md` |
+| Execution checklist | `project-ops/LIVING_CHECKLIST.md` |
+| Historical evidence | `reports/` |
 
 ## Documentation Rules For This Repo
 
