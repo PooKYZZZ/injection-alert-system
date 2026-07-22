@@ -1,7 +1,5 @@
 # Architecture
 
-Last updated: 2026-07-20
-
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
 Client-stated security and alerting requirements are tracked in `docs/client-requirements.md`. They are architectural drivers for planned account security and alerting work, but not all are implemented in the current repository state.
@@ -28,7 +26,6 @@ flowchart LR
     DemoModSec --> DemoTarget["demo-portal (built from separate land-records-portal repo)"]
     DemoModSec --> DemoBridge["demo-target-bridge"]
     DemoBridge --> FastAPI
-    Redis["Redis 7"] -. planned .-> FastAPI
 ```
 
 ## Feature State Matrix
@@ -48,7 +45,7 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Implemented and manually verified in the tested hosted deployment | post-commit in-process broadcaster -> native FastAPI SSE -> authenticated Next.js streaming BFF -> one dashboard EventSource -> TanStack Query alert/stats invalidation; no-refresh, browser reconnect, and named-domain hosted SSE proof passed; no durable replay or multi-worker fan-out |
-| Notification outbox and worker | Implemented locally; Telegram not hosted-verified | additive migrations through `20260720_000022`, versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts; Telegram failures are isolated from detection/SSE and exactly-once external delivery is not claimed |
+| Notification outbox and worker | Implemented locally; Telegram not hosted-verified | additive migrations through repository head `20260721_000024`, versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts; Telegram failures are isolated from detection/SSE and exactly-once external delivery is not claimed |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
@@ -87,25 +84,6 @@ boundaries, public health checks, and the authenticated alert stream. Exact
 methods and paths are maintained by route tests and the generated OpenAPI
 surface; this document describes boundaries rather than duplicating a complete
 route reference.
-
-<!-- Legacy route inventory retained only in git history; do not maintain a second copy here.
-
-- Protected by backend bearer auth:
-  - `POST /api/predict`
-  - `POST /api/triage`
-  - `GET /api/alerts`
-  - `GET /api/alerts/{id}`
-  - `PATCH /api/alerts/{id}/triage`
-  - `GET /api/stats`
-  - `GET /api/ml-health`
-- Internal bearer-token protected backend endpoints:
-  - `POST /api/internal/waf-events`
-  - `GET /api/internal/waf-events/{transaction_id}`
-  - `POST /api/feedback`
-- Public backend endpoints:
-  - `GET /health`
-- `GET /api/health`
--->
 
 ### Model loading behavior
 
@@ -227,7 +205,7 @@ the client-facing behavior for disabled or unauthorized pages.
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- The repository migration head for the PR #83 remediation is `20260712_000020`; the new revisions are additive after `20260710_000014`
+- Repository Alembic head: `20260721_000024`. Latest hosted Supabase revision with recorded evidence: `20260712_000020`.
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
 - Notification outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, and lease reconciliation. Email retains AES-GCM protection for active credential-equivalent payloads; Telegram is database-restricted to safe `threat_detected` payloads. Terminal payloads are scrubbed.
@@ -254,7 +232,6 @@ the client-facing behavior for disabled or unauthorized pages.
 ## What Is Planned, Not Implemented
 
 - Production-grade ModSecurity-fronted deployment
-- Redis-backed IP blocklist, rate-limit state, and low-confidence queue only if shared runtime state is required
 - Full repo-managed export and automation of Supabase policy state
 - Hosted account provisioning and external deployment verification
 - Notification-worker failure/retry operational testing and required-worker health testing

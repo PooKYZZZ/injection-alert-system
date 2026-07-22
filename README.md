@@ -139,7 +139,7 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 ### Prerequisites
 
 - Python 3.14+ (tested with 3.14.3)
-- Node.js 20+
+- Node.js 24 (see `.nvmrc` and `frontend/package.json`)
 - npm
 - PowerShell or a compatible shell
 
@@ -258,7 +258,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 - Next.js BFF handlers under `frontend/app/api/alerts`, `frontend/app/api/stats`, and `frontend/app/api/ml-health` also call `auth()` and return `401` without a session.
 - Backend internal data routes use `Authorization: Bearer <API_SECRET_KEY>` via the Next.js BFF client.
 - Local `next start` validation also requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
-- Client requirements now call for real user access management with RBAC, secure login, strong account security, and 2FA. The current password-only demo flow is not the final requirement state.
+- Client requirements for named-account login, RBAC, strong account security, and 2FA are implemented behind documented server-side availability flags; current hosted evidence and remaining follow-ups are tracked in `docs/project-ops/STATUS.md`.
 
 ### Current limitations
 
@@ -277,7 +277,7 @@ curl -X POST "http://localhost:8000/api/predict" \
   - client-stated security, alerting, and confidence-tier requirements
 - [CONTRIBUTING.md](CONTRIBUTING.md)
   - contributor workflow and validation steps
-- [docs/CURRENT_SYSTEM_STATE.md](docs/CURRENT_SYSTEM_STATE.md)
+- Historical system snapshot: [docs/archive/system-snapshots/CURRENT_SYSTEM_STATE_2026-07-13.md](docs/archive/system-snapshots/CURRENT_SYSTEM_STATE_2026-07-13.md)
   - detailed runtime and UI snapshot
 - [docs/README.md](docs/README.md)
   - docs index

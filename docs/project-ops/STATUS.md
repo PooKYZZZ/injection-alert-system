@@ -30,7 +30,7 @@
 ### Telegram threat alerts PR state
 
 - The local PR3 branch adds Telegram as a second durable outbox channel at
-  Alembic head `20260720_000022`. Only persisted non-Normal `HIGH` and
+  historical Alembic revision `20260720_000022`. Only persisted non-Normal `HIGH` and
   `CRITICAL` confidence-tier alerts are eligible.
 - Detection persistence and SSE remain authoritative. Email and Telegram
   enqueue attempts have separate failure boundaries; provider/API work remains
@@ -47,7 +47,7 @@
   matrix **165 passed**; canonical backend suite **754 passed, 34 skipped**;
   disposable PostgreSQL notification outbox/lifecycle **10 passed**; migration
   upgrade, downgrade to `20260715_000021`, re-upgrade, and final
-  `20260720_000022 (head)` all passed. The full suite skips PostgreSQL unless an
+  `20260720_000022` as the historical PR3 endpoint all passed. The full suite skips PostgreSQL unless an
   explicit disposable URL is supplied, so these evidence classes remain separate.
 
 ### PR4 shadow enforcement state
@@ -472,7 +472,7 @@ replace the register or restate its full entries.
 - Architecture boundaries: `docs/architecture.md`
 - Local setup: `docs/SETUP.md`
 - Client requirements: `docs/client-requirements.md`
-- Detailed current-state snapshot: `docs/CURRENT_SYSTEM_STATE.md`
+- Historical system snapshots: `docs/archive/system-snapshots/`; current state is maintained in `STATUS.md` and `CONTEXT.md`.
 - Implementation gaps: `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`
 - Operational/demo checklist: `docs/project-ops/LIVING_CHECKLIST.md`
 - ModSecurity audit log policy: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`

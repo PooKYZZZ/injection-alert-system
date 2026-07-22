@@ -9,7 +9,7 @@ code, configuration, tests, and current runtime wiring outrank documentation.
 Entries are cumulative: IDs never renumber, and local, CI, manual, and hosted
 evidence are distinct evidence classes.
 
-## Active backlog summary
+## Immediate priority queue
 
 | ID | Priority | Status | Area | Target |
 |---|---|---|---|---|
@@ -17,10 +17,14 @@ evidence are distinct evidence classes.
 | BLOCK-002 | HIGH | BLOCKED | Trusted source proof | Deployment gate |
 | GAP-001 | HIGH | NOT_STARTED | HIGH enforcement | PR6 |
 | GAP-002 | HIGH | NOT_STARTED | CRITICAL/WAF enforcement | PR7 |
-| BUG-001 | MEDIUM | KNOWN_BUG | Enforcement | Maintenance |
+| BUG-001 | HIGH | KNOWN_BUG | Enforcement | Maintenance |
 | BUG-002 | MEDIUM | KNOWN_BUG | Migration | Maintenance |
 
 Detailed entries below remain grouped by stable ID and are the source of truth.
+
+ID prefixes are permanent historical identifiers. The `Status` field is
+authoritative and may change over time; do not infer current status from an ID
+prefix.
 
 ### BLOCK-001 — Hosted PR5 topology and production rollout gate
 
@@ -171,7 +175,7 @@ Evidence:
 
 Requirement: Reassess only if a demonstrated scale requirement justifies another state system.
 
-Impact: No shared-runtime coordination is claimed.
+Impact: No additional low-latency or specialized distributed cache layer is provided or currently required.
 
 Dependencies / blockers: Demonstrated multi-instance requirement.
 

@@ -1,7 +1,5 @@
 # Documentation
 
-Last updated: 2026-07-22
-
 This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
 
 ## Use This Folder By Purpose
@@ -15,8 +13,6 @@ This folder is the maintained documentation surface for the repository. It is in
   - Honest local setup instructions for the repo in its current state.
 - `client-requirements.md`
   - Client-stated PD2 requirements for secure login, RBAC, 2FA, timely alerts, email notifications, and confidence-tier expectations.
-- `CURRENT_SYSTEM_STATE.md`
-  - Detailed snapshot of pages, contracts, and runtime behavior.
 - `DESIGN_SYSTEM.md`
   - Frontend token, pattern, and styling guidance.
 - `../CONTRIBUTING.md`

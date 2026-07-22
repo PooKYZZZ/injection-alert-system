@@ -1,5 +1,9 @@
 # TASKS.md Reconciliation
 
+> [!WARNING]
+> **HISTORICAL RECONCILIATION** — this is not current project status or an
+> execution plan. Use the canonical operator documents under `docs/project-ops/`.
+
 **Last updated:** 2026-07-03  
 **Audience:** project maintainers, Codex/AI-agent operators, reviewers  
 **Scope:** reconciling stale task lists with maintained project truth  

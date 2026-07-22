@@ -1,7 +1,5 @@
 # Contributing
 
-Last updated: 2026-06-29
-
 This repo follows a docs-as-code workflow. Keep documentation, code, and validation steps aligned in the same change set.
 
 ## Workflow

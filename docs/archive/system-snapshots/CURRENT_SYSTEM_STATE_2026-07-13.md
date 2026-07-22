@@ -1,5 +1,9 @@
 # Current System State - Comprehensive Overview
 
+> [!WARNING]
+> **HISTORICAL SYSTEM SNAPSHOT** — use `docs/CONTEXT.md`,
+> `docs/architecture.md`, and `docs/project-ops/STATUS.md` for current truth.
+
 **Last Updated:** 2026-07-13
 
 This document provides detailed answers about the current state of the Injection Alert System codebase.
