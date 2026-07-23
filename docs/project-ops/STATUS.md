@@ -154,7 +154,7 @@ production evidence boundary only. **Technical debt:** none newly classified.
   PostgreSQL-only repository tests were **NOT_RUN** because no explicit test URL
   was supplied to pytest; equivalent migrated-query behavior was exercised in
   the disposable controlled E2E database.
-- Prior controlled local E2E passed for active HIGH block, absence of record-table
+- Final coordinated controlled local E2E passed for active HIGH block, absence of record-table
   content, `no-store` response headers, deterministic expiry, outage fail-open,
   safe block/degraded logs, and backend recovery. Exact distinct-source E2E was
   not possible in the single-source local topology; automated query tests cover
@@ -162,8 +162,8 @@ production evidence boundary only. **Technical debt:** none newly classified.
   Next.js page API would require enabling experimental cross-app
   `authInterrupts`; the server-rendered block view currently returns HTTP 200.
   The consolidated review fixes are covered by red/green focused and full-suite
-  tests; an exact final-head image smoke remains pending before restoring a PASS
-  claim for the final consolidated heads.
+  tests; the final controlled proof is recorded in
+  `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`.
 - Shared-IP collateral blocking is tracked as `LIMIT-006`; HTTP 200 block
   semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
   remain open. `GAP-001` is complete for the approved local PR6 scope;

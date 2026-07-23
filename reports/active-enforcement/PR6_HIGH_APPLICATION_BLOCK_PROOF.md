@@ -5,9 +5,22 @@
 - IMPLEMENTED: PASS in CyberTrace and the Land Records portal working trees.
 - AUTOMATED_TESTED: PASS.
 - INTEGRATION_TESTED: PASS for the internal HTTP contract and disposable local CyberTrace-to-portal path.
-- CONTROLLED_E2E_VERIFIED: PENDING exact final-head rerun; the prior controlled run covered active HIGH, expiry, protected-content suppression, dependency fail-open, logging, and recovery.
+- CONTROLLED_E2E_VERIFIED: PASS for the coordinated tested sources recorded below. The CyberTrace checkout currently matches the tested SHA; the portal checkout is not present in this workspace, so its SHA is recorded from the supplied test record and is not independently re-verified here.
 - HOSTED_VERIFIED: NOT_RUN; hosted topology proof remains blocked.
 - PRODUCTION_ENABLED: NO.
+
+## Tested source revisions
+
+- CyberTrace tested SHA: `4a00149e3ea80b7d8157f87fa99394758afdeb38`
+  (current checkout matches this SHA).
+- Land Records portal tested SHA: `14d32f71160811780d1dbc44ddd49128971438b8`
+  (portal checkout was not available in this workspace for independent verification).
+
+The controlled run used `localhost:8089`, ModSecurity demo-target, the Land
+Records portal, CyberTrace, disposable PostgreSQL 16 database
+`cybertrace_e2e`/`cybertrace-pr6-e2e-db`, and development-only unverified source
+configuration. The observed source was `172.18.0.1`; production and hosted
+enforcement were not enabled.
 
 ## Implemented contract
 
@@ -51,9 +64,7 @@ the development/test-only unverified-source bypass. The disposable source was
 the Compose gateway `172.18.0.1`. The database and three test services were
 removed after proof; hosted and production configuration were untouched.
 
-The prior E2E image preceded the review fixes in this consolidated update. An
-exact final-head smoke must be rerun before this document can claim
-`CONTROLLED_E2E_VERIFIED: PASS` again.
+The final coordinated controlled run covered the cases below.
 
 | Case | Observed result |
 |---|---|
@@ -63,6 +74,12 @@ exact final-head smoke must be rerun before this document can claim
 | CyberTrace stopped with HIGH active | Normal search page returned after one bounded attempt; portal logged `TIMEOUT_OR_NETWORK` with `actual_decision=ALLOW` |
 | Recovery | Backend returned healthy; the same still-active HIGH blocked again |
 | Block logging | Portal logs `enforcement.application_block_applied` at the actual block branch, separately from recommendation creation/evaluation |
+| Baseline without HIGH | HTTP 200; normal records table and known records visible; no temporary-block message |
+| Active HIGH | HTTP 200 generic application block; protected record/table absent; `Cache-Control: no-store, must-revalidate, no-cache, max-age=0, private` |
+| Expired HIGH | HTTP 200 normal search restored; known record and table present |
+| Dependency outage | CyberTrace stopped while HIGH remained active; portal stayed usable, returned normal content, and bounded request took approximately 1.026 seconds |
+| Fail-open logging | `enforcement.check_degraded`, `TIMEOUT_OR_NETWORK`, `actual_decision=ALLOW` |
+| Recovery | Backend restart restored the persisted active HIGH application block without creating a new recommendation |
 
 Exact different-source E2E is NOT_PROVEN because the local WAF topology exposes
 one gateway source. Automated repository tests prove a HIGH row for source A is
@@ -102,8 +119,8 @@ an enforcement call.
   experimental `authInterrupts`, which was not enabled across the application.
 
 The consolidated review fixes the malformed-candidate precedence and stale
-challenge/unsupported-tier paths. Exact final-head E2E remains pending. Hosted
-activation is still blocked by `BLOCK-001`, `BLOCK-002`, and the explicit
+challenge/unsupported-tier paths. Hosted activation is still blocked by
+`BLOCK-001`, `BLOCK-002`, and the explicit
 `LIMIT-006` rollout decision; HTTP-status semantics remain `LIMIT-007`.
 
 ## Research citation record

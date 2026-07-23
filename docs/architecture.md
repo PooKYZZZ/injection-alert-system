@@ -235,6 +235,17 @@ See [`IMPLEMENTATION_GAP_REGISTER.md`](project-ops/IMPLEMENTATION_GAP_REGISTER.m
 for the canonical backlog. Runbooks and policies are implemented; automation
 and hosted deployment gates remain separately tracked there.
 
+### HIGH versus CRITICAL enforcement boundary
+
+- **HIGH / PR6:** application-level enforcement. The request reaches the Land
+  Records portal, which consults CyberTrace before protected record-search work;
+  a valid `APPLICATION_BLOCK` prevents that work and renders generic portal
+  restriction content. Internal logs distinguish `HIGH` and
+  `enforcement.application_block_applied`.
+- **CRITICAL / PR7:** future WAF-level enforcement. ModSecurity should reject
+  the request before the portal is reached, with a generic gateway denial and
+  `WAF_BLOCK` intent. CRITICAL enforcement is not implemented by PR6.
+
 - Production-grade ModSecurity-fronted deployment
 - Full repo-managed export and automation of Supabase policy state
 - Hosted account provisioning and external deployment verification
