@@ -159,6 +159,8 @@ operator snapshot.
   Exact distinct-source local E2E remains topology-limited, and the stable page
   response uses generic HTTP 200 block content rather than experimental 403.
 - `BLOCK-001` and `BLOCK-002` gate hosted/production rollout.
+- `LIMIT-006` tracks shared-IP collateral risk for HIGH source-key blocking;
+  `LIMIT-007` tracks the stable HTTP 200 block-page limitation.
 - `GAP-001` is complete for PR6; `GAP-002` remains the separately approved
   CRITICAL/WAF phase for PR7.
 

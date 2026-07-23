@@ -5,7 +5,7 @@
 - IMPLEMENTED: PASS in CyberTrace and the Land Records portal working trees.
 - AUTOMATED_TESTED: PASS.
 - INTEGRATION_TESTED: PASS for the internal HTTP contract and disposable local CyberTrace-to-portal path.
-- CONTROLLED_E2E_VERIFIED: PASS for active HIGH, expiry, protected-content suppression, dependency fail-open, logging, and recovery.
+- CONTROLLED_E2E_VERIFIED: PENDING exact final-head rerun; the prior controlled run covered active HIGH, expiry, protected-content suppression, dependency fail-open, logging, and recovery.
 - HOSTED_VERIFIED: NOT_RUN; hosted topology proof remains blocked.
 - PRODUCTION_ENABLED: NO.
 
@@ -18,18 +18,19 @@ returns the exact internal body `{"decision":"BLOCK"}`.
 
 The portal validates that exact body server-side. `BLOCK` prevents the
 record-search work callback from executing, renders generic temporary-block
-content, and emits `enforcement.high_block_applied`. Unknown or metadata-bearing
+content, and emits `enforcement.application_block_applied` at the actual block
+branch. Unknown or metadata-bearing
 BLOCK payloads are invalid and follow the existing bounded fail-open path.
 
 ## Automated validation
 
 | Command | Result |
 |---|---|
-| Focused enforcement schema/use-case/repository tests | PASS, 29 tests |
-| Enforcement route plus policy tests | PASS, 19 tests |
-| Full backend with process-only notification-worker overrides | PASS, 854 passed / 36 skipped |
+| Focused enforcement repository/use-case tests | PASS, 29 tests |
+| Enforcement route plus policy tests | PASS, existing route/policy coverage |
+| Full backend with process-only notification-worker overrides | PASS, 858 passed / 36 skipped |
 | PostgreSQL-only enforcement repository file | NOT_RUN, 2 skips: explicit disposable URL required |
-| Portal unit suite | PASS, 29 tests |
+| Portal unit suite | PASS, 32 tests after review fixes |
 | Portal typecheck | PASS |
 | Portal lint | PASS |
 | Portal production build | PASS; `/records/search` dynamic |
@@ -50,11 +51,9 @@ the development/test-only unverified-source bypass. The disposable source was
 the Compose gateway `172.18.0.1`. The database and three test services were
 removed after proof; hosted and production configuration were untouched.
 
-The E2E image preceded the final adversarial hardening that rejects a malformed
-HIGH row whose action is not `APPLICATION_BLOCK`. That final defensive delta
-does not change the valid HIGH path; it is covered by a witnessed red/green test,
-the 48-test focused matrix, and the final 854-test backend suite, but the image
-was not rebuilt for a second E2E after that guard was added.
+The prior E2E image preceded the review fixes in this consolidated update. An
+exact final-head smoke must be rerun before this document can claim
+`CONTROLLED_E2E_VERIFIED: PASS` again.
 
 | Case | Observed result |
 |---|---|
@@ -63,7 +62,7 @@ was not rebuilt for a second E2E after that guard was added.
 | Expired HIGH | Normal search page returned; no challenge, throttle, or block view |
 | CyberTrace stopped with HIGH active | Normal search page returned after one bounded attempt; portal logged `TIMEOUT_OR_NETWORK` with `actual_decision=ALLOW` |
 | Recovery | Backend returned healthy; the same still-active HIGH blocked again |
-| Block logging | Portal logged `enforcement.high_block_applied` separately from recommendation creation/evaluation |
+| Block logging | Portal logs `enforcement.application_block_applied` at the actual block branch, separately from recommendation creation/evaluation |
 
 Exact different-source E2E is NOT_PROVEN because the local WAF topology exposes
 one gateway source. Automated repository tests prove a HIGH row for source A is
@@ -95,16 +94,17 @@ an enforcement call.
 - The protected route has no alternate browser-only enforcement switch; direct
   UI manipulation cannot skip the server check. Other routes are intentionally
   outside the approved scope.
-- Shared NAT remains a known source-key limitation. Production is still gated
+- Shared NAT is tracked as `LIMIT-006`, a known source-key limitation. Production is still gated
   on controlled Cloudflare headers, Pseudo IPv4 review, direct-origin isolation,
   and immediate peer trust. PR6 does not redesign identity.
 - HTTP status is a known limitation: the stable Next.js page API returns the
   generic block view with HTTP 200. Native 403 for a Server Component requires
   experimental `authInterrupts`, which was not enabled across the application.
 
-No PR6 blocker remained after the reviewed local scope. Hosted activation and
-the HTTP-status limitation remain follow-up/deployment concerns, not evidence of
-production enablement.
+The consolidated review fixes the malformed-candidate precedence and stale
+challenge/unsupported-tier paths. Exact final-head E2E remains pending. Hosted
+activation is still blocked by `BLOCK-001`, `BLOCK-002`, and the explicit
+`LIMIT-006` rollout decision; HTTP-status semantics remain `LIMIT-007`.
 
 ## Research citation record
 

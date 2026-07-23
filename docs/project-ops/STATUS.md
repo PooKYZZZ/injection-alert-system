@@ -136,7 +136,7 @@ Turnstile were absent (no stable prior IDs). **New gaps:** `BUG-001`, `BUG-002`,
 `LIMIT-005`, `BUG-003`. **Known limitations:** `LIMIT-001` and the local-versus-
 production evidence boundary only. **Technical debt:** none newly classified.
 **Deferred:** `DEFER-001` only. **Still open:** `BLOCK-001`, `BLOCK-002`,
-`GAP-002`, `BUG-001`, `BUG-002`, `LIMIT-005`, and `BUG-003`. See
+`GAP-002`, `BUG-001`, `BUG-002`, `LIMIT-005`, `LIMIT-006`, `LIMIT-007`, and `BUG-003`. See
 `IMPLEMENTATION_GAP_REGISTER.md` for definitions and cumulative state.
 
 ### PR6 working branch — HIGH application blocking
@@ -144,27 +144,28 @@ production evidence boundary only. **Technical debt:** none newly classified.
 - CyberTrace branch `feat/pr6-high-enforcement` extends the existing v2
   recommendation query and response contract so valid applicable HIGH rows
   return exact `BLOCK`; HIGH outranks MEDIUM/LOW and CRITICAL remains excluded.
-- The sibling portal branch with the same name accepts only exact `BLOCK`,
+- The sibling portal branch `feat/pr6-portal-high-enforcement` accepts only exact `BLOCK`,
   stops before protected record-search work, renders generic temporary-block
   copy, keeps the dynamic response non-cacheable, and logs
-  `enforcement.high_block_applied`. Unknown/malformed responses remain fail-open.
-- Automated validation passed: backend full suite **854 passed, 36 skipped**
+  `enforcement.application_block_applied` at the actual block branch. Unknown/malformed responses remain fail-open.
+- Automated validation passed: backend full suite **858 passed, 36 skipped**
   with process-only notification-worker isolation; PR6 focused backend tests
-  passed; portal **29 unit tests**, typecheck, lint, and production build passed.
+  passed; portal **32 unit tests**, typecheck, lint, and production build passed.
   PostgreSQL-only repository tests were **NOT_RUN** because no explicit test URL
   was supplied to pytest; equivalent migrated-query behavior was exercised in
   the disposable controlled E2E database.
-- Controlled local E2E passed for active HIGH block, absence of record-table
+- Prior controlled local E2E passed for active HIGH block, absence of record-table
   content, `no-store` response headers, deterministic expiry, outage fail-open,
   safe block/degraded logs, and backend recovery. Exact distinct-source E2E was
   not possible in the single-source local topology; automated query tests cover
   wrong-source isolation. HTTP 403 was not adopted because the installed stable
   Next.js page API would require enabling experimental cross-app
   `authInterrupts`; the server-rendered block view currently returns HTTP 200.
-  The final malformed HIGH/action guard was added after this E2E and is covered
-  by red/green focused and full-suite tests; the image was not rebuilt solely to
-  repeat the unchanged valid-HIGH E2E path.
-- Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
+  The consolidated review fixes are covered by red/green focused and full-suite
+  tests; an exact final-head image smoke remains pending before restoring a PASS
+  claim for the final consolidated heads.
+- Shared-IP collateral blocking is tracked as `LIMIT-006`; HTTP 200 block
+  semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
   remain open. `GAP-001` is complete for the approved local PR6 scope;
   `GAP-002` remains not started for PR7 CRITICAL/WAF enforcement.
 

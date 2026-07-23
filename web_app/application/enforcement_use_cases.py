@@ -133,6 +133,11 @@ class VerifyEnforcementChallengeUseCase:
                 )
 
             tier = recommendation.tier
+            if tier not in {EnforcementTier.LOW, EnforcementTier.MEDIUM}:
+                return finish(
+                    EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT"),
+                    tier=tier,
+                )
             existing = await self._repository.find_valid_challenge_grant(
                 source_ip=canonical_ip,
                 scope=scope,
@@ -218,7 +223,7 @@ class VerifyEnforcementChallengeUseCase:
 
 
 class EvaluateEnforcementUseCase:
-    """Evaluate explicit v2 LOW/MEDIUM state for the protected search route."""
+    """Evaluate explicit v2 LOW/MEDIUM/HIGH state for the protected search route."""
 
     def __init__(
         self,
@@ -372,51 +377,63 @@ class EvaluateEnforcementUseCase:
                     counter_kind=CounterKind.LOW_LIGHT,
                 )
 
-            grant = await self._repository.find_valid_challenge_grant(
-                source_ip=canonical_ip,
-                scope=scope,
-                tier=EnforcementTier.MEDIUM,
-                policy_version=ACTIVE_POLICY_VERSION,
-                now=now,
-            )
-            if grant is None:
-                return finish(
-                    ActiveEnforcementResult(
-                        decision=EnforcementDecision.CHALLENGE.value,
-                        matched=True,
-                        recommendation=recommendation,
-                        challenge_tier=EnforcementTier.MEDIUM.value,
+            if recommendation.tier is EnforcementTier.MEDIUM:
+                grant = await self._repository.find_valid_challenge_grant(
+                    source_ip=canonical_ip,
+                    scope=scope,
+                    tier=EnforcementTier.MEDIUM,
+                    policy_version=ACTIVE_POLICY_VERSION,
+                    now=now,
+                )
+                if grant is None:
+                    return finish(
+                        ActiveEnforcementResult(
+                            decision=EnforcementDecision.CHALLENGE.value,
+                            matched=True,
+                            recommendation=recommendation,
+                            challenge_tier=EnforcementTier.MEDIUM.value,
+                        )
                     )
+                state = await self._repository.increment_request_window(
+                    source_ip=canonical_ip,
+                    scope=scope,
+                    counter_kind=CounterKind.MEDIUM_HARD,
+                    policy_version=ACTIVE_POLICY_VERSION,
+                    now=now,
+                    window_seconds=self._medium_window_seconds,
                 )
-            state = await self._repository.increment_request_window(
-                source_ip=canonical_ip,
-                scope=scope,
-                counter_kind=CounterKind.MEDIUM_HARD,
-                policy_version=ACTIVE_POLICY_VERSION,
-                now=now,
-                window_seconds=self._medium_window_seconds,
-            )
-            if state.request_count > self._medium_max_requests:
-                retry_after = max(
-                    1, math.ceil((state.window_end - now).total_seconds())
-                )
+                if state.request_count > self._medium_max_requests:
+                    retry_after = max(
+                        1, math.ceil((state.window_end - now).total_seconds())
+                    )
+                    return finish(
+                        ActiveEnforcementResult(
+                            decision=EnforcementDecision.THROTTLE.value,
+                            matched=True,
+                            recommendation=recommendation,
+                            retry_after_seconds=retry_after,
+                        ),
+                        counter_kind=CounterKind.MEDIUM_HARD,
+                        threshold_crossed=True,
+                    )
                 return finish(
                     ActiveEnforcementResult(
-                        decision=EnforcementDecision.THROTTLE.value,
                         matched=True,
                         recommendation=recommendation,
-                        retry_after_seconds=retry_after,
                     ),
                     counter_kind=CounterKind.MEDIUM_HARD,
-                    threshold_crossed=True,
                 )
-            return finish(
-                ActiveEnforcementResult(
-                    matched=True,
-                    recommendation=recommendation,
-                ),
-                counter_kind=CounterKind.MEDIUM_HARD,
+
+            log_event(
+                logger,
+                "enforcement.unsupported_active_tier",
+                "Unsupported active enforcement tier; request remains allowed",
+                level="WARNING",
+                scope=scope.value,
+                tier=recommendation.tier.value,
+                policy_version=recommendation.policy_version,
             )
+            return finish(ActiveEnforcementResult())
         except Exception as exc:  # protected request path is fail-open
             log_event(
                 logger,

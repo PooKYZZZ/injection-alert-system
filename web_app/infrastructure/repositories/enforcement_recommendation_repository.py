@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import case, select
+from sqlalchemy import and_, case, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -143,6 +143,21 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
                 EnforcementRecommendationRow.policy_version == policy_version,
                 EnforcementRecommendationRow.enforcement_tier.in_(
                     ["LOW", "MEDIUM", "HIGH"]
+                ),
+                or_(
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "LOW",
+                        EnforcementRecommendationRow.recommended_action == "CHALLENGE",
+                    ),
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "MEDIUM",
+                        EnforcementRecommendationRow.recommended_action == "THROTTLE",
+                    ),
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "HIGH",
+                        EnforcementRecommendationRow.recommended_action
+                        == "APPLICATION_BLOCK",
+                    ),
                 ),
                 EnforcementRecommendationRow.expires_at > now,
             )

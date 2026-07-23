@@ -467,6 +467,52 @@ async def test_high_enforcement_requires_application_block_policy_action():
 
 
 @pytest.mark.asyncio
+async def test_challenge_verification_does_not_verify_or_write_for_high():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    verifier = StubTurnstile(TurnstileVerificationResult(success=True))
+    repo = ActiveRepository(_active_recommendation(EnforcementTier.HIGH))
+
+    result = await VerifyEnforcementChallengeUseCase(
+        repository=repo,
+        verifier=verifier,
+        mode=EnforcementMode.ENFORCE,
+        grant_ttl_seconds=300,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(
+        source_ip="203.0.113.29",
+        scope=EnforcementScope.RECORD_SEARCH,
+        token="stale-token",
+    )
+
+    assert result.status == "NO_ACTIVE_ENFORCEMENT"
+    assert verifier.tokens == []
+    assert repo.grants == {}
+
+
+@pytest.mark.asyncio
+async def test_unsupported_active_tier_fails_open_without_challenge_or_counter():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    repo = ActiveRepository(_active_recommendation(EnforcementTier.CRITICAL))
+
+    result = await EvaluateEnforcementUseCase(
+        repository=repo,
+        mode=EnforcementMode.ENFORCE,
+        low_window_seconds=60,
+        low_max_unchallenged_requests=5,
+        medium_window_seconds=60,
+        medium_max_requests=10,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(source_ip="203.0.113.30", scope=EnforcementScope.RECORD_SEARCH)
+
+    assert result.decision == "ALLOW"
+    assert result.matched is False
+    assert repo.grants == {}
+    assert repo.counts == {}
+
+
+@pytest.mark.asyncio
 async def test_active_evaluation_fails_open_for_ineligible_source_and_repo_failure():
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
     unverified = ActiveRepository(
