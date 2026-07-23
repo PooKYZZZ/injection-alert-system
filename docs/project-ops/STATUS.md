@@ -148,7 +148,7 @@ production evidence boundary only. **Technical debt:** none newly classified.
   stops before protected record-search work, renders generic temporary-block
   copy, keeps the dynamic response non-cacheable, and logs
   `enforcement.application_block_applied` at the actual block branch. Unknown/malformed responses remain fail-open.
-- Automated validation passed: backend full suite **858 passed, 36 skipped**
+- Automated validation passed: backend full suite **859 passed, 36 skipped**
   with process-only notification-worker isolation; PR6 focused backend tests
   passed; portal **32 unit tests**, typecheck, lint, and production build passed.
   PostgreSQL-only repository tests were **NOT_RUN** because no explicit test URL

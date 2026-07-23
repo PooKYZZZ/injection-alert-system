@@ -26,9 +26,9 @@ BLOCK payloads are invalid and follow the existing bounded fail-open path.
 
 | Command | Result |
 |---|---|
-| Focused enforcement repository/use-case tests | PASS, 29 tests |
+| Focused enforcement repository/use-case tests | PASS, 30 tests |
 | Enforcement route plus policy tests | PASS, existing route/policy coverage |
-| Full backend with process-only notification-worker overrides | PASS, 858 passed / 36 skipped |
+| Full backend with process-only notification-worker overrides | PASS, 859 passed / 36 skipped |
 | PostgreSQL-only enforcement repository file | NOT_RUN, 2 skips: explicit disposable URL required |
 | Portal unit suite | PASS, 32 tests after review fixes |
 | Portal typecheck | PASS |
