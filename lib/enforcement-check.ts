@@ -254,13 +254,6 @@ export async function checkRecordSearchEnforcement({
 }
 
 export function enforcementRuntimeLogEvent(result: EnforcementCheckResult) {
-  if (result.decision === "BLOCK") {
-    return {
-      event: "enforcement.high_block_applied",
-      scope: "RECORD_SEARCH",
-      actual_decision: "BLOCK",
-    } as const;
-  }
   if (result.status === "degraded") {
     return {
       event: "enforcement.check_degraded",
@@ -269,6 +262,14 @@ export function enforcementRuntimeLogEvent(result: EnforcementCheckResult) {
     } as const;
   }
   return null;
+}
+
+export function applicationBlockAppliedLogEvent() {
+  return {
+    event: "enforcement.application_block_applied",
+    scope: "RECORD_SEARCH",
+    actual_decision: "BLOCK",
+  } as const;
 }
 
 export async function checkRecordSearchShadowEnforcement({

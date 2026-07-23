@@ -32,3 +32,22 @@ test("ALLOW executes protected record-search work exactly once", async () => {
   assert.equal(invocations, 1);
   assert.deepEqual(result, ["public-index"]);
 });
+
+for (const decision of ["CHALLENGE", "THROTTLE"] as const) {
+  test(`${decision} does not execute protected record-search work`, async () => {
+    let invocations = 0;
+
+    const result = await runRecordSearchProtectedWork(
+      decision === "CHALLENGE"
+        ? { decision, status: "checked", tier: "LOW" }
+        : { decision, status: "checked", retryAfterSeconds: 4 },
+      async () => {
+        invocations += 1;
+        return ["protected-record"];
+      },
+    );
+
+    assert.equal(invocations, 0);
+    assert.equal(result, null);
+  });
+}

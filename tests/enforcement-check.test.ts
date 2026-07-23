@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   checkRecordSearchShadowEnforcement,
   checkRecordSearchEnforcement,
+  applicationBlockAppliedLogEvent,
   enforcementRuntimeLogEvent,
   verifyRecordSearchEnforcementChallenge,
   normalizeBrowserChallengeResult,
@@ -208,14 +209,18 @@ test("parses only the exact active block decision", async () => {
 });
 
 test("labels an applied HIGH application block distinctly in safe logs", () => {
-  assert.deepEqual(
+  assert.equal(
     enforcementRuntimeLogEvent({ decision: "BLOCK", status: "checked" }),
-    {
-      event: "enforcement.high_block_applied",
-      scope: "RECORD_SEARCH",
-      actual_decision: "BLOCK",
-    },
+    null,
   );
+});
+
+test("formats application block logging at the enforcement point", () => {
+  assert.deepEqual(applicationBlockAppliedLogEvent(), {
+    event: "enforcement.application_block_applied",
+    scope: "RECORD_SEARCH",
+    actual_decision: "BLOCK",
+  });
 });
 
 test("active mode does not fall back to arbitrary forwarded headers", async () => {

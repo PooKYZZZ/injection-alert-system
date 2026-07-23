@@ -8,6 +8,7 @@ import {
   checkRecordSearchEnforcementFromRuntime,
   enforcementRuntimeConfig,
 } from "../../../lib/enforcement-check-runtime";
+import { applicationBlockAppliedLogEvent } from "../../../lib/enforcement-check";
 import { runRecordSearchProtectedWork } from "./record-search-protection";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function SearchPage({
     },
   );
   if (enforcement.decision === "BLOCK") {
+    console.info(JSON.stringify(applicationBlockAppliedLogEvent()));
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
