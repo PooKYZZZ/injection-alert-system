@@ -14,15 +14,20 @@ need.
 
 - Global Codex configuration is at `C:\Users\froi\.codex\config.toml`.
 - CyberTrace is `G:\AI\PDDDD\injection-alert-system`.
-- The global configuration currently enables Filesystem, the `context-mode` MCP
-  server, Node REPL,
-  GitHub, OpenAI Developer Docs, Supabase, and a Codebase Memory server.
+- Installed CLI: Codex `0.142.0`; `codex --strict-config doctor --summary --no-color`
+  accepts the edited base configuration.
+- The current model remains `gpt-5.6-luna`. A fresh CLI runtime probe could not
+  use it because this installed CLI reports that the model requires a newer
+  Codex version. The model was therefore not changed.
 - The configured Codebase Memory executable does not currently exist at
   `C:\Users\froi\AppData\Local\codebase-memory-mcp\codebase-memory-mcp.exe`.
 - RTK is not installed or available on PATH.
-- CyberTrace has useful repository-local governance skills, but also has local
-  Playwright and web-research skills that are not needed for normal coding.
-- `.codex/TASK_HANDOFF.md` does not currently exist and is not yet ignored.
+- The standalone Context7 server remains disabled because no handshake or
+  harmless lookup was run.
+- The installed plugin list was inspected, but the CLI does not expose a
+  verified generic plugin enable/disable setting. Plugin state is therefore
+  `UNVERIFIED_NO_CHANGE`.
+- `.codex/TASK_HANDOFF.md` now exists and is ignored by Git.
 
 ## Design
 
@@ -37,15 +42,17 @@ declarations in place so
 they can be re-enabled or repaired without reconstructing credentials and
 commands.
 
-Disable non-coding plugins and duplicate local skills without deleting their
-files. This is reversible and avoids changing the installed skill/plugin cache.
+Do not alter installed plugins or skill files. Disable the selected duplicate or
+task-specific skill directories through configuration only; this is reversible
+and avoids changing the installed skill/plugin cache.
 GitHub CLI, repository Playwright, Semgrep, Gitleaks, and native shell commands
 remain available as ordinary local tools.
 
 The current official configuration reference lists `tool_output_token_limit`.
-Add it at `8000` as an experimental starting value, then validate it with the
-installed CLI's strict configuration mode. If this installed CLI rejects it,
-remove it and record `NOT_SUPPORTED_BY_INSTALLED_CLI` with the exact error.
+It is set to `8000`, and the installed CLI's strict configuration mode accepts
+it. This is a configuration acceptance result, not a measured token-saving
+result. The selected model also reports that `model_verbosity` is ignored by
+that model, so the setting is retained but is not claimed as runtime-effective.
 Compact command guidance and low model verbosity remain useful regardless.
 
 ### 2. Named profiles
@@ -57,40 +64,47 @@ Codex profile names omit the filename extension. For example, profile name
 a profile that parses but cannot expose its intended capability is not marked
 working.
 
-Create these global profiles beside `config.toml`:
+The five reversible profile overlays were created beside `config.toml`, but none
+is marked working. They parse through `codex --profile <name> --strict-config
+exec --help`, while fresh runtime probes fail before capability verification:
+the installed CLI rejects the current model, and PR/DB probes additionally
+reported their existing GitHub/Supabase authorization failures. They remain
+`CONFIG_VALID_RUNTIME_UNVERIFIED` or `BROKEN`, never `VERIFIED_WORKING`, until
+the CLI/model and connector authorization are independently resolved.
+
+The intended profile scopes are:
 
 - `cybertrace-pr.config.toml`: GitHub connector on; agents remain off.
-- `cybertrace-db.config.toml`: Supabase and the separate `context7` MCP server
-  on; agents remain off. This does not enable the separate `context-mode` MCP
-  server, which stays off.
+- `cybertrace-db.config.toml`: Supabase overlay; standalone `context7` remains
+  off because its handshake was not run. Agents remain off. This does not
+  enable the separate `context-mode` MCP server, which stays off.
 - `cybertrace-ui.config.toml`: at most one verified Playwright skill on. Generic
   plugin enablement is not changed unless the installed CLI confirms that key;
   otherwise browser-plugin state is `UNVERIFIED_NO_CHANGE`.
 - `cybertrace-security.config.toml`: GitHub connector on for PR review; local security CLI
   tools remain the primary path; the missing Codebase Memory server remains off.
 - `cybertrace-research.config.toml`: OpenAI Developer Docs and web-research
-  skill on, with higher reasoning only if the selected model is verified. Agent
-  enablement remains disabled unless a harmless runtime test is authorized and
-  succeeds; this task does not perform that test.
+  skill overlay, with higher reasoning retained only as configuration. The
+  selected model is not runtime-verified by the installed CLI. Agent
+  enablement remains disabled because the user explicitly prohibited subagents.
 
 Each profile is a TOML overlay selected with `codex --profile <name>`; for
-example, `codex --profile cybertrace-pr`. The overlay changes only the relevant
-`mcp_servers.<name>.enabled`, `plugins."<plugin-id>".enabled`,
-`skills.config[].enabled`, `agents.enabled`,
-`agents.max_concurrent_threads_per_session`, `model`, and
-`model_reasoning_effort` values. The default profile remains the lean
-configuration. Profiles require a new Codex process/session to load.
+example, `codex --profile cybertrace-pr`. The installed CLI does not apply
+profile overlays to `codex mcp list`, so that command cannot prove effective
+profile MCP state. A new runtime process is required, but the current CLI/model
+combination prevents that proof. The default profile remains the lean
+configuration.
 
 The exact state matrix is:
 
 | Profile | MCP servers enabled | Plugins enabled | Extra skills enabled | Agents | Model / effort |
 | --- | --- | --- | --- | --- | --- |
-| default | none of `codebase-memory`, `context-mode`, `context7`, `filesystem`, `github`, `node_repl`, `openaiDeveloperDocs`, `supabase` | unchanged unless generic plugin syntax is verified | none; retain only governance, security, GitHub, and frontend skills | off | current verified model / low |
-| `cybertrace-pr` | `github` | none | default set | off | Luna / low |
-| `cybertrace-db` | `supabase`, `context7` | none | default set | off | Luna / low |
-| `cybertrace-ui` | none | unchanged unless generic plugin syntax is verified | at most one verified Playwright skill directory | off | current verified model / low |
-| `cybertrace-security` | `github` | none | default set, including security skills | off | Luna / medium |
-| `cybertrace-research` | `openaiDeveloperDocs` | unchanged | `G:\AI\PDDDD\injection-alert-system\.agents\skills\web-research-agent` if verified | off unless separately authorized and runtime-tested | current verified model / high if supported |
+| default | none of `codebase-memory`, `context-mode`, `context7`, `filesystem`, `github`, `node_repl`, `openaiDeveloperDocs`, `supabase` | unchanged unless generic plugin syntax is verified | none; retain only governance, security, GitHub, and frontend skills | off | current model preserved; CLI-unverified / low |
+| `cybertrace-pr` | `github` overlay; effective runtime unverified; `BROKEN` probe | unchanged | default set | off | current model / low |
+| `cybertrace-db` | `supabase` overlay; `context7` remains off; effective runtime unverified; `BROKEN` probe | unchanged | default set | off | current model / low |
+| `cybertrace-ui` | none; `CONFIG_VALID_RUNTIME_UNVERIFIED` | unchanged | one repository-local Playwright directory | off | current model / low |
+| `cybertrace-security` | `github` overlay; effective runtime unverified; `BROKEN` probe | unchanged | default set | off | current model / medium |
+| `cybertrace-research` | `openaiDeveloperDocs` overlay; effective runtime unverified; `BROKEN` probe | unchanged | one repository-local web-research directory | off | current model / high |
 
 The installed plugin list exposes these plugin IDs, but the generic top-level
 `plugins."<plugin-id>".enabled` key is not assumed. It will not be written
@@ -101,8 +115,9 @@ plugin IDs observed are
 `spreadsheets@openai-primary-runtime`, `presentations@openai-primary-runtime`,
 `template-creator@openai-primary-runtime`, `sites@openai-bundled`,
 `browser@openai-bundled`, `chrome@openai-bundled`,
-`computer-use@openai-bundled`, and `visualize@openai-bundled`. The UI profile
-re-enables only `browser@openai-bundled`; Chrome remains disabled.
+`computer-use@openai-bundled`, and `visualize@openai-bundled`. No plugin state
+was changed, including the UI profile; all plugin claims remain
+`UNVERIFIED_NO_CHANGE`.
 
 The exact skill directories disabled in the default profile are
 `C:\Users\froi\.codex\skills\doc`, `C:\Users\froi\.codex\skills\pdf`,
@@ -112,10 +127,16 @@ The exact skill directories disabled in the default profile are
 `C:\Users\froi\.codex\skills\vercel-deploy`,
 `G:\AI\PDDDD\injection-alert-system\.agents\skills\playwright-cli`, and
 `G:\AI\PDDDD\injection-alert-system\.agents\skills\web-research-agent`.
-Each directory must exist and contain a readable `SKILL.md` before an entry is
-added. The UI/research profiles re-enable only a verified directory and never
-both Playwright directories. The existing governance, security, GitHub, and
-frontend skills remain installed and enabled.
+Each directory exists and contains a readable `SKILL.md`. The UI profile names
+only the repository-local Playwright directory and the research profile names
+only the repository-local web-research directory; neither is runtime-verified
+because the profile probes stopped at the model error. The existing governance,
+security, GitHub, and frontend skills remain installed and enabled.
+
+The installed CLI rejected `[agents] enabled = false` as an unsupported
+configuration section. The accepted fallback is `[features] multi_agent =
+false`, which disables multi-agent capability in the default configuration.
+No agents were enabled or tested, per the user's explicit instruction.
 
 ### 3. CyberTrace continuity and routing
 
@@ -166,16 +187,21 @@ the evidence gap.
   use direct TOML parsing plus the closest supported runtime inspection.
 - Confirm the default MCP/plugin/skill states with `codex mcp list`,
   `codex plugin list`, and `codex --strict-config doctor --json` while keeping
-  credentials redacted. For profile checks, prefix the same commands with
-  `codex --profile <name>`.
+  credentials redacted. For profiles, `codex --profile <name> --strict-config
+  exec --help` proves configuration parsing only; the runtime probes failed on
+  the installed CLI/model mismatch. `codex --profile <name> mcp list` was also
+  observed to show the base state rather than apply the profile overlay.
 - Run `git check-ignore -q .codex/TASK_HANDOFF.md` and require success.
 - Run `git diff --check` and
   `.venv\Scripts\python.exe -m pytest -q tests/unit/test_docs_navigation.py`.
 - Validate each profile's feature states from its redacted config and command
-  output against the state matrix. The default must show agents and all listed
-  MCPs/plugins disabled; each profile may differ only in the allowlisted MCP,
-  plugin, skill, agent, model, and effort values in its row.
-- Report unavailable Codebase Memory and RTK as `NOT_RUN`, not as successful.
+  output against the state matrix. The default must show all listed MCPs
+  disabled and multi-agent disabled. Profile status must be one of
+  `CONFIG_VALID_RUNTIME_UNVERIFIED` or `BROKEN`; none is `VERIFIED_WORKING`.
+- Report the accepted `tool_output_token_limit = 8000`, the unsupported
+  `[agents]` section, the model runtime mismatch, disabled Context7,
+  Codebase Memory `DISABLED_PENDING_SAFE_REPAIR`, RTK `NOT_RUN`, and generic
+  plugin states `UNVERIFIED_NO_CHANGE` explicitly.
 
 ## Rollback
 
