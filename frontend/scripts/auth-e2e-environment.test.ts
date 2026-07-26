@@ -15,6 +15,7 @@ import {
   parsePublishedPort,
   playwrightInvocation,
   postgrestTargetUrl,
+  processFailureMessage,
   pythonExecutable,
   redactChildOutput,
   withManagedSignalCleanup,
@@ -278,6 +279,19 @@ describe('disposable authentication E2E environment', () => {
       )
     ).toBe(
       'postgresql://[redacted]@127.0.0.1/db Authorization: Bearer [redacted] API_SECRET_KEY=[redacted]'
+    )
+  })
+
+  it('preserves bounded redacted diagnostics for failed managed processes', () => {
+    expect(
+      processFailureMessage('Disposable PostgreSQL container', {
+        code: 1,
+        stdout: 'container output',
+        stderr: 'password=secret API_SECRET_KEY=internal-secret',
+      })
+    ).toBe(
+      'Disposable PostgreSQL container failed with exit code 1.\n' +
+        'container output\npassword=secret API_SECRET_KEY=[redacted]'
     )
   })
 

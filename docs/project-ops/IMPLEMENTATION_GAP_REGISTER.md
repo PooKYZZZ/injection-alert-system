@@ -1,8 +1,8 @@
 # Cumulative Implementation Gap Register
 
-**Reviewed:** 2026-07-22
+**Reviewed:** 2026-07-23
 
-**Repository baseline:** `master` merge `62fc168` / merged PR #90
+**Repository baseline:** `master` at `485a091`; PR #90 is merged in its history
 
 This is the canonical cumulative register for unresolved implementation work. Only
 code, configuration, tests, and current runtime wiring outrank documentation.
@@ -15,10 +15,12 @@ evidence are distinct evidence classes.
 |---|---|---|---|---|
 | BLOCK-001 | HIGH | BLOCKED | Production rollout | Deployment gate |
 | BLOCK-002 | HIGH | BLOCKED | Trusted source proof | Deployment gate |
-| GAP-001 | HIGH | NOT_STARTED | HIGH enforcement | PR6 |
+| GAP-001 | HIGH | COMPLETE | HIGH enforcement | PR6 |
 | GAP-002 | HIGH | NOT_STARTED | CRITICAL/WAF enforcement | PR7 |
 | BUG-001 | HIGH | KNOWN_BUG | Enforcement | Maintenance |
 | BUG-002 | MEDIUM | KNOWN_BUG | Migration | Maintenance |
+| LIMIT-006 | HIGH | KNOWN_LIMITATION | Shared-IP HIGH blocking | Production rollout |
+| LIMIT-007 | MEDIUM | KNOWN_LIMITATION | HTTP status semantics | Follow-up |
 
 Detailed entries below remain grouped by stable ID and are the source of truth.
 
@@ -36,7 +38,7 @@ HIGH
 Area:
 Active enforcement deployment
 
-Current implementation: Controlled local LOW/MEDIUM enforcement exists; production mode is off.
+Current implementation: Controlled local LOW/MEDIUM/HIGH enforcement exists; production mode is off.
 
 Missing: Direct Cloudflare source/topology, Pseudo IPv4, origin-isolation, and production Turnstile proof.
 
@@ -89,9 +91,76 @@ Introduced / identified: PR5 controlled E2E.
 
 Last reviewed: 2026-07-22
 
+### LIMIT-006 — Shared-IP collateral risk for HIGH application blocking
+
+Status: KNOWN_LIMITATION
+
+Priority:
+HIGH
+
+Area:
+Active enforcement identity
+
+Current implementation: HIGH `/records/search` enforcement is keyed by the
+trusted source IP plus scope. This proves source provenance, not unique human
+identity.
+
+Missing: An explicit production decision to accept shared public-IP collateral
+blocking or an approved narrower subject-binding strategy.
+
+Evidence:
+
+- `web_app/infrastructure/repositories/enforcement_recommendation_repository.py`
+- `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`
+
+Requirement: Keep hosted/production ENFORCE disabled until the rollout owner
+accepts this risk or approves a narrower identity model.
+
+Impact: Users behind NAT, CGNAT, or shared proxies can share a temporary HIGH
+block for the same source and scope.
+
+Dependencies / blockers: `BLOCK-001`, `BLOCK-002`, and rollout approval.
+
+Recommended next step: Record the explicit collateral-risk decision before
+production activation; do not redesign identity inside PR6.
+
+Introduced / identified: PR6 deep review.
+
+Last reviewed: 2026-07-23
+
+### LIMIT-007 — HIGH block page uses HTTP 200
+
+Status: KNOWN_LIMITATION
+
+Priority:
+MEDIUM
+
+Area:
+Portal response semantics
+
+Current implementation: The stable server-rendered block page returns generic
+HTTP 200 content with `no-store` headers.
+
+Missing: A stable framework path for native HTTP 403 without enabling the
+experimental global `authInterrupts` behavior.
+
+Requirement: Preserve generic content and non-cacheable behavior; revisit only
+with an approved framework upgrade/architecture change.
+
+Impact: Application semantics are BLOCK while HTTP semantics remain 200.
+
+Dependencies / blockers: Framework capability and product decision.
+
+Recommended next step: Keep as a tracked limitation rather than enabling an
+experimental global feature solely for status-code presentation.
+
+Introduced / identified: PR6 implementation.
+
+Last reviewed: 2026-07-23
+
 ### GAP-001 — PR6 HIGH application blocking
 
-Status: NOT_STARTED
+Status: COMPLETE
 
 Priority:
 HIGH
@@ -99,27 +168,34 @@ HIGH
 Area:
 Active enforcement
 
-Current implementation: HIGH recommendations exist, but the active query excludes them.
+Current implementation: Valid active applicable HIGH recommendations return exact
+`BLOCK`; the portal enforces the decision before record-search work.
 
-Missing: HIGH application-blocking behavior.
+Missing: No implementation item remains in the approved local PR6 scope. Hosted
+activation remains separately blocked by `BLOCK-001` and `BLOCK-002`.
 
 Evidence:
 
 - `docs/project-ops/STATUS.md`
 - `docs/architecture.md`
 - `web_app/infrastructure/repositories/enforcement_recommendation_repository.py`
+- `web_app/application/enforcement_use_cases.py`
+- `web_app/presentation/schemas/enforcement.py`
+- `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`
 
 Requirement: Separately scoped PR6.
 
-Impact: HIGH remains non-disruptive.
+Impact: HIGH is disruptive only for later matching `/records/search` requests in
+explicit ENFORCE mode; hosted/production ENFORCE remains disabled.
 
-Dependencies / blockers: PR6 scope and deployment topology.
+Dependencies / blockers: None for local implementation. Hosted/production use is
+still gated by `BLOCK-001` and `BLOCK-002`.
 
-Recommended next step: Create a separately scoped PR6.
+Recommended next step: Review and publish the two coordinated PR6 branches.
 
 Introduced / identified: PR5 acceptance state.
 
-Last reviewed: 2026-07-22
+Last reviewed: 2026-07-23
 
 ### GAP-002 — PR7 CRITICAL/WAF enforcement
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import case, select
+from sqlalchemy import and_, case, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,6 +125,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
         require_verified: bool,
     ) -> EffectiveRecommendation | None:
         tier_rank = case(
+            (EnforcementRecommendationRow.enforcement_tier == "HIGH", 3),
             (EnforcementRecommendationRow.enforcement_tier == "MEDIUM", 2),
             (EnforcementRecommendationRow.enforcement_tier == "LOW", 1),
             else_=0,
@@ -140,7 +141,24 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
                 EnforcementRecommendationRow.scope == scope.value,
                 EnforcementRecommendationRow.enforcement_mode == "ENFORCE",
                 EnforcementRecommendationRow.policy_version == policy_version,
-                EnforcementRecommendationRow.enforcement_tier.in_(["LOW", "MEDIUM"]),
+                EnforcementRecommendationRow.enforcement_tier.in_(
+                    ["LOW", "MEDIUM", "HIGH"]
+                ),
+                or_(
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "LOW",
+                        EnforcementRecommendationRow.recommended_action == "CHALLENGE",
+                    ),
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "MEDIUM",
+                        EnforcementRecommendationRow.recommended_action == "THROTTLE",
+                    ),
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "HIGH",
+                        EnforcementRecommendationRow.recommended_action
+                        == "APPLICATION_BLOCK",
+                    ),
+                ),
                 EnforcementRecommendationRow.expires_at > now,
             )
             .order_by(

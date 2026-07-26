@@ -39,6 +39,7 @@ class EnforcementDecision(StrEnum):
     ALLOW = "ALLOW"
     CHALLENGE = "CHALLENGE"
     THROTTLE = "THROTTLE"
+    BLOCK = "BLOCK"
 
 
 class CounterKind(StrEnum):
@@ -154,7 +155,7 @@ class IEnforcementRecommendationRepository(Protocol):
 
 
 class EnforcementPolicy:
-    """Pure PR4 mapping from completed WAF classification to shadow intent."""
+    """Map completed malicious classifications to versioned enforcement intents."""
 
     _ACTIONS = {
         EnforcementTier.LOW: RecommendedAction.MONITOR,

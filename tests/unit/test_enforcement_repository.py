@@ -255,6 +255,171 @@ async def test_active_lookup_applies_source_eligibility_before_tier_precedence(
 
 
 @pytest.mark.asyncio
+async def test_active_lookup_selects_high_over_lower_tiers_but_never_critical(
+    repository,
+) -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session = repository._session
+    source_ip = "203.0.113.30"
+    rows = [
+        (
+            EnforcementTier.LOW,
+            RecommendedAction.CHALLENGE,
+            SourceVerificationStatus.VERIFIED,
+        ),
+        (
+            EnforcementTier.MEDIUM,
+            RecommendedAction.THROTTLE,
+            SourceVerificationStatus.VERIFIED,
+        ),
+        (
+            EnforcementTier.HIGH,
+            RecommendedAction.APPLICATION_BLOCK,
+            SourceVerificationStatus.VERIFIED,
+        ),
+        (
+            EnforcementTier.CRITICAL,
+            RecommendedAction.WAF_BLOCK,
+            SourceVerificationStatus.VERIFIED,
+        ),
+    ]
+    for offset, (tier, action, verification_status) in enumerate(rows):
+        alert_id = await _insert_traffic_log(
+            session, source_ip, verification_status=verification_status
+        )
+        recommendation = replace(
+            _recommendation(
+                alert_id=alert_id,
+                tier=tier,
+                action=action,
+                created_at=now + timedelta(seconds=offset),
+                expires_at=now + timedelta(minutes=15),
+            ),
+            mode=EnforcementMode.ENFORCE,
+            policy_version=ACTIVE_POLICY_VERSION,
+        )
+        assert await repository.insert_if_absent(recommendation)
+
+    selected = await repository.find_effective_enforceable(
+        source_ip=source_ip,
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(seconds=5),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=True,
+    )
+    unrelated_source = await repository.find_effective_enforceable(
+        source_ip="203.0.113.31",
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(seconds=5),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=True,
+    )
+    expired = await repository.find_effective_enforceable(
+        source_ip=source_ip,
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(minutes=16),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=True,
+    )
+
+    assert selected is not None
+    assert selected.tier is EnforcementTier.HIGH
+    assert selected.action is RecommendedAction.APPLICATION_BLOCK
+    assert unrelated_source is None
+    assert expired is None
+
+
+@pytest.mark.parametrize(
+    ("lower_tier", "lower_action"),
+    [
+        (EnforcementTier.MEDIUM, RecommendedAction.THROTTLE),
+        (EnforcementTier.LOW, RecommendedAction.CHALLENGE),
+    ],
+)
+@pytest.mark.asyncio
+async def test_active_lookup_ignores_malformed_high_before_lower_tier_precedence(
+    repository, lower_tier, lower_action
+) -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session = repository._session
+    source_ip = "203.0.113.32"
+    lower_id = await _insert_traffic_log(session, source_ip)
+    malformed_high_id = await _insert_traffic_log(session, source_ip)
+    for alert_id, tier, action, offset in [
+        (lower_id, lower_tier, lower_action, 0),
+        (malformed_high_id, EnforcementTier.HIGH, RecommendedAction.THROTTLE, 1),
+    ]:
+        recommendation = replace(
+            _recommendation(
+                alert_id=alert_id,
+                tier=tier,
+                action=action,
+                created_at=now + timedelta(seconds=offset),
+                expires_at=now + timedelta(minutes=15),
+            ),
+            mode=EnforcementMode.ENFORCE,
+            policy_version=ACTIVE_POLICY_VERSION,
+        )
+        assert await repository.insert_if_absent(recommendation)
+
+    selected = await repository.find_effective_enforceable(
+        source_ip=source_ip,
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(seconds=2),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=False,
+    )
+
+    assert selected is not None
+    assert selected.tier is lower_tier
+    assert selected.action is lower_action
+
+
+@pytest.mark.asyncio
+async def test_active_lookup_ignores_malformed_medium_before_low_precedence(
+    repository,
+) -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session = repository._session
+    source_ip = "203.0.113.33"
+    low_id = await _insert_traffic_log(session, source_ip)
+    malformed_medium_id = await _insert_traffic_log(session, source_ip)
+    for alert_id, tier, action, offset in [
+        (low_id, EnforcementTier.LOW, RecommendedAction.CHALLENGE, 0),
+        (
+            malformed_medium_id,
+            EnforcementTier.MEDIUM,
+            RecommendedAction.APPLICATION_BLOCK,
+            1,
+        ),
+    ]:
+        recommendation = replace(
+            _recommendation(
+                alert_id=alert_id,
+                tier=tier,
+                action=action,
+                created_at=now + timedelta(seconds=offset),
+                expires_at=now + timedelta(minutes=15),
+            ),
+            mode=EnforcementMode.ENFORCE,
+            policy_version=ACTIVE_POLICY_VERSION,
+        )
+        assert await repository.insert_if_absent(recommendation)
+
+    selected = await repository.find_effective_enforceable(
+        source_ip=source_ip,
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now + timedelta(seconds=2),
+        policy_version=ACTIVE_POLICY_VERSION,
+        require_verified=False,
+    )
+
+    assert selected is not None
+    assert selected.tier is EnforcementTier.LOW
+    assert selected.action is RecommendedAction.CHALLENGE
+
+
+@pytest.mark.asyncio
 async def test_request_window_upsert_returns_authoritative_count_and_window(
     repository,
 ) -> None:

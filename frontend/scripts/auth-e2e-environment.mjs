@@ -228,6 +228,14 @@ export function redactChildOutput(output) {
     .replace(/((?:API_SECRET_KEY|WAF_INGEST_API_KEY)\s*=\s*)[^\s]+/gi, '$1[redacted]')
 }
 
+export function processFailureMessage(label, result) {
+  const output = redactChildOutput(`${result.stdout}\n${result.stderr}`).trim()
+  const boundedOutput = output.slice(-16_384)
+  return `${label} failed with exit code ${result.code}.${
+    boundedOutput ? `\n${boundedOutput}` : ''
+  }`
+}
+
 export function playwrightInvocation(
   nodeExecutable = process.execPath,
   playwrightArgs = [],
@@ -523,7 +531,7 @@ function runProcess(
       if (result.code === 0 || allowFailure) {
         settle(resolve, result)
       } else {
-        settle(reject, new Error(`${label} failed.`))
+        settle(reject, new Error(processFailureMessage(label, result)))
       }
     })
   })

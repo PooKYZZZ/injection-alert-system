@@ -42,10 +42,15 @@ def test_enforcement_response_models_active_decisions_with_required_metadata():
         "decision": "THROTTLE",
         "retry_after_seconds": 4,
     }
+    assert EnforcementCheckResponse(decision="BLOCK").model_dump(
+        exclude_none=True
+    ) == {"decision": "BLOCK"}
     with pytest.raises(ValidationError):
         EnforcementCheckResponse(decision="CHALLENGE")
     with pytest.raises(ValidationError):
         EnforcementCheckResponse(decision="THROTTLE")
+    with pytest.raises(ValidationError):
+        EnforcementCheckResponse(decision="BLOCK", enforcement_tier="HIGH")
 
 
 def test_challenge_request_forbids_tier_and_bounds_token():

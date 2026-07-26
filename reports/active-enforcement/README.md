@@ -1,8 +1,8 @@
-# PR5 Active Enforcement Evidence
+# Active Enforcement Evidence
 
 **Status:** Local/test implementation only; hosted/production `ENFORCE` remains disabled.
 
-This report folder is reserved for observed PR5 evidence. Do not use unit tests,
+This report folder is reserved for observed PR5/PR6 evidence. Do not use unit tests,
 image builds, or local Compose results as hosted destructive-enforcement proof.
 
 ## Canonical controlled E2E evidence
@@ -12,6 +12,11 @@ result for the controlled local Docker Compose full-stack validation through
 `http://localhost:8089/records/search` using disposable PostgreSQL 16 and
 Cloudflare-published Turnstile test credentials. It is local acceptance evidence,
 not hosted destructive-enforcement proof.
+
+[`PR6_HIGH_APPLICATION_BLOCK_PROOF.md`](PR6_HIGH_APPLICATION_BLOCK_PROOF.md)
+records the coordinated HIGH application-block implementation, automated
+validation, and disposable controlled-local E2E. It also records that hosted
+activation remains disabled and CRITICAL remains outside PR6.
 
 ## Implemented locally
 
@@ -24,7 +29,8 @@ not hosted destructive-enforcement proof.
   action field, so controlled provider proof uses explicit test mode with a
   published test secret. Test mode is forbidden in staging/production; normal
   mode still requires the production action and hostname.
-- The portal applies `ALLOW`, `CHALLENGE`, and `THROTTLE` only at `/records/search`.
+- The portal applies exact `ALLOW`, `CHALLENGE`, `THROTTLE`, and PR6 `BLOCK`
+  decisions only at `/records/search`.
 - The controlled E2E report validates LOW/MEDIUM challenge, grant, counter,
   throttle, invalid-challenge, and evaluation-outage behavior; hosted Cloudflare
   topology and production ENFORCE remain pending/disabled.
@@ -33,7 +39,7 @@ not hosted destructive-enforcement proof.
 
 - Cloudflare Worker header behavior, Pseudo IPv4 handling, direct-origin isolation, and immediate tunnel-peer trust remain unresolved topology gates.
 - No hosted or production user traffic has been placed in active enforcement.
-- HIGH/CRITICAL blocking, WAF mutation, Redis, and global/multi-route enforcement remain out of scope.
+- CRITICAL/WAF mutation, Redis, and global/multi-route enforcement remain out of scope.
 
 ## Evidence template
 

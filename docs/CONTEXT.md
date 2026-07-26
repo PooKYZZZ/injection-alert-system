@@ -89,8 +89,27 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   Turnstile result. The browser never calls FastAPI directly.
 - Hosted/production `ENFORCEMENT_MODE` remains `off` by default. Trusted
   Cloudflare source/topology verification is still pending and production
-  rollout remains intentionally disabled. PR6 HIGH application blocking is the
-  next implementation phase.
+  rollout remains intentionally disabled.
+
+### PR6 HIGH application blocking (2026-07-23)
+
+- Valid, active, matching `HIGH` `ENFORCE` recommendations under
+  `confidence-enforcement-v2` now produce the exact internal decision
+  `{"decision":"BLOCK"}`. The existing query gives HIGH precedence over
+  MEDIUM/LOW while continuing to exclude CRITICAL, SHADOW, expired,
+  wrong-source, wrong-policy, and ineligible-source rows.
+- The Land Records portal accepts only the exact `BLOCK` contract and stops
+  before record-search work. It renders generic temporary-block copy, emits a
+  distinct safe application-block event, and keeps the dynamic response
+  non-cacheable. Malformed or unknown decisions still fail open to `ALLOW`.
+- Controlled local Docker evidence used one main Compose project and disposable
+  PostgreSQL 16. Active HIGH hid protected record content; expiration restored
+  the normal page; a CyberTrace outage failed open after one bounded attempt.
+  The stable Next.js page path returns the generic block view with HTTP 200;
+  enabling the experimental cross-app 403 API was intentionally rejected.
+- This is local implementation and controlled-local evidence only. Hosted and
+  production `ENFORCE` remain disabled behind `BLOCK-001`/`BLOCK-002`.
+  CRITICAL WAF/ModSecurity enforcement remains `GAP-002` for PR7.
 
 ### Historical checks through 2026-07-05
 

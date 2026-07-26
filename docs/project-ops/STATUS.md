@@ -136,8 +136,38 @@ Turnstile were absent (no stable prior IDs). **New gaps:** `BUG-001`, `BUG-002`,
 `LIMIT-005`, `BUG-003`. **Known limitations:** `LIMIT-001` and the local-versus-
 production evidence boundary only. **Technical debt:** none newly classified.
 **Deferred:** `DEFER-001` only. **Still open:** `BLOCK-001`, `BLOCK-002`,
-`GAP-001`, `GAP-002`, `BUG-001`, `BUG-002`, `LIMIT-005`, and `BUG-003`. See
+`GAP-002`, `BUG-001`, `BUG-002`, `LIMIT-005`, `LIMIT-006`, `LIMIT-007`, and `BUG-003`. See
 `IMPLEMENTATION_GAP_REGISTER.md` for definitions and cumulative state.
+
+### PR6 working branch — HIGH application blocking
+
+- CyberTrace branch `feat/pr6-high-enforcement` extends the existing v2
+  recommendation query and response contract so valid applicable HIGH rows
+  return exact `BLOCK`; HIGH outranks MEDIUM/LOW and CRITICAL remains excluded.
+- The sibling portal branch `feat/pr6-portal-high-enforcement` accepts only exact `BLOCK`,
+  stops before protected record-search work, renders generic temporary-block
+  copy, keeps the dynamic response non-cacheable, and logs
+  `enforcement.application_block_applied` at the actual block branch. Unknown/malformed responses remain fail-open.
+- Automated validation passed: backend full suite **859 passed, 36 skipped**
+  with process-only notification-worker isolation; PR6 focused backend tests
+  passed; portal **32 unit tests**, typecheck, lint, and production build passed.
+  PostgreSQL-only repository tests were **NOT_RUN** because no explicit test URL
+  was supplied to pytest; equivalent migrated-query behavior was exercised in
+  the disposable controlled E2E database.
+- Final coordinated controlled local E2E passed for active HIGH block, absence of record-table
+  content, `no-store` response headers, deterministic expiry, outage fail-open,
+  safe block/degraded logs, and backend recovery. Exact distinct-source E2E was
+  not possible in the single-source local topology; automated query tests cover
+  wrong-source isolation. HTTP 403 was not adopted because the installed stable
+  Next.js page API would require enabling experimental cross-app
+  `authInterrupts`; the server-rendered block view currently returns HTTP 200.
+  The consolidated review fixes are covered by red/green focused and full-suite
+  tests; the final controlled proof is recorded in
+  `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`.
+- Shared-IP collateral blocking is tracked as `LIMIT-006`; HTTP 200 block
+  semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
+  remain open. `GAP-001` is complete for the approved local PR6 scope;
+  `GAP-002` remains not started for PR7 CRITICAL/WAF enforcement.
 
 ### Trusted source correlation PR state
 
@@ -461,7 +491,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 Previous prose items were normalized into stable IDs in
 [`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md); the complete
 current inventory lives there. Highest-priority current items are `BLOCK-001`,
-`BLOCK-002`, `BUG-001`, `GAP-001`, and `GAP-002`. This status snapshot does not
+`BLOCK-002`, `BUG-001`, and `GAP-002`. This status snapshot does not
 replace the register or restate its full entries.
 
 ---

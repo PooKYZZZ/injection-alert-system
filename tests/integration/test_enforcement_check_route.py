@@ -1,5 +1,5 @@
-from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,10 +7,8 @@ from fastapi.testclient import TestClient
 import web_app.presentation.api.routes as routes
 import web_app.presentation.dependencies.auth as auth
 from web_app.config import reset_settings_cache
-from web_app.presentation.app import create_app
 from web_app.domain.enforcement import (
     ACTIVE_POLICY_VERSION,
-    CounterKind,
     EffectiveRecommendation,
     EnforcementMode,
     EnforcementScope,
@@ -19,6 +17,7 @@ from web_app.domain.enforcement import (
     RequestWindowState,
     TurnstileVerificationResult,
 )
+from web_app.presentation.app import create_app
 
 
 class EmptyRepository:
@@ -68,6 +67,22 @@ class ActiveLowRepository:
     async def upsert_challenge_grant(self, grant):
         self.grant = grant
         return grant
+
+
+class ActiveHighRepository(ActiveLowRepository):
+    def __init__(self):
+        super().__init__()
+        self.recommendation = EffectiveRecommendation(
+            trigger_traffic_log_id=2,
+            scope=EnforcementScope.RECORD_SEARCH,
+            tier=EnforcementTier.HIGH,
+            action=RecommendedAction.APPLICATION_BLOCK,
+            mode=EnforcementMode.ENFORCE,
+            policy_version=ACTIVE_POLICY_VERSION,
+            created_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+            source_verification_status="UNVERIFIED",
+        )
 
 
 class SuccessfulVerifier:
@@ -170,6 +185,40 @@ def test_active_enforcement_returns_challenge_for_unverified_test_source(monkeyp
     }
 
 
+def test_active_enforcement_serializes_exact_high_block_contract(monkeypatch):
+    key = "enforcement-key-for-integration-tests-32chars"
+    settings = SimpleNamespace(
+        enforcement_check_api_key=key,
+        enforcement_mode="enforce",
+        enforcement_low_window_seconds=60,
+        enforcement_low_max_unchallenged_requests=5,
+        enforcement_medium_window_seconds=60,
+        enforcement_medium_max_requests=10,
+        enforcement_allow_unverified_source_for_tests=True,
+        enforcement_challenge_grant_ttl_seconds=300,
+        enforcement_turnstile_secret_key="secret",
+        enforcement_turnstile_expected_hostname="localhost",
+        enforcement_turnstile_timeout_seconds=3,
+    )
+    monkeypatch.setattr(auth, "get_settings", lambda: settings)
+    monkeypatch.setattr(routes, "get_settings", lambda: settings)
+
+    app = create_app()
+    app.dependency_overrides[routes.get_enforcement_repository] = (
+        lambda: ActiveHighRepository()
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/internal/enforcement/check",
+            headers={"Authorization": f"Bearer {key}"},
+            json={"scope": "RECORD_SEARCH", "source_ip": "203.0.113.10"},
+        )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"decision": "BLOCK"}
+
+
 def test_active_challenge_verification_persists_only_verified_grant(monkeypatch):
     key = "enforcement-key-for-integration-tests-32chars"
     settings = SimpleNamespace(
@@ -187,7 +236,9 @@ def test_active_challenge_verification_persists_only_verified_grant(monkeypatch)
     app = create_app()
     repository = ActiveLowRepository()
     app.dependency_overrides[routes.get_enforcement_repository] = lambda: repository
-    app.dependency_overrides[routes.get_turnstile_verifier] = lambda: SuccessfulVerifier()
+    app.dependency_overrides[routes.get_turnstile_verifier] = (
+        lambda: SuccessfulVerifier()
+    )
     with TestClient(app) as client:
         response = client.post(
             "/api/internal/enforcement/challenge",

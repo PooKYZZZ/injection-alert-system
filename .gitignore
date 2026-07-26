@@ -239,3 +239,4 @@ docs.zip
 cybertrace_waf_serious_probe.py
 .codex/config.toml
 .codex/agents/terra-worker.toml
+.codex/TASK_HANDOFF.md

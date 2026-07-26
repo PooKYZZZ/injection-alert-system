@@ -51,7 +51,7 @@ flowchart LR
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
-| Runtime enforcement | PR5 LOW/MEDIUM implemented and controlled locally E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use PostgreSQL fixed-window counters and tier-bound server-verified challenge grants; `/api/internal/enforcement/check` can return `ALLOW`, `CHALLENGE`, or `THROTTLE` only for `/records/search`. LOW requests within threshold ALLOW, the first excess request CHALLENGES, and a valid LOW grant bypasses the LOW counter while active. MEDIUM without a grant CHALLENGES immediately; a valid grant enables bounded counting and excess requests THROTTLE until fixed-window expiry. Unavailable policy evaluation fails open to ALLOW; invalid or unavailable required challenge verification creates no grant. Recommendations affect later matching requests, not the triggering request retroactively. See `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md`. Hosted active enforcement remains disabled pending Cloudflare trusted-source topology proof; HIGH/CRITICAL remain non-disruptive. |
+| Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use the existing expiring recommendation store; LOW/MEDIUM retain PostgreSQL fixed-window counters and tier-bound server-verified challenge grants. `/api/internal/enforcement/check` returns exact `ALLOW`, `CHALLENGE`, `THROTTLE`, or `BLOCK` decisions only for `/records/search`. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`; CRITICAL remains excluded for PR7. The portal enforces BLOCK server-side before record filtering, emits generic non-cacheable content and a distinct safe block log, and rejects malformed/unknown decisions to the bounded fail-open path. Recommendations affect later matching requests, not the triggering request retroactively. See `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md` and `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`. Hosted active enforcement remains disabled pending Cloudflare trusted-source topology proof. |
 | Retraining pipeline | Planned | `ml_model/retraining/README.md` documents design-level only |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
 | Full Wazuh/SIEM, Kubernetes, Kafka/Celery/Elasticsearch | Deferred | PD2 scope keeps these out unless explicitly approved |
@@ -234,6 +234,17 @@ the client-facing behavior for disabled or unauthorized pages.
 See [`IMPLEMENTATION_GAP_REGISTER.md`](project-ops/IMPLEMENTATION_GAP_REGISTER.md)
 for the canonical backlog. Runbooks and policies are implemented; automation
 and hosted deployment gates remain separately tracked there.
+
+### HIGH versus CRITICAL enforcement boundary
+
+- **HIGH / PR6:** application-level enforcement. The request reaches the Land
+  Records portal, which consults CyberTrace before protected record-search work;
+  a valid `APPLICATION_BLOCK` prevents that work and renders generic portal
+  restriction content. Internal logs distinguish `HIGH` and
+  `enforcement.application_block_applied`.
+- **CRITICAL / PR7:** future WAF-level enforcement. ModSecurity should reject
+  the request before the portal is reached, with a generic gateway denial and
+  `WAF_BLOCK` intent. CRITICAL enforcement is not implemented by PR6.
 
 - Production-grade ModSecurity-fronted deployment
 - Full repo-managed export and automation of Supabase policy state
