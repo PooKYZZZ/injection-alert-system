@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   checkRecordSearchShadowEnforcement,
   checkRecordSearchEnforcement,
+  applicationBlockAppliedLogEvent,
+  enforcementRuntimeLogEvent,
   verifyRecordSearchEnforcementChallenge,
   normalizeBrowserChallengeResult,
   requestSourceIp,
@@ -178,6 +180,46 @@ test("parses active challenge and throttle decisions", async () => {
     decision: "THROTTLE",
     status: "checked",
     retryAfterSeconds: 4,
+  });
+});
+
+test("parses only the exact active block decision", async () => {
+  const blocked = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: activeConfig,
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ decision: "BLOCK" }), { status: 200 }),
+  });
+  const leakedMetadata = await checkRecordSearchEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: activeConfig,
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({ decision: "BLOCK", enforcement_tier: "HIGH" }),
+        { status: 200 },
+      ),
+  });
+
+  assert.deepEqual(blocked, { decision: "BLOCK", status: "checked" });
+  assert.deepEqual(leakedMetadata, {
+    decision: "ALLOW",
+    status: "degraded",
+    reason: "INVALID_RESPONSE",
+  });
+});
+
+test("labels an applied HIGH application block distinctly in safe logs", () => {
+  assert.equal(
+    enforcementRuntimeLogEvent({ decision: "BLOCK", status: "checked" }),
+    null,
+  );
+});
+
+test("formats application block logging at the enforcement point", () => {
+  assert.deepEqual(applicationBlockAppliedLogEvent(), {
+    event: "enforcement.application_block_applied",
+    scope: "RECORD_SEARCH",
+    actual_decision: "BLOCK",
   });
 });
 
