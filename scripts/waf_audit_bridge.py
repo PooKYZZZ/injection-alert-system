@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 import json
 import os
-from pathlib import Path
 import re
 import sys
 import threading
 import time
-from typing import Any, TextIO
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+from typing import Any, TextIO
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from uuid import uuid4
 
@@ -20,7 +20,6 @@ from web_app.domain.source_address import (
     SourceProvenance,
     canonicalize_source_ip,
 )
-
 
 _SENSITIVE_HEADERS = {
     "authorization",
@@ -176,23 +175,10 @@ def _source_evidence(
     if provenance_mode != "cloudflare_connecting_ip":
         raise ValueError("unsupported source provenance mode")
 
-    cf_values = [
-        value
-        for key, value in request_headers.items()
-        if str(key).strip().lower() == "cf-connecting-ip"
-    ]
-    canonical_cf_ip = (
-        canonicalize_source_ip(cf_values[0]) if len(cf_values) == 1 else None
-    )
-    matches = (
-        canonical_client_ip == canonical_cf_ip
-        if canonical_client_ip is not None and canonical_cf_ip is not None
-        else None
-    )
     return (
         canonical_client_ip,
         SourceProvenance.CLOUDFLARE_CONNECTING_IP.value,
-        matches,
+        True if canonical_client_ip is not None else None,
     )
 
 
@@ -354,7 +340,11 @@ def normalize_event(
         request_headers=request_headers_raw
         if isinstance(request_headers_raw, dict)
         else {},
-        provenance_mode=provenance_mode,
+        provenance_mode=(
+            "direct_remote_addr"
+            if provenance_mode == "cloudflare_connecting_ip"
+            else provenance_mode
+        ),
     )
 
     transaction_id = str(raw_event.get("transaction_id") or uuid4().hex)
@@ -408,16 +398,23 @@ def post_event(
     endpoint: str,
     api_secret: str,
     timeout: int,
+    audit_evidence: bool = False,
 ) -> int:
     data = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_secret}",
+    }
+    if audit_evidence:
+        headers["X-CyberTrace-WAF-Audit"] = "modsecurity"
+        audit_key = os.getenv("WAF_AUDIT_EVIDENCE_KEY")
+        if audit_key:
+            headers["X-CyberTrace-WAF-Audit-Key"] = audit_key
     request = urllib.request.Request(
         endpoint,
         data=data,
         method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_secret}",
-        },
+        headers=headers,
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return int(response.status)
@@ -434,7 +431,10 @@ def _is_retryable_exception(exc: Exception) -> bool:
     if isinstance(reason, TimeoutError):
         return True
 
-    if isinstance(reason, OSError) and getattr(reason, "errno", None) in _RETRYABLE_ERRNOS:
+    if (
+        isinstance(reason, OSError)
+        and getattr(reason, "errno", None) in _RETRYABLE_ERRNOS
+    ):
         return True
 
     if isinstance(reason, str) and "connection refused" in reason.lower():
@@ -477,16 +477,21 @@ def _post_event_with_retry(
     timeout: int,
     max_retries: int,
     retry_delay_seconds: float,
+    audit_evidence: bool = False,
 ) -> int:
     attempts = max_retries + 1
 
     for attempt in range(1, attempts + 1):
         try:
+            post_kwargs = {}
+            if audit_evidence:
+                post_kwargs["audit_evidence"] = True
             status = post_event(
                 payload,
                 endpoint=endpoint,
                 api_secret=api_secret,
                 timeout=timeout,
+                **post_kwargs,
             )
 
             if status in _RETRYABLE_STATUS_CODES and attempt < attempts:
@@ -578,6 +583,10 @@ def run_bridge(
                 raise ValueError("event line must be a JSON object")
             payload = normalize_event(event, provenance_mode=provenance_mode)
             transaction_id = str(payload.get("transaction_id") or "unknown")
+            audit_evidence = (
+                provenance_mode == "cloudflare_connecting_ip"
+                and isinstance(event.get("transaction"), dict)
+            )
             status = _post_event_with_retry(
                 payload,
                 endpoint=endpoint,
@@ -585,6 +594,7 @@ def run_bridge(
                 timeout=timeout,
                 max_retries=max_retries,
                 retry_delay_seconds=retry_delay_seconds,
+                audit_evidence=audit_evidence,
             )
             if 200 <= status < 300:
                 success += 1
@@ -652,6 +662,10 @@ def _process_event_line(
 
         payload = normalize_event(event, provenance_mode=provenance_mode)
         transaction_id = str(payload.get("transaction_id") or "")
+        audit_evidence = (
+            provenance_mode == "cloudflare_connecting_ip"
+            and isinstance(event.get("transaction"), dict)
+        )
         if seen_transaction_ids is not None and transaction_id in seen_transaction_ids:
             _log_event(
                 "bridge.duplicate_skipped",
@@ -667,6 +681,7 @@ def _process_event_line(
             timeout=timeout,
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
+            audit_evidence=audit_evidence,
         )
         if 200 <= status < 300:
             if seen_transaction_ids is not None:
@@ -840,7 +855,9 @@ def main() -> int:
     parser.add_argument(
         "--from-start",
         action="store_true",
-        help="With --follow, process existing lines before watching for appended events",
+        help=(
+            "With --follow, process existing lines before watching for appended events"
+        ),
     )
     parser.add_argument(
         "--endpoint", default=None, help="Internal FastAPI WAF ingest endpoint"

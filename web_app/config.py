@@ -35,10 +35,13 @@ class Settings(BaseSettings):
     model_registry_path: str = ""
     api_secret_key: str = ""
     waf_ingest_api_key: str = ""
+    waf_audit_evidence_key: str = ""
     waf_source_verification_mode: Literal[
         "unverified",
         "cloudflare_tunnel",
     ] = "unverified"
+    cloudflare_target_isolation_enabled: bool = False
+    cloudflare_target_verified_proof: bool = False
     enforcement_mode: Literal["off", "shadow", "enforce"] = "off"
     enforcement_check_api_key: str = ""
     enforcement_recommendation_ttl_seconds: int = Field(default=900, ge=60, le=86400)
@@ -191,6 +194,27 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Cloudflare Turnstile test credentials are forbidden in staging "
                     "and production"
+                )
+        if self.cloudflare_target_verified_proof and (
+            not self.cloudflare_target_isolation_enabled
+            or self.waf_source_verification_mode != "cloudflare_tunnel"
+        ):
+            raise ValueError(
+                "Cloudflare proof activation requires cloudflare_tunnel mode and "
+                "the isolation overlay"
+            )
+        if self.waf_source_verification_mode == "cloudflare_tunnel":
+            if not self.cloudflare_target_isolation_enabled:
+                raise ValueError(
+                    "cloudflare_tunnel mode requires the isolation overlay"
+                )
+            if not self.cloudflare_target_verified_proof:
+                raise ValueError(
+                    "cloudflare_tunnel mode requires explicit proof activation"
+                )
+            if not self.waf_audit_evidence_key.strip():
+                raise ValueError(
+                    "cloudflare_tunnel mode requires WAF_AUDIT_EVIDENCE_KEY"
                 )
         if self.is_production or self.is_staging:
             if not self.api_secret_key:

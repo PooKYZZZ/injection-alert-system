@@ -186,7 +186,7 @@ def test_direct_mode_uses_canonical_client_ip_and_ignores_forged_cf_header():
     assert normalized["cf_connecting_ip_matches_client_ip"] is None
 
 
-def test_cloudflare_mode_compares_header_case_insensitively():
+def test_cloudflare_mode_uses_transaction_client_ip_as_authoritative_source():
     normalized = normalize_event(
         {
             "transaction": {
@@ -207,7 +207,90 @@ def test_cloudflare_mode_compares_header_case_insensitively():
     assert normalized["cf_connecting_ip_matches_client_ip"] is True
 
 
-def test_cloudflare_mode_records_false_only_when_both_addresses_are_valid():
+def test_cloudflare_audit_uses_transaction_client_ip_without_raw_header():
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "id": "tx-cloudflare-no-header",
+                "client_ip": " ::ffff:203.0.113.7 ",
+                "request": {"method": "GET", "uri": "/"},
+            }
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert normalized["source_ip"] == "203.0.113.7"
+    assert normalized["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is True
+
+
+def test_cloudflare_audit_post_marks_only_modsecurity_audit_evidence(monkeypatch):
+    posted = {}
+
+    def fake_post_event(
+        payload, *, endpoint, api_secret, timeout, audit_evidence=False
+    ):
+        posted["payload"] = payload
+        posted["audit_evidence"] = audit_evidence
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", fake_post_event)
+    result = waf_audit_bridge.run_bridge(
+        input_stream=StringIO(
+            '{"transaction":{"unique_id":"tx-audit","client_ip":"203.0.113.7",'
+            '"request":{"method":"GET","uri":"/"}}}\n'
+        ),
+        endpoint="http://backend/api/internal/waf-events",
+        api_secret="test-key",
+        timeout=1,
+        max_retries=0,
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result == (1, 1, 0)
+    assert posted["audit_evidence"] is True
+
+
+def test_generic_cloudflare_payload_does_not_mark_audit_evidence(monkeypatch):
+    posted = {}
+
+    def fake_post_event(
+        payload, *, endpoint, api_secret, timeout, audit_evidence=False
+    ):
+        posted["audit_evidence"] = audit_evidence
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", fake_post_event)
+    result = waf_audit_bridge.run_bridge(
+        input_stream=StringIO(
+            '{"source_ip":"203.0.113.7","request_path":"/"}\n'
+        ),
+        endpoint="http://backend/api/internal/waf-events",
+        api_secret="test-key",
+        timeout=1,
+        max_retries=0,
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result == (1, 1, 0)
+    assert posted["audit_evidence"] is False
+
+
+def test_generic_cloudflare_payload_stays_direct_and_unverified():
+    normalized = normalize_event(
+        {
+            "source_ip": "203.0.113.77",
+            "request_path": "/records/search",
+        },
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert normalized["source_ip"] == "203.0.113.77"
+    assert normalized["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert normalized["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_cloudflare_mode_ignores_raw_header_comparison():
     mismatch = normalize_event(
         {
             "transaction": {
@@ -237,8 +320,10 @@ def test_cloudflare_mode_records_false_only_when_both_addresses_are_valid():
         provenance_mode="cloudflare_connecting_ip",
     )
 
-    assert mismatch["cf_connecting_ip_matches_client_ip"] is False
-    assert invalid["cf_connecting_ip_matches_client_ip"] is None
+    assert mismatch["source_ip"] == "192.0.2.10"
+    assert mismatch["cf_connecting_ip_matches_client_ip"] is True
+    assert invalid["source_ip"] == "192.0.2.10"
+    assert invalid["cf_connecting_ip_matches_client_ip"] is True
 
 
 def test_missing_source_and_source_timestamp_remain_null():

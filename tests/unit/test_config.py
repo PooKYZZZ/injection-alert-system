@@ -449,6 +449,47 @@ def test_deployed_active_enforcement_requires_cloudflare_tunnel_source_verificat
         )
 
 
+def test_cloudflare_tunnel_requires_isolated_overlay_and_explicit_proof_switch(
+) -> None:
+    base = {
+        "env_file": False,
+        "database_url": "sqlite+aiosqlite:///test.db",
+        "model_path": "test_model.py",
+        "waf_source_verification_mode": "cloudflare_tunnel",
+    }
+
+    with pytest.raises(ValueError, match="isolation overlay"):
+        Settings(**base)
+
+    with pytest.raises(ValueError, match="proof activation"):
+        Settings(**base, cloudflare_target_isolation_enabled=True)
+
+    with pytest.raises(ValueError, match="WAF_AUDIT_EVIDENCE_KEY"):
+        Settings(
+            **base,
+            cloudflare_target_isolation_enabled=True,
+            cloudflare_target_verified_proof=True,
+        )
+
+    enabled = Settings(
+        **base,
+        cloudflare_target_isolation_enabled=True,
+        cloudflare_target_verified_proof=True,
+        waf_audit_evidence_key="test-audit-evidence-key",
+    )
+    assert enabled.waf_source_verification_mode == "cloudflare_tunnel"
+
+
+def test_verified_proof_switch_is_rejected_in_unverified_mode() -> None:
+    with pytest.raises(ValueError, match="proof activation"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            cloudflare_target_verified_proof=True,
+        )
+
+
 def test_app_env_rejects_unknown_values() -> None:
     with pytest.raises(ValidationError):
         Settings(

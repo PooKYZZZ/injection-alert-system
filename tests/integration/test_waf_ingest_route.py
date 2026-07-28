@@ -1,32 +1,32 @@
-from datetime import datetime, timedelta, timezone
-from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from web_app.infrastructure.database import get_db
-from web_app.infrastructure.database import database as db_module
-from web_app.infrastructure.database.database import Base, TrafficLog
+import web_app.presentation.api.routes as routes_module
+from scripts.modsecurity_replay_harness import (
+    build_waf_ingest_payload,
+    detect_modsecurity_events,
+    normalize_sample_row,
+)
 from web_app.application.waf_event_fingerprint import build_waf_event_fingerprint
 from web_app.application.waf_event_sanitizer import sanitize_waf_event
 from web_app.domain.source_address import SourceProvenance
-import web_app.presentation.api.routes as routes_module
+from web_app.infrastructure.database import database as db_module
+from web_app.infrastructure.database import get_db
+from web_app.infrastructure.database.database import Base, TrafficLog
 from web_app.presentation.api.routes import (
     get_enforcement_repository,
     get_inference_queue,
     get_model_service,
 )
 from web_app.presentation.app import create_app
-from scripts.modsecurity_replay_harness import (
-    build_waf_ingest_payload,
-    detect_modsecurity_events,
-    normalize_sample_row,
-)
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 WAF_HEADERS = {
@@ -448,7 +448,10 @@ def test_cloudflare_mode_persists_direct_evidence_as_unverified(
 
     asyncio.run(init_tables())
     settings = routes_module.get_settings().model_copy(
-        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
     )
     monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
     payload = _waf_payload()
@@ -476,6 +479,86 @@ def test_cloudflare_mode_persists_direct_evidence_as_unverified(
     assert "request_headers" not in event
     assert "sanitized_body" not in event
     assert "authorization" not in caplog.text.lower()
+
+
+def test_cloudflare_payload_without_bridge_audit_marker_cannot_claim_verified(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "transaction_id": "waf-txn-forged-cloudflare",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-txn-forged-cloudflare",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.json()["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert lookup.json()["source_verification_status"] == "UNVERIFIED"
+
+
+def test_marked_cloudflare_audit_evidence_can_verify_server_side(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "transaction_id": "waf-txn-marked-cloudflare",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers={
+            **WAF_HEADERS,
+            "X-CyberTrace-WAF-Audit": "modsecurity",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
+        },
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-txn-marked-cloudflare",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.json()["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert lookup.json()["source_verification_status"] == "VERIFIED"
 
 
 def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):
