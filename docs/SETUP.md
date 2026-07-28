@@ -294,7 +294,7 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The repository migration head is `20260721_000024`. The latest hosted Supabase
+- The repository migration head is `20260728_000025`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
   only confirmed through `20260712_000020`; the source-verification migration
@@ -378,7 +378,7 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260721_000024`. Use
+The repository has exactly one current head, `20260728_000025`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).

@@ -205,7 +205,7 @@ the client-facing behavior for disabled or unauthorized pages.
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- Repository Alembic head: `20260721_000024`. Latest hosted Supabase revision with recorded evidence: `20260712_000020`.
+- Repository Alembic head: `20260728_000025`. Latest hosted Supabase revision with recorded evidence: `20260712_000020`.
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
 - Notification outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, and lease reconciliation. Email retains AES-GCM protection for active credential-equivalent payloads; Telegram is database-restricted to safe `threat_detected` payloads. Terminal payloads are scrubbed.

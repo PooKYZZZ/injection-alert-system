@@ -2,16 +2,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-import pytest
-from sqlalchemy import Column, Integer, MetaData, String, Table, Text, create_engine, inspect, text
-
+from sqlalchemy import (
+    Column,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    create_engine,
+    inspect,
+    text,
+)
 
 ROOT = Path(__file__).parents[2]
 REVISION = "20260720_000023"
-CURRENT_HEAD = "20260721_000024"
+CURRENT_HEAD = "20260728_000025"
 PARENT_REVISION = "20260720_000022"
 MIGRATION = ROOT / "migrations" / "versions" / f"{REVISION}_add_shadow_enforcement_recommendations.py"
 

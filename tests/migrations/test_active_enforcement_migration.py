@@ -1,14 +1,25 @@
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-import pytest
-from sqlalchemy import CheckConstraint, Column, Integer, MetaData, String, Table, Text, create_engine, inspect, text
-
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    create_engine,
+    inspect,
+    text,
+)
 
 ROOT = Path(__file__).parents[2]
 REVISION = "20260721_000024"
+CURRENT_HEAD = "20260728_000025"
 PARENT_REVISION = "20260720_000023"
 MIGRATION = ROOT / "migrations" / "versions" / f"{REVISION}_add_active_enforcement_state.py"
 
@@ -61,7 +72,7 @@ def _create_parent_schema(database_url: str) -> None:
 
 def test_active_enforcement_migration_is_the_new_single_head() -> None:
     config = _alembic_config()
-    assert ScriptDirectory.from_config(config).get_heads() == [REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
     source = MIGRATION.read_text(encoding="utf-8")
     assert 'down_revision = "20260720_000023"' in source
     assert '"enforcement_request_windows"' in source

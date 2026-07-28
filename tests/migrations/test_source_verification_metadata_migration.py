@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-import pytest
 from sqlalchemy import (
     Column,
     Integer,
@@ -19,10 +19,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError
 
-
 ROOT = Path(__file__).parents[2]
 PARENT_REVISION = "20260712_000020"
-HEAD_REVISION = "20260721_000024"
+HEAD_REVISION = "20260728_000025"
 
 
 def _alembic_config() -> Config:
