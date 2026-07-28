@@ -240,3 +240,8 @@ cybertrace_waf_serious_probe.py
 .codex/config.toml
 .codex/agents/terra-worker.toml
 .codex/TASK_HANDOFF.md
+docs/project-ops/PR7_CONTROLLED_CRITICAL_WAF_ENFORCEMENT_PLAN.md
+docs/project-ops/PR7_DESIGN_RATIONALE.md
+docs/project-ops/PR7_IMPLEMENTATION_SPEC.md
+docs/project-ops/PR7_PERMANENT_CHAT_HANDOFF.md
+docs/project-ops/PR7_T0_EVIDENCE.md
