@@ -1,0 +1,17 @@
+FROM owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e
+
+USER root
+RUN apk add --no-cache python3 py3-pip \
+    && python3 -m pip install --no-cache-dir --break-system-packages httpx pydantic
+COPY waf_runtime /opt/pr7/waf_runtime
+COPY config/modsecurity/pr7-runtime-include.conf.template /etc/nginx/templates/modsecurity.d/pr7-runtime-include.conf.template
+RUN sed -i '/Include \/etc\/modsecurity.d\/owasp-crs\/rules\/\\*.conf/a Include /etc/modsecurity.d/pr7-runtime-include.conf' /etc/nginx/templates/modsecurity.d/setup.conf.template \
+    && mkdir -p /pr7-state \
+    && chown -R nginx:nginx /opt/pr7 /pr7-state
+COPY docker/pr7-waf-entrypoint.sh /usr/local/bin/pr7-waf-entrypoint
+COPY docker/pr7-waf-control /usr/local/bin/pr7-waf-control
+RUN chmod 0755 /usr/local/bin/pr7-waf-entrypoint /usr/local/bin/pr7-waf-control
+ENV PYTHONPATH=/opt/pr7
+USER nginx
+ENTRYPOINT ["/usr/local/bin/pr7-waf-entrypoint"]
+CMD []
