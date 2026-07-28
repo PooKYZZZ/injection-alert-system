@@ -3,11 +3,15 @@ from datetime import datetime, timezone
 import pytest
 
 from web_app.domain.waf_state import (
+    PR7_PATH,
+    PR7_POLICY_VERSION,
+    PR7_SCOPE,
     WafLifecycle,
     canonical_state_checksum,
     canonicalize_waf_source_ip,
     transition_status,
     utc_millis,
+    utc_millis_string,
 )
 
 
@@ -21,6 +25,16 @@ def test_utc_millis_rejects_naive_datetime() -> None:
     with pytest.raises(ValueError, match="UTC-aware datetime required"):
         utc_millis(datetime(2026, 7, 28, 0, 0, 0))
     assert utc_millis(datetime(2026, 7, 28, tzinfo=timezone.utc)) == 1785196800000
+    assert (
+        utc_millis_string(datetime(2026, 7, 28, 0, 0, 0, 123456, timezone.utc))
+        == "2026-07-28T00:00:00.123Z"
+    )
+
+
+def test_pr7_policy_constants_are_fixed() -> None:
+    assert PR7_SCOPE == "RECORD_SEARCH"
+    assert PR7_PATH == "/records/search"
+    assert PR7_POLICY_VERSION == "confidence-waf-enforcement-v1"
 
 
 def test_lifecycle_only_allows_active_terminal_transitions() -> None:

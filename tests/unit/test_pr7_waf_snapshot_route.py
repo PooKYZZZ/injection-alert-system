@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from web_app.presentation.api import waf_enforcement_router as module
+from web_app.presentation.schemas.waf_enforcement import WafSnapshotResponse
 
 
 def _request(authorization: str | None = None) -> Request:
@@ -69,7 +69,7 @@ async def test_snapshot_response_is_typed_and_no_store(
             "policy_version": "confidence-waf-enforcement-v1",
             "revision": 2,
             "scope": "RECORD_SEARCH",
-            "generated_at": datetime.now(timezone.utc),
+            "generated_at": "2026-07-28T00:00:00.000Z",
             "state_checksum_sha256": "0" * 64,
             "items": [],
         }
@@ -103,7 +103,7 @@ async def test_snapshot_response_size_limit_returns_safe_503(
             "policy_version": "confidence-waf-enforcement-v1",
             "revision": 2,
             "scope": "RECORD_SEARCH",
-            "generated_at": datetime.now(timezone.utc),
+            "generated_at": "2026-07-28T00:00:00.000Z",
             "state_checksum_sha256": "0" * 64,
             "items": [],
         }
@@ -115,3 +115,49 @@ async def test_snapshot_response_size_limit_returns_safe_503(
             _request("Bearer " + token), Response(), None
         )
     assert error.value.status_code == 503
+
+
+def test_snapshot_wire_schema_keeps_canonical_timestamp_strings() -> None:
+    payload = {
+        "schema_version": 1,
+        "policy_version": "confidence-waf-enforcement-v1",
+        "revision": 2,
+        "scope": "RECORD_SEARCH",
+        "generated_at": "2026-07-28T00:00:00.123Z",
+        "state_checksum_sha256": "0" * 64,
+        "items": [
+            {
+                "entry_id": 1,
+                "recommendation_id": 2,
+                "source_ip": "203.0.113.7",
+                "request_path": "/records/search",
+                "expires_at": "2026-07-28T00:01:00.123Z",
+            }
+        ],
+    }
+    model = WafSnapshotResponse.model_validate(payload)
+    dumped = model.model_dump(mode="json")
+    assert dumped["generated_at"] == payload["generated_at"]
+    assert dumped["items"][0]["expires_at"] == payload["items"][0]["expires_at"]
+
+
+def test_snapshot_wire_schema_rejects_noncanonical_source_ip() -> None:
+    payload = {
+        "schema_version": 1,
+        "policy_version": "confidence-waf-enforcement-v1",
+        "revision": 2,
+        "scope": "RECORD_SEARCH",
+        "generated_at": "2026-07-28T00:00:00.000Z",
+        "state_checksum_sha256": "0" * 64,
+        "items": [
+            {
+                "entry_id": 1,
+                "recommendation_id": 2,
+                "source_ip": "::ffff:203.0.113.7",
+                "request_path": "/records/search",
+                "expires_at": "2026-07-28T00:01:00.123Z",
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="canonical source IP required"):
+        WafSnapshotResponse.model_validate(payload)

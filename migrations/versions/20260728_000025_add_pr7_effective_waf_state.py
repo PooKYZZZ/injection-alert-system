@@ -94,10 +94,14 @@ def upgrade() -> None:
             name="waf_effective_state_terminal_consistency",
         ),
         sa.CheckConstraint(
+            "activated_at IS NOT NULL",
+            name="waf_effective_state_activation_timestamp",
+        ),
+        sa.CheckConstraint(
             "revision >= 0", name="waf_effective_state_revision_nonnegative"
         ),
         sa.CheckConstraint(
-            "protected_path LIKE '/%'",
+            "protected_path = '/records/search'",
             name="waf_effective_state_protected_path_allowed",
         ),
     )

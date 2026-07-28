@@ -29,6 +29,8 @@ def test_pr7_migration_declares_additive_effective_state() -> None:
     assert '"waf_effective_state"' in source
     assert "recommendation_id" in source
     assert "status = 'ACTIVE'" in source
+    assert "protected_path = '/records/search'" in source
+    assert "activated_at IS NOT NULL" in source
 
 
 def test_pr7_sqlite_upgrade_downgrade_and_reupgrade(

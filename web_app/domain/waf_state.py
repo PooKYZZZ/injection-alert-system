@@ -7,6 +7,13 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Mapping
 
+PR7_SCOPE = "RECORD_SEARCH"
+PR7_PATH = "/records/search"
+PR7_POLICY_VERSION = "confidence-waf-enforcement-v1"
+PR7_ENFORCEMENT_MODE = "SHADOW"
+PR7_DEFAULT_CAPACITY = 64
+PR7_MAX_ENTRIES = 512
+
 
 class WafLifecycle(StrEnum):
     ACTIVE = "ACTIVE"
@@ -33,6 +40,15 @@ def utc_millis(value: datetime) -> int:
     return int(value.astimezone(timezone.utc).timestamp() * 1000)
 
 
+def utc_millis_string(value: datetime) -> str:
+    """Return the one wire timestamp representation used by PR7."""
+
+    normalized = value.astimezone(timezone.utc).replace(
+        microsecond=(value.astimezone(timezone.utc).microsecond // 1000) * 1000
+    )
+    return normalized.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def transition_status(current: WafLifecycle, target: WafLifecycle) -> bool:
     if current is WafLifecycle.ACTIVE and target in {
         WafLifecycle.SUPERSEDED,
@@ -47,6 +63,8 @@ def _expiry_key(value: str) -> int:
     if not value.endswith("Z"):
         raise ValueError("UTC-aware datetime required")
     parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    if utc_millis_string(parsed) != value:
+        raise ValueError("canonical UTC-millisecond datetime required")
     return utc_millis(parsed)
 
 

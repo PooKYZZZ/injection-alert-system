@@ -21,8 +21,9 @@
   performs idempotent recommendation creation and effective-state mutation in
   one transaction, increments the desired-state revision once per change, and
   retains terminal rows for auditability. The final disposable PostgreSQL
-  integration matrix passed **7 tests**, including same-key concurrency,
-  capacity finality, and injected rollback.
+  integration matrix passed **16 tests**, including same-key and different-key
+  serialization, lock-wait timing, replay finality, supersession, capacity
+  finality, snapshot stability, and injected rollback.
 - The repeatable-read read-only snapshot and authenticated controlled-local
   endpoint are implemented and covered by focused tests. `WAF_STATE_SYNC_ENABLED`
   remains disabled by default; this is a local backend foundation only. Block 2

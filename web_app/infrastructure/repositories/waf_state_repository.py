@@ -8,7 +8,15 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from web_app.domain.waf_state import WafLifecycle, canonicalize_waf_source_ip
+from web_app.domain.waf_state import (
+    PR7_DEFAULT_CAPACITY,
+    PR7_ENFORCEMENT_MODE,
+    PR7_PATH,
+    PR7_POLICY_VERSION,
+    PR7_SCOPE,
+    WafLifecycle,
+    canonicalize_waf_source_ip,
+)
 from web_app.infrastructure.database.database import (
     EnforcementRecommendationRow,
     TrafficLog,
@@ -32,7 +40,7 @@ class WafSnapshot:
 
 
 class WafStateRepository:
-    """PostgreSQL transaction boundary for PR7 desired WAF state."""
+    """Async PostgreSQL transaction boundary for PR7 desired WAF state."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -54,43 +62,19 @@ class WafStateRepository:
         return value
 
     @staticmethod
-    def _validate_candidate(
-        *, source_ip: str, protected_path: str, expires_at: datetime, capacity: int
-    ) -> str:
-        canonical_ip = canonicalize_waf_source_ip(source_ip)
-        if canonical_ip is None:
-            raise ValueError("valid source IP required")
-        if (
-            not protected_path.startswith("/")
-            or "?" in protected_path
-            or len(protected_path) > 512
-        ):
-            raise ValueError("canonical protected path required")
-        if expires_at.tzinfo is None or expires_at.utcoffset() is None:
-            raise ValueError("UTC-aware datetime required")
+    def _validate_expiry(value: datetime, name: str) -> None:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"{name} must be UTC-aware")
+
+    @staticmethod
+    def _validate_capacity(capacity: int) -> None:
         if not 1 <= capacity <= 512:
             raise ValueError("capacity must be between 1 and 512")
-        return canonical_ip
 
-    async def _record_active_in_transaction(
-        self,
-        *,
-        recommendation_id: int,
-        canonical_ip: str,
-        protected_path: str,
-        expires_at: datetime,
-        capacity: int = 64,
-    ) -> WafMutationResult:
-        control = await self._lock_control()
-        now = await self._mutation_now()
-        recommendation = await self.session.scalar(
-            select(EnforcementRecommendationRow).where(
-                EnforcementRecommendationRow.id == recommendation_id
-            )
-        )
-        if recommendation is None:
-            raise ValueError("recommendation not found")
-        changed_rows = await self.session.scalars(
+    async def _expire_active(
+        self, control: WafEnforcementStateRow, now: datetime
+    ) -> bool:
+        rows = await self.session.scalars(
             select(WafEffectiveStateRow)
             .where(
                 WafEffectiveStateRow.status == WafLifecycle.ACTIVE,
@@ -98,180 +82,55 @@ class WafStateRepository:
             )
             .with_for_update()
         )
-        changed = list(changed_rows)
+        changed = list(rows)
+        if not changed:
+            return False
+        revision = control.revision + 1
+        control.revision = revision
+        control.updated_at = now
         for row in changed:
             row.status = WafLifecycle.EXPIRED
             row.terminal_at = now
-        revision = control.revision + (1 if changed else 0)
-        if changed:
-            control.revision = revision
-            control.updated_at = now
-            for row in changed:
-                row.revision = revision
+            row.revision = revision
+        return True
 
-        if (
-            recommendation.enforcement_tier != "CRITICAL"
-            or recommendation.recommended_action != "WAF_BLOCK"
-        ):
-            return WafMutationResult(
-                "INELIGIBLE", recommendation_id, revision, bool(changed)
-            )
-        source_record = (
-            await self.session.execute(
-                select(
-                    TrafficLog.source_ip,
-                    TrafficLog.source_verification_status,
-                    TrafficLog.request_path,
-                ).where(TrafficLog.id == recommendation.trigger_traffic_log_id)
-            )
-        ).one_or_none()
-        if (
-            source_record is None
-            or source_record.source_verification_status != "VERIFIED"
-            or canonicalize_waf_source_ip(source_record.source_ip) != canonical_ip
-            or source_record.request_path != protected_path
-        ):
-            return WafMutationResult(
-                "SOURCE_INELIGIBLE", recommendation_id, revision, bool(changed)
-            )
-        if expires_at <= now:
-            return WafMutationResult(
-                "EXPIRED_CANDIDATE", recommendation_id, revision, bool(changed)
-            )
-
-        existing = await self.session.scalar(
-            select(WafEffectiveStateRow).where(
-                WafEffectiveStateRow.recommendation_id == recommendation_id
-            )
-        )
-        if existing is not None:
-            return WafMutationResult(
-                "DUPLICATE_WITH_CLEANUP" if changed else "DUPLICATE",
-                recommendation_id,
-                revision,
-                bool(changed),
-            )
-
-        owner = await self.session.scalar(
-            select(WafEffectiveStateRow)
-            .where(
-                WafEffectiveStateRow.status == WafLifecycle.ACTIVE,
-                WafEffectiveStateRow.source_ip == canonical_ip,
-                WafEffectiveStateRow.protected_path == protected_path,
-            )
-            .with_for_update()
-        )
-        if owner is not None and expires_at <= owner.expires_at:
-            return WafMutationResult(
-                "SHORTER_OR_EQUAL_WITH_CLEANUP" if changed else "SHORTER_OR_EQUAL",
-                recommendation_id,
-                revision,
-                bool(changed),
-            )
-
-        active_count = await self.session.scalar(
-            select(func.count())
-            .select_from(WafEffectiveStateRow)
-            .where(WafEffectiveStateRow.status == WafLifecycle.ACTIVE)
-        )
-        if owner is None and int(active_count or 0) >= capacity:
-            return WafMutationResult(
-                "CAPACITY_REJECTED", recommendation_id, revision, bool(changed)
-            )
-
-        if not changed:
-            revision = control.revision + 1
-            control.revision = revision
-            control.updated_at = now
-        if owner is not None:
-            owner.status = WafLifecycle.SUPERSEDED
-            owner.terminal_at = now
-            owner.revision = revision
-        self.session.add(
-            WafEffectiveStateRow(
-                recommendation_id=recommendation_id,
-                source_ip=canonical_ip,
-                protected_path=protected_path,
-                status=WafLifecycle.ACTIVE,
-                created_at=now,
-                activated_at=now,
-                expires_at=expires_at,
-                revision=revision,
-            )
-        )
-        return WafMutationResult(
-            "SUPERSEDED" if owner is not None else "ACTIVATED",
-            recommendation_id,
-            revision,
-            True,
-        )
-
-    async def record_active(
-        self,
-        *,
-        recommendation_id: int,
-        source_ip: str,
-        protected_path: str,
-        expires_at: datetime,
-        capacity: int = 64,
-    ) -> WafMutationResult:
-        canonical_ip = self._validate_candidate(
-            source_ip=source_ip,
-            protected_path=protected_path,
-            expires_at=expires_at,
-            capacity=capacity,
-        )
-        async with self.session.begin():
-            await self.session.execute(
-                text("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
-            )
-            return await self._record_active_in_transaction(
-                recommendation_id=recommendation_id,
-                canonical_ip=canonical_ip,
-                protected_path=protected_path,
-                expires_at=expires_at,
-                capacity=capacity,
-            )
-
-    async def record_recommendation_and_active(
+    async def record_critical_waf_recommendation(
         self,
         *,
         trigger_traffic_log_id: int,
-        scope: str,
-        enforcement_tier: str,
-        recommended_action: str,
-        enforcement_mode: str,
-        policy_version: str,
-        created_at: datetime,
         recommendation_expires_at: datetime,
-        source_ip: str,
-        protected_path: str,
-        expires_at: datetime,
-        capacity: int = 64,
+        effective_expires_at: datetime,
+        capacity: int = PR7_DEFAULT_CAPACITY,
     ) -> WafMutationResult:
-        canonical_ip = self._validate_candidate(
-            source_ip=source_ip,
-            protected_path=protected_path,
-            expires_at=expires_at,
-            capacity=capacity,
-        )
-        values = {
-            "trigger_traffic_log_id": trigger_traffic_log_id,
-            "scope": scope,
-            "enforcement_tier": enforcement_tier,
-            "recommended_action": recommended_action,
-            "enforcement_mode": enforcement_mode,
-            "policy_version": policy_version,
-            "created_at": created_at,
-            "expires_at": recommendation_expires_at,
-        }
+        """Atomically create and consider one fixed-policy PR7 recommendation.
+
+        Source identity, path, prediction, confidence, status, provenance and
+        recommendation policy are read from authoritative database rows. An
+        existing recommendation is replay-only and is never reconsidered.
+        """
+
+        self._validate_expiry(recommendation_expires_at, "recommendation expiry")
+        self._validate_expiry(effective_expires_at, "effective expiry")
+        self._validate_capacity(capacity)
         dialect_name = self.session.bind.dialect.name if self.session.bind else ""
         insert = postgresql_insert if dialect_name == "postgresql" else sqlite_insert
+
         async with self.session.begin():
             await self.session.execute(
                 text("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
             )
-            await self._lock_control()
+            control = await self._lock_control()
+            now = await self._mutation_now()
+            values = {
+                "trigger_traffic_log_id": trigger_traffic_log_id,
+                "scope": PR7_SCOPE,
+                "enforcement_tier": "CRITICAL",
+                "recommended_action": "WAF_BLOCK",
+                "enforcement_mode": PR7_ENFORCEMENT_MODE,
+                "policy_version": PR7_POLICY_VERSION,
+                "created_at": now,
+                "expires_at": recommendation_expires_at,
+            }
             statement = insert(EnforcementRecommendationRow).values(**values)
             result = await self.session.execute(
                 statement.on_conflict_do_nothing(
@@ -279,6 +138,7 @@ class WafStateRepository:
                 ).returning(EnforcementRecommendationRow.id)
             )
             recommendation_id = result.scalar_one_or_none()
+            inserted_now = recommendation_id is not None
             if recommendation_id is None:
                 recommendation_id = await self.session.scalar(
                     select(EnforcementRecommendationRow.id).where(
@@ -287,13 +147,123 @@ class WafStateRepository:
                     )
                 )
             if recommendation_id is None:
-                raise RuntimeError("recommendation upsert did not return an id")
-            return await self._record_active_in_transaction(
-                recommendation_id=int(recommendation_id),
-                canonical_ip=canonical_ip,
-                protected_path=protected_path,
-                expires_at=expires_at,
-                capacity=capacity,
+                raise RuntimeError("recommendation insert did not return an id")
+
+            cleaned = await self._expire_active(control, now)
+            if not inserted_now:
+                return WafMutationResult(
+                    "DUPLICATE_WITH_CLEANUP" if cleaned else "DUPLICATE",
+                    int(recommendation_id),
+                    control.revision,
+                    cleaned,
+                )
+
+            recommendation = await self.session.scalar(
+                select(EnforcementRecommendationRow).where(
+                    EnforcementRecommendationRow.id == recommendation_id
+                )
+            )
+            traffic = (
+                await self.session.execute(
+                    select(
+                        TrafficLog.status,
+                        TrafficLog.prediction,
+                        TrafficLog.confidence_level,
+                        TrafficLog.request_path,
+                        TrafficLog.source_verification_status,
+                        TrafficLog.source_provenance,
+                        TrafficLog.source_ip,
+                    ).where(TrafficLog.id == trigger_traffic_log_id)
+                )
+            ).one_or_none()
+            if recommendation is None or traffic is None:
+                return WafMutationResult(
+                    "INELIGIBLE", int(recommendation_id), control.revision, cleaned
+                )
+
+            canonical_ip = canonicalize_waf_source_ip(traffic.source_ip)
+            if (
+                traffic.status != "COMPLETED"
+                or traffic.prediction in (None, "Normal")
+                or traffic.confidence_level != "CRITICAL"
+                or traffic.request_path != PR7_PATH
+                or traffic.source_verification_status != "VERIFIED"
+                or traffic.source_provenance != "CLOUDFLARE_CONNECTING_IP"
+                or canonical_ip is None
+                or recommendation.scope != PR7_SCOPE
+                or recommendation.enforcement_tier != "CRITICAL"
+                or recommendation.recommended_action != "WAF_BLOCK"
+                or recommendation.enforcement_mode != PR7_ENFORCEMENT_MODE
+                or recommendation.policy_version != PR7_POLICY_VERSION
+            ):
+                return WafMutationResult(
+                    "INELIGIBLE", int(recommendation_id), control.revision, cleaned
+                )
+            if (
+                effective_expires_at <= now
+                or effective_expires_at > recommendation.expires_at
+            ):
+                return WafMutationResult(
+                    "EXPIRED_CANDIDATE",
+                    int(recommendation_id),
+                    control.revision,
+                    cleaned,
+                )
+
+            owner = await self.session.scalar(
+                select(WafEffectiveStateRow)
+                .where(
+                    WafEffectiveStateRow.status == WafLifecycle.ACTIVE,
+                    WafEffectiveStateRow.source_ip == canonical_ip,
+                    WafEffectiveStateRow.protected_path == PR7_PATH,
+                )
+                .with_for_update()
+            )
+            if owner is not None and effective_expires_at <= owner.expires_at:
+                return WafMutationResult(
+                    "SHORTER_OR_EQUAL",
+                    int(recommendation_id),
+                    control.revision,
+                    cleaned,
+                )
+
+            active_count = await self.session.scalar(
+                select(func.count())
+                .select_from(WafEffectiveStateRow)
+                .where(WafEffectiveStateRow.status == WafLifecycle.ACTIVE)
+            )
+            if owner is None and int(active_count or 0) >= capacity:
+                return WafMutationResult(
+                    "CAPACITY_REJECTED",
+                    int(recommendation_id),
+                    control.revision,
+                    cleaned,
+                )
+
+            revision = control.revision + 1
+            control.revision = revision
+            control.updated_at = now
+            if owner is not None:
+                owner.status = WafLifecycle.SUPERSEDED
+                owner.terminal_at = now
+                owner.revision = revision
+            self.session.add(
+                WafEffectiveStateRow(
+                    recommendation_id=int(recommendation_id),
+                    source_ip=canonical_ip,
+                    protected_path=PR7_PATH,
+                    status=WafLifecycle.ACTIVE,
+                    created_at=now,
+                    activated_at=now,
+                    expires_at=effective_expires_at,
+                    revision=revision,
+                )
+            )
+            return WafMutationResult(
+                "SUPERSEDED" if owner is not None else "ACTIVATED",
+                int(recommendation_id),
+                revision,
+                True,
             )
 
     async def snapshot(self) -> WafSnapshot:
@@ -313,6 +283,8 @@ class WafStateRepository:
                         )
                     )
                 ).scalar_one_or_none()
+                if revision is None:
+                    raise RuntimeError("WAF enforcement state singleton is missing")
                 rows = (
                     await connection.execute(
                         select(
@@ -327,7 +299,7 @@ class WafStateRepository:
                     )
                 ).all()
             return WafSnapshot(
-                revision=int(revision or 0),
+                revision=int(revision),
                 items=[
                     {
                         "entry_id": row.id,

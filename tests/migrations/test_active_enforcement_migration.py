@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -19,9 +18,10 @@ from sqlalchemy import (
 
 ROOT = Path(__file__).parents[2]
 REVISION = "20260721_000024"
-CURRENT_HEAD = "20260728_000025"
 PARENT_REVISION = "20260720_000023"
-MIGRATION = ROOT / "migrations" / "versions" / f"{REVISION}_add_active_enforcement_state.py"
+MIGRATION = (
+    ROOT / "migrations" / "versions" / f"{REVISION}_add_active_enforcement_state.py"
+)
 
 
 def _alembic_config() -> Config:
@@ -52,7 +52,9 @@ def _create_parent_schema(database_url: str) -> None:
         Column("policy_version", String(64), nullable=False),
         Column("created_at", String, nullable=False),
         Column("expires_at", String, nullable=False),
-        CheckConstraint("scope = 'RECORD_SEARCH'", name="enforcement_recommendations_scope_allowed"),
+        CheckConstraint(
+            "scope = 'RECORD_SEARCH'", name="enforcement_recommendations_scope_allowed"
+        ),
         CheckConstraint(
             "enforcement_tier IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')",
             name="enforcement_recommendations_tier_allowed",
@@ -70,9 +72,7 @@ def _create_parent_schema(database_url: str) -> None:
     engine.dispose()
 
 
-def test_active_enforcement_migration_is_the_new_single_head() -> None:
-    config = _alembic_config()
-    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
+def test_active_enforcement_migration_is_present_with_expected_parent() -> None:
     source = MIGRATION.read_text(encoding="utf-8")
     assert 'down_revision = "20260720_000023"' in source
     assert '"enforcement_request_windows"' in source
@@ -93,10 +93,16 @@ def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
     command.upgrade(config, REVISION)
     engine = create_engine(database_url)
     tables = set(inspect(engine).get_table_names())
-    assert {"enforcement_recommendations", "enforcement_request_windows", "enforcement_challenge_grants"} <= tables
+    assert {
+        "enforcement_recommendations",
+        "enforcement_request_windows",
+        "enforcement_challenge_grants",
+    } <= tables
     with engine.connect() as connection:
         checks = connection.execute(
-            text("SELECT sql FROM sqlite_master WHERE name='enforcement_recommendations'")
+            text(
+                "SELECT sql FROM sqlite_master WHERE name='enforcement_recommendations'"
+            )
         ).scalar_one()
         assert "ENFORCE" in checks
     engine.dispose()

@@ -25,10 +25,10 @@
 - Modify: `web_app/infrastructure/database/database.py`
 - Create: `migrations/versions/20260728_000025_add_pr7_effective_waf_state.py`
 
-- [ ] Add failing tests for singleton initialization, exact lifecycle/status constraints, unique recommendation ownership, partial ACTIVE `(source_ip, protected_path)` uniqueness, restricted recommendation deletion, expiry/terminal consistency, and upgrade/downgrade/re-upgrade.
+- [x] Add failing tests for singleton initialization, exact lifecycle/status constraints, unique recommendation ownership, partial ACTIVE `(source_ip, protected_path)` uniqueness, restricted recommendation deletion, expiry/terminal consistency, and upgrade/downgrade/re-upgrade.
 - [x] Add ORM rows for the singleton control state and effective WAF state without changing historical recommendation lifecycle columns.
-- [ ] Implement the additive migration with deterministic revision `0`, bounded fields, named constraints/indexes, and repository security conventions.
-- [ ] Run focused migration tests and static migration inspection.
+- [x] Implement the additive migration with deterministic revision `0`, bounded fields, named constraints/indexes, and repository security conventions.
+- [x] Run focused migration tests and static migration inspection.
 
 ### Task 3: Add canonical domain and wire-contract tests
 
@@ -37,9 +37,9 @@
 - Create: `web_app/presentation/schemas/waf_enforcement.py`
 - Create: `tests/unit/test_pr7_waf_state_contract.py`
 
-- [ ] Test IPv4, IPv6, mapped IPv6, malformed addresses, path bounds, aware datetime formatting, exact lifecycle transitions, canonical item ordering, checksum stability, and logical checksum changes.
-- [ ] Implement typed domain values/results and exact Pydantic snapshot/item models with extra-field rejection.
-- [ ] Implement explicit UTC formatting and canonical checksum serialization using the normative fields and ordering.
+- [x] Test IPv4, IPv6, mapped IPv6, malformed addresses, path bounds, aware datetime formatting, exact lifecycle transitions, canonical item ordering, checksum stability, and logical checksum changes.
+- [x] Implement typed domain values/results and exact Pydantic snapshot/item models with extra-field rejection.
+- [x] Implement explicit UTC formatting and canonical checksum serialization using the normative fields and ordering.
 
 ### Task 4: Add mutation repository/application tests first
 
@@ -48,10 +48,10 @@
 - Create: `web_app/infrastructure/repositories/waf_state_repository.py`
 - Create: `tests/integration/test_pr7_waf_state_postgres.py`
 
-- [ ] Add PostgreSQL tests for first activation, duplicate/no revision, extension, supersession, revocation, terminal non-resurrection, expiry cleanup, capacity finality, lock ordering, lock-wait clock behavior, same-key concurrency, different-key serialization, and injected rollback.
+- [x] Add PostgreSQL tests for first activation, duplicate/no revision, extension, supersession, revocation, terminal non-resurrection, expiry cleanup, capacity finality, lock ordering, lock-wait clock behavior, same-key concurrency, different-key serialization, and injected rollback.
 - [x] Implement transaction-scoped mutation with `READ COMMITTED`, singleton-first lock, PostgreSQL `clock_timestamp()`, atomic recommendation/effective-state changes, one revision per desired-state change, and typed non-activation results/logging.
 - [x] Implement explicit cleanup and revoke paths without physical deletion of traffic/recommendation history.
-- [ ] Run focused PostgreSQL tests; classify environment failures rather than weakening contracts.
+- [x] Run focused PostgreSQL tests; classify environment failures rather than weakening contracts.
 
 ### Task 5: Add repeatable-read snapshot tests and implementation
 
@@ -60,9 +60,9 @@
 - Modify: `web_app/infrastructure/repositories/waf_state_repository.py`
 - Modify: `tests/integration/test_pr7_waf_state_postgres.py`
 
-- [ ] Test `repeatable read` and `read only`, stable revision/entries under concurrent commit, passive expiry stability, and explicit cleanup visibility.
+- [x] Test `repeatable read` and `read only`, stable revision/entries under concurrent commit, passive expiry stability, and explicit cleanup visibility.
 - [x] Configure isolation before transaction begin/autobegin, read revision and all persisted ACTIVE rows from one view, and never wall-clock-filter ACTIVE rows in the snapshot query.
-- [ ] Run the focused snapshot tests.
+- [x] Run the focused snapshot tests.
 
 ### Task 6: Add authenticated snapshot API tests and implementation
 
@@ -73,10 +73,10 @@
 - Create: `tests/unit/test_pr7_waf_snapshot_route.py`
 - Modify: `tests/integration/test_api.py` or the established route fixture.
 
-- [ ] Test disabled 404, missing/wrong bearer 401, valid 200, `Cache-Control: no-store`, safe 503, exact schema, token redaction, and encoded-body ceiling at 1 MiB.
+- [x] Test disabled 404, missing/wrong bearer 401, valid 200, `Cache-Control: no-store`, safe 503, exact schema, token redaction, and encoded-body ceiling at 1 MiB.
 - [ ] Add only the required server-only configuration for controlled-local enablement and `WAF_STATE_SYNC_API_KEY`; preserve existing environment validation.
 - [x] Add thin route wiring with constant-time comparison, typed response, bounded encoded body, safe error handling, and no token/body logging.
-- [ ] Run focused API tests.
+- [x] Run focused API tests.
 
 ### Task 7: Run complete Block 1 validation and review diff
 

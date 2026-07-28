@@ -17,6 +17,15 @@ from web_app.presentation.schemas.waf_enforcement import WafSnapshotResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+NO_STORE = {"Cache-Control": "no-store"}
+
+
+def _snapshot_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail="Snapshot unavailable",
+        headers=NO_STORE,
+    )
 
 
 def verify_waf_state_sync_authorization(request: Request) -> None:
@@ -61,10 +70,10 @@ async def waf_enforcement_snapshot(
             raise ValueError("snapshot exceeds response size limit")
     except ValueError as exc:
         logger.warning("waf_snapshot_failed reason=%s", type(exc).__name__)
-        raise HTTPException(status_code=503, detail="Snapshot unavailable") from None
+        raise _snapshot_unavailable() from None
     except Exception as exc:
         logger.error("waf_snapshot_failed reason=%s", type(exc).__name__)
-        raise HTTPException(status_code=503, detail="Snapshot unavailable") from None
+        raise _snapshot_unavailable() from None
     logger.info(
         "waf_snapshot_served revision=%s entry_count=%s",
         response_model.revision,

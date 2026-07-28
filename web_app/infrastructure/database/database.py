@@ -349,11 +349,15 @@ class WafEffectiveStateRow(Base):
             name="waf_effective_state_terminal_consistency",
         ),
         CheckConstraint(
+            "activated_at IS NOT NULL",
+            name="waf_effective_state_activation_timestamp",
+        ),
+        CheckConstraint(
             "revision >= 0",
             name="waf_effective_state_revision_nonnegative",
         ),
         CheckConstraint(
-            "protected_path LIKE '/%'",
+            "protected_path = '/records/search'",
             name="waf_effective_state_protected_path_allowed",
         ),
         UniqueConstraint("recommendation_id", name="uq_waf_effective_state_recommendation_id"),

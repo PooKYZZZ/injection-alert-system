@@ -297,8 +297,9 @@ Notes:
 - The repository migration head is `20260728_000025`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
-  only confirmed through `20260712_000020`; the source-verification migration
-  is not claimed as hosted until a reviewed deployment proves it. Application
+- Hosted migration state is only confirmed through `20260712_000020`; the
+  source-verification migration is not claimed as hosted until a reviewed
+  deployment proves it. Application
   functions remain purpose-bound and server-only; the restricted break-glass
   function is executable only through `cybertrace_break_glass`, not
   `service_role`.
