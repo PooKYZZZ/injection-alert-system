@@ -478,6 +478,41 @@ def test_cloudflare_mode_persists_direct_evidence_as_unverified(
     assert "authorization" not in caplog.text.lower()
 
 
+def test_cloudflare_payload_without_bridge_audit_marker_cannot_claim_verified(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "transaction_id": "waf-txn-forged-cloudflare",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-txn-forged-cloudflare",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.json()["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert lookup.json()["source_verification_status"] == "UNVERIFIED"
+
+
 def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio

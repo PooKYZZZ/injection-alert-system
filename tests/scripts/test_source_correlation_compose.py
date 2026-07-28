@@ -10,6 +10,7 @@ BASE_TEST_OVERRIDE = "docker-compose.test.yml"
 DEMO_TEST_OVERRIDE = "docker-compose.demo-target.test.yml"
 SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
 HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
+TARGET_CLOUDFLARE_OVERLAY = "docker-compose.target-cloudflare.yml"
 
 
 def _run_hosted_launcher(env_file: Path) -> subprocess.CompletedProcess[str]:
@@ -32,7 +33,7 @@ def _run_hosted_launcher(env_file: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _compose_config(*files: str, profile: str | None = None) -> dict:
+def _compose_config(*files: str, profile: str | list[str] | None = None) -> dict:
     result = _compose_config_result(*files, profile=profile)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(
@@ -46,8 +47,9 @@ def _compose_config(*files: str, profile: str | None = None) -> dict:
 
 def _compose_config_result(
     *files: str,
-    profile: str | None = None,
+    profile: str | list[str] | None = None,
     hosted_peer: str | None = "172.30.20.2/32",
+    token_file: str = "C:/Users/REDACTED/CyberTrace-Secrets/cloudflared-target.token",
 ) -> subprocess.CompletedProcess[str]:
     command = ["docker", "compose"]
     rendered_files = [*files, BASE_TEST_OVERRIDE]
@@ -58,7 +60,9 @@ def _compose_config_result(
     for file in rendered_files:
         command.extend(["-f", file])
     if profile is not None:
-        command.extend(["--profile", profile])
+        profiles = [profile] if isinstance(profile, str) else profile
+        for selected_profile in profiles:
+            command.extend(["--profile", selected_profile])
     command.extend(["config", "--format", "json"])
     env = os.environ.copy()
     env.update(
@@ -67,6 +71,7 @@ def _compose_config_result(
             "WAF_INGEST_API_KEY": "compose-test-waf-key-not-a-runtime-secret",
             "SOURCE_TEST_API_SECRET_KEY": "compose-test-internal-key",
             "SOURCE_TEST_WAF_INGEST_API_KEY": "compose-test-waf-key",
+            "CLOUDFLARED_TARGET_TOKEN_FILE": token_file,
         }
     )
     if hosted_peer is None:
@@ -178,6 +183,9 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
     ] == "unverified"
+    assert config["services"]["backend"]["environment"][
+        "WAF_SOURCE_VERIFICATION_MODE"
+    ] == "unverified"
 
 
 def test_hosted_compose_fails_clearly_without_trusted_peer() -> None:
@@ -242,6 +250,60 @@ def test_hosted_launcher_rejects_broad_or_verified_configuration(
     assert "narrow" in broad_result.stderr.lower()
     assert verified_result.returncode != 0
     assert "unverified" in verified_result.stderr.lower()
+
+
+def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> None:
+    token_path = tmp_path / "cloudflared-target.token"
+    token_path.write_text("token-must-not-render\n", encoding="utf-8")
+    result = _compose_config_result(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        TARGET_CLOUDFLARE_OVERLAY,
+        profile=["demo-target", "target-cloudflare"],
+        token_file=str(token_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    config = json.loads(result.stdout)
+    rendered = json.dumps(config)
+    assert "token-must-not-render" not in rendered
+    assert "--token-file" in " ".join(
+        config["services"]["cloudflared"]["command"]
+    )
+    assert "ports" not in config["services"]["demo-target-modsecurity"]
+    assert config["services"]["cloudflared"]["networks"]["target_waf_ingress"][
+        "ipv4_address"
+    ] == "172.30.20.2"
+    assert config["networks"]["target_waf_ingress"]["internal"] is True
+    shared = {
+        name
+        for name, service in config["services"].items()
+        if "target_waf_ingress" in service.get("networks", {})
+    }
+    assert shared == {
+        "cloudflared",
+        "demo-target-modsecurity",
+    }
+    egress_users = {
+        name
+        for name, service in config["services"].items()
+        if "target_cloudflare_egress" in service.get("networks", {})
+    }
+    assert egress_users == {"cloudflared"}
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "SET_REAL_IP_FROM"
+    ] == "172.30.20.2/32"
+
+
+def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
+    template = (
+        ROOT / "config" / "modsecurity" / "target-cloudflare-realip.conf.template"
+    ).read_text(encoding="utf-8")
+    assert "172.30.20.2/32" in template
+    assert "0.0.0.0/0" not in template
+    assert "10.0.0.0/8" not in template
+    assert "172.16.0.0/12" not in template
+    assert "192.168.0.0/16" not in template
 
 
 def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None:

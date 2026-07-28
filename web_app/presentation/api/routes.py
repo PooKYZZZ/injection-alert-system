@@ -37,6 +37,10 @@ from web_app.application.inference_queue import (
     InferenceQueueFullError,
     InferenceQueueService,
 )
+from web_app.application.source_verification import (
+    WAF_AUDIT_EVIDENCE_HEADER,
+    assign_server_source_provenance,
+)
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
     TriageInProgressError,
@@ -54,6 +58,7 @@ from web_app.application.update_alert_triage_use_case import (
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.enforcement import EnforcementMode, EnforcementScope
+from web_app.domain.source_address import SourceProvenance
 from web_app.infrastructure.database import get_db
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
     EnforcementRecommendationRepository,
@@ -229,6 +234,20 @@ async def ingest_waf_event(
     ),
 ):
     settings = get_settings()
+    source_provenance = assign_server_source_provenance(
+        requested_provenance=payload.source_provenance,
+        source_ip=payload.source_ip,
+        cf_connecting_ip_matches_client_ip=(
+            payload.cf_connecting_ip_matches_client_ip
+        ),
+        mode=settings.waf_source_verification_mode,
+        audit_evidence_header=request.headers.get(WAF_AUDIT_EVIDENCE_HEADER),
+    )
+    cf_connecting_ip_matches_client_ip = (
+        payload.cf_connecting_ip_matches_client_ip
+        if source_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
+        else None
+    )
     use_case = WafIngestUseCase(
         classifier=model_service,
         repository=repository,
@@ -258,10 +277,8 @@ async def ingest_waf_event(
                 timestamp=payload.timestamp,
                 ingest_source=payload.ingest_source,
                 source_ip=payload.source_ip,
-                source_provenance=payload.source_provenance,
-                cf_connecting_ip_matches_client_ip=(
-                    payload.cf_connecting_ip_matches_client_ip
-                ),
+                source_provenance=source_provenance,
+                cf_connecting_ip_matches_client_ip=cf_connecting_ip_matches_client_ip,
                 request_method=payload.request_method,
                 request_path=payload.request_path,
                 query_string=payload.query_string,

@@ -12,6 +12,28 @@ VerificationMode: TypeAlias = Literal[
     "cloudflare_tunnel",
 ]
 
+WAF_AUDIT_EVIDENCE_HEADER = "X-CyberTrace-WAF-Audit"
+
+
+def assign_server_source_provenance(
+    *,
+    requested_provenance: SourceProvenance,
+    source_ip: str | None,
+    cf_connecting_ip_matches_client_ip: bool | None,
+    mode: VerificationMode,
+    audit_evidence_header: str | None,
+) -> SourceProvenance:
+    """Assign trusted provenance only for marked ModSecurity audit evidence."""
+    if (
+        mode == "cloudflare_tunnel"
+        and requested_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
+        and source_ip is not None
+        and cf_connecting_ip_matches_client_ip is True
+        and audit_evidence_header == "modsecurity"
+    ):
+        return SourceProvenance.CLOUDFLARE_CONNECTING_IP
+    return SourceProvenance.DIRECT_REMOTE_ADDR
+
 
 def derive_source_verification_status(
     *,

@@ -207,6 +207,58 @@ def test_cloudflare_mode_compares_header_case_insensitively():
     assert normalized["cf_connecting_ip_matches_client_ip"] is True
 
 
+def test_cloudflare_audit_post_marks_only_modsecurity_audit_evidence(monkeypatch):
+    posted = {}
+
+    def fake_post_event(
+        payload, *, endpoint, api_secret, timeout, audit_evidence=False
+    ):
+        posted["payload"] = payload
+        posted["audit_evidence"] = audit_evidence
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", fake_post_event)
+    result = waf_audit_bridge.run_bridge(
+        input_stream=StringIO(
+            '{"transaction":{"unique_id":"tx-audit","client_ip":"203.0.113.7",'
+            '"request":{"method":"GET","uri":"/"}}}\n'
+        ),
+        endpoint="http://backend/api/internal/waf-events",
+        api_secret="test-key",
+        timeout=1,
+        max_retries=0,
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result == (1, 1, 0)
+    assert posted["audit_evidence"] is True
+
+
+def test_generic_cloudflare_payload_does_not_mark_audit_evidence(monkeypatch):
+    posted = {}
+
+    def fake_post_event(
+        payload, *, endpoint, api_secret, timeout, audit_evidence=False
+    ):
+        posted["audit_evidence"] = audit_evidence
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", fake_post_event)
+    result = waf_audit_bridge.run_bridge(
+        input_stream=StringIO(
+            '{"source_ip":"203.0.113.7","request_path":"/"}\n'
+        ),
+        endpoint="http://backend/api/internal/waf-events",
+        api_secret="test-key",
+        timeout=1,
+        max_retries=0,
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result == (1, 1, 0)
+    assert posted["audit_evidence"] is False
+
+
 def test_cloudflare_mode_records_false_only_when_both_addresses_are_valid():
     mismatch = normalize_event(
         {

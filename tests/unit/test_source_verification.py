@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from web_app.application.source_verification import (
+    assign_server_source_provenance,
     derive_source_verification_status,
 )
 from web_app.domain.source_address import (
@@ -77,6 +78,50 @@ def test_derive_source_verification_status(
             provenance=provenance,
             cf_connecting_ip_matches_client_ip=matches,
             mode=mode,
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    "header, requested, match, expected",
+    [
+        (
+            "modsecurity",
+            SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+            True,
+            SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+        ),
+        (
+            None,
+            SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+            True,
+            SourceProvenance.DIRECT_REMOTE_ADDR,
+        ),
+        (
+            "modsecurity",
+            SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+            False,
+            SourceProvenance.DIRECT_REMOTE_ADDR,
+        ),
+        (
+            "modsecurity",
+            SourceProvenance.DIRECT_REMOTE_ADDR,
+            None,
+            SourceProvenance.DIRECT_REMOTE_ADDR,
+        ),
+    ],
+)
+def test_server_assigns_cloudflare_provenance_only_from_marked_audit_evidence(
+    header, requested, match, expected
+) -> None:
+    assert (
+        assign_server_source_provenance(
+            requested_provenance=requested,
+            source_ip="203.0.113.7",
+            cf_connecting_ip_matches_client_ip=match,
+            mode="cloudflare_tunnel",
+            audit_evidence_header=header,
         )
         is expected
     )

@@ -1,12 +1,25 @@
 # Trusted Source Correlation Evidence
 
 **Status:** PR #84 code, controlled packet-path proof, hosted source-correlation
-proof, and remote CI passed; hosted identity verification remains Partial
-**Observed:** 2026-07-19
+proof, and remote CI passed; existing hosted identity verification remains
+Partial and the target-only ingress-isolation prerequisite is repository-ready
+but not manually cut over
+**Observed:** 2026-07-28
 
 This document separates repository and local-runtime evidence from hosted
 Cloudflare facts that have not yet been proved. Until every hosted prerequisite
 is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
+
+The controlled proof confirmed the current trust gap:
+
+```text
+localhost process -> 127.0.0.1:8089 -> CF-Connecting-IP: 203.0.113.77
+-> ModSecurity transaction.client_ip: 203.0.113.77
+```
+
+The observed `172.18.0.1/32` peer is the general Windows-host-to-Docker
+gateway, not an authenticated `cloudflared` identity. It must not be used to
+enable `cloudflare_tunnel` verification in the existing topology.
 
 ## Baseline
 
@@ -69,6 +82,7 @@ is verified, `WAF_SOURCE_VERIFICATION_MODE` remains `unverified`.
 |---|---|---|---|---|
 | Technical WAF | `modsecurity`, `bridge`, `backend` | `0.0.0.0:8088 -> modsecurity:8080`; backend is exposed only inside Compose | Compose `default` | `unverified` |
 | Realistic demo target | `demo-target-modsecurity`, `demo-target-bridge`, `demo-portal`, `backend` | `0.0.0.0:8089 -> demo-target-modsecurity:8080`; portal and backend are internal-only | Compose `default` | `unverified` |
+| Target-only Cloudflare prerequisite | `cloudflared`, `demo-target-modsecurity`, `demo-target-bridge`, `demo-portal`, `backend` | No host port for `demo-target-modsecurity`; ingress is only `cloudflared` | Dedicated internal WAF ingress plus egress; WAF retains private application network | `unverified` until manual proof |
 
 At baseline the base WAF pair had no profile. The implementation now puts both
 services behind `technical-waf`, so the demo-target merge no longer includes
@@ -150,6 +164,32 @@ enabling hosted `cloudflare_tunnel` verification. Hosted mode must remain
 `unverified` until the Pseudo IPv4 decision, Worker header behavior,
 direct-origin isolation, and immediate tunnel-side peer are independently
 confirmed.
+
+## Target-only isolation prerequisite
+
+`docker-compose.target-cloudflare.yml` is a separate target-specific overlay.
+It pins `cloudflare/cloudflared:2026.7.1` to digest
+`sha256:188bb03589a32affed3cf4d0590565ffe67b78866e6b5582574afab2b705bafe`,
+uses the read-only external secret `CLOUDFLARED_TARGET_TOKEN_FILE`, and runs
+the metrics readiness endpoint on port `20241`. The WAF ingress network is
+`internal: true`, uses `172.30.20.0/28`, and assigns `172.30.20.2` to
+cloudflared. The only rendered `set_real_ip_from` value is `172.30.20.2/32`;
+broad private ranges are not accepted. The bridge remains on the application
+network and audit part `B` remains excluded.
+
+The overlay is a preparation artifact. It does not change the live Dashboard,
+the existing Windows tunnel for `app.cybertracesystems.com`, or the current
+verification mode.
+
+The source-verification correction is server-controlled: the authenticated
+internal route accepts trusted Cloudflare provenance only when the bridge marks
+an event as ModSecurity audit evidence, the payload's canonical source and
+Cloudflare match are valid, and the configured mode is explicitly
+`cloudflare_tunnel`. A generic internal payload cannot self-assign trusted
+provenance or `VERIFIED`; no new database enum value or trusted boolean was
+added. See
+`docs/project-ops/CLOUDFLARE_TARGET_INGRESS_ISOLATION_RUNBOOK.md` for the
+manual proof and rollback.
 
 ## Final Hosted Source-Correlation Evidence
 
