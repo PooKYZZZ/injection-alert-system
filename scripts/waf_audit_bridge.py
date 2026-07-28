@@ -407,6 +407,9 @@ def post_event(
     }
     if audit_evidence:
         headers["X-CyberTrace-WAF-Audit"] = "modsecurity"
+        audit_key = os.getenv("WAF_AUDIT_EVIDENCE_KEY")
+        if audit_key:
+            headers["X-CyberTrace-WAF-Audit-Key"] = audit_key
     request = urllib.request.Request(
         endpoint,
         data=data,

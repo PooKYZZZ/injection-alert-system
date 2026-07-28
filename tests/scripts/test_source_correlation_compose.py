@@ -69,6 +69,7 @@ def _compose_config_result(
         {
             "COMPOSE_DISABLE_ENV_FILE": "1",
             "WAF_INGEST_API_KEY": "compose-test-waf-key-not-a-runtime-secret",
+            "WAF_AUDIT_EVIDENCE_KEY": "compose-test-audit-evidence-key",
             "SOURCE_TEST_API_SECRET_KEY": "compose-test-internal-key",
             "SOURCE_TEST_WAF_INGEST_API_KEY": "compose-test-waf-key",
             "CLOUDFLARED_TARGET_TOKEN_FILE": token_file,
@@ -290,6 +291,13 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
     assert config["services"]["demo-target-modsecurity"]["networks"][
         "target_waf_ingress"
     ]["ipv4_address"] == "172.30.20.3"
+    assert set(config["services"]["demo-target-modsecurity"]["networks"]) == {
+        "target_application",
+        "target_waf_ingress",
+    }
+    assert set(config["services"]["demo-portal"]["networks"]) == {
+        "target_application",
+    }
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"

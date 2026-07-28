@@ -87,7 +87,7 @@ def test_derive_source_verification_status(
     "header, requested, match, expected",
     [
         (
-            "modsecurity",
+            "authenticated",
             SourceProvenance.CLOUDFLARE_CONNECTING_IP,
             True,
             SourceProvenance.CLOUDFLARE_CONNECTING_IP,
@@ -124,4 +124,17 @@ def test_server_assigns_cloudflare_provenance_only_from_marked_audit_evidence(
             audit_evidence_header=header,
         )
         is expected
+    )
+
+
+def test_caller_controlled_modsecurity_marker_is_not_authenticated() -> None:
+    assert (
+        assign_server_source_provenance(
+            requested_provenance=SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+            source_ip="203.0.113.7",
+            cf_connecting_ip_matches_client_ip=True,
+            mode="cloudflare_tunnel",
+            audit_evidence_header="modsecurity",
+        )
+        is SourceProvenance.DIRECT_REMOTE_ADDR
     )

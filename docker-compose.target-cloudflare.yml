@@ -1,6 +1,7 @@
 services:
   backend:
     environment:
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
       WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}
       CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
       CLOUDFLARE_TARGET_VERIFIED_PROOF: ${CLOUDFLARE_TARGET_VERIFIED_PROOF:-false}
@@ -8,6 +9,7 @@ services:
   demo-target-bridge:
     environment:
       WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
 
   cloudflared:
     image: cloudflare/cloudflared@sha256:188bb03589a32affed3cf4d0590565ffe67b78866e6b5582574afab2b705bafe
@@ -33,12 +35,12 @@ services:
         ipv4_address: 172.30.20.2
     healthcheck:
       test:
-        - CMD
-        - cloudflared
-        - tunnel
-        - ready
-        - --metrics
-        - 127.0.0.1:20241
+        - "CMD"
+        - "cloudflared"
+        - "tunnel"
+        - "ready"
+        - "--metrics"
+        - "127.0.0.1:20241"
       interval: 5s
       timeout: 3s
       retries: 12
@@ -53,16 +55,22 @@ services:
       SET_REAL_IP_FROM: 172.30.20.2/32
     volumes:
       - ./config/modsecurity/target-cloudflare-realip.conf.template:/etc/nginx/templates/conf.d/realip.conf.template:ro
-    networks:
-      default: {}
+    networks: !override
+      target_application: {}
       target_waf_ingress:
         ipv4_address: 172.30.20.3
+
+  demo-portal:
+    networks:
+      target_application: {}
 
 secrets:
   cloudflared_target_token:
     file: ${CLOUDFLARED_TARGET_TOKEN_FILE:?Set CLOUDFLARED_TARGET_TOKEN_FILE to a token file outside the repository}
 
 networks:
+  target_application:
+    internal: true
   target_cloudflare_egress:
     internal: false
   target_waf_ingress:

@@ -69,6 +69,7 @@ services:
       - demo-target
     environment:
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:-}
       WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
     command:
       [

@@ -15,6 +15,7 @@ Dependency rule:
 """
 
 import asyncio
+import hmac
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -234,6 +235,17 @@ async def ingest_waf_event(
     ),
 ):
     settings = get_settings()
+    audit_key = request.headers.get("X-CyberTrace-WAF-Audit-Key")
+    expected_audit_key = settings.waf_audit_evidence_key
+    authenticated_audit_marker = None
+    if (
+        audit_key
+        and expected_audit_key
+        and hmac.compare_digest(audit_key, expected_audit_key)
+        and request.headers.get(WAF_AUDIT_EVIDENCE_HEADER) == "modsecurity"
+    ):
+        authenticated_audit_marker = "authenticated"
+
     source_provenance = assign_server_source_provenance(
         requested_provenance=payload.source_provenance,
         source_ip=payload.source_ip,
@@ -241,7 +253,7 @@ async def ingest_waf_event(
             payload.cf_connecting_ip_matches_client_ip
         ),
         mode=settings.waf_source_verification_mode,
-        audit_evidence_header=request.headers.get(WAF_AUDIT_EVIDENCE_HEADER),
+        audit_evidence_header=authenticated_audit_marker,
     )
     cf_connecting_ip_matches_client_ip = (
         payload.cf_connecting_ip_matches_client_ip

@@ -63,6 +63,7 @@ been independently reviewed, the exact guarded command is:
 $env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"
 $env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"
 $env:WAF_SOURCE_PROVENANCE_MODE = "cloudflare_connecting_ip"
+$env:WAF_AUDIT_EVIDENCE_KEY = "<operator-generated value outside the repository>"
 docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-bridge
 ```
 
@@ -73,6 +74,9 @@ enable PR7 enforcement.
 
 The bridge must be explicitly configured with
 `WAF_SOURCE_PROVENANCE_MODE=cloudflare_connecting_ip` for the verified proof.
+The bridge and backend also share a separately generated
+`WAF_AUDIT_EVIDENCE_KEY`; the ordinary ingest key alone cannot authenticate
+the ModSecurity evidence marker.
 The target overlay defaults this variable to `direct_remote_addr`; the proof
 command above opts into the matching bridge mode only for the temporary proof.
 The 2026-07-28 attempt used the safe default and correctly remained
@@ -120,8 +124,18 @@ values; redact Access and tunnel credentials.
 2. Remove `target.cybertracesystems.com` from the original Windows tunnel.
    Keep `app.cybertracesystems.com -> localhost:3000` there.
 3. Repeat normal, CRS, and correlation checks.
-4. Remove `target-proof.cybertracesystems.com` after final validation.
-5. Keep verification `unverified` until a later explicit authorization.
+4. Before leaving the proof environment, restore the safe runtime configuration
+   and recreate only the backend and bridge:
+
+   ```powershell
+   $env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "false"
+   $env:WAF_SOURCE_VERIFICATION_MODE = "unverified"
+   $env:WAF_SOURCE_PROVENANCE_MODE = "direct_remote_addr"
+   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-bridge
+   ```
+
+5. Remove `target-proof.cybertracesystems.com` after final validation.
+6. Keep verification `unverified` until a later explicit authorization.
 
 ## Rollback
 
@@ -131,7 +145,8 @@ values; redact Access and tunnel credentials.
 3. Stop only the target-only stack:
 
    ```powershell
-   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare down
+   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare stop cloudflared demo-target-bridge demo-target-modsecurity
+   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare rm -f cloudflared demo-target-bridge demo-target-modsecurity
    ```
 
 4. Recreate the original hosted target stack with the existing

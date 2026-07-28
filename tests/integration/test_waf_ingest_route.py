@@ -448,7 +448,10 @@ def test_cloudflare_mode_persists_direct_evidence_as_unverified(
 
     asyncio.run(init_tables())
     settings = routes_module.get_settings().model_copy(
-        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
     )
     monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
     payload = _waf_payload()
@@ -486,7 +489,10 @@ def test_cloudflare_payload_without_bridge_audit_marker_cannot_claim_verified(
 
     asyncio.run(init_tables())
     settings = routes_module.get_settings().model_copy(
-        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
     )
     monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
     payload = _waf_payload()
@@ -521,7 +527,10 @@ def test_marked_cloudflare_audit_evidence_can_verify_server_side(
 
     asyncio.run(init_tables())
     settings = routes_module.get_settings().model_copy(
-        update={"waf_source_verification_mode": "cloudflare_tunnel"}
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
     )
     monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
     payload = _waf_payload()
@@ -539,6 +548,7 @@ def test_marked_cloudflare_audit_evidence_can_verify_server_side(
         headers={
             **WAF_HEADERS,
             "X-CyberTrace-WAF-Audit": "modsecurity",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
         },
     )
 

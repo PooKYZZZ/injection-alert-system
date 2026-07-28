@@ -464,10 +464,18 @@ def test_cloudflare_tunnel_requires_isolated_overlay_and_explicit_proof_switch(
     with pytest.raises(ValueError, match="proof activation"):
         Settings(**base, cloudflare_target_isolation_enabled=True)
 
+    with pytest.raises(ValueError, match="WAF_AUDIT_EVIDENCE_KEY"):
+        Settings(
+            **base,
+            cloudflare_target_isolation_enabled=True,
+            cloudflare_target_verified_proof=True,
+        )
+
     enabled = Settings(
         **base,
         cloudflare_target_isolation_enabled=True,
         cloudflare_target_verified_proof=True,
+        waf_audit_evidence_key="test-audit-evidence-key",
     )
     assert enabled.waf_source_verification_mode == "cloudflare_tunnel"
 

@@ -29,7 +29,7 @@ def assign_server_source_provenance(
         and requested_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
         and source_ip is not None
         and cf_connecting_ip_matches_client_ip is True
-        and audit_evidence_header == "modsecurity"
+        and audit_evidence_header == "authenticated"
     ):
         return SourceProvenance.CLOUDFLARE_CONNECTING_IP
     return SourceProvenance.DIRECT_REMOTE_ADDR

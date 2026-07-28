@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     model_registry_path: str = ""
     api_secret_key: str = ""
     waf_ingest_api_key: str = ""
+    waf_audit_evidence_key: str = ""
     waf_source_verification_mode: Literal[
         "unverified",
         "cloudflare_tunnel",
@@ -210,6 +211,10 @@ class Settings(BaseSettings):
             if not self.cloudflare_target_verified_proof:
                 raise ValueError(
                     "cloudflare_tunnel mode requires explicit proof activation"
+                )
+            if not self.waf_audit_evidence_key.strip():
+                raise ValueError(
+                    "cloudflare_tunnel mode requires WAF_AUDIT_EVIDENCE_KEY"
                 )
         if self.is_production or self.is_staging:
             if not self.api_secret_key:
