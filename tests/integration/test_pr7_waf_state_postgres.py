@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import delete, insert, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -77,6 +77,215 @@ async def _insert_recommendation(
             )
         )
         await session.commit()
+
+
+async def _insert_traffic_log(
+    factory,
+    traffic_log_id: int,
+    *,
+    source_ip: str = "203.0.113.10",
+    request_path: str = "/records/search",
+) -> None:
+    async with factory() as session:
+        await session.execute(
+            insert(TrafficLog).values(
+                id=traffic_log_id,
+                source_ip=source_ip,
+                source_provenance="CLOUDFLARE_CONNECTING_IP",
+                source_verification_status="VERIFIED",
+                request_path=request_path,
+                http_request="GET /records/search HTTP/1.1",
+                created_at=datetime.now(timezone.utc),
+                timestamp=datetime.now(timezone.utc),
+                status="COMPLETED",
+                processing_attempt=0,
+            )
+        )
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_recommendation_and_effective_state_are_one_idempotent_mutation(
+    session_factory,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_traffic_log(session_factory, 10)
+
+    async with session_factory() as session:
+        repository = WafStateRepository(session)
+        first = await repository.record_recommendation_and_active(
+            trigger_traffic_log_id=10,
+            scope="RECORD_SEARCH",
+            enforcement_tier="CRITICAL",
+            recommended_action="WAF_BLOCK",
+            enforcement_mode="SHADOW",
+            policy_version="confidence-waf-enforcement-v1",
+            created_at=now,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            source_ip="::ffff:203.0.113.10",
+            protected_path="/records/search",
+            expires_at=now + timedelta(minutes=5),
+        )
+        second = await repository.record_recommendation_and_active(
+            trigger_traffic_log_id=10,
+            scope="RECORD_SEARCH",
+            enforcement_tier="CRITICAL",
+            recommended_action="WAF_BLOCK",
+            enforcement_mode="SHADOW",
+            policy_version="confidence-waf-enforcement-v1",
+            created_at=now,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            source_ip="203.0.113.10",
+            protected_path="/records/search",
+            expires_at=now + timedelta(minutes=5),
+        )
+        recommendation_count = await session.scalar(
+            select(func.count()).select_from(EnforcementRecommendationRow)
+        )
+
+    assert first.category == "ACTIVATED"
+    assert second.category == "DUPLICATE"
+    assert first.recommendation_id == second.recommendation_id
+    assert recommendation_count == 1
+
+
+@pytest.mark.asyncio
+async def test_capacity_rejection_is_final_for_effective_state_but_keeps_history(
+    session_factory,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_traffic_log(session_factory, 11, source_ip="203.0.113.11")
+    await _insert_traffic_log(
+        session_factory,
+        12,
+        source_ip="203.0.113.12",
+        request_path="/other",
+    )
+
+    async with session_factory() as session:
+        repository = WafStateRepository(session)
+        first = await repository.record_recommendation_and_active(
+            trigger_traffic_log_id=11,
+            scope="RECORD_SEARCH",
+            enforcement_tier="CRITICAL",
+            recommended_action="WAF_BLOCK",
+            enforcement_mode="SHADOW",
+            policy_version="confidence-waf-enforcement-v1",
+            created_at=now,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            source_ip="203.0.113.11",
+            protected_path="/records/search",
+            expires_at=now + timedelta(minutes=5),
+            capacity=1,
+        )
+        rejected = await repository.record_recommendation_and_active(
+            trigger_traffic_log_id=12,
+            scope="RECORD_SEARCH",
+            enforcement_tier="CRITICAL",
+            recommended_action="WAF_BLOCK",
+            enforcement_mode="SHADOW",
+            policy_version="confidence-waf-enforcement-v1",
+            created_at=now,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            source_ip="203.0.113.12",
+            protected_path="/other",
+            expires_at=now + timedelta(minutes=5),
+            capacity=1,
+        )
+        recommendations = await session.scalar(
+            select(func.count()).select_from(EnforcementRecommendationRow)
+        )
+        effective_rows = await session.scalar(
+            select(func.count()).select_from(WafEffectiveStateRow)
+        )
+
+    assert first.category == "ACTIVATED"
+    assert rejected.category == "CAPACITY_REJECTED"
+    assert rejected.revision == first.revision
+    assert recommendations == 2
+    assert effective_rows == 1
+
+
+@pytest.mark.asyncio
+async def test_atomic_mutation_rolls_back_recommendation_on_state_failure(
+    session_factory,
+    monkeypatch,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_traffic_log(session_factory, 13)
+
+    async def fail_after_recommendation_insert(*args, **kwargs):
+        raise RuntimeError("injected state mutation failure")
+
+    monkeypatch.setattr(
+        WafStateRepository,
+        "_record_active_in_transaction",
+        fail_after_recommendation_insert,
+    )
+    async with session_factory() as session:
+        with pytest.raises(RuntimeError, match="injected state mutation failure"):
+            await WafStateRepository(session).record_recommendation_and_active(
+                trigger_traffic_log_id=13,
+                scope="RECORD_SEARCH",
+                enforcement_tier="CRITICAL",
+                recommended_action="WAF_BLOCK",
+                enforcement_mode="SHADOW",
+                policy_version="confidence-waf-enforcement-v1",
+                created_at=now,
+                recommendation_expires_at=now + timedelta(minutes=10),
+                source_ip="203.0.113.10",
+                protected_path="/records/search",
+                expires_at=now + timedelta(minutes=5),
+            )
+
+    async with session_factory() as session:
+        recommendation_count = await session.scalar(
+            select(func.count()).select_from(EnforcementRecommendationRow)
+        )
+    assert recommendation_count == 0
+
+
+@pytest.mark.asyncio
+async def test_same_key_concurrency_has_one_active_owner_and_one_revision(
+    session_factory,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_traffic_log(session_factory, 14)
+    await _insert_traffic_log(session_factory, 15)
+
+    async def activate(traffic_log_id: int):
+        async with session_factory() as session:
+            return await WafStateRepository(session).record_recommendation_and_active(
+                trigger_traffic_log_id=traffic_log_id,
+                scope="RECORD_SEARCH",
+                enforcement_tier="CRITICAL",
+                recommended_action="WAF_BLOCK",
+                enforcement_mode="SHADOW",
+                policy_version="confidence-waf-enforcement-v1",
+                created_at=now,
+                recommendation_expires_at=now + timedelta(minutes=10),
+                source_ip="203.0.113.10",
+                protected_path="/records/search",
+                expires_at=now + timedelta(minutes=5),
+            )
+
+    results = await asyncio.gather(activate(14), activate(15))
+    categories = {result.category for result in results}
+    async with session_factory() as session:
+        active_count = await session.scalar(
+            select(func.count())
+            .select_from(WafEffectiveStateRow)
+            .where(WafEffectiveStateRow.status == "ACTIVE")
+        )
+        revision = await session.scalar(
+            select(WafEnforcementStateRow.revision).where(
+                WafEnforcementStateRow.id == 1
+            )
+        )
+
+    assert categories == {"ACTIVATED", "SHORTER_OR_EQUAL"}
+    assert active_count == 1
+    assert revision == 1
 
 
 @pytest.mark.asyncio
