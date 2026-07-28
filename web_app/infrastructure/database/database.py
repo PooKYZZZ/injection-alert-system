@@ -1,21 +1,22 @@
-from datetime import datetime
 from typing import AsyncGenerator
 
 from sqlalchemy import (
+    JSON,
+    BigInteger,
     CheckConstraint,
     Column,
     DateTime,
     Float,
     ForeignKey,
-    Integer,
     Index,
-    JSON,
+    Integer,
     MetaData,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 
@@ -313,6 +314,77 @@ class EnforcementChallengeGrantRow(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class WafEnforcementStateRow(Base):
+    """Singleton revision for the desired PR7 WAF state."""
+
+    __tablename__ = "waf_enforcement_state"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="waf_enforcement_state_singleton_id"),
+        CheckConstraint("revision >= 0", name="waf_enforcement_state_revision_nonnegative"),
+    )
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    revision = Column(BigInteger, nullable=False, server_default="0")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class WafEffectiveStateRow(Base):
+    """Revisioned effective-state provenance consumed by the future synchronizer."""
+
+    __tablename__ = "waf_effective_state"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('ACTIVE', 'SUPERSEDED', 'REVOKED', 'EXPIRED')",
+            name="waf_effective_state_status_allowed",
+        ),
+        CheckConstraint(
+            "expires_at > created_at",
+            name="waf_effective_state_expiry_after_creation",
+        ),
+        CheckConstraint(
+            "(status = 'ACTIVE' AND terminal_at IS NULL) OR "
+            "(status <> 'ACTIVE' AND terminal_at IS NOT NULL)",
+            name="waf_effective_state_terminal_consistency",
+        ),
+        CheckConstraint(
+            "activated_at IS NOT NULL",
+            name="waf_effective_state_activation_timestamp",
+        ),
+        CheckConstraint(
+            "revision >= 0",
+            name="waf_effective_state_revision_nonnegative",
+        ),
+        CheckConstraint(
+            "protected_path = '/records/search'",
+            name="waf_effective_state_protected_path_allowed",
+        ),
+        UniqueConstraint("recommendation_id", name="uq_waf_effective_state_recommendation_id"),
+        Index(
+            "uq_waf_effective_state_active_source_path",
+            "source_ip",
+            "protected_path",
+            unique=True,
+            postgresql_where=text("status = 'ACTIVE'"),
+            sqlite_where=text("status = 'ACTIVE'"),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    recommendation_id = Column(
+        Integer,
+        ForeignKey("enforcement_recommendations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_ip = Column(String(45), nullable=False)
+    protected_path = Column(String(512), nullable=False)
+    status = Column(String(16), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+    terminal_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revision = Column(BigInteger, nullable=False)
 
 
 async def init_db():

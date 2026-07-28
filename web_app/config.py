@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     api_secret_key: str = ""
     waf_ingest_api_key: str = ""
     waf_audit_evidence_key: str = ""
+    waf_state_sync_enabled: bool = False
+    waf_state_sync_api_key: str = ""
     waf_source_verification_mode: Literal[
         "unverified",
         "cloudflare_tunnel",
@@ -137,6 +139,11 @@ class Settings(BaseSettings):
                     "ENFORCEMENT_CHECK_API_KEY must differ from API_SECRET_KEY "
                     "and WAF_INGEST_API_KEY"
                 )
+        if self.waf_state_sync_enabled:
+            if self.app_env not in {"development", "testing"}:
+                raise ValueError("WAF state sync is restricted to controlled local mode")
+            if len(self.waf_state_sync_api_key.strip()) < 32:
+                raise ValueError("WAF_STATE_SYNC_API_KEY must be at least 32 characters")
         if self.enforcement_allow_unverified_source_for_tests and (
             self.is_production or self.is_staging
         ):

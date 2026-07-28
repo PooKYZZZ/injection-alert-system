@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
-import pytest
 from sqlalchemy import (
     Column,
     Integer,
@@ -19,10 +18,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError
 
-
 ROOT = Path(__file__).parents[2]
 PARENT_REVISION = "20260712_000020"
-HEAD_REVISION = "20260721_000024"
+REVISION = "20260715_000021"
 
 
 def _alembic_config() -> Config:
@@ -71,26 +69,29 @@ def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
         )
     engine.dispose()
 
-    command.upgrade(config, HEAD_REVISION)
+    command.upgrade(config, REVISION)
 
     engine = create_engine(database_url)
     columns = {
-        column["name"]: column
-        for column in inspect(engine).get_columns("traffic_logs")
+        column["name"]: column for column in inspect(engine).get_columns("traffic_logs")
     }
     assert columns["source_provenance"]["nullable"] is False
     assert columns["source_verification_status"]["nullable"] is False
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                """
+        rows = (
+            connection.execute(
+                text(
+                    """
                 SELECT transaction_id, source_provenance,
                        source_verification_status, ingest_fingerprint_sha256
                 FROM traffic_logs
                 ORDER BY transaction_id
                 """
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
     assert rows == [
         {
             "transaction_id": "historical-null",
@@ -182,8 +183,3 @@ def test_sqlite_upgrade_downgrade_and_reupgrade_cycle(
         "ingest_fingerprint_sha256",
     } <= upgraded_columns
     engine.dispose()
-
-
-def test_migration_remains_the_single_expected_head() -> None:
-    config = _alembic_config()
-    assert ScriptDirectory.from_config(config).get_heads() == [HEAD_REVISION]

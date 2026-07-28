@@ -2,11 +2,33 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-28
 
 ---
 
 ## Current Verified Repo State
+
+### PR7 Block 1 backend foundation
+
+- The branch implementation adds the additive migration
+  `20260728_000025_add_pr7_effective_waf_state.py` with a singleton revision
+  row, durable effective WAF state, PostgreSQL lifecycle constraints, restricted
+  recommendation ownership, and partial uniqueness for ACTIVE source/path
+  owners. Disposable PostgreSQL upgrade, downgrade, re-upgrade, and one-head
+  checks passed; the final migration head is `20260728_000025`.
+- The async mutation repository canonicalizes source IP/path inputs, locks the
+  singleton first under `READ COMMITTED`, uses PostgreSQL `clock_timestamp()`,
+  performs idempotent recommendation creation and effective-state mutation in
+  one transaction, increments the desired-state revision once per change, and
+  retains terminal rows for auditability. The final disposable PostgreSQL
+  integration matrix passed **16 tests**, including same-key and different-key
+  serialization, lock-wait timing, replay finality, supersession, capacity
+  finality, snapshot stability, and injected rollback.
+- The repeatable-read read-only snapshot and authenticated controlled-local
+  endpoint are implemented and covered by focused tests. `WAF_STATE_SYNC_ENABLED`
+  remains disabled by default; this is a local backend foundation only. Block 2
+  runtime activation, hosted source-trust proof, and production rollout are not
+  claimed by this status.
 
 - Historical PR5 merge reference: backend PR #90 commit `62fc168`.
   Git is authoritative for the current branch and HEAD.

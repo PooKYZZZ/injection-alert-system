@@ -23,12 +23,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from web_app.application.alert_events import AlertEventBroadcaster
 from web_app.application.inference_queue import InferenceQueueService
 from web_app.config import get_settings
-from web_app.infrastructure.database import init_db
 from web_app.infrastructure.database import database as db_module
+from web_app.infrastructure.database import init_db
 from web_app.notifications.outbox import PostgresNotificationOutboxRepository
 from web_app.notifications.service import NotificationWorkerService
 from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
+from web_app.presentation.api.waf_enforcement_router import (
+    router as waf_enforcement_router,
+)
 from web_app.presentation.exception_handlers import unhandled_exception_handler
 from web_app.presentation.health import health_check
 from web_app.presentation.middleware.body_limit import BodySizeLimitMiddleware
@@ -184,6 +187,7 @@ def create_app() -> FastAPI:
     # --- API router ---
     app.include_router(api_router, prefix="/api")
     app.include_router(triage_router, prefix="/api")
+    app.include_router(waf_enforcement_router, prefix="/api")
 
     # --- Canonical health endpoint (single source of truth) ---
     app.add_api_route("/health", health_check, response_model=HealthResponse)
