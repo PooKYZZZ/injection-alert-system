@@ -43,8 +43,11 @@ def utc_millis(value: datetime) -> int:
 def utc_millis_string(value: datetime) -> str:
     """Return the one wire timestamp representation used by PR7."""
 
-    normalized = value.astimezone(timezone.utc).replace(
-        microsecond=(value.astimezone(timezone.utc).microsecond // 1000) * 1000
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("UTC-aware datetime required")
+    utc_value = value.astimezone(timezone.utc)
+    normalized = utc_value.replace(
+        microsecond=(utc_value.microsecond // 1000) * 1000
     )
     return normalized.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 

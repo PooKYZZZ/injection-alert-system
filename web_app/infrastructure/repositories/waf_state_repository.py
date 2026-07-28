@@ -71,9 +71,7 @@ class WafStateRepository:
         if not 1 <= capacity <= 512:
             raise ValueError("capacity must be between 1 and 512")
 
-    async def _expire_active(
-        self, control: WafEnforcementStateRow, now: datetime
-    ) -> bool:
+    async def _expire_active(self, now: datetime) -> list[WafEffectiveStateRow]:
         rows = await self.session.scalars(
             select(WafEffectiveStateRow)
             .where(
@@ -83,16 +81,25 @@ class WafStateRepository:
             .with_for_update()
         )
         changed = list(rows)
-        if not changed:
-            return False
-        revision = control.revision + 1
-        control.revision = revision
-        control.updated_at = now
         for row in changed:
             row.status = WafLifecycle.EXPIRED
             row.terminal_at = now
+        return changed
+
+    @staticmethod
+    def _finalize_revision(
+        control: WafEnforcementStateRow,
+        now: datetime,
+        changed_rows: list[WafEffectiveStateRow],
+    ) -> int:
+        if not changed_rows:
+            return control.revision
+        revision = control.revision + 1
+        control.revision = revision
+        control.updated_at = now
+        for row in changed_rows:
             row.revision = revision
-        return True
+        return revision
 
     async def record_critical_waf_recommendation(
         self,
@@ -149,12 +156,14 @@ class WafStateRepository:
             if recommendation_id is None:
                 raise RuntimeError("recommendation insert did not return an id")
 
-            cleaned = await self._expire_active(control, now)
+            changed_rows = await self._expire_active(now)
+            cleaned = bool(changed_rows)
             if not inserted_now:
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
                     "DUPLICATE_WITH_CLEANUP" if cleaned else "DUPLICATE",
                     int(recommendation_id),
-                    control.revision,
+                    revision,
                     cleaned,
                 )
 
@@ -177,8 +186,9 @@ class WafStateRepository:
                 )
             ).one_or_none()
             if recommendation is None or traffic is None:
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
-                    "INELIGIBLE", int(recommendation_id), control.revision, cleaned
+                    "INELIGIBLE", int(recommendation_id), revision, cleaned
                 )
 
             canonical_ip = canonicalize_waf_source_ip(traffic.source_ip)
@@ -196,17 +206,19 @@ class WafStateRepository:
                 or recommendation.enforcement_mode != PR7_ENFORCEMENT_MODE
                 or recommendation.policy_version != PR7_POLICY_VERSION
             ):
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
-                    "INELIGIBLE", int(recommendation_id), control.revision, cleaned
+                    "INELIGIBLE", int(recommendation_id), revision, cleaned
                 )
             if (
                 effective_expires_at <= now
                 or effective_expires_at > recommendation.expires_at
             ):
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
                     "EXPIRED_CANDIDATE",
                     int(recommendation_id),
-                    control.revision,
+                    revision,
                     cleaned,
                 )
 
@@ -220,10 +232,11 @@ class WafStateRepository:
                 .with_for_update()
             )
             if owner is not None and effective_expires_at <= owner.expires_at:
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
                     "SHORTER_OR_EQUAL",
                     int(recommendation_id),
-                    control.revision,
+                    revision,
                     cleaned,
                 )
 
@@ -233,32 +246,33 @@ class WafStateRepository:
                 .where(WafEffectiveStateRow.status == WafLifecycle.ACTIVE)
             )
             if owner is None and int(active_count or 0) >= capacity:
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
                     "CAPACITY_REJECTED",
                     int(recommendation_id),
-                    control.revision,
+                    revision,
                     cleaned,
                 )
 
-            revision = control.revision + 1
-            control.revision = revision
-            control.updated_at = now
             if owner is not None:
                 owner.status = WafLifecycle.SUPERSEDED
                 owner.terminal_at = now
-                owner.revision = revision
-            self.session.add(
-                WafEffectiveStateRow(
-                    recommendation_id=int(recommendation_id),
-                    source_ip=canonical_ip,
-                    protected_path=PR7_PATH,
-                    status=WafLifecycle.ACTIVE,
-                    created_at=now,
-                    activated_at=now,
-                    expires_at=effective_expires_at,
-                    revision=revision,
-                )
+                changed_rows.append(owner)
+            new_state = WafEffectiveStateRow(
+                recommendation_id=int(recommendation_id),
+                source_ip=canonical_ip,
+                protected_path=PR7_PATH,
+                status=WafLifecycle.ACTIVE,
+                created_at=now,
+                activated_at=now,
+                expires_at=effective_expires_at,
+                revision=control.revision,
             )
+            self.session.add(
+                new_state
+            )
+            changed_rows.append(new_state)
+            revision = self._finalize_revision(control, now, changed_rows)
             return WafMutationResult(
                 "SUPERSEDED" if owner is not None else "ACTIVATED",
                 int(recommendation_id),

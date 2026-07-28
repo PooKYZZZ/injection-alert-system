@@ -647,6 +647,67 @@ async def test_longer_candidate_supersedes_active_owner(session_factory) -> None
 
 
 @pytest.mark.asyncio
+async def test_expiry_cleanup_and_activation_share_one_revision(
+    session_factory,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_recommendation(
+        session_factory,
+        1,
+        expires_at=now + timedelta(minutes=10),
+        source_ip="203.0.113.11",
+    )
+    await _insert_recommendation(
+        session_factory,
+        2,
+        expires_at=now + timedelta(minutes=10),
+        source_ip="203.0.113.12",
+    )
+    async with session_factory() as session:
+        owner = await WafStateRepository(
+            session
+        ).record_critical_waf_recommendation(
+            trigger_traffic_log_id=1,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            effective_expires_at=now + timedelta(minutes=5),
+        )
+    assert owner.category == "ACTIVATED"
+
+    async with session_factory() as session:
+        await session.execute(
+            update(WafEffectiveStateRow)
+            .where(WafEffectiveStateRow.recommendation_id == owner.recommendation_id)
+            .values(expires_at=now - timedelta(seconds=1))
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        activated = await WafStateRepository(
+            session
+        ).record_critical_waf_recommendation(
+            trigger_traffic_log_id=2,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            effective_expires_at=now + timedelta(minutes=5),
+        )
+        rows = list(
+            await session.scalars(
+                select(WafEffectiveStateRow).order_by(WafEffectiveStateRow.id)
+            )
+        )
+        revision = await session.scalar(
+            select(WafEnforcementStateRow.revision).where(
+                WafEnforcementStateRow.id == 1
+            )
+        )
+
+    assert activated.category == "ACTIVATED"
+    assert activated.revision == 2
+    assert revision == 2
+    assert {row.revision for row in rows} == {2}
+    assert [row.status for row in rows] == [WafLifecycle.EXPIRED, WafLifecycle.ACTIVE]
+
+
+@pytest.mark.asyncio
 async def test_revoke_active_removes_snapshot_owner_and_terminal_revoke_is_noop(
     session_factory,
 ) -> None:

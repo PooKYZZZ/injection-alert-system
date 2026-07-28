@@ -24,6 +24,8 @@ def test_waf_ip_canonicalization_collapses_mapped_ipv6() -> None:
 def test_utc_millis_rejects_naive_datetime() -> None:
     with pytest.raises(ValueError, match="UTC-aware datetime required"):
         utc_millis(datetime(2026, 7, 28, 0, 0, 0))
+    with pytest.raises(ValueError, match="UTC-aware datetime required"):
+        utc_millis_string(datetime(2026, 7, 28, 0, 0, 0))
     assert utc_millis(datetime(2026, 7, 28, tzinfo=timezone.utc)) == 1785196800000
     assert (
         utc_millis_string(datetime(2026, 7, 28, 0, 0, 0, 123456, timezone.utc))
