@@ -1,9 +1,8 @@
 # Trusted Source Correlation Evidence
 
-**Status:** PR #84 code, controlled packet-path proof, hosted source-correlation
-proof, and remote CI passed; existing hosted identity verification remains
-Partial and the target-only ingress-isolation prerequisite is repository-ready
-but not manually cut over
+**Status:** Temporary target-only isolated Cloudflare source-identity proof
+passed for T0; final hostname cutover was not performed, normal runtime was
+restored to `unverified`, and PR7 enforcement remains disabled.
 **Observed:** 2026-07-28
 
 This document separates repository and local-runtime evidence from hosted

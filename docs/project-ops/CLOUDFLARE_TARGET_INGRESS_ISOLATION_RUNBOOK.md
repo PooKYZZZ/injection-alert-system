@@ -1,7 +1,8 @@
 # Cloudflare Target Ingress Isolation Runbook
 
-**Status:** Repository preparation only. Manual Dashboard and network proof
-remain required. Keep `WAF_SOURCE_VERIFICATION_MODE=unverified`.
+**Status:** Temporary target-only T0 source-identity proof completed. Final
+hostname cutover and continuous verified mode remain unauthorized; restore and
+keep normal runtime at `WAF_SOURCE_VERIFICATION_MODE=unverified`.
 
 ## Preconditions
 
