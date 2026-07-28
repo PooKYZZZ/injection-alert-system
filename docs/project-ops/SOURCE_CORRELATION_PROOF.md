@@ -196,6 +196,35 @@ deployment observations while the application remained `unverified`:
 | Direct origin | `127.0.0.1:8089` had no listener; HTTP status `000` |
 | Cross-container forged header | `CF-Connecting-IP: 203.0.113.77` was not accepted; client remained `172.18.0.3` |
 
+### Guarded verified-mode attempt (2026-07-28)
+
+The temporary guarded proof was attempted through the authenticated
+`target-proof.cybertracesystems.com` session with marker
+`CF-VERIFIED-PROOF-1785213573826`.
+
+The request reached the isolated WAF and produced the strongest transaction
+correlation available:
+
+- transaction ID: `178521357517.137695`
+- request path: `/records/search`
+- response: HTTP 403
+- ModSecurity `transaction.client_ip`: `112.201.128.235`
+- ModSecurity messages: 2 (`942100`, `949110`)
+- persisted source IP: `112.201.128.235`
+- persisted action/status: `BLOCKED` / `COMPLETED`
+
+The verified-mode gate did **not** pass. The persisted row was
+`DIRECT_REMOTE_ADDR` / `UNVERIFIED`, not
+`CLOUDFLARE_CONNECTING_IP` / `VERIFIED`. The backend had the guarded
+`cloudflare_tunnel` mode, but the bridge container retained its safe default
+`WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr`. This is an activation
+configuration gap, not evidence authorizing Cloudflare verification.
+
+The runtime was restored to `WAF_SOURCE_VERIFICATION_MODE=unverified` after
+the attempt. Cloudflared, ModSecurity, and the backend were healthy; the WAF
+host port remained absent; and PR7 enforcement remained disabled. No verified
+transaction was recorded as proof, and PR #94 remains Draft.
+
 The persisted rows for the observed transactions were:
 
 | Transaction | Source IP | Provenance | Verification | Ingest source | Path | Action / result |

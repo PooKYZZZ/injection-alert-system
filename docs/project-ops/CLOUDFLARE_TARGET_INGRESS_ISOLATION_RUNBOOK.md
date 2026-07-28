@@ -70,6 +70,13 @@ and this explicit proof switch is true. The switch is rejected in
 `unverified` mode and the default remains `unverified`. This command does not
 enable PR7 enforcement.
 
+The bridge must also be explicitly configured for the matching
+`cloudflare_connecting_ip` provenance mode before a future verified proof.
+The 2026-07-28 guarded attempt stopped at the evidence gate because the bridge
+still had its safe default `WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr`; the
+resulting row correctly remained `DIRECT_REMOTE_ADDR` / `UNVERIFIED`. Do not
+treat that attempt as a verified proof or enable enforcement based on it.
+
 ## Temporary proof sequence
 
 Run every request first from home Wi-Fi and then from mobile data. Record only
