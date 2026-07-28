@@ -225,6 +225,43 @@ the attempt. Cloudflared, ModSecurity, and the backend were healthy; the WAF
 host port remained absent; and PR7 enforcement remained disabled. No verified
 transaction was recorded as proof, and PR #94 remains Draft.
 
+### Corrected guarded verified-mode proof (2026-07-28)
+
+After configuring the target bridge explicitly with
+`WAF_SOURCE_PROVENANCE_MODE=cloudflare_connecting_ip` and rebuilding only the
+bridge image, the guarded proof was repeated with marker
+`CF-VERIFIED-PROOF-1785214180455`.
+
+The proof passed:
+
+- transaction ID: `178521418071.169644`
+- request path: `/records/search`
+- response: HTTP 403
+- immediate tunnel peer: `172.30.20.2`
+- NGINX effective visitor address: `112.201.128.235`
+- ModSecurity `transaction.client_ip`: `112.201.128.235`
+- persisted source IP: `112.201.128.235`
+- ModSecurity messages: 2 (`942100`, `949110`)
+- bridge delivery: HTTP 200; `cf_connecting_ip_matches_client_ip=true`
+- persisted provenance/status: `CLOUDFLARE_CONNECTING_IP` / `VERIFIED`
+- persisted action/status: `BLOCKED` / `COMPLETED`
+- ingest source: `modsec_audit_bridge`
+
+The equality requirement held:
+
+```text
+persisted source_ip
+== ModSecurity transaction.client_ip
+== NGINX effective remote_addr
+== Cloudflare visitor identity
+== 112.201.128.235
+```
+
+The safe runtime was restored immediately afterward: backend verification is
+`unverified`, bridge provenance is `direct_remote_addr`, cloudflared and
+ModSecurity are healthy, the direct origin returned HTTP `000`, the WAF host
+port is absent, and PR7 enforcement remains disabled.
+
 The persisted rows for the observed transactions were:
 
 | Transaction | Source IP | Provenance | Verification | Ingest source | Path | Action / result |

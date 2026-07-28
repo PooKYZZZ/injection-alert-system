@@ -5,6 +5,10 @@ services:
       CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
       CLOUDFLARE_TARGET_VERIFIED_PROOF: ${CLOUDFLARE_TARGET_VERIFIED_PROOF:-false}
 
+  demo-target-bridge:
+    environment:
+      WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
+
   cloudflared:
     image: cloudflare/cloudflared@sha256:188bb03589a32affed3cf4d0590565ffe67b78866e6b5582574afab2b705bafe
     profiles:

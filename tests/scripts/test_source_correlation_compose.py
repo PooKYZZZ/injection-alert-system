@@ -302,6 +302,9 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
     assert config["services"]["backend"]["environment"][
         "CLOUDFLARE_TARGET_VERIFIED_PROOF"
     ] == "false"
+    assert config["services"]["demo-target-bridge"]["environment"][
+        "WAF_SOURCE_PROVENANCE_MODE"
+    ] == "direct_remote_addr"
     healthcheck = config["services"]["cloudflared"]["healthcheck"]
     assert healthcheck["test"] == [
         "CMD",

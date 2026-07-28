@@ -62,7 +62,8 @@ been independently reviewed, the exact guarded command is:
 ```powershell
 $env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"
 $env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend
+$env:WAF_SOURCE_PROVENANCE_MODE = "cloudflare_connecting_ip"
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-bridge
 ```
 
 The backend rejects `cloudflare_tunnel` unless the isolation overlay is active
@@ -70,12 +71,12 @@ and this explicit proof switch is true. The switch is rejected in
 `unverified` mode and the default remains `unverified`. This command does not
 enable PR7 enforcement.
 
-The bridge must also be explicitly configured for the matching
-`cloudflare_connecting_ip` provenance mode before a future verified proof.
-The 2026-07-28 guarded attempt stopped at the evidence gate because the bridge
-still had its safe default `WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr`; the
-resulting row correctly remained `DIRECT_REMOTE_ADDR` / `UNVERIFIED`. Do not
-treat that attempt as a verified proof or enable enforcement based on it.
+The bridge must be explicitly configured with
+`WAF_SOURCE_PROVENANCE_MODE=cloudflare_connecting_ip` for the verified proof.
+The target overlay defaults this variable to `direct_remote_addr`; the proof
+command above opts into the matching bridge mode only for the temporary proof.
+The 2026-07-28 attempt used the safe default and correctly remained
+`DIRECT_REMOTE_ADDR` / `UNVERIFIED`.
 
 ## Temporary proof sequence
 
