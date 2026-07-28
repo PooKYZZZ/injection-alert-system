@@ -8,8 +8,8 @@ rationale, and experimental evidence cannot contradict each other.
 3. [T0 feasibility evidence template](PR7_T0_EVIDENCE.md)
 
 Only the implementation contract defines required implementation behaviour.
-The synthesis corrections are incorporated, but T0 continuation remains
-**BLOCKED pending final process-topology proof**. T1 and
-later work remain blocked until every foundational T0 gate passes, with only
+The synthesis corrections are incorporated and T0 is **complete: GO**. E28
+proves controlled source identity and E29 proves process topology and
+persistence. T1 and later work require separate authorization, with only
 the documented disabled-runtime-IPv6 exception. These documents do not
 authorize local `ENFORCE` or hosted, staging, or production activation.

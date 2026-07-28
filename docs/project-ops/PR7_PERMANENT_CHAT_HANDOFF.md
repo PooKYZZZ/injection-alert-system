@@ -18,7 +18,7 @@ Upload this file and the following four current PR7 documents into the permanent
 Use this handoff as context and history. The documents have the following authority:
 
 1. **`PR7_IMPLEMENTATION_SPEC.md` is normative.** It defines required implementation behaviour.
-2. **`PR7_T0_EVIDENCE.md` records runtime feasibility.** At handoff preparation its status was `NOT_RUN`; see the superseding T0 note below for the current continuation status.
+2. **`PR7_T0_EVIDENCE.md` records runtime feasibility.** At handoff preparation its status was `NOT_RUN`; the superseding T0 note below records the current `T0: GO` status.
 3. **`PR7_DESIGN_RATIONALE.md` explains why decisions were made.** It does not override the implementation contract.
 4. **`PR7_CONTROLLED_CRITICAL_WAF_ENFORCEMENT_PLAN.md` is only the document index and status boundary.**
 5. **This handoff preserves conversation history and unresolved review notes.** If it conflicts with a deliberately updated normative specification, the latest implementation specification wins.
@@ -30,6 +30,9 @@ enforcement remains deferred. The target-only isolated Cloudflare topology was
 proved solely as a controlled T0 source-identity harness. This supersedes only
 the earlier source-identity `NOT_RUN` status; it does not authorize final
 hostname cutover, verified normal runtime, local PR7 `ENFORCE`, or T1 and later.
+E28 and E29 now close the source-identity and process-topology gates; T0 is
+complete with decision `GO`. The real PID-1 wrapper and real synchroniser remain
+deferred to T4B. T1 has not started and requires separate authorization.
 
 ---
 
@@ -1157,7 +1160,8 @@ Keep the development cap at 64 until measurements are recorded. Do not invent pa
 
 # 22. T0 feasibility requirements
 
-T0 is currently `NOT_RUN`.
+At handoff preparation T0 was `NOT_RUN`; superseding evidence E28 and E29
+now establish `T0: GO`.
 
 T0 is evidence gathering, not implementation. No schema, migration, renderer, runtime synchroniser, Compose activation, or local ENFORCE may be assumed complete because a plan exists.
 
@@ -1561,13 +1565,16 @@ The current T0 evidence template is approximately 143 lines and includes:
 - Startup cases.
 - Process topology and persistence boundary.
 
-T0 remains `NOT_RUN`.
+Historical run instructions above are superseded by E28 and E29; the current
+T0 result is `GO`.
 
 ---
 
 # 28. Final outstanding document corrections
 
-These are the residual corrections identified in the latest review. They should be applied before the corresponding stage.
+These were the residual corrections identified in the earlier review. They are
+historical context; E28 and E29 have since closed T0. T1 remains unstarted and
+requires separate authorization.
 
 ## 28.1 Required before T0
 
@@ -1712,7 +1719,7 @@ Read these files completely before responding:
 
 Authority order:
 - PR7_IMPLEMENTATION_SPEC.md is normative.
-- PR7_T0_EVIDENCE.md records actual feasibility and currently remains NOT_RUN.
+- PR7_T0_EVIDENCE.md records actual feasibility; E28 and E29 establish T0 GO.
 - PR7_DESIGN_RATIONALE.md explains decisions.
 - The document index is only navigation/status.
 - The handoff preserves prior review context and outstanding corrections.

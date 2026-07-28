@@ -1,10 +1,11 @@
 # PR7 T0 feasibility evidence
 
-**Status: BLOCKED.** This is a continuation of run
-`PR7-T0-20260727T141647Z`; it does not authorize T1-T6, local `ENFORCE`, or
-hosted activation. The five governing documents were reread completely before
-new probes. Existing credible PASS evidence was retained; unsupported gates
-remain `NOT_RUN`.
+**Status: T0: GO.** E28 closes controlled source identity and E29 closes
+process topology and persistence. Every foundational gate passes, subject only
+to the accepted disabled-runtime-IPv6 exception. This does not authorize T1-T6,
+local `ENFORCE`, or hosted activation; T1 and later require separate approval.
+Earlier failed and `NOT_RUN` observations below are historical or superseded
+by E28/E29.
 
 ## Run identity and safety boundary
 
