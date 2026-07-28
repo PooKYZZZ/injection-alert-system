@@ -183,9 +183,6 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
     ] == "unverified"
-    assert config["services"]["backend"]["environment"][
-        "WAF_SOURCE_VERIFICATION_MODE"
-    ] == "unverified"
 
 
 def test_hosted_compose_fails_clearly_without_trusted_peer() -> None:
@@ -290,6 +287,31 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
         if "target_cloudflare_egress" in service.get("networks", {})
     }
     assert egress_users == {"cloudflared"}
+    assert config["services"]["demo-target-modsecurity"]["networks"][
+        "target_waf_ingress"
+    ]["ipv4_address"] == "172.30.20.3"
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "SET_REAL_IP_FROM"
+    ] == "172.30.20.2/32"
+    assert config["services"]["backend"]["environment"][
+        "WAF_SOURCE_VERIFICATION_MODE"
+    ] == "unverified"
+    assert config["services"]["backend"]["environment"][
+        "CLOUDFLARE_TARGET_ISOLATION_ENABLED"
+    ] == "true"
+    assert config["services"]["backend"]["environment"][
+        "CLOUDFLARE_TARGET_VERIFIED_PROOF"
+    ] == "false"
+    healthcheck = config["services"]["cloudflared"]["healthcheck"]
+    assert healthcheck["test"] == [
+        "CMD",
+        "cloudflared",
+        "tunnel",
+        "ready",
+        "--metrics",
+        "127.0.0.1:20241",
+    ]
+    assert "CMD-SHELL" not in healthcheck["test"]
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"

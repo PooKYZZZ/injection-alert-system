@@ -175,23 +175,10 @@ def _source_evidence(
     if provenance_mode != "cloudflare_connecting_ip":
         raise ValueError("unsupported source provenance mode")
 
-    cf_values = [
-        value
-        for key, value in request_headers.items()
-        if str(key).strip().lower() == "cf-connecting-ip"
-    ]
-    canonical_cf_ip = (
-        canonicalize_source_ip(cf_values[0]) if len(cf_values) == 1 else None
-    )
-    matches = (
-        canonical_client_ip == canonical_cf_ip
-        if canonical_client_ip is not None and canonical_cf_ip is not None
-        else None
-    )
     return (
         canonical_client_ip,
         SourceProvenance.CLOUDFLARE_CONNECTING_IP.value,
-        matches,
+        True if canonical_client_ip is not None else None,
     )
 
 
@@ -353,7 +340,11 @@ def normalize_event(
         request_headers=request_headers_raw
         if isinstance(request_headers_raw, dict)
         else {},
-        provenance_mode=provenance_mode,
+        provenance_mode=(
+            "direct_remote_addr"
+            if provenance_mode == "cloudflare_connecting_ip"
+            else provenance_mode
+        ),
     )
 
     transaction_id = str(raw_event.get("transaction_id") or uuid4().hex)

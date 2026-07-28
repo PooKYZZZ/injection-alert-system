@@ -181,6 +181,37 @@ The overlay is a preparation artifact. It does not change the live Dashboard,
 the existing Windows tunnel for `app.cybertracesystems.com`, or the current
 verification mode.
 
+The live temporary-hostname proof subsequently established the following
+deployment observations while the application remained `unverified`:
+
+| Check | Result |
+|---|---|
+| Temporary hostname | `target-proof.cybertracesystems.com` |
+| Tunnel / connector | `cybertrace-target-docker` / Healthy |
+| Workers in path | None |
+| Pseudo IPv4 | Off |
+| Home visitor / ModSecurity client | `112.201.128.235` / `112.201.128.235` |
+| Mobile visitor / ModSecurity client | `209.35.167.151` / `209.35.167.151` |
+| Home/mobile separation | `112.201.128.235 != 209.35.167.151` |
+| Direct origin | `127.0.0.1:8089` had no listener; HTTP status `000` |
+| Cross-container forged header | `CF-Connecting-IP: 203.0.113.77` was not accepted; client remained `172.18.0.3` |
+
+The persisted rows for the observed transactions were:
+
+| Transaction | Source IP | Provenance | Verification | Ingest source | Path | Action / result |
+|---|---|---|---|---|---|---|
+| `178521095080.454926` | `112.201.128.235` | `DIRECT_REMOTE_ADDR` | `UNVERIFIED` | `modsec_audit_bridge` | `/records/search` | `BLOCKED` / `SQL Injection` |
+| `178521099065.289049` | `172.18.0.3` | `DIRECT_REMOTE_ADDR` | `UNVERIFIED` | `modsec_audit_bridge` | `/records/search` | `BLOCKED` / `SQL Injection` |
+| `178521193186.007519` | `209.35.167.151` | `DIRECT_REMOTE_ADDR` | `UNVERIFIED` | `modsec_audit_bridge` | `/records/search` | `BLOCKED` / `SQL Injection` |
+
+These rows satisfy the present correlation requirement:
+
+```text
+persisted source_ip == ModSecurity transaction.client_ip
+```
+
+They do not authorize verified mode by themselves.
+
 The source-verification correction is server-controlled: the authenticated
 internal route accepts trusted Cloudflare provenance only when the bridge marks
 an event as ModSecurity audit evidence, the payload's canonical source and

@@ -49,6 +49,27 @@ only `cloudflared` and ModSecurity on the internal WAF ingress network, and
 `172.30.20.2/32` as the sole real-IP trust value. Do not retain rendered output
 containing environment-specific paths longer than needed.
 
+The current target overlay defaults to `unverified` and sets
+`CLOUDFLARE_TARGET_ISOLATION_ENABLED=true`. The cloudflared health check uses
+exec form (`CMD cloudflared tunnel ready --metrics 127.0.0.1:20241`) because the
+pinned image has no `/bin/sh`.
+
+## Explicit future verified-mode proof switch
+
+Do not run this during the current preflight. After the temporary proof has
+been independently reviewed, the exact guarded command is:
+
+```powershell
+$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"
+$env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend
+```
+
+The backend rejects `cloudflare_tunnel` unless the isolation overlay is active
+and this explicit proof switch is true. The switch is rejected in
+`unverified` mode and the default remains `unverified`. This command does not
+enable PR7 enforcement.
+
 ## Temporary proof sequence
 
 Run every request first from home Wi-Fi and then from mobile data. Record only
