@@ -68,12 +68,13 @@ Reviewed runtime commit: 4907da5; documentation follows in subsequent sync commi
 | Derived image build | PASS: `pr7-waf-review`, pinned CRS digest retained |
 | Container config/state-seed smoke | PASS: image imports runtime, validates config, and creates empty `selected.conf` |
 | Controlled pinned-image activation | PASS: matching source/path 403 plus PR7-tagged audit record; wrong source/path 204; separate CRS probe 403 |
+| Real backend-to-WAF CRITICAL integration | PASS: disposable PostgreSQL migrations, repository-seeded eligible CRITICAL record, authenticated live snapshot, WAF activation, matching 403, wrong source/path 204, PR7 audit identity, revocation to 204, and restart persistence |
 | Authoritative empty revocation | PASS: revision 11 selected canonical empty and matching source/path returned 204 |
 | Safe restart in OFF mode | PASS: persisted active state was forced to `mode_empty` before synchronization and returned 204 |
 | Maximum-size matrix | PASS: final pinned image validated 0, 1, 64, 128, and 512 candidates; representative first/middle/last rules returned 403 |
 | Docker WAF CI coverage | PASS remotely: `.github/workflows/ci.yml` builds the pinned image and runs the bounded smoke matrix |
 | Container startup with an unavailable backend | PASS: disposable WAF container started against loopback port 9, remained startup-empty, and later OFF restart remained empty |
-| Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | NOT_RUN: external source provenance remains Block 3 |
+| Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | PARTIAL: backend-to-WAF CRITICAL path now PASS in disposable local PostgreSQL; external ingress/source provenance remains Block 3 |
 | GitHub CI overall | PASS: backend, PostgreSQL, migrations, frontend, authentication E2E, secret scan, and PR7 WAF runtime |
 | PostgreSQL CI job | PASS remotely; the local environment was not used as the PostgreSQL proof |
 | Hosted/staging/production enforcement | NOT_RUN and unchanged |
