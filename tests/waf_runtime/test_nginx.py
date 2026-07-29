@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from waf_runtime.nginx import NginxController
 
 
@@ -29,6 +31,7 @@ def test_nginx_controller_uses_bounded_commands(monkeypatch, tmp_path):
     controller = NginxController(
         config_path=tmp_path / "nginx.conf", timeout=2, active_path=active
     )
+    monkeypatch.setattr(controller, "_request_status", lambda *args, **kwargs: 204)
     assert controller.validate_candidate(candidate)
     assert controller.reload_and_confirm()
     assert calls[0][0][:2] == ["nginx", "-t"]
@@ -109,3 +112,35 @@ def test_empty_probe_requires_exact_204(monkeypatch, tmp_path):
         config_path=tmp_path / "nginx.conf", active_path=active
     )
     assert not controller.probe_empty(active)
+
+
+def test_audit_probe_requires_exact_revision_and_recommendation(tmp_path):
+    audit = tmp_path / "audit.jsonl"
+    audit.write_text(
+        '{"marker":"probe-1","tags":["pr7","revision-42",'
+        '"recommendation-123"]}\n',
+        encoding="utf-8",
+    )
+    controller = NginxController(
+        config_path=tmp_path / "nginx.conf",
+        active_path=tmp_path / "selected.conf",
+        audit_log_path=audit,
+    )
+
+    assert controller._audit_contains_all(
+        "probe-1", '"pr7"', '"revision-42"', '"recommendation-123"'
+    )
+    assert not controller._audit_contains_all(
+        "probe-1", '"pr7"', '"revision-41"', '"recommendation-123"'
+    )
+
+
+def test_candidate_tag_parser_rejects_missing_identity(tmp_path):
+    candidate = tmp_path / "candidate.conf"
+    candidate.write_text("tag:'pr7'\n", encoding="ascii")
+    controller = NginxController(
+        config_path=tmp_path / "nginx.conf", active_path=tmp_path / "selected.conf"
+    )
+
+    with pytest.raises(ValueError, match="revision"):
+        controller._candidate_tag(candidate, "revision")

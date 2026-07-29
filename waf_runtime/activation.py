@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import math
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
 from .render import render_snapshot
-from .snapshot import Snapshot
+from .snapshot import Snapshot, _timestamp_epoch
 from .state import CandidateStateStore
 
 
@@ -13,7 +15,11 @@ class NginxActivation(Protocol):
     def validate_candidate(self, path: Path) -> bool: ...
     def reload_and_confirm(self) -> bool: ...
     def probe_candidate(
-        self, candidate: Path, source_ip: str | None = None
+        self,
+        candidate: Path,
+        source_ip: str | None = None,
+        revision: int | None = None,
+        recommendation_id: int | None = None,
     ) -> bool: ...
     def probe_empty(self, candidate: Path) -> bool: ...
 
@@ -46,6 +52,11 @@ class ActivationManager:
                 return self._activate_authoritative_empty(
                     snapshot, previous_metadata
                 )
+            probe_item = self._probe_item(snapshot)
+            if probe_item is None:
+                return self._activate_authoritative_empty(
+                    snapshot, previous_metadata
+                )
             candidate_path = self.store.write_candidate(
                 f"candidate-{snapshot.revision}-{snapshot.state_checksum_sha256[:12]}.conf",
                 candidate.content.encode("ascii"),
@@ -62,7 +73,10 @@ class ActivationManager:
                 self._restore_previous(previous_metadata)
                 raise ActivationError("reload confirmation failed")
             if not self.nginx.probe_candidate(
-                candidate_path, snapshot.items[0]["source_ip"]
+                candidate_path,
+                probe_item["source_ip"],
+                snapshot.revision,
+                probe_item["recommendation_id"],
             ):
                 self._restore_previous(previous_metadata)
                 raise ActivationError("candidate probe failed")
@@ -73,17 +87,15 @@ class ActivationManager:
             return ActivationResult("authoritative")
 
     def deactivate_empty(self, kind: str) -> ActivationResult:
-        previous_metadata = self.store.read_metadata()
         self.store.select_candidate(self.store.canonical_empty_path)
-        if not self.nginx.validate_candidate(self.store.selected_path):
-            self._restore_previous(previous_metadata)
-            raise ActivationError("empty candidate validation failed")
-        if not self.nginx.reload_and_confirm():
-            self._restore_previous(previous_metadata)
-            raise ActivationError("empty candidate reload failed")
-        if not self.nginx.probe_empty(self.store.selected_path):
-            self._restore_previous(previous_metadata)
-            raise ActivationError("empty candidate probe failed")
+        try:
+            self._confirm_empty()
+        except (ActivationError, OSError, ValueError):
+            try:
+                self.store.select_candidate(self.store.canonical_empty_path)
+                self._confirm_empty()
+            except (ActivationError, OSError, ValueError) as second_error:
+                raise RollbackError("empty transition failed") from second_error
         self._write_empty_metadata(kind)
         return ActivationResult(kind)
 
@@ -106,14 +118,14 @@ class ActivationManager:
         self, snapshot: Snapshot, previous_metadata: dict
     ) -> ActivationResult:
         self.store.select_candidate(self.store.canonical_empty_path)
-        if not self.nginx.validate_candidate(self.store.selected_path):
-            raise ActivationError("empty candidate validation failed")
-        if not self.nginx.reload_and_confirm():
-            self._restore_previous(previous_metadata)
-            raise ActivationError("empty candidate reload failed")
-        if not self.nginx.probe_empty(self.store.selected_path):
-            self._restore_previous(previous_metadata)
-            raise ActivationError("empty candidate probe failed")
+        try:
+            self._confirm_empty()
+        except (ActivationError, OSError, ValueError):
+            try:
+                self.store.select_candidate(self.store.canonical_empty_path)
+                self._confirm_empty()
+            except (ActivationError, OSError, ValueError) as second_error:
+                raise RollbackError("empty transition failed") from second_error
         content = self.store.canonical_empty_path.read_bytes()
         self.store.write_metadata(
             self._authoritative_metadata(
@@ -165,3 +177,26 @@ class ActivationManager:
         if metadata.get("selected_kind") == "authoritative":
             return self.nginx.probe_candidate(self.store.selected_path)
         return self.nginx.probe_empty(self.store.selected_path)
+
+    def _confirm_empty(self) -> None:
+        if not self.nginx.validate_candidate(self.store.selected_path):
+            raise ActivationError("empty candidate validation failed")
+        if not self.nginx.reload_and_confirm():
+            raise ActivationError("empty candidate reload failed")
+        if not self.nginx.probe_empty(self.store.selected_path):
+            raise ActivationError("empty candidate probe failed")
+
+    def _probe_item(self, snapshot: Snapshot) -> dict | None:
+        if not snapshot.items:
+            return None
+        latest = max(
+            snapshot.items,
+            key=lambda item: _timestamp_epoch(item["expires_at"]) // 1000 - 1,
+        )
+        cutoff = _timestamp_epoch(latest["expires_at"]) // 1000 - 1
+        required_seconds = max(
+            1, math.ceil(getattr(self.nginx, "timeout", 5.0) * 3)
+        )
+        if cutoff - time.time() < required_seconds:
+            return None
+        return latest

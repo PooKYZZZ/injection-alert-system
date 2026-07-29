@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from waf_runtime.activation import ActivationError, ActivationManager
+from waf_runtime.activation import ActivationError, ActivationManager, RollbackError
 from waf_runtime.snapshot import Snapshot
 from waf_runtime.state import CandidateStateStore
 
@@ -27,7 +27,9 @@ class FakeNginx:
         self.reloaded += 1
         return self.reloads.pop(0) if self.reloads else True
 
-    def probe_candidate(self, candidate, source_ip=None):
+    def probe_candidate(
+        self, candidate, source_ip=None, revision=None, recommendation_id=None
+    ):
         self.probe_sources.append(source_ip)
         return self.probes.pop(0) if self.probes else True
 
@@ -36,15 +38,7 @@ class FakeNginx:
 
 
 def snapshot(revision=4):
-    return Snapshot(
-        1,
-        "confidence-waf-enforcement-v1",
-        revision,
-        "RECORD_SEARCH",
-        "2026-07-29T00:00:00.000Z",
-        "0" * 64,
-        (),
-    )
+    return blocking_snapshot(revision)
 
 
 def blocking_snapshot(revision=4):
@@ -61,9 +55,21 @@ def blocking_snapshot(revision=4):
                 "recommendation_id": revision,
                 "source_ip": "203.0.113.7",
                 "request_path": "/records/search",
-                "expires_at": "2026-07-29T00:00:02.000Z",
+                "expires_at": "2099-07-29T00:00:02.000Z",
             },
         ),
+    )
+
+
+def empty_snapshot(revision=4):
+    return Snapshot(
+        1,
+        "confidence-waf-enforcement-v1",
+        revision,
+        "RECORD_SEARCH",
+        "2026-07-29T00:00:00.000Z",
+        "0" * 64,
+        (),
     )
 
 
@@ -84,7 +90,7 @@ def test_authoritative_empty_revision_clears_previous_block(tmp_path):
     first.activate(blocking_snapshot(10))
 
     second = ActivationManager(store, FakeNginx())
-    result = second.activate(snapshot(11))
+    result = second.activate(empty_snapshot(11))
 
     assert result.selected_kind == "authoritative"
     metadata = store.read_metadata()
@@ -167,3 +173,101 @@ def test_disabled_store_never_activates_nonempty_snapshot(tmp_path):
     manager = ActivationManager(store, FakeNginx())
     result = manager.activate(snapshot())
     assert result.selected_kind == "disabled_empty"
+
+
+def test_disable_retries_empty_without_restoring_previous_candidate(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    ActivationManager(store, FakeNginx()).activate(blocking_snapshot(4))
+    nginx = FakeNginx(reloads=[False, True])
+
+    result = ActivationManager(store, nginx).deactivate_empty("disabled_empty")
+
+    assert result.selected_kind == "disabled_empty"
+    assert store.read_metadata()["selected_kind"] == "disabled_empty"
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
+    assert nginx.reloaded == 2
+
+
+def test_disable_retries_empty_after_probe_failure(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    ActivationManager(store, FakeNginx()).activate(blocking_snapshot(4))
+    nginx = FakeNginx(probes=[False, True], reloads=[True, True])
+
+    result = ActivationManager(store, nginx).deactivate_empty("disabled_empty")
+
+    assert result.selected_kind == "disabled_empty"
+    assert store.read_metadata()["selected_kind"] == "disabled_empty"
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
+
+
+def test_empty_transition_is_fatal_when_empty_cannot_be_confirmed(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    ActivationManager(store, FakeNginx()).activate(blocking_snapshot(4))
+    nginx = FakeNginx(reloads=[False, False])
+
+    with pytest.raises(RollbackError, match="empty transition"):
+        ActivationManager(store, nginx).deactivate_empty("disabled_empty")
+
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
+
+
+def test_probe_uses_latest_unexpired_item_not_first_item(tmp_path, monkeypatch):
+    monkeypatch.setattr("waf_runtime.activation.time.time", lambda: 1000.0)
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx()
+    candidate = Snapshot(
+        1,
+        "confidence-waf-enforcement-v1",
+        8,
+        "RECORD_SEARCH",
+        "1970-01-01T00:00:00.000Z",
+        "8" * 64,
+        (
+            {
+                "entry_id": 1,
+                "recommendation_id": 1,
+                "source_ip": "203.0.113.7",
+                "request_path": "/records/search",
+                "expires_at": "1970-01-01T00:15:00.000Z",
+            },
+            {
+                "entry_id": 2,
+                "recommendation_id": 2,
+                "source_ip": "203.0.113.8",
+                "request_path": "/records/search",
+                "expires_at": "1970-01-01T00:40:00.000Z",
+            },
+        ),
+    )
+
+    ActivationManager(store, nginx).activate(candidate)
+
+    assert nginx.probe_sources == ["203.0.113.8"]
+
+
+def test_all_expired_items_confirm_authoritative_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr("waf_runtime.activation.time.time", lambda: 1000.0)
+    store = CandidateStateStore(tmp_path)
+    candidate = Snapshot(
+        1,
+        "confidence-waf-enforcement-v1",
+        9,
+        "RECORD_SEARCH",
+        "1970-01-01T00:00:00.000Z",
+        "9" * 64,
+        (
+            {
+                "entry_id": 1,
+                "recommendation_id": 1,
+                "source_ip": "203.0.113.7",
+                "request_path": "/records/search",
+                "expires_at": "1970-01-01T00:16:00.000Z",
+            },
+        ),
+    )
+
+    result = ActivationManager(store, FakeNginx()).activate(candidate)
+
+    assert result.selected_kind == "authoritative"
+    assert store.read_metadata()["selected_source_revision"] == 9
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")

@@ -37,7 +37,18 @@ Date: 2026-07-29
 - First boot seeds the persistent selected include before NGINX starts;
   runtime/control configuration uses the fixed snapshot path, a 32-character
   minimum sync key, a loopback-only probe URL, positive finite timeouts, and a
-  pinned `httpx==0.28.1` and `pydantic==2.12.5` dependencies.
+  pinned direct `httpx==0.28.1` runtime dependency; the pinned base image
+  supplies the remaining OS/runtime layers.
+- OFF, disable, and authoritative-empty transitions use empty-only recovery:
+  they retry canonical empty and raise a fatal rollback error if empty cannot
+  be confirmed. Normal non-empty activation retains the previous-then-empty
+  rollback hierarchy.
+- Candidate probes require the exact revision and recommendation tags, choose
+  the latest sufficiently unexpired item as the representative, and retry a
+  fresh positive request while graceful-reload workers drain. The CRS control
+  also requires `attack-sqli` or rule `942100` audit metadata.
+- The PR7 Compose profile starts after the backend container starts rather than
+  requiring backend health, allowing startup-empty/degraded recovery proof.
 - Local-only derived WAF image based on the pinned CRS digest; the original
   `/docker-entrypoint.sh` and ordered bootstrap scripts remain the NGINX child
   bootstrap. Static CRS includes remain independent from the dynamic include.
@@ -58,8 +69,10 @@ Date: 2026-07-29
 | Controlled pinned-image activation | PASS: matching source/path 403 plus PR7-tagged audit record; wrong source/path 204; separate CRS probe 403 |
 | Authoritative empty revocation | PASS: revision 11 selected canonical empty and matching source/path returned 204 |
 | Safe restart in OFF mode | PASS: persisted active state was forced to `mode_empty` before synchronization and returned 204 |
-| Container startup with a standalone unresolved backend | NOT_RUN as a success; expected failure because NGINX resolves upstream names at startup |
-| Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | NOT_RUN |
+| Maximum-size matrix | PASS: final pinned image validated 0, 1, 64, 128, and 512 candidates; representative first/middle/last rules returned 403 |
+| Docker WAF CI coverage | IMPLEMENTED: `.github/workflows/ci.yml` now builds the pinned image and runs the same bounded smoke matrix in GitHub Actions |
+| Container startup with an unavailable backend | PASS: disposable WAF container started against loopback port 9, remained startup-empty, and later OFF restart remained empty |
+| Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | NOT_RUN: external source provenance remains Block 3 |
 | PostgreSQL CI job | NOT_RUN locally |
 | Hosted/staging/production enforcement | NOT_RUN and unchanged |
 
@@ -73,6 +86,6 @@ validation were removed after each probe.
 
 The controlled proof above is disposable loopback/image evidence, not source-
 provenance evidence from the repository backend. Full Compose backend/source-
-correlation, expiry-boundary, and PR6 regression matrices remain separate
-proof obligations. This document does not convert local runtime or image-build
-checks into hosted or production readiness.
+correlation, and PR6 regression matrices remain separate proof obligations.
+This document does not convert local runtime or image-build checks into hosted
+or production readiness.

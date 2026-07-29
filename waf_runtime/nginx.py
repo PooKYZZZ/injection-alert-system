@@ -68,33 +68,72 @@ class NginxController:
         deadline = time.monotonic() + self.timeout
         while time.monotonic() < deadline:
             after = self.worker_generation()
-            if after and after != before:
+            if (
+                after
+                and after != before
+                and self._request_status(
+                    "/__pr7/ready", None, uuid.uuid4().hex
+                )
+                == 204
+            ):
+                time.sleep(min(1.0, self.timeout / 2))
                 return True
             time.sleep(0.05)
         return False
 
-    def probe_candidate(self, candidate: Path, source_ip: str | None = None) -> bool:
+    def probe_candidate(
+        self,
+        candidate: Path,
+        source_ip: str | None = None,
+        revision: int | None = None,
+        recommendation_id: int | None = None,
+    ) -> bool:
         if not self._is_selected(candidate):
             return False
         source_ip = source_ip or self._candidate_sources(candidate)[0]
-        marker = uuid.uuid4().hex
-        if self._request_status(
-            "/records/search", source_ip, marker
-        ) != 403:
-            return False
-        if not self._audit_contains(marker, '"pr7"'):
+        if self.audit_log_path is not None:
+            revision = revision or self._candidate_tag(candidate, "revision")
+            recommendation_id = recommendation_id or self._candidate_tag(
+                candidate, "recommendation"
+            )
+        marker = self._probe_positive_candidate(
+            source_ip, revision, recommendation_id
+        )
+        if marker is None:
             return False
         wrong_source = self._wrong_source(self._candidate_sources(candidate))
         if self._request_status("/records/search", wrong_source, marker) != 204:
             return False
         if self._request_status("/records/not-search", source_ip, marker) != 204:
             return False
-        return self._request_status(
+        if self._request_status(
             "/records/search?query=%27%20UNION%20SELECT%20null--",
             wrong_source,
             marker,
             base_url=self.crs_probe_url,
-        ) == 403
+        ) != 403:
+            return False
+        return self._audit_contains_any(marker, '"attack-sqli"', '"942100"')
+
+    def _probe_positive_candidate(
+        self,
+        source_ip: str,
+        revision: int | None,
+        recommendation_id: int | None,
+    ) -> str | None:
+        deadline = time.monotonic() + self.timeout
+        while time.monotonic() < deadline:
+            marker = uuid.uuid4().hex
+            if self._request_status("/records/search", source_ip, marker) == 403:
+                if self._audit_contains_all(
+                    marker,
+                    '"pr7"',
+                    f'"revision-{revision}"',
+                    f'"recommendation-{recommendation_id}"',
+                ):
+                    return marker
+            time.sleep(0.05)
+        return None
 
     def probe_empty(self, candidate: Path) -> bool:
         if not self._is_selected(candidate):
@@ -134,7 +173,7 @@ class NginxController:
         except httpx.HTTPError:
             return None
 
-    def _audit_contains(self, marker: str, token: str) -> bool:
+    def _audit_contains_all(self, marker: str, *tokens: str) -> bool:
         if self.audit_log_path is None:
             return True
         deadline = time.monotonic() + self.timeout
@@ -143,12 +182,35 @@ class NginxController:
                 for line in self.audit_log_path.read_text(
                     encoding="utf-8", errors="replace"
                 ).splitlines()[-100:]:
-                    if marker in line and token in line:
+                    if marker in line and all(token in line for token in tokens):
                         return True
             except OSError:
                 pass
             time.sleep(0.05)
         return False
+
+    def _audit_contains_any(self, marker: str, *tokens: str) -> bool:
+        if self.audit_log_path is None:
+            return True
+        deadline = time.monotonic() + self.timeout
+        while time.monotonic() < deadline:
+            try:
+                for line in self.audit_log_path.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines()[-100:]:
+                    if marker in line and any(token in line for token in tokens):
+                        return True
+            except OSError:
+                pass
+            time.sleep(0.05)
+        return False
+
+    @staticmethod
+    def _candidate_tag(candidate: Path, name: str) -> str:
+        match = re.search(rf"tag:'{name}-([0-9]+)'", candidate.read_text())
+        if not match:
+            raise ValueError(f"candidate has no {name} tag")
+        return match.group(1)
 
     @staticmethod
     def _candidate_sources(candidate: Path) -> list[str]:
