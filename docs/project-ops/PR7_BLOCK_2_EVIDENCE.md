@@ -17,6 +17,16 @@ Date: 2026-07-29
 - Synchronous reconciliation, OFF/DRY_RUN/ENFORCE mode semantics, disable /
   enable / status control, redacted JSON events, and minimal PID-1
   supervision.
+- Candidate activation now validates the actual selected include with the
+  pinned NGINX configuration, confirms a new worker generation, performs a
+  fresh local HTTP probe, and reloads/probes the previous confirmed state on
+  every failed or inconclusive post-selection activation. Selected metadata
+  is authoritative only after confirmation; lower revisions and equal-revision
+  checksum conflicts are ignored/rejected without mutation.
+- First boot seeds the persistent selected include before NGINX starts;
+  runtime/control configuration uses the fixed snapshot path, a 32-character
+  minimum sync key, a loopback-only probe URL, positive finite timeouts, and a
+  pinned `httpx==0.28.1` dependency.
 - Local-only derived WAF image based on the pinned CRS digest; the original
   `/docker-entrypoint.sh` and ordered bootstrap scripts remain the NGINX child
   bootstrap. Static CRS includes remain independent from the dynamic include.
@@ -25,14 +35,16 @@ Date: 2026-07-29
 
 | Check | Result |
 | --- | --- |
-| New runtime tests | PASS: 23 passed |
-| Existing unit + migration suites | PASS: 684 passed |
+| New runtime tests | PASS: 35 passed |
+| PR7 snapshot/contract plus runtime tests | PASS: 54 passed |
+| Existing unit, migration, and script suites | PASS: 796 passed |
+| Full repository pytest | NOT_GREEN: 854 passed, 53 skipped, 8 failed, 66 errors; local integration startup is blocked by the required notification worker/PostgreSQL fixture (`OperationalError`) |
 | Ruff on runtime/tests | PASS |
 | Python compileall | PASS |
 | Compose config | PASS |
-| Derived image build | PASS |
-| Empty candidate through pinned NGINX/ModSecurity/CRS `nginx -t` | PASS |
-| Non-empty generated candidate through pinned stack `nginx -t` | PASS |
+| Derived image build | PASS: `pr7-waf-review`, pinned CRS digest retained |
+| Container config/state-seed smoke | PASS: image imports runtime, validates config, and creates empty `selected.conf` |
+| Empty/non-empty candidate through pinned NGINX/ModSecurity/CRS `nginx -t` | NOT_RUN in this remediation pass |
 | Container startup with a standalone unresolved backend | NOT_RUN as a success; expected failure because NGINX resolves upstream names at startup |
 | Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | NOT_RUN |
 | PostgreSQL CI job | NOT_RUN locally |
@@ -48,5 +60,8 @@ validation were removed after each probe.
 
 The full controlled E2E remains a separate proof obligation: it requires the
 repository backend, a healthy snapshot-enabled local environment, a reachable
-upstream, and source-correlation fixtures. This document does not convert
-the pure/runtime or pinned syntax checks into hosted or production readiness.
+upstream, and source-correlation fixtures. The fresh local probe is not source-
+provenance evidence by itself; the candidate-specific HTTP/source/path,
+no-upstream, expiry, revocation, static-CRS, and PR6 regression matrix remains
+`NOT_RUN`. This document does not convert pure/runtime or image-build checks
+into hosted or production readiness.

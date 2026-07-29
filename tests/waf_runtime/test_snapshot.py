@@ -73,6 +73,11 @@ def test_rejects_proxy_redirect_and_non_json() -> None:
         _client(non_json).fetch()
 
 
+def test_rejects_unapproved_snapshot_path() -> None:
+    with pytest.raises(ValueError, match="endpoint"):
+        SnapshotClient("http://backend:8000/api/other", "canary-token")
+
+
 def test_rejects_body_that_crosses_one_mib() -> None:
     def handler(request):
         return httpx.Response(

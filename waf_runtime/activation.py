@@ -13,9 +13,14 @@ class NginxActivation(Protocol):
     def validate_candidate(self, path: Path) -> bool: ...
     def reload_and_confirm(self) -> bool: ...
     def probe_candidate(self, candidate: Path) -> bool: ...
+    def probe_empty(self, candidate: Path) -> bool: ...
 
 
 class ActivationError(RuntimeError):
+    pass
+
+
+class RollbackError(ActivationError):
     pass
 
 
@@ -32,22 +37,26 @@ class ActivationManager:
     def activate(self, snapshot: Snapshot) -> ActivationResult:
         with self.store.locked():
             if self.store.is_disabled():
-                self._select_empty("disabled_empty")
-                return ActivationResult("disabled_empty")
+                return self.deactivate_empty("disabled_empty")
+            previous_metadata = self.store.read_metadata()
             candidate = render_snapshot(snapshot)
             candidate_path = self.store.write_candidate(
                 f"candidate-{snapshot.revision}-{snapshot.state_checksum_sha256[:12]}.conf",
                 candidate.content.encode("ascii"),
             )
             if not self.nginx.validate_candidate(candidate_path):
-                self._select_empty("pending_empty")
                 raise ActivationError("candidate validation failed")
-            self.store.select_candidate(candidate_path)
+            if (
+                self.store.checksum(candidate_path.read_bytes())
+                != candidate.checksum_sha256
+            ):
+                raise ActivationError("candidate changed after validation")
+            self.store.select_candidate(candidate_path, candidate.checksum_sha256)
             if not self.nginx.reload_and_confirm():
-                self._rollback()
+                self._restore_previous(previous_metadata, reload=True)
                 raise ActivationError("reload confirmation failed")
             if not self.nginx.probe_candidate(candidate_path):
-                self._rollback()
+                self._restore_previous(previous_metadata, reload=True)
                 raise ActivationError("candidate probe failed")
             self.store.write_metadata(
                 {
@@ -66,8 +75,22 @@ class ActivationManager:
             self.store.prune_candidates()
             return ActivationResult("authoritative")
 
-    def _select_empty(self, kind: str) -> None:
+    def deactivate_empty(self, kind: str) -> ActivationResult:
+        previous_metadata = self.store.read_metadata()
         self.store.select_candidate(self.store.canonical_empty_path)
+        if not self.nginx.validate_candidate(self.store.selected_path):
+            self._restore_previous(previous_metadata)
+            raise ActivationError("empty candidate validation failed")
+        if not self.nginx.reload_and_confirm():
+            self._restore_previous(previous_metadata, reload=True)
+            raise ActivationError("empty candidate reload failed")
+        if not self.nginx.probe_empty(self.store.selected_path):
+            self._restore_previous(previous_metadata, reload=True)
+            raise ActivationError("empty candidate probe failed")
+        self._write_empty_metadata(kind)
+        return ActivationResult(kind)
+
+    def _write_empty_metadata(self, kind: str) -> None:
         content = self.store.canonical_empty_path.read_bytes()
         self.store.write_metadata(
             {
@@ -82,8 +105,21 @@ class ActivationManager:
             }
         )
 
-    def _rollback(self) -> None:
+    def _restore_previous(self, metadata: dict, *, reload: bool = False) -> None:
         try:
-            self._select_empty("pending_empty")
-        except OSError as exc:
-            raise ActivationError("rollback failed") from exc
+            self.store.restore_previous()
+            self.store.write_metadata(metadata)
+            if reload:
+                if not self.nginx.validate_candidate(self.store.selected_path):
+                    raise ActivationError("previous candidate validation failed")
+                if not self.nginx.reload_and_confirm():
+                    raise ActivationError("previous candidate reload failed")
+                probe = (
+                    self.nginx.probe_candidate
+                    if metadata.get("selected_kind") == "authoritative"
+                    else self.nginx.probe_empty
+                )
+                if not probe(self.store.selected_path):
+                    raise ActivationError("previous candidate probe failed")
+        except (ActivationError, OSError, ValueError) as exc:
+            raise RollbackError("rollback failed") from exc

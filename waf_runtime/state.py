@@ -72,6 +72,8 @@ class CandidateStateStore:
             raise ValueError("invalid candidate name")
         path = self.candidates_dir / name
         if path.exists():
+            if path.read_bytes() == content:
+                return path
             raise FileExistsError(name)
         self._atomic_write(path, content)
         return path
@@ -83,17 +85,44 @@ class CandidateStateStore:
             "empty.conf": self.canonical_empty_path,
         }.get(name)
         if path is None:
+            if (
+                Path(name).name != name
+                or not name.startswith("candidate-")
+                or not name.endswith(".conf")
+            ):
+                raise ValueError("invalid candidate name")
             path = self.candidates_dir / name
         if path.is_symlink() or not path.is_file():
             raise FileNotFoundError(name)
         return path.read_bytes()
 
-    def select_candidate(self, candidate: Path) -> None:
+    def select_candidate(
+        self, candidate: Path, expected_checksum: str | None = None
+    ) -> None:
         if candidate.is_symlink() or not candidate.is_file():
             raise ValueError("candidate must be a regular file")
+        content = candidate.read_bytes()
+        if (
+            expected_checksum is not None
+            and self.checksum(content) != expected_checksum
+        ):
+            raise ValueError("candidate changed after validation")
         if self.selected_path.exists():
             self._atomic_write(self.previous_path, self.selected_path.read_bytes())
-        self._atomic_write(self.selected_path, candidate.read_bytes())
+        self._atomic_write(self.selected_path, content)
+
+    def restore_previous(self) -> None:
+        if self.previous_path.is_symlink() or not self.previous_path.is_file():
+            raise FileNotFoundError("previous candidate is unavailable")
+        self._atomic_write(self.selected_path, self.previous_path.read_bytes())
+
+    def selected_checksum_matches(self, expected: str | None) -> bool:
+        return (
+            isinstance(expected, str)
+            and self.selected_path.is_file()
+            and not self.selected_path.is_symlink()
+            and self.checksum(self.selected_path.read_bytes()) == expected
+        )
 
     def write_metadata(self, metadata: dict) -> None:
         self._atomic_write(

@@ -8,22 +8,28 @@ from waf_runtime.state import CandidateStateStore
 
 
 class FakeNginx:
-    def __init__(self, *, probe=True, reload=True):
-        self.probe_result = probe
-        self.reload_result = reload
+    def __init__(self, *, probes=None, reloads=None, validate=True):
+        self.probes = list(probes if probes is not None else [True])
+        self.reloads = list(reloads if reloads is not None else [True])
+        self.validate_result = validate
         self.validated = []
         self.reloaded = 0
 
     def validate_candidate(self, path):
         self.validated.append(path)
-        return True
+        if getattr(self, "mutate_candidate", False):
+            path.write_text("mutated", encoding="ascii")
+        return self.validate_result
 
     def reload_and_confirm(self):
         self.reloaded += 1
-        return self.reload_result
+        return self.reloads.pop(0) if self.reloads else True
 
     def probe_candidate(self, candidate):
-        return self.probe_result
+        return self.probes.pop(0) if self.probes else True
+
+    def probe_empty(self, candidate):
+        return self.probes.pop(0) if self.probes else True
 
 
 def snapshot(revision=4):
@@ -50,12 +56,54 @@ def test_activation_commits_metadata_after_reload_and_probe(tmp_path):
 
 def test_activation_rolls_back_when_probe_fails(tmp_path):
     store = CandidateStateStore(tmp_path)
-    nginx = FakeNginx(probe=False)
+    nginx = FakeNginx(probes=[False, True], reloads=[True, True])
     manager = ActivationManager(store, nginx)
     with pytest.raises(ActivationError, match="probe"):
         manager.activate(snapshot())
-    assert store.read_metadata()["selected_kind"] == "pending_empty"
+    assert nginx.reloaded == 2
+    assert store.read_metadata()["selected_kind"] == "mode_empty"
     assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
+
+
+def test_validation_failure_keeps_previous_selection(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx(validate=False)
+    manager = ActivationManager(store, nginx)
+    with pytest.raises(ActivationError, match="validation"):
+        manager.activate(snapshot())
+    assert nginx.reloaded == 0
+    assert store.read_metadata()["selected_kind"] == "mode_empty"
+
+
+def test_reload_confirmation_failure_reloads_previous_selection(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx(reloads=[False, True])
+    with pytest.raises(ActivationError, match="reload"):
+        ActivationManager(store, nginx).activate(snapshot())
+    assert nginx.reloaded == 2
+    assert store.read_metadata()["selected_kind"] == "mode_empty"
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
+
+
+def test_candidate_mutation_after_validation_is_rejected(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx()
+    nginx.mutate_candidate = True
+    with pytest.raises(ActivationError, match="changed"):
+        ActivationManager(store, nginx).activate(snapshot())
+    assert store.read_metadata()["selected_kind"] == "mode_empty"
+
+
+def test_failed_activation_restores_previous_authoritative_metadata(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    first = ActivationManager(store, FakeNginx())
+    first.activate(snapshot(4))
+    nginx = FakeNginx(probes=[False, True], reloads=[True, True])
+    with pytest.raises(ActivationError, match="probe"):
+        ActivationManager(store, nginx).activate(snapshot(5))
+    metadata = store.read_metadata()
+    assert metadata["selected_source_revision"] == 4
+    assert metadata["selected_kind"] == "authoritative"
 
 
 def test_disabled_store_never_activates_nonempty_snapshot(tmp_path):

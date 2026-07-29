@@ -17,6 +17,7 @@ SCHEMA_VERSION = 1
 POLICY_VERSION = "confidence-waf-enforcement-v1"
 SCOPE = "RECORD_SEARCH"
 PATH = "/records/search"
+SNAPSHOT_ENDPOINT_PATH = "/api/internal/waf-enforcement/snapshot"
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
@@ -124,7 +125,7 @@ def _validate_snapshot(value: Any) -> Snapshot:
     }
     if set(value) != expected:
         raise SnapshotRejected("snapshot contains unknown or missing fields")
-    if value["schema_version"] is not SCHEMA_VERSION:
+    if value["schema_version"] != SCHEMA_VERSION:
         raise SnapshotRejected("unsupported schema version")
     if value["policy_version"] != POLICY_VERSION:
         raise SnapshotRejected("unsupported policy version")
@@ -218,7 +219,7 @@ class SnapshotClient:
             or parsed.query
             or not parsed.hostname
             or parsed.port is None
-            or not parsed.path
+            or parsed.path != SNAPSHOT_ENDPOINT_PATH
         ):
             raise ValueError(
                 "snapshot endpoint must be an absolute fixed-origin HTTP URL"

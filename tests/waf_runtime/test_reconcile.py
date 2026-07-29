@@ -6,13 +6,22 @@ from waf_runtime.state import CandidateStateStore
 
 
 class FakeNginx:
+    def __init__(self):
+        self.validations = 0
+        self.reloads = 0
+
     def validate_candidate(self, path):
+        self.validations += 1
         return True
 
     def reload_and_confirm(self):
+        self.reloads += 1
         return True
 
     def probe_candidate(self, candidate):
+        return True
+
+    def probe_empty(self, candidate):
         return True
 
 
@@ -47,6 +56,16 @@ def test_off_mode_selects_empty_without_fetching(tmp_path):
     assert fetcher.calls == 0
 
 
+def test_repeated_off_mode_does_not_reload_after_empty_is_confirmed(tmp_path):
+    nginx = FakeNginx()
+    runtime = Reconciler(
+        CandidateStateStore(tmp_path), nginx, Fetcher(snap()), RuntimeConfig(mode="off")
+    )
+    assert runtime.reconcile() == "mode_empty"
+    assert runtime.reconcile() == "mode_empty"
+    assert nginx.reloads == 1
+
+
 def test_dry_run_fetches_but_does_not_reload(tmp_path):
     fetcher = Fetcher(snap())
     nginx = FakeNginx()
@@ -55,6 +74,8 @@ def test_dry_run_fetches_but_does_not_reload(tmp_path):
     )
     assert runtime.reconcile() == "mode_empty"
     assert fetcher.calls == 1
+    assert nginx.validations == 1
+    assert nginx.reloads == 0
 
 
 def test_repeated_authoritative_revision_is_no_change(tmp_path):
@@ -68,3 +89,34 @@ def test_repeated_authoritative_revision_is_no_change(tmp_path):
     runtime.reconcile()
     assert runtime.reconcile() == "no_change"
     assert fetcher.calls == 2
+
+
+def test_lower_revision_is_ignored(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx()
+    fetcher = Fetcher(snap(4))
+    runtime = Reconciler(store, nginx, fetcher, RuntimeConfig(mode="enforce"))
+    runtime.reconcile()
+    fetcher.value = snap(3)
+    assert runtime.reconcile() == "stale_ignored"
+    assert store.read_metadata()["selected_source_revision"] == 4
+
+
+def test_equal_revision_conflicting_checksum_is_rejected(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx()
+    fetcher = Fetcher(snap(4))
+    runtime = Reconciler(store, nginx, fetcher, RuntimeConfig(mode="enforce"))
+    runtime.reconcile()
+    conflicting = Snapshot(
+        1,
+        "confidence-waf-enforcement-v1",
+        4,
+        "RECORD_SEARCH",
+        "2026-07-29T00:00:00.000Z",
+        "1" * 64,
+        (),
+    )
+    fetcher.value = conflicting
+    assert runtime.reconcile() == "conflict_rejected"
+    assert store.read_metadata()["selected_source_revision"] == 4
