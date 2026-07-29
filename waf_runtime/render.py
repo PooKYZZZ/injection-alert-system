@@ -36,11 +36,12 @@ def render_candidate(
     lines = ["# PR7 dynamic WAF candidate"]
     for offset, item in enumerate(ordered):
         rule_id = RULE_ID_START + offset
-        expiry = _timestamp_epoch(item["expires_at"]) // 1000
+        expiry = _timestamp_epoch(item["expires_at"]) // 1000 - 1
         source = item["source_ip"]
         recommendation = item["recommendation_id"]
         action = (
-            f'chain,id:{rule_id},phase:1,deny,status:403,t:none,msg:\'PR7 WAF block\','
+            f'chain,id:{rule_id},phase:1,deny,log,status:403,t:none,'
+            f"msg:'PR7 WAF block',"
             f"tag:'pr7',tag:'revision-{revision}',tag:'recommendation-{recommendation}'"
         )
         lines.append(

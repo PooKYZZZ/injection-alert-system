@@ -124,6 +124,33 @@ class CandidateStateStore:
             and self.checksum(self.selected_path.read_bytes()) == expected
         )
 
+    def empty_state_matches(self, kind: str) -> bool:
+        if kind not in {"mode_empty", "disabled_empty", "pending_empty"}:
+            return False
+        metadata = self.read_metadata()
+        if (
+            metadata.get("selected_kind") != kind
+            or not metadata.get("selected_at")
+            or metadata.get("selected_source_revision") is not None
+            or metadata.get("selected_source_state_checksum_sha256") is not None
+            or not self.selected_checksum_matches(
+                metadata.get("selected_file_checksum_sha256")
+            )
+        ):
+            return False
+        try:
+            return self.selected_path.read_bytes() == (
+                self.canonical_empty_path.read_bytes()
+            )
+        except OSError:
+            return False
+
+    def set_empty_state(self, kind: str) -> None:
+        if kind not in {"mode_empty", "disabled_empty", "pending_empty"}:
+            raise ValueError("invalid empty state kind")
+        self.select_candidate(self.canonical_empty_path)
+        self.write_metadata(self.empty_metadata(kind))
+
     def write_metadata(self, metadata: dict) -> None:
         self._atomic_write(
             self.metadata_path,
@@ -165,7 +192,7 @@ class CandidateStateStore:
     def checksum(content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
 
-    def _empty_metadata(self, kind: str) -> dict:
+    def empty_metadata(self, kind: str) -> dict:
         content = (
             self.canonical_empty_path.read_bytes()
             if self.canonical_empty_path.exists()
@@ -179,3 +206,5 @@ class CandidateStateStore:
             "selected_file_checksum_sha256": self.checksum(content),
             "selected_at": None,
         }
+
+    _empty_metadata = empty_metadata

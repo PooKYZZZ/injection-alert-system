@@ -8,24 +8,27 @@ from waf_runtime.state import CandidateStateStore
 
 
 class FakeNginx:
-    def __init__(self, *, probes=None, reloads=None, validate=True):
+    def __init__(self, *, probes=None, reloads=None, validate=True, validates=None):
         self.probes = list(probes if probes is not None else [True])
         self.reloads = list(reloads if reloads is not None else [True])
+        self.validates = list(validates if validates is not None else [validate])
         self.validate_result = validate
         self.validated = []
         self.reloaded = 0
+        self.probe_sources = []
 
     def validate_candidate(self, path):
         self.validated.append(path)
         if getattr(self, "mutate_candidate", False):
             path.write_text("mutated", encoding="ascii")
-        return self.validate_result
+        return self.validates.pop(0) if self.validates else self.validate_result
 
     def reload_and_confirm(self):
         self.reloaded += 1
         return self.reloads.pop(0) if self.reloads else True
 
-    def probe_candidate(self, candidate):
+    def probe_candidate(self, candidate, source_ip=None):
+        self.probe_sources.append(source_ip)
         return self.probes.pop(0) if self.probes else True
 
     def probe_empty(self, candidate):
@@ -44,14 +47,50 @@ def snapshot(revision=4):
     )
 
 
+def blocking_snapshot(revision=4):
+    return Snapshot(
+        1,
+        "confidence-waf-enforcement-v1",
+        revision,
+        "RECORD_SEARCH",
+        "2026-07-29T00:00:00.000Z",
+        "0" * 64,
+        (
+            {
+                "entry_id": revision,
+                "recommendation_id": revision,
+                "source_ip": "203.0.113.7",
+                "request_path": "/records/search",
+                "expires_at": "2026-07-29T00:00:02.000Z",
+            },
+        ),
+    )
+
+
 def test_activation_commits_metadata_after_reload_and_probe(tmp_path):
     store = CandidateStateStore(tmp_path)
     nginx = FakeNginx()
     manager = ActivationManager(store, nginx)
-    result = manager.activate(snapshot())
+    result = manager.activate(blocking_snapshot())
     assert result.selected_kind == "authoritative"
     assert nginx.reloaded == 1
     assert store.read_metadata()["selected_source_revision"] == 4
+    assert nginx.probe_sources == ["203.0.113.7"]
+
+
+def test_authoritative_empty_revision_clears_previous_block(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    first = ActivationManager(store, FakeNginx())
+    first.activate(blocking_snapshot(10))
+
+    second = ActivationManager(store, FakeNginx())
+    result = second.activate(snapshot(11))
+
+    assert result.selected_kind == "authoritative"
+    metadata = store.read_metadata()
+    assert metadata["selected_source_revision"] == 11
+    assert metadata["selected_source_state_checksum_sha256"] == "0" * 64
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
 
 
 def test_activation_rolls_back_when_probe_fails(tmp_path):
@@ -90,7 +129,7 @@ def test_candidate_mutation_after_validation_is_rejected(tmp_path):
     nginx = FakeNginx()
     nginx.mutate_candidate = True
     with pytest.raises(ActivationError, match="changed"):
-        ActivationManager(store, nginx).activate(snapshot())
+        ActivationManager(store, nginx).activate(blocking_snapshot())
     assert store.read_metadata()["selected_kind"] == "mode_empty"
 
 
@@ -104,6 +143,22 @@ def test_failed_activation_restores_previous_authoritative_metadata(tmp_path):
     metadata = store.read_metadata()
     assert metadata["selected_source_revision"] == 4
     assert metadata["selected_kind"] == "authoritative"
+
+
+def test_failed_previous_rollback_falls_back_to_pending_empty(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    ActivationManager(store, FakeNginx()).activate(blocking_snapshot(4))
+    nginx = FakeNginx(
+        probes=[False, True],
+        reloads=[True, True],
+        validates=[True, False, True],
+    )
+
+    with pytest.raises(ActivationError, match="probe"):
+        ActivationManager(store, nginx).activate(blocking_snapshot(5))
+
+    assert store.read_metadata()["selected_kind"] == "pending_empty"
+    assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
 
 
 def test_disabled_store_never_activates_nonempty_snapshot(tmp_path):

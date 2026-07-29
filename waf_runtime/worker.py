@@ -26,6 +26,7 @@ def main() -> int:
         timeout=config.subprocess_timeout,
         active_path=f"{config.state_dir}/selected.conf",
         probe_url=config.probe_url,
+        audit_log_path=config.audit_log_path,
     )
     reconciler = Reconciler(store, nginx, client, ReconcileConfig(config.mode))
     logger.emit("waf_sync_started", mode=config.mode)

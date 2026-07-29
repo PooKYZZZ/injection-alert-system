@@ -6,6 +6,9 @@ import json
 from .config import RuntimeConfig
 from .controls import WafControls
 from .nginx import NginxController
+from .reconcile import Reconciler
+from .reconcile import RuntimeConfig as ReconcileConfig
+from .snapshot import SnapshotClient
 from .state import CandidateStateStore
 
 
@@ -20,9 +23,21 @@ def main() -> int:
         timeout=config.subprocess_timeout,
         active_path=f"{config.state_dir}/selected.conf",
         probe_url=config.probe_url,
+        audit_log_path=config.audit_log_path,
     )
+    reconcile = None
+    if args.command == "enable":
+        client = SnapshotClient(
+            config.snapshot_url,
+            config.sync_api_key,
+            total_timeout=config.subprocess_timeout,
+        )
+        reconciler = Reconciler(
+            store, nginx, client, ReconcileConfig(mode="enforce")
+        )
+        reconcile = reconciler.reconcile
     result = getattr(
-        WafControls(store, nginx),
+        WafControls(store, nginx, reconcile=reconcile),
         args.command,
     )()
     print(json.dumps(result, sort_keys=True) if isinstance(result, dict) else result)

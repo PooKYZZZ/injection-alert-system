@@ -33,6 +33,7 @@ def test_rules_are_sorted_and_have_fixed_ids() -> None:
     assert "id:10001" in result.content
     assert result.content.index("203.0.113.7") < result.content.index("203.0.113.8")
     assert result.content.endswith("\n")
+    assert "@lt 1785283200" in result.content
 
 
 def test_renderer_rejects_more_than_512_entries() -> None:

@@ -13,7 +13,8 @@ class RuntimeConfig:
     mode: str = "off"
     state_dir: str = "/pr7-state"
     nginx_config: str = "/etc/nginx/nginx.conf"
-    probe_url: str = "http://127.0.0.1:8080"
+    probe_url: str = "http://127.0.0.1:8081"
+    audit_log_path: str = "/var/log/modsecurity/modsec_audit.jsonl"
     poll_interval: float = 5.0
     subprocess_timeout: float = 5.0
 
@@ -35,7 +36,7 @@ class RuntimeConfig:
             raise ValueError("snapshot URL must be a fixed absolute HTTP origin")
         if len(token) < 32:
             raise ValueError("WAF_STATE_SYNC_API_KEY must be at least 32 characters")
-        probe_url = os.environ.get("PR7_PROBE_URL", "http://127.0.0.1:8080")
+        probe_url = os.environ.get("PR7_PROBE_URL", "http://127.0.0.1:8081")
         probe = urlsplit(probe_url)
         if (
             probe.scheme != "http"
@@ -65,6 +66,9 @@ class RuntimeConfig:
             os.environ.get("PR7_STATE_DIR", "/pr7-state"),
             os.environ.get("NGINX_CONFIG", "/etc/nginx/nginx.conf"),
             probe_url,
+            os.environ.get(
+                "MODSEC_AUDIT_LOG", "/var/log/modsecurity/modsec_audit.jsonl"
+            ),
             poll_interval,
             subprocess_timeout,
         )

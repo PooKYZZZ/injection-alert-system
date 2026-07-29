@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 import httpx
@@ -16,13 +18,19 @@ class NginxController:
         timeout: float = 5.0,
         nginx_binary: str = "nginx",
         active_path: str | Path = "/pr7-state/selected.conf",
-        probe_url: str = "http://127.0.0.1:8080",
+        probe_url: str = "http://127.0.0.1:8081",
+        audit_log_path: str | Path | None = None,
+        pid_path: str | Path = "/tmp/nginx.pid",
+        crs_probe_url: str = "http://127.0.0.1:8080",
     ):
         self.config_path = str(config_path)
         self.timeout = timeout
         self.nginx_binary = nginx_binary
         self.active_path = Path(active_path)
         self.probe_url = probe_url.rstrip("/")
+        self.audit_log_path = Path(audit_log_path) if audit_log_path else None
+        self.pid_path = Path(pid_path)
+        self.crs_probe_url = crs_probe_url.rstrip("/")
 
     def _run(self, args: list[str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -65,41 +73,97 @@ class NginxController:
             time.sleep(0.05)
         return False
 
-    def probe_candidate(self, candidate: Path) -> bool:
+    def probe_candidate(self, candidate: Path, source_ip: str | None = None) -> bool:
         if not self._is_selected(candidate):
             return False
-        try:
-            with httpx.Client(
-                follow_redirects=False,
-                trust_env=False,
-                timeout=self.timeout,
-                headers={"Accept-Encoding": "identity"},
-            ) as client:
-                response = client.get(
-                    f"{self.probe_url}/records/search",
-                    timeout=min(2.0, self.timeout),
-                )
-            return response.status_code == 403
-        except httpx.HTTPError:
+        source_ip = source_ip or self._candidate_sources(candidate)[0]
+        marker = uuid.uuid4().hex
+        if self._request_status(
+            "/records/search", source_ip, marker
+        ) != 403:
             return False
+        if not self._audit_contains(marker, '"pr7"'):
+            return False
+        wrong_source = self._wrong_source(self._candidate_sources(candidate))
+        if self._request_status("/records/search", wrong_source, marker) != 204:
+            return False
+        if self._request_status("/records/not-search", source_ip, marker) != 204:
+            return False
+        return self._request_status(
+            "/records/search?query=%27%20UNION%20SELECT%20null--",
+            wrong_source,
+            marker,
+            base_url=self.crs_probe_url,
+        ) == 403
 
     def probe_empty(self, candidate: Path) -> bool:
         if not self._is_selected(candidate):
             return False
+        return self._request_status("/records/search", None, uuid.uuid4().hex) == 204
+
+    def wait_ready(self) -> bool:
+        return bool(self.worker_generation()) and (
+            self._request_status("/__pr7/ready", None, uuid.uuid4().hex) == 204
+        )
+
+    def _request_status(
+        self,
+        path: str,
+        source_ip: str | None,
+        marker: str,
+        *,
+        base_url: str | None = None,
+    ) -> int | None:
         try:
+            headers = {"Accept-Encoding": "identity"}
+            if source_ip:
+                headers["X-PR7-Probe-Source"] = source_ip
             with httpx.Client(
                 follow_redirects=False,
                 trust_env=False,
                 timeout=self.timeout,
-                headers={"Accept-Encoding": "identity"},
+                headers=headers,
             ) as client:
+                separator = "&" if "?" in path else "?"
+                endpoint = (base_url or self.probe_url).rstrip("/")
                 response = client.get(
-                    f"{self.probe_url}/records/search",
+                    f"{endpoint}{path}{separator}pr7_probe_id={marker}",
                     timeout=min(2.0, self.timeout),
                 )
-            return response.status_code != 403
+            return response.status_code
         except httpx.HTTPError:
-            return False
+            return None
+
+    def _audit_contains(self, marker: str, token: str) -> bool:
+        if self.audit_log_path is None:
+            return True
+        deadline = time.monotonic() + self.timeout
+        while time.monotonic() < deadline:
+            try:
+                for line in self.audit_log_path.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines()[-100:]:
+                    if marker in line and token in line:
+                        return True
+            except OSError:
+                pass
+            time.sleep(0.05)
+        return False
+
+    @staticmethod
+    def _candidate_sources(candidate: Path) -> list[str]:
+        sources = re.findall(r'@ipMatch ([0-9.]+)', candidate.read_text())
+        if not sources:
+            raise ValueError("candidate has no source rule")
+        return sources
+
+    @staticmethod
+    def _wrong_source(sources: list[str]) -> str:
+        for suffix in range(1, 255):
+            candidate = f"198.51.100.{suffix}"
+            if candidate not in sources:
+                return candidate
+        raise ValueError("candidate source space is exhausted")
 
     def _is_selected(self, candidate: Path) -> bool:
         if (
@@ -115,7 +179,7 @@ class NginxController:
             return False
 
     def worker_generation(self) -> tuple[str, ...]:
-        pid_path = Path("/run/nginx.pid")
+        pid_path = self.pid_path
         if not pid_path.is_file():
             return ()
         try:

@@ -38,9 +38,6 @@ def test_nginx_controller_uses_bounded_commands(monkeypatch, tmp_path):
 def test_probe_uses_a_fresh_http_connection(monkeypatch, tmp_path):
     requests = []
 
-    class Response:
-        status_code = 403
-
     class Client:
         def __enter__(self):
             return self
@@ -50,20 +47,26 @@ def test_probe_uses_a_fresh_http_connection(monkeypatch, tmp_path):
 
         def get(self, url, **kwargs):
             requests.append((url, kwargs))
-            return Response()
+            response = type("Response", (), {})()
+            response.status_code = [403, 204, 204, 403][len(requests) - 1]
+            return response
 
     monkeypatch.setattr("waf_runtime.nginx.httpx.Client", lambda **kwargs: Client())
     active = tmp_path / "selected.conf"
-    active.write_text("candidate", encoding="ascii")
     candidate = tmp_path / "candidate.conf"
-    candidate.write_text("candidate", encoding="ascii")
+    candidate.write_text(
+        'SecRule REMOTE_ADDR "@ipMatch 203.0.113.7" "id:10000"',
+        encoding="ascii",
+    )
+    active.write_text(candidate.read_text(encoding="ascii"), encoding="ascii")
     controller = NginxController(
         config_path=tmp_path / "nginx.conf",
         active_path=active,
-        probe_url="http://127.0.0.1:8080",
+        probe_url="http://127.0.0.1:8081",
     )
     assert controller.probe_candidate(candidate)
-    assert requests == [("http://127.0.0.1:8080/records/search", {"timeout": 2.0})]
+    assert requests[0][0].startswith("http://127.0.0.1:8081/records/search?")
+    assert requests[0][1]["timeout"] == 2.0
 
 
 def test_probe_rejects_candidate_that_is_not_selected(monkeypatch, tmp_path):
@@ -83,3 +86,26 @@ def test_probe_rejects_candidate_that_is_not_selected(monkeypatch, tmp_path):
         config_path=tmp_path / "nginx.conf", active_path=active
     )
     assert not controller.probe_candidate(candidate)
+
+
+def test_empty_probe_requires_exact_204(monkeypatch, tmp_path):
+    class Response:
+        status_code = 500
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, **kwargs):
+            return Response()
+
+    monkeypatch.setattr("waf_runtime.nginx.httpx.Client", lambda **kwargs: Client())
+    active = tmp_path / "selected.conf"
+    active.write_text("empty", encoding="ascii")
+    controller = NginxController(
+        config_path=tmp_path / "nginx.conf", active_path=active
+    )
+    assert not controller.probe_empty(active)

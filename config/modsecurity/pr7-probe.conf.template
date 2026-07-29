@@ -1,0 +1,18 @@
+server {
+    listen 127.0.0.1:${PR7_PROBE_PORT};
+    server_name _;
+
+    set_real_ip_from 127.0.0.1;
+    real_ip_header X-PR7-Probe-Source;
+    real_ip_recursive off;
+
+    location = /__pr7/ready {
+        access_log off;
+        return 204;
+    }
+
+    location / {
+        access_log off;
+        return 204;
+    }
+}

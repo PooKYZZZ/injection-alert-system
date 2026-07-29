@@ -30,3 +30,15 @@ def test_disable_sets_latch_and_selects_empty(tmp_path):
     assert controls.status()["disabled"] is True
     assert controls.enable().startswith("Enable completed")
     assert controls.status()["disabled"] is False
+
+
+def test_enable_reports_actual_pending_state_and_reconciles_when_available(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx()
+    calls = []
+    controls = WafControls(
+        store, nginx, reconcile=lambda: calls.append("reconcile") or "authoritative"
+    )
+    store.set_disabled(True)
+    assert "authoritative" in controls.enable()
+    assert calls == ["reconcile"]

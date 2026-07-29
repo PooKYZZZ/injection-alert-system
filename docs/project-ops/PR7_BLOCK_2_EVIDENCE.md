@@ -20,13 +20,24 @@ Date: 2026-07-29
 - Candidate activation now validates the actual selected include with the
   pinned NGINX configuration, confirms a new worker generation, performs a
   fresh local HTTP probe, and reloads/probes the previous confirmed state on
-  every failed or inconclusive post-selection activation. Selected metadata
-  is authoritative only after confirmation; lower revisions and equal-revision
-  checksum conflicts are ignored/rejected without mutation.
+  every failed or inconclusive post-selection activation. Authoritative empty
+  snapshots revoke the previous candidate through the same reload/probe path;
+  two-level rollback falls back to canonical empty and fails closed if neither
+  state can be confirmed. Selected metadata is authoritative only after
+  confirmation; lower revisions and equal-revision checksum conflicts are
+  ignored/rejected without mutation.
+- First boot forces canonical empty before NGINX starts, validates the complete
+  generated configuration, waits for a ready worker generation, and only then
+  starts synchronization. SIGQUIT is forwarded to NGINX while the sync child
+  receives SIGTERM.
+- The loopback-only probe listener trusts its dedicated source header only from
+  loopback, proves matching source/path PR7 blocking with a tagged ModSecurity
+  audit record, proves wrong source/path 204 responses, and checks a separate
+  normal-listener CRS block. Empty probes require exactly HTTP 204.
 - First boot seeds the persistent selected include before NGINX starts;
   runtime/control configuration uses the fixed snapshot path, a 32-character
   minimum sync key, a loopback-only probe URL, positive finite timeouts, and a
-  pinned `httpx==0.28.1` dependency.
+  pinned `httpx==0.28.1` and `pydantic==2.12.5` dependencies.
 - Local-only derived WAF image based on the pinned CRS digest; the original
   `/docker-entrypoint.sh` and ordered bootstrap scripts remain the NGINX child
   bootstrap. Static CRS includes remain independent from the dynamic include.
@@ -35,8 +46,8 @@ Date: 2026-07-29
 
 | Check | Result |
 | --- | --- |
-| New runtime tests | PASS: 35 passed |
-| PR7 snapshot/contract plus runtime tests | PASS: 54 passed |
+| New runtime tests | PASS: 42 passed |
+| PR7 snapshot/contract plus runtime tests | NOT_GREEN in this local Python environment: collection is blocked by pre-existing Python 2 exception syntax and missing Alembic |
 | Existing unit, migration, and script suites | PASS: 796 passed |
 | Full repository pytest | NOT_GREEN: 854 passed, 53 skipped, 8 failed, 66 errors; local integration startup is blocked by the required notification worker/PostgreSQL fixture (`OperationalError`) |
 | Ruff on runtime/tests | PASS |
@@ -44,7 +55,9 @@ Date: 2026-07-29
 | Compose config | PASS |
 | Derived image build | PASS: `pr7-waf-review`, pinned CRS digest retained |
 | Container config/state-seed smoke | PASS: image imports runtime, validates config, and creates empty `selected.conf` |
-| Empty/non-empty candidate through pinned NGINX/ModSecurity/CRS `nginx -t` | NOT_RUN in this remediation pass |
+| Controlled pinned-image activation | PASS: matching source/path 403 plus PR7-tagged audit record; wrong source/path 204; separate CRS probe 403 |
+| Authoritative empty revocation | PASS: revision 11 selected canonical empty and matching source/path returned 204 |
+| Safe restart in OFF mode | PASS: persisted active state was forced to `mode_empty` before synchronization and returned 204 |
 | Container startup with a standalone unresolved backend | NOT_RUN as a success; expected failure because NGINX resolves upstream names at startup |
 | Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | NOT_RUN |
 | PostgreSQL CI job | NOT_RUN locally |
@@ -58,10 +71,8 @@ PR6, ML artifacts, and the existing technical/demo WAF profiles were not
 changed. The disposable Docker volumes and test containers used for image
 validation were removed after each probe.
 
-The full controlled E2E remains a separate proof obligation: it requires the
-repository backend, a healthy snapshot-enabled local environment, a reachable
-upstream, and source-correlation fixtures. The fresh local probe is not source-
-provenance evidence by itself; the candidate-specific HTTP/source/path,
-no-upstream, expiry, revocation, static-CRS, and PR6 regression matrix remains
-`NOT_RUN`. This document does not convert pure/runtime or image-build checks
-into hosted or production readiness.
+The controlled proof above is disposable loopback/image evidence, not source-
+provenance evidence from the repository backend. Full Compose backend/source-
+correlation, expiry-boundary, and PR6 regression matrices remain separate
+proof obligations. This document does not convert local runtime or image-build
+checks into hosted or production readiness.

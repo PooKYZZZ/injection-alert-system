@@ -66,6 +66,16 @@ def test_repeated_off_mode_does_not_reload_after_empty_is_confirmed(tmp_path):
     assert nginx.reloads == 1
 
 
+def test_off_mode_rechecks_empty_file_integrity_each_cycle(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    nginx = FakeNginx()
+    runtime = Reconciler(store, nginx, Fetcher(snap()), RuntimeConfig(mode="off"))
+    runtime.reconcile()
+    store.selected_path.write_text("corrupt", encoding="ascii")
+    assert runtime.reconcile() == "mode_empty"
+    assert nginx.reloads == 2
+
+
 def test_dry_run_fetches_but_does_not_reload(tmp_path):
     fetcher = Fetcher(snap())
     nginx = FakeNginx()

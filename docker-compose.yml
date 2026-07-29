@@ -124,7 +124,8 @@ services:
       PR7_WAF_MODE: ${PR7_WAF_MODE:-off}
       PR7_STATE_DIR: /pr7-state
       NGINX_CONFIG: /etc/nginx/nginx.conf
-      PR7_PROBE_URL: http://127.0.0.1:8080
+      PR7_PROBE_URL: http://127.0.0.1:8081
+      PR7_PROBE_PORT: 8081
       PR7_POLL_INTERVAL: ${PR7_POLL_INTERVAL:-5}
       PR7_SUBPROCESS_TIMEOUT: ${PR7_SUBPROCESS_TIMEOUT:-5}
     volumes:
