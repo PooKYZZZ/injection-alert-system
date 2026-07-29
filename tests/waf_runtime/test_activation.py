@@ -245,7 +245,7 @@ def test_probe_uses_latest_unexpired_item_not_first_item(tmp_path, monkeypatch):
     assert nginx.probe_sources == ["203.0.113.8"]
 
 
-def test_all_expired_items_confirm_authoritative_empty(tmp_path, monkeypatch):
+def test_all_near_expiry_items_remain_pending_empty(tmp_path, monkeypatch):
     monkeypatch.setattr("waf_runtime.activation.time.time", lambda: 1000.0)
     store = CandidateStateStore(tmp_path)
     candidate = Snapshot(
@@ -268,6 +268,6 @@ def test_all_expired_items_confirm_authoritative_empty(tmp_path, monkeypatch):
 
     result = ActivationManager(store, FakeNginx()).activate(candidate)
 
-    assert result.selected_kind == "authoritative"
-    assert store.read_metadata()["selected_source_revision"] == 9
+    assert result.selected_kind == "pending_empty"
+    assert store.read_metadata()["selected_source_revision"] is None
     assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")

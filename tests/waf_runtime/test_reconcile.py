@@ -18,7 +18,7 @@ class FakeNginx:
         self.reloads += 1
         return True
 
-    def probe_candidate(self, candidate):
+    def probe_candidate(self, candidate, *args):
         return True
 
     def probe_empty(self, candidate):
@@ -130,3 +130,38 @@ def test_equal_revision_conflicting_checksum_is_rejected(tmp_path):
     fetcher.value = conflicting
     assert runtime.reconcile() == "conflict_rejected"
     assert store.read_metadata()["selected_source_revision"] == 4
+
+
+def test_near_expiry_snapshot_remains_pending_and_is_retried(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr("waf_runtime.activation.time.time", lambda: 1000.0)
+    near_expiry = Snapshot(
+        1,
+        "confidence-waf-enforcement-v1",
+        50,
+        "RECORD_SEARCH",
+        "1970-01-01T00:00:00.000Z",
+        "5" * 64,
+        (
+            {
+                "entry_id": 1,
+                "recommendation_id": 1,
+                "source_ip": "203.0.113.7",
+                "request_path": "/records/search",
+                "expires_at": "1970-01-01T00:16:00.000Z",
+            },
+        ),
+    )
+    nginx = FakeNginx()
+    runtime = Reconciler(
+        CandidateStateStore(tmp_path),
+        nginx,
+        Fetcher(near_expiry),
+        RuntimeConfig(mode="enforce"),
+    )
+
+    assert runtime.reconcile() == "pending_empty"
+    assert runtime.reconcile() == "pending_empty"
+    assert runtime.fetcher.calls == 2
+    assert runtime.store.read_metadata()["selected_source_revision"] is None

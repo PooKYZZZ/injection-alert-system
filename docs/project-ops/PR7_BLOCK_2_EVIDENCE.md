@@ -1,6 +1,8 @@
 # PR7 Block 2 controlled local WAF runtime evidence
 
 Date: 2026-07-29
+Head commit: 0fb873c before the near-expiry correction; this evidence is
+updated again with the correction in the current follow-up commit.
 
 ## Implemented
 
@@ -57,8 +59,8 @@ Date: 2026-07-29
 
 | Check | Result |
 | --- | --- |
-| New runtime tests | PASS: 42 passed |
-| PR7 snapshot/contract plus runtime tests | NOT_GREEN in this local Python environment: collection is blocked by pre-existing Python 2 exception syntax and missing Alembic |
+| New runtime tests | PASS: 50 passed locally |
+| PR7 snapshot/contract plus runtime tests | PASS remotely in GitHub CI |
 | Existing unit, migration, and script suites | PASS: 796 passed |
 | Full repository pytest | NOT_GREEN: 854 passed, 53 skipped, 8 failed, 66 errors; local integration startup is blocked by the required notification worker/PostgreSQL fixture (`OperationalError`) |
 | Ruff on runtime/tests | PASS |
@@ -70,10 +72,11 @@ Date: 2026-07-29
 | Authoritative empty revocation | PASS: revision 11 selected canonical empty and matching source/path returned 204 |
 | Safe restart in OFF mode | PASS: persisted active state was forced to `mode_empty` before synchronization and returned 204 |
 | Maximum-size matrix | PASS: final pinned image validated 0, 1, 64, 128, and 512 candidates; representative first/middle/last rules returned 403 |
-| Docker WAF CI coverage | IMPLEMENTED: `.github/workflows/ci.yml` now builds the pinned image and runs the same bounded smoke matrix in GitHub Actions |
+| Docker WAF CI coverage | PASS remotely: `.github/workflows/ci.yml` builds the pinned image and runs the bounded smoke matrix |
 | Container startup with an unavailable backend | PASS: disposable WAF container started against loopback port 9, remained startup-empty, and later OFF restart remained empty |
 | Full Docker Compose backend/WAF activation and HTTP source-correlation E2E | NOT_RUN: external source provenance remains Block 3 |
-| PostgreSQL CI job | NOT_RUN locally |
+| GitHub CI overall | PASS: backend, PostgreSQL, migrations, frontend, authentication E2E, secret scan, and PR7 WAF runtime |
+| PostgreSQL CI job | PASS remotely; the local environment was not used as the PostgreSQL proof |
 | Hosted/staging/production enforcement | NOT_RUN and unchanged |
 
 ## Safety boundary

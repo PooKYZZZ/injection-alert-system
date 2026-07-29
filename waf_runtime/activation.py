@@ -54,9 +54,7 @@ class ActivationManager:
                 )
             probe_item = self._probe_item(snapshot)
             if probe_item is None:
-                return self._activate_authoritative_empty(
-                    snapshot, previous_metadata
-                )
+                return self.deactivate_empty("pending_empty")
             candidate_path = self.store.write_candidate(
                 f"candidate-{snapshot.revision}-{snapshot.state_checksum_sha256[:12]}.conf",
                 candidate.content.encode("ascii"),
