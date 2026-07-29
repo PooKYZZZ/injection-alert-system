@@ -1,8 +1,7 @@
 # PR7 Block 2 controlled local WAF runtime evidence
 
 Date: 2026-07-29
-Head commit: 0fb873c before the near-expiry correction; this evidence is
-updated again with the correction in the current follow-up commit.
+Head commit: 4907da5
 
 ## Implemented
 
