@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 WORKFLOW = Path(".github/workflows/ci.yml")
 
 
@@ -35,3 +34,16 @@ def test_postgres_ci_provisions_the_supabase_runtime_role_before_migrations() ->
     role_setup = "python scripts/prepare_ci_postgres_roles.py"
     assert role_setup in job
     assert job.index(role_setup) < job.index("python -m alembic upgrade head")
+
+
+def test_postgres_ci_runs_pr7_async_integration_tests_against_service_database() -> (
+    None
+):
+    source = WORKFLOW.read_text(encoding="utf-8")
+    job = source.split("  postgres:", 1)[1].split("  frontend:", 1)[0]
+
+    assert (
+        "PR7_TEST_DATABASE_URL: "
+        "postgresql+asyncpg://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace"
+    ) in job
+    assert "pytest -q tests/integration" in job
