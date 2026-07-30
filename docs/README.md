@@ -39,10 +39,9 @@ This folder is the maintained documentation surface for the repository. It is in
   - Checked-in local proof evidence for ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest.
 
 ### Dataset and ML baseline
-- `DATASET_RELEASE_SR_BH_CLEAN_v3.1.0.md`
-  - Release note for the current cleaned dataset snapshot.
-- `DATASET_BASELINE_SR_BH_v3.1.0.md`
-  - Frozen baseline statistics and training metadata for the current dataset version.
+- Dataset and model-artifact provenance is maintained under `ml_model/` and
+  `data/`; no standalone dataset-release Markdown files are currently checked
+  in under `docs/`.
 
 ## Current project state
 
@@ -67,7 +66,9 @@ evidence details. Use the canonical documents below:
 | Operator snapshot | `project-ops/STATUS.md` |
 | Outstanding work | `project-ops/IMPLEMENTATION_GAP_REGISTER.md` |
 | Execution checklist | `project-ops/LIVING_CHECKLIST.md` |
-| Historical evidence | `reports/` |
+| Historical evidence | `../reports/` |
+| PR7 controlled-local WAF evidence | `project-ops/PR7_BLOCK_2_EVIDENCE.md` |
+| PR7 implementation contract | `project-ops/PR7_IMPLEMENTATION_SPEC.md` |
 
 ## Documentation Rules For This Repo
 

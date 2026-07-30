@@ -51,7 +51,7 @@ flowchart LR
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
-| Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 state foundation implemented; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use the existing expiring recommendation store; LOW/MEDIUM retain PostgreSQL fixed-window counters and tier-bound server-verified challenge grants. `/api/internal/enforcement/check` returns exact `ALLOW`, `CHALLENGE`, `THROTTLE`, or `BLOCK` decisions only for `/records/search`. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`; CRITICAL remains excluded from active runtime. PR7 Block 1 adds durable, revisioned effective WAF state and an authenticated snapshot boundary, but does not activate Block 2 runtime mutation or claim hosted/production readiness. See `reports/active-enforcement/PR5_CONTROLLED_E2E_PROOF.md` and `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`. Hosted active enforcement remains disabled pending Cloudflare trusted-source topology proof. |
+| Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 and Block 2 controlled-local WAF runtime implemented and E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use the existing expiring recommendation store; LOW/MEDIUM retain PostgreSQL fixed-window counters and tier-bound server-verified challenge grants. `/api/internal/enforcement/check` returns exact `ALLOW`, `CHALLENGE`, `THROTTLE`, or `BLOCK` decisions only for `/records/search`. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`. PR7 adds durable revisioned effective WAF state, an authenticated snapshot boundary, deterministic candidate rendering, reload/generation confirmation, candidate-specific probing, and rollback. The controlled PostgreSQL-to-backend-to-WAF path passes; Block 3 still owns full attack-to-ML creation, external ingress/source identity, PR6/PR7 integrated regression, and portal no-upstream evidence. Hosted active enforcement remains disabled. |
 | Retraining pipeline | Planned | `ml_model/retraining/README.md` documents design-level only |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
 | Full Wazuh/SIEM, Kubernetes, Kafka/Celery/Elasticsearch | Deferred | PD2 scope keeps these out unless explicitly approved |
@@ -242,9 +242,13 @@ and hosted deployment gates remain separately tracked there.
   a valid `APPLICATION_BLOCK` prevents that work and renders generic portal
   restriction content. Internal logs distinguish `HIGH` and
   `enforcement.application_block_applied`.
-- **CRITICAL / PR7:** future WAF-level enforcement. ModSecurity should reject
-  the request before the portal is reached, with a generic gateway denial and
-  `WAF_BLOCK` intent. CRITICAL enforcement is not implemented by PR6.
+- **CRITICAL / PR7:** controlled-local WAF-level enforcement. The PR7 runtime
+  can reject an eligible `/records/search` request before the upstream is
+  reached, with a generic gateway denial and `WAF_BLOCK` intent. The local
+  PostgreSQL-to-backend-to-WAF path is validated; full attack-to-ML creation,
+  external ingress/source identity, integrated PR6/PR7 regression, and portal
+  no-upstream evidence remain Block 3. Hosted and production enforcement are
+  disabled.
 
 - Production-grade ModSecurity-fronted deployment
 - Full repo-managed export and automation of Supabase policy state

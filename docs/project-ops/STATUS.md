@@ -28,7 +28,8 @@
   endpoint are implemented and covered by focused tests.
 - Block 1 effective-state migration, repository, and authenticated snapshot
   endpoint are implemented.
-- Block 2 local WAF runtime is implemented in PR #97 at final head `77aa821`.
+- Block 2 local WAF runtime is implemented in PR #97 at current head
+  `d74d6b6` (documentation sync after implementation head `77aa821`).
 - The runtime uses the pinned CRS image, deterministic ModSecurity rules, safe
   startup, reload confirmation, candidate-specific probing, rollback,
   OFF/DRY_RUN/ENFORCE modes, and persistent disable.

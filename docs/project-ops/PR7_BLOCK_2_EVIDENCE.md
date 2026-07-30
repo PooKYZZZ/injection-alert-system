@@ -1,9 +1,9 @@
 # PR7 Block 2 controlled local WAF runtime evidence
 
 Date: 2026-07-30
-Final reviewed PR head: 77aa821
+Final reviewed PR head: d74d6b6
 Pull request: #97
-GitHub CI run: 333 — PASS
+GitHub CI run: 334 — PASS
 
 ## Implemented
 

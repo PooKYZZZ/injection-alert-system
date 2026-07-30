@@ -2,7 +2,8 @@
 
 **Reviewed:** 2026-07-30
 
-**Repository baseline:** `master` at `485a091`; PR #90 is merged in its history
+**Repository baseline:** `master` at `d80719d`; current review branch head is
+`d74d6b6`; PR #90 is merged in the master history
 
 This is the canonical cumulative register for unresolved implementation work. Only
 code, configuration, tests, and current runtime wiring outrank documentation.

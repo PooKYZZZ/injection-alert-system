@@ -29,6 +29,9 @@ checklist and handoff material.
   - current implementation status and known repo gaps
 - `IMPLEMENTATION_GAP_REGISTER.md`
   - canonical cumulative stable-ID register for unresolved implementation work
+- `PR7_IMPLEMENTATION_SPEC.md`, `PR7_DESIGN_RATIONALE.md`, and
+  `PR7_BLOCK_2_EVIDENCE.md`
+  - current controlled-local CRITICAL/WAF contract, rationale, and evidence
 - `LIVING_CHECKLIST.md`
   - operational execution checklist and handoff material
 - `DEMO_TARGET_WAF_PROOF.md`
@@ -54,5 +57,13 @@ checklist and handoff material.
   policy/checklist background. Current V6.1 migration and runtime guidance is
   in `../SETUP.md`, `../architecture.md`, `STATUS.md`, and
   `SMOKE_TEST_RUNBOOK.md`.
+- The superseded `IMPLEMENTATION_PLAN.md` was archived as
+  `../archive/historical-plans/IMPLEMENTATION_PLAN_20260323.md`; use the
+  current setup, architecture, status, and gap-register documents instead.
+- `PR7_T0_EVIDENCE.md`, `SOURCE_CORRELATION_PROOF.md`, and
+  `CLOUDFLARE_TARGET_INGRESS_ISOLATION_RUNBOOK.md` preserve historical T0 or
+  external-ingress evidence. They do not authorize hosted or production
+  enforcement; use the PR7 Block 2 evidence and contract for current local
+  runtime behavior.
 
 These files are operational notes, not the main user-facing documentation surface.
