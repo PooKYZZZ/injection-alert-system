@@ -24,7 +24,9 @@ def sha256(path: Path) -> str:
 
 def verify_model_lock(run_dir: Path) -> dict[str, Any]:
     lock = load_artifact_lock()
-    for relative_path, expected_hash in lock["model"]["files"].items():
+    for locked_file in lock["model"]["files"]:
+        relative_path = locked_file["path"]
+        expected_hash = locked_file["sha256"]
         artifact = run_dir / relative_path
         if not artifact.is_file():
             raise AssertionError(f"required model artifact is missing: {artifact}")

@@ -1,15 +1,30 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "model": {
     "model_version": "distilbert_v3_907k_cleaned_20260312_133755",
     "run_directory": "ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755",
-    "files": {
-      "best_distilbert_ckpt.pt": "8f43f4e85a4c728ea24aff7c1d0e453661f1257252cd62845bd5051120eb21a2",
-      "serving_manifest.json": "662a59c9e73e79ac43c64fb669323f273c216e3c9e1116d70a9b62a0a442e1ff",
-      "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
-      "config.json": "a069c15c5f75f96eb8a6a1e48b53924c22a6d075506db637a4b4142607bf8774",
-      "config_used.json": "ade1ac46b7ef7b1b82eb8264cca76db9be1c2a746b130a1946b2d9349691eea1"
-    }
+    "files": [
+      {
+        "path": "best_distilbert_ckpt.pt",
+        "sha256": "8f43f4e85a4c728ea24aff7c1d0e453661f1257252cd62845bd5051120eb21a2"
+      },
+      {
+        "path": "serving_manifest.json",
+        "sha256": "662a59c9e73e79ac43c64fb669323f273c216e3c9e1116d70a9b62a0a442e1ff"
+      },
+      {
+        "path": "tokenizer.json",
+        "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      },
+      {
+        "path": "config.json",
+        "sha256": "a069c15c5f75f96eb8a6a1e48b53924c22a6d075506db637a4b4142607bf8774"
+      },
+      {
+        "path": "config_used.json",
+        "sha256": "ade1ac46b7ef7b1b82eb8264cca76db9be1c2a746b130a1946b2d9349691eea1"
+      }
+    ]
   },
   "portal": {
     "repository": "PooKYZZZ/land-records-portal",
