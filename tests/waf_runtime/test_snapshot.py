@@ -5,6 +5,7 @@ import json
 import httpx
 import pytest
 
+import waf_runtime.snapshot as snapshot_module
 from waf_runtime.snapshot import (
     SnapshotClient,
     SnapshotRejected,
@@ -150,3 +151,34 @@ def test_fetch_passes_a_remaining_deadline_to_httpx():
     client.client = Client()
     assert client.fetch().revision == 3
     assert 0 < calls[0]["timeout"] <= client.total_timeout
+
+
+def test_deadline_preserves_shorter_outer_alarm_after_elapsed_time(monkeypatch):
+    calls = []
+    clock = iter((100.0, 100.25))
+
+    monkeypatch.setattr(snapshot_module.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(snapshot_module.signal, "SIGALRM", 14, raising=False)
+    monkeypatch.setattr(snapshot_module.signal, "ITIMER_REAL", 0, raising=False)
+    monkeypatch.setattr(snapshot_module.signal, "getsignal", lambda signum: "old")
+    monkeypatch.setattr(snapshot_module.signal, "signal", lambda *args: None)
+
+    def fake_setitimer(which, seconds, interval=0.0):
+        calls.append((seconds, interval))
+        if len(calls) == 1:
+            return (2.0, 0.0)
+        return (0.0, 0.0)
+
+    monkeypatch.setattr(
+        snapshot_module.signal, "setitimer", fake_setitimer, raising=False
+    )
+    client = SnapshotClient(
+        "http://backend:8000/api/internal/waf-enforcement/snapshot",
+        "canary-token",
+    )
+
+    with client._deadline(5.0):
+        pass
+
+    assert calls[1][0] == 2.0
+    assert calls[3][0] == pytest.approx(1.75)

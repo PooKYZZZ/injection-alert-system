@@ -310,18 +310,24 @@ class SnapshotClient:
             return
         previous_handler = signal.getsignal(signal.SIGALRM)
         previous_timer = signal.setitimer(signal.ITIMER_REAL, 0)
+        started = time.monotonic()
+        deadline = seconds
+        if previous_timer[0] > 0:
+            deadline = min(deadline, previous_timer[0])
 
         def timeout_handler(signum, frame):
             raise SnapshotRejected("snapshot total deadline exceeded")
 
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.setitimer(signal.ITIMER_REAL, seconds)
+        signal.setitimer(signal.ITIMER_REAL, deadline)
         try:
             yield
         finally:
+            elapsed = time.monotonic() - started
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, previous_handler)
-            if previous_timer[0] > 0:
+            remaining = previous_timer[0] - elapsed
+            if remaining > 0:
                 signal.setitimer(
-                    signal.ITIMER_REAL, previous_timer[0], previous_timer[1]
+                    signal.ITIMER_REAL, remaining, previous_timer[1]
                 )
