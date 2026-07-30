@@ -1,5 +1,8 @@
 # Trusted Source Correlation Evidence
 
+> This is historical T0 identity evidence. Block 3 will connect this identity
+> proof to the completed Block 2 runtime.
+
 **Status:** Temporary target-only isolated Cloudflare source-identity proof
 passed for T0; final hostname cutover was not performed, normal runtime was
 restored to `unverified`, and PR7 enforcement remains disabled.

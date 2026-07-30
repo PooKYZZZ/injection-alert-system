@@ -1,7 +1,9 @@
 # PR7 Block 2 controlled local WAF runtime evidence
 
-Date: 2026-07-29
-Reviewed runtime commit: 4907da5; documentation follows in subsequent sync commits.
+Date: 2026-07-30
+Final reviewed PR head: 77aa821
+Pull request: #97
+GitHub CI run: 333 — PASS
 
 ## Implemented
 
@@ -61,7 +63,7 @@ Reviewed runtime commit: 4907da5; documentation follows in subsequent sync commi
 | New runtime tests | PASS: 50 passed locally |
 | PR7 snapshot/contract plus runtime tests | PASS remotely in GitHub CI |
 | Existing unit, migration, and script suites | PASS: 796 passed |
-| Full repository pytest | NOT_GREEN: 854 passed, 53 skipped, 8 failed, 66 errors; local integration startup is blocked by the required notification worker/PostgreSQL fixture (`OperationalError`) |
+| Historical local full-suite attempt | NOT_GREEN because the local integration environment was incomplete. This is not the final repository merge gate. Current-head GitHub CI passed. |
 | Ruff on runtime/tests | PASS |
 | Python compileall | PASS |
 | Compose config | PASS |
@@ -79,6 +81,18 @@ Reviewed runtime commit: 4907da5; documentation follows in subsequent sync commi
 | PostgreSQL CI job | PASS remotely; the local environment was not used as the PostgreSQL proof |
 | Hosted/staging/production enforcement | NOT_RUN and unchanged |
 
+The real backend-to-WAF integration command was:
+
+```powershell
+$env:PR7_RUN_BACKEND_WAF_E2E = "1"
+.venv\Scripts\python.exe -m pytest -s -q --tb=short `
+  tests/e2e/test_pr7_backend_waf.py
+```
+
+Result: **1 passed** in approximately 146 seconds, with disposable PostgreSQL,
+backend, WAF containers, volumes, network, and generated credentials removed
+during teardown.
+
 ## Safety boundary
 
 The runtime is local-only and disabled by default. No real Supabase data was
@@ -87,8 +101,10 @@ PR6, ML artifacts, and the existing technical/demo WAF profiles were not
 changed. The disposable Docker volumes and test containers used for image
 validation were removed after each probe.
 
-The controlled proof above is disposable loopback/image evidence, not source-
-provenance evidence from the repository backend. Full Compose backend/source-
-correlation, and PR6 regression matrices remain separate proof obligations.
+The controlled proof includes the real disposable PostgreSQL-to-backend-to-WAF
+path. It does not prove external ingress or Cloudflare source provenance.
+
+External ingress/source identity, complete attack-to-ML creation, full PR6/PR7
+interaction, and final portal no-upstream evidence remain Block 3 obligations.
 This document does not convert local runtime or image-build checks into hosted
 or production readiness.

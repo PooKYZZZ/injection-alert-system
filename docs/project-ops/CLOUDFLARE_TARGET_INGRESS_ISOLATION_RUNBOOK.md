@@ -1,5 +1,8 @@
 # Cloudflare Target Ingress Isolation Runbook
 
+> Block 3 / external-ingress runbook. Not required for Block 2 merge and does
+> not authorize production ENFORCE.
+
 **Status:** Temporary target-only T0 source-identity proof completed. Final
 hostname cutover and continuous verified mode remain unauthorized; restore and
 keep normal runtime at `WAF_SOURCE_VERIFICATION_MODE=unverified`.

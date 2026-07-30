@@ -1,4 +1,17 @@
 # PR7 Controlled CRITICAL WAF Enforcement
+
+> HISTORICAL / SUPERSEDED FOR CURRENT STATUS
+>
+> This file preserves the pre-implementation planning and review history.
+> Do not use its readiness table, next-action instructions or opening prompt as
+> current project status.
+>
+> Current sources:
+> - `PR7_IMPLEMENTATION_SPEC.md`
+> - `PR7_CONTROLLED_CRITICAL_WAF_ENFORCEMENT_PLAN.md`
+> - `PR7_BLOCK_2_EVIDENCE.md`
+> - `STATUS.md`
+
 ## Permanent-chat project handoff, decision register, and implementation context
 
 **Prepared:** 2026-07-27
