@@ -262,6 +262,44 @@ def _resolve_crs_score(
     return 0
 
 
+def _internal_probe_event(raw_event: dict[str, Any]) -> bool:
+    """Return whether a ModSecurity record came from the local WAF probe.
+
+    Block 2 probes deliberately traverse the WAF so activation is verified,
+    but they are control-plane traffic rather than user traffic. In the
+    disposable Block 3 topology they share the audit volume with real
+    ingress, so forwarding them would recursively create PR7 recommendations.
+    The marker is an internal controller header and the probe port is an
+    additional defense for audit formats that omit request headers.
+    """
+    if os.getenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "false").lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return False
+
+    transaction = raw_event.get("transaction")
+    if not isinstance(transaction, dict):
+        return False
+    request = transaction.get("request")
+    request_headers = request.get("headers") if isinstance(request, dict) else None
+    if isinstance(request_headers, dict) and any(
+        str(key).lower() == "x-pr7-probe-source" for key in request_headers
+    ):
+        return True
+
+    # Main-port CRS probes originate from the WAF container itself and some
+    # audit formats omit the controller header. They are still control-plane
+    # traffic in the guarded local topology.
+    if str(transaction.get("client_ip") or "") in {"127.0.0.1", "::1"}:
+        return True
+
+    probe_port = os.getenv("WAF_BRIDGE_PROBE_PORT", "8081")
+    return str(transaction.get("host_port") or "") == probe_port
+
+
 def normalize_event(
     raw_event: dict[str, Any],
     *,
@@ -581,6 +619,17 @@ def run_bridge(
             event = json.loads(line)
             if not isinstance(event, dict):
                 raise ValueError("event line must be a JSON object")
+            if _internal_probe_event(event):
+                _log_event(
+                    "bridge.internal_probe_skipped",
+                    "Internal WAF probe event skipped from external ingest",
+                    transaction_id=str(
+                        (event.get("transaction") or {}).get("unique_id")
+                        if isinstance(event.get("transaction"), dict)
+                        else "unknown"
+                    ),
+                )
+                continue
             payload = normalize_event(event, provenance_mode=provenance_mode)
             transaction_id = str(payload.get("transaction_id") or "unknown")
             audit_evidence = (
@@ -659,6 +708,18 @@ def _process_event_line(
         event = json.loads(line)
         if not isinstance(event, dict):
             raise ValueError("event line must be a JSON object")
+
+        if _internal_probe_event(event):
+            _log_event(
+                "bridge.internal_probe_skipped",
+                "Internal WAF probe event skipped from external ingest",
+                transaction_id=str(
+                    (event.get("transaction") or {}).get("unique_id")
+                    if isinstance(event.get("transaction"), dict)
+                    else "unknown"
+                ),
+            )
+            return True, False
 
         payload = normalize_event(event, provenance_mode=provenance_mode)
         transaction_id = str(payload.get("transaction_id") or "")

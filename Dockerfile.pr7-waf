@@ -8,6 +8,7 @@ COPY waf_runtime /opt/pr7/waf_runtime
 COPY config/modsecurity/setup.conf.template /etc/nginx/templates/modsecurity.d/setup.conf.template
 COPY config/modsecurity/pr7-runtime-include.conf.template /etc/nginx/templates/modsecurity.d/pr7-runtime-include.conf.template
 COPY config/modsecurity/pr7-probe.conf.template /etc/nginx/templates/conf.d/pr7-probe.conf.template
+COPY config/modsecurity/pr7-evidence-log.conf.template /etc/nginx/templates/conf.d/pr7-evidence-log.conf.template
 RUN mkdir -p /pr7-state /var/log/modsecurity /var/log/modsecurity/audit \
     && chown -R nginx:nginx /opt/pr7 /pr7-state /var/log/modsecurity
 COPY docker/pr7-waf-entrypoint.sh /usr/local/bin/pr7-waf-entrypoint

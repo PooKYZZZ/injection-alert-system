@@ -25,6 +25,7 @@ from web_app.presentation.api.routes import (
     get_enforcement_repository,
     get_inference_queue,
     get_model_service,
+    get_waf_state_repository,
 )
 from web_app.presentation.app import create_app
 
@@ -44,6 +45,17 @@ class FakeWafModelService:
             "prediction": "SQL Injection",
             "confidence": 0.91,
             "confidence_tier": "HIGH",
+            "inference_latency_ms": 4.2,
+            "model_version": self.model_version,
+        }
+
+
+class CriticalWafModelService(FakeWafModelService):
+    def predict(self, http_request: str):
+        return {
+            "prediction": "SQL Injection",
+            "confidence": 0.97,
+            "confidence_tier": "CRITICAL",
             "inference_latency_ms": 4.2,
             "model_version": self.model_version,
         }
@@ -238,6 +250,121 @@ def test_shadow_persistence_starts_after_inference_queue_releases_worker(
 
     assert response.status_code == 200
     assert events == ["queue_started", "queue_released", "shadow_persistence"]
+
+
+def test_critical_pr7_ingest_uses_atomic_writer_without_generic_double_write(
+    waf_api_client, monkeypatch, caplog
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "enforcement_mode": "enforce",
+            "pr7_critical_waf_mutation_enabled": True,
+            "pr7_waf_capacity": 64,
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+
+    class ExplodingGenericRepository:
+        async def insert_if_absent(self, recommendation):
+            raise AssertionError("generic recommendation writer must not run")
+
+    class RecordingWafStateRepository:
+        def __init__(self):
+            self.calls: list[dict[str, object]] = []
+
+        async def record_critical_waf_recommendation(self, **kwargs):
+            self.calls.append(kwargs)
+            from web_app.application.post_triage_enforcement import WafMutationOutcome
+
+            return WafMutationOutcome("ACTIVATED", 17, 4, True)
+
+    waf_repository = RecordingWafStateRepository()
+    client.app.dependency_overrides[get_model_service] = (
+        lambda: CriticalWafModelService()
+    )
+    client.app.dependency_overrides[get_enforcement_repository] = (
+        lambda: ExplodingGenericRepository()
+    )
+    client.app.dependency_overrides[get_waf_state_repository] = (
+        lambda: waf_repository
+    )
+    payload = _waf_payload()
+    payload.update(
+        {
+            "transaction_id": "waf-txn-pr7-coordinator",
+            "request_path": "/records/search",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+    with caplog.at_level(logging.INFO):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=payload,
+            headers=WAF_HEADERS,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["confidence_level"] == "CRITICAL"
+    assert len(waf_repository.calls) == 1
+    event = _structured_events(caplog, "pr7.post_triage_mutation_completed")[-1]
+    assert event["route"] == "PR7"
+    assert event["category"] == "ACTIVATED"
+    assert event["revision"] == 4
+    assert event["state_changed"] is True
+
+
+def test_pr7_mutation_failure_keeps_successful_ingest_response(
+    waf_api_client, monkeypatch, caplog
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "enforcement_mode": "enforce",
+            "pr7_critical_waf_mutation_enabled": True,
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+
+    class FailingWafStateRepository:
+        async def record_critical_waf_recommendation(self, **kwargs):
+            raise RuntimeError("database failure")
+
+    client.app.dependency_overrides[get_model_service] = (
+        lambda: CriticalWafModelService()
+    )
+    client.app.dependency_overrides[get_waf_state_repository] = (
+        lambda: FailingWafStateRepository()
+    )
+    payload = _waf_payload()
+    payload.update(
+        {
+            "transaction_id": "waf-txn-pr7-failure-isolated",
+            "request_path": "/records/search",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = client.post(
+            "/api/internal/waf-events",
+            json=payload,
+            headers=WAF_HEADERS,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["alert_id"] is not None
+    event = _structured_events(caplog, "pr7.post_triage_mutation_failed")[-1]
+    assert event["transaction_id"] == "waf-txn-pr7-failure-isolated"
+    assert event["error_type"] == "RuntimeError"
+    assert "database failure" not in caplog.text
 
 
 def test_waf_ingest_queue_full_returns_503_with_retry_after(

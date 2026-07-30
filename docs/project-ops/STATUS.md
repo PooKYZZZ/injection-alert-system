@@ -35,11 +35,18 @@
   OFF/DRY_RUN/ENFORCE modes, and persistent disable.
 - Focused runtime suite: **50 passed locally**.
 - Real PostgreSQL-to-backend-to-WAF CRITICAL integration: **passed**.
+- PR7 Block 3 controlled-local attack-to-WAF lifecycle: **passed**. The real
+  staged model classified the SQLi vector as `SQL Injection` / `CRITICAL`, the
+  JSONL bridge created one atomic PR7 state, Block 2 returned a matching-source
+  403, source/path isolation held, WAF-side upstream fields were empty, and
+  revocation cleared the snapshot. Evidence is in
+  `docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
 - GitHub CI: backend, PostgreSQL, migrations, frontend, authentication E2E,
   secret scan, and PR7 WAF runtime passed.
 - Hosted, staging, and production enforcement remain disabled.
-- Full attack-to-ML creation, external ingress/source provenance, complete
-  PR6/PR7 interaction, and portal no-upstream evidence remain Block 3.
+- Real Cloudflare ingress/source equivalence, combined PR6/PR7 portal
+  interaction, portal-owned no-upstream evidence, and any hosted rollout
+  remain unverified or blocked.
 
 - Historical PR5 merge reference: backend PR #90 commit `62fc168`.
   Git is authoritative for the current branch and HEAD.
@@ -202,7 +209,8 @@ production evidence boundary only. **Technical debt:** none newly classified.
   semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
   remain open. `GAP-001` is complete for the approved local PR6 scope;
   `GAP-002` is partially resolved for PR7 CRITICAL/WAF enforcement; the
-  remaining Block 3 evidence is listed in the gap register.
+  remaining trust-topology, portal, and PR6 integration evidence is listed in
+  the gap register.
 
 ### Trusted source correlation PR state
 

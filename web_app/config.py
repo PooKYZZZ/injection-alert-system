@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     waf_audit_evidence_key: str = ""
     waf_state_sync_enabled: bool = False
     waf_state_sync_api_key: str = ""
+    pr7_critical_waf_mutation_enabled: bool = False
+    pr7_waf_capacity: int = Field(default=64, ge=1, le=512)
     waf_source_verification_mode: Literal[
         "unverified",
         "cloudflare_tunnel",
@@ -141,9 +143,26 @@ class Settings(BaseSettings):
                 )
         if self.waf_state_sync_enabled:
             if self.app_env not in {"development", "testing"}:
-                raise ValueError("WAF state sync is restricted to controlled local mode")
+                raise ValueError(
+                    "WAF state sync is restricted to controlled local mode"
+                )
             if len(self.waf_state_sync_api_key.strip()) < 32:
-                raise ValueError("WAF_STATE_SYNC_API_KEY must be at least 32 characters")
+                raise ValueError(
+                    "WAF_STATE_SYNC_API_KEY must be at least 32 characters"
+                )
+        if self.pr7_critical_waf_mutation_enabled:
+            if self.app_env not in {"development", "testing"}:
+                raise ValueError(
+                    "PR7 CRITICAL mutation is restricted to controlled local mode"
+                )
+            if not self.waf_state_sync_enabled:
+                raise ValueError(
+                    "PR7 CRITICAL mutation requires WAF_STATE_SYNC_ENABLED"
+                )
+            if self.enforcement_mode != "enforce":
+                raise ValueError(
+                    "PR7 CRITICAL mutation requires ENFORCEMENT_MODE=enforce"
+                )
         if self.enforcement_allow_unverified_source_for_tests and (
             self.is_production or self.is_staging
         ):

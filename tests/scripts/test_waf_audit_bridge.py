@@ -251,6 +251,35 @@ def test_cloudflare_audit_post_marks_only_modsecurity_audit_evidence(monkeypatch
     assert posted["audit_evidence"] is True
 
 
+def test_controlled_bridge_skips_internal_pr7_probe_events(monkeypatch):
+    monkeypatch.setenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "true")
+    posted = []
+
+    def fake_post_event(
+        payload, *, endpoint, api_secret, timeout, audit_evidence=False
+    ):
+        posted.append(payload)
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", fake_post_event)
+    result = run_bridge(
+        input_stream=StringIO(
+            '{"transaction":{"unique_id":"tx-probe","host_port":8081,'
+            '"client_ip":"172.31.7.10","request":{"method":"GET",'
+            '"uri":"/records/search","headers":{"X-PR7-Probe-Source":'
+            '"172.31.7.10"}}}}\n'
+        ),
+        endpoint="http://backend/api/internal/waf-events",
+        api_secret="test-key",
+        timeout=1,
+        max_retries=0,
+        provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result == (1, 0, 0)
+    assert posted == []
+
+
 def test_generic_cloudflare_payload_does_not_mark_audit_evidence(monkeypatch):
     posted = {}
 

@@ -597,3 +597,44 @@ def test_enforcement_configuration_rejects_unsafe_values(kwargs) -> None:
             model_path="test_model.py",
             **kwargs,
         )
+
+
+def _pr7_mutation_settings(**overrides):
+    values = {
+        "env_file": False,
+        "database_url": "sqlite+aiosqlite:///test.db",
+        "model_path": "test_model.py",
+        "app_env": "testing",
+        "enforcement_mode": "enforce",
+        "enforcement_check_api_key": "enforcement-key-that-is-at-least-32-chars",
+        "enforcement_turnstile_secret_key": "1x0000000000000000000000000000000AA",
+        "enforcement_turnstile_expected_hostname": "localhost",
+        "enforcement_turnstile_test_mode": True,
+        "waf_state_sync_enabled": True,
+        "waf_state_sync_api_key": "waf-state-sync-key-that-is-at-least-32-chars",
+        "pr7_critical_waf_mutation_enabled": True,
+    }
+    values.update(overrides)
+    return values
+
+
+def test_pr7_mutation_gate_accepts_controlled_testing_configuration() -> None:
+    settings = Settings(**_pr7_mutation_settings())
+
+    assert settings.pr7_critical_waf_mutation_enabled is True
+    assert settings.pr7_waf_capacity == 64
+
+
+def test_pr7_mutation_gate_rejects_non_local_environment() -> None:
+    with pytest.raises(ValueError, match="controlled local mode"):
+        Settings(**_pr7_mutation_settings(app_env="staging"))
+
+
+def test_pr7_mutation_gate_requires_snapshot_sync() -> None:
+    with pytest.raises(ValueError, match="WAF_STATE_SYNC_ENABLED"):
+        Settings(**_pr7_mutation_settings(waf_state_sync_enabled=False))
+
+
+def test_pr7_mutation_gate_requires_enforce_mode() -> None:
+    with pytest.raises(ValueError, match="ENFORCEMENT_MODE=enforce"):
+        Settings(**_pr7_mutation_settings(enforcement_mode="shadow"))
