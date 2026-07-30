@@ -1339,7 +1339,18 @@ def test_follow_bridge_from_start_processes_existing_lines(monkeypatch, tmp_path
 
 def test_follow_bridge_skips_malformed_json(monkeypatch, tmp_path):
     audit_log = tmp_path / "modsec_audit.jsonl"
-    audit_log.write_text("{bad json}\n", encoding="utf-8")
+    valid_event = {
+        "transaction_id": "tx-after-malformed-bytes",
+        "timestamp": "2026-03-24T10:00:00Z",
+        "source_ip": "203.0.113.10",
+        "request_method": "GET",
+        "request_path": "/after-malformed-bytes",
+        "crs_score": 8,
+        "crs_rule_ids": ["942100"],
+    }
+    audit_log.write_bytes(
+        b"\x80\x81{bad json}\n" + json.dumps(valid_event).encode("utf-8") + b"\n"
+    )
     posted = []
     stop_event = threading.Event()
 
@@ -1360,8 +1371,10 @@ def test_follow_bridge_skips_malformed_json(monkeypatch, tmp_path):
         start_at_end=False,
     )
 
-    assert posted == []
-    assert totals == (1, 0, 1)
+    assert [payload["transaction_id"] for payload in posted] == [
+        "tx-after-malformed-bytes"
+    ]
+    assert totals == (2, 1, 1)
 
 
 def test_follow_bridge_skips_duplicate_transaction_id(monkeypatch, tmp_path):

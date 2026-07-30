@@ -823,7 +823,7 @@ def follow_bridge(
     logged_following = False
 
     while not stop_signal.is_set():
-        with open(Path(input_path), "r", encoding="utf-8") as handle:
+        with open(Path(input_path), "r", encoding="utf-8", errors="replace") as handle:
             if first_open and start_at_end:
                 handle.seek(0, os.SEEK_END)
                 current_position = handle.tell()
@@ -1015,7 +1015,7 @@ def main() -> int:
             provenance_mode=provenance_mode,
         )
     else:
-        with open(args.input, "r", encoding="utf-8") as handle:
+        with open(args.input, "r", encoding="utf-8", errors="replace") as handle:
             total, success, failed = run_bridge(
                 input_stream=handle,
                 endpoint=endpoint,

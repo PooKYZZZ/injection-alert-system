@@ -3,7 +3,7 @@
 **Status:** Controlled-local attack-to-CRITICAL-WAF lifecycle passed; hosted,
 staging, production, and real Cloudflare ingress remain unverified.
 
-**Run date:** 2026-07-30
+**Run date:** 2026-07-31
 **Repository:** `G:\AI\PDDDD\injection-alert-system`
 **Profile:** disposable PostgreSQL, FastAPI, pinned DistilBERT staging artifact,
 local ModSecurity/OWASP CRS WAF, JSONL bridge, and isolated demo portal.
@@ -14,7 +14,7 @@ The guarded lifecycle test passed:
 
 ```text
 PR7_RUN_BLOCK3_E2E=1 .venv\Scripts\python.exe -m pytest -q --tb=short tests/e2e/test_pr7_block3.py
-3 passed in 144.74s
+3 passed in 317.50s
 ```
 
 The test drove a fixed source client through the WAF with the SQLi vector
@@ -113,6 +113,11 @@ secure artifact dependency and are not committed to Git.
 - An intermediate readiness request negotiated compressed response content;
   binary response bytes caused the UTF-8 audit follower to exit. The final
   lifecycle avoids that path entirely by using the no-upstream internal probe.
+- The Block 3 profile now omits ModSecurity audit part `E`, so intermediary
+  response bodies are not written to the shared audit stream. The audit bridge
+  also decodes followed and one-shot file input with replacement, so a malformed
+  byte line is counted as failed without terminating the follower or preventing
+  later valid transactions from being ingested.
 - An intermediate async state poll disposed its engine on a different event
   loop. Engine creation, reusable session-factory polling, and disposal now run
   on one event loop.
