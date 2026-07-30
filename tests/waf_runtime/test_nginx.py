@@ -117,8 +117,7 @@ def test_empty_probe_requires_exact_204(monkeypatch, tmp_path):
 def test_audit_probe_requires_exact_revision_and_recommendation(tmp_path):
     audit = tmp_path / "audit.jsonl"
     audit.write_text(
-        '{"marker":"probe-1","tags":["pr7","revision-42",'
-        '"recommendation-123"]}\n',
+        '{"marker":"probe-1","tags":["pr7","revision-42","recommendation-123"]}\n',
         encoding="utf-8",
     )
     controller = NginxController(
@@ -144,3 +143,80 @@ def test_candidate_tag_parser_rejects_missing_identity(tmp_path):
 
     with pytest.raises(ValueError, match="revision"):
         controller._candidate_tag(candidate, "revision")
+
+
+def test_wrong_source_works_when_the_entire_test_subnet_is_used(tmp_path):
+    controller = NginxController(
+        config_path=tmp_path / "nginx.conf", active_path=tmp_path / "selected.conf"
+    )
+
+    assert (
+        controller._wrong_source([f"198.51.100.{i}" for i in range(1, 255)])
+        == "0.0.0.0"
+    )
+
+
+def test_audit_probe_does_not_read_the_entire_log(tmp_path, monkeypatch):
+    audit = tmp_path / "audit.jsonl"
+    audit.write_bytes(b'prefix\n{"marker":"probe-1"}\n')
+    controller = NginxController(
+        config_path=tmp_path / "nginx.conf",
+        active_path=tmp_path / "selected.conf",
+        audit_log_path=audit,
+    )
+
+    monkeypatch.setattr(
+        type(audit),
+        "read_text",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unbounded read")),
+    )
+    assert controller._audit_contains_all("probe-1")
+
+
+def test_probe_chooses_an_unexpired_rule_for_mixed_candidate(tmp_path, monkeypatch):
+    monkeypatch.setattr("waf_runtime.nginx.time.time", lambda: 1000.0)
+    active = tmp_path / "selected.conf"
+    candidate = tmp_path / "candidate.conf"
+    content = (
+        'SecRule REMOTE_ADDR "@ipMatch 203.0.113.7" '
+        '"id:10000,expirevar:TX.TIME_EPOCH"\n'
+        'SecAction "id:10001,initcol:global.TIME_EPOCH=900"\n'
+        'SecRule REQUEST_FILENAME "@streq /records/search" "id:10002"\n'
+        '    SecRule REMOTE_ADDR "@ipMatch 203.0.113.8" "id:10003"\n'
+        '    SecRule TIME_EPOCH "@lt 2000" "id:10004"\n'
+    )
+    candidate.write_text(content, encoding="ascii")
+    active.write_text(content, encoding="ascii")
+    requests = []
+    client_options = {}
+    source_headers = []
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, **kwargs):
+            requests.append((url, kwargs))
+            response = type("Response", (), {})()
+            response.status_code = [403, 204, 204, 403][len(requests) - 1]
+            return response
+
+    monkeypatch.setattr(
+        "waf_runtime.nginx.httpx.Client",
+        lambda **kwargs: (
+            client_options.update(kwargs)
+            or source_headers.append(kwargs["headers"])
+            or Client()
+        ),
+    )
+    controller = NginxController(
+        config_path=tmp_path / "nginx.conf",
+        active_path=active,
+        probe_url="http://127.0.0.1:8081",
+    )
+
+    assert controller.probe_candidate(candidate)
+    assert source_headers[0]["X-PR7-Probe-Source"] == "203.0.113.8"

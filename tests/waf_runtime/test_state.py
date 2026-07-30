@@ -37,3 +37,11 @@ def test_pruning_keeps_protected_files(tmp_path) -> None:
     assert store.lock_path.exists()
     assert store.canonical_empty_path.exists()
     assert len(list(store.candidates_dir.glob("candidate-*.conf"))) == 1
+
+
+def test_corrupt_canonical_empty_is_restored(tmp_path) -> None:
+    (tmp_path / "empty.conf").write_bytes(b"malicious rules")
+
+    CandidateStateStore(tmp_path)
+
+    assert (tmp_path / "empty.conf").read_bytes() == b"# PR7 dynamic WAF candidate\n"

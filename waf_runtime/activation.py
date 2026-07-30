@@ -46,12 +46,13 @@ class ActivationManager:
         with self.store.locked():
             if self.store.is_disabled():
                 return self.deactivate_empty("disabled_empty")
+            decision = self._revision_decision(snapshot)
+            if decision is not None:
+                return ActivationResult(decision)
             previous_metadata = self.store.read_metadata()
             candidate = render_snapshot(snapshot)
             if candidate.entry_count == 0:
-                return self._activate_authoritative_empty(
-                    snapshot, previous_metadata
-                )
+                return self._activate_authoritative_empty(snapshot, previous_metadata)
             probe_item = self._probe_item(snapshot)
             if probe_item is None:
                 return self.deactivate_empty("pending_empty")
@@ -79,7 +80,9 @@ class ActivationManager:
                 self._restore_previous(previous_metadata)
                 raise ActivationError("candidate probe failed")
             self.store.write_metadata(
-                self._authoritative_metadata(snapshot, candidate.checksum_sha256)
+                self._authoritative_metadata(
+                    snapshot, candidate.checksum_sha256, probe_item
+                )
             )
             self.store.prune_candidates()
             return ActivationResult("authoritative")
@@ -134,9 +137,12 @@ class ActivationManager:
         return ActivationResult("authoritative")
 
     def _authoritative_metadata(
-        self, snapshot: Snapshot, candidate_checksum: str
+        self,
+        snapshot: Snapshot,
+        candidate_checksum: str,
+        probe_item: dict | None = None,
     ) -> dict:
-        return {
+        metadata = {
             "metadata_schema_version": 1,
             "selected_kind": "authoritative",
             "selected_source_revision": snapshot.revision,
@@ -146,6 +152,33 @@ class ActivationManager:
             .isoformat(timespec="milliseconds")
             .replace("+00:00", "Z"),
         }
+        if probe_item is not None:
+            metadata["selected_probe_source_ip"] = probe_item["source_ip"]
+            metadata["selected_probe_recommendation_id"] = probe_item[
+                "recommendation_id"
+            ]
+        return metadata
+
+    def _revision_decision(self, snapshot: Snapshot) -> str | None:
+        metadata = self.store.read_metadata()
+        selected_revision = metadata.get("selected_source_revision")
+        if metadata.get("selected_kind") != "authoritative" or not isinstance(
+            selected_revision, int
+        ):
+            return None
+        if snapshot.revision < selected_revision:
+            return "stale_ignored"
+        if snapshot.revision == selected_revision:
+            if (
+                metadata.get("selected_source_state_checksum_sha256")
+                != snapshot.state_checksum_sha256
+            ):
+                return "conflict_rejected"
+            if self.store.selected_checksum_matches(
+                metadata.get("selected_file_checksum_sha256")
+            ):
+                return "no_change"
+        return None
 
     def _restore_previous(self, metadata: dict) -> None:
         try:
@@ -173,7 +206,12 @@ class ActivationManager:
         if not self.nginx.reload_and_confirm():
             return False
         if metadata.get("selected_kind") == "authoritative":
-            return self.nginx.probe_candidate(self.store.selected_path)
+            return self.nginx.probe_candidate(
+                self.store.selected_path,
+                metadata.get("selected_probe_source_ip"),
+                metadata.get("selected_source_revision"),
+                metadata.get("selected_probe_recommendation_id"),
+            )
         return self.nginx.probe_empty(self.store.selected_path)
 
     def _confirm_empty(self) -> None:
@@ -192,9 +230,7 @@ class ActivationManager:
             key=lambda item: _timestamp_epoch(item["expires_at"]) // 1000 - 1,
         )
         cutoff = _timestamp_epoch(latest["expires_at"]) // 1000 - 1
-        required_seconds = max(
-            1, math.ceil(getattr(self.nginx, "timeout", 5.0) * 3)
-        )
+        required_seconds = max(1, math.ceil(getattr(self.nginx, "timeout", 5.0) * 3))
         if cutoff - time.time() < required_seconds:
             return None
         return latest

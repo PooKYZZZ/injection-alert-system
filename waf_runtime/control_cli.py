@@ -33,7 +33,7 @@ def main() -> int:
             total_timeout=config.subprocess_timeout,
         )
         reconciler = Reconciler(
-            store, nginx, client, ReconcileConfig(mode="enforce")
+            store, nginx, client, config=ReconcileConfig(mode=config.mode)
         )
         reconcile = reconciler.reconcile
     result = getattr(

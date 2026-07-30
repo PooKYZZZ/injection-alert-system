@@ -12,6 +12,8 @@ try:
 except ImportError:  # pragma: no cover - exercised only on Windows hosts
     fcntl = None
 
+CANONICAL_EMPTY_CONTENT = b"# PR7 dynamic WAF candidate\n"
+
 
 class CandidateStateStore:
     """Persistent, same-filesystem state for one local WAF instance."""
@@ -28,10 +30,7 @@ class CandidateStateStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.candidates_dir.mkdir(parents=True, exist_ok=True)
         self.lock_path.touch(exist_ok=True)
-        if not self.canonical_empty_path.exists():
-            self._atomic_write(
-                self.canonical_empty_path, b"# PR7 dynamic WAF candidate\n"
-            )
+        self._ensure_canonical_empty()
         if not self.selected_path.exists():
             self._atomic_write(
                 self.selected_path, self.canonical_empty_path.read_bytes()
@@ -139,9 +138,7 @@ class CandidateStateStore:
         ):
             return False
         try:
-            return self.selected_path.read_bytes() == (
-                self.canonical_empty_path.read_bytes()
-            )
+            return self.selected_path.read_bytes() == CANONICAL_EMPTY_CONTENT
         except OSError:
             return False
 
@@ -193,18 +190,21 @@ class CandidateStateStore:
         return hashlib.sha256(content).hexdigest()
 
     def empty_metadata(self, kind: str) -> dict:
-        content = (
-            self.canonical_empty_path.read_bytes()
-            if self.canonical_empty_path.exists()
-            else b"# PR7 dynamic WAF candidate\n"
-        )
         return {
             "metadata_schema_version": 1,
             "selected_kind": kind,
             "selected_source_revision": None,
             "selected_source_state_checksum_sha256": None,
-            "selected_file_checksum_sha256": self.checksum(content),
+            "selected_file_checksum_sha256": self.checksum(CANONICAL_EMPTY_CONTENT),
             "selected_at": None,
         }
+
+    def _ensure_canonical_empty(self) -> None:
+        if (
+            self.canonical_empty_path.is_symlink()
+            or not self.canonical_empty_path.is_file()
+            or self.canonical_empty_path.read_bytes() != CANONICAL_EMPTY_CONTENT
+        ):
+            self._atomic_write(self.canonical_empty_path, CANONICAL_EMPTY_CONTENT)
 
     _empty_metadata = empty_metadata

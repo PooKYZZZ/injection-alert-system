@@ -128,6 +128,17 @@ class WafStateRepository:
             )
             control = await self._lock_control()
             now = await self._mutation_now()
+            existing_id = await self.session.scalar(
+                select(EnforcementRecommendationRow.id).where(
+                    EnforcementRecommendationRow.trigger_traffic_log_id
+                    == trigger_traffic_log_id
+                )
+            )
+            changed_rows = await self._expire_active(now)
+            cleaned = bool(changed_rows)
+            if existing_id is None and recommendation_expires_at <= now:
+                revision = self._finalize_revision(control, now, changed_rows)
+                return WafMutationResult("EXPIRED_CANDIDATE", 0, revision, cleaned)
             values = {
                 "trigger_traffic_log_id": trigger_traffic_log_id,
                 "scope": PR7_SCOPE,
@@ -156,8 +167,6 @@ class WafStateRepository:
             if recommendation_id is None:
                 raise RuntimeError("recommendation insert did not return an id")
 
-            changed_rows = await self._expire_active(now)
-            cleaned = bool(changed_rows)
             if not inserted_now:
                 revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
@@ -268,9 +277,7 @@ class WafStateRepository:
                 expires_at=effective_expires_at,
                 revision=control.revision,
             )
-            self.session.add(
-                new_state
-            )
+            self.session.add(new_state)
             changed_rows.append(new_state)
             revision = self._finalize_revision(control, now, changed_rows)
             return WafMutationResult(
@@ -333,19 +340,19 @@ class WafStateRepository:
             )
             control = await self._lock_control()
             now = await self._mutation_now()
+            changed_rows = await self._expire_active(now)
             row = await self.session.scalar(
                 select(WafEffectiveStateRow)
                 .where(WafEffectiveStateRow.recommendation_id == recommendation_id)
                 .with_for_update()
             )
             if row is None or row.status != WafLifecycle.ACTIVE:
+                revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
-                    "TERMINAL_NOOP", recommendation_id, control.revision, False
+                    "TERMINAL_NOOP", recommendation_id, revision, bool(changed_rows)
                 )
-            revision = control.revision + 1
             row.status = WafLifecycle.REVOKED
             row.terminal_at = now
-            row.revision = revision
-            control.revision = revision
-            control.updated_at = now
+            changed_rows.append(row)
+            revision = self._finalize_revision(control, now, changed_rows)
             return WafMutationResult("REVOKED", recommendation_id, revision, True)

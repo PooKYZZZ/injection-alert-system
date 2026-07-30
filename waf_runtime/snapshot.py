@@ -3,7 +3,10 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import signal
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -251,32 +254,36 @@ class SnapshotClient:
     def fetch(self) -> Snapshot:
         started = time.monotonic()
         try:
-            with self.client.stream("GET", self.endpoint) as response:
-                if response.status_code != 200:
-                    raise SnapshotRejected("snapshot response status rejected")
-                if response.headers.get("content-encoding", "").strip():
-                    raise SnapshotRejected("compressed snapshot response rejected")
-                content_type = response.headers.get("content-type", "")
-                media, _, charset = content_type.partition(";")
-                if media.strip().lower() != "application/json" or (
-                    charset and charset.strip().lower() != "charset=utf-8"
-                ):
-                    raise SnapshotRejected("snapshot content type rejected")
-                length = response.headers.get("content-length")
-                if length is not None and (
-                    not length.isdigit() or int(length) > MAX_BODY_BYTES
-                ):
-                    raise SnapshotRejected("snapshot size rejected")
-                chunks: list[bytes] = []
-                size = 0
-                for chunk in response.iter_bytes():
-                    if time.monotonic() - started > self.total_timeout:
-                        raise SnapshotRejected("snapshot total deadline exceeded")
-                    size += len(chunk)
-                    if size > MAX_BODY_BYTES:
+            remaining = self.total_timeout
+            with self._deadline(remaining):
+                with self.client.stream(
+                    "GET", self.endpoint, timeout=remaining
+                ) as response:
+                    if response.status_code != 200:
+                        raise SnapshotRejected("snapshot response status rejected")
+                    if response.headers.get("content-encoding", "").strip():
+                        raise SnapshotRejected("compressed snapshot response rejected")
+                    content_type = response.headers.get("content-type", "")
+                    media, _, charset = content_type.partition(";")
+                    if media.strip().lower() != "application/json" or (
+                        charset and charset.strip().lower() != "charset=utf-8"
+                    ):
+                        raise SnapshotRejected("snapshot content type rejected")
+                    length = response.headers.get("content-length")
+                    if length is not None and (
+                        not length.isdigit() or int(length) > MAX_BODY_BYTES
+                    ):
                         raise SnapshotRejected("snapshot size rejected")
-                    chunks.append(chunk)
-                raw = b"".join(chunks)
+                    chunks: list[bytes] = []
+                    size = 0
+                    for chunk in response.iter_bytes():
+                        if time.monotonic() - started > self.total_timeout:
+                            raise SnapshotRejected("snapshot total deadline exceeded")
+                        size += len(chunk)
+                        if size > MAX_BODY_BYTES:
+                            raise SnapshotRejected("snapshot size rejected")
+                        chunks.append(chunk)
+                    raw = b"".join(chunks)
         except httpx.HTTPError as exc:
             raise SnapshotRejected("snapshot transport failed") from exc
         if time.monotonic() - started > self.total_timeout:
@@ -293,3 +300,34 @@ class SnapshotClient:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise SnapshotRejected("invalid snapshot JSON") from exc
         return _validate_snapshot(value)
+
+    @contextmanager
+    def _deadline(self, seconds: float):
+        if threading.current_thread() is not threading.main_thread() or not hasattr(
+            signal, "setitimer"
+        ):
+            yield
+            return
+        previous_handler = signal.getsignal(signal.SIGALRM)
+        previous_timer = signal.setitimer(signal.ITIMER_REAL, 0)
+        started = time.monotonic()
+        deadline = seconds
+        if previous_timer[0] > 0:
+            deadline = min(deadline, previous_timer[0])
+
+        def timeout_handler(signum, frame):
+            raise SnapshotRejected("snapshot total deadline exceeded")
+
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.setitimer(signal.ITIMER_REAL, deadline)
+        try:
+            yield
+        finally:
+            elapsed = time.monotonic() - started
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous_handler)
+            remaining = previous_timer[0] - elapsed
+            if remaining > 0:
+                signal.setitimer(
+                    signal.ITIMER_REAL, remaining, previous_timer[1]
+                )

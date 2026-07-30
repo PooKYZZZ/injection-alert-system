@@ -34,3 +34,20 @@ def test_expected_activation_rejections_do_not_kill_the_worker_loop():
 
     assert reconcile_once(RejectedReconciler(), EventLogger(), "enforce") is None
     assert events[-1][0][0] == "waf_activation_failed"
+
+
+@pytest.mark.parametrize("result", ["stale_ignored", "conflict_rejected"])
+def test_revision_rejections_have_explicit_events(result):
+    class RejectedReconciler:
+        def reconcile(self):
+            return result
+
+    events = []
+
+    class EventLogger:
+        def emit(self, *args, **kwargs):
+            events.append((args, kwargs))
+
+    assert reconcile_once(RejectedReconciler(), EventLogger(), "enforce") == result
+    assert events[-1][0][0] == "waf_snapshot_rejected"
+    assert events[-1][1]["reason"] == result

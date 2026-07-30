@@ -132,9 +132,7 @@ def test_equal_revision_conflicting_checksum_is_rejected(tmp_path):
     assert store.read_metadata()["selected_source_revision"] == 4
 
 
-def test_near_expiry_snapshot_remains_pending_and_is_retried(
-    tmp_path, monkeypatch
-):
+def test_near_expiry_snapshot_remains_pending_and_is_retried(tmp_path, monkeypatch):
     monkeypatch.setattr("waf_runtime.activation.time.time", lambda: 1000.0)
     near_expiry = Snapshot(
         1,
@@ -165,3 +163,19 @@ def test_near_expiry_snapshot_remains_pending_and_is_retried(
     assert runtime.reconcile() == "pending_empty"
     assert runtime.fetcher.calls == 2
     assert runtime.store.read_metadata()["selected_source_revision"] is None
+
+
+def test_dry_run_prunes_previous_candidate_artifacts(tmp_path):
+    fetcher = Fetcher(snap(2))
+    runtime = Reconciler(
+        CandidateStateStore(tmp_path),
+        FakeNginx(),
+        fetcher,
+        RuntimeConfig(mode="dry_run"),
+    )
+
+    runtime.reconcile()
+    fetcher.value = snap(3)
+    runtime.reconcile()
+
+    assert len(list(runtime.store.candidates_dir.glob("candidate-dry-run-*.conf"))) <= 1
