@@ -1,0 +1,26 @@
+services:
+  demo-portal:
+    environment:
+      APP_ENV: testing
+      ENFORCEMENT_MODE: active
+      PR7_PORTAL_SENTINEL_PATH: /pr7-evidence/portal.jsonl
+    volumes:
+      - pr7-block3c-sentinel:/pr7-evidence
+
+  pr7-block3-waf:
+    ports: !override
+      - "127.0.0.1::8080"
+      - "127.0.0.1::8081"
+    volumes:
+      - pr7-block3c-state:/pr7-state
+      - pr7-block3c-audit:/var/log/modsecurity
+      - ./config/modsecurity/pr7-evidence-log.conf.template:/etc/nginx/templates/conf.d/pr7-evidence-log.conf.template:ro
+
+  pr7-block3-bridge:
+    volumes:
+      - pr7-block3c-audit:/var/log/modsecurity:ro
+
+volumes:
+  pr7-block3c-state:
+  pr7-block3c-audit:
+  pr7-block3c-sentinel:
