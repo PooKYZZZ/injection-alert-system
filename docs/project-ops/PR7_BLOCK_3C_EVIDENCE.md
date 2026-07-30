@@ -1,0 +1,53 @@
+# PR7 Block 3C Evidence
+
+Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
+
+## Implemented and verified
+
+- `docker-compose.pr7-block3c.yml` provides a deterministic local profile with
+  persistent WAF state/audit volumes and portal sentinel evidence.
+- Portal evidence parsing is schema-exact, bounded to 256 KiB, and rejects
+  invalid IDs, stages, methods, paths, and extra fields.
+- WAF reconcile events now include monotonic `total_ms` for success, rejection,
+  activation failure, and rollback failure without logging response bodies or
+  credentials.
+- Existing focused tests verify stale revision rejection, same-revision
+  checksum conflict, safe-empty startup, disable latch persistence, snapshot
+  validation/body/time limits, candidate failure, rollback, rollback failure,
+  NGINX probing, and supervisor child failure.
+- Existing PostgreSQL tests cover expiry cleanup, revocation with expired rows,
+  revision stamping, capacity, and no-resurrection state transitions.
+
+## Verification
+
+- Portal sentinel unit suite: 35 passed.
+- Shared sentinel/Compose tests: 12 passed.
+- WAF runtime and enforcement/bridge regression selection: 143 passed,
+  1 guarded E2E skipped.
+- Focused WAF resilience selection after timing instrumentation: 44 passed.
+- Both merged Compose profiles validated with `config --quiet`.
+- Full repository pytest initially failed because the local `.env` enables a
+  required notification worker while SQLite lacks
+  `public.claim_notification_outbox_batch_v62`. Re-running with the test
+  worker explicitly disabled (`NOTIFICATION_WORKER_ENABLED=false`,
+  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **999 passed, 58 skipped**.
+- Historical Block 3A disposable attack-to-block-to-revoke lifecycle:
+  **1 passed in 459.64 seconds** against its original locked portal commit.
+  Its finalizer disabled PR7, checked empty state, removed the project, and
+  reported no cleanup failure.
+
+## Not executed
+
+The disposable container scenarios for network disconnect/reconnect, outage
+past absolute expiry, process killing/recreation, bridge accumulation/replay,
+fresh-connection portal restoration timing, and 0/1/64 runtime measurements
+are **NOT_RUN** in this evidence record. Therefore no measured revocation SLO,
+expiry latency, capacity distribution, or end-to-end resilience completion
+claim is made.
+
+The safety contract remains:
+
+```text
+Expiry = data-plane safety
+Revocation = control-plane safety
+```
