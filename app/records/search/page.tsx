@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { MOCK_RECORDS } from "../../../lib/db";
 import { Search, Map, ArrowRight, Layers, FileSpreadsheet } from "lucide-react";
 import { SITE_CONFIG } from "../../../lib/demo-config";
@@ -10,6 +11,7 @@ import {
 } from "../../../lib/enforcement-check-runtime";
 import { applicationBlockAppliedLogEvent } from "../../../lib/enforcement-check";
 import { runRecordSearchProtectedWork } from "./record-search-protection";
+import { recordPr7PortalStage } from "../../../lib/pr7-portal-sentinel";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +24,19 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const evidenceId = (await headers()).get("x-pr7-evidence-id");
+  await recordPr7PortalStage({
+    evidenceId,
+    stage: "request_received",
+  });
   const enforcement = await checkRecordSearchEnforcementFromRuntime();
   const protectedSearch = await runRecordSearchProtectedWork(
     enforcement,
     async () => {
+      await recordPr7PortalStage({
+        evidenceId,
+        stage: "protected_work_started",
+      });
       const { query } = await searchParams;
       const lowercaseQuery = (query || "").toLowerCase().trim();
       const results = MOCK_RECORDS.filter((record) => {
