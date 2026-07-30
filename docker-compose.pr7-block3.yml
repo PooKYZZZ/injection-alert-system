@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
     environment:
       POSTGRES_DB: cybertrace_pr7_block3
       POSTGRES_USER: pr7_block3
@@ -94,6 +94,7 @@ services:
     volumes:
       - pr7-block3-state:/pr7-state
       - pr7-block3-audit:/var/log/modsecurity
+      - ./config/modsecurity/pr7-evidence-log.conf.template:/etc/nginx/templates/conf.d/pr7-evidence-log.conf.template:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -132,7 +133,7 @@ services:
       - pr7-block3
 
   source-client-a:
-    image: python:3.14-alpine
+    image: python@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
     profiles:
       - pr7-block3
     command: ["python", "-c", "import time; time.sleep(3600)"]
@@ -141,7 +142,7 @@ services:
         ipv4_address: 172.31.7.10
 
   source-client-b:
-    image: python:3.14-alpine
+    image: python@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
     profiles:
       - pr7-block3
     command: ["python", "-c", "import time; time.sleep(3600)"]

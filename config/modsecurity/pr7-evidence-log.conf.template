@@ -1,10 +1,15 @@
+map $http_x_pr7_evidence_id $pr7_evidence_loggable {
+    ""      0;
+    default 1;
+}
+
 log_format pr7_evidence escape=json
   '{'
     '"time":"$time_iso8601",'
     '"evidence_id":"$http_x_pr7_evidence_id",'
     '"request_id":"$request_id",'
     '"remote_addr":"$remote_addr",'
-    '"request_uri":"$request_uri",'
+    '"uri":"$uri",'
     '"status":$status,'
     '"upstream_addr":"$upstream_addr",'
     '"upstream_status":"$upstream_status",'
@@ -12,4 +17,6 @@ log_format pr7_evidence escape=json
     '"request_time":"$request_time"'
   '}';
 
-access_log /var/log/modsecurity/pr7_evidence.jsonl pr7_evidence;
+access_log /var/log/modsecurity/pr7_evidence.jsonl
+  pr7_evidence
+  if=$pr7_evidence_loggable;

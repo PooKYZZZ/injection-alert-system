@@ -14,7 +14,7 @@ The guarded lifecycle test passed:
 
 ```text
 PR7_RUN_BLOCK3_E2E=1 .venv\Scripts\python.exe -m pytest -q --tb=short tests/e2e/test_pr7_block3.py
-1 passed in 155.10s
+3 passed in 130.60s
 ```
 
 The test drove a fixed source client through the WAF with the SQLi vector
@@ -30,8 +30,10 @@ The same lifecycle asserted:
 
 - a different fixed source was not blocked;
 - `/records/search/` did not match the exact protected path;
-- the WAF audit log contained the external marker, PR7 tag, revision, and
-  recommendation correlation;
+- wrong-source, wrong-path, and post-revocation controls returned their exact
+  pre-activation baseline status and had non-empty upstream evidence;
+- one bounded audit-log transaction contained the external marker, PR7 tag,
+  revision, and recommendation correlation;
 - the WAF evidence access log recorded HTTP 403 with empty upstream fields for
   the matching request; and
 - direct Block 1 revocation removed the active snapshot entry and restored a
@@ -62,7 +64,7 @@ The exact vector is separately covered by the guarded real-model test:
 
 ```text
 PR7_RUN_REAL_MODEL=1 .venv\Scripts\python.exe -m pytest -q --tb=short tests/ml/test_pr7_critical_vector.py
-1 passed in 12.47s
+1 passed in 7.27s
 ```
 
 The pinned artifact is
@@ -72,6 +74,10 @@ with checkpoint SHA-256
 The observed vector confidence was `0.998841` and the configured CRITICAL
 threshold was `0.90`. This proves vector selection and model output only; the
 full lifecycle result above is the authoritative attack-to-WAF evidence.
+The machine-readable lock also verifies the manifest, tokenizer, model
+configuration, pinned PostgreSQL/Python/WAF inputs, and the exact clean portal
+checkout before the lifecycle starts. The model weights remain an external,
+secure artifact dependency and are not committed to Git.
 
 ## Earlier failed attempts retained for review
 
@@ -90,6 +96,19 @@ full lifecycle result above is the authoritative attack-to-WAF evidence.
 - The first complete lifecycle admitted Block 2 probe audit records into the
   bridge, creating extra loopback recommendations. The opt-in internal-probe
   filter fixed the shared-volume recursion, and the final lifecycle passed.
+- The lifecycle preflight now fails before Compose startup when the locked model
+  hashes, portal commit, clean portal checkout, or disposable image references
+  do not match `pr7-block3-artifact-lock.json`.
+- The first hardened rerun raced WAF startup. An exact readiness gate was
+  added. A subsequent host-side readiness request polluted the audit lifecycle,
+  so readiness now uses the dedicated loopback probe from inside the WAF
+  container and asserts HTTP 204 without entering external ingest.
+- An intermediate readiness request negotiated compressed response content;
+  binary response bytes caused the UTF-8 audit follower to exit. The final
+  lifecycle avoids that path entirely by using the no-upstream internal probe.
+- An intermediate async state poll disposed its engine on a different event
+  loop. Engine creation, reusable session-factory polling, and disposal now run
+  on one event loop.
 
 ## Completion classification
 

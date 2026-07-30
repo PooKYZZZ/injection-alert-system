@@ -1,5 +1,5 @@
-from datetime import datetime
 import logging
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -61,9 +61,11 @@ class WafIngestRequest(BaseModel):
         if value is None or (isinstance(value, str) and not value.strip()):
             return None
         if isinstance(value, datetime):
-            return value
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError("timestamp must include an explicit UTC offset")
+            return value.astimezone(timezone.utc)
         try:
-            datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
         except ValueError:
             log_event(
                 logger,
@@ -73,7 +75,9 @@ class WafIngestRequest(BaseModel):
                 component="waf-ingest-schema",
             )
             return None
-        return value
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("timestamp must include an explicit UTC offset")
+        return parsed.astimezone(timezone.utc)
 
     @field_validator("source_ip", mode="before")
     @classmethod

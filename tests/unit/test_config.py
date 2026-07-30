@@ -625,6 +625,19 @@ def test_pr7_mutation_gate_accepts_controlled_testing_configuration() -> None:
     assert settings.pr7_waf_capacity == 64
 
 
+@pytest.mark.parametrize("capacity", [1, 512])
+def test_pr7_capacity_accepts_contract_boundaries(capacity: int) -> None:
+    settings = Settings(**_pr7_mutation_settings(pr7_waf_capacity=capacity))
+
+    assert settings.pr7_waf_capacity == capacity
+
+
+@pytest.mark.parametrize("capacity", [0, 513])
+def test_pr7_capacity_rejects_out_of_range_values(capacity: int) -> None:
+    with pytest.raises((ValueError, ValidationError)):
+        Settings(**_pr7_mutation_settings(pr7_waf_capacity=capacity))
+
+
 def test_pr7_mutation_gate_rejects_non_local_environment() -> None:
     with pytest.raises(ValueError, match="controlled local mode"):
         Settings(**_pr7_mutation_settings(app_env="staging"))

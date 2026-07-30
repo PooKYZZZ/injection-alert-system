@@ -12,8 +12,11 @@ Do not rename this active directory as part of promotion.
 
 ## Setup
 
-1. Download `distilbert_v3_model.zip` from the team shared drive:
-   **[PASTE YOUR SHARED DRIVE LINK HERE]**
+1. Obtain the approved `distilbert_v3_model.zip` bundle through the
+   project’s secure, team-controlled artifact exchange. The repository does
+   not contain private share URLs, credentials, or model weights. The artifact
+   custodian must provide the bundle and its provenance through the approved
+   project channel before a local lifecycle run.
 
 2. Extract it into this directory (`ml_model/model_registry/staging/`)
 
@@ -23,6 +26,17 @@ Do not rename this active directory as part of promotion.
 4. Set `.env` to the real runtime model boundary:
    `MODEL_REGISTRY_PATH=ml_model/model_registry`
    (or set an explicit run directory under `ml_model/model_registry/staging/`)
+
+5. Verify the exact Block 3A artifact lock before running the real-model test:
+
+   ```powershell
+   $env:PR7_RUN_REAL_MODEL="1"
+   .venv\Scripts\python.exe -m pytest -q tests/ml/test_pr7_critical_vector.py
+   ```
+
+   The expected hashes and model version are recorded in
+   `docs/project-ops/pr7-block3-artifact-lock.json`. A missing or mismatched
+   artifact fails before the lifecycle stack starts.
 
 ## Promotion Workflow (Archive-And-Recreate)
 
@@ -57,7 +71,7 @@ Move-Item "ml_model/model_registry/archive/distilbert_v3_907k_cleaned_20260312_1
 
 ## Running without the model
 
-The backend will start in mock mode automatically if model files are missing.
-All API endpoints will respond — predictions will be simulated.
-You will see this line in the backend terminal:
-`WARNING  Model load failed — ... Starting in mock mode.`
+The general development backend may still use its existing mock classifier
+when the model boundary is unavailable. The guarded PR7 Block 3A lifecycle
+does not use that fallback: its artifact-lock preflight fails before Docker
+startup when the model files are missing or mismatched.

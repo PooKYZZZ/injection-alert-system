@@ -792,6 +792,27 @@ async def test_fresh_model_output_must_include_required_prediction_fields(
 
 
 @pytest.mark.asyncio
+async def test_unknown_model_label_cannot_be_persisted_or_enforced(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": "Unknown Injection Label",
+        "confidence": 0.99,
+        "confidence_level": "CRITICAL",
+    }
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    with pytest.raises(ModelNotReadyError, match="unsupported prediction label"):
+        await use_case.execute(
+            http_request="GET /records/search HTTP/1.1",
+            source_ip="203.0.113.10",
+        )
+
+    mock_repository.save.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_ingest_folds_headers_and_body_into_persisted_http_request(
     mock_classifier,
     mock_repository,

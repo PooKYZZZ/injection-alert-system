@@ -46,6 +46,41 @@ def test_malformed_source_timestamp_becomes_null():
     assert parsed.timestamp is None
 
 
+def test_naive_source_timestamp_is_rejected():
+    with pytest.raises(ValidationError, match="explicit UTC offset"):
+        WafIngestRequest.model_validate(
+            {
+                "ingest_source": "modsec_audit_bridge",
+                "transaction_id": "tx-naive-ts",
+                "timestamp": "2026-03-24T10:00:00",
+                "source_ip": "203.0.113.10",
+                "source_provenance": "DIRECT_REMOTE_ADDR",
+                "request_method": "GET",
+                "request_path": "/login",
+                "crs_score": 8,
+                "crs_rule_ids": ["942100"],
+            }
+        )
+
+
+def test_offset_source_timestamp_is_normalized_to_utc():
+    parsed = WafIngestRequest.model_validate(
+        {
+            "ingest_source": "modsec_audit_bridge",
+            "transaction_id": "tx-offset-ts",
+            "timestamp": "2026-03-24T18:00:00+08:00",
+            "source_ip": "203.0.113.10",
+            "source_provenance": "DIRECT_REMOTE_ADDR",
+            "request_method": "GET",
+            "request_path": "/login",
+            "crs_score": 8,
+            "crs_rule_ids": ["942100"],
+        }
+    )
+
+    assert parsed.timestamp.isoformat() == "2026-03-24T10:00:00+00:00"
+
+
 def test_rejects_missing_transaction_id():
     """transaction_id is required for dedup."""
     with pytest.raises(ValidationError):

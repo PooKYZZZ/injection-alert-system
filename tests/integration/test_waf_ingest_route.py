@@ -311,7 +311,9 @@ def test_critical_pr7_ingest_uses_atomic_writer_without_generic_double_write(
     assert response.status_code == 200
     assert response.json()["confidence_level"] == "CRITICAL"
     assert len(waf_repository.calls) == 1
-    event = _structured_events(caplog, "pr7.post_triage_mutation_completed")[-1]
+    event = _structured_events(
+        caplog, "enforcement.post_triage_dispatch_completed"
+    )[-1]
     assert event["route"] == "PR7"
     assert event["category"] == "ACTIVATED"
     assert event["revision"] == 4
@@ -361,7 +363,9 @@ def test_pr7_mutation_failure_keeps_successful_ingest_response(
 
     assert response.status_code == 200
     assert response.json()["alert_id"] is not None
-    event = _structured_events(caplog, "pr7.post_triage_mutation_failed")[-1]
+    event = _structured_events(
+        caplog, "enforcement.post_triage_dispatch_failed"
+    )[-1]
     assert event["transaction_id"] == "waf-txn-pr7-failure-isolated"
     assert event["error_type"] == "RuntimeError"
     assert "database failure" not in caplog.text

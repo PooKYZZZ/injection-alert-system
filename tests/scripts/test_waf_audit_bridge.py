@@ -252,6 +252,7 @@ def test_cloudflare_audit_post_marks_only_modsecurity_audit_evidence(monkeypatch
 
 
 def test_controlled_bridge_skips_internal_pr7_probe_events(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "testing")
     monkeypatch.setenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "true")
     posted = []
 
@@ -266,7 +267,8 @@ def test_controlled_bridge_skips_internal_pr7_probe_events(monkeypatch):
         input_stream=StringIO(
             '{"transaction":{"unique_id":"tx-probe","host_port":8081,'
             '"client_ip":"172.31.7.10","request":{"method":"GET",'
-            '"uri":"/records/search","headers":{"X-PR7-Probe-Source":'
+            '"uri":"/records/search?pr7_probe_id=abc123",'
+            '"headers":{"X-PR7-Probe-Source":'
             '"172.31.7.10"}}}}\n'
         ),
         endpoint="http://backend/api/internal/waf-events",
@@ -278,6 +280,76 @@ def test_controlled_bridge_skips_internal_pr7_probe_events(monkeypatch):
 
     assert result == (1, 0, 0)
     assert posted == []
+
+
+def test_external_request_cannot_skip_ingest_by_spoofing_probe_header(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "testing")
+    monkeypatch.setenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "true")
+
+    event = {
+        "transaction": {
+            "unique_id": "external-spoof",
+            "host_port": 8080,
+            "client_ip": "172.31.7.10",
+            "request": {
+                "uri": "/records/search?id=1%20OR%201=1--",
+                "headers": {"X-PR7-Probe-Source": "172.31.7.10"},
+            },
+        }
+    }
+
+    assert waf_audit_bridge._internal_probe_event(event) is False
+
+
+def test_loopback_main_port_probe_requires_controller_query_marker(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "testing")
+    monkeypatch.setenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "true")
+
+    ordinary_loopback = {
+        "transaction": {
+            "host_port": 8080,
+            "client_ip": "127.0.0.1",
+            "request": {"uri": "/records/search"},
+        }
+    }
+    controller_probe = {
+        "transaction": {
+            "host_port": 8080,
+            "client_ip": "127.0.0.1",
+            "request": {"uri": "/records/search?pr7_probe_id=abc123"},
+        }
+    }
+
+    assert waf_audit_bridge._internal_probe_event(ordinary_loopback) is False
+    assert waf_audit_bridge._internal_probe_event(controller_probe) is True
+
+
+def test_probe_filter_rejected_outside_testing(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "true")
+
+    with pytest.raises(RuntimeError, match="restricted"):
+        waf_audit_bridge._internal_probe_event({"transaction": {}})
+
+
+def test_external_probe_marker_does_not_skip_ingest(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "testing")
+    monkeypatch.setenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "true")
+
+    assert waf_audit_bridge._internal_probe_event(
+        {
+            "transaction": {
+                "host_port": 8080,
+                "client_ip": "172.31.7.10",
+                "request": {"uri": "/records/search?pr7_probe_id=external"},
+            }
+        }
+    ) is False
+
+
+def test_normalize_timestamp_rejects_naive_iso_timestamp():
+    with pytest.raises(ValueError, match="timezone"):
+        waf_audit_bridge.normalize_timestamp("2026-03-24T10:00:00")
 
 
 def test_generic_cloudflare_payload_does_not_mark_audit_evidence(monkeypatch):

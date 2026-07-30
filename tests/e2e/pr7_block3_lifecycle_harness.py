@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import secrets
 import subprocess
 import tempfile
@@ -13,6 +14,12 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from tests.e2e.pr7_block3_artifacts import (
+    require_pinned_compose_images,
+    require_portal_commit,
+    verify_model_lock,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = (
     ROOT / "docker-compose.yml",
@@ -23,6 +30,16 @@ SOURCE_A = "172.31.7.10"
 SOURCE_B = "172.31.7.11"
 PATH = "/records/search"
 ATTACK_PATH = "/records/search?id=1%20OR%201=1--"
+MODEL_RUN_DIR = ROOT / (
+    "ml_model/model_registry/staging/"
+    "distilbert_v3_907k_cleaned_20260312_133755"
+)
+PORTAL_PATH = Path(
+    os.environ.get(
+        "DEMO_PORTAL_CONTEXT",
+        str(ROOT.parent.parent / "land-records-portal"),
+    )
+).resolve()
 
 
 def _run(command: list[str], *, timeout: float = 180) -> str:
@@ -110,14 +127,19 @@ def _override(
 """
 
 
-def _wait_http(url: str, *, headers: dict[str, str] | None = None) -> None:
+def _wait_http(
+    url: str,
+    *,
+    expected_status: int = 200,
+    headers: dict[str, str] | None = None,
+) -> None:
     deadline = time.monotonic() + 180
     last_error = "not attempted"
     while time.monotonic() < deadline:
         try:
             with httpx.Client(trust_env=False, follow_redirects=False) as client:
                 response = client.get(url, headers=headers, timeout=5)
-            if response.status_code < 500:
+            if response.status_code == expected_status:
                 return
             last_error = f"HTTP {response.status_code}: {response.text[:200]}"
         except httpx.HTTPError as exc:
@@ -135,6 +157,39 @@ def _snapshot(backend_url: str, sync_key: str) -> dict[str, Any]:
         )
     response.raise_for_status()
     return response.json()
+
+
+def _wait_waf_ready(project: str, override: Path) -> None:
+    deadline = time.monotonic() + 180
+    last_error = "not attempted"
+    script = (
+        "import urllib.request; "
+        "response=urllib.request.urlopen("
+        "'http://127.0.0.1:8081/__pr7/ready', timeout=5); "
+        "print(response.status)"
+    )
+    while time.monotonic() < deadline:
+        try:
+            status = _run(
+                _compose(
+                    project,
+                    override,
+                    "exec",
+                    "-T",
+                    "pr7-block3-waf",
+                    "python3",
+                    "-c",
+                    script,
+                ),
+                timeout=10,
+            ).strip()
+            if status == "204":
+                return
+            last_error = f"unexpected status output: {status!r}"
+        except (RuntimeError, subprocess.SubprocessError) as exc:
+            last_error = str(exc)
+        time.sleep(1)
+    raise AssertionError(f"timed out waiting for WAF readiness: {last_error}")
 
 
 def _client_request(
@@ -176,14 +231,12 @@ def _client_request(
     )
 
 
-async def _read_state(database_url: str) -> dict[str, Any]:
+async def _read_state(factory) -> dict[str, Any]:
     from web_app.infrastructure.database.database import (
         TrafficLog,
         WafEffectiveStateRow,
     )
 
-    engine = create_async_engine(database_url)
-    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
         traffic = (
             await session.execute(
@@ -209,15 +262,14 @@ async def _read_state(database_url: str) -> dict[str, Any]:
                 .limit(1)
             )
         ).scalar_one_or_none()
-    await engine.dispose()
     return {"traffic": traffic, "state": state}
 
 
-def _wait_attack_state(database_url: str) -> tuple[int, int]:
+async def _wait_attack_state_async(factory) -> tuple[int, int]:
     deadline = time.monotonic() + 180
     last = "no completed verified CRITICAL state"
     while time.monotonic() < deadline:
-        found = asyncio.run(_read_state(database_url))
+        found = await _read_state(factory)
         traffic = found["traffic"]
         state = found["state"]
         if traffic is not None and state is not None:
@@ -226,6 +278,8 @@ def _wait_attack_state(database_url: str) -> tuple[int, int]:
                 and traffic.confidence_level == "CRITICAL"
                 and traffic.source_verification_status == "VERIFIED"
                 and traffic.source_provenance == "CLOUDFLARE_CONNECTING_IP"
+                and traffic.model_version
+                == "distilbert_v3_907k_cleaned_20260312_133755"
             ):
                 return int(state.recommendation_id), int(state.revision)
             last = (
@@ -233,8 +287,21 @@ def _wait_attack_state(database_url: str) -> tuple[int, int]:
                 f"verification={traffic.source_verification_status!r} "
                 f"provenance={traffic.source_provenance!r}"
             )
-        time.sleep(1)
+        await asyncio.sleep(1)
     raise AssertionError(f"attack state did not converge: {last}")
+
+
+async def _wait_attack_state_with_engine(database_url: str) -> tuple[int, int]:
+    engine = create_async_engine(database_url)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        return await _wait_attack_state_async(factory)
+    finally:
+        await engine.dispose()
+
+
+def _wait_attack_state(database_url: str) -> tuple[int, int]:
+    return asyncio.run(_wait_attack_state_with_engine(database_url))
 
 
 def _wait_snapshot(
@@ -263,17 +330,49 @@ def _wait_snapshot(
     raise AssertionError(f"snapshot did not converge: {json.dumps(last)}")
 
 
-def _audit(project: str, override: Path) -> str:
-    return _run(
+def _audit_tail(project: str, override: Path) -> list[str]:
+    text = _run(
         _compose(
             project,
             override,
             "exec",
             "-T",
             "pr7-block3-waf",
-            "cat",
-            "/var/log/modsecurity/modsec_audit.jsonl",
+            "sh",
+            "-c",
+            "tail -c 524288 /var/log/modsecurity/modsec_audit.jsonl "
+            "2>/dev/null || true",
         )
+    )
+    return text.splitlines()
+
+
+def _require_correlated_pr7_audit(
+    project: str,
+    override: Path,
+    *,
+    evidence_id: str,
+    revision: int,
+    recommendation_id: int,
+    timeout_seconds: float = 30,
+) -> str:
+    required = (
+        evidence_id,
+        '"pr7"',
+        f"revision-{revision}",
+        f"recommendation-{recommendation_id}",
+    )
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        for line in reversed(_audit_tail(project, override)):
+            if all(token in line for token in required):
+                return line
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.25)
+    raise AssertionError(
+        "no single ModSecurity transaction contained the evidence marker, "
+        f"PR7 tag, revision {revision}, and recommendation {recommendation_id}"
     )
 
 
@@ -285,8 +384,10 @@ def _evidence_log(project: str, override: Path) -> list[dict[str, Any]]:
             "exec",
             "-T",
             "pr7-block3-waf",
-            "cat",
-            "/var/log/modsecurity/pr7_evidence.jsonl",
+            "sh",
+            "-c",
+            "tail -c 262144 /var/log/modsecurity/pr7_evidence.jsonl "
+            "2>/dev/null || true",
         )
     )
     records = []
@@ -296,6 +397,45 @@ def _evidence_log(project: str, override: Path) -> list[dict[str, Any]]:
         except json.JSONDecodeError:
             continue
     return records
+
+
+def _wait_evidence_record(
+    project: str,
+    override: Path,
+    evidence_id: str,
+    *,
+    timeout_seconds: float = 20,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        matches = [
+            record
+            for record in _evidence_log(project, override)
+            if record.get("evidence_id") == evidence_id
+        ]
+        if matches:
+            return matches[-1]
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.25)
+    raise AssertionError(f"missing WAF evidence record {evidence_id}")
+
+
+def _request_with_evidence(
+    project: str,
+    override: Path,
+    service: str,
+    path: str,
+) -> tuple[int, str]:
+    evidence_id = secrets.token_hex(12)
+    status = _client_request(
+        project,
+        override,
+        service,
+        path,
+        evidence_id=evidence_id,
+    )
+    return status, evidence_id
 
 
 def _revoke(database_url: str, recommendation_id: int) -> int:
@@ -320,6 +460,94 @@ def _revoke(database_url: str, recommendation_id: int) -> int:
     return asyncio.run(_run_revoke())
 
 
+def _cleanup(project: str, override: Path) -> list[str]:
+    errors: list[str] = []
+
+    try:
+        _run(
+            _compose(
+                project,
+                override,
+                "exec",
+                "-T",
+                "pr7-block3-waf",
+                "pr7-waf-control",
+                "disable",
+            ),
+            timeout=30,
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"disable failed: {type(exc).__name__}: {exc}")
+
+    try:
+        _run(
+            _compose(
+                project,
+                override,
+                "down",
+                "--volumes",
+                "--remove-orphans",
+            ),
+            timeout=120,
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"compose down failed: {type(exc).__name__}: {exc}")
+
+    for kind, command in (
+        (
+            "containers",
+            [
+                "docker",
+                "ps",
+                "-aq",
+                "--filter",
+                f"label=com.docker.compose.project={project}",
+            ],
+        ),
+        (
+            "volumes",
+            [
+                "docker",
+                "volume",
+                "ls",
+                "-q",
+                "--filter",
+                f"label=com.docker.compose.project={project}",
+            ],
+        ),
+        (
+            "networks",
+            [
+                "docker",
+                "network",
+                "ls",
+                "-q",
+                "--filter",
+                f"label=com.docker.compose.project={project}",
+            ],
+        ),
+    ):
+        try:
+            result = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            leftovers = result.stdout.split()
+            if leftovers:
+                errors.append(f"leftover {kind}: {leftovers}")
+            if result.returncode != 0:
+                errors.append(f"leftover check failed for {kind}: {result.returncode}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(
+                f"leftover check failed for {kind}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    return errors
+
+
 def run_block3_lifecycle() -> None:
     project = f"pr7-block3-{secrets.token_hex(4)}"
     password = secrets.token_hex(24)
@@ -327,6 +555,9 @@ def run_block3_lifecycle() -> None:
     ingest_key = secrets.token_hex(32)
     audit_key = secrets.token_hex(32)
     enforcement_key = secrets.token_hex(32)
+    lock = verify_model_lock(MODEL_RUN_DIR)
+    require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])
+    require_pinned_compose_images(ROOT / "docker-compose.pr7-block3.yml")
     with tempfile.TemporaryDirectory(prefix="pr7-block3-") as temporary:
         override = Path(temporary) / "compose.override.yml"
         override.write_text(
@@ -339,6 +570,7 @@ def run_block3_lifecycle() -> None:
             ),
             encoding="utf-8",
         )
+        primary_error: BaseException | None = None
         try:
             _run(
                 _compose(
@@ -359,17 +591,41 @@ def run_block3_lifecycle() -> None:
             )
             backend_port = _port(project, override, "backend", 8000)
             backend_url = f"http://127.0.0.1:{backend_port}"
-            _wait_http(f"{backend_url}/health")
+            _wait_http(f"{backend_url}/health", expected_status=200)
             _wait_http(
                 f"{backend_url}/api/internal/waf-enforcement/snapshot",
+                expected_status=200,
                 headers={"Authorization": f"Bearer {sync_key}"},
             )
+            _wait_waf_ready(project, override)
 
             db_port = _port(project, override, "postgres", 5432)
             database_url = (
                 "postgresql+asyncpg://pr7_block3:"
                 f"{password}@127.0.0.1:{db_port}/cybertrace_pr7_block3"
             )
+
+            baseline_status, baseline_id = _request_with_evidence(
+                project, override, "source-client-a", f"{PATH}?baseline=1"
+            )
+            assert baseline_status < 500
+            assert baseline_status != 403
+            baseline_record = _wait_evidence_record(
+                project, override, baseline_id
+            )
+            assert baseline_record["upstream_addr"] not in {"", "-"}
+            assert baseline_record["upstream_status"] not in {"", "-"}
+
+            wrong_path_baseline_status, wrong_path_baseline_id = (
+                _request_with_evidence(
+                    project, override, "source-client-a", f"{PATH}/?baseline=1"
+                )
+            )
+            assert wrong_path_baseline_status < 500
+            wrong_path_baseline_record = _wait_evidence_record(
+                project, override, wrong_path_baseline_id
+            )
+            assert wrong_path_baseline_record["upstream_addr"] not in {"", "-"}
 
             assert (
                 _client_request(project, override, "source-client-a", ATTACK_PATH)
@@ -402,40 +658,59 @@ def run_block3_lifecycle() -> None:
             else:
                 raise AssertionError("harmless matching request was not PR7-blocked")
 
-            assert _client_request(
-                project, override, "source-client-b", f"{PATH}?pr7_check={evidence_id}"
-            ) != 403
-            assert _client_request(
-                project, override, "source-client-a", "/records/search/"
-            ) != 403
+            _require_correlated_pr7_audit(
+                project,
+                override,
+                evidence_id=evidence_id,
+                revision=revision,
+                recommendation_id=recommendation_id,
+            )
 
-            audit = _audit(project, override)
-            assert evidence_id in audit
-            assert '"pr7"' in audit
-            assert f"revision-{revision}" in audit
-            assert f"recommendation-{recommendation_id}" in audit
-
-            evidence = [
-                record for record in _evidence_log(project, override)
-                if record.get("evidence_id") == evidence_id
-            ]
-            assert evidence
-            matching = evidence[-1]
+            matching = _wait_evidence_record(project, override, evidence_id)
             assert matching["status"] == 403
+            assert matching["remote_addr"] == SOURCE_A
+            assert matching["uri"] == PATH
             assert matching["upstream_addr"] in {"", "-"}
             assert matching["upstream_status"] in {"", "-"}
             assert matching["upstream_response_time"] in {"", "-"}
 
+            wrong_source_status, wrong_source_id = _request_with_evidence(
+                project, override, "source-client-b", f"{PATH}?wrong_source=1"
+            )
+            assert wrong_source_status == baseline_status
+            wrong_source_record = _wait_evidence_record(
+                project, override, wrong_source_id
+            )
+            assert wrong_source_record["remote_addr"] == SOURCE_B
+            assert wrong_source_record["upstream_addr"] not in {"", "-"}
+            assert wrong_source_record["upstream_status"] not in {"", "-"}
+
+            wrong_path_status, wrong_path_id = _request_with_evidence(
+                project, override, "source-client-a", f"{PATH}/?wrong_path=1"
+            )
+            assert wrong_path_status == wrong_path_baseline_status
+            wrong_path_record = _wait_evidence_record(
+                project, override, wrong_path_id
+            )
+            assert wrong_path_record["remote_addr"] == SOURCE_A
+            assert wrong_path_record["uri"] == f"{PATH}/"
+            assert wrong_path_record["upstream_addr"] not in {"", "-"}
+
             revoked_revision = _revoke(database_url, recommendation_id)
             deadline = time.monotonic() + 120
             while time.monotonic() < deadline:
-                if _client_request(
+                after_revoke_status, after_revoke_id = _request_with_evidence(
                     project,
                     override,
                     "source-client-a",
                     f"{PATH}?after_revoke={evidence_id}",
-                ) != 403:
-                    break
+                )
+                if after_revoke_status == baseline_status:
+                    after_revoke_record = _wait_evidence_record(
+                        project, override, after_revoke_id
+                    )
+                    if after_revoke_record["upstream_addr"] not in {"", "-"}:
+                        break
                 time.sleep(1)
             else:
                 raise AssertionError("revoked PR7 state continued to block")
@@ -446,7 +721,7 @@ def run_block3_lifecycle() -> None:
                 recommendation_id=None,
                 expected_count=0,
             )
-        except Exception as exc:
+        except BaseException as exc:
             try:
                 logs = _run(
                     _compose(
@@ -466,33 +741,16 @@ def run_block3_lifecycle() -> None:
                 )
             except Exception as log_error:
                 logs = f"unable to collect disposable logs: {log_error}"
-            raise RuntimeError(f"PR7 Block 3 lifecycle failed\n{logs}") from exc
+            primary_error = RuntimeError(f"PR7 Block 3 lifecycle failed\n{logs}")
+            raise primary_error from exc
         finally:
-            try:
-                _run(
-                    _compose(
-                        project,
-                        override,
-                        "exec",
-                        "-T",
-                        "pr7-block3-waf",
-                        "pr7-waf-control",
-                        "disable",
-                    ),
-                    timeout=30,
+            cleanup_errors = _cleanup(project, override)
+            if cleanup_errors:
+                if primary_error is None:
+                    raise RuntimeError(
+                        "Block 3 assertions passed but cleanup failed:\n"
+                        + "\n".join(cleanup_errors)
+                    )
+                primary_error.add_note(
+                    "Block 3 cleanup errors:\n" + "\n".join(cleanup_errors)
                 )
-            except Exception:
-                pass
-            try:
-                _run(
-                    _compose(
-                        project,
-                        override,
-                        "down",
-                        "--volumes",
-                        "--remove-orphans",
-                    ),
-                    timeout=120,
-                )
-            except Exception:
-                pass

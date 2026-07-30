@@ -249,7 +249,10 @@ async def ingest_waf_event(
     enforcement_repository: EnforcementRecommendationRepository = Depends(
         get_enforcement_repository
     ),
-    waf_state_repository: WafStateRepository = Depends(get_waf_state_repository),
+    waf_state_repository: WafStateRepository = Depends(
+        get_waf_state_repository,
+        scope="function",
+    ),
 ):
     settings = get_settings()
     audit_key = request.headers.get("X-CyberTrace-WAF-Audit-Key")
@@ -394,7 +397,7 @@ async def ingest_waf_event(
             )
             log_event(
                 logger,
-                "pr7.post_triage_mutation_completed",
+                "enforcement.post_triage_dispatch_completed",
                 "Post-triage enforcement mutation completed",
                 alert_id=result.alert_id,
                 transaction_id=payload.transaction_id,
@@ -407,7 +410,7 @@ async def ingest_waf_event(
         except Exception as exc:  # enforcement recording must not affect ingest
             log_event(
                 logger,
-                "pr7.post_triage_mutation_failed",
+                "enforcement.post_triage_dispatch_failed",
                 "Post-triage enforcement mutation failed; persisted alert remains "
                 "valid",
                 level="WARNING",
