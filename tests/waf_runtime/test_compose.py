@@ -23,3 +23,8 @@ def test_block3_evidence_logging_is_opt_in_and_path_only():
     assert '"uri":"$uri"' in template
     assert "$request_uri" not in template
     assert "if=$pr7_evidence_loggable" in template
+
+
+def test_block3_bridge_replays_existing_audit_lines_after_restart():
+    compose = (Path(__file__).parents[2] / "docker-compose.pr7-block3.yml").read_text()
+    assert "--follow --from-start" in compose

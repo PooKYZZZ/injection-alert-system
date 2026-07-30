@@ -587,7 +587,7 @@ def run_block3_lifecycle() -> None:
                     "source-client-a",
                     "source-client-b",
                 ),
-                timeout=300,
+                timeout=420,
             )
             backend_port = _port(project, override, "backend", 8000)
             backend_url = f"http://127.0.0.1:{backend_port}"

@@ -109,6 +109,11 @@ secure artifact dependency and are not committed to Git.
 - An intermediate async state poll disposed its engine on a different event
   loop. Engine creation, reusable session-factory polling, and disposal now run
   on one event loop.
+- After enabling bridge replay, one local rerun exceeded the 300-second Compose
+  startup budget while PostgreSQL initialization and migrations were still
+  running; cleanup also reported that the WAF was not ready for disable. The
+  harness startup budget is now 420 seconds, and this failed attempt remains
+  uncounted as lifecycle evidence.
 
 ## Completion classification
 

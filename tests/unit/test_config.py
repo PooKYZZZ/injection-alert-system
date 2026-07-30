@@ -602,7 +602,7 @@ def test_enforcement_configuration_rejects_unsafe_values(kwargs) -> None:
 def _pr7_mutation_settings(**overrides):
     values = {
         "env_file": False,
-        "database_url": "sqlite+aiosqlite:///test.db",
+        "database_url": "postgresql+asyncpg://user:password@localhost/test",
         "model_path": "test_model.py",
         "app_env": "testing",
         "enforcement_mode": "enforce",
@@ -612,6 +612,10 @@ def _pr7_mutation_settings(**overrides):
         "enforcement_turnstile_test_mode": True,
         "waf_state_sync_enabled": True,
         "waf_state_sync_api_key": "waf-state-sync-key-that-is-at-least-32-chars",
+        "waf_source_verification_mode": "cloudflare_tunnel",
+        "cloudflare_target_isolation_enabled": True,
+        "cloudflare_target_verified_proof": True,
+        "waf_audit_evidence_key": "waf-audit-evidence-key-that-is-at-least-32-chars",
         "pr7_critical_waf_mutation_enabled": True,
     }
     values.update(overrides)
@@ -641,6 +645,20 @@ def test_pr7_capacity_rejects_out_of_range_values(capacity: int) -> None:
 def test_pr7_mutation_gate_rejects_non_local_environment() -> None:
     with pytest.raises(ValueError, match="controlled local mode"):
         Settings(**_pr7_mutation_settings(app_env="staging"))
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        ({"waf_source_verification_mode": "unverified"}, "cloudflare_tunnel"),
+        ({"database_url": "sqlite+aiosqlite:///test.db"}, "PostgreSQL"),
+    ],
+)
+def test_pr7_mutation_gate_rejects_nonfunctional_runtime_combinations(
+    overrides, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        Settings(**_pr7_mutation_settings(**overrides))
 
 
 def test_pr7_mutation_gate_requires_snapshot_sync() -> None:

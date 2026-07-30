@@ -34,6 +34,13 @@ def canonicalize_waf_source_ip(value: Any) -> str | None:
     return str(address)
 
 
+def is_supported_waf_source_ip(value: Any) -> bool:
+    canonical = canonicalize_waf_source_ip(value)
+    if canonical is None:
+        return False
+    return ipaddress.ip_address(canonical).version == 4
+
+
 def utc_millis(value: datetime) -> int:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("UTC-aware datetime required")

@@ -163,6 +163,17 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "PR7 CRITICAL mutation requires ENFORCEMENT_MODE=enforce"
                 )
+            if self.waf_source_verification_mode != "cloudflare_tunnel":
+                raise ValueError(
+                    "PR7 CRITICAL mutation requires cloudflare_tunnel "
+                    "source verification"
+                )
+            if not self.database_url.startswith(
+                ("postgresql+asyncpg://", "postgresql://")
+            ):
+                raise ValueError(
+                    "PR7 CRITICAL mutation requires a PostgreSQL database"
+                )
         if self.enforcement_allow_unverified_source_for_tests and (
             self.is_production or self.is_staging
         ):
