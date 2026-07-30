@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import delete, func, insert, select, text, update
+from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -32,9 +32,13 @@ async def session_factory():
     engine = create_async_engine(DATABASE_URL)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
-        await session.execute(delete(WafEffectiveStateRow))
-        await session.execute(delete(EnforcementRecommendationRow))
-        await session.execute(delete(TrafficLog))
+        await session.execute(
+            text(
+                "TRUNCATE TABLE waf_effective_state, "
+                "enforcement_recommendations, traffic_logs "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
         await session.execute(update(WafEnforcementStateRow).values(revision=0))
         await session.commit()
     yield factory
@@ -695,7 +699,10 @@ async def test_expiry_cleanup_and_activation_share_one_revision(
         await session.execute(
             update(WafEffectiveStateRow)
             .where(WafEffectiveStateRow.recommendation_id == owner.recommendation_id)
-            .values(expires_at=now - timedelta(seconds=1))
+            .values(
+                created_at=now - timedelta(seconds=2),
+                expires_at=now - timedelta(seconds=1),
+            )
         )
         await session.commit()
 
@@ -779,7 +786,10 @@ async def test_revoke_cleans_other_expired_active_rows_in_same_revision(
         await session.execute(
             update(WafEffectiveStateRow)
             .where(WafEffectiveStateRow.recommendation_id == first.recommendation_id)
-            .values(expires_at=now - timedelta(seconds=1))
+            .values(
+                created_at=now - timedelta(seconds=2),
+                expires_at=now - timedelta(seconds=1),
+            )
         )
         await session.commit()
     async with session_factory() as session:
