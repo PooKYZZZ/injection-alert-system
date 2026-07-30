@@ -1,5 +1,8 @@
 # PR7 T0 feasibility evidence
 
+> Historical feasibility record. Later Block 1/Block 2 implementation results
+> are recorded in `PR7_BLOCK_2_EVIDENCE.md` and `STATUS.md`.
+
 **Status: T0: GO.** E28 closes controlled source identity and E29 closes
 process topology and persistence. Every foundational gate passes, subject only
 to the accepted disabled-runtime-IPv6 exception. This does not authorize T1-T6,

@@ -10,13 +10,28 @@ production/staging activation.
 
 The route remains Browser -> Next.js route handler -> FastAPI. The WAF is a
 local reverse-proxy data-plane only; no browser code may call FastAPI directly.
-No Docker socket, queue, new dependency, CI change, secret exposure, physical
-audit-data deletion, or portal CRITICAL logic is permitted.
+No Docker socket, queue, unnecessary application dependency, unrelated CI
+change, secret exposure, physical audit-data deletion, or portal CRITICAL
+logic is permitted.
+
+The approved Block 2 implementation may add:
+
+- the pinned direct HTTPX dependency required by the isolated WAF runtime; and
+- one bounded PR7 WAF build/runtime CI job.
+
+## Implementation status — 2026-07-30
+
+- T0: complete, GO.
+- Block 1 / T1–T3: implemented and validated.
+- Block 2 / T4A–T5A: implemented and validated in PR #97.
+- Controlled PostgreSQL-to-backend-to-WAF E2E: passed.
+- Remaining T6 full-system evidence is assigned to Block 3.
+- Hosted, staging, and production enforcement remain off.
 
 For T0 source-identity feasibility only, a target-only isolated Cloudflare
 overlay may be used as a controlled source-identity harness. This does not
 authorize hosted or production PR7 enforcement, final-hostname cutover,
-verified normal runtime, or T1 and later implementation.
+verified normal runtime, or unapproved hosted/future work.
 
 The application request path and the security-evidence path are distinct:
 

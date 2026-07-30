@@ -2,13 +2,13 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-28
+**Last updated:** 2026-07-30
 
 ---
 
 ## Current Verified Repo State
 
-### PR7 Block 1 backend foundation
+### PR7 Block 1 and Block 2 controlled-local enforcement
 
 - The branch implementation adds the additive migration
   `20260728_000025_add_pr7_effective_waf_state.py` with a singleton revision
@@ -25,10 +25,21 @@
   serialization, lock-wait timing, replay finality, supersession, capacity
   finality, snapshot stability, and injected rollback.
 - The repeatable-read read-only snapshot and authenticated controlled-local
-  endpoint are implemented and covered by focused tests. `WAF_STATE_SYNC_ENABLED`
-  remains disabled by default; this is a local backend foundation only. Block 2
-  runtime activation, hosted source-trust proof, and production rollout are not
-  claimed by this status.
+  endpoint are implemented and covered by focused tests.
+- Block 1 effective-state migration, repository, and authenticated snapshot
+  endpoint are implemented.
+- Block 2 local WAF runtime is implemented in PR #97 at current head
+  `d74d6b6` (documentation sync after implementation head `77aa821`).
+- The runtime uses the pinned CRS image, deterministic ModSecurity rules, safe
+  startup, reload confirmation, candidate-specific probing, rollback,
+  OFF/DRY_RUN/ENFORCE modes, and persistent disable.
+- Focused runtime suite: **50 passed locally**.
+- Real PostgreSQL-to-backend-to-WAF CRITICAL integration: **passed**.
+- GitHub CI: backend, PostgreSQL, migrations, frontend, authentication E2E,
+  secret scan, and PR7 WAF runtime passed.
+- Hosted, staging, and production enforcement remain disabled.
+- Full attack-to-ML creation, external ingress/source provenance, complete
+  PR6/PR7 interaction, and portal no-upstream evidence remain Block 3.
 
 - Historical PR5 merge reference: backend PR #90 commit `62fc168`.
   Git is authoritative for the current branch and HEAD.
@@ -158,7 +169,8 @@ Turnstile were absent (no stable prior IDs). **New gaps:** `BUG-001`, `BUG-002`,
 `LIMIT-005`, `BUG-003`. **Known limitations:** `LIMIT-001` and the local-versus-
 production evidence boundary only. **Technical debt:** none newly classified.
 **Deferred:** `DEFER-001` only. **Still open:** `BLOCK-001`, `BLOCK-002`,
-`GAP-002`, `BUG-001`, `BUG-002`, `LIMIT-005`, `LIMIT-006`, `LIMIT-007`, and `BUG-003`. See
+`GAP-002` (partial), `BUG-001`, `BUG-002`, `LIMIT-005`, `LIMIT-006`,
+`LIMIT-007`, and `BUG-003`. See
 `IMPLEMENTATION_GAP_REGISTER.md` for definitions and cumulative state.
 
 ### PR6 working branch — HIGH application blocking
@@ -189,7 +201,8 @@ production evidence boundary only. **Technical debt:** none newly classified.
 - Shared-IP collateral blocking is tracked as `LIMIT-006`; HTTP 200 block
   semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
   remain open. `GAP-001` is complete for the approved local PR6 scope;
-  `GAP-002` remains not started for PR7 CRITICAL/WAF enforcement.
+  `GAP-002` is partially resolved for PR7 CRITICAL/WAF enforcement; the
+  remaining Block 3 evidence is listed in the gap register.
 
 ### Trusted source correlation PR state
 
@@ -513,7 +526,7 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 Previous prose items were normalized into stable IDs in
 [`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md); the complete
 current inventory lives there. Highest-priority current items are `BLOCK-001`,
-`BLOCK-002`, `BUG-001`, and `GAP-002`. This status snapshot does not
+`BLOCK-002`, `BUG-001`, and the remaining portion of `GAP-002`. This status snapshot does not
 replace the register or restate its full entries.
 
 ---

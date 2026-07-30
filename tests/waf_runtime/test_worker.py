@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+import pytest
+
+from waf_runtime.activation import ActivationError
+from waf_runtime.worker import reconcile_once
+
+
+class BrokenReconciler:
+    def reconcile(self):
+        raise RuntimeError("programming failure")
+
+
+class Logger:
+    def emit(self, *args, **kwargs):
+        pass
+
+
+def test_programming_errors_escape_the_worker_loop():
+    with pytest.raises(RuntimeError, match="programming failure"):
+        reconcile_once(BrokenReconciler(), Logger(), "enforce")
+
+
+def test_expected_activation_rejections_do_not_kill_the_worker_loop():
+    class RejectedReconciler:
+        def reconcile(self):
+            raise ActivationError("candidate rejected")
+
+    events = []
+
+    class EventLogger:
+        def emit(self, *args, **kwargs):
+            events.append((args, kwargs))
+
+    assert reconcile_once(RejectedReconciler(), EventLogger(), "enforce") is None
+    assert events[-1][0][0] == "waf_activation_failed"

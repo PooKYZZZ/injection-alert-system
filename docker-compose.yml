@@ -39,6 +39,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:-}
+      WAF_STATE_SYNC_ENABLED: ${WAF_STATE_SYNC_ENABLED:-false}
+      WAF_STATE_SYNC_API_KEY: ${WAF_STATE_SYNC_API_KEY:-}
       WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}
       ENFORCEMENT_MODE: ${ENFORCEMENT_MODE:-off}
       ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
@@ -97,3 +99,41 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  pr7-waf:
+    build:
+      context: .
+      dockerfile: Dockerfile.pr7-waf
+    profiles:
+      - pr7-local-waf
+    expose:
+      - "8080"
+    environment:
+      BACKEND: http://backend:8000
+      PORT: 8080
+      PARANOIA: 1
+      BLOCKING_PARANOIA: 1
+      MODSEC_RULE_ENGINE: On
+      MODSEC_AUDIT_ENGINE: RelevantOnly
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      MODSEC_AUDIT_LOG_TYPE: Serial
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
+      MODSEC_AUDIT_LOG_PARTS: AIJDEFHZ
+      WAF_STATE_SNAPSHOT_URL: http://backend:8000/api/internal/waf-enforcement/snapshot
+      WAF_STATE_SYNC_API_KEY: ${WAF_STATE_SYNC_API_KEY:-}
+      PR7_WAF_MODE: ${PR7_WAF_MODE:-off}
+      PR7_STATE_DIR: /pr7-state
+      NGINX_CONFIG: /etc/nginx/nginx.conf
+      PR7_PROBE_URL: http://127.0.0.1:8081
+      PR7_PROBE_PORT: 8081
+      PR7_POLL_INTERVAL: ${PR7_POLL_INTERVAL:-5}
+      PR7_SUBPROCESS_TIMEOUT: ${PR7_SUBPROCESS_TIMEOUT:-5}
+    volumes:
+      - pr7-state:/pr7-state
+      - ./logs/modsecurity/pr7:/var/log/modsecurity
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  pr7-state:

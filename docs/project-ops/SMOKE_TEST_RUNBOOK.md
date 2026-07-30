@@ -1,6 +1,6 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-30
 **Audience:** Any teammate with zero prior context.
 
 This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
@@ -66,6 +66,23 @@ logs. Rotate credentials immediately after any accidental exposure.
 The maintained smoke entrypoint is `scripts/run_final_demo_smoke.py`. Every run
 requires an explicit mode, prints one result per check, and exits nonzero when a
 required check fails.
+
+### PR7 controlled-local WAF integration
+
+The real PR7 path is a separate disposable test, not one of the public-port
+demo modes below. It creates PostgreSQL, backend, and the pinned PR7 WAF
+runtime, seeds an eligible CRITICAL recommendation, proves activation and
+revocation, then removes the disposable resources:
+
+```powershell
+$env:PR7_RUN_BACKEND_WAF_E2E = "1"
+.venv\Scripts\python.exe -m pytest -s -q --tb=short `
+  tests/e2e/test_pr7_backend_waf.py
+```
+
+This is local evidence only. It requires Docker Desktop and takes about two
+minutes; it does not prove external ingress identity, the complete attack-to-ML
+creation path, integrated PR6/PR7 regression, or hosted/production readiness.
 
 Backend-only smoke against a directly reachable FastAPI process:
 
@@ -184,7 +201,9 @@ dashboard checks, and triage persistence.
 
 - Docker Desktop is installed and running.
 - You have cloned the repo and are at the repo root (`injection-alert-system/`).
-- `.env` exists at the repo root with a valid `DATABASE_URL` pointing to your Supabase PostgreSQL instance.
+- `.env` exists at the repo root with a valid local/disposable `DATABASE_URL`.
+  Do not point this smoke stack at hosted Supabase unless an explicitly
+  authorized operator procedure requires it.
 - `frontend/.env.local` exists with valid values (see `docs/SETUP.md` for the template).
 
 ---

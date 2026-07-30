@@ -1,15 +1,25 @@
 # PR7 Controlled CRITICAL WAF Enforcement — document index
 
-The former monolithic plan has been split so the implementation contract, its
-rationale, and experimental evidence cannot contradict each other.
+## Authority
 
 1. [Normative implementation contract](PR7_IMPLEMENTATION_SPEC.md)
 2. [Design rationale and deferred work](PR7_DESIGN_RATIONALE.md)
-3. [T0 feasibility evidence template](PR7_T0_EVIDENCE.md)
+3. [T0 feasibility evidence — GO](PR7_T0_EVIDENCE.md)
+4. [Block 2 runtime evidence](PR7_BLOCK_2_EVIDENCE.md)
 
-Only the implementation contract defines required implementation behaviour.
-The synthesis corrections are incorporated and T0 is **complete: GO**. E28
-proves controlled source identity and E29 proves process topology and
-persistence. T1 and later work require separate authorization, with only
-the documented disabled-runtime-IPv6 exception. These documents do not
-authorize local `ENFORCE` or hosted, staging, or production activation.
+## Current stage
+
+- T0: complete — GO.
+- Block 1: implemented and merged.
+- Block 2: implemented and validated in PR #97.
+- Controlled local ENFORCE: approved only for disposable/local evidence.
+- Block 3: next integration/evidence phase.
+- Hosted, staging and production ENFORCE: unauthorized and off.
+
+## Block 3 remaining evidence
+
+- attack → audit bridge → ML → recommendation → WAF
+- trusted external source identity
+- PR6 HIGH / PR7 CRITICAL compatibility
+- portal no-upstream proof
+- final expiry/revocation and thesis measurements

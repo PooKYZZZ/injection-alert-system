@@ -1,8 +1,9 @@
 # Cumulative Implementation Gap Register
 
-**Reviewed:** 2026-07-23
+**Reviewed:** 2026-07-30
 
-**Repository baseline:** `master` at `485a091`; PR #90 is merged in its history
+**Repository baseline:** `master` at `d80719d`; current review branch head is
+`d74d6b6`; PR #90 is merged in the master history
 
 This is the canonical cumulative register for unresolved implementation work. Only
 code, configuration, tests, and current runtime wiring outrank documentation.
@@ -16,7 +17,7 @@ evidence are distinct evidence classes.
 | BLOCK-001 | HIGH | BLOCKED | Production rollout | Deployment gate |
 | BLOCK-002 | HIGH | BLOCKED | Trusted source proof | Deployment gate |
 | GAP-001 | HIGH | COMPLETE | HIGH enforcement | PR6 |
-| GAP-002 | HIGH | NOT_STARTED | CRITICAL/WAF enforcement | PR7 |
+| GAP-002 | HIGH | PARTIAL | CRITICAL/WAF enforcement | PR7 / Block 3 |
 | BUG-001 | HIGH | KNOWN_BUG | Enforcement | Maintenance |
 | BUG-002 | MEDIUM | KNOWN_BUG | Migration | Maintenance |
 | LIMIT-006 | HIGH | KNOWN_LIMITATION | Shared-IP HIGH blocking | Production rollout |
@@ -199,7 +200,7 @@ Last reviewed: 2026-07-23
 
 ### GAP-002 — PR7 CRITICAL/WAF enforcement
 
-Status: NOT_STARTED
+Status: PARTIAL
 
 Priority:
 HIGH
@@ -207,26 +208,38 @@ HIGH
 Area:
 WAF enforcement
 
-Current implementation: No WAF mutation or CRITICAL active path exists.
+Completed:
 
-Missing: CRITICAL/WAF enforcement.
+- Block 1 authoritative effective state and authenticated snapshot.
+- Block 2 controlled-local runtime in PR #97.
+- Real disposable PostgreSQL -> backend -> WAF activation and revocation.
+
+Remaining:
+
+- Complete attack/audit/bridge/ML creation path.
+- External ingress source provenance.
+- PR6/PR7 integrated regression.
+- Actual portal no-upstream proof.
 
 Evidence:
 
 - `docs/project-ops/STATUS.md`
 - `reports/active-enforcement/README.md`
 
-Requirement: Separately scoped PR7 after PR6 and topology work.
+Requirement: Separately scoped PR7 after PR6 and topology work; Block 3
+continues the remaining external and full-system evidence.
 
-Impact: CRITICAL remains non-disruptive.
+Impact: Hosted and production CRITICAL enforcement remains disabled; controlled
+local enforcement is proven.
 
 Dependencies / blockers: PR6 and trusted deployment topology.
 
-Recommended next step: Scope PR7 only after those prerequisites.
+Recommended next step: Complete Block 3 evidence without enabling hosted or
+production enforcement.
 
 Introduced / identified: PR5 acceptance state.
 
-Last reviewed: 2026-07-22
+Last reviewed: 2026-07-30
 
 ### DEFER-001 — Alternative high-throughput enforcement state backend
 

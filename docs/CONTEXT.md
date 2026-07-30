@@ -1,6 +1,6 @@
 # Project Context
 
-Updated: 2026-07-21
+Updated: 2026-07-30
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
@@ -109,7 +109,21 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   enabling the experimental cross-app 403 API was intentionally rejected.
 - This is local implementation and controlled-local evidence only. Hosted and
   production `ENFORCE` remain disabled behind `BLOCK-001`/`BLOCK-002`.
-  CRITICAL WAF/ModSecurity enforcement remains `GAP-002` for PR7.
+  CRITICAL WAF/ModSecurity enforcement is partially resolved by PR7 Block 1
+  and Block 2; the remaining Block 3 work is `GAP-002`.
+
+### PR7 controlled-local CRITICAL WAF runtime (2026-07-30)
+
+- PR7 Block 1 effective WAF state and authenticated snapshot boundary are
+  implemented and validated through migration head `20260728_000025`.
+- PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
+  rendering, persistent selection/latch state, reload and worker-generation
+  confirmation, candidate-specific source/path probes, and empty-first
+  rollback. The disposable PostgreSQL -> backend -> WAF E2E passed in PR #97.
+- The runtime is local/disposable evidence only. Hosted, staging, and
+  production enforcement remain disabled. Block 3 still owns attack-to-ML
+  creation, trusted external source identity, integrated PR6/PR7 regression,
+  and portal no-upstream evidence.
 
 ### Historical checks through 2026-07-05
 

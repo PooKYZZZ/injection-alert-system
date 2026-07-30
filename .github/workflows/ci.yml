@@ -135,3 +135,74 @@ jobs:
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  pr7-waf-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned PR7 WAF image
+        run: docker build -f Dockerfile.pr7-waf -t cybertrace-pr7-waf-ci .
+      - name: Start with unavailable backend
+        run: |
+          docker run -d --name cybertrace-pr7-waf-ci \
+            -e WAF_STATE_SNAPSHOT_URL=http://127.0.0.1:9/api/internal/waf-enforcement/snapshot \
+            -e WAF_STATE_SYNC_API_KEY=tttttttttttttttttttttttttttttttt \
+            -e PR7_STATE_DIR=/pr7-state \
+            -e PR7_WAF_MODE=enforce \
+            -e PR7_PROBE_URL=http://127.0.0.1:8081 \
+            -e PR7_PROBE_PORT=8081 \
+            -e PR7_POLL_INTERVAL=60 \
+            -e PR7_SUBPROCESS_TIMEOUT=5 \
+            -e BACKEND=http://127.0.0.1:9 \
+            -e PORT=8080 \
+            -e MODSEC_RULE_ENGINE=On \
+            -e MODSEC_AUDIT_ENGINE=RelevantOnly \
+            -e MODSEC_AUDIT_LOG_FORMAT=JSON \
+            -e MODSEC_AUDIT_LOG_TYPE=Serial \
+            -e MODSEC_AUDIT_LOG_PARTS=AIJDEFHZ \
+            -e MODSEC_AUDIT_LOG=/var/log/modsecurity/modsec_audit.jsonl \
+            -v pr7-waf-ci-state:/pr7-state \
+            cybertrace-pr7-waf-ci
+      - name: Run activation and maximum-size smoke matrix
+        run: docker exec cybertrace-pr7-waf-ci python3 /opt/pr7/pr7-waf-smoke.py
+      - name: Restart in OFF mode and confirm empty state
+        run: |
+          docker rm -f cybertrace-pr7-waf-ci
+          docker run -d --name cybertrace-pr7-waf-ci \
+            -e WAF_STATE_SNAPSHOT_URL=http://127.0.0.1:9/api/internal/waf-enforcement/snapshot \
+            -e WAF_STATE_SYNC_API_KEY=tttttttttttttttttttttttttttttttt \
+            -e PR7_STATE_DIR=/pr7-state \
+            -e PR7_WAF_MODE=off \
+            -e PR7_PROBE_URL=http://127.0.0.1:8081 \
+            -e PR7_PROBE_PORT=8081 \
+            -e PR7_POLL_INTERVAL=60 \
+            -e PR7_SUBPROCESS_TIMEOUT=5 \
+            -e BACKEND=http://127.0.0.1:9 \
+            -e PORT=8080 \
+            -e MODSEC_RULE_ENGINE=On \
+            -e MODSEC_AUDIT_ENGINE=RelevantOnly \
+            -e MODSEC_AUDIT_LOG_FORMAT=JSON \
+            -e MODSEC_AUDIT_LOG_TYPE=Serial \
+            -e MODSEC_AUDIT_LOG_PARTS=AIJDEFHZ \
+            -e MODSEC_AUDIT_LOG=/var/log/modsecurity/modsec_audit.jsonl \
+            -v pr7-waf-ci-state:/pr7-state \
+            cybertrace-pr7-waf-ci
+          for attempt in $(seq 1 30); do
+            if docker exec cybertrace-pr7-waf-ci python3 -c "import json; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'"; then break; fi
+            sleep 1
+          done
+          docker exec cybertrace-pr7-waf-ci python3 -c "import json, httpx; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'; assert httpx.get('http://127.0.0.1:8081/records/search', timeout=3, trust_env=False).status_code == 204"
+      - name: Upload redacted WAF logs on failure
+        if: failure()
+        run: docker logs cybertrace-pr7-waf-ci > pr7-waf-ci.log 2>&1 || true
+      - name: Publish WAF failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr7-waf-ci-failure-${{ github.run_attempt }}
+          path: pr7-waf-ci.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove disposable WAF container
+        if: always()
+        run: docker rm -f cybertrace-pr7-waf-ci || true; docker volume rm pr7-waf-ci-state || true

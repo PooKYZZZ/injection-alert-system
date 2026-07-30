@@ -1,6 +1,6 @@
 # Local Setup
 
-Last updated: 2026-07-22
+Last updated: 2026-07-30
 
 This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service. PR2 SSE no-refresh and browser reconnect behavior are manually verified through the named hosted deployment; see `docs/project-ops/STATUS.md` for evidence and limitations.
 
@@ -16,6 +16,12 @@ non-disruptive. Current Telegram provider/hosted verification is recorded in
 trust checks are completed. See
 `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md` for remaining PR5 and hosted
 work.
+
+PR7 Block 1 and Block 2 are implemented for controlled-local CRITICAL WAF
+evidence. The runtime is opt-in through the `pr7-local-waf` Compose profile and
+the disposable PostgreSQL -> backend -> WAF integration test. This does not
+authorize hosted, staging, or production enforcement; remaining Block 3
+evidence is listed in `docs/project-ops/PR7_BLOCK_2_EVIDENCE.md`.
 
 Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
 
@@ -58,7 +64,7 @@ not point `DATABASE_URL` at hosted Supabase. Hosted Supabase is for explicitly
 authorized operator work documented in the runbooks. A minimal local development file looks like this:
 
 ```dotenv
-DATABASE_URL=postgresql+asyncpg://postgres:<password>@<project-ref>.supabase.co:6543/postgres
+DATABASE_URL=postgresql+asyncpg://postgres:<password>@127.0.0.1:<port>/<database>
 APP_ENV=development
 LOG_LEVEL=INFO
 MODEL_PATH=ml_model/models/mock_model.py
@@ -127,6 +133,27 @@ Active enforcement uses additive migration
 adds `enforcement_request_windows` and `enforcement_challenge_grants`, and does
 not delete traffic logs on downgrade. Local/test proof belongs in
 `reports/active-enforcement/`; it is not hosted readiness evidence.
+
+### PR7 controlled-local WAF runtime
+
+PR7 is a separate opt-in local profile. It consumes the authenticated Block 1
+snapshot and keeps WAF state in the named `pr7-state` volume. It does not
+publish a host port by default and must not be enabled against hosted,
+staging, or production traffic.
+
+Run the real disposable PostgreSQL -> backend -> WAF proof from the repository
+root after Docker Desktop and the Python virtual environment are available:
+
+```powershell
+$env:PR7_RUN_BACKEND_WAF_E2E = "1"
+.venv\Scripts\python.exe -m pytest -s -q --tb=short `
+  tests/e2e/test_pr7_backend_waf.py
+```
+
+The harness creates and removes its own PostgreSQL, backend, WAF, network, and
+state resources. The test is opt-in because it requires Docker and takes about
+two minutes. Focused unit/integration coverage and the bounded image smoke are
+listed in `docs/project-ops/PR7_BLOCK_2_EVIDENCE.md`.
 
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:

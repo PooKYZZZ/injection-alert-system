@@ -3,11 +3,14 @@
 > Keep this file updated after every meaningful implementation or verification session.
 > This is a working checklist, not the full runtime source of truth.
 
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-30
 
 Status note:
 - Current repository status is maintained in `docs/project-ops/STATUS.md`;
-  backend PR #90 is merged into synchronized `master` at `62fc168`.
+  PR #90 is merged into `master`; the current review branch is `feat/pr7-waf-runtime`.
+- PR7 Block 1 and Block 2 controlled-local WAF runtime evidence is complete in
+  `PR7_BLOCK_2_EVIDENCE.md`; hosted/staging/production enforcement remains off
+  and Block 3 evidence is still open.
 - Hosted Supabase is migrated through `20260712_000020`; disposable PostgreSQL downgrade/re-upgrade through the same head passed
 - Current frontend validation: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. Local-only browser session behavior remains a follow-up if it reappears.
 - Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
@@ -161,8 +164,9 @@ operator snapshot.
 - `BLOCK-001` and `BLOCK-002` gate hosted/production rollout.
 - `LIMIT-006` tracks shared-IP collateral risk for HIGH source-key blocking;
   `LIMIT-007` tracks the stable HTTP 200 block-page limitation.
-- `GAP-001` is complete for PR6; `GAP-002` remains the separately approved
-  CRITICAL/WAF phase for PR7.
+- `GAP-001` is complete for PR6; `GAP-002` is partially resolved by the
+  controlled-local PR7 Block 1/Block 2 runtime. Its Block 3 evidence remains
+  open in the gap register.
 
 ---
 
@@ -175,6 +179,9 @@ operator snapshot.
 - [x] CRS detection evidence is captured
 - [x] WAF event is ingested by FastAPI
 - [x] ML triage runs
+- [x] controlled-local PR7 PostgreSQL -> backend -> WAF activation and
+  revocation proof passes
+- [ ] complete attack -> audit bridge -> ML -> recommendation -> WAF proof
 - [x] confidence tier is recorded
 - [x] dashboard alert is visible; replacement screenshot evidence exists in `reports/modsecurity-live-proof/dashboard-evidence.md` and `reports/modsecurity-live-proof/screenshots/`, including `/records/search`, `SQL Injection`, `Blocked`, and `crs_score=15` in the `8089` alerts table
 - [x] action is recorded; PR4 shadow recommendations are separately persisted and checked for later `/records/search` requests; `actual_decision=ALLOW` and no real control is applied

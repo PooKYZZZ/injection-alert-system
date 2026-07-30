@@ -11,7 +11,8 @@ is intentionally constrained.
 **Superseding T0 note (2026-07-28):** General hosted and production Cloudflare
 enforcement remains deferred. A target-only isolated Cloudflare topology was
 proved solely as a controlled T0 source-identity harness; final hostname
-cutover, verified normal runtime, and PR7 activation remain unauthorized.
+cutover and verified normal runtime remain unauthorized. Controlled local PR7
+activation is implemented and validated in Block 2.
 
 ## Chosen design
 
@@ -79,11 +80,13 @@ restricted temporary output; ordinary activation uses quiet syntax validation.
 The thesis does not require PostgreSQL `INET` solely for theoretical equivalence,
 durable records for typed non-activation outcomes, automatic capacity backfill,
 a sequence revision, a full runtime state-machine framework, exhaustive crash
-injection, host power-loss durability, a process supervisor, Docker socket
-access, Redis/Kafka/Celery, Kubernetes, Terraform/Helm, custom SMTP, portal
-changes, or a hosted enforcement rollout.
-Each would broaden ownership or infrastructure without improving the controlled
-claim enough to justify it.
+injection, host power-loss durability, Docker socket access, Redis/Kafka/Celery,
+Kubernetes, Terraform/Helm, custom SMTP, portal changes, or a hosted
+enforcement rollout. Each would broaden ownership or infrastructure without
+improving the controlled claim enough to justify it. A general-purpose
+supervisor framework remains rejected. A minimal purpose-built Python PID-1
+wrapper was accepted because it forwards signals, reaps children, and exits
+when either known child dies.
 
 ## Risk and deferred work
 
@@ -96,12 +99,21 @@ Hosted questions remain deferred: the exact Tunnel/proxy chain, trusted peer,
 Worker/header mutation, Pseudo IPv4, direct-origin reachability, firewall,
 hosted IPv6, shared-IP risk acceptance, and authorization. `BLOCK-001` and
 `BLOCK-002` remain open. No current result may be described as hosted,
-production, or end-to-end readiness.
+production, or end-to-end readiness. Block 3 still owns complete
+attack-to-ML creation, external ingress source identity, PR6/PR7 compatibility,
+and portal no-upstream proof.
 
-T5A records measured query/render/validation/reload/probe cost, generated file
-size, resource use, and protected/unrelated-path latency for 0/1/64/128/512
-actual rules. It supplies evidence for a future cap review, not invented
-performance thresholds.
+T5A completed the pinned-image 0/1/64/128/512 candidate matrix. The hard
+maximum remains 512 and the default capacity remains 64. The result is
+controlled-local evidence, not a production load claim.
+
+## Block 3 deferred work
+
+Block 3 owns the complete attack-to-ML recommendation path, trusted external
+source identity, PR6/PR7 compatibility, portal no-upstream proof, and final
+expiry/revocation thesis measurements. These remain separate from the
+controlled-local Block 2 claim and do not authorize hosted or production
+enforcement.
 
 ## Research basis
 
