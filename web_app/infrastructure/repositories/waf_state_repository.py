@@ -16,6 +16,7 @@ from web_app.domain.waf_state import (
     PR7_SCOPE,
     WafLifecycle,
     canonicalize_waf_source_ip,
+    is_supported_waf_source_ip,
 )
 from web_app.infrastructure.database.database import (
     EnforcementRecommendationRow,
@@ -209,6 +210,7 @@ class WafStateRepository:
                 or traffic.source_verification_status != "VERIFIED"
                 or traffic.source_provenance != "CLOUDFLARE_CONNECTING_IP"
                 or canonical_ip is None
+                or not is_supported_waf_source_ip(canonical_ip)
                 or recommendation.scope != PR7_SCOPE
                 or recommendation.enforcement_tier != "CRITICAL"
                 or recommendation.recommended_action != "WAF_BLOCK"

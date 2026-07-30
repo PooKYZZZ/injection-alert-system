@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, TextIO
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 from uuid import uuid4
 
 from web_app.domain.source_address import (
@@ -38,6 +38,8 @@ _SOURCE_PROVENANCE_MODES = {
     "direct_remote_addr",
     "cloudflare_connecting_ip",
 }
+_TRUTHY = {"1", "true", "yes", "on"}
+_LOOPBACKS = {"127.0.0.1", "::1"}
 
 
 def _safe_log_value(value: Any) -> Any:
@@ -147,9 +149,6 @@ def normalize_timestamp(value: Any) -> str | None:
 
     try:
         parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            return parsed.isoformat()
-        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     except ValueError:
         _log_event(
             "bridge.source_timestamp_invalid",
@@ -157,6 +156,9 @@ def normalize_timestamp(value: Any) -> str | None:
             level="WARNING",
         )
         return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("source timestamp must include an explicit timezone")
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _source_evidence(
@@ -260,6 +262,49 @@ def _resolve_crs_score(
         return message_score
 
     return 0
+
+
+def _internal_probe_filter_enabled() -> bool:
+    enabled = os.getenv("WAF_BRIDGE_IGNORE_INTERNAL_PROBES", "false").strip().lower()
+    if enabled not in _TRUTHY:
+        return False
+    if os.getenv("APP_ENV", "development").strip().lower() != "testing":
+        raise RuntimeError(
+            "WAF_BRIDGE_IGNORE_INTERNAL_PROBES is restricted to APP_ENV=testing"
+        )
+    return True
+
+
+def _internal_probe_event(raw_event: dict[str, Any]) -> bool:
+    """Return whether a ModSecurity record came from the local WAF probe.
+
+    Block 2 probes deliberately traverse the WAF so activation is verified,
+    but they are control-plane traffic rather than user traffic. In the
+    disposable Block 3 topology they share the audit volume with real
+    ingress, so forwarding them would recursively create PR7 recommendations.
+    The controller header is intentionally not trusted: request headers are
+    client-controlled. The probe port and loopback/query marker are derived
+    from the controlled local topology instead.
+    """
+    if not _internal_probe_filter_enabled():
+        return False
+
+    transaction = raw_event.get("transaction")
+    if not isinstance(transaction, dict):
+        return False
+    probe_port = os.getenv("WAF_BRIDGE_PROBE_PORT", "8081").strip()
+    if str(transaction.get("host_port") or "") == probe_port:
+        return True
+
+    client_ip = canonicalize_source_ip(transaction.get("client_ip"))
+    if client_ip not in _LOOPBACKS:
+        return False
+
+    request = transaction.get("request")
+    if not isinstance(request, dict):
+        return False
+    uri = str(request.get("uri") or request.get("path") or "")
+    return "pr7_probe_id" in parse_qs(urlsplit(uri).query, keep_blank_values=True)
 
 
 def normalize_event(
@@ -581,6 +626,17 @@ def run_bridge(
             event = json.loads(line)
             if not isinstance(event, dict):
                 raise ValueError("event line must be a JSON object")
+            if _internal_probe_event(event):
+                _log_event(
+                    "bridge.internal_probe_skipped",
+                    "Internal WAF probe event skipped from external ingest",
+                    transaction_id=str(
+                        (event.get("transaction") or {}).get("unique_id")
+                        if isinstance(event.get("transaction"), dict)
+                        else "unknown"
+                    ),
+                )
+                continue
             payload = normalize_event(event, provenance_mode=provenance_mode)
             transaction_id = str(payload.get("transaction_id") or "unknown")
             audit_evidence = (
@@ -659,6 +715,18 @@ def _process_event_line(
         event = json.loads(line)
         if not isinstance(event, dict):
             raise ValueError("event line must be a JSON object")
+
+        if _internal_probe_event(event):
+            _log_event(
+                "bridge.internal_probe_skipped",
+                "Internal WAF probe event skipped from external ingest",
+                transaction_id=str(
+                    (event.get("transaction") or {}).get("unique_id")
+                    if isinstance(event.get("transaction"), dict)
+                    else "unknown"
+                ),
+            )
+            return True, False
 
         payload = normalize_event(event, provenance_mode=provenance_mode)
         transaction_id = str(payload.get("transaction_id") or "")
@@ -755,7 +823,7 @@ def follow_bridge(
     logged_following = False
 
     while not stop_signal.is_set():
-        with open(Path(input_path), "r", encoding="utf-8") as handle:
+        with open(Path(input_path), "r", encoding="utf-8", errors="replace") as handle:
             if first_open and start_at_end:
                 handle.seek(0, os.SEEK_END)
                 current_position = handle.tell()
@@ -947,7 +1015,7 @@ def main() -> int:
             provenance_mode=provenance_mode,
         )
     else:
-        with open(args.input, "r", encoding="utf-8") as handle:
+        with open(args.input, "r", encoding="utf-8", errors="replace") as handle:
             total, success, failed = run_bridge(
                 input_stream=handle,
                 endpoint=endpoint,

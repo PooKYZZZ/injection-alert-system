@@ -318,6 +318,11 @@ async def test_authoritative_eligibility_rejects_unverified_or_normal_traffic(
         source_ip="203.0.113.51",
         prediction="Normal",
     )
+    await _insert_traffic_log(
+        session_factory,
+        52,
+        source_ip="2001:db8::52",
+    )
 
     async with session_factory() as session:
         repository = WafStateRepository(session)
@@ -331,9 +336,15 @@ async def test_authoritative_eligibility_rejects_unverified_or_normal_traffic(
             recommendation_expires_at=now + timedelta(minutes=10),
             effective_expires_at=now + timedelta(minutes=5),
         )
+        ipv6 = await repository.record_critical_waf_recommendation(
+            trigger_traffic_log_id=52,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            effective_expires_at=now + timedelta(minutes=5),
+        )
 
     assert unverified.category == "INELIGIBLE"
     assert normal.category == "INELIGIBLE"
+    assert ipv6.category == "INELIGIBLE"
 
 
 @pytest.mark.asyncio

@@ -109,8 +109,9 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   enabling the experimental cross-app 403 API was intentionally rejected.
 - This is local implementation and controlled-local evidence only. Hosted and
   production `ENFORCE` remain disabled behind `BLOCK-001`/`BLOCK-002`.
-  CRITICAL WAF/ModSecurity enforcement is partially resolved by PR7 Block 1
-  and Block 2; the remaining Block 3 work is `GAP-002`.
+  CRITICAL WAF/ModSecurity enforcement is partially resolved by PR7 Block 1,
+  Block 2, and the controlled-local Block 3 lifecycle; `GAP-002` tracks the
+  remaining trust-topology and portal integration evidence.
 
 ### PR7 controlled-local CRITICAL WAF runtime (2026-07-30)
 
@@ -121,9 +122,11 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   confirmation, candidate-specific source/path probes, and empty-first
   rollback. The disposable PostgreSQL -> backend -> WAF E2E passed in PR #97.
 - The runtime is local/disposable evidence only. Hosted, staging, and
-  production enforcement remain disabled. Block 3 still owns attack-to-ML
-  creation, trusted external source identity, integrated PR6/PR7 regression,
-  and portal no-upstream evidence.
+- production enforcement remain disabled. The guarded Block 3 lifecycle now
+  passes attack-to-ML-to-bridge-to-atomic-state-to-WAF-403-to-revocation in a
+  disposable PostgreSQL/WAF topology. Real Cloudflare source equivalence,
+  combined PR6/PR7 portal behavior, and portal-owned no-upstream proof remain
+  unverified. See `docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
 
 ### Historical checks through 2026-07-05
 

@@ -597,3 +597,75 @@ def test_enforcement_configuration_rejects_unsafe_values(kwargs) -> None:
             model_path="test_model.py",
             **kwargs,
         )
+
+
+def _pr7_mutation_settings(**overrides):
+    values = {
+        "env_file": False,
+        "database_url": "postgresql+asyncpg://user:password@localhost/test",
+        "model_path": "test_model.py",
+        "app_env": "testing",
+        "enforcement_mode": "enforce",
+        "enforcement_check_api_key": "enforcement-key-that-is-at-least-32-chars",
+        "enforcement_turnstile_secret_key": "1x0000000000000000000000000000000AA",
+        "enforcement_turnstile_expected_hostname": "localhost",
+        "enforcement_turnstile_test_mode": True,
+        "waf_state_sync_enabled": True,
+        "waf_state_sync_api_key": "waf-state-sync-key-that-is-at-least-32-chars",
+        "waf_source_verification_mode": "cloudflare_tunnel",
+        "cloudflare_target_isolation_enabled": True,
+        "cloudflare_target_verified_proof": True,
+        "waf_audit_evidence_key": "waf-audit-evidence-key-that-is-at-least-32-chars",
+        "pr7_critical_waf_mutation_enabled": True,
+    }
+    values.update(overrides)
+    return values
+
+
+def test_pr7_mutation_gate_accepts_controlled_testing_configuration() -> None:
+    settings = Settings(**_pr7_mutation_settings())
+
+    assert settings.pr7_critical_waf_mutation_enabled is True
+    assert settings.pr7_waf_capacity == 64
+
+
+@pytest.mark.parametrize("capacity", [1, 512])
+def test_pr7_capacity_accepts_contract_boundaries(capacity: int) -> None:
+    settings = Settings(**_pr7_mutation_settings(pr7_waf_capacity=capacity))
+
+    assert settings.pr7_waf_capacity == capacity
+
+
+@pytest.mark.parametrize("capacity", [0, 513])
+def test_pr7_capacity_rejects_out_of_range_values(capacity: int) -> None:
+    with pytest.raises((ValueError, ValidationError)):
+        Settings(**_pr7_mutation_settings(pr7_waf_capacity=capacity))
+
+
+def test_pr7_mutation_gate_rejects_non_local_environment() -> None:
+    with pytest.raises(ValueError, match="controlled local mode"):
+        Settings(**_pr7_mutation_settings(app_env="staging"))
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        ({"waf_source_verification_mode": "unverified"}, "cloudflare_tunnel"),
+        ({"database_url": "sqlite+aiosqlite:///test.db"}, "PostgreSQL"),
+    ],
+)
+def test_pr7_mutation_gate_rejects_nonfunctional_runtime_combinations(
+    overrides, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        Settings(**_pr7_mutation_settings(**overrides))
+
+
+def test_pr7_mutation_gate_requires_snapshot_sync() -> None:
+    with pytest.raises(ValueError, match="WAF_STATE_SYNC_ENABLED"):
+        Settings(**_pr7_mutation_settings(waf_state_sync_enabled=False))
+
+
+def test_pr7_mutation_gate_requires_enforce_mode() -> None:
+    with pytest.raises(ValueError, match="ENFORCEMENT_MODE=enforce"):
+        Settings(**_pr7_mutation_settings(enforcement_mode="shadow"))

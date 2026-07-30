@@ -213,17 +213,20 @@ Completed:
 - Block 1 authoritative effective state and authenticated snapshot.
 - Block 2 controlled-local runtime in PR #97.
 - Real disposable PostgreSQL -> backend -> WAF activation and revocation.
+- Controlled-local attack -> CRS audit -> bridge -> real ML -> CRITICAL ->
+  atomic PR7 state -> WAF 403 -> source/path isolation -> revocation.
 
 Remaining:
 
-- Complete attack/audit/bridge/ML creation path.
-- External ingress source provenance.
-- PR6/PR7 integrated regression.
-- Actual portal no-upstream proof.
+- Real Cloudflare ingress/source equivalence and hosted trust topology.
+- PR6/PR7 integrated portal regression.
+- Portal-owned no-upstream proof; current evidence is WAF-side upstream-empty
+  logging only.
 
 Evidence:
 
 - `docs/project-ops/STATUS.md`
+- `docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`
 - `reports/active-enforcement/README.md`
 
 Requirement: Separately scoped PR7 after PR6 and topology work; Block 3
@@ -234,8 +237,8 @@ local enforcement is proven.
 
 Dependencies / blockers: PR6 and trusted deployment topology.
 
-Recommended next step: Complete Block 3 evidence without enabling hosted or
-production enforcement.
+Recommended next step: Complete the remaining Cloudflare/origin, portal, and
+PR6 integration evidence without enabling hosted or production enforcement.
 
 Introduced / identified: PR5 acceptance state.
 

@@ -1,2 +1,5 @@
 # Deterministic WAF credential fixture added in PR #84; never a runtime secret.
 504314d0b232b84e616fe275b75d72f7a60cf454:tests/unit/test_config.py:generic-api-key:10
+
+# Deterministic tokenizer SHA-256 in the PR7 artifact lock; never a credential.
+b0dfbe479d33ba7fe8e056edc4df9807dc859184:docs/project-ops/pr7-block3-artifact-lock.json:generic-api-key:9

@@ -38,6 +38,9 @@ from web_app.application.inference_queue import (
     InferenceQueueFullError,
     InferenceQueueService,
 )
+from web_app.application.post_triage_enforcement import (
+    PostTriageEnforcementCoordinator,
+)
 from web_app.application.source_verification import (
     WAF_AUDIT_EVIDENCE_HEADER,
     assign_server_source_provenance,
@@ -60,13 +63,14 @@ from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.enforcement import EnforcementMode, EnforcementScope
 from web_app.domain.source_address import SourceProvenance
-from web_app.infrastructure.database import get_db
+from web_app.infrastructure.database import AsyncSessionLocal, get_db
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
     EnforcementRecommendationRepository,
 )
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
+from web_app.infrastructure.repositories.waf_state_repository import WafStateRepository
 from web_app.infrastructure.turnstile import TurnstileVerifier
 from web_app.notifications.threats import enqueue_threat_notifications_safely
 from web_app.observability.structured_logging import log_event
@@ -140,6 +144,18 @@ def get_enforcement_repository(
     db: AsyncSession = Depends(get_db),
 ) -> EnforcementRecommendationRepository:
     return EnforcementRecommendationRepository(db)
+
+
+async def get_waf_state_repository() -> AsyncIterator[WafStateRepository]:
+    """Provide a fresh session for the post-triage WAF transaction.
+
+    The triage repository intentionally commits and then reloads the alert,
+    which leaves its request-scoped session with an implicit read transaction.
+    Block 1 requires its own explicit READ COMMITTED transaction, so sharing
+    that session would make ``Session.begin()`` fail before the singleton lock.
+    """
+    async with AsyncSessionLocal() as db:
+        yield WafStateRepository(db)
 
 
 def get_turnstile_verifier() -> TurnstileVerifier:
@@ -233,6 +249,10 @@ async def ingest_waf_event(
     enforcement_repository: EnforcementRecommendationRepository = Depends(
         get_enforcement_repository
     ),
+    waf_state_repository: WafStateRepository = Depends(
+        get_waf_state_repository,
+        scope="function",
+    ),
 ):
     settings = get_settings()
     audit_key = request.headers.get("X-CyberTrace-WAF-Audit-Key")
@@ -267,6 +287,18 @@ async def ingest_waf_event(
         enable_preprocessing=settings.enable_http_model_preprocessing,
         source_verification_mode=settings.waf_source_verification_mode,
         alert_event_publisher=get_alert_event_broadcaster(request),
+    )
+    post_triage_enforcement = PostTriageEnforcementCoordinator(
+        generic_use_case=RecordShadowRecommendationUseCase(
+            repository=enforcement_repository,
+            mode=settings.enforcement_mode,
+            ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+        ),
+        waf_repository=waf_state_repository,
+        enforcement_mode=settings.enforcement_mode,
+        pr7_mutation_enabled=settings.pr7_critical_waf_mutation_enabled,
+        recommendation_ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+        pr7_capacity=settings.pr7_waf_capacity,
     )
     queue_fields = _queue_log_fields(inference_queue)
     log_event(
@@ -356,22 +388,31 @@ async def ingest_waf_event(
 
     if result.alert_id is not None:
         try:
-            await RecordShadowRecommendationUseCase(
-                repository=enforcement_repository,
-                mode=settings.enforcement_mode,
-                ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
-            ).execute(
+            enforcement_result = await post_triage_enforcement.execute(
                 alert_id=result.alert_id,
                 prediction=result.prediction,
                 confidence_level=result.confidence_level,
                 request_path=payload.request_path,
                 occurred_at=result.occurred_at,
             )
-        except Exception as exc:  # shadow recording must not affect ingest
             log_event(
                 logger,
-                "enforcement.shadow_recommendation_failed",
-                "Shadow recommendation failed after triage; ingest result is unchanged",
+                "enforcement.post_triage_dispatch_completed",
+                "Post-triage enforcement mutation completed",
+                alert_id=result.alert_id,
+                transaction_id=payload.transaction_id,
+                route=enforcement_result.route,
+                category=enforcement_result.category,
+                recommendation_id=enforcement_result.recommendation_id,
+                revision=enforcement_result.revision,
+                state_changed=enforcement_result.state_changed,
+            )
+        except Exception as exc:  # enforcement recording must not affect ingest
+            log_event(
+                logger,
+                "enforcement.post_triage_dispatch_failed",
+                "Post-triage enforcement mutation failed; persisted alert remains "
+                "valid",
                 level="WARNING",
                 transaction_id=payload.transaction_id,
                 alert_id=result.alert_id,

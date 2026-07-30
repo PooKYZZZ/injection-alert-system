@@ -17,11 +17,13 @@ trust checks are completed. See
 `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md` for remaining PR5 and hosted
 work.
 
-PR7 Block 1 and Block 2 are implemented for controlled-local CRITICAL WAF
-evidence. The runtime is opt-in through the `pr7-local-waf` Compose profile and
-the disposable PostgreSQL -> backend -> WAF integration test. This does not
-authorize hosted, staging, or production enforcement; remaining Block 3
-evidence is listed in `docs/project-ops/PR7_BLOCK_2_EVIDENCE.md`.
+PR7 Block 1, Block 2, and the controlled-local Block 3 lifecycle are implemented
+for controlled-local CRITICAL WAF evidence. The runtime is opt-in through the
+`pr7-local-waf` and `pr7-block3` Compose profiles and the disposable PostgreSQL
+-> backend -> WAF integration tests. This does not
+authorize hosted, staging, or production enforcement; remaining trust-topology
+and portal evidence is listed in
+`docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
 
 Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
 
@@ -152,8 +154,18 @@ $env:PR7_RUN_BACKEND_WAF_E2E = "1"
 
 The harness creates and removes its own PostgreSQL, backend, WAF, network, and
 state resources. The test is opt-in because it requires Docker and takes about
-two minutes. Focused unit/integration coverage and the bounded image smoke are
-listed in `docs/project-ops/PR7_BLOCK_2_EVIDENCE.md`.
+two to three minutes. For the complete attack-to-CRITICAL-WAF lifecycle, run:
+
+```powershell
+$env:PR7_RUN_BLOCK3_E2E = "1"
+.venv\Scripts\python.exe -m pytest -q --tb=short tests/e2e/test_pr7_block3.py
+```
+
+This profile uses fixed disposable Docker source identities and an opt-in
+bridge filter for Block 2 controller probes. It is controlled-local evidence,
+not real Cloudflare ingress or production readiness. Focused unit/integration
+coverage and the bounded image smoke are listed in
+`docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
 
 The auth/security schema foundation also includes a frontend server-only
 Supabase client. Put these values in `frontend/.env.local`:

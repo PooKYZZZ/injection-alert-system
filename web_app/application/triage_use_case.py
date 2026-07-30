@@ -106,6 +106,9 @@ class TriageUseCase:
     """Coordinates deduplication, ML inference, action policy, and persistence."""
 
     _VALID_CONFIDENCE_LEVELS = frozenset({"LOW", "MEDIUM", "HIGH", "CRITICAL"})
+    VALID_PREDICTIONS = frozenset(
+        {"Normal", "SQL Injection", "Code Injection", "Other Attacks"}
+    )
 
     def __init__(
         self,
@@ -348,6 +351,10 @@ class TriageUseCase:
 
         if not prediction or not confidence_level:
             raise ModelNotReadyError("Model returned an invalid prediction payload")
+        if prediction not in self.VALID_PREDICTIONS:
+            raise ModelNotReadyError(
+                "Model returned an unsupported prediction label"
+            )
 
         return {
             "prediction": prediction,

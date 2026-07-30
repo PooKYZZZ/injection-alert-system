@@ -9,6 +9,7 @@ from web_app.domain.waf_state import (
     WafLifecycle,
     canonical_state_checksum,
     canonicalize_waf_source_ip,
+    is_supported_waf_source_ip,
     transition_status,
     utc_millis,
     utc_millis_string,
@@ -19,6 +20,13 @@ def test_waf_ip_canonicalization_collapses_mapped_ipv6() -> None:
     assert canonicalize_waf_source_ip("::ffff:203.0.113.7") == "203.0.113.7"
     assert canonicalize_waf_source_ip("2001:0db8::1") == "2001:db8::1"
     assert canonicalize_waf_source_ip("not-an-ip") is None
+
+
+def test_pr7_runtime_source_contract_is_ipv4_only() -> None:
+    assert is_supported_waf_source_ip("203.0.113.7") is True
+    assert is_supported_waf_source_ip("::ffff:203.0.113.7") is True
+    assert is_supported_waf_source_ip("2001:db8::1") is False
+    assert is_supported_waf_source_ip("not-an-ip") is False
 
 
 def test_utc_millis_rejects_naive_datetime() -> None:
