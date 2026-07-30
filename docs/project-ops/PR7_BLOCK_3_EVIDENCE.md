@@ -14,7 +14,7 @@ The guarded lifecycle test passed:
 
 ```text
 PR7_RUN_BLOCK3_E2E=1 .venv\Scripts\python.exe -m pytest -q --tb=short tests/e2e/test_pr7_block3.py
-3 passed in 130.60s
+3 passed in 144.74s
 ```
 
 The test drove a fixed source client through the WAF with the SQLi vector
@@ -45,8 +45,9 @@ The same lifecycle asserted:
   alert persistence. Eligible PR7 candidates use the atomic Block 1 repository;
   all other alerts retain the generic recommendation path.
 - `PR7_CRITICAL_WAF_MUTATION_ENABLED` defaults to `false` and is accepted only
-  for development/testing with WAF snapshot sync enabled and
-  `ENFORCEMENT_MODE=enforce`.
+  for development/testing with WAF snapshot sync enabled,
+  `ENFORCEMENT_MODE=enforce`, `cloudflare_tunnel` source verification, and a
+  PostgreSQL database.
 - The PR7 mutation uses a fresh async database session so the preceding
   triage reload cannot leave an implicit read transaction around the Block 1
   `READ COMMITTED` mutation boundary.
@@ -54,6 +55,12 @@ The same lifecycle asserted:
   traverse the WAF for activation safety, but forwarding their shared audit
   records would recursively create recommendations. The filter is enabled
   only by `docker-compose.pr7-block3.yml`.
+- The bridge follows with `--from-start`; transaction-idempotent ingest permits
+  safe replay after a restart instead of silently dropping lines written while
+  the bridge was unavailable.
+- PR7 state mutation rejects pure IPv6 sources until the runtime snapshot
+  contract supports IPv6 entries; IPv4-mapped IPv6 values remain canonicalized
+  to IPv4.
 - The evidence access log is a WAF-side no-upstream assertion. It does not
   replace a portal-side request sentinel or prove that a deployed portal could
   not be reached through another route.
@@ -64,7 +71,7 @@ The exact vector is separately covered by the guarded real-model test:
 
 ```text
 PR7_RUN_REAL_MODEL=1 .venv\Scripts\python.exe -m pytest -q --tb=short tests/ml/test_pr7_critical_vector.py
-1 passed in 7.27s
+1 passed in 8.49s
 ```
 
 The pinned artifact is
