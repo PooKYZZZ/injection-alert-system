@@ -51,7 +51,6 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
       CYBERTRACE_POSTGRES_TEST_URL: postgresql://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
-      PR7_TEST_DATABASE_URL: postgresql+asyncpg://postgres:cybertrace-ci-only@127.0.0.1:5432/cybertrace
       APP_ENV: testing
       MODEL_PATH: ./ml_model/model_registry
       MODEL_REGISTRY_PATH: ./ml_model/model_registry
