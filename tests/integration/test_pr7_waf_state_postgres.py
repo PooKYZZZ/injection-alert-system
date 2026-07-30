@@ -277,6 +277,28 @@ async def test_expired_candidate_is_final_and_new_candidate_can_activate(
 
 
 @pytest.mark.asyncio
+async def test_already_expired_recommendation_is_typed_without_insert(
+    session_factory,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_traffic_log(session_factory, 42, source_ip="203.0.113.42")
+
+    async with session_factory() as session:
+        result = await WafStateRepository(session).record_critical_waf_recommendation(
+            trigger_traffic_log_id=42,
+            recommendation_expires_at=now - timedelta(seconds=1),
+            effective_expires_at=now + timedelta(minutes=5),
+        )
+        recommendation_count = await session.scalar(
+            select(func.count()).select_from(EnforcementRecommendationRow)
+        )
+
+    assert result.category == "EXPIRED_CANDIDATE"
+    assert result.recommendation_id == 0
+    assert recommendation_count == 0
+
+
+@pytest.mark.asyncio
 async def test_authoritative_eligibility_rejects_unverified_or_normal_traffic(
     session_factory,
 ) -> None:
@@ -622,9 +644,7 @@ async def test_longer_candidate_supersedes_active_owner(session_factory) -> None
         source_ip="203.0.113.10",
     )
     async with session_factory() as session:
-        owner = await WafStateRepository(
-            session
-        ).record_critical_waf_recommendation(
+        owner = await WafStateRepository(session).record_critical_waf_recommendation(
             trigger_traffic_log_id=1,
             recommendation_expires_at=now + timedelta(minutes=30),
             effective_expires_at=now + timedelta(minutes=5),
@@ -664,9 +684,7 @@ async def test_expiry_cleanup_and_activation_share_one_revision(
         source_ip="203.0.113.12",
     )
     async with session_factory() as session:
-        owner = await WafStateRepository(
-            session
-        ).record_critical_waf_recommendation(
+        owner = await WafStateRepository(session).record_critical_waf_recommendation(
             trigger_traffic_log_id=1,
             recommendation_expires_at=now + timedelta(minutes=10),
             effective_expires_at=now + timedelta(minutes=5),
@@ -737,3 +755,40 @@ async def test_revoke_active_removes_snapshot_owner_and_terminal_revoke_is_noop(
     assert noop.category == "TERMINAL_NOOP"
     assert snapshot.items == []
     assert snapshot.revision == 2
+
+
+@pytest.mark.asyncio
+async def test_revoke_cleans_other_expired_active_rows_in_same_revision(
+    session_factory,
+) -> None:
+    now = datetime.now(timezone.utc)
+    await _insert_traffic_log(session_factory, 61, source_ip="203.0.113.61")
+    await _insert_traffic_log(session_factory, 62, source_ip="203.0.113.62")
+    async with session_factory() as session:
+        first = await WafStateRepository(session).record_critical_waf_recommendation(
+            trigger_traffic_log_id=61,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            effective_expires_at=now + timedelta(minutes=5),
+        )
+        second = await WafStateRepository(session).record_critical_waf_recommendation(
+            trigger_traffic_log_id=62,
+            recommendation_expires_at=now + timedelta(minutes=10),
+            effective_expires_at=now + timedelta(minutes=5),
+        )
+    async with session_factory() as session:
+        await session.execute(
+            update(WafEffectiveStateRow)
+            .where(WafEffectiveStateRow.recommendation_id == first.recommendation_id)
+            .values(expires_at=now - timedelta(seconds=1))
+        )
+        await session.commit()
+    async with session_factory() as session:
+        revoked = await WafStateRepository(session).revoke(
+            recommendation_id=second.recommendation_id
+        )
+        rows = list(await session.scalars(select(WafEffectiveStateRow)))
+        snapshot = await WafStateRepository(session).snapshot()
+
+    assert revoked.revision == 3
+    assert {row.status for row in rows} == {WafLifecycle.EXPIRED, WafLifecycle.REVOKED}
+    assert snapshot.items == []

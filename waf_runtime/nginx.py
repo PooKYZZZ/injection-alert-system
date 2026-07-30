@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import subprocess
@@ -71,10 +72,7 @@ class NginxController:
             if (
                 after
                 and after != before
-                and self._request_status(
-                    "/__pr7/ready", None, uuid.uuid4().hex
-                )
-                == 204
+                and self._request_status("/__pr7/ready", None, uuid.uuid4().hex) == 204
             ):
                 time.sleep(min(1.0, self.timeout / 2))
                 return True
@@ -90,15 +88,15 @@ class NginxController:
     ) -> bool:
         if not self._is_selected(candidate):
             return False
-        source_ip = source_ip or self._candidate_sources(candidate)[0]
+        inferred_source, inferred_recommendation = self._candidate_probe_rule(candidate)
+        source_ip = source_ip or inferred_source
+        recommendation_id = recommendation_id or inferred_recommendation
         if self.audit_log_path is not None:
             revision = revision or self._candidate_tag(candidate, "revision")
             recommendation_id = recommendation_id or self._candidate_tag(
                 candidate, "recommendation"
             )
-        marker = self._probe_positive_candidate(
-            source_ip, revision, recommendation_id
-        )
+        marker = self._probe_positive_candidate(source_ip, revision, recommendation_id)
         if marker is None:
             return False
         wrong_source = self._wrong_source(self._candidate_sources(candidate))
@@ -106,12 +104,15 @@ class NginxController:
             return False
         if self._request_status("/records/not-search", source_ip, marker) != 204:
             return False
-        if self._request_status(
-            "/records/search?query=%27%20UNION%20SELECT%20null--",
-            wrong_source,
-            marker,
-            base_url=self.crs_probe_url,
-        ) != 403:
+        if (
+            self._request_status(
+                "/records/search?query=%27%20UNION%20SELECT%20null--",
+                wrong_source,
+                marker,
+                base_url=self.crs_probe_url,
+            )
+            != 403
+        ):
             return False
         return self._audit_contains_any(marker, '"attack-sqli"', '"942100"')
 
@@ -179,9 +180,7 @@ class NginxController:
         deadline = time.monotonic() + self.timeout
         while time.monotonic() < deadline:
             try:
-                for line in self.audit_log_path.read_text(
-                    encoding="utf-8", errors="replace"
-                ).splitlines()[-100:]:
+                for line in self._audit_tail():
                     if marker in line and all(token in line for token in tokens):
                         return True
             except OSError:
@@ -195,9 +194,7 @@ class NginxController:
         deadline = time.monotonic() + self.timeout
         while time.monotonic() < deadline:
             try:
-                for line in self.audit_log_path.read_text(
-                    encoding="utf-8", errors="replace"
-                ).splitlines()[-100:]:
+                for line in self._audit_tail():
                     if marker in line and any(token in line for token in tokens):
                         return True
             except OSError:
@@ -214,16 +211,47 @@ class NginxController:
 
     @staticmethod
     def _candidate_sources(candidate: Path) -> list[str]:
-        sources = re.findall(r'@ipMatch ([0-9.]+)', candidate.read_text())
+        sources = re.findall(r"@ipMatch ([0-9.]+)", candidate.read_text())
         if not sources:
             raise ValueError("candidate has no source rule")
         return sources
 
+    def _candidate_probe_rule(self, candidate: Path) -> tuple[str, int | None]:
+        text = candidate.read_text(encoding="ascii")
+        rules = re.split(r"(?=SecRule REQUEST_FILENAME)", text)
+        active: list[tuple[str, int | None, int]] = []
+        now = int(time.time())
+        for rule in rules:
+            source = re.search(r"@ipMatch ([0-9.]+)", rule)
+            expiry = re.search(r'SecRule TIME_EPOCH "@lt ([0-9]+)"', rule)
+            recommendation = re.search(r"tag:'recommendation-([0-9]+)'", rule)
+            if source and (expiry is None or now < int(expiry.group(1))):
+                active.append(
+                    (
+                        source.group(1),
+                        int(recommendation.group(1)) if recommendation else None,
+                        int(expiry.group(1)) if expiry else 0,
+                    )
+                )
+        if not active:
+            raise ValueError("candidate has no unexpired source rule")
+        source, recommendation, _ = max(active, key=lambda item: item[2])
+        return source, recommendation
+
+    def _audit_tail(self) -> list[str]:
+        if self.audit_log_path is None:
+            return []
+        with self.audit_log_path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 128 * 1024))
+            return handle.read().decode("utf-8", errors="replace").splitlines()[-100:]
+
     @staticmethod
     def _wrong_source(sources: list[str]) -> str:
-        for suffix in range(1, 255):
-            candidate = f"198.51.100.{suffix}"
-            if candidate not in sources:
+        source_set = set(sources)
+        for value in range(0, 2**32):
+            candidate = str(ipaddress.IPv4Address(value))
+            if candidate not in source_set:
                 return candidate
         raise ValueError("candidate source space is exhausted")
 

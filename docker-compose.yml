@@ -130,10 +130,11 @@ services:
       PR7_SUBPROCESS_TIMEOUT: ${PR7_SUBPROCESS_TIMEOUT:-5}
     volumes:
       - pr7-state:/pr7-state
-      - ./logs/modsecurity/pr7:/var/log/modsecurity
+      - pr7-audit:/var/log/modsecurity
     depends_on:
       backend:
         condition: service_started
 
 volumes:
   pr7-state:
+  pr7-audit:

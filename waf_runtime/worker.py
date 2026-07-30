@@ -39,27 +39,24 @@ def reconcile_once(reconciler, logger, mode: str):
     try:
         result = reconciler.reconcile()
     except SnapshotRejected as exc:
-        logger.emit(
-            "waf_snapshot_rejected", mode=mode, reason=type(exc).__name__
-        )
+        logger.emit("waf_snapshot_rejected", mode=mode, reason=type(exc).__name__)
         return None
     except RollbackError as exc:
-        logger.emit(
-            "waf_rollback_failed", mode=mode, reason=type(exc).__name__
-        )
+        logger.emit("waf_rollback_failed", mode=mode, reason=type(exc).__name__)
         raise
     except ActivationError as exc:
-        logger.emit(
-            "waf_activation_failed", mode=mode, reason=type(exc).__name__
-        )
+        logger.emit("waf_activation_failed", mode=mode, reason=type(exc).__name__)
         return None
-    logger.emit(
-        "waf_reconcile_no_change"
-        if result == "no_change"
-        else "waf_candidate_selected",
-        mode=mode,
-        selected_kind=result,
-    )
+    if result in {"stale_ignored", "conflict_rejected"}:
+        logger.emit("waf_snapshot_rejected", mode=mode, reason=result)
+    else:
+        logger.emit(
+            "waf_reconcile_no_change"
+            if result == "no_change"
+            else "waf_candidate_selected",
+            mode=mode,
+            selected_kind=result,
+        )
     return result
 
 

@@ -122,3 +122,31 @@ def test_accepts_valid_empty_snapshot_and_rejects_bom() -> None:
 
     with pytest.raises(SnapshotRejected, match="BOM"):
         _client(bom).fetch()
+
+
+def test_fetch_passes_a_remaining_deadline_to_httpx():
+    calls = []
+
+    class Response:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+
+        def iter_bytes(self):
+            yield json.dumps(_payload(), separators=(",", ":")).encode()
+
+    class Stream:
+        def __enter__(self):
+            return Response()
+
+        def __exit__(self, *args):
+            return False
+
+    class Client:
+        def stream(self, *args, **kwargs):
+            calls.append(kwargs)
+            return Stream()
+
+    client = _client(lambda request: httpx.Response(500))
+    client.client = Client()
+    assert client.fetch().revision == 3
+    assert 0 < calls[0]["timeout"] <= client.total_timeout

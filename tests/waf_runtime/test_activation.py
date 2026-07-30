@@ -271,3 +271,15 @@ def test_all_near_expiry_items_remain_pending_empty(tmp_path, monkeypatch):
     assert result.selected_kind == "pending_empty"
     assert store.read_metadata()["selected_source_revision"] is None
     assert store.read_candidate("selected.conf") == store.read_candidate("empty.conf")
+
+
+def test_activation_rechecks_revision_after_fetch_race(tmp_path):
+    store = CandidateStateStore(tmp_path)
+    ActivationManager(store, FakeNginx()).activate(blocking_snapshot(5))
+    nginx = FakeNginx()
+
+    result = ActivationManager(store, nginx).activate(blocking_snapshot(4))
+
+    assert result.selected_kind == "stale_ignored"
+    assert nginx.reloaded == 0
+    assert store.read_metadata()["selected_source_revision"] == 5

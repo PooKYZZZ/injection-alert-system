@@ -36,9 +36,9 @@ class Reconciler:
                 if self.store.is_disabled():
                     if self.store.empty_state_matches("disabled_empty"):
                         return "disabled_empty"
-                    result = ActivationManager(
-                        self.store, self.nginx
-                    ).deactivate_empty("disabled_empty")
+                    result = ActivationManager(self.store, self.nginx).deactivate_empty(
+                        "disabled_empty"
+                    )
                     return result.selected_kind
         snapshot: Snapshot = self.fetcher.fetch()
         with self.store.locked():
@@ -61,6 +61,11 @@ class Reconciler:
                         return "no_change"
         if self.config.mode == "dry_run":
             with self.store.locked():
+                decision = ActivationManager(self.store, self.nginx)._revision_decision(
+                    snapshot
+                )
+                if decision is not None:
+                    return decision
                 candidate = render_snapshot(snapshot)
                 candidate_path = self.store.write_candidate(
                     (
@@ -73,10 +78,11 @@ class Reconciler:
                     raise RuntimeError("dry-run candidate validation failed")
                 self.store.select_candidate(self.store.canonical_empty_path)
                 self.store.write_metadata(self._empty_metadata("mode_empty"))
+                self.store.prune_candidates()
             return "mode_empty"
-        return ActivationManager(self.store, self.nginx).activate(
-            snapshot
-        ).selected_kind
+        return (
+            ActivationManager(self.store, self.nginx).activate(snapshot).selected_kind
+        )
 
     def _empty_metadata(self, kind: str) -> dict:
         content = self.store.canonical_empty_path.read_bytes()
