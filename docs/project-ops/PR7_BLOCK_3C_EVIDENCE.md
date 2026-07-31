@@ -1,6 +1,6 @@
 # PR7 Block 3C Evidence
 
-Status: **Local runtime contracts and selected disposable resilience scenarios verified; full 3C matrix remains partial**
+Status: **Materially verified for the approved controlled local resilience scope; exhaustive fault matrix deferred**
 
 ## Implemented and verified
 
@@ -38,6 +38,9 @@ Status: **Local runtime contracts and selected disposable resilience scenarios v
   CRS continuity/revocation, and completed disabled-empty cleanup with no
   remaining project resources. Timing events are in the ignored artifact
   `artifacts/pr7-block3/pr7-auto-3c-20260731d/waf-timings-pr7-block3-1770e99b.json`.
+  The run used actual PostgreSQL, backend, portal, WAF, bridge, source-client,
+  and real-model services at head
+  `512e4387716dd16b43267adb38098e810b98f581`.
 
 ## Verification
 
@@ -51,7 +54,7 @@ Status: **Local runtime contracts and selected disposable resilience scenarios v
   enables a required notification worker while SQLite lacks
   `public.claim_notification_outbox_batch_v62`. Re-running with the test
   worker explicitly disabled (`NOTIFICATION_WORKER_ENABLED=false`,
-  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **1032 passed, 59 skipped**.
+  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **1043 passed, 60 skipped**.
 - Historical Block 3A disposable attack-to-block-to-revoke lifecycle:
   **1 passed in 459.64 seconds** against its original locked portal commit.
   Its finalizer disabled PR7, checked empty state, removed the project, and
@@ -59,14 +62,27 @@ Status: **Local runtime contracts and selected disposable resilience scenarios v
 - Current Block 3 lifecycle regression: **4 passed in 432.26 seconds**.
 - Automated current disposable lifecycle: **4 passed, 1 skipped in 197.33
   seconds** with the short-TTL expiry-outage branch enabled.
+- Exact skipped test:
+  `test_dynamic_rule_expires_while_backend_remains_unavailable` —
+  `set PR7_RUN_BLOCK3_EXPIRY_E2E=1 to run expiry during backend outage`.
+  This separately guarded wrapper was not represented as passed. The successful
+  main lifecycle exercised its short-TTL backend-outage expiry branch through
+  `PR7_RUN_BLOCK3_EXPIRY_OUTAGE=1`.
+- Verified observable behavior included CRITICAL activation, dynamic WAF
+  blocking, backend synchronization outage, absolute expiry while the backend
+  was unavailable, portal restoration after expiry, static CRS continuity,
+  revocation, representative snapshot rejection behavior, disabled-empty final
+  state, and project-scoped cleanup. No disposable containers, networks, or
+  volumes remained.
 - Current absolute-expiry/backend-outage scenario: **1 passed in 235.20
   seconds**. The run finished with the disable latch and cleanup finalizer.
 - Candidate-render capacity run: **10 samples each at 0/1/64 entries**; the
   generated artifact records min/median/p95/max timings and candidate sizes.
 
-## Not executed
+## Deferred, non-blocking evidence
 
-The following remain **NOT_RUN or incomplete** in this evidence record:
+The following additional depth was not required for this PR closure and is not
+represented as executed:
 
 - A separate reconnect-before-expiry timing run with a recorded propagation
   latency.
@@ -81,8 +97,13 @@ The following remain **NOT_RUN or incomplete** in this evidence record:
 - A final committed timing bundle containing snapshot fetch, validation, reload,
   probe, revocation propagation, expiry-to-allow, and restart recovery fields.
 
-Therefore Section 3C is materially advanced and locally verified for the
-expiry/outage path, but it is not yet a claim of complete 3C closure.
+Section 3C is materially verified for the approved controlled local resilience
+scope. The real disposable lifecycle demonstrated bounded startup, CRITICAL
+activation, WAF enforcement, control-plane outage, data-plane expiry, portal
+recovery, static CRS continuity, revocation, snapshot rejection, and safe
+cleanup. The explicitly skipped scenario remains documented and is not
+represented as passed. The additional exhaustive process-failure and timing
+matrix remains deferred and is not claimed as executed.
 
 The safety contract remains:
 

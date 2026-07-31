@@ -1,6 +1,6 @@
 # PR7 Block 3B Evidence
 
-Status: **Implemented locally; live external proof NOT_RUN**
+Status: **Substantially implemented and externally demonstrated for the approved CRITICAL enforcement objective**
 
 ## Implemented and verified
 
@@ -37,22 +37,44 @@ Status: **Implemented locally; live external proof NOT_RUN**
 - CyberTrace focused and full regression suites pass; guarded external and
   disposable E2E remain explicitly skipped unless opted in.
 - Full CyberTrace suite with the notification worker disabled for the local
-  SQLite test boundary: 1032 passed, 59 skipped.
+  SQLite test boundary: **1043 passed, 60 skipped**.
 - 3B and 3C merged Compose models: `docker compose ... config --quiet` — passed.
 
-## External-only evidence
+## Manual external proof and closure decision
 
-The following is **NOT_RUN** because this checkout has no authorized live
-Cloudflare account session, proof-hostname configuration evidence, or two
-genuinely distinct external client networks:
+The trusted Cloudflare topology was exercised manually on 2026-07-31. Home
+broadband and phone mobile-data egress were observed as distinct external
+sources. The controlled proof established that:
 
-- Pseudo IPv4 and Worker-route prerequisite inspection.
-- Two-source source-equivalence correlation.
-- Live forged-header matrix through Cloudflare.
-- External direct-origin probes.
-- Live Normal/LOW/MEDIUM/HIGH/CRITICAL matrix.
+- normal external traffic reached the portal;
+- static CRS returned HTTP 403;
+- forged forwarding headers produced no observed trust bypass;
+- a mobile-specific CRITICAL PR7 rule was created;
+- the matching mobile source and protected path were blocked at the WAF before
+  expiry, with no upstream portal work;
+- the same source and path were allowed after absolute expiry;
+- static CRS remained active after the dynamic PR7 rule expired; and
+- portal sentinel evidence recorded protected work only after the dynamic block
+  had expired and access was restored.
 
-No external, hosted, production, or two-source claim is made.
+The bounded external artifacts remain ignored local evidence under
+`artifacts/pr7-block3/external/`; they are not committed repository files. The
+automated source-agent workflow is implemented but was not rerun because
+Cloudflare Access client credentials were not loaded in the automation shell.
+
+Section 3B is accepted as substantially implemented and externally
+demonstrated for the approved CRITICAL enforcement objective. The earlier
+controlled manual proof establishes trusted source propagation,
+source-specific WAF blocking, absolute expiry, portal restoration, and static
+CRS continuity. The automated external source-agent rerun and complete
+confidence-tier matrix are deferred and are not blockers for this PR.
+
+The full external Normal/LOW/MEDIUM/HIGH/CRITICAL matrix, direct-origin
+dashboard screenshots, Pseudo IPv4 screenshots, Worker-overlap screenshots,
+and hosted/production rollout proof remain deferred manual operational
+evidence. No claim of a complete external confidence matrix or hosted or
+production readiness is made, and hosted/production enforcement remains
+disabled.
 
 ## Runtime contract
 

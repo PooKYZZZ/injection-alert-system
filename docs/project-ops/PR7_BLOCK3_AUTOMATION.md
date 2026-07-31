@@ -77,3 +77,29 @@ harness and must be verified with `docker ps`, `docker network ls`, and
 `final.json` always contains `hosted_or_production_ready: false`. A successful
 local report is not a hosted rollout authorization and does not replace the
 required two-network Cloudflare proof.
+
+## Approved closure record
+
+At head `512e4387716dd16b43267adb38098e810b98f581`, disposable run
+`pr7-auto-3c-20260731d` completed with **4 passed, 1 skipped in 197.33
+seconds**, a 60-second test TTL, and a 600-second bounded startup timeout. It
+used actual PostgreSQL, backend, portal, WAF, bridge, source clients, and the
+real model. The run verified CRITICAL activation, dynamic blocking, backend
+outage, absolute expiry, portal restoration, static CRS continuity, revocation,
+representative snapshot rejection, disabled-empty final state, and cleanup with
+no remaining project resources.
+
+The skipped test was
+`test_dynamic_rule_expires_while_backend_remains_unavailable`, with reason
+`set PR7_RUN_BLOCK3_EXPIRY_E2E=1 to run expiry during backend outage`. The
+successful main lifecycle separately exercised the short-TTL expiry-outage
+branch; the guarded wrapper itself is not described as passed.
+
+Ignored local evidence is stored beneath
+`artifacts/pr7-block3/pr7-auto-3c-20260731d/`, including `3c.json` and
+`waf-timings-pr7-block3-1770e99b.json`. Raw artifacts remain uncommitted.
+
+Earlier manual two-network Cloudflare evidence is accepted for the approved 3B
+CRITICAL objective. The automated external source-agent rerun, complete
+confidence-tier matrix, additional operational screenshots, and
+hosted/production rollout remain deferred and are not readiness claims.

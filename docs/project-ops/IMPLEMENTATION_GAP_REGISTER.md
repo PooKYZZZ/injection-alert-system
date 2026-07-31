@@ -217,15 +217,24 @@ Completed:
   atomic PR7 state -> WAF 403 -> source/path isolation -> revocation.
 - Run-scoped proof automation and a real disposable 3C lifecycle runner now
   capture bounded timing evidence and verify cleanup.
+- Earlier controlled manual Cloudflare proof from distinct home and mobile-data
+  sources demonstrated the approved external CRITICAL lifecycle.
+- The current real disposable lifecycle verified CRITICAL activation, dynamic
+  blocking, expiry during backend outage, portal restoration, static CRS
+  continuity, revocation, representative snapshot rejection, disabled-empty
+  final state, and project-scoped cleanup.
 
 Remaining:
 
-- Real Cloudflare ingress/source equivalence and hosted trust topology.
-- PR6/PR7 integrated portal regression.
-- Portal-owned no-upstream proof; current evidence is WAF-side upstream-empty
-  logging only.
-- Full 3C disposable timing/recovery matrix, including bridge replay,
-  non-empty state-volume recreation, and runtime capacity distributions.
+- Deferred, non-blocking: automated external source-agent rerun and the full
+  external LOW/MEDIUM/HIGH/CRITICAL confidence matrix.
+- Deferred, non-blocking: additional bridge/process/container fault variants,
+  non-empty state-volume recreation, and complete runtime performance
+  distributions.
+- Deferred operational evidence: Cloudflare direct-origin, Pseudo IPv4, and
+  Worker-overlap dashboard screenshots.
+- Hosted/production rollout remains disabled, unexecuted, and outside this PR's
+  controlled evidence closure.
 
 Evidence:
 
@@ -241,8 +250,9 @@ local enforcement is proven.
 
 Dependencies / blockers: PR6 and trusted deployment topology.
 
-Recommended next step: Complete the remaining Cloudflare/origin, portal, and
-PR6 integration evidence without enabling hosted or production enforcement.
+Recommended next step: Final review after portal PR #100; retain the deferred
+operational matrix for later work without enabling hosted or production
+enforcement.
 
 Introduced / identified: PR5 acceptance state.
 
