@@ -70,6 +70,72 @@ def _compose(project: str, override: Path, *args: str) -> list[str]:
     return command
 
 
+def _capture_timing_artifact(project: str, override: Path) -> None:
+    """Persist bounded WAF timing fields before disposable cleanup removes logs."""
+    destination = os.environ.get("PR7_BLOCK3_ARTIFACT_DIR", "").strip()
+    if not destination:
+        return
+    try:
+        raw = _run(
+            _compose(
+                project,
+                override,
+                "logs",
+                "--no-color",
+                "--tail",
+                "500",
+                "pr7-block3-waf",
+            ),
+            timeout=60,
+        )
+        allowed = {
+            "event",
+            "timestamp",
+            "mode",
+            "selected_kind",
+            "reason",
+            "total_ms",
+            "duration_ms",
+        }
+        events: list[dict[str, Any]] = []
+        for line in raw.splitlines():
+            payload = line.strip()
+            if "{" in payload:
+                payload = payload[payload.find("{") :]
+            try:
+                item = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict) and item.get("event"):
+                events.append({key: item[key] for key in allowed if key in item})
+        output = Path(destination).resolve()
+        allowed_root = (ROOT / "artifacts").resolve()
+        try:
+            output.relative_to(allowed_root)
+        except ValueError as exc:
+            raise ValueError(
+                "PR7_BLOCK3_ARTIFACT_DIR must be under repository artifacts"
+            ) from exc
+        output.mkdir(parents=True, exist_ok=True)
+        (output / f"waf-timings-{project}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "measurement": "pr7_waf_runtime_timing_events",
+                    "scope": "local_disposable_e2e",
+                    "events": events[-500:],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        # Evidence capture must never change enforcement or mask the test result.
+        print(f"PR7 timing artifact capture skipped: {exc}")
+
+
 def require_block3bc_artifacts() -> dict[str, Any]:
     lock_path = ROOT / "docs/project-ops/pr7-block3bc-artifact-lock.json"
     lock = verify_model_lock(MODEL_RUN_DIR, lock_path)
@@ -103,6 +169,12 @@ def _override(
         "/app/ml_model/model_registry/staging/"
         "distilbert_v3_907k_cleaned_20260312_133755"
     )
+    ttl_seconds = os.environ.get("PR7_BLOCK3_RECOMMENDATION_TTL_SECONDS", "900")
+    if not ttl_seconds.isdigit() or not 30 <= int(ttl_seconds) <= 3600:
+        raise ValueError(
+            "PR7_BLOCK3_RECOMMENDATION_TTL_SECONDS must be an integer from 30 to 3600"
+        )
+    challenge_ttl = max(1, min(int(ttl_seconds) - 1, 300))
     return f"""services:
   postgres:
     environment:
@@ -126,6 +198,8 @@ def _override(
       CLOUDFLARE_TARGET_VERIFIED_PROOF: "true"
       ENFORCEMENT_MODE: enforce
       ENFORCEMENT_CHECK_API_KEY: {enforcement_key}
+      ENFORCEMENT_RECOMMENDATION_TTL_SECONDS: "{ttl_seconds}"
+      ENFORCEMENT_CHALLENGE_GRANT_TTL_SECONDS: "{challenge_ttl}"
       ENFORCEMENT_TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME: localhost
       ENFORCEMENT_TURNSTILE_TEST_MODE: "true"
@@ -505,7 +579,38 @@ def _waf_status(project: str, override: Path) -> dict[str, Any]:
     )
 
 
-def _revoke(database_url: str, recommendation_id: int) -> int:
+def _selected_expiry_epoch(project: str, override: Path) -> int:
+    """Read the bounded absolute expiry embedded in the selected rule file."""
+    script = (
+        "import re; "
+        "text=open('/pr7-state/selected.conf', encoding='ascii').read(); "
+        "match=re.search(r'SecRule TIME_EPOCH \\\"@lt ([0-9]+)\\\"', text); "
+        "print(match.group(1) if match else '0')"
+    )
+    value = _run(
+        _compose(
+            project,
+            override,
+            "exec",
+            "-T",
+            "pr7-block3-waf",
+            "python3",
+            "-c",
+            script,
+        ),
+        timeout=30,
+    ).splitlines()[-1]
+    if not value.isdigit() or int(value) <= 0:
+        raise AssertionError("selected PR7 rule did not contain an absolute expiry")
+    return int(value)
+
+
+def _revoke(
+    database_url: str,
+    recommendation_id: int,
+    *,
+    allow_terminal_noop: bool = False,
+) -> int:
     from web_app.infrastructure.repositories.waf_state_repository import (
         WafStateRepository,
     )
@@ -520,7 +625,10 @@ def _revoke(database_url: str, recommendation_id: int) -> int:
                 recommendation_id=recommendation_id
             )
         await engine.dispose()
-        if result.category != "REVOKED":
+        allowed_categories = {"REVOKED"}
+        if allow_terminal_noop:
+            allowed_categories.add("TERMINAL_NOOP")
+        if result.category not in allowed_categories:
             raise AssertionError(f"revoke failed: {result}")
         return result.revision
 
@@ -788,6 +896,32 @@ def run_block3_lifecycle() -> None:
                 assert outage_state.get("disabled") is False
                 assert outage_metadata.get("selected_kind") == "authoritative"
                 assert outage_metadata.get("selected_source_revision") == revision
+
+                if os.environ.get("PR7_RUN_BLOCK3_EXPIRY_OUTAGE") == "1":
+                    expiry_epoch = _selected_expiry_epoch(project, override)
+                    expiry_deadline = expiry_epoch + 2
+                    while time.time() <= expiry_deadline:
+                        time.sleep(1)
+                    expired_status, expired_id = _request_with_evidence(
+                        project,
+                        override,
+                        "source-client-a",
+                        f"{PATH}?after_expiry={evidence_id}",
+                    )
+                    assert expired_status != 403
+                    expired_record = _wait_evidence_record(
+                        project, override, expired_id
+                    )
+                    assert expired_record["upstream_addr"] not in {"", "-"}
+                    assert (
+                        _client_request(
+                            project,
+                            override,
+                            "source-client-a",
+                            ATTACK_PATH,
+                        )
+                        == 403
+                    ), "static CRS did not remain active after PR7 expiry"
             finally:
                 _reconnect_backend(project, override)
             _wait_http(f"{backend_url}/health", expected_status=200)
@@ -814,7 +948,13 @@ def run_block3_lifecycle() -> None:
             assert wrong_path_record["uri"] == f"{PATH}/"
             assert wrong_path_record["upstream_addr"] not in {"", "-"}
 
-            revoked_revision = _revoke(database_url, recommendation_id)
+            revoked_revision = _revoke(
+                database_url,
+                recommendation_id,
+                allow_terminal_noop=(
+                    os.environ.get("PR7_RUN_BLOCK3_EXPIRY_OUTAGE") == "1"
+                ),
+            )
             deadline = time.monotonic() + 120
             while time.monotonic() < deadline:
                 after_revoke_status, after_revoke_id = _request_with_evidence(
@@ -862,6 +1002,7 @@ def run_block3_lifecycle() -> None:
             primary_error = RuntimeError(f"PR7 Block 3 lifecycle failed\n{logs}")
             raise primary_error from exc
         finally:
+            _capture_timing_artifact(project, override)
             cleanup_errors = _cleanup(project, override)
             if cleanup_errors:
                 if primary_error is None:

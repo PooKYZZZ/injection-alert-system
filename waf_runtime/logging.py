@@ -15,6 +15,7 @@ class JsonEventLogger:
         "candidate_checksum",
         "entry_count",
         "duration_ms",
+        "total_ms",
         "attempt",
         "candidate_basename",
         "worker_count",

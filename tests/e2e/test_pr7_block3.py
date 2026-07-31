@@ -16,6 +16,14 @@ def test_attack_to_critical_waf_block_lifecycle() -> None:
     harness.run_block3_lifecycle()
 
 
+@pytest.mark.skipif(
+    os.environ.get("PR7_RUN_BLOCK3_EXPIRY_E2E") != "1",
+    reason="set PR7_RUN_BLOCK3_EXPIRY_E2E=1 to run expiry during backend outage",
+)
+def test_dynamic_rule_expires_while_backend_remains_unavailable() -> None:
+    harness.run_block3_lifecycle()
+
+
 def test_correlated_audit_rejects_tokens_split_across_transactions(monkeypatch):
     lines = [
         '{"transaction":{"id":"external","uri":"?evidence-123"}}',
