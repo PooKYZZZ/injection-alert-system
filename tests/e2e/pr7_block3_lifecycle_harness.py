@@ -70,6 +70,88 @@ def _compose(project: str, override: Path, *args: str) -> list[str]:
     return command
 
 
+def _capture_timing_artifact(project: str, override: Path) -> None:
+    """Persist bounded WAF timing fields before disposable cleanup removes logs."""
+    destination = os.environ.get("PR7_BLOCK3_ARTIFACT_DIR", "").strip()
+    if not destination:
+        return
+    try:
+        raw = _run(
+            _compose(
+                project,
+                override,
+                "logs",
+                "--no-color",
+                "--tail",
+                "500",
+                "pr7-block3-waf",
+            ),
+            timeout=60,
+        )
+        allowed = {
+            "event",
+            "timestamp",
+            "mode",
+            "selected_kind",
+            "reason",
+            "total_ms",
+            "duration_ms",
+        }
+        events: list[dict[str, Any]] = []
+        for line in raw.splitlines():
+            payload = line.strip()
+            if "{" in payload:
+                payload = payload[payload.find("{") :]
+            try:
+                item = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict) and item.get("event"):
+                events.append({key: item[key] for key in allowed if key in item})
+        output = Path(destination).resolve()
+        allowed_root = (ROOT / "artifacts").resolve()
+        try:
+            output.relative_to(allowed_root)
+        except ValueError as exc:
+            raise ValueError(
+                "PR7_BLOCK3_ARTIFACT_DIR must be under repository artifacts"
+            ) from exc
+        output.mkdir(parents=True, exist_ok=True)
+        (output / f"waf-timings-{project}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "measurement": "pr7_waf_runtime_timing_events",
+                    "scope": "local_disposable_e2e",
+                    "events": events[-500:],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        # Evidence capture must never change enforcement or mask the test result.
+        print(f"PR7 timing artifact capture skipped: {exc}")
+
+
+def require_block3bc_artifacts() -> dict[str, Any]:
+    lock_path = ROOT / "docs/project-ops/pr7-block3bc-artifact-lock.json"
+    lock = verify_model_lock(MODEL_RUN_DIR, lock_path)
+    require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])
+    require_pinned_compose_images(
+        (
+            ROOT / "docker-compose.yml",
+            ROOT / "docker-compose.demo-target.yml",
+            ROOT / "docker-compose.target-cloudflare.yml",
+            ROOT / "docker-compose.pr7-block3b.yml",
+        ),
+        lock_path,
+    )
+    return lock
+
+
 def _port(project: str, override: Path, service: str, container_port: int) -> int:
     value = _run(_compose(project, override, "port", service, str(container_port)))
     return int(value.rsplit(":", 1)[1])
@@ -87,6 +169,12 @@ def _override(
         "/app/ml_model/model_registry/staging/"
         "distilbert_v3_907k_cleaned_20260312_133755"
     )
+    ttl_seconds = os.environ.get("PR7_BLOCK3_RECOMMENDATION_TTL_SECONDS", "900")
+    if not ttl_seconds.isdigit() or not 30 <= int(ttl_seconds) <= 3600:
+        raise ValueError(
+            "PR7_BLOCK3_RECOMMENDATION_TTL_SECONDS must be an integer from 30 to 3600"
+        )
+    challenge_ttl = max(1, min(int(ttl_seconds) - 1, 300))
     return f"""services:
   postgres:
     environment:
@@ -110,6 +198,8 @@ def _override(
       CLOUDFLARE_TARGET_VERIFIED_PROOF: "true"
       ENFORCEMENT_MODE: enforce
       ENFORCEMENT_CHECK_API_KEY: {enforcement_key}
+      ENFORCEMENT_RECOMMENDATION_TTL_SECONDS: "{ttl_seconds}"
+      ENFORCEMENT_CHALLENGE_GRANT_TTL_SECONDS: "{challenge_ttl}"
       ENFORCEMENT_TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME: localhost
       ENFORCEMENT_TURNSTILE_TEST_MODE: "true"
@@ -133,7 +223,12 @@ def _wait_http(
     expected_status: int = 200,
     headers: dict[str, str] | None = None,
 ) -> None:
-    deadline = time.monotonic() + 180
+    timeout_raw = os.environ.get("PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS", "180")
+    if not timeout_raw.isdigit() or not 60 <= int(timeout_raw) <= 900:
+        raise ValueError(
+            "PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS must be an integer from 60 to 900"
+        )
+    deadline = time.monotonic() + int(timeout_raw)
     last_error = "not attempted"
     while time.monotonic() < deadline:
         try:
@@ -160,7 +255,12 @@ def _snapshot(backend_url: str, sync_key: str) -> dict[str, Any]:
 
 
 def _wait_waf_ready(project: str, override: Path) -> None:
-    deadline = time.monotonic() + 180
+    timeout_raw = os.environ.get("PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS", "180")
+    if not timeout_raw.isdigit() or not 60 <= int(timeout_raw) <= 900:
+        raise ValueError(
+            "PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS must be an integer from 60 to 900"
+        )
+    deadline = time.monotonic() + int(timeout_raw)
     last_error = "not attempted"
     script = (
         "import urllib.request; "
@@ -438,7 +538,89 @@ def _request_with_evidence(
     return status, evidence_id
 
 
-def _revoke(database_url: str, recommendation_id: int) -> int:
+def _backend_network(project: str) -> str:
+    return f"{project}_pr7-block3"
+
+
+def _backend_container(project: str, override: Path) -> str:
+    return _run(_compose(project, override, "ps", "-q", "backend")).splitlines()[-1]
+
+
+def _disconnect_backend(project: str, override: Path) -> None:
+    _run(
+        [
+            "docker",
+            "network",
+            "disconnect",
+            _backend_network(project),
+            _backend_container(project, override),
+        ],
+        timeout=30,
+    )
+
+
+def _reconnect_backend(project: str, override: Path) -> None:
+    _run(
+        [
+            "docker",
+            "network",
+            "connect",
+            _backend_network(project),
+            _backend_container(project, override),
+        ],
+        timeout=30,
+    )
+
+
+def _waf_status(project: str, override: Path) -> dict[str, Any]:
+    return json.loads(
+        _run(
+            _compose(
+                project,
+                override,
+                "exec",
+                "-T",
+                "pr7-block3-waf",
+                "pr7-waf-control",
+                "status",
+            ),
+            timeout=30,
+        )
+    )
+
+
+def _selected_expiry_epoch(project: str, override: Path) -> int:
+    """Read the bounded absolute expiry embedded in the selected rule file."""
+    script = (
+        "import re; "
+        "text=open('/pr7-state/selected.conf', encoding='ascii').read(); "
+        "match=re.search(r'SecRule TIME_EPOCH \\\"@lt ([0-9]+)\\\"', text); "
+        "print(match.group(1) if match else '0')"
+    )
+    value = _run(
+        _compose(
+            project,
+            override,
+            "exec",
+            "-T",
+            "pr7-block3-waf",
+            "python3",
+            "-c",
+            script,
+        ),
+        timeout=30,
+    ).splitlines()[-1]
+    if not value.isdigit() or int(value) <= 0:
+        raise AssertionError("selected PR7 rule did not contain an absolute expiry")
+    return int(value)
+
+
+def _revoke(
+    database_url: str,
+    recommendation_id: int,
+    *,
+    allow_terminal_noop: bool = False,
+) -> int:
     from web_app.infrastructure.repositories.waf_state_repository import (
         WafStateRepository,
     )
@@ -453,7 +635,10 @@ def _revoke(database_url: str, recommendation_id: int) -> int:
                 recommendation_id=recommendation_id
             )
         await engine.dispose()
-        if result.category != "REVOKED":
+        allowed_categories = {"REVOKED"}
+        if allow_terminal_noop:
+            allowed_categories.add("TERMINAL_NOOP")
+        if result.category not in allowed_categories:
             raise AssertionError(f"revoke failed: {result}")
         return result.revision
 
@@ -478,6 +663,31 @@ def _cleanup(project: str, override: Path) -> list[str]:
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"disable failed: {type(exc).__name__}: {exc}")
+
+    try:
+        status = json.loads(
+            _run(
+                _compose(
+                    project,
+                    override,
+                    "exec",
+                    "-T",
+                    "pr7-block3-waf",
+                    "pr7-waf-control",
+                    "status",
+                ),
+                timeout=30,
+            )
+        )
+        metadata = status.get("metadata", {})
+        if (
+            status.get("disabled") is not True
+            or metadata.get("selected_kind") != "disabled_empty"
+            or metadata.get("selected_source_revision") is not None
+        ):
+            errors.append(f"unsafe final WAF state: {status!r}")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"final-state check failed: {type(exc).__name__}: {exc}")
 
     try:
         _run(
@@ -555,9 +765,10 @@ def run_block3_lifecycle() -> None:
     ingest_key = secrets.token_hex(32)
     audit_key = secrets.token_hex(32)
     enforcement_key = secrets.token_hex(32)
-    lock = verify_model_lock(MODEL_RUN_DIR)
-    require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])
-    require_pinned_compose_images(ROOT / "docker-compose.pr7-block3.yml")
+    # The lifecycle uses the PR7 3B/3C artifact set.  Keep this separate from
+    # the historical Block 3 lock so the disposable run validates the portal
+    # sentinel revision that is actually mounted by the current stack.
+    require_block3bc_artifacts()
     with tempfile.TemporaryDirectory(prefix="pr7-block3-") as temporary:
         override = Path(temporary) / "compose.override.yml"
         override.write_text(
@@ -674,6 +885,57 @@ def run_block3_lifecycle() -> None:
             assert matching["upstream_status"] in {"", "-"}
             assert matching["upstream_response_time"] in {"", "-"}
 
+            # A selected non-empty state is data-plane safe even when the
+            # control-plane backend is unavailable.  The WAF must retain the
+            # last verified snapshot rather than replacing it with empty
+            # state after a failed poll.
+            _disconnect_backend(project, override)
+            try:
+                outage_status, outage_id = _request_with_evidence(
+                    project,
+                    override,
+                    "source-client-a",
+                    f"{PATH}?backend_outage={evidence_id}",
+                )
+                assert outage_status == 403
+                outage_record = _wait_evidence_record(project, override, outage_id)
+                assert outage_record["remote_addr"] == SOURCE_A
+                assert outage_record["upstream_addr"] in {"", "-"}
+                outage_state = _waf_status(project, override)
+                outage_metadata = outage_state.get("metadata", {})
+                assert outage_state.get("disabled") is False
+                assert outage_metadata.get("selected_kind") == "authoritative"
+                assert outage_metadata.get("selected_source_revision") == revision
+
+                if os.environ.get("PR7_RUN_BLOCK3_EXPIRY_OUTAGE") == "1":
+                    expiry_epoch = _selected_expiry_epoch(project, override)
+                    expiry_deadline = expiry_epoch + 2
+                    while time.time() <= expiry_deadline:
+                        time.sleep(1)
+                    expired_status, expired_id = _request_with_evidence(
+                        project,
+                        override,
+                        "source-client-a",
+                        f"{PATH}?after_expiry={evidence_id}",
+                    )
+                    assert expired_status != 403
+                    expired_record = _wait_evidence_record(
+                        project, override, expired_id
+                    )
+                    assert expired_record["upstream_addr"] not in {"", "-"}
+                    assert (
+                        _client_request(
+                            project,
+                            override,
+                            "source-client-a",
+                            ATTACK_PATH,
+                        )
+                        == 403
+                    ), "static CRS did not remain active after PR7 expiry"
+            finally:
+                _reconnect_backend(project, override)
+            _wait_http(f"{backend_url}/health", expected_status=200)
+
             wrong_source_status, wrong_source_id = _request_with_evidence(
                 project, override, "source-client-b", f"{PATH}?wrong_source=1"
             )
@@ -696,7 +958,13 @@ def run_block3_lifecycle() -> None:
             assert wrong_path_record["uri"] == f"{PATH}/"
             assert wrong_path_record["upstream_addr"] not in {"", "-"}
 
-            revoked_revision = _revoke(database_url, recommendation_id)
+            revoked_revision = _revoke(
+                database_url,
+                recommendation_id,
+                allow_terminal_noop=(
+                    os.environ.get("PR7_RUN_BLOCK3_EXPIRY_OUTAGE") == "1"
+                ),
+            )
             deadline = time.monotonic() + 120
             while time.monotonic() < deadline:
                 after_revoke_status, after_revoke_id = _request_with_evidence(
@@ -744,6 +1012,7 @@ def run_block3_lifecycle() -> None:
             primary_error = RuntimeError(f"PR7 Block 3 lifecycle failed\n{logs}")
             raise primary_error from exc
         finally:
+            _capture_timing_artifact(project, override)
             cleanup_errors = _cleanup(project, override)
             if cleanup_errors:
                 if primary_error is None:

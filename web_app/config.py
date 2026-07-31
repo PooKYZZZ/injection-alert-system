@@ -275,7 +275,7 @@ class Settings(BaseSettings):
                     if re.fullmatch(r"[0-9a-fA-F]{64}", raw_key)
                     else base64.b64decode(raw_key, validate=True)
                 )
-            except ValueError, base64.binascii.Error:
+            except (ValueError, base64.binascii.Error):
                 payload_key = b""
             if len(payload_key) != 32:
                 raise ValueError(

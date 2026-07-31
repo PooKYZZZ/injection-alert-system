@@ -51,3 +51,21 @@ def test_revision_rejections_have_explicit_events(result):
     assert reconcile_once(RejectedReconciler(), EventLogger(), "enforce") == result
     assert events[-1][0][0] == "waf_snapshot_rejected"
     assert events[-1][1]["reason"] == result
+
+
+def test_reconcile_events_include_bounded_total_duration(monkeypatch):
+    class UnchangedReconciler:
+        def reconcile(self):
+            return "no_change"
+
+    events = []
+
+    class EventLogger:
+        def emit(self, *args, **kwargs):
+            events.append((args, kwargs))
+
+    ticks = iter([10.0, 10.125])
+    monkeypatch.setattr("waf_runtime.worker.time.perf_counter", lambda: next(ticks))
+
+    assert reconcile_once(UnchangedReconciler(), EventLogger(), "enforce") == "no_change"
+    assert events[-1][1]["total_ms"] == 125.0

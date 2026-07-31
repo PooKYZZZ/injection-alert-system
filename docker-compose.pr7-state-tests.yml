@@ -1,0 +1,28 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${PR7_BLOCK3_POSTGRES_PASSWORD:?set a disposable password}
+
+  backend:
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: ${PR7_TEST_CONTAINER_DATABASE_URL:?set the container database URL}
+      MODEL_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      MODEL_REGISTRY_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      API_SECRET_KEY: ${PR7_TEST_API_SECRET_KEY:?set a disposable API key}
+      WAF_INGEST_API_KEY: ${PR7_TEST_WAF_INGEST_KEY:?set a disposable ingest key}
+      WAF_AUDIT_EVIDENCE_KEY: ${PR7_TEST_WAF_AUDIT_KEY:?set a disposable audit key}
+      WAF_STATE_SYNC_ENABLED: "true"
+      WAF_STATE_SYNC_API_KEY: ${PR7_TEST_WAF_SYNC_KEY:?set a disposable sync key}
+      PR7_CRITICAL_WAF_MUTATION_ENABLED: "true"
+      PR7_WAF_CAPACITY: "1"
+      WAF_SOURCE_VERIFICATION_MODE: cloudflare_tunnel
+      CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
+      CLOUDFLARE_TARGET_VERIFIED_PROOF: "true"
+      ENFORCEMENT_MODE: enforce
+      ENFORCEMENT_CHECK_API_KEY: ${PR7_TEST_ENFORCEMENT_KEY:?set a disposable enforcement key}
+      ENFORCEMENT_TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME: localhost
+      ENFORCEMENT_TURNSTILE_TEST_MODE: "true"
+      NOTIFICATION_WORKER_ENABLED: "false"
+      NOTIFICATION_WORKER_REQUIRED: "false"

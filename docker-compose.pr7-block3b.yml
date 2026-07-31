@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
+    environment:
+      POSTGRES_DB: cybertrace_pr7_block3b
+      POSTGRES_USER: pr7_block3b
+      POSTGRES_PASSWORD: ${PR7_BLOCK3B_POSTGRES_PASSWORD:?Set PR7_BLOCK3B_POSTGRES_PASSWORD outside the repository}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pr7_block3b -d cybertrace_pr7_block3b"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - pr7-block3b-postgres:/var/lib/postgresql/data
+    networks:
+      target_application: {}
+
+  demo-portal:
+    environment:
+      APP_ENV: testing
+      ENFORCEMENT_MODE: enforce
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY outside the repository}
+      ENFORCEMENT_TURNSTILE_SITE_KEY: ${ENFORCEMENT_TURNSTILE_SITE_KEY:?Set ENFORCEMENT_TURNSTILE_SITE_KEY outside the repository}
+      ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified
+      PR7_PORTAL_SENTINEL_PATH: /pr7-evidence/portal.jsonl
+    ports: !override []
+    volumes:
+      - pr7-block3b-sentinel:/pr7-evidence
+    networks:
+      target_application: {}
+
+  demo-target-modsecurity:
+    image: !reset null
+    build:
+      context: .
+      dockerfile: Dockerfile.pr7-waf
+    ports: !override []
+    environment:
+      WAF_STATE_SNAPSHOT_URL: http://backend:8000/api/internal/waf-enforcement/snapshot
+      WAF_STATE_SYNC_API_KEY: ${WAF_STATE_SYNC_API_KEY:?Set WAF_STATE_SYNC_API_KEY outside the repository}
+      PR7_WAF_MODE: enforce
+      PR7_STATE_DIR: /pr7-state
+      PR7_PROBE_URL: http://127.0.0.1:8081
+      PR7_PROBE_PORT: 8081
+      PR7_POLL_INTERVAL: 1
+      PR7_SUBPROCESS_TIMEOUT: 5
+      SET_REAL_IP_FROM: 172.30.20.2/32
+    volumes:
+      - pr7-block3b-state:/pr7-state
+      - pr7-block3b-audit:/var/log/modsecurity
+      - ./config/modsecurity/pr7-evidence-log.conf.template:/etc/nginx/templates/conf.d/pr7-evidence-log.conf.template:ro
+    networks:
+      target_application: {}
+      target_waf_ingress:
+        ipv4_address: 172.30.20.3
+
+  demo-target-bridge:
+    environment:
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
+      WAF_SOURCE_PROVENANCE_MODE: cloudflare_connecting_ip
+      WAF_BRIDGE_IGNORE_INTERNAL_PROBES: "true"
+      WAF_BRIDGE_PROBE_PORT: "8081"
+      APP_ENV: testing
+    command:
+      - sh
+      - -c
+      - while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --follow --from-start --endpoint http://backend:8000/api/internal/waf-events
+    volumes:
+      - pr7-block3b-audit:/var/log/modsecurity:ro
+    networks:
+      target_application: {}
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pr7_block3b:${PR7_BLOCK3B_POSTGRES_PASSWORD}@postgres:5432/cybertrace_pr7_block3b
+      APP_ENV: testing
+      MODEL_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      MODEL_REGISTRY_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
+      WAF_STATE_SYNC_API_KEY: ${WAF_STATE_SYNC_API_KEY:?Set WAF_STATE_SYNC_API_KEY outside the repository}
+      WAF_SOURCE_VERIFICATION_MODE: cloudflare_tunnel
+      CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
+      CLOUDFLARE_TARGET_VERIFIED_PROOF: ${CLOUDFLARE_TARGET_VERIFIED_PROOF:?Set CLOUDFLARE_TARGET_VERIFIED_PROOF=true for external proof}
+      WAF_STATE_SYNC_ENABLED: "true"
+      PR7_CRITICAL_WAF_MUTATION_ENABLED: "true"
+      ENFORCEMENT_MODE: enforce
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY outside the repository}
+      ENFORCEMENT_TURNSTILE_SECRET_KEY: ${ENFORCEMENT_TURNSTILE_SECRET_KEY:?Set ENFORCEMENT_TURNSTILE_SECRET_KEY outside the repository}
+      ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME: ${ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME:?Set ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME outside the repository}
+      ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      target_application: {}
+
+volumes:
+  pr7-block3b-postgres:
+  pr7-block3b-state:
+  pr7-block3b-audit:
+  pr7-block3b-sentinel:

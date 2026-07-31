@@ -1,0 +1,56 @@
+services:
+  demo-portal:
+    environment:
+      APP_ENV: testing
+      ENFORCEMENT_MODE: enforce
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY outside the repository}
+      ENFORCEMENT_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      ENFORCEMENT_SOURCE_TRUST_MODE: unverified
+      ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: "true"
+      PR7_PORTAL_SENTINEL_PATH: /pr7-evidence/portal.jsonl
+    volumes:
+      - pr7-block3c-sentinel:/pr7-evidence
+
+  pr7-block3-waf:
+    ports: !override
+      - "127.0.0.1::8080"
+      - "127.0.0.1::8081"
+    volumes:
+      - pr7-block3c-state:/pr7-state
+      - pr7-block3c-audit:/var/log/modsecurity
+      - ./config/modsecurity/pr7-evidence-log.conf.template:/etc/nginx/templates/conf.d/pr7-evidence-log.conf.template:ro
+
+  backend:
+    environment:
+      APP_ENV: testing
+      MODEL_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      MODEL_REGISTRY_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
+      WAF_STATE_SYNC_API_KEY: ${WAF_STATE_SYNC_API_KEY:?Set WAF_STATE_SYNC_API_KEY outside the repository}
+      WAF_SOURCE_VERIFICATION_MODE: cloudflare_tunnel
+      CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
+      CLOUDFLARE_TARGET_VERIFIED_PROOF: "true"
+      WAF_STATE_SYNC_ENABLED: "true"
+      PR7_CRITICAL_WAF_MUTATION_ENABLED: "true"
+      ENFORCEMENT_MODE: enforce
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY outside the repository}
+      ENFORCEMENT_TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME: localhost
+      ENFORCEMENT_TURNSTILE_TEST_MODE: "true"
+      ENFORCEMENT_SOURCE_TRUST_MODE: unverified
+      ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: "true"
+      NOTIFICATION_WORKER_ENABLED: "false"
+      NOTIFICATION_WORKER_REQUIRED: "false"
+
+  pr7-block3-bridge:
+    environment:
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
+    volumes:
+      - pr7-block3c-audit:/var/log/modsecurity:ro
+
+volumes:
+  pr7-block3c-state:
+  pr7-block3c-audit:
+  pr7-block3c-sentinel:

@@ -111,7 +111,7 @@ In the current repo, the application code, model-loading path, tests, dashboard 
 | Layer | Current stack |
 |---|---|
 | Frontend | Next.js 16, TypeScript 5, Auth.js, TanStack Query, Zustand, Zod |
-| Backend | FastAPI 0.138.0, SQLAlchemy 2.0, Pydantic 2.12, Python 3.14 |
+| Backend | FastAPI 0.138.0, SQLAlchemy 2.0, Pydantic 2.12, Python 3.11 |
 | ML | PyTorch, Hugging Face Transformers |
 | Data | SQLite for tests and isolated local work, PostgreSQL/Supabase as the active hosted runtime boundary |
 | Docs | Markdown in-repo docs under `docs/` |
@@ -138,7 +138,7 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 
 ### Prerequisites
 
-- Python 3.14+ (tested with 3.14.3)
+- Python 3.11.x (the pinned container/runtime contract)
 - Node.js 24 (see `.nvmrc` and `frontend/package.json`)
 - npm
 - PowerShell or a compatible shell
@@ -148,7 +148,7 @@ Use [docs/SETUP.md](docs/SETUP.md) for the full setup guide. The short version i
 If you are using **Command Prompt (`cmd.exe`)**:
 
 ```cmd
-py -3.14 -m venv .venv
+py -3.11 -m venv .venv
 call .\.venv\Scripts\activate.bat
 python -m pip install -r requirements.txt
 python -m pytest -q
@@ -158,7 +158,7 @@ python -m uvicorn web_app.presentation.app:create_app --reload
 If you are using **PowerShell**:
 
 ```powershell
-py -3.14 -m venv .venv
+py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m uvicorn web_app.presentation.app:create_app --reload

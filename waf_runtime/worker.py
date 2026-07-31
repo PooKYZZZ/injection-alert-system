@@ -36,19 +36,44 @@ def main() -> int:
 
 
 def reconcile_once(reconciler, logger, mode: str):
+    started = time.perf_counter()
+
+    def elapsed_ms() -> float:
+        return round((time.perf_counter() - started) * 1000, 3)
+
     try:
         result = reconciler.reconcile()
     except SnapshotRejected as exc:
-        logger.emit("waf_snapshot_rejected", mode=mode, reason=type(exc).__name__)
+        logger.emit(
+            "waf_snapshot_rejected",
+            mode=mode,
+            reason=type(exc).__name__,
+            total_ms=elapsed_ms(),
+        )
         return None
     except RollbackError as exc:
-        logger.emit("waf_rollback_failed", mode=mode, reason=type(exc).__name__)
+        logger.emit(
+            "waf_rollback_failed",
+            mode=mode,
+            reason=type(exc).__name__,
+            total_ms=elapsed_ms(),
+        )
         raise
     except ActivationError as exc:
-        logger.emit("waf_activation_failed", mode=mode, reason=type(exc).__name__)
+        logger.emit(
+            "waf_activation_failed",
+            mode=mode,
+            reason=type(exc).__name__,
+            total_ms=elapsed_ms(),
+        )
         return None
     if result in {"stale_ignored", "conflict_rejected"}:
-        logger.emit("waf_snapshot_rejected", mode=mode, reason=result)
+        logger.emit(
+            "waf_snapshot_rejected",
+            mode=mode,
+            reason=result,
+            total_ms=elapsed_ms(),
+        )
     else:
         logger.emit(
             "waf_reconcile_no_change"
@@ -56,6 +81,7 @@ def reconcile_once(reconciler, logger, mode: str):
             else "waf_candidate_selected",
             mode=mode,
             selected_kind=result,
+            total_ms=elapsed_ms(),
         )
     return result
 
