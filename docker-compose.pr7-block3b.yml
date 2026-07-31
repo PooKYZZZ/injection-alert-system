@@ -75,6 +75,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://pr7_block3b:${PR7_BLOCK3B_POSTGRES_PASSWORD}@postgres:5432/cybertrace_pr7_block3b
       APP_ENV: testing
+      MODEL_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
+      MODEL_REGISTRY_PATH: /app/ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
       WAF_STATE_SYNC_API_KEY: ${WAF_STATE_SYNC_API_KEY:?Set WAF_STATE_SYNC_API_KEY outside the repository}

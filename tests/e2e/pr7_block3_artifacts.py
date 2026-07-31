@@ -84,3 +84,17 @@ def require_pinned_compose_images(
     for image in lock["containers"].values():
         if image not in compose:
             raise AssertionError(f"compose image is not pinned to lock: {image}")
+
+
+def require_real_model_health(payload: dict[str, Any], expected_version: str) -> None:
+    if payload.get("status") != "healthy":
+        raise AssertionError(f"model health is not healthy: {payload.get('status')!r}")
+    if payload.get("loaded") is not True:
+        raise AssertionError("model health does not confirm a loaded model")
+    if payload.get("model_version") != expected_version:
+        raise AssertionError(
+            "model version mismatch: "
+            f"expected {expected_version!r}, got {payload.get('model_version')!r}"
+        )
+    if payload.get("mock") is True or payload.get("implementation") == "mock":
+        raise AssertionError("mock model cannot qualify as Block 3 evidence")

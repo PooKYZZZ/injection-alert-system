@@ -9,6 +9,7 @@ from tests.e2e.pr7_block3_artifacts import (
     load_artifact_lock,
     require_pinned_compose_images,
     require_portal_commit,
+    require_real_model_health,
     verify_model_lock,
 )
 
@@ -64,3 +65,18 @@ def test_pinned_compose_check_accepts_all_overlay_inputs(tmp_path: Path) -> None
     compose_a.write_text("services: {}\n", encoding="utf-8")
     compose_b.write_text("image: waf@sha256:test\n", encoding="utf-8")
     require_pinned_compose_images((compose_a, compose_b), lock_path)
+
+
+def test_real_model_health_rejects_degraded_or_mock_payloads() -> None:
+    with pytest.raises(AssertionError, match="healthy"):
+        require_real_model_health({"status": "degraded"}, "locked")
+    with pytest.raises(AssertionError, match="mock"):
+        require_real_model_health(
+            {
+                "status": "healthy",
+                "loaded": True,
+                "model_version": "locked",
+                "mock": True,
+            },
+            "locked",
+        )
