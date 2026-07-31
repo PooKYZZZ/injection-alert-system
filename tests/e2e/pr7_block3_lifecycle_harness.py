@@ -454,6 +454,57 @@ def _request_with_evidence(
     return status, evidence_id
 
 
+def _backend_network(project: str) -> str:
+    return f"{project}_pr7-block3"
+
+
+def _backend_container(project: str, override: Path) -> str:
+    return _run(_compose(project, override, "ps", "-q", "backend")).splitlines()[-1]
+
+
+def _disconnect_backend(project: str, override: Path) -> None:
+    _run(
+        [
+            "docker",
+            "network",
+            "disconnect",
+            _backend_network(project),
+            _backend_container(project, override),
+        ],
+        timeout=30,
+    )
+
+
+def _reconnect_backend(project: str, override: Path) -> None:
+    _run(
+        [
+            "docker",
+            "network",
+            "connect",
+            _backend_network(project),
+            _backend_container(project, override),
+        ],
+        timeout=30,
+    )
+
+
+def _waf_status(project: str, override: Path) -> dict[str, Any]:
+    return json.loads(
+        _run(
+            _compose(
+                project,
+                override,
+                "exec",
+                "-T",
+                "pr7-block3-waf",
+                "pr7-waf-control",
+                "status",
+            ),
+            timeout=30,
+        )
+    )
+
+
 def _revoke(database_url: str, recommendation_id: int) -> int:
     from web_app.infrastructure.repositories.waf_state_repository import (
         WafStateRepository,
@@ -596,9 +647,10 @@ def run_block3_lifecycle() -> None:
     ingest_key = secrets.token_hex(32)
     audit_key = secrets.token_hex(32)
     enforcement_key = secrets.token_hex(32)
-    lock = verify_model_lock(MODEL_RUN_DIR)
-    require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])
-    require_pinned_compose_images(ROOT / "docker-compose.pr7-block3.yml")
+    # The lifecycle uses the PR7 3B/3C artifact set.  Keep this separate from
+    # the historical Block 3 lock so the disposable run validates the portal
+    # sentinel revision that is actually mounted by the current stack.
+    require_block3bc_artifacts()
     with tempfile.TemporaryDirectory(prefix="pr7-block3-") as temporary:
         override = Path(temporary) / "compose.override.yml"
         override.write_text(
@@ -714,6 +766,31 @@ def run_block3_lifecycle() -> None:
             assert matching["upstream_addr"] in {"", "-"}
             assert matching["upstream_status"] in {"", "-"}
             assert matching["upstream_response_time"] in {"", "-"}
+
+            # A selected non-empty state is data-plane safe even when the
+            # control-plane backend is unavailable.  The WAF must retain the
+            # last verified snapshot rather than replacing it with empty
+            # state after a failed poll.
+            _disconnect_backend(project, override)
+            try:
+                outage_status, outage_id = _request_with_evidence(
+                    project,
+                    override,
+                    "source-client-a",
+                    f"{PATH}?backend_outage={evidence_id}",
+                )
+                assert outage_status == 403
+                outage_record = _wait_evidence_record(project, override, outage_id)
+                assert outage_record["remote_addr"] == SOURCE_A
+                assert outage_record["upstream_addr"] in {"", "-"}
+                outage_state = _waf_status(project, override)
+                outage_metadata = outage_state.get("metadata", {})
+                assert outage_state.get("disabled") is False
+                assert outage_metadata.get("selected_kind") == "authoritative"
+                assert outage_metadata.get("selected_source_revision") == revision
+            finally:
+                _reconnect_backend(project, override)
+            _wait_http(f"{backend_url}/health", expected_status=200)
 
             wrong_source_status, wrong_source_id = _request_with_evidence(
                 project, override, "source-client-b", f"{PATH}?wrong_source=1"
