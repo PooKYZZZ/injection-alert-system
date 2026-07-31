@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -87,5 +87,77 @@ test("write failures never escape into the enforcement flow", async () => {
     else process.env.PR7_PORTAL_SENTINEL_PATH = previous;
     if (previousAppEnv === undefined) delete process.env.APP_ENV;
     else process.env.APP_ENV = previousAppEnv;
+  }
+});
+
+test("rejects an invalid runtime stage without writing evidence", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pr7-sentinel-"));
+  const path = join(directory, "events.jsonl");
+  const previous = process.env.PR7_PORTAL_SENTINEL_PATH;
+  const previousAppEnv = process.env.APP_ENV;
+  process.env.PR7_PORTAL_SENTINEL_PATH = path;
+  process.env.APP_ENV = "testing";
+  try {
+    await recordPr7PortalStage({
+      evidenceId: "safe",
+      stage: "unexpected" as "request_received",
+    });
+    await recordPr7PortalStage({
+      evidenceId: { untrusted: true } as unknown as string,
+      stage: "request_received",
+    });
+    await assert.rejects(readFile(path, "utf8"), { code: "ENOENT" });
+  } finally {
+    if (previous === undefined) delete process.env.PR7_PORTAL_SENTINEL_PATH;
+    else process.env.PR7_PORTAL_SENTINEL_PATH = previous;
+    if (previousAppEnv === undefined) delete process.env.APP_ENV;
+    else process.env.APP_ENV = previousAppEnv;
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("rejects a relative or traversal sentinel path", async () => {
+  const previous = process.env.PR7_PORTAL_SENTINEL_PATH;
+  const previousAppEnv = process.env.APP_ENV;
+  process.env.APP_ENV = "testing";
+  try {
+    for (const sentinelPath of ["events.jsonl", "/tmp/../events.jsonl"]) {
+      process.env.PR7_PORTAL_SENTINEL_PATH = sentinelPath;
+      await recordPr7PortalStage({
+        evidenceId: "safe",
+        stage: "request_received",
+      });
+    }
+  } finally {
+    if (previous === undefined) delete process.env.PR7_PORTAL_SENTINEL_PATH;
+    else process.env.PR7_PORTAL_SENTINEL_PATH = previous;
+    if (previousAppEnv === undefined) delete process.env.APP_ENV;
+    else process.env.APP_ENV = previousAppEnv;
+  }
+});
+
+test("bounds concurrent sentinel output", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pr7-sentinel-"));
+  const path = join(directory, "events.jsonl");
+  const previous = process.env.PR7_PORTAL_SENTINEL_PATH;
+  const previousAppEnv = process.env.APP_ENV;
+  process.env.PR7_PORTAL_SENTINEL_PATH = path;
+  process.env.APP_ENV = "testing";
+  try {
+    await Promise.all(
+      Array.from({ length: 2500 }, (_, index) =>
+        recordPr7PortalStage({
+          evidenceId: `request_${index}`,
+          stage: "request_received",
+        }),
+      ),
+    );
+    assert.ok((await stat(path)).size <= 256 * 1024);
+  } finally {
+    if (previous === undefined) delete process.env.PR7_PORTAL_SENTINEL_PATH;
+    else process.env.PR7_PORTAL_SENTINEL_PATH = previous;
+    if (previousAppEnv === undefined) delete process.env.APP_ENV;
+    else process.env.APP_ENV = previousAppEnv;
+    await rm(directory, { recursive: true });
   }
 });
