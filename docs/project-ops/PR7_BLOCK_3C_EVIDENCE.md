@@ -1,6 +1,6 @@
 # PR7 Block 3C Evidence
 
-Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
+Status: **Local runtime contracts and selected disposable resilience scenarios verified; full 3C matrix remains partial**
 
 ## Implemented and verified
 
@@ -23,6 +23,14 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
   NGINX probing, and supervisor child failure.
 - Existing PostgreSQL tests cover expiry cleanup, revocation with expired rows,
   revision stamping, capacity, and no-resurrection state transitions.
+- The WAF worker now preserves bounded `total_ms` reconciliation timings in its
+  JSON event allowlist.
+- The guarded disposable expiry scenario uses a short test-only recommendation
+  TTL, disconnects the backend, proves a matching request is blocked before
+  expiry, proves a fresh request reaches the portal after absolute expiry, and
+  proves static CRS still returns 403 during the outage.
+- Candidate-render capacity measurements for 0, 1, and 64 entries are stored in
+  `artifacts/pr7-block3/capacity-20260731.json` (ignored disposable output).
 
 ## Verification
 
@@ -41,15 +49,31 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
   **1 passed in 459.64 seconds** against its original locked portal commit.
   Its finalizer disabled PR7, checked empty state, removed the project, and
   reported no cleanup failure.
+- Current Block 3 lifecycle regression: **4 passed in 432.26 seconds**.
+- Current absolute-expiry/backend-outage scenario: **1 passed in 235.20
+  seconds**. The run finished with the disable latch and cleanup finalizer.
+- Candidate-render capacity run: **10 samples each at 0/1/64 entries**; the
+  generated artifact records min/median/p95/max timings and candidate sizes.
 
 ## Not executed
 
-The disposable container scenarios for network disconnect/reconnect, outage
-past absolute expiry, process killing/recreation, bridge accumulation/replay,
-fresh-connection portal restoration timing, and 0/1/64 runtime measurements
-are **NOT_RUN** in this evidence record. Therefore no measured revocation SLO,
-expiry latency, capacity distribution, or end-to-end resilience completion
-claim is made.
+The following remain **NOT_RUN or incomplete** in this evidence record:
+
+- A separate reconnect-before-expiry timing run with a recorded propagation
+  latency.
+- Bridge container kill/recreate with replay evidence captured as a committed
+  machine-readable bundle.
+- Every NGINX/process-failure variant while non-empty state is selected.
+- Persistent non-empty state-volume recreation proof separate from the empty
+  startup checks.
+- Full runtime activation/reload/probe capacity distributions; the current
+  committed measurement covers candidate rendering, while WAF reconcile logs
+  now expose `total_ms` for future runtime sampling.
+- A final committed timing bundle containing snapshot fetch, validation, reload,
+  probe, revocation propagation, expiry-to-allow, and restart recovery fields.
+
+Therefore Section 3C is materially advanced and locally verified for the
+expiry/outage path, but it is not yet a claim of complete 3C closure.
 
 The safety contract remains:
 

@@ -22,6 +22,11 @@ Status: **Implemented locally; live external proof NOT_RUN**
   exact `172.30.20.2/32` real-IP peer, PR7 WAF runtime, portal, bridge,
   backend, and disposable PostgreSQL on the existing segmented networks.
 - The merged Compose model validates and publishes neither WAF nor portal.
+- On 2026-07-31 the signed-in Cloudflare dashboard was inspected in the Codex
+  browser. The `cybertrace-target-docker` tunnel still has the expected
+  `target-proof.cybertracesystems.com` route, but its status was **Down** after
+  disposable-stack cleanup. This is configuration inspection only and is not
+  external request evidence.
 
 ## Verification
 

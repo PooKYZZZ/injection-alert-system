@@ -222,6 +222,8 @@ Remaining:
 - PR6/PR7 integrated portal regression.
 - Portal-owned no-upstream proof; current evidence is WAF-side upstream-empty
   logging only.
+- Full 3C disposable timing/recovery matrix, including bridge replay,
+  non-empty state-volume recreation, and runtime capacity distributions.
 
 Evidence:
 
@@ -242,7 +244,7 @@ PR6 integration evidence without enabling hosted or production enforcement.
 
 Introduced / identified: PR5 acceptance state.
 
-Last reviewed: 2026-07-30
+Last reviewed: 2026-07-31
 
 ### DEFER-001 — Alternative high-throughput enforcement state backend
 
