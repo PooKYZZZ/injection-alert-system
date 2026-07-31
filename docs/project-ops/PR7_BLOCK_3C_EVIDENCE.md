@@ -36,7 +36,7 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
   enables a required notification worker while SQLite lacks
   `public.claim_notification_outbox_batch_v62`. Re-running with the test
   worker explicitly disabled (`NOTIFICATION_WORKER_ENABLED=false`,
-  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **1003 passed, 58 skipped**.
+  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **1032 passed, 59 skipped**.
 - Historical Block 3A disposable attack-to-block-to-revoke lifecycle:
   **1 passed in 459.64 seconds** against its original locked portal commit.
   Its finalizer disabled PR7, checked empty state, removed the project, and
@@ -57,3 +57,8 @@ The safety contract remains:
 Expiry = data-plane safety
 Revocation = control-plane safety
 ```
+
+The backend and bridge use pinned Python 3.11 images. Python 3.14 was tested
+as a disposable image candidate and rejected because `torch==2.13.0` had no
+compatible distribution; this is recorded rather than silently mixing runtime
+contracts.

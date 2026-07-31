@@ -32,7 +32,7 @@ Status: **Implemented locally; live external proof NOT_RUN**
 - CyberTrace focused and full regression suites pass; guarded external and
   disposable E2E remain explicitly skipped unless opted in.
 - Full CyberTrace suite with the notification worker disabled for the local
-  SQLite test boundary: 1003 passed, 58 skipped.
+  SQLite test boundary: 1032 passed, 59 skipped.
 - 3B and 3C merged Compose models: `docker compose ... config --quiet` — passed.
 
 ## External-only evidence
@@ -48,3 +48,11 @@ genuinely distinct external client networks:
 - Live Normal/LOW/MEDIUM/HIGH/CRITICAL matrix.
 
 No external, hosted, production, or two-source claim is made.
+
+## Runtime contract
+
+The backend and bridge use the pinned Python 3.11 digest. A disposable build
+using Python 3.14 was attempted and failed because the locked `torch==2.13.0`
+dependency has no compatible distribution for that image. The project metadata
+and CI therefore intentionally target Python 3.11 rather than claiming a
+mixed 3.14/3.11 runtime.
