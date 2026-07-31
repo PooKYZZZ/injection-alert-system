@@ -7,6 +7,7 @@ from datetime import datetime
 
 _EVIDENCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 _FIELDS = {"evidence_id", "stage", "method", "path", "timestamp"}
+PORTAL_SENTINEL_MAX_BYTES = 256 * 1024
 _STAGES = {"request_received", "protected_work_started"}
 
 
@@ -20,7 +21,7 @@ class PortalSentinelEvent:
 
 
 def parse_portal_events(
-    raw: bytes, *, max_bytes: int = 256_000
+    raw: bytes, *, max_bytes: int = PORTAL_SENTINEL_MAX_BYTES
 ) -> list[PortalSentinelEvent]:
     if len(raw) > max_bytes:
         raise AssertionError(f"portal sentinel exceeded {max_bytes} bytes")
@@ -61,6 +62,20 @@ def parse_portal_events(
             raise AssertionError(f"invalid sentinel timestamp on line {line_number}")
         events.append(PortalSentinelEvent(**payload))
     return events
+
+
+def assert_portal_stage_sequence(
+    events: list[PortalSentinelEvent],
+    evidence_id: str,
+    expected: tuple[str, ...],
+) -> None:
+    actual = tuple(
+        event.stage for event in events if event.evidence_id == evidence_id
+    )
+    if actual != expected:
+        raise AssertionError(
+            f"portal stages for {evidence_id}: {actual!r} != {expected!r}"
+        )
 
 
 def assert_portal_stages(

@@ -70,6 +70,22 @@ def _compose(project: str, override: Path, *args: str) -> list[str]:
     return command
 
 
+def _require_block3bc_artifacts() -> dict[str, Any]:
+    lock_path = ROOT / "docs/project-ops/pr7-block3bc-artifact-lock.json"
+    lock = verify_model_lock(MODEL_RUN_DIR, lock_path)
+    require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])
+    require_pinned_compose_images(
+        (
+            ROOT / "docker-compose.yml",
+            ROOT / "docker-compose.demo-target.yml",
+            ROOT / "docker-compose.target-cloudflare.yml",
+            ROOT / "docker-compose.pr7-block3b.yml",
+        ),
+        lock_path,
+    )
+    return lock
+
+
 def _port(project: str, override: Path, service: str, container_port: int) -> int:
     value = _run(_compose(project, override, "port", service, str(container_port)))
     return int(value.rsplit(":", 1)[1])

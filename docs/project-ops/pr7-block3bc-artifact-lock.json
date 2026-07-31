@@ -12,8 +12,8 @@
     ]
   },
   "portal": {
-    "repository": "PooKYZZZ/land-records-portal",
-    "commit": "5494aca2e209ada117c3b7f2471ce7d6e71c685c"
+    "repository": "PooKYZZZ/injection-alert-system",
+    "commit": "843df08ba987bc00d13539b94020fca42921300c"
   },
   "containers": {
     "postgres": "postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb",
