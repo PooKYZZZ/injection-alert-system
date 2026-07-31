@@ -13,6 +13,10 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
 - WAF reconcile events now include monotonic `total_ms` for success, rejection,
   activation failure, and rollback failure without logging response bodies or
   credentials.
+- A deterministic local fault server covers authorization, server errors,
+  redirects, content-type/schema/body faults, and bounded timeouts. Compose
+  controls cover stop/start/recreate/kill and network disconnect/reconnect;
+  finalizers verify the disable latch and empty selected state before teardown.
 - Existing focused tests verify stale revision rejection, same-revision
   checksum conflict, safe-empty startup, disable latch persistence, snapshot
   validation/body/time limits, candidate failure, rollback, rollback failure,
@@ -24,8 +28,9 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
 
 - Portal sentinel unit suite: 38 passed.
 - Shared sentinel/Compose tests: 16 passed.
-- WAF runtime and enforcement/bridge regression selection: 155 passed,
-  1 guarded E2E skipped.
+- WAF runtime, enforcement, bridge, artifact, fault-control, and evidence
+  selections pass; guarded external and disposable E2E remain explicitly
+  skipped unless opted in.
 - Both merged Compose profiles validated with `config --quiet`.
 - Full repository pytest initially fails under the local `.env` because it
   enables a required notification worker while SQLite lacks
