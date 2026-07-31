@@ -2,7 +2,7 @@ services:
   demo-portal:
     environment:
       APP_ENV: testing
-      ENFORCEMENT_MODE: active
+      ENFORCEMENT_MODE: enforce
       ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY outside the repository}
       ENFORCEMENT_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       ENFORCEMENT_SOURCE_TRUST_MODE: unverified

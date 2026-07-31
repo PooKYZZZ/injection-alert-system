@@ -1,4 +1,60 @@
 from pathlib import Path
+import json
+import os
+import shutil
+import subprocess
+
+import pytest
+
+
+ROOT = Path(__file__).parents[2]
+
+
+def _merged_compose(*files: str) -> dict:
+    if shutil.which("docker") is None:
+        pytest.skip("Docker is required for merged Compose contract tests")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PR7_BLOCK3B_POSTGRES_PASSWORD": "reviewdbpassword",
+            "WAF_INGEST_API_KEY": "review-ingest",
+            "WAF_AUDIT_EVIDENCE_KEY": "review-audit",
+            "WAF_STATE_SYNC_API_KEY": "review-sync",
+            "ENFORCEMENT_CHECK_API_KEY": "review-enforcement",
+            "ENFORCEMENT_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+            "ENFORCEMENT_TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
+            "ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME": "localhost",
+            "CLOUDFLARE_TARGET_VERIFIED_PROOF": "true",
+            "CLOUDFLARED_TARGET_TOKEN_FILE": str(
+                ROOT / "docs/project-ops/PR7_Sections_3B_3C_Implementation_Design.md"
+            ),
+        }
+    )
+    command = ["docker", "compose"]
+    for compose_file in files:
+        command.extend(["-f", str(ROOT / compose_file)])
+    command.extend(
+        [
+            "--profile",
+            "demo-target",
+            "--profile",
+            "target-cloudflare",
+            "--profile",
+            "pr7-block3",
+            "config",
+            "--format",
+            "json",
+        ]
+    )
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
 
 
 def test_pr7_audit_uses_a_named_volume_for_container_writability():
@@ -42,8 +98,7 @@ def test_block3b_preserves_exact_cloudflared_peer_and_hides_origins():
     assert "ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified" in compose
     assert "WAF_SOURCE_VERIFICATION_MODE: cloudflare_tunnel" in compose
     assert "CLOUDFLARE_TARGET_VERIFIED_PROOF:" in compose
-    assert compose.count("ENFORCEMENT_MODE: active") == 1
-    assert compose.count("ENFORCEMENT_MODE: enforce") == 1
+    assert compose.count("ENFORCEMENT_MODE: enforce") == 2
     assert "target_waf_ingress" in compose
     assert "target_application" in compose
     assert "cloudflared_target_token" not in compose
@@ -60,3 +115,38 @@ def test_block3c_is_local_and_preserves_persistent_runtime_state():
     assert "ENFORCEMENT_CHECK_API_KEY:" in compose
     assert "ENFORCEMENT_TURNSTILE_SITE_KEY: 1x00000000000000000000AA" in compose
     assert "ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: \"true\"" in compose
+
+
+def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+        "docker-compose.pr7-block3b.yml",
+    )
+    services = config["services"]
+    assert services["demo-portal"]["environment"]["ENFORCEMENT_MODE"] == "enforce"
+    assert services["backend"]["environment"]["ENFORCEMENT_MODE"] == "enforce"
+    assert services["backend"]["environment"]["WAF_SOURCE_VERIFICATION_MODE"] == "cloudflare_tunnel"
+    assert services["demo-target-modsecurity"]["environment"]["SET_REAL_IP_FROM"] == "172.30.20.2/32"
+    assert services["demo-portal"].get("ports", []) == []
+    assert services["demo-target-modsecurity"].get("ports", []) == []
+    assert "target_waf_ingress" in services["cloudflared"]["networks"]
+    assert "target_waf_ingress" in services["demo-target-modsecurity"]["networks"]
+
+
+def test_block3c_merged_model_is_local_and_explicitly_test_only():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.pr7-block3.yml",
+        "docker-compose.pr7-block3c.yml",
+    )
+    services = config["services"]
+    assert "cloudflared" not in services
+    assert services["demo-portal"]["environment"]["ENFORCEMENT_MODE"] == "enforce"
+    assert services["demo-portal"]["environment"]["ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS"] == "true"
+    assert services["backend"]["environment"]["NOTIFICATION_WORKER_ENABLED"] == "false"
+    assert any(
+        mount["source"] == "pr7-block3c-state" and mount["target"] == "/pr7-state"
+        for mount in services["pr7-block3-waf"]["volumes"]
+    )
