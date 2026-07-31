@@ -86,7 +86,12 @@ def test_compose_profile_controls_are_bounded_and_explicit(monkeypatch, tmp_path
     )
     assert profile.disconnect("pr7-test_default", "backend") == "ok"
     assert profile.recreate("pr7-block3-waf") == "ok"
-    assert calls[0][0][-4:] == ["network", "disconnect", "pr7-test_default", "backend"]
+    assert calls[0][0][-4:] == [
+        "network",
+        "disconnect",
+        "pr7-test_default",
+        "pr7-test-backend-1",
+    ]
     assert calls[1][0][-4:] == [
         "up",
         "--detach",

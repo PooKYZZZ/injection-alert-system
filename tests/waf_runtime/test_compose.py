@@ -50,10 +50,18 @@ def _merged_compose(*files: str) -> dict:
         command,
         cwd=ROOT,
         env=environment,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
+        timeout=60,
     )
+    if result.returncode != 0:
+        raise AssertionError(
+            "docker compose config failed\n"
+            f"command: {command!r}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
     return json.loads(result.stdout)
 
 
@@ -120,6 +128,7 @@ def test_block3c_is_local_and_preserves_persistent_runtime_state():
 def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
     config = _merged_compose(
         "docker-compose.yml",
+        "docker-compose.test.yml",
         "docker-compose.demo-target.yml",
         "docker-compose.target-cloudflare.yml",
         "docker-compose.pr7-block3b.yml",
@@ -138,6 +147,7 @@ def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
 def test_block3c_merged_model_is_local_and_explicitly_test_only():
     config = _merged_compose(
         "docker-compose.yml",
+        "docker-compose.test.yml",
         "docker-compose.pr7-block3.yml",
         "docker-compose.pr7-block3c.yml",
     )

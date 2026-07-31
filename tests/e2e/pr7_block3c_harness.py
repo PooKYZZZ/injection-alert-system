@@ -152,10 +152,28 @@ class ComposeProfile:
         return self.run("up", "--detach", "--force-recreate", service, timeout=420)
 
     def disconnect(self, network: str, service: str) -> str:
-        return self.run("network", "disconnect", network, service, timeout=30)
+        return self._network_command("disconnect", network, service)
 
     def connect(self, network: str, service: str) -> str:
-        return self.run("network", "connect", network, service, timeout=30)
+        return self._network_command("connect", network, service)
+
+    def _network_command(self, action: str, network: str, service: str) -> str:
+        container = f"{self.project}-{service}-1"
+        result = subprocess.run(
+            ["docker", "network", action, network, container],
+            cwd=self.root,
+            env=os.environ.copy(),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Docker network {action} failed for {service!r}: "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        return result.stdout.strip()
 
     def kill(self, service: str, signal_name: str = "SIGKILL") -> str:
         return self.run("kill", "--signal", signal_name, service, timeout=30)
