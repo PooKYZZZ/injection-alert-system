@@ -12,6 +12,9 @@ Status: **Implemented locally; live external proof NOT_RUN**
 - Sentinel configuration is inert unless both a path and a testing/development
   application environment are present. Invalid IDs and write failures do not
   affect enforcement.
+- The 3B overlay requires explicit enforcement credentials, Cloudflare source
+  trust, the target-isolation proof input, WAF ingest/snapshot credentials, and
+  the portal test sentinel path; it does not publish the portal or WAF origin.
 - `docker-compose.pr7-block3b.yml` joins the pinned Cloudflare connector,
   exact `172.30.20.2/32` real-IP peer, PR7 WAF runtime, portal, bridge,
   backend, and disposable PostgreSQL on the existing segmented networks.
@@ -19,12 +22,14 @@ Status: **Implemented locally; live external proof NOT_RUN**
 
 ## Verification
 
-- Portal: `npm run test:unit` — 35 passed.
+- Portal: `npm run test:unit` — 38 passed.
 - Portal: `npm run typecheck` — passed.
 - Portal: `npm run lint` — passed with the existing Next.js deprecation notice.
 - Portal: `npm run build` — passed.
-- CyberTrace focused suites: 143 passed, 1 guarded Block 3A E2E skipped.
-- 3B and 3C merged Compose: `docker compose ... config --quiet` — passed.
+- CyberTrace focused suites: 155 passed, 1 guarded Block 3A E2E skipped.
+- Full CyberTrace suite with the notification worker disabled for the local
+  SQLite test boundary: 1003 passed, 58 skipped.
+- 3B and 3C merged Compose models: `docker compose ... config --quiet` — passed.
 
 ## External-only evidence
 

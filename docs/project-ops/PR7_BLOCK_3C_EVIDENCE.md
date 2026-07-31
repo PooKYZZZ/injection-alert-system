@@ -6,8 +6,10 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
 
 - `docker-compose.pr7-block3c.yml` provides a deterministic local profile with
   persistent WAF state/audit volumes and portal sentinel evidence.
-- Portal evidence parsing is schema-exact, bounded to 256 KiB, and rejects
-  invalid IDs, stages, methods, paths, and extra fields.
+- Portal evidence writing and parsing are schema-exact and bounded to 256 KiB;
+  the writer serializes concurrent appends and rejects invalid IDs, stages,
+  methods, paths, and extra fields without affecting enforcement; size-limit
+  warnings are coalesced per path.
 - WAF reconcile events now include monotonic `total_ms` for success, rejection,
   activation failure, and rollback failure without logging response bodies or
   credentials.
@@ -20,17 +22,16 @@ Status: **Local runtime contracts verified; disposable resilience E2E NOT_RUN**
 
 ## Verification
 
-- Portal sentinel unit suite: 35 passed.
-- Shared sentinel/Compose tests: 12 passed.
-- WAF runtime and enforcement/bridge regression selection: 143 passed,
+- Portal sentinel unit suite: 38 passed.
+- Shared sentinel/Compose tests: 16 passed.
+- WAF runtime and enforcement/bridge regression selection: 155 passed,
   1 guarded E2E skipped.
-- Focused WAF resilience selection after timing instrumentation: 44 passed.
 - Both merged Compose profiles validated with `config --quiet`.
-- Full repository pytest initially failed because the local `.env` enables a
-  required notification worker while SQLite lacks
+- Full repository pytest initially fails under the local `.env` because it
+  enables a required notification worker while SQLite lacks
   `public.claim_notification_outbox_batch_v62`. Re-running with the test
   worker explicitly disabled (`NOTIFICATION_WORKER_ENABLED=false`,
-  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **999 passed, 58 skipped**.
+  `NOTIFICATION_WORKER_REQUIRED=false`) passed: **1003 passed, 58 skipped**.
 - Historical Block 3A disposable attack-to-block-to-revoke lifecycle:
   **1 passed in 459.64 seconds** against its original locked portal commit.
   Its finalizer disabled PR7, checked empty state, removed the project, and

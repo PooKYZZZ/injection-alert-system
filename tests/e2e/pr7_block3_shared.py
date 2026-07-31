@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime
 
 _EVIDENCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 _FIELDS = {"evidence_id", "stage", "method", "path", "timestamp"}
@@ -25,18 +26,38 @@ def parse_portal_events(
         raise AssertionError(f"portal sentinel exceeded {max_bytes} bytes")
 
     events: list[PortalSentinelEvent] = []
-    for line_number, line in enumerate(raw.decode("utf-8").splitlines(), start=1):
-        payload = json.loads(line)
+    try:
+        lines = raw.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise AssertionError("portal sentinel is not valid UTF-8") from exc
+    for line_number, line in enumerate(lines, start=1):
+        try:
+            payload = json.loads(line)
+        except (TypeError, ValueError) as exc:
+            raise AssertionError(f"invalid JSON on line {line_number}") from exc
         if not isinstance(payload, dict) or set(payload) != _FIELDS:
             raise AssertionError(f"unexpected sentinel fields on line {line_number}")
         if (
-            payload["stage"] not in _STAGES
+            not isinstance(payload["evidence_id"], str)
+            or not isinstance(payload["stage"], str)
+            or not isinstance(payload["method"], str)
+            or not isinstance(payload["path"], str)
+            or not isinstance(payload["timestamp"], str)
+            or payload["stage"] not in _STAGES
             or payload["method"] != "GET"
             or payload["path"] != "/records/search"
             or not _EVIDENCE_ID.fullmatch(payload["evidence_id"])
         ):
             raise AssertionError(f"invalid sentinel record on line {line_number}")
-        if not isinstance(payload["timestamp"], str):
+        try:
+            parsed_timestamp = datetime.fromisoformat(
+                payload["timestamp"].replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise AssertionError(
+                f"invalid sentinel timestamp on line {line_number}"
+            ) from exc
+        if parsed_timestamp.tzinfo is None:
             raise AssertionError(f"invalid sentinel timestamp on line {line_number}")
         events.append(PortalSentinelEvent(**payload))
     return events

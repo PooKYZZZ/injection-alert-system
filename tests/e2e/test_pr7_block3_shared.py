@@ -54,3 +54,17 @@ def test_parse_portal_events_rejects_untrusted_records(change: dict[str, str]) -
 def test_parse_portal_events_rejects_oversized_artifact() -> None:
     with pytest.raises(AssertionError, match="exceeded"):
         parse_portal_events(b"x" * 33, max_bytes=32)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"not-json\n",
+        b"\xff\n",
+        b'{"evidence_id": [], "stage": "request_received", "method": "GET", "path": "/records/search", "timestamp": "2026-07-31T00:00:00Z"}\n',
+        b'{"evidence_id": "safe", "stage": [], "method": "GET", "path": "/records/search", "timestamp": "2026-07-31T00:00:00Z"}\n',
+    ],
+)
+def test_parse_portal_events_rejects_malformed_types_as_assertions(raw: bytes) -> None:
+    with pytest.raises(AssertionError):
+        parse_portal_events(raw)

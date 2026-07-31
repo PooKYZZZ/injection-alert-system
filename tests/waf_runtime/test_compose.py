@@ -37,6 +37,13 @@ def test_block3b_preserves_exact_cloudflared_peer_and_hides_origins():
     assert "SET_REAL_IP_FROM: 172.30.20.2/32" in compose
     assert "ports: !override []" in compose
     assert "PR7_PORTAL_SENTINEL_PATH: /pr7-evidence/portal.jsonl" in compose
+    assert "ENFORCEMENT_CHECK_API_KEY:" in compose
+    assert "ENFORCEMENT_TURNSTILE_SITE_KEY:" in compose
+    assert "ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified" in compose
+    assert "WAF_SOURCE_VERIFICATION_MODE: cloudflare_tunnel" in compose
+    assert "CLOUDFLARE_TARGET_VERIFIED_PROOF:" in compose
+    assert compose.count("ENFORCEMENT_MODE: active") == 1
+    assert compose.count("ENFORCEMENT_MODE: enforce") == 1
     assert "target_waf_ingress" in compose
     assert "target_application" in compose
     assert "cloudflared_target_token" not in compose
@@ -50,3 +57,6 @@ def test_block3c_is_local_and_preserves_persistent_runtime_state():
     assert "pr7-block3c-state:/pr7-state" in compose
     assert '127.0.0.1::8080' in compose
     assert "PR7_PORTAL_SENTINEL_PATH: /pr7-evidence/portal.jsonl" in compose
+    assert "ENFORCEMENT_CHECK_API_KEY:" in compose
+    assert "ENFORCEMENT_TURNSTILE_SITE_KEY: 1x00000000000000000000AA" in compose
+    assert "ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: \"true\"" in compose
