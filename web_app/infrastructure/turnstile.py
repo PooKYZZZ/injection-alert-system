@@ -85,7 +85,7 @@ class TurnstileVerifier:
                 and payload.get("hostname") == self._expected_hostname
             )
             return TurnstileVerificationResult(success=success)
-        except httpx.TimeoutException, httpx.TransportError:
+        except (httpx.TimeoutException, httpx.TransportError):
             return TurnstileVerificationResult(success=False, unavailable=True)
         finally:
             if close_client:

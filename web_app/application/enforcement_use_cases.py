@@ -480,7 +480,7 @@ class RecordShadowRecommendationUseCase:
                 request_path=request_path,
                 mode=self._mode,
             )
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return False
         if recommendation is None:
             return False
