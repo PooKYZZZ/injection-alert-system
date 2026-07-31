@@ -20,6 +20,13 @@ function isSafeSentinelPath(value: string): boolean {
 
 let sentinelWriteQueue: Promise<void> = Promise.resolve();
 const sentinelSizeWarningPaths = new Set<string>();
+const sentinelWarningKeys = new Set<string>();
+
+function warnSentinelOnce(key: string, payload: Record<string, string>): void {
+  if (sentinelWarningKeys.has(key)) return;
+  sentinelWarningKeys.add(key);
+  console.warn(JSON.stringify(payload));
+}
 
 async function appendBoundedSentinel(
   path: string,
@@ -67,17 +74,18 @@ export async function recordPr7PortalStage(input: {
     !isSafeSentinelPath(sentinelPath)
   ) {
     const safeStage = validStage ? input.stage : "unknown";
-    console.warn(JSON.stringify({
+    const reason = !TEST_ENVIRONMENTS.has(environment)
+      ? "environment_not_test_only"
+      : !validEvidenceId
+        ? "invalid_evidence_id"
+        : !validStage
+          ? "invalid_stage"
+          : "invalid_path";
+    warnSentinelOnce(`${sentinelPath}:${reason}`, {
       event: "pr7_portal_sentinel_rejected",
-      reason: !TEST_ENVIRONMENTS.has(environment)
-        ? "environment_not_test_only"
-        : !validEvidenceId
-          ? "invalid_evidence_id"
-          : !validStage
-            ? "invalid_stage"
-            : "invalid_path",
+      reason,
       stage: safeStage,
-    }));
+    });
     return;
   }
 
@@ -95,18 +103,18 @@ export async function recordPr7PortalStage(input: {
     if (!written) {
       if (!sentinelSizeWarningPaths.has(sentinelPath)) {
         sentinelSizeWarningPaths.add(sentinelPath);
-        console.warn(JSON.stringify({
+        warnSentinelOnce(`${sentinelPath}:size_limit`, {
           event: "pr7_portal_sentinel_rejected",
           reason: "size_limit",
           stage: input.stage,
-        }));
+        });
       }
     }
   } catch (error) {
-    console.warn(JSON.stringify({
+    warnSentinelOnce(`${sentinelPath}:write_failed`, {
       event: "pr7_portal_sentinel_write_failed",
       reason: error instanceof Error ? error.name : "unknown_error",
       stage: input.stage,
-    }));
+    });
   }
 }
