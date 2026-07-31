@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from tests.e2e.pr7_block3c_harness import FaultMode, FaultResponse, SnapshotFaultServer
+from tests.e2e.pr7_block3c_harness import (
+    ComposeProfile,
+    FaultMode,
+    FaultResponse,
+    SnapshotFaultServer,
+)
 from waf_runtime.snapshot import SnapshotClient, SnapshotRejected
 
 
@@ -64,3 +69,28 @@ def test_fault_server_timeout_is_bounded() -> None:
                 client.fetch()
         finally:
             client.close()
+
+
+def test_compose_profile_controls_are_bounded_and_explicit(monkeypatch, tmp_path) -> None:
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return type("Result", (), {"returncode": 0, "stdout": "ok\n"})()
+
+    monkeypatch.setattr("tests.e2e.pr7_block3c_harness.subprocess.run", fake_run)
+    profile = ComposeProfile(
+        "pr7-test",
+        ("docker-compose.yml", "docker-compose.pr7-block3c.yml"),
+        str(tmp_path),
+    )
+    assert profile.disconnect("pr7-test_default", "backend") == "ok"
+    assert profile.recreate("pr7-block3-waf") == "ok"
+    assert calls[0][0][-4:] == ["network", "disconnect", "pr7-test_default", "backend"]
+    assert calls[1][0][-4:] == [
+        "up",
+        "--detach",
+        "--force-recreate",
+        "pr7-block3-waf",
+    ]
+    assert calls[1][1]["timeout"] == 420
