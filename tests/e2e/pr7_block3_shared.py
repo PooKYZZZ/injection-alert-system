@@ -51,6 +51,11 @@ def parse_portal_events(
         ):
             raise AssertionError(f"invalid sentinel record on line {line_number}")
         try:
+            if not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z",
+                payload["timestamp"],
+            ):
+                raise ValueError("timestamp must be UTC milliseconds")
             parsed_timestamp = datetime.fromisoformat(
                 payload["timestamp"].replace("Z", "+00:00")
             )

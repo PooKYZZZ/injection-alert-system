@@ -96,6 +96,7 @@ def test_portal_stage_assertion_rejects_duplicates_and_reordering() -> None:
         b"\xff\n",
         b'{"evidence_id": [], "stage": "request_received", "method": "GET", "path": "/records/search", "timestamp": "2026-07-31T00:00:00Z"}\n',
         b'{"evidence_id": "safe", "stage": [], "method": "GET", "path": "/records/search", "timestamp": "2026-07-31T00:00:00Z"}\n',
+        b'{"evidence_id": "safe", "stage": "request_received", "method": "GET", "path": "/records/search", "timestamp": "2026-07-31T00:00:00+01:00"}\n',
     ],
 )
 def test_parse_portal_events_rejects_malformed_types_as_assertions(raw: bytes) -> None:
