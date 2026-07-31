@@ -1,0 +1,71 @@
+name: PR7 Block 3 proof automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_3c_disposable:
+        description: Run the disposable 3C lifecycle suite
+        required: true
+        default: false
+        type: boolean
+      run_live_source:
+        description: Run one guarded external source probe on a registered runner
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-3c:
+    if: ${{ inputs.run_3c_disposable == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run deterministic 3C disposable checks
+        run: >-
+          python -m scripts.pr7_block3c_runner
+          --run-id gha-${{ github.run_id }}
+          --disposable
+          --output artifacts/pr7-block3/gha-${{ github.run_id }}/3c.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr7-block3-3c-${{ github.run_id }}
+          path: artifacts/pr7-block3/gha-${{ github.run_id }}/
+
+  guarded-live-source:
+    if: ${{ inputs.run_live_source == true }}
+    runs-on: [self-hosted, Windows, X64, cybertrace-pr7]
+    timeout-minutes: 15
+    env:
+      PR7_RUN_BLOCK3_LIVE: '1'
+      PR7_ACCESS_CLIENT_ID: ${{ secrets.PR7_ACCESS_CLIENT_ID }}
+      PR7_ACCESS_CLIENT_SECRET: ${{ secrets.PR7_ACCESS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run guarded source probe
+        shell: pwsh
+        run: >-
+          python -m scripts.pr7_block3b_source_agent
+          --proof-url $env:PR7_PROOF_URL
+          --run-id gha-${{ github.run_id }}
+          --source-label runner
+          --output artifacts/pr7-block3/gha-${{ github.run_id }}/runner.json
+        env:
+          PR7_PROOF_URL: ${{ secrets.PR7_PROOF_URL }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr7-block3-source-${{ github.run_id }}
+          path: artifacts/pr7-block3/gha-${{ github.run_id }}/

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "purpose": "operator scenario manifest for PR7 Block 3 proof runs",
+  "three_b": [
+    "normal",
+    "forged_headers",
+    "approved_attack_seed",
+    "harmless_matching_search",
+    "wrong_path",
+    "static_crs",
+    "source_equivalence"
+  ],
+  "three_c": [
+    "backend_outage_before_expiry",
+    "outage_ending_before_expiry",
+    "outage_continuing_past_expiry",
+    "bridge_restart_replay",
+    "nginx_restart_non_empty_state",
+    "persistent_state_recreation",
+    "stale_revision_rejection",
+    "checksum_conflict_rejection",
+    "malformed_snapshot_rejection",
+    "reload_probe_rollback",
+    "capacity_and_latency_measurements"
+  ],
+  "safety": {
+    "live_external_opt_in": "PR7_RUN_BLOCK3_LIVE=1",
+    "hosted_or_production_ready": false,
+    "credentials_written_to_artifacts": false,
+    "request_bodies_written_to_artifacts": false
+  }
+}
