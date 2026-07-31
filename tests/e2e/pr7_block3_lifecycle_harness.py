@@ -223,7 +223,12 @@ def _wait_http(
     expected_status: int = 200,
     headers: dict[str, str] | None = None,
 ) -> None:
-    deadline = time.monotonic() + 180
+    timeout_raw = os.environ.get("PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS", "180")
+    if not timeout_raw.isdigit() or not 60 <= int(timeout_raw) <= 900:
+        raise ValueError(
+            "PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS must be an integer from 60 to 900"
+        )
+    deadline = time.monotonic() + int(timeout_raw)
     last_error = "not attempted"
     while time.monotonic() < deadline:
         try:
@@ -250,7 +255,12 @@ def _snapshot(backend_url: str, sync_key: str) -> dict[str, Any]:
 
 
 def _wait_waf_ready(project: str, override: Path) -> None:
-    deadline = time.monotonic() + 180
+    timeout_raw = os.environ.get("PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS", "180")
+    if not timeout_raw.isdigit() or not 60 <= int(timeout_raw) <= 900:
+        raise ValueError(
+            "PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS must be an integer from 60 to 900"
+        )
+    deadline = time.monotonic() + int(timeout_raw)
     last_error = "not attempted"
     script = (
         "import urllib.request; "

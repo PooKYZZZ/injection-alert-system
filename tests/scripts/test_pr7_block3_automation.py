@@ -23,6 +23,7 @@ from scripts import (
 from scripts import (
     pr7_block3c_runner as runner,
 )
+from tests.e2e import pr7_block3_lifecycle_harness as lifecycle_harness
 
 
 def test_evidence_rejects_sensitive_fields_and_bounds_output(tmp_path: Path) -> None:
@@ -128,3 +129,11 @@ def test_runner_captures_pass(monkeypatch: pytest.MonkeyPatch) -> None:
     result = runner.run_3c("run-1")
     assert result["status"] == "PASS"
     assert result["return_code"] == 0
+
+
+def test_lifecycle_startup_timeout_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS", "30")
+    with pytest.raises(ValueError, match="60 to 900"):
+        lifecycle_harness._wait_http("http://127.0.0.1:1/health")

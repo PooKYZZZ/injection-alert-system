@@ -62,6 +62,12 @@ python -m scripts.pr7_block3c_runner --run-id run-20260731 --disposable --output
 python -m scripts.pr7_block3_finalize --preflight artifacts/pr7-block3/run-20260731/preflight-3b.json --coordinator artifacts/pr7-block3/run-20260731/coordinator.json --output artifacts/pr7-block3/run-20260731/final.json
 ```
 
+For a real-model disposable startup on slower hosts, the lifecycle harness
+accepts `PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS` from 60 through 900 seconds. The
+default remains 180 seconds; a short-TTL run can use, for example,
+`PR7_BLOCK3_STARTUP_TIMEOUT_SECONDS=600` and
+`PR7_BLOCK3_RECOMMENDATION_TTL_SECONDS=60`.
+
 The focused runner executes the existing deterministic 3C harness and capacity
 tests. Disposable mode executes the existing Compose-backed lifecycle suite and
 records only a bounded output tail. Cleanup remains owned by that existing

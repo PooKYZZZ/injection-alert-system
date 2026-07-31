@@ -31,6 +31,13 @@ Status: **Local runtime contracts and selected disposable resilience scenarios v
   proves static CRS still returns 403 during the outage.
 - Candidate-render capacity measurements for 0, 1, and 64 entries are stored in
   `artifacts/pr7-block3/capacity-20260731.json` (ignored disposable output).
+- Automated real disposable lifecycle run `pr7-auto-3c-20260731d` completed
+  with **4 passed, 1 skipped in 197.33 seconds**. It used a 60-second
+  test-only recommendation TTL and a 600-second bounded startup deadline,
+  activated real WAF state, exercised backend disconnect/absolute expiry/static
+  CRS continuity/revocation, and completed disabled-empty cleanup with no
+  remaining project resources. Timing events are in the ignored artifact
+  `artifacts/pr7-block3/pr7-auto-3c-20260731d/waf-timings-pr7-block3-1770e99b.json`.
 
 ## Verification
 
@@ -50,6 +57,8 @@ Status: **Local runtime contracts and selected disposable resilience scenarios v
   Its finalizer disabled PR7, checked empty state, removed the project, and
   reported no cleanup failure.
 - Current Block 3 lifecycle regression: **4 passed in 432.26 seconds**.
+- Automated current disposable lifecycle: **4 passed, 1 skipped in 197.33
+  seconds** with the short-TTL expiry-outage branch enabled.
 - Current absolute-expiry/backend-outage scenario: **1 passed in 235.20
   seconds**. The run finished with the disable latch and cleanup finalizer.
 - Candidate-render capacity run: **10 samples each at 0/1/64 entries**; the

@@ -215,6 +215,8 @@ Completed:
 - Real disposable PostgreSQL -> backend -> WAF activation and revocation.
 - Controlled-local attack -> CRS audit -> bridge -> real ML -> CRITICAL ->
   atomic PR7 state -> WAF 403 -> source/path isolation -> revocation.
+- Run-scoped proof automation and a real disposable 3C lifecycle runner now
+  capture bounded timing evidence and verify cleanup.
 
 Remaining:
 
