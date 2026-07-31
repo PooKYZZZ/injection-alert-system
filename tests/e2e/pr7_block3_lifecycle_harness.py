@@ -70,7 +70,7 @@ def _compose(project: str, override: Path, *args: str) -> list[str]:
     return command
 
 
-def _require_block3bc_artifacts() -> dict[str, Any]:
+def require_block3bc_artifacts() -> dict[str, Any]:
     lock_path = ROOT / "docs/project-ops/pr7-block3bc-artifact-lock.json"
     lock = verify_model_lock(MODEL_RUN_DIR, lock_path)
     require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])

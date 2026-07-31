@@ -77,9 +77,10 @@ def require_pinned_compose_images(
     lock = load_artifact_lock(lock_path)
     paths = [compose_paths] if isinstance(compose_paths, Path) else list(compose_paths)
     compose = "\n".join(path.read_text(encoding="utf-8") for path in paths)
-    waf_dockerfile = paths[0].parent / "Dockerfile.pr7-waf"
-    if waf_dockerfile.is_file():
-        compose += waf_dockerfile.read_text(encoding="utf-8")
+    for dockerfile_name in ("Dockerfile", "Dockerfile.bridge", "Dockerfile.pr7-waf"):
+        dockerfile = paths[0].parent / dockerfile_name
+        if dockerfile.is_file():
+            compose += dockerfile.read_text(encoding="utf-8")
     for image in lock["containers"].values():
         if image not in compose:
             raise AssertionError(f"compose image is not pinned to lock: {image}")
