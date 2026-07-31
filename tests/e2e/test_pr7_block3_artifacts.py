@@ -16,7 +16,7 @@ from tests.e2e.pr7_block3_artifacts import (
 def test_block3bc_lock_is_loaded_and_has_current_portal_commit() -> None:
     root = Path(__file__).parents[2]
     lock = load_artifact_lock(root / "docs/project-ops/pr7-block3bc-artifact-lock.json")
-    assert lock["portal"]["commit"] == "843df08ba987bc00d13539b94020fca42921300c"
+    assert lock["portal"]["commit"] == "139039cff70fd92977bd23097b6a9e430daba301"
     assert lock["portal"]["repository"] == "PooKYZZZ/injection-alert-system"
 
 
