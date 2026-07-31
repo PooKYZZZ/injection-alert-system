@@ -52,3 +52,23 @@ def test_cleanup_failure_is_reported(monkeypatch, tmp_path):
     assert any("disable failed" in error for error in errors)
     assert any("compose down failed" in error for error in errors)
     assert any("leftover containers" in error for error in errors)
+
+
+def test_cleanup_reports_unsafe_final_state(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[-1] == "status":
+            return '{"disabled":false,"metadata":{"selected_kind":"authoritative"}}'
+        return ""
+
+    monkeypatch.setattr(harness, "_run", fake_run)
+    monkeypatch.setattr(
+        harness.subprocess,
+        "run",
+        lambda *args, **kwargs: type("Result", (), {"stdout": ""})(),
+    )
+    errors = harness._cleanup("project", tmp_path / "override.yml")
+    assert any("unsafe final WAF state" in error for error in errors)
+    assert any(command[-1] == "status" for command in calls)

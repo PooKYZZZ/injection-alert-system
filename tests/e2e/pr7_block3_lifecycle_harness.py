@@ -496,6 +496,31 @@ def _cleanup(project: str, override: Path) -> list[str]:
         errors.append(f"disable failed: {type(exc).__name__}: {exc}")
 
     try:
+        status = json.loads(
+            _run(
+                _compose(
+                    project,
+                    override,
+                    "exec",
+                    "-T",
+                    "pr7-block3-waf",
+                    "pr7-waf-control",
+                    "status",
+                ),
+                timeout=30,
+            )
+        )
+        metadata = status.get("metadata", {})
+        if (
+            status.get("disabled") is not True
+            or metadata.get("selected_kind") != "disabled_empty"
+            or metadata.get("selected_source_revision") is not None
+        ):
+            errors.append(f"unsafe final WAF state: {status!r}")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"final-state check failed: {type(exc).__name__}: {exc}")
+
+    try:
         _run(
             _compose(
                 project,
