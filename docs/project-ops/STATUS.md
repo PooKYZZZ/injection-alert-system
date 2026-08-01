@@ -50,8 +50,8 @@
 
 - Historical PR5 merge reference: backend PR #90 commit `62fc168`.
   Git is authoritative for the current branch and HEAD.
-- Python runtime target: `3.11.x`
-- Local venv may differ; the authoritative disposable container runtime is the pinned Python 3.11 digest.
+- Python runtime target: `3.14+`
+- Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
 - Backend runtime: FastAPI `0.138.0`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`

@@ -78,8 +78,7 @@ disabled.
 
 ## Runtime contract
 
-The backend and bridge use the pinned Python 3.11 digest. A disposable build
-using Python 3.14 was attempted and failed because the locked `torch==2.13.0`
-dependency has no compatible distribution for that image. The project metadata
-and CI therefore intentionally target Python 3.11 rather than claiming a
-mixed 3.14/3.11 runtime.
+The backend and bridge currently target the pinned Python 3.14 digest recorded
+in `docs/project-ops/pr7-block3-artifact-lock.json`. The project metadata,
+Dockerfiles, and GitHub Actions Python jobs target one Python 3.14 runtime
+contract.

@@ -8,7 +8,7 @@ def test_ci_requires_the_managed_chromium_authentication_project() -> None:
 
     assert "  auth-e2e:" in source
     assert "node-version: '24'" in source
-    assert "python-version: '3.11'" in source
+    assert "python-version: '3.14'" in source
     assert "npx playwright install --with-deps chromium" in source
     assert "npm run test:e2e:auth" in source
     assert "continue-on-error" not in source

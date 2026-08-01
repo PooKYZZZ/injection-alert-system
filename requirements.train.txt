@@ -5,7 +5,7 @@
 # when the official PyTorch selector recommends one for the target machine.
 # Training - ML fine-tuning and evaluation
 # Install AFTER requirements.txt
-# Supported Python versions: 3.11 through 3.14 (see pyproject.toml)
+# Supported Python version: 3.14+ (see pyproject.toml)
 
 accelerate==1.13.0
 ipykernel==7.2.0

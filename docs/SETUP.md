@@ -30,7 +30,7 @@ Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. Th
 ## Prerequisites
 
 - Windows PowerShell
-- Python 3.11.x
+- Python 3.14+
 - Node.js 24.x (the frontend and GitHub CI use the same major version)
 - npm
 
@@ -46,7 +46,7 @@ cd injection-alert-system
 ### Create a virtual environment
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
