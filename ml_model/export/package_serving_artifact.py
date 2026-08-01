@@ -331,9 +331,9 @@ def build_manifest(
         "local_reload_verified": local_reload_verified,
         "notes": notes or "",
         "source_notebooks": [
-            "ml_model/edited.ipynb",
-            "ml_model/evaluate.ipynb",
-            "ml_model/export/package_serving_artifact.ipynb",
+            "ml_model/notebooks/legacy/edited.ipynb",
+            "ml_model/notebooks/legacy/evaluate.ipynb",
+            "ml_model/notebooks/legacy/package_serving_artifact.ipynb",
         ],
         "promotion_summary_file": str(calibration.promotion_summary_path),
         "calibration_eval_run_dir": str(calibration.eval_run_dir),

@@ -1,0 +1,16 @@
+[training]
+dataset_version = "v3_907k_cleaned"
+models = ["distilbert"]
+seeds = [42]
+device = "cpu"
+precision = "full"
+batch_size = 2
+eval_batch_size = 4
+epochs = 1
+num_workers = 0
+checkpoint_interval_epochs = 1
+resume = false
+max_train_samples = 64
+max_validation_samples = 32
+max_test_samples = 32
+prepare_only = true

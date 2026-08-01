@@ -1,6 +1,6 @@
 # ML Retraining Pipeline
 
-This directory documents the planned retraining pipeline. It does not currently contain a runnable scheduled retraining implementation.
+This directory documents the planned retraining pipeline. It does not currently contain a runnable scheduled retraining implementation; the reusable benchmark training entrypoint now lives under `ml_model/training/`.
 
 ## Target Purpose
 - Manual or scheduled retraining trigger
@@ -14,7 +14,7 @@ This directory documents the planned retraining pipeline. It does not currently 
 
 ## Current Repo State
 - This package currently contains only the package marker and documentation.
-- The intended retraining flow is still design-level in this repo; no committed retraining entrypoint or scheduler is present here yet.
+- The daily retraining flow and scheduler are still design-level in this repo. `ml_model/training/train.py` is a script-first confirmatory benchmark entrypoint, not a complete labeled-sample retraining service.
 - Do not claim blind auto-promotion, production retraining automation, or a working 20-day scheduler from this directory.
 
 ## Architectural Role

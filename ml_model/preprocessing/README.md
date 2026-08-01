@@ -1,16 +1,20 @@
 # ML Preprocessing
 
-This directory contains data preprocessing and tokenization pipelines.
+This package contains reusable dataset and split-loading helpers used by
+training and evaluation.
 
-## Purpose
-- HTTP request tokenization for transformer input
-- Dataset loading, splitting, and augmentation
-- Label encoding and class balancing
+## Current entrypoint
 
-## Current Repo State
-- This package currently contains only the package marker and documentation.
-- The active preprocessing scripts live under `scripts/` and `data/`, not under this package yet.
+- `dataset_io.py` — resolves versioned processed datasets, loads Parquet/CSV
+  splits, validates labels, creates run directories, and writes run metadata.
 
-## Architectural Role
-Transforms raw HTTP request data into model-ready tensors.
-Used by both initial training and the 20-day retraining pipeline.
+The canonical processed dataset remains at the repository-level
+`data/processed/` boundary. The package does not duplicate that dataset under
+`ml_model/`.
+
+## Architectural role
+
+Transforms versioned processed data into the dataframes consumed by training
+and evaluation. Runtime HTTP preprocessing remains owned by
+`web_app/application/http_preprocessor.py`; training-serving parity must be
+verified before those two boundaries are merged.

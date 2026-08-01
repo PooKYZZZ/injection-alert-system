@@ -1,6 +1,6 @@
 """
 predict_attack - Production inference wrapper for the staged WAF classifier.
-Generated from ml_model/evaluate.ipynb.
+Historical source: ml_model/notebooks/legacy/evaluate.ipynb.
 """
 
 import json
