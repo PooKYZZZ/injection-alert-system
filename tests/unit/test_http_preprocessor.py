@@ -4,11 +4,14 @@ These tests verify that the HTTP preprocessing logic correctly canonicalizes
 raw HTTP requests into the format expected by the ML model during training.
 """
 
+from hashlib import sha256
+
 import pytest
 
 from web_app.application.http_preprocessor import (
     canonicalize_text,
     parse_raw_http,
+    prepare_model_input,
     preprocess_http_request,
 )
 
@@ -272,3 +275,23 @@ class TestPreprocessHttpRequest:
         # No triple spaces
         assert "   " not in result
         assert "get /multiple spaces body" == result
+
+
+def test_prepare_model_input_returns_exact_hash_and_version():
+    raw = "GET /Search?q=1%27 HTTP/1.1\r\nHost: localhost\r\n\r\n"
+
+    model_input, model_input_hash, preprocessing_version = prepare_model_input(raw)
+
+    assert model_input == "get /search?q=1'"
+    assert model_input_hash == sha256(model_input.encode("utf-8")).hexdigest()
+    assert preprocessing_version == "http-preprocessor-v1"
+
+
+def test_prepare_model_input_raw_fallback_is_hashed_as_sent():
+    raw = "GET"
+
+    model_input, model_input_hash, preprocessing_version = prepare_model_input(raw)
+
+    assert model_input == raw
+    assert model_input_hash == sha256(raw.encode("utf-8")).hexdigest()
+    assert preprocessing_version == "http-preprocessor-v1-raw-fallback"

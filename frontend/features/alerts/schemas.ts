@@ -3,7 +3,7 @@ import {
   ALERT_ACTION_TAKEN_VALUES,
   ALERT_CONFIDENCE_TIER_VALUES,
   ALERT_PREDICTION_VALUES,
-  LABEL_REVIEW_APPROVAL_STATE_VALUES,
+  LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES,
   VERIFIED_LABEL_VALUES,
 } from './contract'
 
@@ -18,7 +18,7 @@ export const TRIAGE_STATUS_VALUES = [
 export const TriageStatusSchema = z.enum(TRIAGE_STATUS_VALUES)
 export type TriageStatus = z.infer<typeof TriageStatusSchema>
 
-export const LabelReviewApprovalStateSchema = z.enum(LABEL_REVIEW_APPROVAL_STATE_VALUES)
+export const LabelReviewApprovalStateSchema = z.enum(LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES)
 export const VerifiedLabelSchema = z.enum(VERIFIED_LABEL_VALUES)
 export const LabelReviewSchema = z.object({
   id: z.number(),
@@ -31,6 +31,13 @@ export const LabelReviewSchema = z.object({
   reviewer_role: z.string(),
   reviewed_at: z.string(),
   model_version: z.string().nullable().optional(),
+  prediction_confidence: z.number().nullable().optional(),
+  prediction_confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES).nullable().optional(),
+  model_input_hash: z.string().nullable().optional(),
+  preprocessing_version: z.string().nullable().optional(),
+  ingest_event_hash: z.string().nullable().optional(),
+  source_verification_status: z.string().nullable().optional(),
+  source_provenance: z.string().nullable().optional(),
   input_hash: z.string().nullable().optional(),
   review_note: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),

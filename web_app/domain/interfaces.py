@@ -79,6 +79,8 @@ class TrafficLogEntity:
         SourceVerificationStatus.UNVERIFIED
     )
     ingest_fingerprint_sha256: Optional[str] = None
+    model_input_hash: Optional[str] = None
+    preprocessing_version: Optional[str] = None
     request_path: Optional[str] = None
     query_string: Optional[str] = None
     request_method: Optional[str] = None
@@ -170,9 +172,24 @@ class TrafficLabelReview:
     reviewer_role: str
     reviewed_at: datetime
     model_version: Optional[str]
-    input_hash: Optional[str]
-    review_note: Optional[str]
+    prediction_confidence: Optional[float] = None
+    prediction_confidence_level: Optional[str] = None
+    model_input_hash: Optional[str] = None
+    preprocessing_version: Optional[str] = None
+    ingest_event_hash: Optional[str] = None
+    source_verification_status: Optional[str] = None
+    source_provenance: Optional[str] = None
+    input_hash: Optional[str] = None
+    review_note: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+class ReviewNotEligibleError(ValueError):
+    """Alert cannot receive the requested verified-label review action."""
+
+    def __init__(self, message: str, *, processing: bool = False) -> None:
+        super().__init__(message)
+        self.processing = processing
 
 
 class ITrafficLabelReviewRepository(ABC):

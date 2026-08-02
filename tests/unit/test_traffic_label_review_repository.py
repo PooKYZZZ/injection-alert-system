@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy import select
 
 from web_app.infrastructure.database.database import Base, TrafficLabelReview as ReviewRow, TrafficLog
+from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.infrastructure.repositories.traffic_label_review_repository import (
     TrafficLabelReviewRepository,
 )
@@ -32,8 +33,12 @@ async def _insert_alert(session: AsyncSession) -> int:
         source_verification_status="UNVERIFIED",
         http_request="GET /records/search HTTP/1.1",
         prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
         model_version="model-v1",
         ingest_fingerprint_sha256="a" * 64,
+        model_input_hash="b" * 64,
+        preprocessing_version="http-preprocessor-v1",
         status="COMPLETED",
     )
     session.add(alert)
@@ -61,6 +66,11 @@ async def test_review_persists_metadata_and_latest_query(repository):
     assert review.predicted_label == "SQL Injection"
     assert review.model_version == "model-v1"
     assert review.input_hash == "a" * 64
+    assert review.prediction_confidence == 0.98
+    assert review.prediction_confidence_level == "HIGH"
+    assert review.model_input_hash == "b" * 64
+    assert review.preprocessing_version == "http-preprocessor-v1"
+    assert review.ingest_event_hash == "a" * 64
     assert (await repository.get_latest_review(alert_id)).id == review.id
 
 
@@ -75,6 +85,83 @@ async def test_unknown_alert_is_rejected_without_review(repository):
         reviewed_at=datetime.now(timezone.utc),
     ) is None
     assert await repository.get_latest_review(999) is None
+
+
+@pytest.mark.asyncio
+async def test_processing_alert_cannot_receive_review(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.11",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="PROCESSING",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError) as exc_info:
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="Normal",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+    assert exc_info.value.processing is True
+
+
+@pytest.mark.asyncio
+async def test_completed_alert_without_training_provenance_cannot_be_approved(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.12",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError) as exc_info:
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="SQL Injection",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+    assert "model_version" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_completed_alert_can_be_excluded_without_training_provenance(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.13",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    review = await repository.create_review_revision(
+        traffic_log_id=alert.id,
+        verified_label="Normal",
+        approval_state="excluded_from_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    )
+
+    assert review.approval_state == "excluded_from_training"
 
 
 @pytest.mark.asyncio

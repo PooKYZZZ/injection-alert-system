@@ -38,6 +38,7 @@ from web_app.application.label_review_use_case import (
     InvalidLabelReviewError,
     LabelReviewUseCase,
     ReviewerContext,
+    UnauthorizedLabelReviewerError,
 )
 from web_app.application.inference_queue import (
     InferenceQueueFullError,
@@ -67,6 +68,7 @@ from web_app.application.update_alert_triage_use_case import (
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.enforcement import EnforcementMode, EnforcementScope
+from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.domain.source_address import SourceProvenance
 from web_app.infrastructure.database import AsyncSessionLocal, get_db
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
@@ -764,8 +766,15 @@ async def submit_label_review(
             reviewer=reviewer,
             review_note=request.review_note,
         )
-    except InvalidLabelReviewError as exc:
+    except UnauthorizedLabelReviewerError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except InvalidLabelReviewError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ReviewNotEligibleError as exc:
+        raise HTTPException(
+            status_code=409 if exc.processing else 422,
+            detail=str(exc),
+        ) from exc
     if result is None:
         raise HTTPException(status_code=404, detail="Alert not found")
     return LabelReviewResponse.model_validate(result.review)

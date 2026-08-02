@@ -94,9 +94,7 @@ class LabelReviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     verified_label: PredictionLabel
-    approval_state: Literal[
-        "approved_for_training", "excluded_from_training", "superseded"
-    ]
+    approval_state: Literal["approved_for_training", "excluded_from_training"]
     review_note: Optional[str] = Field(default=None, max_length=1000)
 
 
@@ -117,6 +115,13 @@ class LabelReviewResponse(BaseModel):
     reviewer_role: str
     reviewed_at: datetime
     model_version: Optional[str] = None
+    prediction_confidence: Optional[float] = None
+    prediction_confidence_level: Optional[ConfidenceLevel] = None
+    model_input_hash: Optional[str] = None
+    preprocessing_version: Optional[str] = None
+    ingest_event_hash: Optional[str] = None
+    source_verification_status: Optional[str] = None
+    source_provenance: Optional[str] = None
     input_hash: Optional[str] = None
     review_note: Optional[str] = None
     created_at: Optional[datetime] = None

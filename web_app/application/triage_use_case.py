@@ -14,6 +14,7 @@ Dependency rule:
 """
 
 import logging
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
@@ -23,7 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.http_parsing import parse_http_request_line
-from web_app.application.http_preprocessor import preprocess_http_request
+from web_app.application.http_preprocessor import prepare_model_input
 from web_app.application.waf_event_sanitizer import (
     redact_query_string,
     redact_sensitive_text,
@@ -161,6 +162,8 @@ class TriageUseCase:
                 confidence_level=prediction["confidence_level"],
                 inference_latency_ms=prediction.get("inference_latency_ms"),
                 model_version=prediction.get("model_version"),
+                model_input_hash=prediction.get("model_input_hash"),
+                preprocessing_version=prediction.get("preprocessing_version"),
                 action_taken=action_taken,
             )
         )
@@ -237,6 +240,8 @@ class TriageUseCase:
             confidence_level=prediction["confidence_level"],
             inference_latency_ms=prediction.get("inference_latency_ms"),
             model_version=prediction.get("model_version"),
+            model_input_hash=prediction.get("model_input_hash"),
+            preprocessing_version=prediction.get("preprocessing_version"),
             action_taken=action_taken,
         )
         if not completed_by_owner:
@@ -320,13 +325,14 @@ class TriageUseCase:
         # Preprocess HTTP request for model input (training-serving consistency)
         # The raw http_request is still persisted verbatim; this only affects
         # the text passed to the ML model.
-        model_input = http_request
         if self._enable_preprocessing:
-            preprocessed = preprocess_http_request(http_request)
-            # Preserve legacy endpoint behavior for payload-only inputs while
-            # still using canonicalized text when a valid HTTP request is present.
-            if preprocessed:
-                model_input = preprocessed
+            model_input, model_input_hash, preprocessing_version = prepare_model_input(
+                http_request
+            )
+        else:
+            model_input = http_request
+            model_input_hash = sha256(model_input.encode("utf-8")).hexdigest()
+            preprocessing_version = "raw-input-v1"
 
         raw_result = await run_in_threadpool(self._classifier.predict, model_input)
         prediction = raw_result.get("prediction") or raw_result.get("class")
@@ -362,6 +368,8 @@ class TriageUseCase:
             "confidence_level": confidence_level,
             "inference_latency_ms": raw_result.get("inference_latency_ms"),
             "model_version": model_version,
+            "model_input_hash": model_input_hash,
+            "preprocessing_version": preprocessing_version,
         }
 
     @staticmethod

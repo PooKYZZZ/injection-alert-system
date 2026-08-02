@@ -137,6 +137,8 @@ class TrafficLog(Base):
     source_provenance = Column(String(32), nullable=False)
     source_verification_status = Column(String(32), nullable=False)
     ingest_fingerprint_sha256 = Column(String(64), nullable=True)
+    model_input_hash = Column(String(64), nullable=True)
+    preprocessing_version = Column(String(64), nullable=True)
     request_path = Column(String(512), nullable=True)
     query_string = Column(String(4096), nullable=True)
     request_method = Column(String(16), nullable=True)
@@ -203,6 +205,14 @@ class TrafficLabelReview(Base):
     reviewer_role = Column(String(32), nullable=False)
     reviewed_at = Column(DateTime(timezone=True), nullable=False)
     model_version = Column(String(100), nullable=True)
+    prediction_confidence = Column(Float, nullable=True)
+    prediction_confidence_level = Column(String(10), nullable=True)
+    model_input_hash = Column(String(64), nullable=True)
+    preprocessing_version = Column(String(64), nullable=True)
+    ingest_event_hash = Column(String(64), nullable=True)
+    source_verification_status = Column(String(32), nullable=True)
+    source_provenance = Column(String(32), nullable=True)
+    # Deprecated compatibility field. New reviews use model_input_hash.
     input_hash = Column(String(64), nullable=True)
     review_note = Column(String(1000), nullable=True)
     created_at = Column(

@@ -26,10 +26,13 @@ export const VERIFIED_LABEL_VALUES = ALERT_PREDICTION_VALUES
 export const LABEL_REVIEW_APPROVAL_STATE_VALUES = [
   'approved_for_training',
   'excluded_from_training',
+] as const
+export const LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES = [
+  ...LABEL_REVIEW_APPROVAL_STATE_VALUES,
   'superseded',
 ] as const
 export type VerifiedLabel = (typeof VERIFIED_LABEL_VALUES)[number]
-export type LabelReviewApprovalState = (typeof LABEL_REVIEW_APPROVAL_STATE_VALUES)[number]
+export type LabelReviewApprovalState = (typeof LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES)[number]
 
 export const ALERT_FIELD_REMAPS = {
   id: 'alert_id',

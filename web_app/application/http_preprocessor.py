@@ -36,6 +36,7 @@ Design Rules:
 """
 
 import html
+from hashlib import sha256
 import re
 import unicodedata
 import urllib.parse
@@ -145,3 +146,20 @@ def preprocess_http_request(raw_http: str) -> str:
     combined = " ".join(combined.split())  # final whitespace collapse
 
     return combined
+
+
+def prepare_model_input(raw_http: str) -> tuple[str, str, str]:
+    """Return the exact model input, its hash, and preprocessing version.
+
+    The raw fallback preserves the legacy payload-only prediction path while
+    making its provenance explicit instead of pretending it was normalized.
+    """
+    preprocessed = preprocess_http_request(raw_http)
+    if preprocessed:
+        model_input = preprocessed
+        preprocessing_version = "http-preprocessor-v1"
+    else:
+        model_input = raw_http if isinstance(raw_http, str) else ""
+        preprocessing_version = "http-preprocessor-v1-raw-fallback"
+    model_input_hash = sha256(model_input.encode("utf-8")).hexdigest()
+    return model_input, model_input_hash, preprocessing_version

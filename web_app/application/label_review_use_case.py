@@ -27,6 +27,10 @@ class InvalidLabelReviewError(ValueError):
     """Raised when a label review violates its application contract."""
 
 
+class UnauthorizedLabelReviewerError(InvalidLabelReviewError, PermissionError):
+    """Raised when the authenticated reviewer cannot submit reviews."""
+
+
 class LabelReviewUseCase:
     def __init__(self, repository: ITrafficLabelReviewRepository) -> None:
         self._repository = repository
@@ -47,7 +51,7 @@ class LabelReviewUseCase:
         if not reviewer.reviewer_id or len(reviewer.reviewer_id) > 128:
             raise InvalidLabelReviewError("reviewer identity is invalid")
         if reviewer.reviewer_role not in REVIEWER_ROLES:
-            raise InvalidLabelReviewError("reviewer role is not authorized")
+            raise UnauthorizedLabelReviewerError("reviewer role is not authorized")
         if review_note is not None and len(review_note) > 1000:
             raise InvalidLabelReviewError("review note is too long")
 

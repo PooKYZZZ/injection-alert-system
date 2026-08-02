@@ -9,6 +9,7 @@ verifying that the use case correctly:
 
 import asyncio
 from datetime import datetime, timezone
+from hashlib import sha256
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qsl
 
@@ -1377,6 +1378,11 @@ async def test_triage_preprocessing_enabled(mock_classifier, mock_repository):
     # Should NOT be the raw HTTP request
     assert "HTTP/1.1" not in captured_args[0]
     assert "Host" not in captured_args[0]
+    saved_entity = mock_repository.save.call_args[0][0]
+    assert saved_entity.model_input_hash == sha256(
+        captured_args[0].encode("utf-8")
+    ).hexdigest()
+    assert saved_entity.preprocessing_version == "http-preprocessor-v1"
 
 
 @pytest.mark.asyncio

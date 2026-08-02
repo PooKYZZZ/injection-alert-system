@@ -94,3 +94,20 @@ def test_label_review_rejects_superseded_client_action_and_unknown_fields(client
     )
     assert response.status_code == 422
     assert response.headers["X-Request-ID"] == "abuse-label-review"
+
+
+def test_label_review_rejects_superseded_as_invalid_request(client):
+    response = client.post(
+        "/api/alerts/1/label-review",
+        json={
+            "verified_label": "Normal",
+            "approval_state": "superseded",
+        },
+        headers={
+            **INTERNAL_HEADERS,
+            "X-Reviewer-Id": "analyst-1",
+            "X-Reviewer-Role": "ANALYST",
+        },
+    )
+
+    assert response.status_code == 422

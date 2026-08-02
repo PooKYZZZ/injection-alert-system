@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.domain.interfaces import (
     ITrafficLabelReviewRepository,
+    ReviewNotEligibleError,
     TrafficLabelReview,
 )
 from web_app.infrastructure.database.database import TrafficLabelReview as ReviewRow
@@ -40,6 +41,13 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             reviewer_role=row.reviewer_role,
             reviewed_at=row.reviewed_at,
             model_version=row.model_version,
+            prediction_confidence=row.prediction_confidence,
+            prediction_confidence_level=row.prediction_confidence_level,
+            model_input_hash=row.model_input_hash,
+            preprocessing_version=row.preprocessing_version,
+            ingest_event_hash=row.ingest_event_hash,
+            source_verification_status=row.source_verification_status,
+            source_provenance=row.source_provenance,
             input_hash=row.input_hash,
             review_note=row.review_note,
             created_at=row.created_at,
@@ -63,6 +71,27 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
         )
         if alert is None:
             return None
+        if alert.status not in {"COMPLETED", None}:
+            raise ReviewNotEligibleError(
+                "Alert processing has not completed", processing=True
+            )
+
+        if approval_state == "approved_for_training":
+            required_fields = {
+                "prediction": alert.prediction,
+                "confidence": alert.confidence,
+                "confidence_level": alert.confidence_level,
+                "model_version": alert.model_version,
+                "model_input_hash": alert.model_input_hash,
+                "preprocessing_version": alert.preprocessing_version,
+            }
+            missing = [
+                name for name, value in required_fields.items() if value in (None, "")
+            ]
+            if missing:
+                raise ReviewNotEligibleError(
+                    f"Missing training provenance: {', '.join(missing)}"
+                )
 
         current_revision = await self._session.scalar(
             select(func.max(ReviewRow.revision)).where(
@@ -79,6 +108,13 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             reviewer_role=reviewer_role,
             reviewed_at=reviewed_at,
             model_version=alert.model_version,
+            prediction_confidence=alert.confidence,
+            prediction_confidence_level=alert.confidence_level,
+            model_input_hash=alert.model_input_hash,
+            preprocessing_version=alert.preprocessing_version,
+            ingest_event_hash=alert.ingest_fingerprint_sha256,
+            source_verification_status=alert.source_verification_status,
+            source_provenance=alert.source_provenance,
             input_hash=alert.ingest_fingerprint_sha256,
             review_note=review_note,
         )
