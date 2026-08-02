@@ -15,7 +15,14 @@
   row, durable effective WAF state, PostgreSQL lifecycle constraints, restricted
   recommendation ownership, and partial uniqueness for ACTIVE source/path
   owners. Disposable PostgreSQL upgrade, downgrade, re-upgrade, and one-head
-  checks passed; the final migration head is `20260728_000025`.
+  checks passed; the current repository migration head is `20260802_000027`.
+
+### Verified label review workflow
+
+- Append-only review revisions now capture prediction, confidence, exact
+  model-input hash, preprocessing version, event hash, and source metadata.
+- `approved_for_training` is accepted only for completed alerts with required
+  provenance. Retraining export, scheduling, and model promotion remain planned.
 - The async mutation repository canonicalizes source IP/path inputs, locks the
   singleton first under `READ COMMITTED`, uses PostgreSQL `clock_timestamp()`,
   performs idempotent recommendation creation and effective-state mutation in

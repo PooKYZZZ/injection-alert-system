@@ -115,8 +115,9 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 ### PR7 controlled-local CRITICAL WAF runtime (2026-07-30)
 
-- PR7 Block 1 effective WAF state and authenticated snapshot boundary are
-  implemented and validated through migration head `20260728_000025`.
+- PR7 Block 1 effective WAF state and authenticated snapshot boundary were
+  implemented and validated at the prior migration point `20260728_000025`;
+  the current repository head is `20260802_000027`.
 - PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
   rendering, persistent selection/latch state, reload and worker-generation
   confirmation, candidate-specific source/path probes, and empty-first
