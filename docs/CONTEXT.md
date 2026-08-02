@@ -117,7 +117,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 - PR7 Block 1 effective WAF state and authenticated snapshot boundary were
   implemented and validated at the prior migration point `20260728_000025`;
-  the current repository head is `20260802_000027`.
+  the current repository head is `20260803_000028`.
 - PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
   rendering, persistent selection/latch state, reload and worker-generation
   confirmation, candidate-specific source/path probes, and empty-first
@@ -291,10 +291,11 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   project the latest revision; only `approved_for_training` is eligible for a
   future exporter. No scheduler, automatic promotion/rollback, or web-app
   write to `ml_model/model_registry/production/` exists.
-- The review stores model version and input hash, but exact inference-input
-  provenance is unresolved: the repository does not yet prove whether a
-  future exporter can reconstruct the exact preprocessing input or only a
-  redacted/represented request form. Do not claim source-equivalent training
-  data until that exporter and provenance contract are implemented and tested.
+- New inference rows persist the exact sanitized model-input text together with
+  `model_input_hash` and `preprocessing_version`; WAF query strings and
+  sanitized bodies are included in that canonical input. Historical rows with
+  missing text/provenance remain readable but are not eligible for approved
+  training. A reviewed-sample exporter is still not implemented, so do not
+  claim automated or source-equivalent training data yet.
 - Frontend policy displays keep prediction, confidence tier, and `action_taken` separate: confidence tier alone does not imply an action, and `CRITICAL` is never an `action_taken` value.
 - Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

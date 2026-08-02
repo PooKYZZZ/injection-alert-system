@@ -265,9 +265,10 @@ The browser calls `frontend/app/api/alerts/[id]/label-review/route.ts`; that
 route derives reviewer id/role from the server session and proxies to the
 internal FastAPI route. Do not put reviewer identity or email in the JSON body.
 This is a local workflow check, not proof of a scheduled exporter, retraining
-run, production model promotion, or hosted readiness. Exact model-input
-provenance remains unresolved until the future reviewed-sample exporter is
-implemented.
+run, production model promotion, or hosted readiness. New inference rows
+persist the exact sanitized model-input text and hash used for prediction;
+historical rows without that provenance are not eligible for approved
+training. The reviewed-sample exporter remains unimplemented.
 
 ### Start the backend
 
@@ -354,7 +355,7 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current repository migration head is `20260802_000027`. The latest hosted Supabase
+- The current repository migration head is `20260803_000028`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
 - Hosted migration state is only confirmed through `20260712_000020`; the
@@ -439,7 +440,7 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260802_000027`. Use
+The repository has exactly one current head, `20260803_000028`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).

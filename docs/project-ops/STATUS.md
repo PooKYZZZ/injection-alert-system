@@ -15,7 +15,7 @@
   row, durable effective WAF state, PostgreSQL lifecycle constraints, restricted
   recommendation ownership, and partial uniqueness for ACTIVE source/path
   owners. Disposable PostgreSQL upgrade, downgrade, re-upgrade, and one-head
-  checks passed; the current repository migration head is `20260802_000027`.
+  checks passed; the current repository migration head is `20260803_000028`.
 
 ### Verified label review workflow
 

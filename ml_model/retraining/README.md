@@ -40,12 +40,13 @@ must select only the latest review with `approval_state=approved_for_training`.
 Reviews marked `excluded_from_training` must remain excluded, and superseded
 history must not be exported as a second sample.
 
-Reviewer identity is derived from the authenticated server session. The
-review record includes the model version and input hash, but exact provenance
-of the model input is not yet established: the repository does not prove that
-the persisted request representation is byte-for-byte equivalent to the
-inference preprocessing input. Treat source-equivalent training data as
-`Unknown` until an exporter and provenance test establish that contract.
+Reviewer identity is derived from the authenticated server session. New
+inference rows persist the exact sanitized model-input text, its
+`model_input_hash`, and `preprocessing_version`; WAF query strings and
+sanitized bodies use the same canonical input before inference. Historical
+rows with missing text/provenance remain readable but are not eligible for
+approved training. The exporter is still not implemented, so automated or
+source-equivalent training data remains `Planned`.
 
 This workflow does not provide a scheduler, daily retraining operation, blind
 promotion, automatic rollback, or production model-registry mutation. Any
