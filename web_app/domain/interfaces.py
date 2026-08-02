@@ -157,6 +157,49 @@ class TrafficLogPage:
     page_size: int = 20
 
 
+@dataclass
+class TrafficLabelReview:
+    id: Optional[int]
+    traffic_log_id: int
+    revision: int
+    predicted_label: Optional[str]
+    verified_label: str
+    approval_state: str
+    reviewer_id: str
+    reviewer_role: str
+    reviewed_at: datetime
+    model_version: Optional[str]
+    input_hash: Optional[str]
+    review_note: Optional[str]
+    created_at: Optional[datetime] = None
+
+
+class ITrafficLabelReviewRepository(ABC):
+    """Persistence contract for append-only verified label reviews."""
+
+    @abstractmethod
+    async def create_review_revision(
+        self,
+        *,
+        traffic_log_id: int,
+        verified_label: str,
+        approval_state: str,
+        reviewer_id: str,
+        reviewer_role: str,
+        reviewed_at: datetime,
+        review_note: Optional[str] = None,
+    ) -> Optional[TrafficLabelReview]:
+        """Create the next revision, or return None when the alert is unknown."""
+        ...
+
+    @abstractmethod
+    async def get_latest_review(
+        self, traffic_log_id: int
+    ) -> Optional[TrafficLabelReview]:
+        """Return only the highest revision for an alert."""
+        ...
+
+
 class ITrafficLogRepository(ABC):
     """Repository interface for traffic log persistence.
 
