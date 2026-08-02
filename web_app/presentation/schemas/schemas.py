@@ -88,6 +88,40 @@ class FeedbackRequest(BaseModel):
     )
 
 
+class LabelReviewRequest(BaseModel):
+    """Canonical analyst decision for the append-only review table."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verified_label: PredictionLabel
+    approval_state: Literal[
+        "approved_for_training", "excluded_from_training", "superseded"
+    ]
+    review_note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class LabelReviewResponse(BaseModel):
+    """Latest immutable review revision returned by the API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    traffic_log_id: int
+    revision: int = Field(..., ge=1)
+    predicted_label: Optional[PredictionLabel] = None
+    verified_label: PredictionLabel
+    approval_state: Literal[
+        "approved_for_training", "excluded_from_training", "superseded"
+    ]
+    reviewer_id: str
+    reviewer_role: str
+    reviewed_at: datetime
+    model_version: Optional[str] = None
+    input_hash: Optional[str] = None
+    review_note: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
 class AlertResponse(BaseModel):
     """Response schema for alerts endpoint."""
 

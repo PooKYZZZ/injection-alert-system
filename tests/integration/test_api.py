@@ -31,6 +31,27 @@ def test_alert_stream_requires_internal_auth_and_is_not_shadowed_by_alert_id(cli
     assert response.json() == {"detail": "Unauthorized"}
 
 
+def test_label_review_requires_trusted_internal_auth_and_reviewer_context(client):
+    response = client.post(
+        "/api/alerts/1/label-review",
+        json={
+            "verified_label": "Normal",
+            "approval_state": "approved_for_training",
+        },
+    )
+    assert response.status_code == 401
+
+    response = client.post(
+        "/api/alerts/1/label-review",
+        json={
+            "verified_label": "Normal",
+            "approval_state": "approved_for_training",
+        },
+        headers=INTERNAL_HEADERS,
+    )
+    assert response.status_code == 403
+
+
 def test_response_includes_preserved_request_id(client):
     response = client.get(
         "/health",

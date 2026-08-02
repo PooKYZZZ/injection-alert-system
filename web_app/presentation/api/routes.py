@@ -21,7 +21,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +34,11 @@ from web_app.application.enforcement_use_cases import (
     VerifyEnforcementChallengeUseCase,
 )
 from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.application.label_review_use_case import (
+    InvalidLabelReviewError,
+    LabelReviewUseCase,
+    ReviewerContext,
+)
 from web_app.application.inference_queue import (
     InferenceQueueFullError,
     InferenceQueueService,
@@ -70,6 +75,9 @@ from web_app.infrastructure.repositories.enforcement_recommendation_repository i
 from web_app.infrastructure.repositories.traffic_log_repository import (
     TrafficLogRepository,
 )
+from web_app.infrastructure.repositories.traffic_label_review_repository import (
+    TrafficLabelReviewRepository,
+)
 from web_app.infrastructure.repositories.waf_state_repository import WafStateRepository
 from web_app.infrastructure.turnstile import TurnstileVerifier
 from web_app.notifications.threats import enqueue_threat_notifications_safely
@@ -90,6 +98,8 @@ from web_app.presentation.schemas import (
     EnforcementCheckRequest,
     EnforcementCheckResponse,
     FeedbackRequest,
+    LabelReviewRequest,
+    LabelReviewResponse,
     MLHealthResponse,
     PredictionRequest,
     PredictionResponse,
@@ -138,6 +148,21 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> TrafficLogRepository:
 
     session_factory = getattr(db_module, "AsyncSessionLocal", None)
     return TrafficLogRepository(db, session_factory=session_factory)
+
+
+def get_label_review_repository(
+    db: AsyncSession = Depends(get_db),
+) -> TrafficLabelReviewRepository:
+    return TrafficLabelReviewRepository(db)
+
+
+def get_reviewer_context(request: Request) -> ReviewerContext:
+    """Read identity asserted by the trusted server-side BFF context."""
+    reviewer_id = request.headers.get("X-Reviewer-Id", "")
+    reviewer_role = request.headers.get("X-Reviewer-Role", "")
+    if not reviewer_id or not reviewer_role:
+        raise HTTPException(status_code=403, detail="Reviewer context required")
+    return ReviewerContext(reviewer_id=reviewer_id, reviewer_role=reviewer_role.upper())
 
 
 def get_enforcement_repository(
@@ -719,6 +744,31 @@ async def submit_feedback(
         raise HTTPException(status_code=404, detail=result.message)
 
     return {"message": result.message, "traffic_id": result.traffic_id}
+
+
+@internal_router.post(
+    "/alerts/{alert_id}/label-review", response_model=LabelReviewResponse
+)
+async def submit_label_review(
+    alert_id: int = Path(..., ge=1),
+    request: LabelReviewRequest = ...,
+    repository: TrafficLabelReviewRepository = Depends(get_label_review_repository),
+    reviewer: ReviewerContext = Depends(get_reviewer_context),
+):
+    """Record one authenticated analyst review revision."""
+    try:
+        result = await LabelReviewUseCase(repository).execute(
+            alert_id=alert_id,
+            verified_label=request.verified_label,
+            approval_state=request.approval_state,
+            reviewer=reviewer,
+            review_note=request.review_note,
+        )
+    except InvalidLabelReviewError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return LabelReviewResponse.model_validate(result.review)
 
 
 @internal_router.patch("/alerts/{alert_id}/triage", response_model=AlertDetailResponse)
