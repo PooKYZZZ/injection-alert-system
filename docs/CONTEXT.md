@@ -176,6 +176,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
     - `GET /api/alerts/stream`
     - `GET /api/alerts/{id}`
     - `PATCH /api/alerts/{id}/triage`
+    - `POST /api/alerts/{id}/label-review`
     - `GET /api/stats`
     - `GET /api/ml-health`
   - Internal bearer-token protected backend endpoints:
@@ -221,10 +222,13 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   - `frontend/app/api/alerts/stream/route.ts` authenticates and streams the FastAPI SSE response with private/no-store, no-transform, no-buffer, and nosniff response controls
   - `frontend/app/api/alerts/[id]/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/alerts/[id]/triage/route.ts` handles PATCH triage
+  - `frontend/app/api/alerts/[id]/label-review/route.ts` handles authenticated
+    verified-label review submission; reviewer identity and role come from the
+    server session and are not accepted from the browser body
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode
   - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**)
-  - all seven handlers await the central DB-backed permission guard before downstream work
+  - all eight handlers await the central DB-backed permission guard before downstream work
   - one dashboard-level `AlertStreamSync` connection invalidates the existing
     alert and stats TanStack Query families on `alert.created` and `open`; the
     latter provides canonical REST catch-up after native EventSource reconnect
@@ -235,6 +239,10 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
     - `prediction`: `SQL Injection`, `Code Injection`, `Other Attacks`, `Normal`
     - `confidence_level`: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
     - `action_taken`: `BLOCKED`, `THROTTLED`, `ALLOWED`
+    - `label_review.verified_label`: `SQL Injection`, `Code Injection`,
+      `Other Attacks`, `Normal`
+    - `label_review.approval_state`: `approved_for_training` or
+      `excluded_from_training`
   - persisted-alert confidence distributions and styling use backend-emitted `confidence_level`, not raw-score reclassification
   - enforcement-policy counts exclude `Normal`; Normal predictions remain `ALLOWED` for every valid confidence tier
   - confidence-tier badges always render the canonical tier and do not substitute `Benign`
@@ -277,5 +285,15 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `action_taken` remains the existing alert metadata (`BLOCKED`, `THROTTLED`, or `ALLOWED`). PR4 `recommended_action` is a versioned, expiring future intent; `actual_decision` is always `ALLOW` and is not proof of live block/throttle enforcement.
 - Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
+- Verified label reviews are an implemented local append-only workflow, not a
+  completed retraining pipeline. Reviews are revisioned and alert responses
+  project the latest revision; only `approved_for_training` is eligible for a
+  future exporter. No scheduler, automatic promotion/rollback, or web-app
+  write to `ml_model/model_registry/production/` exists.
+- The review stores model version and input hash, but exact inference-input
+  provenance is unresolved: the repository does not yet prove whether a
+  future exporter can reconstruct the exact preprocessing input or only a
+  redacted/represented request form. Do not claim source-equivalent training
+  data until that exporter and provenance contract are implemented and tested.
 - Frontend policy displays keep prediction, confidence tier, and `action_taken` separate: confidence tier alone does not imply an action, and `CRITICAL` is never an `action_taken` value.
 - Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

@@ -52,6 +52,7 @@ flowchart LR
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 and Block 2 controlled-local WAF runtime implemented and E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use the existing expiring recommendation store; LOW/MEDIUM retain PostgreSQL fixed-window counters and tier-bound server-verified challenge grants. `/api/internal/enforcement/check` returns exact `ALLOW`, `CHALLENGE`, `THROTTLE`, or `BLOCK` decisions only for `/records/search`. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`. PR7 adds durable revisioned effective WAF state, an authenticated snapshot boundary, deterministic candidate rendering, reload/generation confirmation, candidate-specific probing, and rollback. The controlled PostgreSQL-to-backend-to-WAF path passes; Block 3 still owns full attack-to-ML creation, external ingress/source identity, PR6/PR7 integrated regression, and portal no-upstream evidence. Hosted active enforcement remains disabled. |
+| Verified label review workflow | Implemented locally; exporter and retraining remain planned | Analysts and admins append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Alert responses project only the latest revision. Only `approved_for_training` is a future training-export eligibility state; no scheduler, auto-promotion, rollback automation, or web-app model-registry writes are implemented. |
 | Training/evaluation source organization | Partially implemented | Canonical benchmark helpers and script-first entrypoints now live under `ml_model/training/`, `ml_model/preprocessing/`, and `ml_model/evaluation/`; retraining remains design-level |
 | Retraining pipeline | Planned | `ml_model/retraining/README.md` still documents the missing reviewed-sample export, scheduler, and candidate retraining workflow |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
@@ -148,17 +149,25 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 ### Current BFF status
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
-- All seven route handlers wired:
+- All eight route handlers wired:
   - `frontend/app/api/alerts/route.ts` (GET list)
   - `frontend/app/api/alerts/stream/route.ts` (GET SSE stream)
   - `frontend/app/api/alerts/[id]/route.ts` (GET detail)
   - `frontend/app/api/alerts/[id]/triage/route.ts` (PATCH triage)
+  - `frontend/app/api/alerts/[id]/label-review/route.ts` (POST verified label review)
   - `frontend/app/api/alerts/[id]/action/route.ts` (PATCH action)
   - `frontend/app/api/stats/route.ts`
   - `frontend/app/api/ml-health/route.ts`
-- Those seven handlers require a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work.
+- Those eight handlers require a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work.
 - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
+- `frontend/app/api/alerts/[id]/label-review/route.ts` accepts the four-class
+  verified-label vocabulary and review states after the server derives reviewer
+  identity and role from the current session. The browser cannot submit an
+  email address or reviewer identity.
+- The BFF proxies that request to internal FastAPI
+  `POST /api/alerts/{alert_id}/label-review`. Label review state is separate
+  from triage `action_taken` and is not an enforcement decision.
 - The alerts table and alert drawer now hide unavailable dense-row mutation controls for viewers and preserve triage/action control visibility according to the current role.
 - `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes.
 
@@ -212,6 +221,24 @@ the client-facing behavior for disabled or unauthorized pages.
 - Notification outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, and lease reconciliation. Email retains AES-GCM protection for active credential-equivalent payloads; Telegram is database-restricted to safe `threat_detected` payloads. Terminal payloads are scrubbed.
 - New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
 - `AUTH_USERS_JSON` is not read by runtime auth. Supabase query or configuration failure denies login and protected BFF access without an env fallback
+
+### Verified label reviews
+
+`traffic_label_reviews` is an append-only audit table. Each review locks the
+parent traffic row, assigns the next per-alert revision, and records the
+predicted label, verified label, approval state, reviewer id/role, model
+version, input hash, optional note, and timestamps. There is no update or
+delete repository operation. Alert list/detail projections join the maximum
+revision back to the review table, so the API exposes the latest review while
+preserving the full history for a future reviewed-sample exporter.
+
+The canonical verified-label vocabulary is `SQL Injection`, `Code Injection`,
+`Other Attacks`, and `Normal`. It is intentionally distinct from confidence
+tiers and triage transport states (`BLOCKED`, `THROTTLED`, `ALLOWED`). The
+future exporter may select only rows whose latest review is
+`approved_for_training`; `excluded_from_training` is never an export approval.
+The exporter, scheduler, training orchestration, automatic model promotion,
+rollback automation, and production model writes are not implemented.
 - `frontend/lib/server/db/client.ts` remains the `server-only` app-runtime boundary, while `script-client.mjs` is restricted to operational provisioning scripts
 - Some Supabase policy and operational guardrails still live outside repo automation
 
