@@ -15,6 +15,7 @@ const getStatsMock = vi.fn()
 const getMlHealthMock = vi.fn()
 const updateAlertTriageMock = vi.fn()
 const updateAlertActionMock = vi.fn()
+const submitAlertLabelReviewMock = vi.fn()
 const getAccountForSessionFreshnessMock = vi.fn()
 
 const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
@@ -30,6 +31,7 @@ vi.mock('@/lib/bff-client', () => ({
   getMlHealth: getMlHealthMock,
   updateAlertTriage: updateAlertTriageMock,
   updateAlertAction: updateAlertActionMock,
+  submitAlertLabelReview: submitAlertLabelReviewMock,
 }))
 
 vi.mock('@/lib/server/db/auth-accounts', () => ({
@@ -75,6 +77,7 @@ describe('BFF route handlers', () => {
       'alerts/[id]/route.ts',
       'alerts/[id]/triage/route.ts',
       'alerts/[id]/action/route.ts',
+      'alerts/[id]/label-review/route.ts',
       'stats/route.ts',
       'ml-health/route.ts',
     ]
@@ -547,6 +550,76 @@ describe('BFF route handlers', () => {
     expect(body).toEqual({
       error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
     })
+  })
+
+  it('label review POST forwards canonical data and session-derived identity', async () => {
+    setCurrentAccount(ROLES.ANALYST)
+    authMock.mockResolvedValueOnce(session(ROLES.ANALYST))
+    submitAlertLabelReviewMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: 4,
+        traffic_log_id: 1,
+        revision: 1,
+        verified_label: 'SQL Injection',
+        approval_state: 'approved_for_training',
+        reviewer_id: accountId,
+        reviewer_role: 'ANALYST',
+        reviewed_at: '2026-08-02T00:00:00Z',
+      },
+    })
+    const { POST } = await import('./alerts/[id]/label-review/route')
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/alerts/1/label-review', {
+        method: 'POST',
+        body: JSON.stringify({
+          verified_label: 'SQL Injection',
+          approval_state: 'approved_for_training',
+          review_note: 'Confirmed',
+        }),
+      }),
+      { params: Promise.resolve({ id: '1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(submitAlertLabelReviewMock).toHaveBeenCalledWith(
+      '1',
+      {
+        verified_label: 'SQL Injection',
+        approval_state: 'approved_for_training',
+        review_note: 'Confirmed',
+      },
+      { id: accountId, role: 'ANALYST' }
+    )
+  })
+
+  it('label review POST rejects viewers and unknown body fields before forwarding', async () => {
+    setCurrentAccount(ROLES.VIEWER)
+    authMock.mockResolvedValueOnce(session(ROLES.VIEWER))
+    const jsonMock = vi.fn()
+    const viewerResponse = await (await import('./alerts/[id]/label-review/route')).POST(
+      { json: jsonMock } as unknown as NextRequest,
+      { params: Promise.resolve({ id: '1' }) }
+    )
+    expect(viewerResponse.status).toBe(403)
+    expect(jsonMock).not.toHaveBeenCalled()
+
+    setCurrentAccount(ROLES.ANALYST)
+    authMock.mockResolvedValueOnce(session(ROLES.ANALYST))
+    const { POST } = await import('./alerts/[id]/label-review/route')
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/alerts/1/label-review', {
+        method: 'POST',
+        body: JSON.stringify({
+          verified_label: 'Normal',
+          approval_state: 'approved_for_training',
+          reviewer_id: 'spoofed',
+        }),
+      }),
+      { params: Promise.resolve({ id: '1' }) }
+    )
+    expect(response.status).toBe(400)
+    expect(submitAlertLabelReviewMock).not.toHaveBeenCalled()
   })
 
   it('triage PATCH accepts valid triage_status and returns 200', async () => {
