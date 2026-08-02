@@ -112,7 +112,6 @@ Expiry = data-plane safety
 Revocation = control-plane safety
 ```
 
-The backend and bridge use pinned Python 3.11 images. Python 3.14 was tested
-as a disposable image candidate and rejected because `torch==2.13.0` had no
-compatible distribution; this is recorded rather than silently mixing runtime
-contracts.
+The backend and bridge currently use pinned Python 3.14 images recorded in the
+PR7 artifact lock files. The project metadata, Dockerfiles, and GitHub Actions
+Python jobs target one Python 3.14 runtime contract.

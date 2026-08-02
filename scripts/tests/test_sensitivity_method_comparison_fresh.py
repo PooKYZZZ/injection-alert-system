@@ -11,10 +11,8 @@ SCRIPT_PATH = REPO_ROOT / "scripts" / "sensitivity_method_comparison_fresh.py"
 REAL_RUN_DIR = (
     REPO_ROOT
     / "ml_model"
-    / "notebooks"
-    / "training done"
-    / "Final training"
     / "results"
+    / "benchmarks"
     / "v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441"
 )
 

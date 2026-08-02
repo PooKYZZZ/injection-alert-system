@@ -30,7 +30,7 @@ Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. Th
 ## Prerequisites
 
 - Windows PowerShell
-- Python 3.11.x
+- Python 3.14+
 - Node.js 24.x (the frontend and GitHub CI use the same major version)
 - npm
 
@@ -46,7 +46,7 @@ cd injection-alert-system
 ### Create a virtual environment
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
@@ -213,9 +213,9 @@ Dry-run first:
 
 ```powershell
 .venv\Scripts\python.exe -m ml_model.export.promote_final_training_run ^
-  --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
-  --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
-  --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" ^
+  --source-run-dir "ml_model\results\benchmarks\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
+  --active-run-dir "ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
+  --archive-root "ml_model\model_registry\archive" ^
   --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" ^
   --archive-suffix "pre_20260420" ^
   --dry-run
@@ -225,9 +225,9 @@ Real promotion (remove `--dry-run`):
 
 ```powershell
 .venv\Scripts\python.exe -m ml_model.export.promote_final_training_run ^
-  --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
-  --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
-  --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" ^
+  --source-run-dir "ml_model\results\benchmarks\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
+  --active-run-dir "ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
+  --archive-root "ml_model\model_registry\archive" ^
   --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" ^
   --archive-suffix "pre_20260420"
 ```

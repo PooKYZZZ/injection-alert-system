@@ -1,13 +1,16 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "injection-alert-system"
 version = "0.1.0"
 description = "CRS-first WAF + ML confidence triage system for SQL injection detection"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.14"
 readme = "README.md"
+
+[tool.setuptools.packages.find]
+include = ["ml_model*", "web_app*", "waf_runtime*"]
 
 [project.optional-dependencies]
 dev = [
@@ -27,7 +30,7 @@ python_functions = ["test_*"]
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py314"]
 
 [tool.ruff]
 line-length = 88

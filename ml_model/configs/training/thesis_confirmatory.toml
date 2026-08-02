@@ -1,0 +1,10 @@
+[training]
+dataset_version = "v3_907k_cleaned"
+models = ["distilbert"]
+seeds = [42, 1337, 2026]
+device = "auto"
+precision = "auto"
+epochs = 4
+num_workers = 0
+checkpoint_interval_epochs = 1
+resume = true

@@ -211,7 +211,21 @@ docs/project-ops/TASKS.md
 
 
 frontend/next-env.d.ts
-ml_model/notebooks/
+# Keep generated notebook working directories ignored, but track the curated
+# notebook groups used for reproducible experiments and reports.
+ml_model/notebooks/*
+!ml_model/notebooks/benchmarks/
+!ml_model/notebooks/exploration/
+!ml_model/notebooks/legacy/
+!ml_model/notebooks/reports/
+
+# ML experiment bundles, local archival material, and retraining logs
+ml_model/results/
+ml_model/stale_review/
+ml_model/archive/archives/
+ml_model/logs/retraining/
+ml_model/**/checkpoint/
+ml_model/**/checkpoints/
 docs/audit/2026-04-12-evidence-gathering-standards-brief.md
 docs/audit/2026-04-12-final-confirmatory-artifact-critique.md
 docs/audit/2026-04-13-torchlight2-steam-multiplayer-mod-stack-audit.md

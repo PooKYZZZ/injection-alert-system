@@ -50,8 +50,8 @@
 
 - Historical PR5 merge reference: backend PR #90 commit `62fc168`.
   Git is authoritative for the current branch and HEAD.
-- Python runtime target: `3.11.x`
-- Local venv may differ; the authoritative disposable container runtime is the pinned Python 3.11 digest.
+- Python runtime target: `3.14+`
+- Local venv currently recreated and verified on: `Python 3.14.3`
 - Frontend runtime: Next.js `16.2.9`, React `19.2.4`, TypeScript `5.9.3`, Zod `4.3.6`
 - Backend runtime: FastAPI `0.138.0`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
@@ -468,9 +468,9 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 ### Promotion Workflow Commands
 
 - Dry-run (no writes):
-  - `.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420" --dry-run`
+  - `.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "ml_model\results\benchmarks\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420" --dry-run`
 - Real promotion:
-  - `.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\notebooks\training done\Final training\results\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "G:\AI\PDDDD\injection-alert-system\ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420"`
+  - `.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --source-run-dir "ml_model\results\benchmarks\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" --active-run-dir "ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" --archive-root "ml_model\model_registry\archive" --checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" --archive-suffix "pre_20260420"`
 - Rollback behavior:
   - If failure occurs after archive, the promotion script restores the archived active run automatically.
 
