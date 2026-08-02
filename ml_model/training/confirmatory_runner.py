@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch import autocast
+from torch.amp import GradScaler
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 from transformers import (
@@ -135,6 +136,7 @@ class ConfirmatoryRunnerContext:
     split_hygiene_evidence: dict[str, Any]
 
     device: torch.device
+    cuda_fp16: bool
     cuda_bf16: bool
 
 
@@ -295,8 +297,11 @@ class FinalConfirmatoryRunner:
             torch.cuda.set_rng_state_all(state["cuda"])
 
     def get_autocast_context(self):
-        if self.ctx.device.type == "cuda" and self.ctx.cuda_bf16:
-            return autocast(device_type="cuda", dtype=torch.bfloat16)
+        if self.ctx.device.type == "cuda":
+            if self.ctx.cuda_fp16:
+                return autocast(device_type="cuda", dtype=torch.float16)
+            if self.ctx.cuda_bf16:
+                return autocast(device_type="cuda", dtype=torch.bfloat16)
         return nullcontext()
 
     @staticmethod
@@ -845,7 +850,9 @@ class FinalConfirmatoryRunner:
                 f"Best checkpoint missing for deferred latency: {paths['best_ckpt']}"
             )
 
-        checkpoint_payload = torch.load(paths["best_ckpt"], map_location="cpu")
+        checkpoint_payload = torch.load(
+            paths["best_ckpt"], map_location="cpu", weights_only=False
+        )
         if "model_state_dict" not in checkpoint_payload:
             raise RuntimeError(
                 f"Best checkpoint missing model_state_dict: {paths['best_ckpt']}"
@@ -884,6 +891,7 @@ class FinalConfirmatoryRunner:
         dataloader,
         optimizer,
         scheduler,
+        scaler,
         criterion,
         cfg: dict[str, Any],
         epoch: int,
@@ -906,6 +914,12 @@ class FinalConfirmatoryRunner:
         )
 
         for step, batch in enumerate(dataloader, start=1):
+            remainder_steps = n_steps % accum_steps
+            actual_accum_steps = (
+                remainder_steps
+                if remainder_steps and step > n_steps - remainder_steps
+                else accum_steps
+            )
             ids = batch["input_ids"].to(
                 self.ctx.device,
                 non_blocking=(self.ctx.device.type == "cuda"),
@@ -921,7 +935,7 @@ class FinalConfirmatoryRunner:
 
             with self.get_autocast_context():
                 logits = model(input_ids=ids, attention_mask=mask)["logits"]
-                loss = criterion(logits, labels) / accum_steps
+                loss = criterion(logits, labels) / actual_accum_steps
 
             if not torch.isfinite(loss):
                 raise RuntimeError(
@@ -930,12 +944,25 @@ class FinalConfirmatoryRunner:
                     f"loss={loss.item()}"
                 )
 
-            loss.backward()
-            total_loss += loss.item() * accum_steps
+            if scaler is not None:
+                scaler.scale(loss).backward()
+            else:
+                loss.backward()
+            total_loss += loss.item() * actual_accum_steps
 
             if (step % accum_steps == 0) or (step == n_steps):
-                torch.nn.utils.clip_grad_norm_(model.parameters(), self.ctx.max_grad_norm)
-                optimizer.step()
+                if scaler is not None:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), self.ctx.max_grad_norm
+                    )
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), self.ctx.max_grad_norm
+                    )
+                    optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
 
@@ -1113,6 +1140,7 @@ class FinalConfirmatoryRunner:
 
             model = build_model(cfg, self.ctx.num_classes, self.ctx.device)
             optimizer = self.build_optimizer(model, cfg["learning_rate"], cfg["weight_decay"])
+            scaler = GradScaler("cuda") if self.ctx.cuda_fp16 else None
 
             steps_per_epoch = max(
                 math.ceil(train_batches_per_epoch / max(int(cfg["gradient_accumulation_steps"]), 1)),
@@ -1133,7 +1161,9 @@ class FinalConfirmatoryRunner:
             resume_path = self.ctx.resume_checkpoint or paths["last_ckpt"]
             if resume_allowed and resume_path.exists():
                 try:
-                    resume_payload = torch.load(resume_path, map_location="cpu")
+                    resume_payload = torch.load(
+                        resume_path, map_location="cpu", weights_only=False
+                    )
                 except Exception as exc:
                     raise RuntimeError(
                         f"Could not load resume checkpoint: {resume_path}"
@@ -1149,40 +1179,46 @@ class FinalConfirmatoryRunner:
                     model.load_state_dict(resume_payload["model_state_dict"])
                     optimizer.load_state_dict(resume_payload["optimizer_state_dict"])
                     scheduler.load_state_dict(resume_payload["scheduler_state_dict"])
+                    if scaler is not None and resume_payload.get("scaler_state_dict"):
+                        scaler.load_state_dict(resume_payload["scaler_state_dict"])
                 except Exception as exc:
                     raise RuntimeError(
                         f"Resume checkpoint is incompatible with the selected model: {resume_path}"
                     ) from exc
-                    best_epoch = int(resume_payload.get("best_epoch", 0))
-                    best_val_macro_f1 = float(resume_payload.get("best_val_macro_f1", -1.0))
-                    best_val_loss = float(resume_payload.get("best_val_loss", float("inf")))
-                    no_improve = int(resume_payload.get("no_improve", 0))
-                    history = list(resume_payload.get("history", []))
-                    resume_epoch = int(resume_payload.get("epoch", 0))
-                    start_epoch = resume_epoch + 1
-                    self.restore_rng_state(resume_payload.get("rng_state", {}))
-                    print(
-                        f"[resume] model={model_key} | loss={loss_key} | seed={seed} | "
-                        f"resume_epoch={resume_epoch} -> start_epoch={start_epoch}"
-                    )
-                    self.update_seed_status(
-                        paths,
-                        "running",
-                        stage="resume_loaded",
-                        model_key=model_key,
-                        loss_key=loss_key,
-                        seed=int(seed),
-                        resumed=True,
-                        resumed_from_epoch=int(resume_epoch),
-                    )
-                    self.append_seed_heartbeat(
-                        paths,
-                        "resume_loaded",
-                        model_key=model_key,
-                        loss_key=loss_key,
-                        seed=int(seed),
-                        resume_epoch=int(resume_epoch),
-                    )
+                best_epoch = int(resume_payload.get("best_epoch", 0))
+                best_val_macro_f1 = float(
+                    resume_payload.get("best_val_macro_f1", -1.0)
+                )
+                best_val_loss = float(
+                    resume_payload.get("best_val_loss", float("inf"))
+                )
+                no_improve = int(resume_payload.get("no_improve", 0))
+                history = list(resume_payload.get("history", []))
+                resume_epoch = int(resume_payload.get("epoch", 0))
+                start_epoch = resume_epoch + 1
+                self.restore_rng_state(resume_payload.get("rng_state", {}))
+                print(
+                    f"[resume] model={model_key} | loss={loss_key} | seed={seed} | "
+                    f"resume_epoch={resume_epoch} -> start_epoch={start_epoch}"
+                )
+                self.update_seed_status(
+                    paths,
+                    "running",
+                    stage="resume_loaded",
+                    model_key=model_key,
+                    loss_key=loss_key,
+                    seed=int(seed),
+                    resumed=True,
+                    resumed_from_epoch=int(resume_epoch),
+                )
+                self.append_seed_heartbeat(
+                    paths,
+                    "resume_loaded",
+                    model_key=model_key,
+                    loss_key=loss_key,
+                    seed=int(seed),
+                    resume_epoch=int(resume_epoch),
+                )
 
             run_start = time.time()
 
@@ -1216,6 +1252,7 @@ class FinalConfirmatoryRunner:
                         dataloader=train_loader,
                         optimizer=optimizer,
                         scheduler=scheduler,
+                        scaler=scaler,
                         criterion=criterion,
                         cfg=cfg,
                         epoch=int(epoch),
@@ -1300,6 +1337,9 @@ class FinalConfirmatoryRunner:
                             "model_state_dict": model.state_dict(),
                             "optimizer_state_dict": optimizer.state_dict(),
                             "scheduler_state_dict": scheduler.state_dict(),
+                            "scaler_state_dict": (
+                                scaler.state_dict() if scaler is not None else None
+                            ),
                             "best_epoch": int(best_epoch),
                             "best_val_macro_f1": float(best_val_macro_f1),
                             "best_val_loss": float(best_val_loss),
@@ -1385,7 +1425,9 @@ class FinalConfirmatoryRunner:
                     f"Best checkpoint was not produced for model={model_key}, loss={loss_key}, seed={seed}."
                 )
 
-            best_payload = torch.load(paths["best_ckpt"], map_location="cpu")
+            best_payload = torch.load(
+                paths["best_ckpt"], map_location="cpu", weights_only=False
+            )
             if "model_state_dict" not in best_payload:
                 raise RuntimeError(
                     f"Best checkpoint missing model_state_dict for model={model_key}, loss={loss_key}, seed={seed}."
@@ -1451,8 +1493,8 @@ class FinalConfirmatoryRunner:
             if self.ctx.enable_threshold_security_artifacts:
                 security_views = threshold_security_summary(
                     labels=test_labels,
-                    preds=test_uncal["preds"],
-                    probs=test_uncal["probs"],
+                    preds=test_cal["preds"],
+                    probs=test_cal["probs"],
                     label_names=self.ctx.label_names,
                     normal_label="Normal",
                 )
@@ -1462,15 +1504,15 @@ class FinalConfirmatoryRunner:
                     index=False,
                 )
                 save_csv(
-                    confidence_band_summary_frame(test_labels, test_uncal["preds"], test_uncal["probs"]),
+                    confidence_band_summary_frame(test_labels, test_uncal["preds"], test_cal["probs"]),
                     paths["seed_dir"] / "confidence_band_summary.csv",
                     index=False,
                 )
                 save_csv(
                     per_class_recall_at_threshold_frame(
                         test_labels,
-                        test_uncal["preds"],
-                        test_uncal["probs"],
+                        test_cal["preds"],
+                        test_cal["probs"],
                         self.ctx.label_names,
                         self.ctx.confidence_thresholds,
                     ),
@@ -1559,19 +1601,25 @@ class FinalConfirmatoryRunner:
                 "seed": int(seed),
                 "best_epoch": int(best_payload.get("epoch", best_epoch)),
                 "val_accuracy": float(val_uncal["accuracy"]),
+                "val_balanced_accuracy": float(val_uncal["balanced_accuracy"]),
                 "val_macro_f1": float(val_uncal["macro_f1"]),
                 "val_weighted_f1": float(val_uncal["weighted_f1"]),
                 "val_ece_uncalibrated": float(val_uncal["ece"]),
                 "val_ece_calibrated": float(val_cal["ece"]),
                 "val_nll_uncalibrated": float(val_uncal["nll"]),
                 "val_nll_calibrated": float(val_cal["nll"]),
+                "val_brier_uncalibrated": float(val_uncal["brier_score"]),
+                "val_brier_calibrated": float(val_cal["brier_score"]),
                 "test_accuracy": float(test_uncal["accuracy"]),
+                "test_balanced_accuracy": float(test_uncal["balanced_accuracy"]),
                 "test_macro_f1": float(test_uncal["macro_f1"]),
                 "test_weighted_f1": float(test_uncal["weighted_f1"]),
                 "test_ece_uncalibrated": float(test_uncal["ece"]),
                 "test_ece_calibrated": float(test_cal["ece"]),
                 "test_nll_uncalibrated": float(test_uncal["nll"]),
                 "test_nll_calibrated": float(test_cal["nll"]),
+                "test_brier_uncalibrated": float(test_uncal["brier_score"]),
+                "test_brier_calibrated": float(test_cal["brier_score"]),
                 "normal_false_positive_rate": normal_false_positive_rate,
                 "attack_escape_rate": attack_escape_rate,
                 "inference_latency_mean_ms": latency_summary["latency_mean_ms"],
@@ -2036,6 +2084,8 @@ class FinalConfirmatoryRunner:
             model_key=model_key,
             completed_rows=int(model_df.shape[0]) if not model_df.empty else 0,
         )
+        self.model_resource_cache.pop(model_key, None)
+        gc.collect()
         return model_df
 
     def rebuild_run_aggregates(
@@ -2121,6 +2171,19 @@ class FinalConfirmatoryRunner:
                     drop=True
                 )
             save_csv(all_loss_df, self.ctx.run_output_dir / "all_loss_variant_aggregates.csv", index=False)
+        if all_loss_df.empty:
+            self.write_run_status(
+                "failed",
+                "final_aggregation",
+                failure_reason="no_completed_model_loss_aggregates",
+            )
+            self.write_run_heartbeat(
+                "aggregation_failed",
+                failure_reason="no_completed_model_loss_aggregates",
+            )
+            raise RuntimeError(
+                "No completed model/loss aggregates available."
+            )
 
         model_df = pd.DataFrame(model_rows)
         if not model_df.empty:
@@ -2193,10 +2256,5 @@ class FinalConfirmatoryRunner:
             completed_models=int(len(completed_model_keys)),
             skipped_models=skipped_model_keys,
         )
-
-        if all_loss_df.empty and not self.ctx.allow_partial_aggregation:
-            raise RuntimeError(
-                "No completed model/loss aggregates available and partial aggregation is disabled."
-            )
 
         return all_loss_df, model_df, run_manifest

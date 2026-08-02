@@ -13,7 +13,7 @@ from ml_model.training.paths import (
 )
 
 DEFAULT_DATASET_VERSION = "v3_907k_cleaned"
-DEFAULT_MODELS = ("distilbert", "minilm_l6", "tinybert_bigru_attn")
+DEFAULT_MODELS = ("distilbert",)
 DEFAULT_SEEDS = (42, 1337, 2026)
 
 
@@ -77,8 +77,8 @@ class TrainingConfig:
             raise ValueError("seeds must be non-negative")
         if self.device not in {"auto", "cpu", "cuda", "mps"}:
             raise ValueError("device must be auto, cpu, cuda, or mps")
-        if self.precision not in {"auto", "full", "bf16"}:
-            raise ValueError("precision must be auto, full, or bf16")
+        if self.precision not in {"auto", "full", "fp16", "bf16"}:
+            raise ValueError("precision must be auto, full, fp16, or bf16")
         for name, value in (
             ("batch_size", self.batch_size),
             ("eval_batch_size", self.eval_batch_size),

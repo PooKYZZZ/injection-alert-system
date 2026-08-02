@@ -4,6 +4,7 @@ from typing import Any, Mapping
 
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from transformers import AutoConfig, AutoModel
 
 
@@ -131,7 +132,19 @@ class TinyBERTBiGRUAttentionClassifier(nn.Module):
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
         encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
-        sequence_outputs, _ = self.gru(encoder_outputs.last_hidden_state)
+        lengths = attention_mask.sum(dim=1).clamp(min=1).detach().cpu()
+        packed_inputs = pack_padded_sequence(
+            encoder_outputs.last_hidden_state,
+            lengths,
+            batch_first=True,
+            enforce_sorted=False,
+        )
+        packed_outputs, _ = self.gru(packed_inputs)
+        sequence_outputs, _ = pad_packed_sequence(
+            packed_outputs,
+            batch_first=True,
+            total_length=encoder_outputs.last_hidden_state.size(1),
+        )
         context = self.attention_pool(sequence_outputs, attention_mask)
         x = self.dropout1(context)
         x = self.classifier_dense(x)

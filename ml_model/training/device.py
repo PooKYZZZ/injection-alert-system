@@ -9,6 +9,18 @@ def _mps_available() -> bool:
     return bool(hasattr(torch.backends, "mps") and torch.backends.mps.is_available())
 
 
+def _cuda_bf16_supported() -> bool:
+    if not (
+        torch.cuda.is_available()
+        and hasattr(torch.cuda, "is_bf16_supported")
+    ):
+        return False
+    try:
+        return bool(torch.cuda.is_bf16_supported())
+    except Exception:
+        return False
+
+
 def resolve_device(requested: str = "auto") -> torch.device:
     requested = requested.lower().strip()
     if requested not in {"auto", "cpu", "cuda", "mps"}:
@@ -37,20 +49,25 @@ def resolve_device(requested: str = "auto") -> torch.device:
 
 def resolve_precision(requested: str, device: torch.device) -> str:
     requested = requested.lower().strip()
-    if requested not in {"auto", "full", "bf16"}:
+    if requested not in {"auto", "full", "fp16", "bf16"}:
         raise ValueError(
-            f"Unsupported precision '{requested}'. Use auto, full, or bf16."
+            f"Unsupported precision '{requested}'. Use auto, full, fp16, or bf16."
         )
 
-    bf16_supported = bool(
-        device.type == "cuda"
-        and hasattr(torch.cuda, "is_bf16_supported")
-        and torch.cuda.is_bf16_supported()
-    )
+    fp16_supported = bool(device.type == "cuda" and torch.cuda.is_available())
+    bf16_supported = bool(device.type == "cuda" and _cuda_bf16_supported())
+    if requested == "fp16" and not fp16_supported:
+        raise RuntimeError(
+            "float16 precision was requested but is supported only on CUDA devices."
+        )
     if requested == "bf16" and not bf16_supported:
         raise RuntimeError(
             "bfloat16 precision was requested but is unsupported on this device."
         )
     if requested == "auto":
-        return "bf16" if bf16_supported else "full"
+        if bf16_supported:
+            return "bf16"
+        if fp16_supported:
+            return "fp16"
+        return "full"
     return requested

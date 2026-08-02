@@ -63,7 +63,7 @@ def test_training_config_rejects_unsafe_values():
         TrainingConfig(batch_size=0).validate()
 
     with pytest.raises(ValueError, match="precision"):
-        TrainingConfig(precision="fp16").validate()
+        TrainingConfig(precision="tf32").validate()
 
     with pytest.raises(ValueError, match="checkpoint_interval_epochs"):
         TrainingConfig(checkpoint_interval_epochs=0).validate()
@@ -93,6 +93,48 @@ def test_laptop_smoke_config_is_cpu_safe():
     assert config.max_train_samples > 0
     assert config.max_validation_samples > 0
     assert config.max_test_samples > 0
+
+
+def test_default_training_config_targets_distilbert_only():
+    from ml_model.training.config import TrainingConfig
+
+    config = TrainingConfig()
+
+    assert config.models == ("distilbert",)
+
+
+def test_fp16_precision_is_allowed_for_cuda(monkeypatch):
+    from ml_model.training.device import resolve_precision
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+
+    assert resolve_precision("fp16", torch.device("cuda")) == "fp16"
+
+
+def test_laptop_cuda_distilbert_preset_is_gpu_optimized():
+    from ml_model.training.config import load_training_config
+
+    config = load_training_config(
+        Path("ml_model/configs/training/laptop_cuda_distilbert.toml")
+    )
+
+    assert config.models == ("distilbert",)
+    assert config.device == "cuda"
+    assert config.precision == "fp16"
+    assert config.batch_size == 64
+    assert config.eval_batch_size == 128
+    assert config.epochs == 5
+    assert config.gradient_accumulation_steps == 2
+    assert config.max_seq_len == 128
+    assert config.num_workers == 2
+
+
+def test_default_training_output_dir_is_for_training_runs(tmp_path: Path):
+    from ml_model.training.paths import default_training_output_dir
+
+    output_dir = default_training_output_dir(project_root=tmp_path)
+
+    assert output_dir == tmp_path / "ml_model" / "results" / "training_runs"
 
 
 def test_resume_checkpoint_path_is_resolved_from_config(tmp_path: Path):

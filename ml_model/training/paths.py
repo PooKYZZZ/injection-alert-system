@@ -56,4 +56,4 @@ def default_training_output_dir(*, project_root: Path) -> Path:
     configured = resolve_configured_path(
         os.environ.get(TRAINING_OUTPUT_ENV), project_root=project_root
     )
-    return configured or (project_root / "ml_model" / "results" / "benchmarks")
+    return configured or (project_root / "ml_model" / "results" / "training_runs")

@@ -7,6 +7,7 @@ script-first validation boundary used before a later promotion decision.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,51 @@ def validate_run_bundle(run_dir: Path) -> dict[str, Any]:
     }
 
 
+def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return
+    fieldnames = sorted({key for row in rows for key in row})
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _load_seed_summaries(run_dir: Path) -> list[dict[str, Any]]:
+    rows = []
+    for path in sorted(Path(run_dir).glob("**/summary_metrics.json")):
+        payload = _load_json(path)
+        if isinstance(payload, dict):
+            rows.append({**payload, "summary_path": str(path)})
+    return rows
+
+
+def evaluate_run_bundle(run_dir: Path) -> dict[str, Any]:
+    """Validate a run and materialize script-first evaluation summary artifacts."""
+
+    report = validate_run_bundle(run_dir)
+    run_path = Path(run_dir).expanduser().resolve()
+    evaluation_dir = run_path / "evaluation"
+    seed_summaries = _load_seed_summaries(run_path)
+    _write_csv(evaluation_dir / "evaluation_seed_summary.csv", seed_summaries)
+    report = {
+        **report,
+        "evaluation_dir": str(evaluation_dir),
+        "seed_summary_count": len(seed_summaries),
+        "generated_files": [
+            "evaluation/evaluation_seed_summary.csv",
+            "evaluation/evaluation_summary.json",
+        ],
+    }
+    (evaluation_dir / "evaluation_summary.json").write_text(
+        json.dumps(report, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return report
+
+
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True, type=Path)
@@ -77,7 +123,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_argument_parser().parse_args(argv)
-    report = validate_run_bundle(args.run_dir)
+    report = evaluate_run_bundle(args.run_dir)
     if args.write_report:
         args.write_report.parent.mkdir(parents=True, exist_ok=True)
         args.write_report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

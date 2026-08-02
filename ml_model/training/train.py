@@ -19,6 +19,7 @@ import pandas as pd
 import torch
 
 from ml_model.preprocessing.dataset_io import (
+    build_split_hygiene_evidence,
     build_split_summaries,
     encode_labels,
     load_data_splits,
@@ -157,6 +158,21 @@ def _environment_metadata() -> dict[str, object]:
     }
 
 
+def find_latest_resumable_run_dir(base_dir: Path, run_name: str) -> Path | None:
+    """Return the newest matching run directory that contains a last checkpoint."""
+
+    if not base_dir.is_dir():
+        return None
+    candidates = [
+        path
+        for path in base_dir.glob(f"{run_name}_*")
+        if path.is_dir() and any(path.glob("**/last_*.pt"))
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
 def build_runner_context(
     options: TrainingOptions,
 ) -> tuple[FinalConfirmatoryRunner, Path, dict]:
@@ -201,20 +217,37 @@ def build_runner_context(
         expected_classes=EXPECTED_CLASSES,
     )
     split_summaries = build_split_summaries(df_train, df_val, df_test, "final_label")
+    split_hygiene_evidence = build_split_hygiene_evidence(
+        data_dir=data_dir,
+        split_summaries=split_summaries,
+        df_train=df_train,
+        df_val=df_val,
+        df_test=df_test,
+        text_col="combined_payload",
+    )
 
     run_name = (
         f"{options.dataset_version}_final_confirmatory_weighted_ce_"
         f"{len(options.seeds)}seed"
     )
+    default_output_base_dir = default_training_output_dir(project_root=repository_root)
+    resumable_run_dir = (
+        None
+        if explicit_output_dir or not options.resume
+        else find_latest_resumable_run_dir(default_output_base_dir, run_name)
+    )
     run_dir = (
         Path(options.output_dir).expanduser().resolve()
         if explicit_output_dir
-        else make_output_dir(
-            run_name,
-            base_dir=default_training_output_dir(project_root=repository_root),
-        )
+        else resumable_run_dir
+        or make_output_dir(run_name, base_dir=default_output_base_dir)
     )
     run_dir.mkdir(parents=True, exist_ok=True)
+    save_csv(
+        df_test[["combined_payload", "final_label"]].reset_index(drop=True),
+        run_dir / "evaluated_test_rows.csv",
+        index=False,
+    )
     device = _device_for(options)
     precision = resolve_precision(options.precision, device)
     resolved_options = replace(
@@ -301,16 +334,9 @@ def build_runner_context(
         generate_heavy_artifacts_after_training=True,
         latency_protocol={"batch_size": 1, "warmup_steps": 20, "measure_steps": 200},
         split_summaries=split_summaries,
-        split_hygiene_evidence={
-            "source": "upstream_verified_dataset_metadata",
-            "zero_cross_split_overlap": True,
-            "cross_split_overlap_counts": {
-                "train_validation_overlap": 0,
-                "train_test_overlap": 0,
-                "validation_test_overlap": 0,
-            },
-        },
+        split_hygiene_evidence=split_hygiene_evidence,
         device=device,
+        cuda_fp16=precision == "fp16",
         cuda_bf16=precision == "bf16",
     )
     runner = FinalConfirmatoryRunner(context)
@@ -378,7 +404,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seeds", nargs="+", type=int)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"))
-    parser.add_argument("--precision", choices=("auto", "full", "bf16"))
+    parser.add_argument("--precision", choices=("auto", "full", "fp16", "bf16"))
     parser.add_argument("--batch-size", type=int)
     parser.add_argument("--eval-batch-size", type=int)
     parser.add_argument("--epochs", type=int)
