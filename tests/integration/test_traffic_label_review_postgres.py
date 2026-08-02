@@ -21,7 +21,12 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.asyncio
 async def test_concurrent_review_revisions_are_serialized_in_postgres():
     assert POSTGRES_URL is not None
-    engine = create_async_engine(POSTGRES_URL, pool_size=5, max_overflow=0)
+    async_url = POSTGRES_URL
+    if async_url.startswith("postgresql://"):
+        async_url = "postgresql+asyncpg://" + async_url.removeprefix("postgresql://")
+    elif async_url.startswith("postgres://"):
+        async_url = "postgresql+asyncpg://" + async_url.removeprefix("postgres://")
+    engine = create_async_engine(async_url, pool_size=5, max_overflow=0)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     traffic_log_id: int | None = None
     try:
