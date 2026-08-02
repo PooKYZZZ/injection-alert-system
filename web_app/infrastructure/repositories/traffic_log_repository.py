@@ -29,6 +29,7 @@ from web_app.domain.interfaces import (
     ITrafficLogRepository,
     TrafficLogEntity,
     TrafficLogPage,
+    TrafficLabelReview,
     TrafficStatsSummary,
     DriftMetrics,
     ActivityBucket,
@@ -36,6 +37,7 @@ from web_app.domain.interfaces import (
     TargetPathSummary,
 )
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
+from web_app.infrastructure.database.database import TrafficLabelReview as ReviewRow
 from web_app.infrastructure.database.database import TrafficLog
 from web_app.infrastructure.database.database import AsyncSessionLocal
 
@@ -271,7 +273,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         return TrafficLog(**kwargs)
 
     @staticmethod
-    def _orm_to_entity(orm_obj: TrafficLog) -> TrafficLogEntity:
+    def _orm_to_entity(
+        orm_obj: TrafficLog,
+        label_review: TrafficLabelReview | None = None,
+    ) -> TrafficLogEntity:
         """Convert an ORM model instance to a domain entity."""
         return TrafficLogEntity(
             id=orm_obj.id,
@@ -307,7 +312,52 @@ class TrafficLogRepository(ITrafficLogRepository):
             labeled_at=orm_obj.labeled_at,
             labeled_by=orm_obj.labeled_by,
             triage_status=orm_obj.triage_status,
+            label_review=label_review,
         )
+
+    @staticmethod
+    def _review_to_entity(row: ReviewRow) -> TrafficLabelReview:
+        return TrafficLabelReview(
+            id=row.id,
+            traffic_log_id=row.traffic_log_id,
+            revision=row.revision,
+            predicted_label=row.predicted_label,
+            verified_label=row.verified_label,
+            approval_state=row.approval_state,
+            reviewer_id=row.reviewer_id,
+            reviewer_role=row.reviewer_role,
+            reviewed_at=row.reviewed_at,
+            model_version=row.model_version,
+            input_hash=row.input_hash,
+            review_note=row.review_note,
+            created_at=row.created_at,
+        )
+
+    async def _latest_reviews(self, traffic_log_ids: list[int]) -> dict[int, TrafficLabelReview]:
+        if not traffic_log_ids:
+            return {}
+        latest_revision = (
+            select(
+                ReviewRow.traffic_log_id.label("traffic_log_id"),
+                func.max(ReviewRow.revision).label("revision"),
+            )
+            .where(ReviewRow.traffic_log_id.in_(traffic_log_ids))
+            .group_by(ReviewRow.traffic_log_id)
+            .subquery()
+        )
+        result = await self._session.execute(
+            select(ReviewRow).join(
+                latest_revision,
+                and_(
+                    ReviewRow.traffic_log_id == latest_revision.c.traffic_log_id,
+                    ReviewRow.revision == latest_revision.c.revision,
+                ),
+            )
+        )
+        return {
+            row.traffic_log_id: self._review_to_entity(row)
+            for row in result.scalars().all()
+        }
 
     # ------------------------------------------------------------------
     # Interface implementation
@@ -564,7 +614,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj = result.scalars().first()
         if orm_obj is None:
             return None
-        return self._orm_to_entity(orm_obj)
+        reviews = await self._latest_reviews([orm_obj.id])
+        return self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
 
     async def get_by_transaction_id(
         self,
@@ -1314,7 +1365,8 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         result = await self._session.execute(stmt)
         rows = result.scalars().all()
-        items = [self._orm_to_entity(row) for row in rows]
+        reviews = await self._latest_reviews([row.id for row in rows])
+        items = [self._orm_to_entity(row, reviews.get(row.id)) for row in rows]
         return TrafficLogPage(
             items=items,
             total=total,

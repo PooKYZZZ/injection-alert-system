@@ -102,6 +102,7 @@ class TrafficLogEntity:
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     triage_status: Optional[str] = None
+    label_review: Optional["TrafficLabelReview"] = None
 
     @property
     def payload_snippet(self) -> str:

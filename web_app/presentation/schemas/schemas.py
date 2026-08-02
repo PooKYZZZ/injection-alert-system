@@ -137,6 +137,7 @@ class AlertResponse(BaseModel):
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+    label_review: Optional[LabelReviewResponse] = None
 
 
 class ActivityBucketSchema(BaseModel):
@@ -298,6 +299,7 @@ class AlertDetailResponse(BaseModel):
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     triage_status: Optional[TriageStatus] = None
+    label_review: Optional[LabelReviewResponse] = None
 
     @field_serializer("labeled_at", when_used="json")
     def serialize_labeled_at(self, value: Optional[datetime]) -> Optional[str]:

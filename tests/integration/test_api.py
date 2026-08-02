@@ -270,6 +270,44 @@ def test_feedback_endpoint(client):
         assert feedback_response.status_code == 200
 
 
+def test_verified_label_reviews_are_append_only_and_project_latest_state(client):
+    client.post(
+        "/api/predict",
+        json={"http_request": "SELECT * FROM accounts WHERE id=1"},
+        headers=INTERNAL_HEADERS,
+    )
+    initial_detail = client.get("/api/alerts", headers=INTERNAL_HEADERS).json()["items"][0]
+    alert_id = initial_detail["id"]
+    original_action = initial_detail["action_taken"]
+    reviewer_headers = {
+        **INTERNAL_HEADERS,
+        "X-Reviewer-Id": "integration-analyst",
+        "X-Reviewer-Role": "ANALYST",
+    }
+
+    first = client.post(
+        f"/api/alerts/{alert_id}/label-review",
+        json={"verified_label": "SQL Injection", "approval_state": "approved_for_training"},
+        headers=reviewer_headers,
+    )
+    second = client.post(
+        f"/api/alerts/{alert_id}/label-review",
+        json={"verified_label": "Other Attacks", "approval_state": "excluded_from_training"},
+        headers=reviewer_headers,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["revision"] == 1
+    assert second.json()["revision"] == 2
+    detail = client.get(f"/api/alerts/{alert_id}", headers=INTERNAL_HEADERS)
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert payload["label_review"]["revision"] == 2
+    assert payload["label_review"]["verified_label"] == "Other Attacks"
+    assert payload["action_taken"] == original_action
+
+
 def test_model_singleton_injection(client):
     """Test that the model service is injected from app.state, not instantiated per-request."""
     app_instance = client.app
