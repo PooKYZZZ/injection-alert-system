@@ -580,9 +580,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         confidence_level: str,
         inference_latency_ms: Optional[float],
         model_version: Optional[str],
-        model_input_hash: Optional[str],
-        preprocessing_version: Optional[str],
         action_taken: str,
+        model_input_hash: Optional[str] = None,
+        preprocessing_version: Optional[str] = None,
     ) -> tuple[TrafficLogEntity, bool]:
         """Complete a claimed row and report whether this owner won the update."""
         result = await self._session.execute(
