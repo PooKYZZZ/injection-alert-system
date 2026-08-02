@@ -7,9 +7,9 @@ import {
 } from '@tanstack/react-query'
 import { toQueryString, toAlertQueryString, type DashboardFilters } from '@/lib/searchParams'
 import type { AlertFilters } from '@/features/alerts/schemas'
-import { Alert, PaginatedAlerts, TriageStatus } from './types'
+import { Alert, LabelReview, PaginatedAlerts, TriageStatus } from './types'
 import { useSignInToast } from '@/components/SignInToast'
-import type { AlertAction } from './contract'
+import type { AlertAction, LabelReviewApprovalState, VerifiedLabel } from './contract'
 
 /*
  * QUERY FRESHNESS POLICY
@@ -219,6 +219,38 @@ export function useActionMutation() {
       if (context?.previousDetail) {
         queryClient.setQueryData(alertKeys.detail(variables.id), context.previousDetail)
       }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.all })
+    },
+  })
+}
+
+export function useLabelReviewMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      verifiedLabel,
+      approvalState,
+      reviewNote,
+    }: {
+      id: string
+      verifiedLabel: VerifiedLabel
+      approvalState: Extract<LabelReviewApprovalState, 'approved_for_training' | 'excluded_from_training'>
+      reviewNote?: string
+    }): Promise<LabelReview> => {
+      const response = await fetch(`/api/alerts/${id}/label-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          verified_label: verifiedLabel,
+          approval_state: approvalState,
+          ...(reviewNote ? { review_note: reviewNote } : {}),
+        }),
+      })
+      if (!response.ok) throw new Error(`POST failed: ${response.status}`)
+      return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: alertKeys.all })

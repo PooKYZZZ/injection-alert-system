@@ -1,8 +1,10 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AlertDrawer } from './AlertDrawer'
+
+const labelReviewMutateMock = vi.fn()
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -36,11 +38,33 @@ vi.mock('@/features/alerts/queries', () => ({
     isPending: false,
     isError: false,
   }),
+  useLabelReviewMutation: () => ({
+    mutate: labelReviewMutateMock,
+    isPending: false,
+    isError: false,
+  }),
 }))
 
 afterEach(() => {
   cleanup()
+  labelReviewMutateMock.mockReset()
 })
+
+const alertFixture = {
+  alert_id: 'drawer-review',
+  timestamp: '2026-04-03T10:00:00.000Z',
+  source_ip: '10.0.0.9',
+  request_path: '/admin/login',
+  request_method: 'POST',
+  payload_snippet: 'payload',
+  prediction: 'SQL Injection' as const,
+  confidence: 0.91,
+  confidence_level: 'HIGH' as const,
+  action_taken: 'THROTTLED' as const,
+  triage_status: 'in_review' as const,
+  crs_score: 11,
+  crs_rule_ids: ['942100'],
+}
 
 describe('AlertDrawer', () => {
   it('removes placeholder header text, styles captured request as evidence, and keeps unselected interventions actionable', () => {
@@ -159,4 +183,33 @@ describe('AlertDrawer', () => {
       }
     }
   )
+
+  it('shows analyst review controls and requires a selection before submitting', () => {
+    render(<AlertDrawer role="ANALYST" alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByLabelText('Verified classification')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve for training' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Exclude from training' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Verified classification'), {
+      target: { value: 'Normal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Approve for training' }))
+
+    expect(labelReviewMutateMock).toHaveBeenCalledWith({
+      id: 'drawer-review',
+      verifiedLabel: 'Normal',
+      approvalState: 'approved_for_training',
+      reviewNote: undefined,
+    })
+  })
+
+  it('hides verified review mutation controls from viewers', () => {
+    render(<AlertDrawer role="VIEWER" alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.queryByLabelText('Verified classification')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve for training' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Exclude from training' })).not.toBeInTheDocument()
+    expect(labelReviewMutateMock).not.toHaveBeenCalled()
+  })
 })

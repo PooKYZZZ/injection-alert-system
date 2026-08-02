@@ -53,7 +53,7 @@ export interface Alert {
   analyst_label?: string | null
   labeled_at?: string | null
   labeled_by?: string | null
-  label_review?: LabelReview
+  label_review?: LabelReview | null
   shap_values?: ShapFeature[]
   source_intel?: SourceIntel
 }

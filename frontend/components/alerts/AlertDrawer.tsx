@@ -2,10 +2,11 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
+import { useState } from 'react'
 import type { Alert, TriageStatus } from '@/features/alerts/types'
-import { ALERT_DISPLAY_ACTION_ALIASES } from '@/features/alerts/contract'
-import type { AlertAction } from '@/features/alerts/contract'
-import { useTriageMutation, useActionMutation } from '@/features/alerts/queries'
+import { ALERT_DISPLAY_ACTION_ALIASES, VERIFIED_LABEL_VALUES } from '@/features/alerts/contract'
+import type { AlertAction, VerifiedLabel } from '@/features/alerts/contract'
+import { useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -53,12 +54,16 @@ function formatCrsScore(score: number | null | undefined): string {
   return score.toFixed(2)
 }
 
-export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
+function AlertDrawerContent({ role, alert, onClose }: AlertDrawerProps) {
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
     role,
     PERMISSIONS.ALERTS_ACTION_UPDATE
   )
+  const [verifiedLabel, setVerifiedLabel] = useState<VerifiedLabel | ''>(
+    alert?.label_review?.verified_label ?? ''
+  )
+  const [reviewNote, setReviewNote] = useState('')
   const {
     mutate,
     isPending,
@@ -80,6 +85,25 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
   const handleActionClick = (action: AlertAction) => {
     if (alert && !isActionPending) {
       mutateAction({ id: alert.alert_id, action })
+    }
+  }
+
+  const {
+    mutate: mutateLabelReview,
+    isPending: isLabelReviewPending,
+    isError: isLabelReviewError,
+  } = useLabelReviewMutation()
+
+  const handleLabelReview = (
+    approvalState: 'approved_for_training' | 'excluded_from_training'
+  ) => {
+    if (alert && verifiedLabel && !isLabelReviewPending) {
+      mutateLabelReview({
+        id: alert.alert_id,
+        verifiedLabel,
+        approvalState,
+        reviewNote: reviewNote || undefined,
+      })
     }
   }
 
@@ -160,6 +184,11 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
                     {isActionError && (
                       <span className="block text-[11px] text-severity-high-text">
                         Intervention update failed. Please retry.
+                      </span>
+                    )}
+                    {isLabelReviewError && (
+                      <span className="block text-[11px] text-severity-high-text">
+                        Verified-label review failed. Please retry.
                       </span>
                     )}
                   </div>
@@ -269,6 +298,68 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
                         </span>
                       </pre>
                     </div>
+                  </section>
+
+                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
+                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      Verified classification
+                    </h3>
+                    {canTriage ? (
+                      <div className="space-y-2">
+                        <label htmlFor="verified-label" className="sr-only">
+                          Verified classification
+                        </label>
+                        <select
+                          id="verified-label"
+                          aria-label="Verified classification"
+                          value={verifiedLabel}
+                          onChange={(event) => setVerifiedLabel(event.target.value as VerifiedLabel | '')}
+                          disabled={isLabelReviewPending}
+                          className="w-full rounded-md border border-surface-border bg-surface-card px-2.5 py-1.5 text-[11px] text-[var(--color-text-primary)]"
+                        >
+                          <option value="">Select a canonical class</option>
+                          {VERIFIED_LABEL_VALUES.map((label) => (
+                            <option key={label} value={label}>{label}</option>
+                          ))}
+                        </select>
+                        <label htmlFor="review-note" className="sr-only">Review note (optional)</label>
+                        <textarea
+                          id="review-note"
+                          aria-label="Review note (optional)"
+                          value={reviewNote}
+                          onChange={(event) => setReviewNote(event.target.value)}
+                          maxLength={1000}
+                          disabled={isLabelReviewPending}
+                          placeholder="Optional review note"
+                          className="min-h-14 w-full rounded-md border border-surface-border bg-surface-card px-2.5 py-1.5 text-[11px] text-[var(--color-text-primary)]"
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            disabled={!verifiedLabel || isLabelReviewPending}
+                            onClick={() => handleLabelReview('approved_for_training')}
+                            className="flex-1 rounded-md border border-severity-safe-border px-2.5 py-1.5 text-[11px] font-medium text-severity-safe-text disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isLabelReviewPending ? 'Saving...' : 'Approve for training'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!verifiedLabel || isLabelReviewPending}
+                            onClick={() => handleLabelReview('excluded_from_training')}
+                            className="flex-1 rounded-md border border-action-border px-2.5 py-1.5 text-[11px] font-medium text-action-accent disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Exclude from training
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-[var(--color-text-secondary)]">Viewer mode: verified-label review is read-only.</p>
+                    )}
+                    {alert.label_review && (
+                      <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+                        Latest: {alert.label_review.verified_label} ({alert.label_review.approval_state.replaceAll('_', ' ')}) by {alert.label_review.reviewer_id} at {formatAlertTimestamp(alert.label_review.reviewed_at)}
+                      </p>
+                    )}
                   </section>
 
                   <section>
@@ -431,4 +522,8 @@ export function AlertDrawer({ role, alert, onClose }: AlertDrawerProps) {
       </AnimatePresence>
     </Dialog.Root>
   )
+}
+
+export function AlertDrawer(props: AlertDrawerProps) {
+  return <AlertDrawerContent key={props.alert?.alert_id ?? 'closed'} {...props} />
 }
