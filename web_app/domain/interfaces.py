@@ -80,6 +80,7 @@ class TrafficLogEntity:
     )
     ingest_fingerprint_sha256: Optional[str] = None
     model_input_hash: Optional[str] = None
+    model_input_text: Optional[str] = None
     preprocessing_version: Optional[str] = None
     request_path: Optional[str] = None
     query_string: Optional[str] = None
@@ -175,6 +176,7 @@ class TrafficLabelReview:
     prediction_confidence: Optional[float] = None
     prediction_confidence_level: Optional[str] = None
     model_input_hash: Optional[str] = None
+    model_input_text: Optional[str] = None
     preprocessing_version: Optional[str] = None
     ingest_event_hash: Optional[str] = None
     source_verification_status: Optional[str] = None

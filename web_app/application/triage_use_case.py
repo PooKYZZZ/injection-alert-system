@@ -163,6 +163,7 @@ class TriageUseCase:
                 inference_latency_ms=prediction.get("inference_latency_ms"),
                 model_version=prediction.get("model_version"),
                 model_input_hash=prediction.get("model_input_hash"),
+                model_input_text=prediction.get("model_input_text"),
                 preprocessing_version=prediction.get("preprocessing_version"),
                 action_taken=action_taken,
             )
@@ -227,7 +228,12 @@ class TriageUseCase:
 
         self._log_verification_context_change(authoritative, command)
 
-        prediction = await self._predict(command.http_request)
+        model_request = (
+            self._build_model_input_request(command)
+            if self._enable_preprocessing
+            else command.http_request
+        )
+        prediction = await self._predict(model_request)
         action_taken = self._action_for(
             prediction=prediction["prediction"],
             confidence_level=prediction["confidence_level"],
@@ -241,6 +247,7 @@ class TriageUseCase:
             inference_latency_ms=prediction.get("inference_latency_ms"),
             model_version=prediction.get("model_version"),
             model_input_hash=prediction.get("model_input_hash"),
+            model_input_text=prediction.get("model_input_text"),
             preprocessing_version=prediction.get("preprocessing_version"),
             action_taken=action_taken,
         )
@@ -369,6 +376,7 @@ class TriageUseCase:
             "inference_latency_ms": raw_result.get("inference_latency_ms"),
             "model_version": model_version,
             "model_input_hash": model_input_hash,
+            "model_input_text": model_input,
             "preprocessing_version": preprocessing_version,
         }
 
@@ -407,6 +415,21 @@ class TriageUseCase:
         if command.request_body:
             parts.append(f"\nBody:\n{redact_sensitive_text(command.request_body)}")
         return "".join(parts)
+
+    @staticmethod
+    def _build_model_input_request(command: TriageIngestCommand) -> str:
+        """Build the sanitized request envelope used for WAF inference.
+
+        Query and body are already sanitized by the WAF ingest boundary. The
+        preprocessor removes headers and canonicalizes this envelope, so the
+        exact resulting model text can be persisted and verified later.
+        """
+        request_uri = command.request_uri
+        if command.query_string:
+            separator = "&" if "?" in request_uri else "?"
+            request_uri = f"{request_uri}{separator}{command.query_string}"
+        request_line = f"{command.request_method} {request_uri} HTTP/1.1"
+        return f"{request_line}\r\n\r\n{command.request_body or ''}"
 
     @staticmethod
     def _result_from_entity(entity: TrafficLogEntity) -> TriageResult:

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from web_app.infrastructure.database.database import Base, TrafficLabelReview as ReviewRow, TrafficLog
 from web_app.domain.interfaces import ReviewNotEligibleError
@@ -38,6 +38,7 @@ async def _insert_alert(session: AsyncSession) -> int:
         model_version="model-v1",
         ingest_fingerprint_sha256="a" * 64,
         model_input_hash="b" * 64,
+        model_input_text="get /records/search",
         preprocessing_version="http-preprocessor-v1",
         status="COMPLETED",
     )
@@ -69,6 +70,7 @@ async def test_review_persists_metadata_and_latest_query(repository):
     assert review.prediction_confidence == 0.98
     assert review.prediction_confidence_level == "HIGH"
     assert review.model_input_hash == "b" * 64
+    assert review.model_input_text == "get /records/search"
     assert review.preprocessing_version == "http-preprocessor-v1"
     assert review.ingest_event_hash == "a" * 64
     assert (await repository.get_latest_review(alert_id)).id == review.id
@@ -191,6 +193,38 @@ async def test_second_review_is_revision_two_and_history_is_preserved(repository
     )).scalars().all()
     assert [row.revision for row in rows] == [1, 2]
     assert (await repository.get_latest_review(alert_id)).verified_label == "Other Attacks"
+
+
+@pytest.mark.asyncio
+async def test_review_snapshot_survives_parent_provenance_change(repository):
+    alert_id = await _insert_alert(repository._session)
+    review = await repository.create_review_revision(
+        traffic_log_id=alert_id,
+        verified_label="SQL Injection",
+        approval_state="approved_for_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    )
+
+    await repository._session.execute(
+        update(TrafficLog)
+        .where(TrafficLog.id == alert_id)
+        .values(
+            confidence=0.12,
+            model_version="later-model",
+            model_input_hash="c" * 64,
+            model_input_text="later input",
+        )
+    )
+    await repository._session.commit()
+
+    snapshot = await repository.get_latest_review(alert_id)
+    assert snapshot.id == review.id
+    assert snapshot.prediction_confidence == 0.98
+    assert snapshot.model_version == "model-v1"
+    assert snapshot.model_input_hash == "b" * 64
+    assert snapshot.model_input_text == "get /records/search"
 
 
 @pytest.mark.asyncio

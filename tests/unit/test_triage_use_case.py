@@ -1421,6 +1421,42 @@ async def test_triage_preprocessing_disabled(mock_classifier, mock_repository):
 
 
 @pytest.mark.asyncio
+async def test_waf_ingest_model_input_includes_query_and_sanitized_body(
+    mock_classifier, mock_repository
+):
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.98,
+        "confidence_level": "HIGH",
+    }
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-model-input-body",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="198.51.100.20",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={"Content-Type": "application/x-www-form-urlencoded"},
+            request_body="username=admin' OR '1'='1",
+            http_request="POST /login HTTP/1.1",
+            query_string="q=1%27",
+            crs_score=5,
+            crs_rule_ids=["942100"],
+        )
+    )
+
+    model_input = mock_classifier.predict.call_args.args[0]
+    assert model_input == "post /login?q=1' username=admin' or '1'='1"
+    complete_kwargs = mock_repository.complete_processing.call_args.kwargs
+    assert complete_kwargs["model_input_text"] == model_input
+    assert complete_kwargs["model_input_hash"] == sha256(
+        model_input.encode("utf-8")
+    ).hexdigest()
+
+
+@pytest.mark.asyncio
 async def test_triage_raw_http_request_preserved_for_persistence(
     mock_classifier,
     mock_repository,

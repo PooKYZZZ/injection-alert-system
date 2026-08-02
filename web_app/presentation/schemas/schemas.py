@@ -122,7 +122,10 @@ class LabelReviewResponse(BaseModel):
     ingest_event_hash: Optional[str] = None
     source_verification_status: Optional[str] = None
     source_provenance: Optional[str] = None
-    input_hash: Optional[str] = None
+    input_hash: Optional[str] = Field(
+        default=None,
+        description="Deprecated legacy ingest-event hash; use model_input_hash for model provenance.",
+    )
     review_note: Optional[str] = None
     created_at: Optional[datetime] = None
 
