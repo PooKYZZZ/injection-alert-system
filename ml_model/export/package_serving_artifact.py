@@ -340,14 +340,18 @@ def build_manifest(
             )
     model_revision = config_metadata.get("model_revision")
     if not isinstance(model_revision, str) or not model_revision.strip():
-        raise PackagingError("Native DistilBERT serving manifest requires model_revision.")
+        raise PackagingError(
+            "Native DistilBERT serving manifest requires model_revision."
+        )
     if actual_model is not None:
         if type(actual_model).__name__ != expected_metadata["model_class"]:
             raise PackagingError(
                 "Loaded model class does not match native DistilBERT serving metadata."
             )
         if int(getattr(actual_model.config, "num_labels", -1)) != len(label_names):
-            raise PackagingError("Loaded model label count does not match serving labels.")
+            raise PackagingError(
+                "Loaded model label count does not match serving labels."
+            )
     return {
         "model_version": model_version,
         "model_key": model_key,
@@ -360,7 +364,9 @@ def build_manifest(
         "model_class": config_metadata.get("model_class"),
         "model_revision": model_revision,
         "tokenizer_id": config_metadata.get("tokenizer_id", base_model),
-        "tokenizer_revision": config_metadata.get("tokenizer_revision", model_revision),
+        "tokenizer_revision": config_metadata.get(
+            "tokenizer_revision", model_revision
+        ),
         "run_contract_sha256": config_metadata.get("run_contract_sha256"),
         "base_model": base_model,
         "run_dir_name": run_dir.name,
@@ -525,11 +531,15 @@ def package_serving_artifact(
     model_id = model_id.strip()
     model_revision = config_used.get("model_revision")
     if not isinstance(model_revision, str) or not model_revision.strip():
-        raise PackagingError("Exact-run config_used.json does not contain a pinned model_revision.")
+        raise PackagingError(
+            "Exact-run config_used.json does not contain a pinned model_revision."
+        )
     tokenizer_id = config_used.get("tokenizer_id", model_id)
     tokenizer_revision = config_used.get("tokenizer_revision", model_revision)
     if tokenizer_id != model_id or tokenizer_revision != model_revision:
-        raise PackagingError("Model and tokenizer revisions must match the exact run contract.")
+        raise PackagingError(
+            "Model and tokenizer revisions must match the exact run contract."
+        )
     max_seq_len = int(config_used.get("max_seq_len", 128))
     model_version = derive_model_version(run_dir, config_used)
 

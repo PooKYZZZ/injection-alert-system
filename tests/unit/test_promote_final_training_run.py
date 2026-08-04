@@ -205,7 +205,9 @@ def test_extract_state_dict_checkpoint_normalizes_final_training_keys_for_packag
 
 
 def test_native_state_dict_preserves_all_hugging_face_keys_and_values():
-    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+    from ml_model.export.promote_final_training_run import (
+        normalize_state_dict_for_packager,
+    )
 
     native = {
         "distilbert.embeddings.word_embeddings.weight": torch.tensor([1.0]),
@@ -223,7 +225,9 @@ def test_native_state_dict_preserves_all_hugging_face_keys_and_values():
         assert normalized[key] is value
 
 
-def test_checkpoint_extraction_reads_native_architecture_from_run_metadata(tmp_path: Path):
+def test_checkpoint_extraction_reads_native_architecture_from_run_metadata(
+    tmp_path: Path,
+):
     run_dir = tmp_path / "run"
     checkpoint_dir = run_dir / "checkpoint"
     checkpoint_dir.mkdir(parents=True)
@@ -255,7 +259,9 @@ def test_checkpoint_extraction_reads_native_architecture_from_run_metadata(tmp_p
 
 
 def test_legacy_state_dict_mapping_requires_explicit_legacy_architecture():
-    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+    from ml_model.export.promote_final_training_run import (
+        normalize_state_dict_for_packager,
+    )
 
     normalized = normalize_state_dict_for_packager(
         {"encoder.weight": torch.tensor([1.0])},

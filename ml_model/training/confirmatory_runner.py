@@ -79,7 +79,7 @@ LATENCY_REQUIRED_KEYS = (
 
 
 def load_tokenizer_for_config(cfg: dict[str, Any]):
-    """Load a tokenizer from the exact model revision recorded in the run contract."""
+    """Load the tokenizer revision recorded in the run contract."""
 
     kwargs: dict[str, Any] = {"use_fast": True}
     if cfg.get("model_revision"):
@@ -772,7 +772,10 @@ class FinalConfirmatoryRunner:
             if cfg["architecture"] == "distilbert_sequence_classification"
             else None
         )
-        if expected_model_class and config_metadata.get("model_class") != expected_model_class:
+        if (
+            expected_model_class
+            and config_metadata.get("model_class") != expected_model_class
+        ):
             return False, "model_class_mismatch", summary
         if expected_model_class and summary.get("model_class") != expected_model_class:
             return False, "model_class_mismatch", summary
@@ -1888,7 +1891,9 @@ class FinalConfirmatoryRunner:
                 loss_key=loss_key,
                 seed=int(seed),
             )
-            completed_ok, completed_reason, summary_payload = self.validate_completed_seed_artifacts(paths)
+            completed_ok, completed_reason, summary_payload = (
+                self.validate_completed_seed_artifacts(paths)
+            )
             if not completed_ok:
                 if paths["completed_marker"].exists():
                     raise ValueError(
@@ -1914,10 +1919,14 @@ class FinalConfirmatoryRunner:
         seed_df = pd.DataFrame(seed_rows).sort_values(by="seed").reset_index(drop=True)
         contract_hashes = set(seed_df["run_contract_sha256"].dropna().astype(str))
         if contract_hashes != {self.ctx.run_contract_sha256}:
-            raise ValueError("Cannot aggregate seed summaries with mixed contract hashes")
+            raise ValueError(
+                "Cannot aggregate seed summaries with mixed contract hashes"
+            )
         architectures = set(seed_df["architecture"].dropna().astype(str))
         if architectures != {str(cfg["architecture"])}:
-            raise ValueError("Cannot aggregate seed summaries with mixed architectures")
+            raise ValueError(
+                "Cannot aggregate seed summaries with mixed architectures"
+            )
         save_csv(seed_df, variant_dir / "seed_summaries.csv", index=False)
 
         aggregate_payload = {
@@ -1936,7 +1945,9 @@ class FinalConfirmatoryRunner:
             "model_key": cfg["model_key"],
             "loss_key": loss_key,
             "architecture": next(iter(architectures)),
-            "architecture_family": infer_architecture_family(next(iter(architectures))),
+            "architecture_family": infer_architecture_family(
+                next(iter(architectures))
+            ),
             "head_type": infer_head_type(next(iter(architectures))),
             "experiment_phase": cfg["experiment_phase"],
             **aggregate_payload,

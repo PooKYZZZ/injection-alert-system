@@ -42,7 +42,9 @@ def _contract(**overrides):
     return build_training_run_contract(**payload)
 
 
-def _write_bootstrap(run_dir: Path, contract: dict, *, contract_hash: str | None = None):
+def _write_bootstrap(
+    run_dir: Path, contract: dict, *, contract_hash: str | None = None
+):
     from ml_model.training.run_contract import contract_sha256
 
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -61,7 +63,10 @@ def _write_bootstrap(run_dir: Path, contract: dict, *, contract_hash: str | None
     )
     checkpoint = run_dir / "distilbert" / "weighted_ce" / "seed_0042" / "checkpoint"
     checkpoint.mkdir(parents=True)
-    torch.save({"model_state_dict": {"distilbert.weight": torch.tensor([1.0])}}, checkpoint / "last.pt")
+    torch.save(
+        {"model_state_dict": {"distilbert.weight": torch.tensor([1.0])}},
+        checkpoint / "last.pt",
+    )
 
 
 def test_resume_discovery_rejects_historical_runs_without_contract(tmp_path: Path):
@@ -84,7 +89,10 @@ def test_resume_discovery_requires_exact_contract_hash_and_identity(tmp_path: Pa
     mismatched = tmp_path / "run_mismatched"
     _write_bootstrap(mismatched, _contract(learning_rate=0.00002))
 
-    assert find_latest_resumable_run_dir(tmp_path, "run", contract_sha256(contract)) == matching
+    assert (
+        find_latest_resumable_run_dir(tmp_path, "run", contract_sha256(contract))
+        == matching
+    )
 
 
 def test_resume_discovery_accepts_matching_incomplete_checkpoint(tmp_path: Path):
@@ -95,7 +103,10 @@ def test_resume_discovery_accepts_matching_incomplete_checkpoint(tmp_path: Path)
     run_dir = tmp_path / "run_matching"
     _write_bootstrap(run_dir, contract)
 
-    assert find_latest_resumable_run_dir(tmp_path, "run", contract_sha256(contract)) == run_dir
+    assert (
+        find_latest_resumable_run_dir(tmp_path, "run", contract_sha256(contract))
+        == run_dir
+    )
 
 
 def test_explicit_resume_checkpoint_rejects_incompatible_contract(tmp_path: Path):
@@ -213,7 +224,9 @@ def _write_completed_seed(runner, tmp_path: Path, seed_number: int = 42, **overr
             "val_macro_f1": 0.5,
             "test_macro_f1": 0.5,
         }
-        paths["seed_dir"].joinpath(name).write_text(json.dumps(payload), encoding="utf-8")
+        paths["seed_dir"].joinpath(name).write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
     paths["completed_marker"].write_text(json.dumps(metadata), encoding="utf-8")
     paths["best_ckpt"].write_bytes(b"checkpoint")
     return paths

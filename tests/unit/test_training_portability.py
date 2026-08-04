@@ -99,7 +99,10 @@ def test_laptop_smoke_config_is_cpu_safe():
 
 def test_standard_laptop_smoke_preset_is_a_real_native_training_run():
     from ml_model.training.config import load_training_config
-    from ml_model.training.paths import default_training_output_dir, resolve_project_root
+    from ml_model.training.paths import (
+        default_training_output_dir,
+        resolve_project_root,
+    )
     from ml_model.training.train import DEFAULT_MODEL_REGISTRY
 
     preset = Path("ml_model/configs/training/laptop_standard_smoke.toml")

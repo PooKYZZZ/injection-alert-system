@@ -407,7 +407,9 @@ def validate_native_promotion_metadata(config_metadata: Mapping[str, Any]) -> No
             )
     revision = config_metadata.get("model_revision")
     if not isinstance(revision, str) or not revision.strip():
-        raise PromotionError("Native DistilBERT promotion requires a pinned model_revision.")
+        raise PromotionError(
+            "Native DistilBERT promotion requires a pinned model_revision."
+        )
 
 
 def _normalize_legacy_custom_transformer_state_dict(
@@ -440,7 +442,10 @@ def normalize_state_dict_for_packager(
     architecture = _validate_architecture(architecture)
     if architecture == "distilbert_sequence_classification":
         required_prefixes = ("distilbert.", "pre_classifier.", "classifier.")
-        if not all(any(key.startswith(prefix) for key in state_dict) for prefix in required_prefixes):
+        if not all(
+            any(key.startswith(prefix) for key in state_dict)
+            for prefix in required_prefixes
+        ):
             raise PromotionError(
                 "Native DistilBERT checkpoint must preserve distilbert.*, "
                 "pre_classifier.*, and classifier.* keys."
@@ -449,7 +454,9 @@ def normalize_state_dict_for_packager(
             key.startswith(("encoder.", "classifier_dense.", "layer_norm.", "output."))
             for key in state_dict
         ):
-            raise PromotionError("Native DistilBERT checkpoint contains custom-model keys.")
+            raise PromotionError(
+                "Native DistilBERT checkpoint contains custom-model keys."
+            )
         return dict(state_dict)
     if architecture == "legacy_transformer":
         return _normalize_legacy_custom_transformer_state_dict(state_dict)
@@ -538,7 +545,9 @@ def build_config_used(
         "model_key": config_metadata.get("model_key", "distilbert"),
         "model_id": config_metadata.get("model_id", "distilbert-base-uncased"),
         "model_revision": config_metadata.get("model_revision"),
-        "tokenizer_id": config_metadata.get("tokenizer_id", config_metadata.get("model_id")),
+        "tokenizer_id": config_metadata.get(
+            "tokenizer_id", config_metadata.get("model_id")
+        ),
         "tokenizer_revision": config_metadata.get(
             "tokenizer_revision", config_metadata.get("model_revision")
         ),

@@ -66,7 +66,15 @@ def test_dictionary_order_does_not_change_hash():
 @pytest.mark.parametrize(
     "change",
     [
-        {"model_contracts": {"distilbert": {"model_id": "distilbert-base-uncased", "model_revision": "verified-revision", "architecture": "transformer"}}},
+        {
+            "model_contracts": {
+                "distilbert": {
+                    "model_id": "distilbert-base-uncased",
+                    "model_revision": "verified-revision",
+                    "architecture": "transformer",
+                }
+            }
+        },
         {"seed_list": [42]},
         {"learning_rate": 0.00002},
         {"epochs": 5},
@@ -109,4 +117,6 @@ def test_contract_builder_does_not_upgrade_legacy_metadata():
     from ml_model.training.run_contract import require_contract_hash
 
     with pytest.raises(ValueError, match="contract"):
-        require_contract_hash({"architecture": "transformer", "model_key": "distilbert"})
+        require_contract_hash(
+            {"architecture": "transformer", "model_key": "distilbert"}
+        )

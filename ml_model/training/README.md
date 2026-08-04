@@ -170,6 +170,17 @@ maintained training implementation. The active staged artifact at
 `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 is preserved until a separately evaluated model is explicitly promoted.
 
+Every new run is self-describing. Its contract records the dataset and
+preprocessing versions, selected models, pinned Hugging Face revision, seeds,
+losses, and core training settings. Automatic or explicit resume requires an
+exact contract hash; runs without that metadata, or with changed architecture,
+dataset, revision, seeds, or core hyperparameters, are not resumable. Training
+does not rewrite historical results or the active staging artifact.
+
+Promotion is architecture-aware and fail-closed: only the native
+`DistilBertForSequenceClassification` contract is eligible for the maintained
+serving path, while legacy custom checkpoints remain reference-only.
+
 ## Post-PR laptop sequence
 
 The following is an operator procedure and is not evidence that these runs have

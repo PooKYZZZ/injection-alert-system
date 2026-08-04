@@ -23,3 +23,10 @@ The maintained smoke entry point is:
 The standard smoke preset uses the native `DistilBertForSequenceClassification`
 architecture. Generated checkpoints and run outputs remain local and must not
 be committed.
+
+Native runs use the verified pinned model revision in each preset and record
+the same revision for the tokenizer. Resume is allowed only when the exact
+run-contract hash matches; changing the architecture, dataset, preprocessing
+version, seeds, or core hyperparameters starts a new incompatible run. Legacy
+custom-model outputs remain historical reference material and are not silently
+converted during promotion.

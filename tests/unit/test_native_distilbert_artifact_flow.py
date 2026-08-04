@@ -12,7 +12,6 @@ from ml_model.export.package_serving_artifact import (
 )
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
 
-
 REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 
 

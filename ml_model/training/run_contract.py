@@ -46,10 +46,16 @@ def _normalize_model_contracts(
 ) -> dict[str, dict[str, str]]:
     if model_contracts is None:
         if len(model_keys) != 1:
-            raise ValueError("model_contracts are required when more than one model is selected")
-        if not all(isinstance(value, str) and value.strip() for value in (model_id, model_revision, architecture)):
             raise ValueError(
-                "single-model contract requires model_id, model_revision, and architecture"
+                "model_contracts are required when more than one model is selected"
+            )
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (model_id, model_revision, architecture)
+        ):
+            raise ValueError(
+                "single-model contract requires model_id, model_revision, "
+                "and architecture"
             )
         model_contracts = {
             model_keys[0]: {
