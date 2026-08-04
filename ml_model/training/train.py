@@ -210,14 +210,16 @@ def find_latest_resumable_run_dir(
             bootstrap, expected_contract_hash
         ):
             continue
-        if any(path.glob("**/last*.pt")):
+        if any(path.glob("**/last_*.pt")) or any(path.glob("**/last.pt")):
             candidates.append(path)
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def validate_resume_checkpoint_contract(checkpoint: Path, expected_contract_hash: str) -> None:
+def validate_resume_checkpoint_contract(
+    checkpoint: Path, expected_contract_hash: str
+) -> None:
     """Reject an explicit checkpoint unless its run has the exact current contract."""
 
     checkpoint = Path(checkpoint)
