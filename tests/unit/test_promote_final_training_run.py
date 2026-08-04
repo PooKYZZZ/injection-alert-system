@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 import torch
-from transformers import AutoModelForSequenceClassification
+from transformers import (
+    AutoModelForSequenceClassification,
+    DistilBertConfig,
+    DistilBertForSequenceClassification,
+)
 
 from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
@@ -286,6 +290,11 @@ def test_active_native_serving_artifact_reloads_without_changing_it():
     active_dir = Path(
         "ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755"
     )
+    if not (active_dir / "config.json").is_file():
+        pytest.skip(
+            "Active serving weights/config are intentionally not tracked; "
+            "validate this artifact in the local model-registry environment."
+        )
     model = AutoModelForSequenceClassification.from_pretrained(
         active_dir,
         local_files_only=True,
@@ -293,6 +302,29 @@ def test_active_native_serving_artifact_reloads_without_changing_it():
 
     assert type(model).__name__ == "DistilBertForSequenceClassification"
     assert model.config.num_labels == 4
+
+
+def test_native_sequence_classifier_round_trips_strictly_from_local_files(tmp_path: Path):
+    config = DistilBertConfig(
+        vocab_size=101,
+        max_position_embeddings=16,
+        n_layers=1,
+        n_heads=2,
+        dim=16,
+        hidden_dim=32,
+        num_labels=4,
+    )
+    source_model = DistilBertForSequenceClassification(config)
+    source_model.save_pretrained(tmp_path)
+
+    reloaded_model = AutoModelForSequenceClassification.from_pretrained(
+        tmp_path,
+        local_files_only=True,
+    )
+    reloaded_model.load_state_dict(source_model.state_dict(), strict=True)
+
+    assert type(reloaded_model).__name__ == "DistilBertForSequenceClassification"
+    assert reloaded_model.config.num_labels == 4
 
 
 def test_build_manifest_records_architecture_metadata(tmp_path: Path):
