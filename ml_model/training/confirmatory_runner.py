@@ -1097,29 +1097,26 @@ class FinalConfirmatoryRunner:
             )
             self.write_run_heartbeat("seed_start", model_key=model_key, loss_key=loss_key, seed=int(seed))
 
-            save_json(
-                paths["seed_dir"] / "config_metadata.json",
-                {
-                    "run_kind": self.ctx.run_kind,
-                    "run_name": self.ctx.run_name,
-                    "dataset_version": self.ctx.dataset_version,
-                    "preprocessing_version": self.ctx.preprocessing_version,
-                    "model_input_hash_policy": self.ctx.model_input_hash_policy,
-                    "dataset_metadata": self.ctx.dataset_metadata,
-                    "model_key": model_key,
-                    "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
-                    "model_id": cfg["model_id"],
-                    "architecture": cfg["architecture"],
-                    "seed": int(seed),
-                    "loss_key": loss_key,
-                    "max_seq_len": int(cfg["max_seq_len"]),
-                    "checkpoint_selection_rule": self.ctx.checkpoint_selection_rule,
-                    "deterministic_mode": bool(self.ctx.deterministic_mode),
-                    "resume_if_available": bool(self.ctx.resume_if_available),
-                    "skip_completed_seeds": bool(self.ctx.skip_completed_seeds),
-                    "force_rerun_seeds": bool(self.ctx.force_rerun_seeds),
-                },
-            )
+            config_metadata = {
+                "run_kind": self.ctx.run_kind,
+                "run_name": self.ctx.run_name,
+                "dataset_version": self.ctx.dataset_version,
+                "preprocessing_version": self.ctx.preprocessing_version,
+                "model_input_hash_policy": self.ctx.model_input_hash_policy,
+                "dataset_metadata": self.ctx.dataset_metadata,
+                "model_key": model_key,
+                "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
+                "model_id": cfg["model_id"],
+                "architecture": cfg["architecture"],
+                "seed": int(seed),
+                "loss_key": loss_key,
+                "max_seq_len": int(cfg["max_seq_len"]),
+                "checkpoint_selection_rule": self.ctx.checkpoint_selection_rule,
+                "deterministic_mode": bool(self.ctx.deterministic_mode),
+                "resume_if_available": bool(self.ctx.resume_if_available),
+                "skip_completed_seeds": bool(self.ctx.skip_completed_seeds),
+                "force_rerun_seeds": bool(self.ctx.force_rerun_seeds),
+            }
             save_json(paths["seed_dir"] / "truncation_evidence.json", resources["truncation_evidence"])
 
             val_loader, test_loader, latency_batch = self.build_eval_loaders_and_latency_batch(resources, cfg)
@@ -1146,6 +1143,14 @@ class FinalConfirmatoryRunner:
             )
 
             model = build_model(cfg, self.ctx.num_classes, self.ctx.device)
+            config_metadata.update(
+                {
+                    "architecture_family": infer_architecture_family(cfg["architecture"]),
+                    "head_type": infer_head_type(cfg["architecture"]),
+                    "model_class": type(model).__name__,
+                }
+            )
+            save_json(paths["seed_dir"] / "config_metadata.json", config_metadata)
             optimizer = self.build_optimizer(model, cfg["learning_rate"], cfg["weight_decay"])
             scaler = GradScaler("cuda") if self.ctx.cuda_fp16 else None
 
@@ -1603,6 +1608,7 @@ class FinalConfirmatoryRunner:
                 "architecture": cfg["architecture"],
                 "architecture_family": infer_architecture_family(cfg["architecture"]),
                 "head_type": infer_head_type(cfg["architecture"]),
+                "model_class": type(model).__name__,
                 "experiment_phase": cfg["experiment_phase"],
                 "loss_key": loss_key,
                 "seed": int(seed),

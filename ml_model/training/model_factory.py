@@ -5,7 +5,7 @@ from typing import Any, Mapping
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from transformers import AutoConfig, AutoModel
+from transformers import AutoConfig, AutoModel, AutoModelForSequenceClassification
 
 
 def build_activation(name: str):
@@ -26,6 +26,8 @@ def get_hidden_size(hf_config) -> int:
 
 def infer_head_type(architecture: str) -> str:
     architecture = architecture.lower()
+    if architecture == "distilbert_sequence_classification":
+        return "hf_sequence_classification_head"
     if architecture == "transformer":
         return "mean_pool_mlp"
     if architecture == "tinybert_bigru_attention":
@@ -37,6 +39,8 @@ def infer_head_type(architecture: str) -> str:
 
 def infer_architecture_family(architecture: str) -> str:
     architecture = architecture.lower()
+    if architecture == "distilbert_sequence_classification":
+        return "huggingface_sequence_classifier"
     if architecture == "transformer":
         return "backbone_with_standard_head"
     return "architecture_search_variant"
@@ -215,7 +219,12 @@ class ALBERTCNNClassifier(nn.Module):
 
 def build_model(cfg: Mapping[str, Any], num_classes: int, device: torch.device) -> nn.Module:
     architecture = cfg["architecture"]
-    if architecture == "transformer":
+    if architecture == "distilbert_sequence_classification":
+        model = AutoModelForSequenceClassification.from_pretrained(
+            cfg["model_id"],
+            num_labels=num_classes,
+        )
+    elif architecture == "transformer":
         model = TransformerClassifier(
             model_id=cfg["model_id"],
             num_classes=num_classes,
