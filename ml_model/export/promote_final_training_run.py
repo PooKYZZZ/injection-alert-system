@@ -13,6 +13,11 @@ from typing import Any
 import torch
 
 from ml_model.export.package_serving_artifact import package_serving_artifact
+from ml_model.preprocessing.model_input import (
+    MODEL_INPUT_HASH_POLICY,
+    MODEL_INPUT_VERSION,
+    validate_model_input_version,
+)
 
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 REQUIRED_FINAL_TRAINING_FILES = (
@@ -423,10 +428,18 @@ def build_config_used(
     config_metadata: dict[str, Any],
     model_version: str,
 ) -> dict[str, Any]:
+    preprocessing_version = config_metadata.get("preprocessing_version")
+    validate_model_input_version(preprocessing_version, context="final training run")
+    if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
+        raise PromotionError(
+            "Final training metadata is missing the shared model-input hash policy."
+        )
     return {
         "model_key": config_metadata.get("model_key", "distilbert"),
         "model_id": config_metadata.get("model_id", "distilbert-base-uncased"),
         "dataset_version": config_metadata.get("dataset_version"),
+        "preprocessing_version": preprocessing_version,
+        "model_input_hash_policy": config_metadata.get("model_input_hash_policy"),
         "max_seq_len": int(config_metadata.get("max_seq_len", 128)),
         "seed": config_metadata.get("seed"),
         "model_version": model_version,

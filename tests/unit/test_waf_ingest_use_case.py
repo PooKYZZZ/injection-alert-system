@@ -96,16 +96,19 @@ async def test_ingest_builds_http_request_from_structured_fields():
         request_method="POST",
         request_path="/api/login",
         request_headers={"user-agent": "curl/8.0"},
-        sanitized_body="user=admin&pass=test",
+        sanitized_body="password=BODY_SECRET&user=admin",
         crs_score=3,
         crs_rule_ids=["942100"],
-        query_string="debug=true",
+        query_string="token=TEST_SECRET&debug=true",
     )
 
     classifier.predict.assert_called_once()
     http_request_arg = classifier.predict.call_args[0][0]
     assert "post" in http_request_arg.lower()
     assert "/api/login" in http_request_arg
+    assert "test_secret" not in http_request_arg.lower()
+    assert "body_secret" not in http_request_arg.lower()
+    assert "[redacted]" in http_request_arg
     saved_entity = repository.claim_or_reclaim_processing.call_args[0][0]
     assert "debug=true" not in saved_entity.http_request
     assert "POST /api/login HTTP/1.1" in saved_entity.http_request

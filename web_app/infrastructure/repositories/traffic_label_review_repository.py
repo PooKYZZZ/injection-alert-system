@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from hashlib import sha256
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +85,7 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
                 "confidence_level": alert.confidence_level,
                 "model_version": alert.model_version,
                 "model_input_hash": alert.model_input_hash,
+                "model_input_text": alert.model_input_text,
                 "preprocessing_version": alert.preprocessing_version,
             }
             missing = [
@@ -92,6 +94,12 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             if missing:
                 raise ReviewNotEligibleError(
                     f"Missing training provenance: {', '.join(missing)}"
+                )
+
+            actual_hash = sha256(alert.model_input_text.encode("utf-8")).hexdigest()
+            if actual_hash != alert.model_input_hash:
+                raise ReviewNotEligibleError(
+                    "Model-input hash does not match stored model-input text"
                 )
 
         current_revision = await self._session.scalar(

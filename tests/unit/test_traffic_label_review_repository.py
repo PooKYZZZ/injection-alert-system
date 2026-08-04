@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from hashlib import sha256
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -37,11 +38,11 @@ async def _insert_alert(session: AsyncSession) -> int:
         confidence_level="HIGH",
         model_version="model-v1",
         ingest_fingerprint_sha256="a" * 64,
-        model_input_hash="b" * 64,
         model_input_text="get /records/search",
         preprocessing_version="http-preprocessor-v1",
         status="COMPLETED",
     )
+    alert.model_input_hash = sha256(alert.model_input_text.encode("utf-8")).hexdigest()
     session.add(alert)
     await session.commit()
     return alert.id
@@ -69,7 +70,9 @@ async def test_review_persists_metadata_and_latest_query(repository):
     assert review.input_hash == "a" * 64
     assert review.prediction_confidence == 0.98
     assert review.prediction_confidence_level == "HIGH"
-    assert review.model_input_hash == "b" * 64
+    assert review.model_input_hash == sha256(
+        "get /records/search".encode("utf-8")
+    ).hexdigest()
     assert review.model_input_text == "get /records/search"
     assert review.preprocessing_version == "http-preprocessor-v1"
     assert review.ingest_event_hash == "a" * 64
@@ -167,6 +170,65 @@ async def test_completed_alert_can_be_excluded_without_training_provenance(repos
 
 
 @pytest.mark.asyncio
+async def test_approved_review_requires_model_input_text(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.14",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        model_version="model-v1",
+        model_input_hash="a" * 64,
+        preprocessing_version="http-preprocessor-v1",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError, match="model_input_text"):
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="SQL Injection",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_approved_review_rejects_mismatched_model_input_hash(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.15",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        model_version="model-v1",
+        model_input_hash="a" * 64,
+        model_input_text="get /records/search",
+        preprocessing_version="http-preprocessor-v1",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError, match="does not match"):
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="SQL Injection",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
 async def test_second_review_is_revision_two_and_history_is_preserved(repository):
     alert_id = await _insert_alert(repository._session)
     common = {
@@ -223,7 +285,9 @@ async def test_review_snapshot_survives_parent_provenance_change(repository):
     assert snapshot.id == review.id
     assert snapshot.prediction_confidence == 0.98
     assert snapshot.model_version == "model-v1"
-    assert snapshot.model_input_hash == "b" * 64
+    assert snapshot.model_input_hash == sha256(
+        "get /records/search".encode("utf-8")
+    ).hexdigest()
     assert snapshot.model_input_text == "get /records/search"
 
 

@@ -1,6 +1,6 @@
 [training]
-dataset_version = "v3_907k_cleaned"
-preprocessing_version = "http-preprocessor-v1"
+dataset_version = "v3_907k_cleaned_model_input_v2"
+preprocessing_version = "model-input-v2-redacted"
 models = ["distilbert"]
 seeds = [42]
 device = "cpu"

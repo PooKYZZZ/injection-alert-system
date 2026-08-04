@@ -8,9 +8,23 @@ import urllib.parse
 import html
 import unicodedata
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from sklearn.model_selection import StratifiedGroupKFold
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from ml_model.preprocessing.model_input import (  # noqa: E402
+    MODEL_INPUT_BUILDER,
+    MODEL_INPUT_HASH_POLICY,
+    MODEL_INPUT_TEXT_COLUMN,
+    MODEL_INPUT_VERSION,
+    build_model_input_text,
+    canonicalize_text as shared_canonicalize_text,
+)
 
 try:
     from datasketch import MinHash, MinHashLSH
@@ -21,11 +35,13 @@ except ImportError:
     print("Run 'pip install datasketch' or 'uv pip install datasketch' to enable.")
 
 # --- CONFIGURATION ---
-RAW_DATA_PATH = Path(r'G:\Documents\PDDDD\injection-alert-system\data\raw\data_capec_multilabel.csv')
-OUTPUT_DIR = Path(r'G:\Documents\PDDDD\injection-alert-system\data\processed\v3_907k_cleaned')
+RAW_DATA_PATH = REPO_ROOT / 'data' / 'raw' / 'data_capec_multilabel.csv'
+DATASET_VERSION = 'v3_907k_cleaned_model_input_v2'
+OUTPUT_DIR = REPO_ROOT / 'data' / 'processed' / DATASET_VERSION
 AUDIT_LOG_PATH = OUTPUT_DIR / 'audit_log.json'
 
 PIPELINE_VERSION = "3.1.0"
+SOURCE_CLEANING_VERSION = PIPELINE_VERSION
 RANDOM_SEED = 42
 
 # MinHash / LSH configuration
@@ -112,19 +128,7 @@ def get_git_commit():
 
 def canonicalize_text(text):
     """Normalize text for consistent deduplication while ignoring trivial differences."""
-    if not isinstance(text, str):
-        return ""
-    # URL decode
-    text = urllib.parse.unquote(text)
-    # HTML unescape
-    text = html.unescape(text)
-    # Unicode normalize
-    text = unicodedata.normalize('NFKC', text)
-    # Remove null bytes
-    text = text.replace('\x00', '')
-    # Whitespace normalization & lowercase for identity hashing
-    text = ' '.join(text.split()).lower()
-    return text
+    return shared_canonicalize_text(text)
 
 def calculate_sha256(filepath):
     """Calculate SHA256 checksum of a file."""
@@ -186,6 +190,12 @@ def clean_pipeline():
     audit_log = {
         "metadata": {
             "pipeline_version": PIPELINE_VERSION,
+            "dataset_version": DATASET_VERSION,
+            "preprocessing_version": MODEL_INPUT_VERSION,
+            "text_column": MODEL_INPUT_TEXT_COLUMN,
+            "shared_builder_name": MODEL_INPUT_BUILDER,
+            "model_input_hash_policy": MODEL_INPUT_HASH_POLICY,
+            "source_cleaning_version": SOURCE_CLEANING_VERSION,
             "random_seed": RANDOM_SEED,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "git_commit": get_git_commit(),
@@ -238,14 +248,22 @@ def clean_pipeline():
     df['canonical_method'] = df['request_http_method'].apply(canonicalize_text)
     df['canonical_path'] = df['request_http_request'].apply(canonicalize_text)
     df['canonical_body'] = df['request_body'].apply(canonicalize_text)
+    # Build the redacted model text before every identity operation.  This is
+    # the same function used by runtime serving.
+    df[MODEL_INPUT_TEXT_COLUMN] = df.apply(
+        lambda row: build_model_input_text(
+            row['request_http_method'],
+            row['request_http_request'],
+            body=row['request_body'],
+        ),
+        axis=1,
+    )
 
     # ---------------------------------------------------------
     # STAGE 4: Exact Duplicate Removal
     # ---------------------------------------------------------
     print("Stage 4: Removing exact duplicates...")
-    df['identity_string'] = (df['canonical_method'] + " " +
-                             df['canonical_path'] + " " +
-                             df['canonical_body'])
+    df['identity_string'] = df[MODEL_INPUT_TEXT_COLUMN]
 
     df['payload_hash'] = df['identity_string'].apply(
         lambda x: hashlib.sha256(x.encode('utf-8')).hexdigest()
@@ -449,11 +467,8 @@ def clean_pipeline():
     # ---------------------------------------------------------
     print("Stage 8: Building transformer input field and removing metadata...")
 
-    # combined_payload uses CANONICALIZED text so encoding variants
-    # (e.g. %2Fetc%2Fpasswd vs /etc/passwd) collapse to the same input
-    df['combined_payload'] = (df['canonical_method'] + " " +
-                              df['canonical_path'] + " " +
-                              df['canonical_body'])
+    # combined_payload was built before deduplication and clustering using the
+    # shared redacted training/serving contract.
 
     # Payload length statistics (before dropping anything)
     payload_lengths = df['combined_payload'].str.len()
@@ -715,6 +730,22 @@ def clean_pipeline():
     print(f"Stage 12: Exporting Audit Log to {AUDIT_LOG_PATH}")
     with open(AUDIT_LOG_PATH, 'w') as f:
         json.dump(audit_log, f, indent=4)
+
+    metadata_path = OUTPUT_DIR / 'metadata_preprocessing.json'
+    metadata = {
+        "dataset_version": DATASET_VERSION,
+        "pipeline_version": PIPELINE_VERSION,
+        "preprocessing_version": MODEL_INPUT_VERSION,
+        "text_column": MODEL_INPUT_TEXT_COLUMN,
+        "shared_builder_name": MODEL_INPUT_BUILDER,
+        "model_input_hash_policy": MODEL_INPUT_HASH_POLICY,
+        "source_cleaning_version": SOURCE_CLEANING_VERSION,
+        "source_cleaning_commit": audit_log["metadata"]["git_commit"],
+        "audit_counts": audit_log["counts"],
+        "near_duplicate_stats": audit_log["statistics"].get("near_duplicate_clusters"),
+    }
+    with open(metadata_path, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, indent=2)
 
     print("\n[OK] PIPELINE EXECUTION COMPLETE.")
     print("--------------------------------------------------")

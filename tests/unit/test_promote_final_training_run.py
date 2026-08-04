@@ -33,6 +33,8 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
                 "model_key": "distilbert",
                 "model_id": "distilbert-base-uncased",
                 "dataset_version": "v3_907k_cleaned",
+                "preprocessing_version": "model-input-v2-redacted",
+                "model_input_hash_policy": "sha256(model_input_text)",
                 "max_seq_len": 128,
                 "seed": 2026,
             }
@@ -182,6 +184,8 @@ def test_builds_config_used_from_final_training_metadata():
             "model_key": "distilbert",
             "model_id": "distilbert-base-uncased",
             "dataset_version": "v3_907k_cleaned",
+            "preprocessing_version": "model-input-v2-redacted",
+            "model_input_hash_policy": "sha256(model_input_text)",
             "max_seq_len": 128,
             "seed": 2026,
         },

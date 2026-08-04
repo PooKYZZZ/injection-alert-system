@@ -1382,7 +1382,7 @@ async def test_triage_preprocessing_enabled(mock_classifier, mock_repository):
     assert saved_entity.model_input_hash == sha256(
         captured_args[0].encode("utf-8")
     ).hexdigest()
-    assert saved_entity.preprocessing_version == "http-preprocessor-v1"
+    assert saved_entity.preprocessing_version == "model-input-v2-redacted"
 
 
 @pytest.mark.asyncio
@@ -1494,3 +1494,34 @@ async def test_triage_raw_http_request_preserved_for_persistence(
     # http_request should be the exact raw input, not preprocessed
     assert "Host: target.example.com" in saved_entity.http_request
     assert "User-Agent: Mozilla/5.0" in saved_entity.http_request
+
+
+@pytest.mark.asyncio
+async def test_direct_model_input_redacts_sensitive_query_and_body_values(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,
+    )
+    await use_case.execute(
+        http_request=(
+            "POST /search?token=TEST_SECRET&safe=1 HTTP/1.1\r\n"
+            "Content-Type: application/x-www-form-urlencoded\r\n\r\n"
+            "password=BODY_SECRET&query=admin"
+        ),
+        source_ip="192.168.1.1",
+    )
+
+    model_input = mock_classifier.predict.call_args.args[0]
+    assert "TEST_SECRET" not in model_input
+    assert "BODY_SECRET" not in model_input
+    assert "[redacted]" in model_input

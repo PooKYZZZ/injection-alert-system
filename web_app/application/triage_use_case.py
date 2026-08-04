@@ -24,7 +24,10 @@ from starlette.concurrency import run_in_threadpool
 
 from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.http_parsing import parse_http_request_line
-from web_app.application.http_preprocessor import prepare_model_input
+from web_app.application.http_preprocessor import (
+    MODEL_INPUT_VERSION,
+    prepare_model_input_for_version,
+)
 from web_app.application.waf_event_sanitizer import (
     redact_query_string,
     redact_sensitive_text,
@@ -333,8 +336,13 @@ class TriageUseCase:
         # The raw http_request is still persisted verbatim; this only affects
         # the text passed to the ML model.
         if self._enable_preprocessing:
-            model_input, model_input_hash, preprocessing_version = prepare_model_input(
-                http_request
+            preprocessing_contract = getattr(
+                self._classifier, "model_input_version", MODEL_INPUT_VERSION
+            )
+            if not isinstance(preprocessing_contract, str):
+                preprocessing_contract = MODEL_INPUT_VERSION
+            model_input, model_input_hash, preprocessing_version = (
+                prepare_model_input_for_version(http_request, preprocessing_contract)
             )
         else:
             model_input = http_request

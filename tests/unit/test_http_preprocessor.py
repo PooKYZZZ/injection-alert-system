@@ -9,6 +9,8 @@ from hashlib import sha256
 import pytest
 
 from web_app.application.http_preprocessor import (
+    MODEL_INPUT_FALLBACK_VERSION,
+    MODEL_INPUT_VERSION,
     canonicalize_text,
     parse_raw_http,
     prepare_model_input,
@@ -202,7 +204,7 @@ class TestPreprocessHttpRequest:
             "username=admin' OR '1'='1&password=test"
         )
         result = preprocess_http_request(raw)
-        assert result == "post /login username=admin' or '1'='1&password=test"
+        assert result == "post /login username=admin' or '1'='1&password=[redacted]"
 
     def test_os_command_injection(self):
         """OS command injection via pipe."""
@@ -284,7 +286,7 @@ def test_prepare_model_input_returns_exact_hash_and_version():
 
     assert model_input == "get /search?q=1'"
     assert model_input_hash == sha256(model_input.encode("utf-8")).hexdigest()
-    assert preprocessing_version == "http-preprocessor-v1"
+    assert preprocessing_version == MODEL_INPUT_VERSION
 
 
 def test_prepare_model_input_raw_fallback_is_hashed_as_sent():
@@ -294,4 +296,4 @@ def test_prepare_model_input_raw_fallback_is_hashed_as_sent():
 
     assert model_input == raw
     assert model_input_hash == sha256(raw.encode("utf-8")).hexdigest()
-    assert preprocessing_version == "http-preprocessor-v1-raw-fallback"
+    assert preprocessing_version == MODEL_INPUT_FALLBACK_VERSION

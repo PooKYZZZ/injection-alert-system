@@ -1,13 +1,40 @@
+import argparse
 import json
+import sys
 from pathlib import Path
 
-# Read audit_log if present
-audit = Path('data/processed/v3_907k_cleaned/audit_log.json')
-meta_out = Path('data/processed/v3_907k_cleaned/metadata_preprocessing.json')
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from ml_model.preprocessing.model_input import (  # noqa: E402
+    MODEL_INPUT_BUILDER,
+    MODEL_INPUT_HASH_POLICY,
+    MODEL_INPUT_TEXT_COLUMN,
+    MODEL_INPUT_VERSION,
+)
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--dataset-dir",
+    type=Path,
+    default=Path('data/processed/v3_907k_cleaned_model_input_v2'),
+)
+args = parser.parse_args()
+
+# Read audit_log if present. The legacy dataset is intentionally never updated.
+dataset_dir = args.dataset_dir
+audit = dataset_dir / 'audit_log.json'
+meta_out = dataset_dir / 'metadata_preprocessing.json'
 meta_out.parent.mkdir(parents=True, exist_ok=True)
 
 metadata = {
-    'dataset_version': 'SRBH_clean_v3.1.0',
+    'dataset_version': dataset_dir.name,
+    'preprocessing_version': MODEL_INPUT_VERSION,
+    'text_column': MODEL_INPUT_TEXT_COLUMN,
+    'shared_builder_name': MODEL_INPUT_BUILDER,
+    'model_input_hash_policy': MODEL_INPUT_HASH_POLICY,
+    'source_cleaning_version': '3.1.0',
 }
 if audit.exists():
     d = json.loads(audit.read_text(encoding='utf8'))
@@ -19,6 +46,7 @@ if audit.exists():
 
     metadata['pipeline_version'] = m.get('pipeline_version', '3.1.0')
     metadata['git_commit'] = m.get('git_commit')
+    metadata['source_cleaning_commit'] = m.get('git_commit')
     metadata['date_generated'] = m.get('timestamp_utc')
 
     # MinHash / near-dup config (prefer minhash_config block, fall back to nd)
