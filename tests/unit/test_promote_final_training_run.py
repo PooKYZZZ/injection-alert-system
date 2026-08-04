@@ -11,6 +11,7 @@ from transformers import (
 
 from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
+    PackagingError,
     build_manifest,
     resolve_calibration_provenance,
 )
@@ -41,7 +42,11 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
             {
                 "model_key": "distilbert",
                 "model_id": "distilbert-base-uncased",
-                "architecture": "transformer",
+                "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+                "architecture": "distilbert_sequence_classification",
+                "architecture_family": "huggingface_sequence_classifier",
+                "head_type": "hf_sequence_classification_head",
+                "model_class": "DistilBertForSequenceClassification",
                 "dataset_version": "v3_907k_cleaned",
                 "preprocessing_version": "model-input-v2-redacted",
                 "model_input_hash_policy": "sha256(model_input_text)",
@@ -104,7 +109,13 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
     checkpoint_dir = source_dir / "checkpoint"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
-        {"model_state_dict": {"encoder.weight": torch.tensor([1.0])}},
+        {
+            "model_state_dict": {
+                "distilbert.weight": torch.tensor([1.0]),
+                "pre_classifier.weight": torch.tensor([2.0]),
+                "classifier.weight": torch.tensor([3.0]),
+            }
+        },
         checkpoint_dir / "best_distilbert_weighted_ce_seed2026.pt",
     )
     return source_dir
@@ -180,7 +191,7 @@ def test_extract_state_dict_checkpoint_normalizes_final_training_keys_for_packag
         source,
         target,
         normalize_for_packager=True,
-        architecture="transformer",
+        architecture="legacy_transformer",
     )
 
     saved = torch.load(target, map_location="cpu", weights_only=True)
@@ -243,12 +254,12 @@ def test_checkpoint_extraction_reads_native_architecture_from_run_metadata(tmp_p
     }
 
 
-def test_legacy_state_dict_mapping_requires_explicit_transformer_architecture():
+def test_legacy_state_dict_mapping_requires_explicit_legacy_architecture():
     from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
 
     normalized = normalize_state_dict_for_packager(
         {"encoder.weight": torch.tensor([1.0])},
-        architecture="transformer",
+        architecture="legacy_transformer",
     )
 
     assert list(normalized) == ["distilbert.weight"]
@@ -262,11 +273,53 @@ def test_state_dict_normalization_rejects_missing_or_unknown_architecture(archit
         normalize_state_dict_for_packager({}, architecture=architecture)
 
 
+def test_generic_transformer_architecture_cannot_use_legacy_mapping():
+    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+
+    with pytest.raises(PromotionError, match="Generic transformer"):
+        normalize_state_dict_for_packager(
+            {"encoder.weight": torch.tensor([1.0])}, architecture="transformer"
+        )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("model_key", "minilm_l6"),
+        ("model_id", "nreimers/MiniLM-L6-H384-uncased"),
+        ("model_class", None),
+        ("model_class", "TransformerClassifier"),
+        ("architecture", "transformer"),
+    ],
+)
+def test_native_promotion_contract_rejects_non_native_metadata(
+    tmp_path: Path, field: str, value: str | None
+):
+    source_dir = make_minimal_final_training_fixture(tmp_path / "source")
+    config_path = source_dir / "config_metadata.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    if value is None:
+        config.pop(field, None)
+    else:
+        config[field] = value
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises((PromotionError, PackagingError), match="Native DistilBERT"):
+        promote_final_training_run(
+            source_dir=source_dir,
+            active_run_dir=tmp_path / "staging" / "active",
+            archive_root=tmp_path / "archive",
+            repo_root=tmp_path,
+            dry_run=True,
+        )
+
+
 def test_build_config_used_preserves_native_architecture_metadata():
     payload = build_config_used(
         config_metadata={
             "model_key": "distilbert",
             "model_id": "distilbert-base-uncased",
+            "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
             "architecture": "distilbert_sequence_classification",
             "architecture_family": "huggingface_sequence_classifier",
             "head_type": "hf_sequence_classification_head",
@@ -339,6 +392,9 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
                 "dataset_version": "v3_907k_cleaned",
                 "preprocessing_version": "http-preprocessor-v1",
                 "model_input_hash_policy": "sha256(model_input_text)",
+                "model_key": "distilbert",
+                "model_id": "distilbert-base-uncased",
+                "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
                 "architecture": "distilbert_sequence_classification",
                 "architecture_family": "huggingface_sequence_classifier",
                 "head_type": "hf_sequence_classification_head",
@@ -400,6 +456,11 @@ def test_builds_config_used_from_final_training_metadata():
         config_metadata={
             "model_key": "distilbert",
             "model_id": "distilbert-base-uncased",
+            "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+            "architecture": "distilbert_sequence_classification",
+            "architecture_family": "huggingface_sequence_classifier",
+            "head_type": "hf_sequence_classification_head",
+            "model_class": "DistilBertForSequenceClassification",
             "dataset_version": "v3_907k_cleaned",
             "preprocessing_version": "model-input-v2-redacted",
             "model_input_hash_policy": "sha256(model_input_text)",
@@ -421,24 +482,23 @@ def test_builds_config_used_from_final_training_metadata():
     ]
 
 
-def test_build_config_used_accepts_the_documented_legacy_contract():
-    payload = build_config_used(
-        config_metadata={
-            "model_key": "distilbert",
-            "model_id": "distilbert-base-uncased",
-            "dataset_version": "v3_907k_cleaned",
-            "preprocessing_version": "http-preprocessor-v1",
-            "model_input_hash_policy": "sha256(model_input_text)",
-            "max_seq_len": 128,
-            "seed": 2026,
-        },
-        model_version="distilbert_legacy",
-    )
+def test_build_config_used_rejects_the_documented_legacy_contract():
+    with pytest.raises((PromotionError, PackagingError), match="Native DistilBERT"):
+        build_config_used(
+            config_metadata={
+                "model_key": "distilbert",
+                "model_id": "distilbert-base-uncased",
+                "dataset_version": "v3_907k_cleaned",
+                "preprocessing_version": "http-preprocessor-v1",
+                "model_input_hash_policy": "sha256(model_input_text)",
+                "max_seq_len": 128,
+                "seed": 2026,
+            },
+            model_version="distilbert_legacy",
+        )
 
-    assert payload["preprocessing_version"] == "http-preprocessor-v1"
 
-
-def test_build_manifest_accepts_the_documented_legacy_contract(tmp_path: Path):
+def test_build_manifest_rejects_metadata_without_native_architecture(tmp_path: Path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     checkpoint_path = run_dir / "best_distilbert_ckpt.pt"
@@ -455,27 +515,25 @@ def test_build_manifest_accepts_the_documented_legacy_contract(tmp_path: Path):
         encoding="utf-8",
     )
 
-    manifest = build_manifest(
-        run_dir=run_dir,
-        model_key="distilbert",
-        model_version="distilbert_legacy",
-        base_model="distilbert-base-uncased",
-        checkpoint_path=checkpoint_path,
-        config_used_path=config_used_path,
-        calibration=CalibrationProvenance(
-            eval_run_dir=tmp_path / "eval",
-            promotion_summary_path=tmp_path / "promotion.json",
-            result_path=tmp_path / "calibration.json",
-            temperature=1.0,
-        ),
-        label_names=["Code Injection", "Normal", "Other Attacks", "SQL Injection"],
-        max_seq_len=128,
-        notes=None,
-        local_reload_verified=True,
-    )
-
-    assert manifest["preprocessing_version"] == "http-preprocessor-v1"
-
+    with pytest.raises((PromotionError, PackagingError), match="Native DistilBERT"):
+        build_manifest(
+            run_dir=run_dir,
+            model_key="distilbert",
+            model_version="distilbert_legacy",
+            base_model="distilbert-base-uncased",
+            checkpoint_path=checkpoint_path,
+            config_used_path=config_used_path,
+            calibration=CalibrationProvenance(
+                eval_run_dir=tmp_path / "eval",
+                promotion_summary_path=tmp_path / "promotion.json",
+                result_path=tmp_path / "calibration.json",
+                temperature=1.0,
+            ),
+            label_names=["Code Injection", "Normal", "Other Attacks", "SQL Injection"],
+            max_seq_len=128,
+            notes=None,
+            local_reload_verified=True,
+        )
 
 def test_builds_eval_report_from_summary_and_per_class_metrics():
     eval_report = build_eval_report(

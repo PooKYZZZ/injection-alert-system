@@ -29,6 +29,7 @@ DEFAULT_CHECKPOINT_FILENAME = "best_distilbert_weighted_ce_seed2026.pt"
 SUPPORTED_ARCHITECTURES = {
     "distilbert_sequence_classification",
     "transformer",
+    "legacy_transformer",
 }
 
 
@@ -387,6 +388,28 @@ def _validate_architecture(architecture: Any) -> str:
     return normalized
 
 
+def validate_native_promotion_metadata(config_metadata: Mapping[str, Any]) -> None:
+    """Fail closed unless metadata describes the maintained native model."""
+
+    expected = {
+        "model_key": "distilbert",
+        "model_id": "distilbert-base-uncased",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+    }
+    for field, expected_value in expected.items():
+        if config_metadata.get(field) != expected_value:
+            raise PromotionError(
+                "Native DistilBERT promotion requires "
+                f"{field}={expected_value!r}; got {config_metadata.get(field)!r}."
+            )
+    revision = config_metadata.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise PromotionError("Native DistilBERT promotion requires a pinned model_revision.")
+
+
 def _normalize_legacy_custom_transformer_state_dict(
     state_dict: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -416,8 +439,24 @@ def normalize_state_dict_for_packager(
 ) -> dict[str, Any]:
     architecture = _validate_architecture(architecture)
     if architecture == "distilbert_sequence_classification":
+        required_prefixes = ("distilbert.", "pre_classifier.", "classifier.")
+        if not all(any(key.startswith(prefix) for key in state_dict) for prefix in required_prefixes):
+            raise PromotionError(
+                "Native DistilBERT checkpoint must preserve distilbert.*, "
+                "pre_classifier.*, and classifier.* keys."
+            )
+        if any(
+            key.startswith(("encoder.", "classifier_dense.", "layer_norm.", "output."))
+            for key in state_dict
+        ):
+            raise PromotionError("Native DistilBERT checkpoint contains custom-model keys.")
         return dict(state_dict)
-    return _normalize_legacy_custom_transformer_state_dict(state_dict)
+    if architecture == "legacy_transformer":
+        return _normalize_legacy_custom_transformer_state_dict(state_dict)
+    raise PromotionError(
+        "Generic transformer architecture cannot be promoted or normalized; "
+        "use the explicitly named legacy_transformer path."
+    )
 
 
 def _load_architecture_from_run_metadata(
@@ -487,6 +526,7 @@ def build_config_used(
     config_metadata: dict[str, Any],
     model_version: str,
 ) -> dict[str, Any]:
+    validate_native_promotion_metadata(config_metadata)
     preprocessing_version = validate_supported_model_input_version(
         config_metadata.get("preprocessing_version"), context="final training run"
     )
@@ -497,6 +537,7 @@ def build_config_used(
     return {
         "model_key": config_metadata.get("model_key", "distilbert"),
         "model_id": config_metadata.get("model_id", "distilbert-base-uncased"),
+        "model_revision": config_metadata.get("model_revision"),
         "architecture": config_metadata.get("architecture"),
         "architecture_family": config_metadata.get("architecture_family"),
         "head_type": config_metadata.get("head_type"),
@@ -562,6 +603,7 @@ def promote_final_training_run(
         config_metadata=config_metadata,
     )
     config_metadata = {**config_metadata, "architecture": architecture}
+    validate_native_promotion_metadata(config_metadata)
     summary_metrics = load_json(source_paths["summary_metrics.json"])
     per_class_metrics = load_json(source_paths["per_class_metrics.json"])
     calibration_payload = load_json(source_paths["calibration.json"])

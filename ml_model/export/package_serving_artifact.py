@@ -313,6 +313,7 @@ def build_manifest(
     max_seq_len: int,
     notes: str | None,
     local_reload_verified: bool,
+    actual_model: Any | None = None,
 ) -> dict[str, Any]:
     config_metadata = json.loads(config_used_path.read_text(encoding="utf-8"))
     preprocessing_version = validate_supported_model_input_version(
@@ -320,6 +321,33 @@ def build_manifest(
     )
     if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
         raise PackagingError("Serving artifact is missing the shared model-input hash policy.")
+    expected_metadata = {
+        "model_key": "distilbert",
+        "model_id": "distilbert-base-uncased",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+    }
+    for field, expected_value in expected_metadata.items():
+        actual_value = model_key if field == "model_key" else (
+            base_model if field == "model_id" else config_metadata.get(field)
+        )
+        if actual_value != expected_value:
+            raise PackagingError(
+                "Native DistilBERT serving manifest requires "
+                f"{field}={expected_value!r}; got {actual_value!r}."
+            )
+    model_revision = config_metadata.get("model_revision")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise PackagingError("Native DistilBERT serving manifest requires model_revision.")
+    if actual_model is not None:
+        if type(actual_model).__name__ != expected_metadata["model_class"]:
+            raise PackagingError(
+                "Loaded model class does not match native DistilBERT serving metadata."
+            )
+        if int(getattr(actual_model.config, "num_labels", -1)) != len(label_names):
+            raise PackagingError("Loaded model label count does not match serving labels.")
     return {
         "model_version": model_version,
         "model_key": model_key,
@@ -330,6 +358,8 @@ def build_manifest(
         "architecture_family": config_metadata.get("architecture_family"),
         "head_type": config_metadata.get("head_type"),
         "model_class": config_metadata.get("model_class"),
+        "model_revision": model_revision,
+        "run_contract_sha256": config_metadata.get("run_contract_sha256"),
         "base_model": base_model,
         "run_dir_name": run_dir.name,
         "run_dir_path": str(run_dir.resolve()),
@@ -529,6 +559,7 @@ def package_serving_artifact(
         max_seq_len=max_seq_len,
         notes=notes,
         local_reload_verified=False,
+        actual_model=model,
     )
 
     model.save_pretrained(run_dir)
