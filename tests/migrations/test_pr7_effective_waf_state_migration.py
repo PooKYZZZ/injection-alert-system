@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, MetaData, create_engine, inspect, text
 
 ROOT = Path(__file__).parents[2]
 REVISION = "20260728_000025"
+CURRENT_HEAD = "20260803_000028"
 
 
 def _config() -> Config:
@@ -16,7 +17,7 @@ def _config() -> Config:
 
 
 def test_pr7_migration_is_the_single_new_head() -> None:
-    assert ScriptDirectory.from_config(_config()).get_heads() == [REVISION]
+    assert ScriptDirectory.from_config(_config()).get_heads() == [CURRENT_HEAD]
 
 
 def test_pr7_migration_declares_additive_effective_state() -> None:

@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 import torch
 
-from ml_model.export.package_serving_artifact import resolve_calibration_provenance
+from ml_model.export.package_serving_artifact import (
+    CalibrationProvenance,
+    build_manifest,
+    resolve_calibration_provenance,
+)
 from ml_model.export.promote_final_training_run import (
     PromotionError,
     archive_existing_run,
@@ -33,6 +37,8 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
                 "model_key": "distilbert",
                 "model_id": "distilbert-base-uncased",
                 "dataset_version": "v3_907k_cleaned",
+                "preprocessing_version": "model-input-v2-redacted",
+                "model_input_hash_policy": "sha256(model_input_text)",
                 "max_seq_len": 128,
                 "seed": 2026,
             }
@@ -182,6 +188,8 @@ def test_builds_config_used_from_final_training_metadata():
             "model_key": "distilbert",
             "model_id": "distilbert-base-uncased",
             "dataset_version": "v3_907k_cleaned",
+            "preprocessing_version": "model-input-v2-redacted",
+            "model_input_hash_policy": "sha256(model_input_text)",
             "max_seq_len": 128,
             "seed": 2026,
         },
@@ -198,6 +206,62 @@ def test_builds_config_used_from_final_training_metadata():
         "Other Attacks",
         "SQL Injection",
     ]
+
+
+def test_build_config_used_accepts_the_documented_legacy_contract():
+    payload = build_config_used(
+        config_metadata={
+            "model_key": "distilbert",
+            "model_id": "distilbert-base-uncased",
+            "dataset_version": "v3_907k_cleaned",
+            "preprocessing_version": "http-preprocessor-v1",
+            "model_input_hash_policy": "sha256(model_input_text)",
+            "max_seq_len": 128,
+            "seed": 2026,
+        },
+        model_version="distilbert_legacy",
+    )
+
+    assert payload["preprocessing_version"] == "http-preprocessor-v1"
+
+
+def test_build_manifest_accepts_the_documented_legacy_contract(tmp_path: Path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    checkpoint_path = run_dir / "best_distilbert_ckpt.pt"
+    checkpoint_path.write_bytes(b"checkpoint")
+    config_used_path = run_dir / "config_used.json"
+    config_used_path.write_text(
+        json.dumps(
+            {
+                "dataset_version": "v3_907k_cleaned",
+                "preprocessing_version": "http-preprocessor-v1",
+                "model_input_hash_policy": "sha256(model_input_text)",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = build_manifest(
+        run_dir=run_dir,
+        model_key="distilbert",
+        model_version="distilbert_legacy",
+        base_model="distilbert-base-uncased",
+        checkpoint_path=checkpoint_path,
+        config_used_path=config_used_path,
+        calibration=CalibrationProvenance(
+            eval_run_dir=tmp_path / "eval",
+            promotion_summary_path=tmp_path / "promotion.json",
+            result_path=tmp_path / "calibration.json",
+            temperature=1.0,
+        ),
+        label_names=["Code Injection", "Normal", "Other Attacks", "SQL Injection"],
+        max_seq_len=128,
+        notes=None,
+        local_reload_verified=True,
+    )
+
+    assert manifest["preprocessing_version"] == "http-preprocessor-v1"
 
 
 def test_builds_eval_report_from_summary_and_per_class_metrics():

@@ -9,6 +9,11 @@ from ml_model.confidence_tiers import (
     classify_confidence,
 )
 from ml_model.models.mock_model import MockInjectionClassifier
+from ml_model.preprocessing.model_input import (
+    LEGACY_MODEL_INPUT_VERSION,
+    MODEL_INPUT_VERSION,
+    validate_supported_model_input_version,
+)
 from web_app.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -33,6 +38,7 @@ class ModelService:
         self.tokenizer: Any = None
         self.temperature = float(TEMPERATURE)
         self.model_version = ""
+        self.model_input_version = MODEL_INPUT_VERSION
         self._mock_classifier: MockInjectionClassifier | None = None
         self._total_processed = 0
         self._total_inference_latency_ms = 0.0
@@ -55,6 +61,7 @@ class ModelService:
             )
 
         try:
+            self.model_input_version = self._validate_model_input_metadata(run_dir)
             model, tokenizer, loaded_temperature = self._load_run_artifacts(run_dir)
         except Exception as exc:
             raise RuntimeError(
@@ -80,6 +87,7 @@ class ModelService:
         instance.tokenizer = None
         instance.temperature = float(TEMPERATURE)
         instance.model_version = cls.MOCK_MODEL_VERSION
+        instance.model_input_version = MODEL_INPUT_VERSION
         instance._mock_classifier = MockInjectionClassifier()
         instance._total_processed = 0
         instance._total_inference_latency_ms = 0.0
@@ -232,6 +240,42 @@ class ModelService:
             self.MODEL_KEY,
             staging_dir=run_dir,
             device=self.device,
+        )
+
+    @classmethod
+    def _validate_model_input_metadata(cls, run_dir: Path) -> str:
+        """Validate explicit v2 metadata or the documented known v1 run rule."""
+
+        candidates = [run_dir / "config_used.json", run_dir / cls.PACKAGED_MANIFEST_NAME]
+        existing_paths = [path for path in candidates if path.is_file()]
+        if not existing_paths:
+            raise ValueError(
+                "model artifact is missing preprocessing_version metadata; "
+                f"expected {MODEL_INPUT_VERSION!r}"
+            )
+        metadata: dict[str, Any] = {}
+        for metadata_path in existing_paths:
+            try:
+                payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(f"invalid model metadata: {metadata_path}") from exc
+            if not isinstance(payload, dict):
+                raise ValueError(f"invalid model metadata object: {metadata_path}")
+            metadata.update(payload)
+        declared_version = metadata.get("preprocessing_version")
+        if declared_version is not None:
+            return validate_supported_model_input_version(
+                declared_version, context=f"model artifact {existing_paths[-1].name}"
+            )
+
+        # Legacy compatibility is deliberately narrow: only the existing
+        # v3_907k_cleaned artifact contract may omit the new field. Unknown or
+        # metadata-less artifacts still fail closed.
+        if metadata.get("dataset_version") == "v3_907k_cleaned":
+            return LEGACY_MODEL_INPUT_VERSION
+        raise ValueError(
+            "model artifact is missing preprocessing_version metadata and does not "
+            "match the documented v3_907k_cleaned legacy contract"
         )
 
     def _build_response(

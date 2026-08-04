@@ -79,6 +79,9 @@ class TrafficLogEntity:
         SourceVerificationStatus.UNVERIFIED
     )
     ingest_fingerprint_sha256: Optional[str] = None
+    model_input_hash: Optional[str] = None
+    model_input_text: Optional[str] = None
+    preprocessing_version: Optional[str] = None
     request_path: Optional[str] = None
     query_string: Optional[str] = None
     request_method: Optional[str] = None
@@ -102,6 +105,7 @@ class TrafficLogEntity:
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     triage_status: Optional[str] = None
+    label_review: Optional["TrafficLabelReview"] = None
 
     @property
     def payload_snippet(self) -> str:
@@ -155,6 +159,65 @@ class TrafficLogPage:
     total: int = 0
     page: int = 1
     page_size: int = 20
+
+
+@dataclass
+class TrafficLabelReview:
+    id: Optional[int]
+    traffic_log_id: int
+    revision: int
+    predicted_label: Optional[str]
+    verified_label: str
+    approval_state: str
+    reviewer_id: str
+    reviewer_role: str
+    reviewed_at: datetime
+    model_version: Optional[str]
+    prediction_confidence: Optional[float] = None
+    prediction_confidence_level: Optional[str] = None
+    model_input_hash: Optional[str] = None
+    model_input_text: Optional[str] = None
+    preprocessing_version: Optional[str] = None
+    ingest_event_hash: Optional[str] = None
+    source_verification_status: Optional[str] = None
+    source_provenance: Optional[str] = None
+    input_hash: Optional[str] = None
+    review_note: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class ReviewNotEligibleError(ValueError):
+    """Alert cannot receive the requested verified-label review action."""
+
+    def __init__(self, message: str, *, processing: bool = False) -> None:
+        super().__init__(message)
+        self.processing = processing
+
+
+class ITrafficLabelReviewRepository(ABC):
+    """Persistence contract for append-only verified label reviews."""
+
+    @abstractmethod
+    async def create_review_revision(
+        self,
+        *,
+        traffic_log_id: int,
+        verified_label: str,
+        approval_state: str,
+        reviewer_id: str,
+        reviewer_role: str,
+        reviewed_at: datetime,
+        review_note: Optional[str] = None,
+    ) -> Optional[TrafficLabelReview]:
+        """Create the next revision, or return None when the alert is unknown."""
+        ...
+
+    @abstractmethod
+    async def get_latest_review(
+        self, traffic_log_id: int
+    ) -> Optional[TrafficLabelReview]:
+        """Return only the highest revision for an alert."""
+        ...
 
 
 class ITrafficLogRepository(ABC):

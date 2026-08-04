@@ -1,5 +1,6 @@
 [training]
 dataset_version = "v3_907k_cleaned"
+preprocessing_version = "http-preprocessor-v1"
 models = ["distilbert"]
 seeds = [42]
 device = "cuda"

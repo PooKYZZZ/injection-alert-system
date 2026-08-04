@@ -6,5 +6,12 @@ from web_app.infrastructure.repositories.traffic_log_repository import TrafficLo
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
     EnforcementRecommendationRepository,
 )
+from web_app.infrastructure.repositories.traffic_label_review_repository import (
+    TrafficLabelReviewRepository,
+)
 
-__all__ = ["TrafficLogRepository", "EnforcementRecommendationRepository"]
+__all__ = [
+    "TrafficLogRepository",
+    "EnforcementRecommendationRepository",
+    "TrafficLabelReviewRepository",
+]

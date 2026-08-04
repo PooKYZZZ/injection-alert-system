@@ -28,6 +28,12 @@ from ml_model.preprocessing.dataset_io import (
     resolve_data_dir,
     save_csv,
     save_json,
+    validate_dataset_preprocessing,
+)
+from ml_model.preprocessing.model_input import (
+    MODEL_INPUT_BUILDER,
+    MODEL_INPUT_HASH_POLICY,
+    MODEL_INPUT_TEXT_COLUMN,
 )
 from ml_model.training.config import (
     DEFAULT_MODELS,
@@ -194,8 +200,14 @@ def build_runner_context(
     data_dir = options.data_dir or resolve_data_dir(
         options.dataset_version, project_root=repository_root
     )
+    dataset_metadata = validate_dataset_preprocessing(
+        data_dir,
+        expected_dataset_version=options.dataset_version,
+        expected_preprocessing_version=options.preprocessing_version,
+        expected_text_column=MODEL_INPUT_TEXT_COLUMN,
+    )
     df_train, df_val, df_test = load_data_splits(
-        data_dir, "combined_payload", "final_label"
+        data_dir, MODEL_INPUT_TEXT_COLUMN, "final_label"
     )
     if options.max_train_samples:
         df_train = _limit_split(
@@ -223,7 +235,7 @@ def build_runner_context(
         df_train=df_train,
         df_val=df_val,
         df_test=df_test,
-        text_col="combined_payload",
+        text_col=MODEL_INPUT_TEXT_COLUMN,
     )
 
     run_name = (
@@ -290,11 +302,14 @@ def build_runner_context(
         df_train=df_train,
         df_val=df_val,
         df_test=df_test,
-        text_col="combined_payload",
+        text_col=MODEL_INPUT_TEXT_COLUMN,
         label_col="final_label",
         label_names=list(label_names),
         num_classes=len(label_names),
         dataset_version=options.dataset_version,
+        preprocessing_version=options.preprocessing_version,
+        model_input_hash_policy=MODEL_INPUT_HASH_POLICY,
+        dataset_metadata=dataset_metadata,
         run_kind=run_kind,
         run_name=run_name,
         run_output_dir=run_dir,
@@ -344,6 +359,10 @@ def build_runner_context(
         "run_kind": run_kind,
         "run_name": run_name,
         "dataset_version": options.dataset_version,
+        "preprocessing_version": options.preprocessing_version,
+        "model_input_hash_policy": MODEL_INPUT_HASH_POLICY,
+        "shared_builder_name": MODEL_INPUT_BUILDER,
+        "dataset_metadata": dataset_metadata,
         "data_dir": str(data_dir),
         "run_output_dir": str(run_dir),
         "text_col": context.text_col,
@@ -399,6 +418,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Use the CPU-safe minimal preparation profile",
     )
     parser.add_argument("--dataset-version")
+    parser.add_argument("--preprocessing-version")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--models", nargs="+", choices=sorted(DEFAULT_MODEL_REGISTRY))
     parser.add_argument("--seeds", nargs="+", type=int)
@@ -431,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
         key: value
         for key, value in {
             "dataset_version": args.dataset_version,
+            "preprocessing_version": args.preprocessing_version,
             "data_dir": args.data_dir,
             "models": tuple(args.models) if args.models else None,
             "seeds": tuple(args.seeds) if args.seeds else None,

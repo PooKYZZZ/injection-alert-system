@@ -88,6 +88,48 @@ class FeedbackRequest(BaseModel):
     )
 
 
+class LabelReviewRequest(BaseModel):
+    """Canonical analyst decision for the append-only review table."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verified_label: PredictionLabel
+    approval_state: Literal["approved_for_training", "excluded_from_training"]
+    review_note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class LabelReviewResponse(BaseModel):
+    """Latest immutable review revision returned by the API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    traffic_log_id: int
+    revision: int = Field(..., ge=1)
+    predicted_label: Optional[PredictionLabel] = None
+    verified_label: PredictionLabel
+    approval_state: Literal[
+        "approved_for_training", "excluded_from_training", "superseded"
+    ]
+    reviewer_id: str
+    reviewer_role: str
+    reviewed_at: datetime
+    model_version: Optional[str] = None
+    prediction_confidence: Optional[float] = None
+    prediction_confidence_level: Optional[ConfidenceLevel] = None
+    model_input_hash: Optional[str] = None
+    preprocessing_version: Optional[str] = None
+    ingest_event_hash: Optional[str] = None
+    source_verification_status: Optional[str] = None
+    source_provenance: Optional[str] = None
+    input_hash: Optional[str] = Field(
+        default=None,
+        description="Deprecated legacy ingest-event hash; use model_input_hash for model provenance.",
+    )
+    review_note: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
 class AlertResponse(BaseModel):
     """Response schema for alerts endpoint."""
 
@@ -103,6 +145,7 @@ class AlertResponse(BaseModel):
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
+    label_review: Optional[LabelReviewResponse] = None
 
 
 class ActivityBucketSchema(BaseModel):
@@ -264,6 +307,7 @@ class AlertDetailResponse(BaseModel):
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     triage_status: Optional[TriageStatus] = None
+    label_review: Optional[LabelReviewResponse] = None
 
     @field_serializer("labeled_at", when_used="json")
     def serialize_labeled_at(self, value: Optional[datetime]) -> Optional[str]:

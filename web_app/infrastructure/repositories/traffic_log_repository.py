@@ -29,6 +29,7 @@ from web_app.domain.interfaces import (
     ITrafficLogRepository,
     TrafficLogEntity,
     TrafficLogPage,
+    TrafficLabelReview,
     TrafficStatsSummary,
     DriftMetrics,
     ActivityBucket,
@@ -36,6 +37,7 @@ from web_app.domain.interfaces import (
     TargetPathSummary,
 )
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
+from web_app.infrastructure.database.database import TrafficLabelReview as ReviewRow
 from web_app.infrastructure.database.database import TrafficLog
 from web_app.infrastructure.database.database import AsyncSessionLocal
 
@@ -237,6 +239,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "source_provenance": entity.source_provenance.value,
             "source_verification_status": entity.source_verification_status.value,
             "ingest_fingerprint_sha256": entity.ingest_fingerprint_sha256,
+            "model_input_hash": entity.model_input_hash,
+            "model_input_text": entity.model_input_text,
+            "preprocessing_version": entity.preprocessing_version,
             "request_path": entity.request_path,
             "query_string": entity.query_string,
             "request_method": entity.request_method,
@@ -271,7 +276,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         return TrafficLog(**kwargs)
 
     @staticmethod
-    def _orm_to_entity(orm_obj: TrafficLog) -> TrafficLogEntity:
+    def _orm_to_entity(
+        orm_obj: TrafficLog,
+        label_review: TrafficLabelReview | None = None,
+    ) -> TrafficLogEntity:
         """Convert an ORM model instance to a domain entity."""
         return TrafficLogEntity(
             id=orm_obj.id,
@@ -284,6 +292,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 orm_obj.source_verification_status
             ),
             ingest_fingerprint_sha256=orm_obj.ingest_fingerprint_sha256,
+            model_input_hash=orm_obj.model_input_hash,
+            model_input_text=orm_obj.model_input_text,
+            preprocessing_version=orm_obj.preprocessing_version,
             request_path=orm_obj.request_path,
             query_string=orm_obj.query_string,
             request_method=orm_obj.request_method,
@@ -307,7 +318,60 @@ class TrafficLogRepository(ITrafficLogRepository):
             labeled_at=orm_obj.labeled_at,
             labeled_by=orm_obj.labeled_by,
             triage_status=orm_obj.triage_status,
+            label_review=label_review,
         )
+
+    @staticmethod
+    def _review_to_entity(row: ReviewRow) -> TrafficLabelReview:
+        return TrafficLabelReview(
+            id=row.id,
+            traffic_log_id=row.traffic_log_id,
+            revision=row.revision,
+            predicted_label=row.predicted_label,
+            verified_label=row.verified_label,
+            approval_state=row.approval_state,
+            reviewer_id=row.reviewer_id,
+            reviewer_role=row.reviewer_role,
+            reviewed_at=row.reviewed_at,
+            model_version=row.model_version,
+            prediction_confidence=row.prediction_confidence,
+            prediction_confidence_level=row.prediction_confidence_level,
+            model_input_hash=row.model_input_hash,
+            model_input_text=row.model_input_text,
+            preprocessing_version=row.preprocessing_version,
+            ingest_event_hash=row.ingest_event_hash,
+            source_verification_status=row.source_verification_status,
+            source_provenance=row.source_provenance,
+            input_hash=row.input_hash,
+            review_note=row.review_note,
+            created_at=row.created_at,
+        )
+
+    async def _latest_reviews(self, traffic_log_ids: list[int]) -> dict[int, TrafficLabelReview]:
+        if not traffic_log_ids:
+            return {}
+        latest_revision = (
+            select(
+                ReviewRow.traffic_log_id.label("traffic_log_id"),
+                func.max(ReviewRow.revision).label("revision"),
+            )
+            .where(ReviewRow.traffic_log_id.in_(traffic_log_ids))
+            .group_by(ReviewRow.traffic_log_id)
+            .subquery()
+        )
+        result = await self._session.execute(
+            select(ReviewRow).join(
+                latest_revision,
+                and_(
+                    ReviewRow.traffic_log_id == latest_revision.c.traffic_log_id,
+                    ReviewRow.revision == latest_revision.c.revision,
+                ),
+            )
+        )
+        return {
+            row.traffic_log_id: self._review_to_entity(row)
+            for row in result.scalars().all()
+        }
 
     # ------------------------------------------------------------------
     # Interface implementation
@@ -337,6 +401,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             "source_provenance": entity.source_provenance.value,
             "source_verification_status": entity.source_verification_status.value,
             "ingest_fingerprint_sha256": entity.ingest_fingerprint_sha256,
+            "model_input_text": entity.model_input_text,
             "request_path": entity.request_path,
             "query_string": entity.query_string,
             "request_method": entity.request_method,
@@ -351,6 +416,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             "confidence_level": entity.confidence_level,
             "inference_latency_ms": entity.inference_latency_ms,
             "model_version": entity.model_version,
+            "model_input_hash": entity.model_input_hash,
+            "model_input_text": entity.model_input_text,
+            "preprocessing_version": entity.preprocessing_version,
             "action_taken": entity.action_taken,
             "analyst_label": entity.analyst_label,
             "labeled_at": entity.labeled_at,
@@ -520,6 +588,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         inference_latency_ms: Optional[float],
         model_version: Optional[str],
         action_taken: str,
+        model_input_hash: Optional[str] = None,
+        model_input_text: Optional[str] = None,
+        preprocessing_version: Optional[str] = None,
     ) -> tuple[TrafficLogEntity, bool]:
         """Complete a claimed row and report whether this owner won the update."""
         result = await self._session.execute(
@@ -535,6 +606,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 confidence_level=confidence_level,
                 inference_latency_ms=inference_latency_ms,
                 model_version=model_version,
+                model_input_hash=model_input_hash,
+                model_input_text=model_input_text,
+                preprocessing_version=preprocessing_version,
                 action_taken=action_taken,
                 status="COMPLETED",
                 lease_expires_at=None,
@@ -564,7 +638,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj = result.scalars().first()
         if orm_obj is None:
             return None
-        return self._orm_to_entity(orm_obj)
+        reviews = await self._latest_reviews([orm_obj.id])
+        return self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
 
     async def get_by_transaction_id(
         self,
@@ -1314,7 +1389,8 @@ class TrafficLogRepository(ITrafficLogRepository):
 
         result = await self._session.execute(stmt)
         rows = result.scalars().all()
-        items = [self._orm_to_entity(row) for row in rows]
+        reviews = await self._latest_reviews([row.id for row in rows])
+        items = [self._orm_to_entity(row, reviews.get(row.id)) for row in rows]
         return TrafficLogPage(
             items=items,
             total=total,

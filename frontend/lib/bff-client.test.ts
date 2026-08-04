@@ -1104,4 +1104,77 @@ describe('bff-client', () => {
       },
     })
   })
+
+  it('submits a verified label review with server-derived identity and validates the response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 4,
+          traffic_log_id: 7,
+          revision: 1,
+          predicted_label: 'SQL Injection',
+          verified_label: 'Normal',
+          approval_state: 'approved_for_training',
+          reviewer_id: 'account-7',
+          reviewer_role: 'ANALYST',
+          reviewed_at: '2026-08-02T00:00:00Z',
+          model_version: 'model-v1',
+          input_hash: null,
+          review_note: 'Confirmed',
+          created_at: '2026-08-02T00:00:00Z',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { submitAlertLabelReview } = await loadClient()
+    const result = await submitAlertLabelReview(
+      '7',
+      {
+        verified_label: 'Normal',
+        approval_state: 'approved_for_training',
+        review_note: 'Confirmed',
+      },
+      { id: 'account-7', role: 'ANALYST' }
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/alerts/7/label-review',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer test-secret',
+          'Content-Type': 'application/json',
+          'X-Reviewer-Id': 'account-7',
+          'X-Reviewer-Role': 'ANALYST',
+        },
+        body: JSON.stringify({
+          verified_label: 'Normal',
+          approval_state: 'approved_for_training',
+          review_note: 'Confirmed',
+        }),
+      })
+    )
+  })
+
+  it('does not claim success for verified label review in mock mode', async () => {
+    process.env.USE_MOCK_API = 'true'
+    const { submitAlertLabelReview } = await loadClient()
+    const result = await submitAlertLabelReview(
+      '7',
+      { verified_label: 'Normal', approval_state: 'excluded_from_training' },
+      { id: 'account-7', role: 'ANALYST' }
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Verified label review is unavailable in mock mode.',
+      },
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

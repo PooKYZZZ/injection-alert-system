@@ -250,6 +250,26 @@ Do not copy historical test counts from this setup guide; rerun the repository
 commands for current totals. Current release evidence is summarized in
 `docs/project-ops/STATUS.md`.
 
+### Verify a label review locally
+
+With the backend test environment running and an authenticated analyst or admin
+session available, create a prediction and open its alert in the dashboard.
+Use the drawer's **Verified label** controls to submit one of the four labels:
+`SQL Injection`, `Code Injection`, `Other Attacks`, or `Normal`. Choose either
+`approved_for_training` or `excluded_from_training` and optionally add a note.
+Submit a second review, then reload the alert: the response should show the
+second revision while the existing triage action remains unchanged. A viewer
+must see the review read-only and receive `403` if it attempts the BFF route.
+
+The browser calls `frontend/app/api/alerts/[id]/label-review/route.ts`; that
+route derives reviewer id/role from the server session and proxies to the
+internal FastAPI route. Do not put reviewer identity or email in the JSON body.
+This is a local workflow check, not proof of a scheduled exporter, retraining
+run, production model promotion, or hosted readiness. New inference rows
+persist the exact sanitized model-input text and hash used for prediction;
+historical rows without that provenance are not eligible for approved
+training. The reviewed-sample exporter remains unimplemented.
+
 ### Start the backend
 
 ```powershell
@@ -269,6 +289,7 @@ Current API surface:
   - `GET /api/alerts`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
+  - `POST /api/alerts/{alert_id}/label-review`
   - `GET /api/stats`
   - `GET /api/ml-health`
 - Internal bearer-token protected backend endpoints:
@@ -329,11 +350,12 @@ Notes:
 - Login audit events are single-line JSON logs with hashed identifiers and fixed reason codes. They are operational logs, not a persistent or tamper-resistant audit store.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
+- Verified label review is persisted only through the authenticated BFF and database-backed FastAPI route. With `USE_MOCK_API=true`, the BFF returns `503` unavailable and never fabricates a successful review.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The repository migration head is `20260728_000025`. The latest hosted Supabase
+- The current repository migration head is `20260803_000028`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
 - Hosted migration state is only confirmed through `20260712_000020`; the
@@ -418,7 +440,7 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260728_000025`. Use
+The repository has exactly one current head, `20260803_000028`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).
@@ -530,7 +552,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- All seven BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
+- All eight BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
 
 ## 5. What This Setup Does Not Cover
 

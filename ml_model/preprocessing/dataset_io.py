@@ -10,6 +10,13 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+from ml_model.preprocessing.model_input import (
+    LEGACY_MODEL_INPUT_VERSION,
+    MODEL_INPUT_HASH_POLICY,
+    MODEL_INPUT_TEXT_COLUMN,
+    MODEL_INPUT_VERSION,
+    validate_model_input_version,
+)
 from ml_model.training.paths import default_training_output_dir, resolve_project_root
 
 REPO_ROOT = resolve_project_root()
@@ -45,6 +52,72 @@ def _resolve_split_root(data_dir: Path) -> Path:
                 return child
 
     return data_dir
+
+
+def load_dataset_metadata(data_dir: Path) -> dict[str, Any]:
+    """Load the metadata next to a processed dataset, without fallback."""
+
+    root = _resolve_split_root(Path(data_dir))
+    metadata_path = root / "metadata_preprocessing.json"
+    if not metadata_path.is_file():
+        raise ValueError(f"Dataset is missing required preprocessing metadata: {metadata_path}")
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Could not read dataset preprocessing metadata: {metadata_path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Dataset preprocessing metadata must be an object: {metadata_path}")
+    return payload
+
+
+def validate_dataset_preprocessing(
+    data_dir: Path,
+    *,
+    expected_dataset_version: str,
+    expected_preprocessing_version: str = MODEL_INPUT_VERSION,
+    expected_text_column: str = MODEL_INPUT_TEXT_COLUMN,
+) -> dict[str, Any]:
+    """Fail before training if dataset and model-input contracts differ."""
+
+    metadata = load_dataset_metadata(data_dir)
+    actual_dataset_version = metadata.get("dataset_version")
+    legacy_dataset = expected_dataset_version == "v3_907k_cleaned" and (
+        actual_dataset_version in {None, "SRBH_clean_v3.1.0", "v3_907k_cleaned"}
+    )
+    if actual_dataset_version != expected_dataset_version and not legacy_dataset:
+        raise ValueError(
+            f"Dataset version mismatch: requested {expected_dataset_version!r}, "
+            f"metadata declares {actual_dataset_version!r}"
+        )
+    actual_preprocessing_version = metadata.get("preprocessing_version")
+    if actual_preprocessing_version is None and legacy_dataset:
+        actual_preprocessing_version = LEGACY_MODEL_INPUT_VERSION
+        metadata = {
+            **metadata,
+            "dataset_version": expected_dataset_version,
+            "preprocessing_version": actual_preprocessing_version,
+            "text_column": expected_text_column,
+            "model_input_hash_policy": MODEL_INPUT_HASH_POLICY,
+        }
+    if actual_preprocessing_version == LEGACY_MODEL_INPUT_VERSION and not legacy_dataset:
+        raise ValueError("Legacy preprocessing is only supported for the known v3 dataset")
+    if actual_preprocessing_version != expected_preprocessing_version:
+        validate_model_input_version(
+            actual_preprocessing_version, context="dataset"
+        )
+    if actual_preprocessing_version != expected_preprocessing_version:
+        raise ValueError(
+            f"Dataset preprocessing_version={metadata.get('preprocessing_version')!r} "
+            f"does not match expected {expected_preprocessing_version!r}"
+        )
+    if metadata.get("text_column") != expected_text_column:
+        raise ValueError(
+            f"Dataset text_column={metadata.get('text_column')!r} does not match "
+            f"expected {expected_text_column!r}"
+        )
+    if metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
+        raise ValueError("Dataset model_input_hash_policy does not match the shared contract")
+    return metadata
 
 
 def resolve_data_dir(

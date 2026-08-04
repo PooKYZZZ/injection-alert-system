@@ -34,8 +34,25 @@ vi.mock('./AlertsTable', () => ({
 
 vi.mock('./BulkActionBar', () => ({ BulkActionBar: () => <div data-testid="bulk-actions" /> }))
 vi.mock('./AlertDrawer', () => ({
-  AlertDrawer: ({ alert }: { alert: { alert_id: string } | null }) => (
-    <div data-testid="alert-drawer">{alert ? `drawer:${alert.alert_id}` : 'closed'}</div>
+  AlertDrawer: ({
+    alert,
+    onReviewUpdated,
+  }: {
+    alert: { alert_id: string; label_review?: { verified_label: string } | null } | null
+    onReviewUpdated?: (review: { verified_label: string }) => void
+  }) => (
+    <div data-testid="alert-drawer">
+      {alert ? `drawer:${alert.alert_id}:${alert.label_review?.verified_label ?? 'none'}` : 'closed'}
+      {alert && (
+        <button
+          type="button"
+          data-testid="apply-review"
+          onClick={() => onReviewUpdated?.({ verified_label: 'Normal' })}
+        >
+          apply review
+        </button>
+      )}
+    </div>
   ),
 }))
 
@@ -57,6 +74,15 @@ describe('AlertsPageClient deep links', () => {
 
     await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591'))
     expect(screen.getByTestId('alerts-table')).toHaveTextContent('active:10591')
+  })
+
+  it('updates the selected drawer snapshot after a review succeeds', async () => {
+    render(<AlertsPageClient role="ANALYST" />)
+
+    await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591:none'))
+    screen.getByTestId('apply-review').click()
+
+    await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591:Normal'))
   })
 
   it('shows a safe message and does not fetch malformed deep links', () => {

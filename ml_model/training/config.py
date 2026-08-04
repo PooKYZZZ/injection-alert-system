@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
+from ml_model.preprocessing.model_input import LEGACY_MODEL_INPUT_VERSION
 from ml_model.training.paths import (
     resolve_configured_path,
     resolve_project_root,
@@ -20,6 +21,7 @@ DEFAULT_SEEDS = (42, 1337, 2026)
 @dataclass(frozen=True)
 class TrainingConfig:
     dataset_version: str = DEFAULT_DATASET_VERSION
+    preprocessing_version: str = LEGACY_MODEL_INPUT_VERSION
     data_dir: Path | None = None
     output_dir: Path | None = None
     models: tuple[str, ...] = DEFAULT_MODELS
@@ -69,6 +71,8 @@ class TrainingConfig:
     def validate(self) -> "TrainingConfig":
         if not self.dataset_version.strip():
             raise ValueError("dataset_version must not be empty")
+        if not self.preprocessing_version.strip():
+            raise ValueError("preprocessing_version must not be empty")
         if not self.models:
             raise ValueError("models must contain at least one model key")
         if not self.seeds:
@@ -142,6 +146,9 @@ def _tuple_value(
 def _from_mapping(mapping: Mapping[str, Any]) -> TrainingConfig:
     return TrainingConfig(
         dataset_version=str(mapping.get("dataset_version", DEFAULT_DATASET_VERSION)),
+        preprocessing_version=str(
+            mapping.get("preprocessing_version", LEGACY_MODEL_INPUT_VERSION)
+        ),
         data_dir=Path(mapping["data_dir"]) if mapping.get("data_dir") else None,
         output_dir=Path(mapping["output_dir"]) if mapping.get("output_dir") else None,
         models=tuple(

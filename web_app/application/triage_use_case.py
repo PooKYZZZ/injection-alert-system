@@ -14,6 +14,7 @@ Dependency rule:
 """
 
 import logging
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
@@ -23,7 +24,11 @@ from starlette.concurrency import run_in_threadpool
 
 from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.http_parsing import parse_http_request_line
-from web_app.application.http_preprocessor import preprocess_http_request
+from web_app.application.http_preprocessor import (
+    MODEL_INPUT_FALLBACK_VERSION,
+    MODEL_INPUT_VERSION,
+    prepare_model_input_for_version,
+)
 from web_app.application.waf_event_sanitizer import (
     redact_query_string,
     redact_sensitive_text,
@@ -161,6 +166,9 @@ class TriageUseCase:
                 confidence_level=prediction["confidence_level"],
                 inference_latency_ms=prediction.get("inference_latency_ms"),
                 model_version=prediction.get("model_version"),
+                model_input_hash=prediction.get("model_input_hash"),
+                model_input_text=prediction.get("model_input_text"),
+                preprocessing_version=prediction.get("preprocessing_version"),
                 action_taken=action_taken,
             )
         )
@@ -224,7 +232,12 @@ class TriageUseCase:
 
         self._log_verification_context_change(authoritative, command)
 
-        prediction = await self._predict(command.http_request)
+        model_request = (
+            self._build_model_input_request(command)
+            if self._enable_preprocessing
+            else command.http_request
+        )
+        prediction = await self._predict(model_request)
         action_taken = self._action_for(
             prediction=prediction["prediction"],
             confidence_level=prediction["confidence_level"],
@@ -237,6 +250,9 @@ class TriageUseCase:
             confidence_level=prediction["confidence_level"],
             inference_latency_ms=prediction.get("inference_latency_ms"),
             model_version=prediction.get("model_version"),
+            model_input_hash=prediction.get("model_input_hash"),
+            model_input_text=prediction.get("model_input_text"),
+            preprocessing_version=prediction.get("preprocessing_version"),
             action_taken=action_taken,
         )
         if not completed_by_owner:
@@ -320,13 +336,26 @@ class TriageUseCase:
         # Preprocess HTTP request for model input (training-serving consistency)
         # The raw http_request is still persisted verbatim; this only affects
         # the text passed to the ML model.
-        model_input = http_request
         if self._enable_preprocessing:
-            preprocessed = preprocess_http_request(http_request)
-            # Preserve legacy endpoint behavior for payload-only inputs while
-            # still using canonicalized text when a valid HTTP request is present.
-            if preprocessed:
-                model_input = preprocessed
+            preprocessing_contract = getattr(
+                self._classifier, "model_input_version", MODEL_INPUT_VERSION
+            )
+            if not isinstance(preprocessing_contract, str):
+                preprocessing_contract = MODEL_INPUT_VERSION
+            model_input, model_input_hash, preprocessing_version = (
+                prepare_model_input_for_version(http_request, preprocessing_contract)
+            )
+        else:
+            model_input = http_request
+            model_input_hash = sha256(model_input.encode("utf-8")).hexdigest()
+            preprocessing_version = "raw-input-v1"
+
+        persisted_model_input = (
+            model_input
+            if preprocessing_version
+            in {MODEL_INPUT_VERSION, MODEL_INPUT_FALLBACK_VERSION}
+            else None
+        )
 
         raw_result = await run_in_threadpool(self._classifier.predict, model_input)
         prediction = raw_result.get("prediction") or raw_result.get("class")
@@ -362,6 +391,12 @@ class TriageUseCase:
             "confidence_level": confidence_level,
             "inference_latency_ms": raw_result.get("inference_latency_ms"),
             "model_version": model_version,
+            "model_input_hash": model_input_hash,
+            # The supported legacy model receives its exact v1 text for
+            # inference, but that text may contain credentials. Keep only its
+            # one-way provenance hash until a redacted v2 model is deployed.
+            "model_input_text": persisted_model_input,
+            "preprocessing_version": preprocessing_version,
         }
 
     @staticmethod
@@ -399,6 +434,21 @@ class TriageUseCase:
         if command.request_body:
             parts.append(f"\nBody:\n{redact_sensitive_text(command.request_body)}")
         return "".join(parts)
+
+    @staticmethod
+    def _build_model_input_request(command: TriageIngestCommand) -> str:
+        """Build the sanitized request envelope used for WAF inference.
+
+        Query and body are already sanitized by the WAF ingest boundary. The
+        preprocessor removes headers and canonicalizes this envelope, so the
+        exact resulting model text can be persisted and verified later.
+        """
+        request_uri = command.request_uri
+        if command.query_string:
+            separator = "&" if "?" in request_uri else "?"
+            request_uri = f"{request_uri}{separator}{command.query_string}"
+        request_line = f"{command.request_method} {request_uri} HTTP/1.1"
+        return f"{request_line}\r\n\r\n{command.request_body or ''}"
 
     @staticmethod
     def _result_from_entity(entity: TrafficLogEntity) -> TriageResult:

@@ -8,6 +8,8 @@ from web_app.presentation.schemas import (
     AlertResponse,
     FeedbackRequest,
     HealthResponse,
+    LabelReviewRequest,
+    LabelReviewResponse,
     PredictionRequest,
     PredictionResponse,
     TriageIngestRequest,
@@ -127,6 +129,33 @@ def test_health_response():
     """Test HealthResponse schema"""
     health = HealthResponse(status="healthy", database="connected")
     assert health.status == "healthy"
+
+
+def test_label_review_schema_enforces_canonical_contract():
+    request = LabelReviewRequest(
+        verified_label="Code Injection",
+        approval_state="excluded_from_training",
+        review_note="Confirmed",
+    )
+    assert request.verified_label == "Code Injection"
+    with pytest.raises(ValidationError):
+        LabelReviewRequest(
+            verified_label="free-form",
+            approval_state="approved_for_training",
+        )
+
+    response = LabelReviewResponse(
+        id=1,
+        traffic_log_id=10,
+        revision=1,
+        predicted_label="Normal",
+        verified_label="Normal",
+        approval_state="approved_for_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    )
+    assert response.revision == 1
 
 
 def test_triage_ingest_request_structure():

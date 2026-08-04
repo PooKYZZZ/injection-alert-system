@@ -86,6 +86,9 @@ class ConfirmatoryRunnerContext:
     label_names: list[str]
     num_classes: int
     dataset_version: str
+    preprocessing_version: str
+    model_input_hash_policy: str
+    dataset_metadata: dict[str, Any]
 
     run_kind: str
     run_name: str
@@ -1100,7 +1103,11 @@ class FinalConfirmatoryRunner:
                     "run_kind": self.ctx.run_kind,
                     "run_name": self.ctx.run_name,
                     "dataset_version": self.ctx.dataset_version,
+                    "preprocessing_version": self.ctx.preprocessing_version,
+                    "model_input_hash_policy": self.ctx.model_input_hash_policy,
+                    "dataset_metadata": self.ctx.dataset_metadata,
                     "model_key": model_key,
+                    "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
                     "model_id": cfg["model_id"],
                     "architecture": cfg["architecture"],
                     "seed": int(seed),
@@ -2203,6 +2210,9 @@ class FinalConfirmatoryRunner:
             "run_kind": self.ctx.run_kind,
             "run_name": self.ctx.run_name,
             "dataset_version": self.ctx.dataset_version,
+            "preprocessing_version": self.ctx.preprocessing_version,
+            "model_input_hash_policy": self.ctx.model_input_hash_policy,
+            "dataset_metadata": self.ctx.dataset_metadata,
             "run_output_dir": str(self.ctx.run_output_dir),
             "text_col": self.ctx.text_col,
             "label_col": self.ctx.label_col,

@@ -22,6 +22,18 @@ export type AlertConfidenceTier = (typeof ALERT_CONFIDENCE_TIER_VALUES)[number]
 export const ALERT_SEVERITY_VALUES = ALERT_CONFIDENCE_TIER_VALUES
 export type AlertSeverity = AlertConfidenceTier
 
+export const VERIFIED_LABEL_VALUES = ALERT_PREDICTION_VALUES
+export const LABEL_REVIEW_APPROVAL_STATE_VALUES = [
+  'approved_for_training',
+  'excluded_from_training',
+] as const
+export const LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES = [
+  ...LABEL_REVIEW_APPROVAL_STATE_VALUES,
+  'superseded',
+] as const
+export type VerifiedLabel = (typeof VERIFIED_LABEL_VALUES)[number]
+export type LabelReviewApprovalState = (typeof LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES)[number]
+
 export const ALERT_FIELD_REMAPS = {
   id: 'alert_id',
   source: 'source_ip',

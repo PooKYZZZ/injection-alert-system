@@ -508,6 +508,33 @@ async def test_complete_processing_updates_placeholder_row(
 
 
 @pytest.mark.asyncio
+async def test_save_if_absent_preserves_model_input_provenance(
+    repository: TrafficLogRepository,
+):
+    created, inserted = await repository.save_if_absent(
+        TrafficLogEntity(
+            transaction_id="txn-save-if-absent-provenance",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="198.51.100.30",
+            request_path="/login",
+            request_method="POST",
+            http_request="POST /login HTTP/1.1",
+            prediction="SQL Injection",
+            confidence=0.98,
+            confidence_level="HIGH",
+            model_version="test-model-v1",
+            model_input_hash="a" * 64,
+            preprocessing_version="http-preprocessor-v1",
+            action_taken="BLOCKED",
+        )
+    )
+
+    assert inserted is True
+    assert created.model_input_hash == "a" * 64
+    assert created.preprocessing_version == "http-preprocessor-v1"
+
+
+@pytest.mark.asyncio
 async def test_complete_processing_rejects_late_owner(
     repository: TrafficLogRepository,
 ):

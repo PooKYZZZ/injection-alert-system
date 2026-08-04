@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import type { Alert } from '@/features/alerts/types'
+import type { Alert, LabelReview } from '@/features/alerts/types'
 import { AlertsTable } from '@/components/alerts/AlertsTable'
 import { BulkActionBar } from '@/components/alerts/BulkActionBar'
 import { AlertDrawer } from '@/components/alerts/AlertDrawer'
@@ -29,6 +29,13 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
     (deepLink.kind === 'valid' && dismissedDeepLinkId !== deepLink.id
       ? deepLinkedAlert ?? null
       : null)
+
+  const handleReviewUpdated = useCallback((review: LabelReview) => {
+    setManualSelectedAlert((current) => {
+      const baseAlert = current ?? selectedAlert
+      return baseAlert ? { ...baseAlert, label_review: review } : current
+    })
+  }, [selectedAlert])
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setSelectedIds(new Set(ids))
@@ -85,6 +92,7 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
         role={role}
         alert={selectedAlert}
         onClose={handleDrawerClose}
+        onReviewUpdated={handleReviewUpdated}
       />
     </div>
   )

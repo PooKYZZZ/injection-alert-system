@@ -13,6 +13,11 @@ import torch
 import transformers
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from ml_model.preprocessing.model_input import (
+    MODEL_INPUT_HASH_POLICY,
+    validate_supported_model_input_version,
+)
+
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 MODEL_IDS = {
     "minilm": "nreimers/MiniLM-L6-H384-uncased",
@@ -309,9 +314,18 @@ def build_manifest(
     notes: str | None,
     local_reload_verified: bool,
 ) -> dict[str, Any]:
+    config_metadata = json.loads(config_used_path.read_text(encoding="utf-8"))
+    preprocessing_version = validate_supported_model_input_version(
+        config_metadata.get("preprocessing_version"), context="serving artifact"
+    )
+    if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
+        raise PackagingError("Serving artifact is missing the shared model-input hash policy.")
     return {
         "model_version": model_version,
         "model_key": model_key,
+        "dataset_version": config_metadata.get("dataset_version"),
+        "preprocessing_version": preprocessing_version,
+        "model_input_hash_policy": config_metadata.get("model_input_hash_policy"),
         "base_model": base_model,
         "run_dir_name": run_dir.name,
         "run_dir_path": str(run_dir.resolve()),

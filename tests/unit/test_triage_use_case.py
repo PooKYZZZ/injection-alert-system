@@ -9,6 +9,7 @@ verifying that the use case correctly:
 
 import asyncio
 from datetime import datetime, timezone
+from hashlib import sha256
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qsl
 
@@ -28,6 +29,7 @@ from web_app.domain.source_address import (
     SourceProvenance,
     SourceVerificationStatus,
 )
+from ml_model.preprocessing.model_input import LEGACY_MODEL_INPUT_VERSION
 
 
 @pytest.fixture
@@ -1377,6 +1379,11 @@ async def test_triage_preprocessing_enabled(mock_classifier, mock_repository):
     # Should NOT be the raw HTTP request
     assert "HTTP/1.1" not in captured_args[0]
     assert "Host" not in captured_args[0]
+    saved_entity = mock_repository.save.call_args[0][0]
+    assert saved_entity.model_input_hash == sha256(
+        captured_args[0].encode("utf-8")
+    ).hexdigest()
+    assert saved_entity.preprocessing_version == "model-input-v2-redacted"
 
 
 @pytest.mark.asyncio
@@ -1412,6 +1419,42 @@ async def test_triage_preprocessing_disabled(mock_classifier, mock_repository):
     # With preprocessing disabled, model receives raw HTTP request
     assert len(captured_args) == 1
     assert captured_args[0] == raw_request
+
+
+@pytest.mark.asyncio
+async def test_waf_ingest_model_input_includes_query_and_sanitized_body(
+    mock_classifier, mock_repository
+):
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.98,
+        "confidence_level": "HIGH",
+    }
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    await use_case.ingest(
+        TriageIngestCommand(
+            transaction_id="txn-model-input-body",
+            timestamp=datetime.now(timezone.utc),
+            source_ip="198.51.100.20",
+            request_method="POST",
+            request_uri="/login",
+            request_headers={"Content-Type": "application/x-www-form-urlencoded"},
+            request_body="username=admin' OR '1'='1",
+            http_request="POST /login HTTP/1.1",
+            query_string="q=1%27",
+            crs_score=5,
+            crs_rule_ids=["942100"],
+        )
+    )
+
+    model_input = mock_classifier.predict.call_args.args[0]
+    assert model_input == "post /login?q=1' username=admin' or '1'='1"
+    complete_kwargs = mock_repository.complete_processing.call_args.kwargs
+    assert complete_kwargs["model_input_text"] == model_input
+    assert complete_kwargs["model_input_hash"] == sha256(
+        model_input.encode("utf-8")
+    ).hexdigest()
 
 
 @pytest.mark.asyncio
@@ -1452,3 +1495,68 @@ async def test_triage_raw_http_request_preserved_for_persistence(
     # http_request should be the exact raw input, not preprocessed
     assert "Host: target.example.com" in saved_entity.http_request
     assert "User-Agent: Mozilla/5.0" in saved_entity.http_request
+
+
+@pytest.mark.asyncio
+async def test_direct_model_input_redacts_sensitive_query_and_body_values(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,
+    )
+    await use_case.execute(
+        http_request=(
+            "POST /search?token=TEST_SECRET&safe=1 HTTP/1.1\r\n"
+            "Content-Type: application/x-www-form-urlencoded\r\n\r\n"
+            "password=BODY_SECRET&query=admin"
+        ),
+        source_ip="192.168.1.1",
+    )
+
+    model_input = mock_classifier.predict.call_args.args[0]
+    assert "TEST_SECRET" not in model_input
+    assert "BODY_SECRET" not in model_input
+    assert "[redacted]" in model_input
+
+
+@pytest.mark.asyncio
+async def test_legacy_model_input_is_not_persisted_as_plaintext(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.model_input_version = LEGACY_MODEL_INPUT_VERSION
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+    raw_request = (
+        "POST /login?password=TOP_SECRET HTTP/1.1\r\n"
+        "Content-Type: application/x-www-form-urlencoded\r\n\r\n"
+        "password=BODY_SECRET"
+    )
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,
+    )
+    await use_case.execute(http_request=raw_request, source_ip="192.168.1.1")
+
+    mock_classifier.predict.assert_called_once()
+    assert "top_secret" in mock_classifier.predict.call_args.args[0]
+    saved_entity = mock_repository.save.call_args.args[0]
+    assert saved_entity.model_input_text is None
+    assert saved_entity.preprocessing_version == LEGACY_MODEL_INPUT_VERSION
+    assert saved_entity.model_input_hash == sha256(
+        mock_classifier.predict.call_args.args[0].encode("utf-8")
+    ).hexdigest()

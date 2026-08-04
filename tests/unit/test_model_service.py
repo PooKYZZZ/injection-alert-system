@@ -20,6 +20,10 @@ def _make_run_dir(base_dir: Path, name: str) -> Path:
     run_dir = base_dir / name
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "best_distilbert_ckpt.pt").write_bytes(b"checkpoint")
+    (run_dir / "config_used.json").write_text(
+        '{"preprocessing_version":"model-input-v2-redacted"}',
+        encoding="utf-8",
+    )
     return run_dir
 
 
@@ -27,7 +31,8 @@ def _make_packaged_dir(base_dir: Path, name: str = "distillbert") -> Path:
     package_dir = base_dir / name
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "serving_manifest.json").write_text(
-        '{"model_version":"distilbert_v3_907k_cleaned_20260312_133755"}',
+        '{"model_version":"distilbert_v3_907k_cleaned_20260312_133755",'
+        '"preprocessing_version":"model-input-v2-redacted"}',
         encoding="utf-8",
     )
     (package_dir / "config.json").write_text("{}", encoding="utf-8")
@@ -88,6 +93,7 @@ def test_development_broad_path_resolves_latest_run(
     service = ModelService(_make_settings(tmp_path, "development"))
 
     assert service.model_version == latest_run.name
+    assert service.model_input_version == "model-input-v2-redacted"
     assert latest_run.name in caplog.text
 
 
@@ -125,3 +131,34 @@ def test_packaged_artifact_directory_is_accepted(
     service = ModelService(_make_settings(packaged_dir, "production"))
 
     assert service.model_version == "distilbert_v3_907k_cleaned_20260312_133755"
+
+
+def test_known_legacy_model_uses_explicit_v1_compatibility_rule(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    run_dir = _make_run_dir(tmp_path, "distilbert_v3_907k_cleaned_20260312_133755")
+    (run_dir / "config_used.json").write_text(
+        '{"dataset_version":"v3_907k_cleaned"}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        ModelService,
+        "_load_run_artifacts",
+        lambda self, path: (object(), object(), 0.596868),
+    )
+    service = ModelService(_make_settings(run_dir, "production"))
+
+    assert service.model_input_version == "http-preprocessor-v1"
+
+
+def test_unknown_metadata_less_model_is_rejected(tmp_path: Path):
+    run_dir = _make_run_dir(tmp_path, "distilbert_unknown")
+    (run_dir / "config_used.json").write_text(
+        '{"model_version":"unknown"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="missing preprocessing_version"):
+        ModelService(_make_settings(run_dir, "production"))

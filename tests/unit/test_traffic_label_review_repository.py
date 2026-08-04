@@ -1,0 +1,317 @@
+from datetime import datetime, timezone
+from hashlib import sha256
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from sqlalchemy import select, update
+
+from web_app.infrastructure.database.database import Base, TrafficLabelReview as ReviewRow, TrafficLog
+from web_app.domain.interfaces import ReviewNotEligibleError
+from web_app.infrastructure.repositories.traffic_label_review_repository import (
+    TrafficLabelReviewRepository,
+)
+
+
+@pytest.fixture
+async def repository():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with session_factory() as session:
+        yield TrafficLabelReviewRepository(session)
+    await engine.dispose()
+
+
+async def _insert_alert(session: AsyncSession) -> int:
+    alert = TrafficLog(
+        source_ip="203.0.113.10",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        model_version="model-v1",
+        ingest_fingerprint_sha256="a" * 64,
+        model_input_text="get /records/search",
+        preprocessing_version="http-preprocessor-v1",
+        status="COMPLETED",
+    )
+    alert.model_input_hash = sha256(alert.model_input_text.encode("utf-8")).hexdigest()
+    session.add(alert)
+    await session.commit()
+    return alert.id
+
+
+@pytest.mark.asyncio
+async def test_review_persists_metadata_and_latest_query(repository):
+    alert_id = await _insert_alert(repository._session)
+    reviewed_at = datetime.now(timezone.utc)
+
+    review = await repository.create_review_revision(
+        traffic_log_id=alert_id,
+        verified_label="SQL Injection",
+        approval_state="approved_for_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=reviewed_at,
+        review_note="Confirmed by analyst",
+    )
+
+    assert review is not None
+    assert review.revision == 1
+    assert review.predicted_label == "SQL Injection"
+    assert review.model_version == "model-v1"
+    assert review.input_hash == "a" * 64
+    assert review.prediction_confidence == 0.98
+    assert review.prediction_confidence_level == "HIGH"
+    assert review.model_input_hash == sha256(
+        "get /records/search".encode("utf-8")
+    ).hexdigest()
+    assert review.model_input_text == "get /records/search"
+    assert review.preprocessing_version == "http-preprocessor-v1"
+    assert review.ingest_event_hash == "a" * 64
+    assert (await repository.get_latest_review(alert_id)).id == review.id
+
+
+@pytest.mark.asyncio
+async def test_unknown_alert_is_rejected_without_review(repository):
+    assert await repository.create_review_revision(
+        traffic_log_id=999,
+        verified_label="Normal",
+        approval_state="excluded_from_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    ) is None
+    assert await repository.get_latest_review(999) is None
+
+
+@pytest.mark.asyncio
+async def test_processing_alert_cannot_receive_review(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.11",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="PROCESSING",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError) as exc_info:
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="Normal",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+    assert exc_info.value.processing is True
+
+
+@pytest.mark.asyncio
+async def test_completed_alert_without_training_provenance_cannot_be_approved(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.12",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError) as exc_info:
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="SQL Injection",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+    assert "model_version" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_completed_alert_can_be_excluded_without_training_provenance(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.13",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    review = await repository.create_review_revision(
+        traffic_log_id=alert.id,
+        verified_label="Normal",
+        approval_state="excluded_from_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    )
+
+    assert review.approval_state == "excluded_from_training"
+
+
+@pytest.mark.asyncio
+async def test_approved_review_requires_model_input_text(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.14",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        model_version="model-v1",
+        model_input_hash="a" * 64,
+        preprocessing_version="http-preprocessor-v1",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError, match="model_input_text"):
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="SQL Injection",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_approved_review_rejects_mismatched_model_input_hash(repository):
+    alert = TrafficLog(
+        source_ip="203.0.113.15",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/search HTTP/1.1",
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.98,
+        confidence_level="HIGH",
+        model_version="model-v1",
+        model_input_hash="a" * 64,
+        model_input_text="get /records/search",
+        preprocessing_version="http-preprocessor-v1",
+    )
+    repository._session.add(alert)
+    await repository._session.commit()
+
+    with pytest.raises(ReviewNotEligibleError, match="does not match"):
+        await repository.create_review_revision(
+            traffic_log_id=alert.id,
+            verified_label="SQL Injection",
+            approval_state="approved_for_training",
+            reviewer_id="analyst-1",
+            reviewer_role="ANALYST",
+            reviewed_at=datetime.now(timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_second_review_is_revision_two_and_history_is_preserved(repository):
+    alert_id = await _insert_alert(repository._session)
+    common = {
+        "traffic_log_id": alert_id,
+        "reviewer_id": "analyst-1",
+        "reviewer_role": "ANALYST",
+        "reviewed_at": datetime.now(timezone.utc),
+    }
+    first = await repository.create_review_revision(
+        **common,
+        verified_label="SQL Injection",
+        approval_state="approved_for_training",
+    )
+    second = await repository.create_review_revision(
+        **common,
+        verified_label="Other Attacks",
+        approval_state="excluded_from_training",
+    )
+
+    assert first.revision == 1
+    assert second.revision == 2
+    rows = (await repository._session.execute(
+        select(ReviewRow).order_by(ReviewRow.revision)
+    )).scalars().all()
+    assert [row.revision for row in rows] == [1, 2]
+    assert (await repository.get_latest_review(alert_id)).verified_label == "Other Attacks"
+
+
+@pytest.mark.asyncio
+async def test_review_snapshot_survives_parent_provenance_change(repository):
+    alert_id = await _insert_alert(repository._session)
+    review = await repository.create_review_revision(
+        traffic_log_id=alert_id,
+        verified_label="SQL Injection",
+        approval_state="approved_for_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    )
+
+    await repository._session.execute(
+        update(TrafficLog)
+        .where(TrafficLog.id == alert_id)
+        .values(
+            confidence=0.12,
+            model_version="later-model",
+            model_input_hash="c" * 64,
+            model_input_text="later input",
+        )
+    )
+    await repository._session.commit()
+
+    snapshot = await repository.get_latest_review(alert_id)
+    assert snapshot.id == review.id
+    assert snapshot.prediction_confidence == 0.98
+    assert snapshot.model_version == "model-v1"
+    assert snapshot.model_input_hash == sha256(
+        "get /records/search".encode("utf-8")
+    ).hexdigest()
+    assert snapshot.model_input_text == "get /records/search"
+
+
+@pytest.mark.asyncio
+async def test_database_rejects_noncanonical_label_and_approval_state(repository):
+    alert_id = await _insert_alert(repository._session)
+    arguments = {
+        "traffic_log_id": alert_id,
+        "reviewer_id": "analyst-1",
+        "reviewer_role": "ANALYST",
+        "reviewed_at": datetime.now(timezone.utc),
+    }
+    with pytest.raises(IntegrityError):
+        await repository.create_review_revision(
+            **arguments,
+            verified_label="Free-form label",
+            approval_state="approved_for_training",
+        )
+    await repository._session.rollback()
+
+    with pytest.raises(IntegrityError):
+        await repository.create_review_revision(
+            **arguments,
+            verified_label="Normal",
+            approval_state="maybe_training",
+        )
+    await repository._session.rollback()

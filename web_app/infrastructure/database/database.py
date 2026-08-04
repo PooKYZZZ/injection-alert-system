@@ -137,6 +137,9 @@ class TrafficLog(Base):
     source_provenance = Column(String(32), nullable=False)
     source_verification_status = Column(String(32), nullable=False)
     ingest_fingerprint_sha256 = Column(String(64), nullable=True)
+    model_input_hash = Column(String(64), nullable=True)
+    model_input_text = Column(Text, nullable=True)
+    preprocessing_version = Column(String(64), nullable=True)
     request_path = Column(String(512), nullable=True)
     query_string = Column(String(4096), nullable=True)
     request_method = Column(String(16), nullable=True)
@@ -162,6 +165,61 @@ class TrafficLog(Base):
     labeled_at = Column(DateTime(timezone=True), nullable=True)
     labeled_by = Column(String(100), nullable=True)
     triage_status = Column(String(32), nullable=True)
+
+
+class TrafficLabelReview(Base):
+    """Immutable analyst review revision for one traffic log."""
+
+    __tablename__ = "traffic_label_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "traffic_log_id", "revision", name="uq_traffic_label_review_revision"
+        ),
+        CheckConstraint(
+            "verified_label IN ('Normal', 'SQL Injection', 'Code Injection', 'Other Attacks')",
+            name="traffic_label_review_verified_label_allowed",
+        ),
+        CheckConstraint(
+            "approval_state IN ('approved_for_training', 'excluded_from_training', 'superseded')",
+            name="traffic_label_review_approval_state_allowed",
+        ),
+        CheckConstraint("revision >= 1", name="traffic_label_review_revision_positive"),
+        Index(
+            "ix_traffic_label_reviews_traffic_log_revision",
+            "traffic_log_id",
+            "revision",
+        ),
+        Index("ix_traffic_label_reviews_approval_state", "approval_state"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    traffic_log_id = Column(
+        Integer,
+        ForeignKey("traffic_logs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    revision = Column(Integer, nullable=False)
+    predicted_label = Column(String(50), nullable=True)
+    verified_label = Column(String(50), nullable=False)
+    approval_state = Column(String(32), nullable=False)
+    reviewer_id = Column(String(128), nullable=False)
+    reviewer_role = Column(String(32), nullable=False)
+    reviewed_at = Column(DateTime(timezone=True), nullable=False)
+    model_version = Column(String(100), nullable=True)
+    prediction_confidence = Column(Float, nullable=True)
+    prediction_confidence_level = Column(String(10), nullable=True)
+    model_input_hash = Column(String(64), nullable=True)
+    model_input_text = Column(Text, nullable=True)
+    preprocessing_version = Column(String(64), nullable=True)
+    ingest_event_hash = Column(String(64), nullable=True)
+    source_verification_status = Column(String(32), nullable=True)
+    source_provenance = Column(String(32), nullable=True)
+    # Deprecated compatibility field. New reviews use model_input_hash.
+    input_hash = Column(String(64), nullable=True)
+    review_note = Column(String(1000), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class EnforcementRecommendationRow(Base):

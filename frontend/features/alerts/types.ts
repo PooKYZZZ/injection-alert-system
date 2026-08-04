@@ -1,10 +1,13 @@
+import { z } from 'zod'
 import type {
   AlertAction,
   AlertConfidenceTier,
   AlertPrediction,
   AlertSeverity,
+  LabelReviewApprovalState,
+  VerifiedLabel,
 } from './contract'
-import type { TriageStatus, AlertFilters } from './schemas'
+import type { TriageStatus, AlertFilters, LabelReviewSchema } from './schemas'
 
 export type {
   AlertAction,
@@ -13,6 +16,8 @@ export type {
   AlertSeverity,
   TriageStatus,
   AlertFilters,
+  LabelReviewApprovalState,
+  VerifiedLabel,
 }
 
 export interface ShapFeature {
@@ -48,9 +53,12 @@ export interface Alert {
   analyst_label?: string | null
   labeled_at?: string | null
   labeled_by?: string | null
+  label_review?: LabelReview | null
   shap_values?: ShapFeature[]
   source_intel?: SourceIntel
 }
+
+export type LabelReview = z.infer<typeof LabelReviewSchema>
 
 export interface PaginatedAlerts {
   items: Alert[]

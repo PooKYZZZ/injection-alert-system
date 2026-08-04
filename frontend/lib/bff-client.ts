@@ -1,9 +1,12 @@
 import 'server-only'
 
 import { z } from 'zod'
-import { AlertSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
-import { ALERT_ACTION_TAKEN_VALUES, type AlertAction } from '@/features/alerts/contract'
-import type { Alert, PaginatedAlerts } from '@/features/alerts/types'
+import { AlertSchema, LabelReviewSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
+import {
+  ALERT_ACTION_TAKEN_VALUES,
+  type AlertAction,
+} from '@/features/alerts/contract'
+import type { Alert, LabelReview, PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
 import type { DashboardStats } from '@/features/stats/types'
 import { MOCK_ALERTS } from '@/mocks/alerts'
@@ -41,6 +44,7 @@ const BackendAlertSchema = z.object({
   triage_status: z.enum([
     'new', 'in_review', 'escalated', 'resolved', 'false_positive'
   ]).nullable().optional(),
+  label_review: z.unknown().nullable().optional(),
 })
 
 const BackendPaginatedAlertsSchema = z.object({
@@ -353,6 +357,13 @@ function validateMockData<T>(
 }
 
 function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Alert> {
+  let labelReview: z.infer<typeof LabelReviewSchema> | null = null
+  if (alert.label_review != null) {
+    const parsedReview = normalizeWithSchema(LabelReviewSchema, alert.label_review)
+    if (!parsedReview.ok) return parsedReview
+    labelReview = parsedReview.data
+  }
+
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
     timestamp: alert.timestamp,
@@ -373,6 +384,7 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     labeled_at: alert.labeled_at ?? null,
     labeled_by: alert.labeled_by ?? null,
     triage_status: alert.triage_status ?? null,
+    ...(labelReview != null ? { label_review: labelReview } : {}),
   })
 }
 
@@ -742,6 +754,66 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
   }
 
   return normalizeAlert(upstream.data)
+}
+
+export async function submitAlertLabelReview(
+  alertId: string,
+  review: {
+    verified_label: z.infer<typeof LabelReviewSchema>['verified_label']
+    approval_state: Extract<
+      z.infer<typeof LabelReviewSchema>['approval_state'],
+      'approved_for_training' | 'excluded_from_training'
+    >
+    review_note?: string
+  },
+  reviewer: { id: string; role: string }
+): Promise<BffResult<LabelReview>> {
+  if (isMockMode()) {
+    return err(503, 'UPSTREAM_ERROR', 'Verified label review is unavailable in mock mode.')
+  }
+
+  const parsedId = parseAlertId(alertId)
+  if (!parsedId.ok) return parsedId
+
+  const config = getUpstreamConfig()
+  if (!config.ok) return config
+
+  let response: Response
+  try {
+    response = await fetch(
+      `${config.data.baseUrl}/api/alerts/${parsedId.data}/label-review`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.data.apiKey}`,
+          'Content-Type': 'application/json',
+          'X-Reviewer-Id': reviewer.id,
+          'X-Reviewer-Role': reviewer.role,
+        },
+        body: JSON.stringify(review),
+        signal: AbortSignal.timeout(30_000),
+      }
+    )
+  } catch {
+    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
+    }
+    if (response.status === 404) return err(404, 'NOT_FOUND', 'Requested resource was not found.')
+    if (response.status >= 500) return err(response.status, 'UPSTREAM_ERROR', 'Upstream service failed.')
+    return err(response.status, 'UPSTREAM_ERROR', 'Upstream request failed.')
+  }
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+  }
+  return normalizeWithSchema(LabelReviewSchema, payload)
 }
 
 export async function getStats(

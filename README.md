@@ -70,6 +70,7 @@ In the current repo, the application code, model-loading path, tests, dashboard 
   - `GET /api/alerts/stream`
   - `GET /api/alerts/{id}`
   - `PATCH /api/alerts/{id}/triage`
+  - `POST /api/alerts/{alert_id}/label-review`
   - `GET /api/stats`
   - `GET /api/ml-health`
   - `POST /api/feedback`
@@ -247,6 +248,7 @@ curl -X POST "http://localhost:8000/api/predict" \
   - `GET /api/ml-health`
 - Internal bearer-token protected backend endpoints:
   - `POST /api/feedback`
+  - `POST /api/alerts/{alert_id}/label-review` (requires trusted reviewer context from the authenticated BFF)
 - Public backend endpoints:
   - `GET /health`
   - `GET /api/health`
@@ -258,6 +260,7 @@ curl -X POST "http://localhost:8000/api/predict" \
 - Next.js BFF handlers under `frontend/app/api/alerts`, `frontend/app/api/stats`, and `frontend/app/api/ml-health` also call `auth()` and return `401` without a session.
 - Backend internal data routes use `Authorization: Bearer <API_SECRET_KEY>` via the Next.js BFF client.
 - Local `next start` validation also requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
+- When `USE_MOCK_API=true`, verified label review submission returns `503` unavailable; mock mode never fabricates a persisted review.
 - Client requirements for named-account login, RBAC, strong account security, and 2FA are implemented behind documented server-side availability flags; current hosted evidence and remaining follow-ups are tracked in `docs/project-ops/STATUS.md`.
 
 ### Current limitations
