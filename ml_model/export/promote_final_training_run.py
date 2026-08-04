@@ -466,8 +466,12 @@ def extract_state_dict_checkpoint(
         )
 
     if normalize_for_packager:
-        resolved_architecture = architecture or _load_architecture_from_run_metadata(
-            source.parent.parent if source.parent.name == "checkpoint" else source.parent
+        resolved_architecture = (
+            _load_architecture_from_run_metadata(
+                source.parent.parent if source.parent.name == "checkpoint" else source.parent
+            )
+            if architecture is None
+            else architecture
         )
         state_dict = normalize_state_dict_for_packager(
             state_dict,

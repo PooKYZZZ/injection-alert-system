@@ -250,7 +250,7 @@ def test_legacy_state_dict_mapping_requires_explicit_transformer_architecture():
     assert list(normalized) == ["distilbert.weight"]
 
 
-@pytest.mark.parametrize("architecture", [None, "unknown_architecture"])
+@pytest.mark.parametrize("architecture", [None, "", "unknown_architecture"])
 def test_state_dict_normalization_rejects_missing_or_unknown_architecture(architecture):
     from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
 
