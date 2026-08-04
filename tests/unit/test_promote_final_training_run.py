@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from transformers import AutoModelForSequenceClassification
 
 from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
@@ -36,6 +37,7 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
             {
                 "model_key": "distilbert",
                 "model_id": "distilbert-base-uncased",
+                "architecture": "transformer",
                 "dataset_version": "v3_907k_cleaned",
                 "preprocessing_version": "model-input-v2-redacted",
                 "model_input_hash_policy": "sha256(model_input_text)",
@@ -170,7 +172,12 @@ def test_extract_state_dict_checkpoint_normalizes_final_training_keys_for_packag
     )
 
     target = tmp_path / "best_distilbert_ckpt.pt"
-    extract_state_dict_checkpoint(source, target, normalize_for_packager=True)
+    extract_state_dict_checkpoint(
+        source,
+        target,
+        normalize_for_packager=True,
+        architecture="transformer",
+    )
 
     saved = torch.load(target, map_location="cpu", weights_only=True)
     assert "distilbert.embeddings.word_embeddings.weight" in saved
@@ -180,6 +187,180 @@ def test_extract_state_dict_checkpoint_normalizes_final_training_keys_for_packag
     assert "classifier.bias" in saved
     assert "layer_norm.weight" not in saved
     assert "layer_norm.bias" not in saved
+
+
+def test_native_state_dict_preserves_all_hugging_face_keys_and_values():
+    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+
+    native = {
+        "distilbert.embeddings.word_embeddings.weight": torch.tensor([1.0]),
+        "pre_classifier.weight": torch.tensor([2.0]),
+        "classifier.bias": torch.tensor([3.0]),
+    }
+
+    normalized = normalize_state_dict_for_packager(
+        native,
+        architecture="distilbert_sequence_classification",
+    )
+
+    assert list(normalized) == list(native)
+    for key, value in native.items():
+        assert normalized[key] is value
+
+
+def test_checkpoint_extraction_reads_native_architecture_from_run_metadata(tmp_path: Path):
+    run_dir = tmp_path / "run"
+    checkpoint_dir = run_dir / "checkpoint"
+    checkpoint_dir.mkdir(parents=True)
+    (run_dir / "config_metadata.json").write_text(
+        json.dumps({"architecture": "distilbert_sequence_classification"}),
+        encoding="utf-8",
+    )
+    source = checkpoint_dir / "source.pt"
+    torch.save(
+        {
+            "model_state_dict": {
+                "distilbert.encoder.layer.weight": torch.tensor([1.0]),
+                "pre_classifier.weight": torch.tensor([2.0]),
+                "classifier.weight": torch.tensor([3.0]),
+            }
+        },
+        source,
+    )
+
+    target = tmp_path / "target.pt"
+    extract_state_dict_checkpoint(source, target, normalize_for_packager=True)
+
+    saved = torch.load(target, map_location="cpu", weights_only=True)
+    assert set(saved) == {
+        "distilbert.encoder.layer.weight",
+        "pre_classifier.weight",
+        "classifier.weight",
+    }
+
+
+def test_legacy_state_dict_mapping_requires_explicit_transformer_architecture():
+    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+
+    normalized = normalize_state_dict_for_packager(
+        {"encoder.weight": torch.tensor([1.0])},
+        architecture="transformer",
+    )
+
+    assert list(normalized) == ["distilbert.weight"]
+
+
+@pytest.mark.parametrize("architecture", [None, "unknown_architecture"])
+def test_state_dict_normalization_rejects_missing_or_unknown_architecture(architecture):
+    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+
+    with pytest.raises(PromotionError, match="Unsupported or missing architecture"):
+        normalize_state_dict_for_packager({}, architecture=architecture)
+
+
+def test_build_config_used_preserves_native_architecture_metadata():
+    payload = build_config_used(
+        config_metadata={
+            "model_key": "distilbert",
+            "model_id": "distilbert-base-uncased",
+            "architecture": "distilbert_sequence_classification",
+            "architecture_family": "huggingface_sequence_classifier",
+            "head_type": "hf_sequence_classification_head",
+            "model_class": "DistilBertForSequenceClassification",
+            "dataset_version": "v3_907k_cleaned",
+            "preprocessing_version": "http-preprocessor-v1",
+            "model_input_hash_policy": "sha256(model_input_text)",
+            "max_seq_len": 128,
+            "seed": 42,
+        },
+        model_version="distilbert_native",
+    )
+
+    assert payload["architecture"] == "distilbert_sequence_classification"
+    assert payload["architecture_family"] == "huggingface_sequence_classifier"
+    assert payload["head_type"] == "hf_sequence_classification_head"
+    assert payload["model_class"] == "DistilBertForSequenceClassification"
+
+
+def test_active_native_serving_artifact_reloads_without_changing_it():
+    active_dir = Path(
+        "ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755"
+    )
+    model = AutoModelForSequenceClassification.from_pretrained(
+        active_dir,
+        local_files_only=True,
+    )
+
+    assert type(model).__name__ == "DistilBertForSequenceClassification"
+    assert model.config.num_labels == 4
+
+
+def test_build_manifest_records_architecture_metadata(tmp_path: Path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    checkpoint_path = run_dir / "best_distilbert_ckpt.pt"
+    checkpoint_path.write_bytes(b"checkpoint")
+    config_used_path = run_dir / "config_used.json"
+    config_used_path.write_text(
+        json.dumps(
+            {
+                "dataset_version": "v3_907k_cleaned",
+                "preprocessing_version": "http-preprocessor-v1",
+                "model_input_hash_policy": "sha256(model_input_text)",
+                "architecture": "distilbert_sequence_classification",
+                "architecture_family": "huggingface_sequence_classifier",
+                "head_type": "hf_sequence_classification_head",
+                "model_class": "DistilBertForSequenceClassification",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = build_manifest(
+        run_dir=run_dir,
+        model_key="distilbert",
+        model_version="distilbert_native",
+        base_model="distilbert-base-uncased",
+        checkpoint_path=checkpoint_path,
+        config_used_path=config_used_path,
+        calibration=CalibrationProvenance(
+            eval_run_dir=tmp_path / "eval",
+            promotion_summary_path=tmp_path / "promotion.json",
+            result_path=tmp_path / "calibration.json",
+            temperature=1.0,
+        ),
+        label_names=["Code Injection", "Normal", "Other Attacks", "SQL Injection"],
+        max_seq_len=128,
+        notes=None,
+        local_reload_verified=True,
+    )
+
+    assert manifest["architecture"] == "distilbert_sequence_classification"
+    assert manifest["model_class"] == "DistilBertForSequenceClassification"
+
+
+@pytest.mark.parametrize("architecture", [None, "unknown_architecture"])
+def test_promotion_fails_closed_for_missing_or_unknown_architecture(
+    tmp_path: Path,
+    architecture: str | None,
+):
+    source_dir = make_minimal_final_training_fixture(tmp_path / "source")
+    config_path = source_dir / "config_metadata.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    if architecture is None:
+        config.pop("architecture", None)
+    else:
+        config["architecture"] = architecture
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(PromotionError, match="Unsupported or missing architecture"):
+        promote_final_training_run(
+            source_dir=source_dir,
+            active_run_dir=tmp_path / "staging" / "active",
+            archive_root=tmp_path / "archive",
+            repo_root=tmp_path,
+            dry_run=True,
+        )
 
 
 def test_builds_config_used_from_final_training_metadata():
