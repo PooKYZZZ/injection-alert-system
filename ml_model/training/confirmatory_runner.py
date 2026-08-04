@@ -91,6 +91,7 @@ class ConfirmatoryRunnerContext:
     dataset_metadata: dict[str, Any]
     run_contract: dict[str, Any]
     run_contract_sha256: str
+    model_contracts: dict[str, dict[str, Any]]
 
     run_kind: str
     run_name: str
@@ -1157,6 +1158,7 @@ class FinalConfirmatoryRunner:
                 "model_key": model_key,
                 "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
                 "model_id": cfg["model_id"],
+                "model_revision": cfg.get("model_revision", "unresolved"),
                 "architecture": cfg["architecture"],
                 "seed": int(seed),
                 "loss_key": loss_key,
@@ -1669,6 +1671,7 @@ class FinalConfirmatoryRunner:
                 "preprocessing_version": self.ctx.preprocessing_version,
                 "model_key": model_key,
                 "model_id": cfg["model_id"],
+                "model_revision": cfg.get("model_revision", "unresolved"),
                 "architecture": cfg["architecture"],
                 "architecture_family": infer_architecture_family(cfg["architecture"]),
                 "head_type": infer_head_type(cfg["architecture"]),
@@ -2298,8 +2301,7 @@ class FinalConfirmatoryRunner:
             "run_contract_sha256": self.ctx.run_contract_sha256,
             "run_kind": self.ctx.run_kind,
             "run_name": self.ctx.run_name,
-                "dataset_version": self.ctx.dataset_version,
-                "preprocessing_version": self.ctx.preprocessing_version,
+            "dataset_version": self.ctx.dataset_version,
             "preprocessing_version": self.ctx.preprocessing_version,
             "model_input_hash_policy": self.ctx.model_input_hash_policy,
             "dataset_metadata": self.ctx.dataset_metadata,
@@ -2310,7 +2312,7 @@ class FinalConfirmatoryRunner:
             "seed_list": [int(seed) for seed in self.ctx.benchmark_seeds],
             "n_seeds": int(len(self.ctx.benchmark_seeds)),
             "model_keys": list(self.ctx.run_model_keys),
-            "model_contracts": self.ctx.run_contract.get("model_contracts", {}),
+            "model_contracts": self.ctx.model_contracts,
             "completed_model_keys": sorted(completed_model_keys),
             "skipped_model_keys": skipped_model_keys,
             "loss_keys_by_model": self.ctx.loss_keys_by_model,

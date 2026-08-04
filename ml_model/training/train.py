@@ -45,6 +45,7 @@ from ml_model.training.confirmatory_runner import (
     FinalConfirmatoryRunner,
 )
 from ml_model.training.device import resolve_device, resolve_precision
+from ml_model.training.model_factory import infer_architecture_family, infer_head_type
 from ml_model.training.paths import default_training_output_dir, resolve_project_root
 from ml_model.training.run_contract import (
     CONTRACT_VERSION,
@@ -233,6 +234,30 @@ def validate_resume_checkpoint_contract(checkpoint: Path, expected_contract_hash
     )
 
 
+def build_model_contract_metadata(
+    model_registry: dict[str, dict],
+) -> dict[str, dict[str, str]]:
+    """Describe each selected model for root-level run provenance."""
+
+    model_classes = {
+        "distilbert_sequence_classification": "DistilBertForSequenceClassification",
+        "transformer": "TransformerClassifier",
+        "tinybert_bigru_attention": "TinyBERTBiGRUAttentionClassifier",
+        "albert_cnn": "ALBERTCNNClassifier",
+    }
+    return {
+        model_key: {
+            "model_id": str(cfg["model_id"]),
+            "model_revision": str(cfg.get("model_revision", "unresolved")),
+            "architecture": str(cfg["architecture"]),
+            "architecture_family": infer_architecture_family(cfg["architecture"]),
+            "head_type": infer_head_type(cfg["architecture"]),
+            "model_class": model_classes.get(str(cfg["architecture"]), "unknown"),
+        }
+        for model_key, cfg in model_registry.items()
+    }
+
+
 def build_runner_context(
     options: TrainingOptions,
 ) -> tuple[FinalConfirmatoryRunner, Path, dict]:
@@ -358,6 +383,7 @@ def build_runner_context(
         ),
     )
     expected_contract_hash = contract_sha256(expected_contract)
+    model_contract_metadata = build_model_contract_metadata(run_model_registry)
     default_output_base_dir = default_training_output_dir(project_root=repository_root)
     if options.resume_checkpoint:
         validate_resume_checkpoint_contract(
@@ -406,6 +432,7 @@ def build_runner_context(
         dataset_metadata=dataset_metadata,
         run_contract=expected_contract,
         run_contract_sha256=expected_contract_hash,
+        model_contracts=model_contract_metadata,
         run_kind=run_kind,
         run_name=run_name,
         run_output_dir=run_dir,
@@ -470,7 +497,7 @@ def build_runner_context(
         "num_classes": context.num_classes,
         "seed_list": list(options.seeds),
         "model_keys": list(options.models),
-        "model_contracts": expected_contract["model_contracts"],
+        "model_contracts": model_contract_metadata,
         "checkpoint_selection_rule": context.checkpoint_selection_rule,
         "split_summaries": split_summaries,
         "split_hygiene_evidence": context.split_hygiene_evidence,

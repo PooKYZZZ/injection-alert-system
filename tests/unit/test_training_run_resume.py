@@ -111,6 +111,29 @@ def test_explicit_resume_checkpoint_rejects_incompatible_contract(tmp_path: Path
         validate_resume_checkpoint_contract(checkpoint, contract_sha256(_contract()))
 
 
+def test_native_root_model_contract_metadata_is_self_describing():
+    from ml_model.training.train import build_model_contract_metadata
+
+    metadata = build_model_contract_metadata(
+        {
+            "distilbert": {
+                "model_id": "distilbert-base-uncased",
+                "model_revision": "verified-revision",
+                "architecture": "distilbert_sequence_classification",
+            }
+        }
+    )["distilbert"]
+
+    assert metadata == {
+        "model_id": "distilbert-base-uncased",
+        "model_revision": "verified-revision",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+    }
+
+
 def _runner(tmp_path: Path, *, seeds: list[int] | None = None):
     from ml_model.training.confirmatory_runner import FinalConfirmatoryRunner
     from ml_model.training.run_contract import contract_sha256
@@ -177,6 +200,17 @@ def test_matching_completed_seed_is_skipped_safely(tmp_path: Path):
     assert valid is True
     assert reason == "ok"
     assert summary["run_contract_sha256"] == runner.ctx.run_contract_sha256
+
+
+def test_completed_seed_without_config_metadata_is_not_valid(tmp_path: Path):
+    runner = _runner(tmp_path)
+    paths = _write_completed_seed(runner, tmp_path)
+    paths["config_metadata"].unlink()
+
+    valid, reason, _ = runner.validate_completed_seed_artifacts(paths)
+
+    assert valid is False
+    assert reason == "config_metadata_missing"
 
 
 @pytest.mark.parametrize(
