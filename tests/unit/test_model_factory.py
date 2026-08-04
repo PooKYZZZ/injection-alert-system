@@ -23,8 +23,8 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         def forward(self, input_ids, attention_mask):
             return {"logits": torch.zeros((input_ids.shape[0], 4))}
 
-    def fake_from_pretrained(model_id: str, *, num_labels: int):
-        calls.append((model_id, num_labels))
+    def fake_from_pretrained(model_id: str, *, config):
+        calls.append((model_id, config.num_labels))
         return FakeNativeModel()
 
     monkeypatch.setattr(
@@ -32,6 +32,13 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         "AutoModelForSequenceClassification",
         SimpleNamespace(from_pretrained=fake_from_pretrained),
         raising=False,
+    )
+    monkeypatch.setattr(
+        model_factory,
+        "AutoConfig",
+        SimpleNamespace(
+            from_pretrained=lambda model_id: SimpleNamespace(num_labels=2)
+        ),
     )
 
     model = model_factory.build_model(
@@ -63,11 +70,13 @@ def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
     class FakeNativeModel(torch.nn.Module):
         pass
 
-    def fake_from_pretrained(
-        model_id: str, *, num_labels: int, revision: str, config
-    ):
+    def fake_from_pretrained(model_id: str, *, revision: str, config):
         calls.append(
-            {"model_id": model_id, "num_labels": num_labels, "revision": revision}
+            {
+                "model_id": model_id,
+                "num_labels": config.num_labels,
+                "revision": revision,
+            }
         )
         return FakeNativeModel()
 
@@ -81,7 +90,9 @@ def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
         model_factory,
         "AutoConfig",
         SimpleNamespace(
-            from_pretrained=lambda model_id, *, revision: {"revision": revision}
+            from_pretrained=lambda model_id, *, revision: SimpleNamespace(
+                revision=revision, num_labels=2
+            )
         ),
     )
 
@@ -105,7 +116,10 @@ def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
 
 
 def test_native_distilbert_metadata_is_truthful():
-    from ml_model.training.model_factory import infer_architecture_family, infer_head_type
+    from ml_model.training.model_factory import (
+        infer_architecture_family,
+        infer_head_type,
+    )
 
     assert infer_head_type("distilbert_sequence_classification") == (
         "hf_sequence_classification_head"
@@ -125,7 +139,9 @@ def test_legacy_transformer_architecture_is_still_explicitly_selectable(monkeypa
     monkeypatch.setattr(
         model_factory,
         "AutoConfig",
-        SimpleNamespace(from_pretrained=lambda model_id: SimpleNamespace(hidden_size=4)),
+        SimpleNamespace(
+            from_pretrained=lambda model_id: SimpleNamespace(hidden_size=4)
+        ),
     )
     monkeypatch.setattr(
         model_factory,
