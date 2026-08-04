@@ -13,7 +13,8 @@ the canonical implementation.
 - `confirmatory_runner.py` — extracted checkpoint/resume/failure-isolation
   runner used by the historical final benchmark.
 - `losses.py` — weighted cross-entropy and focal-loss implementations.
-- `model_factory.py` — transformer and custom-head model construction.
+- `model_factory.py` — native Hugging Face sequence-classification construction
+  plus explicitly selected historical custom architectures.
 
 ## Clean setup
 
@@ -58,16 +59,20 @@ target machine.
 
 ## Primary commands
 
-Run a CPU-safe preparation check with:
+Run the maintained minimal CPU training smoke with:
 
 ```powershell
-.venv\Scripts\python.exe -m ml_model.training.train --config ml_model/configs/training/laptop_smoke.toml
+.venv\Scripts\python.exe -m ml_model.training.train --config ml_model/configs/training/laptop_standard_smoke.toml
 ```
+
+This command performs one native DistilBERT epoch using bounded samples and
+prints the resulting run directory. `laptop_smoke.toml` remains available for
+the older preparation-only check.
 
 Linux/macOS equivalent:
 
 ```bash
-python -m ml_model.training.train --config ml_model/configs/training/laptop_smoke.toml
+python -m ml_model.training.train --config ml_model/configs/training/laptop_standard_smoke.toml
 ```
 
 Run the full benchmark using the portable preset:
@@ -147,3 +152,52 @@ By default, full training runs are written to a timestamped directory under
 Training is separated from inference. Results are written under
 `ml_model/results/training_runs/` and remain linked to their dataset, model,
 seed, checkpoint, and evaluation metadata.
+
+## Architecture and migration boundary
+
+Future `distilbert` registry runs use the native Hugging Face
+`DistilBertForSequenceClassification` task head. The training loop continues to
+consume its `logits` output through the existing runner interface. New run
+metadata records the architecture, architecture family, head type, model
+class, model ID, dataset version, and preprocessing version.
+
+Historical configurations with `architecture = "transformer"` use the
+preserved `TransformerClassifier` path: masked mean pooling followed by its
+custom MLP head. Those checkpoints and results remain historical reference
+material; they are not relabeled or repackaged as native DistilBERT runs.
+Historical notebooks are reference material only and are not a second
+maintained training implementation. The active staged artifact at
+`ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
+is preserved until a separately evaluated model is explicitly promoted.
+
+## Post-PR laptop sequence
+
+The following is an operator procedure and is not evidence that these runs have
+already been performed:
+
+```powershell
+# 1. Tiny CPU smoke
+.venv\Scripts\python.exe -m ml_model.training.train --config ml_model\configs\training\laptop_standard_smoke.toml
+
+# 2. Evaluate the run directory printed by training
+.venv\Scripts\python.exe -m ml_model.evaluation.evaluate --run-dir "<printed-run-directory>"
+
+# 3. One-seed CUDA run after smoke passes
+.venv\Scripts\python.exe -m ml_model.training.train --config ml_model\configs\training\laptop_cuda_distilbert.toml
+
+# 4. Three-seed thesis run only after the one-seed run and evaluation are healthy
+.venv\Scripts\python.exe -m ml_model.training.train --config ml_model\configs\training\thesis_confirmatory.toml
+```
+
+If comparison on the main PC is needed, copy only run metadata, metrics, and
+checkpoint material; do not commit generated artifacts. Do not claim that the
+new model is better until the same fixed test split and evaluation code have
+been used. Promotion is explicit and begins with a dry run. Inspect the live
+CLI help before any write:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.export.promote_final_training_run --help
+.venv\Scripts\python.exe -m ml_model.export.package_serving_artifact --help
+```
+
+Do not modify the active staging directory during documentation validation.
