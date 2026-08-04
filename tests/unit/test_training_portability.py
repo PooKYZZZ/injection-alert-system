@@ -95,6 +95,39 @@ def test_laptop_smoke_config_is_cpu_safe():
     assert config.max_test_samples > 0
 
 
+def test_standard_laptop_smoke_preset_is_a_real_native_training_run():
+    from ml_model.training.config import load_training_config
+    from ml_model.training.paths import default_training_output_dir, resolve_project_root
+    from ml_model.training.train import DEFAULT_MODEL_REGISTRY
+
+    preset = Path("ml_model/configs/training/laptop_standard_smoke.toml")
+    config = load_training_config(preset)
+    project_root = resolve_project_root()
+
+    assert config.models == ("distilbert",)
+    assert DEFAULT_MODEL_REGISTRY["distilbert"]["architecture"] == (
+        "distilbert_sequence_classification"
+    )
+    assert config.seeds == (42,)
+    assert config.device == "cpu"
+    assert config.precision == "full"
+    assert config.epochs == 1
+    assert config.num_workers == 0
+    assert config.prepare_only is False
+    assert config.max_train_samples == 64
+    assert config.max_validation_samples == 32
+    assert config.max_test_samples == 32
+    assert config.data_dir is None
+    assert config.output_dir is None
+    assert config.resume_checkpoint is None
+    assert default_training_output_dir(project_root=project_root).is_relative_to(
+        project_root / "ml_model" / "results"
+    )
+    assert "ml_model/results/" in (project_root / ".gitignore").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_default_training_config_targets_distilbert_only():
     from ml_model.training.config import TrainingConfig
 
