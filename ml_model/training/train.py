@@ -46,6 +46,11 @@ from ml_model.training.confirmatory_runner import (
 )
 from ml_model.training.device import resolve_device, resolve_precision
 from ml_model.training.paths import default_training_output_dir, resolve_project_root
+from ml_model.training.run_contract import (
+    CONTRACT_VERSION,
+    build_training_run_contract,
+    contract_sha256,
+)
 
 EXPECTED_CLASSES = [
     "Code Injection",
@@ -60,6 +65,7 @@ DEFAULT_MODEL_REGISTRY = {
     "distilbert": {
         "model_key": "distilbert",
         "model_id": "distilbert-base-uncased",
+        "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
         "architecture": "distilbert_sequence_classification",
         "experiment_phase": "controlled_backbone_benchmark",
         "learning_rate": 3e-5,
@@ -161,19 +167,70 @@ def _environment_metadata() -> dict[str, object]:
     }
 
 
-def find_latest_resumable_run_dir(base_dir: Path, run_name: str) -> Path | None:
+def _load_run_bootstrap(run_dir: Path) -> dict | None:
+    bootstrap_path = Path(run_dir) / "run_bootstrap.json"
+    if not bootstrap_path.is_file():
+        return None
+    try:
+        payload = load_json(bootstrap_path)
+    except (OSError, TypeError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _bootstrap_matches_contract(bootstrap: dict, expected_contract_hash: str) -> bool:
+    contract = bootstrap.get("run_contract")
+    stored_hash = bootstrap.get("run_contract_sha256")
+    if not isinstance(contract, dict) or stored_hash != expected_contract_hash:
+        return False
+    if contract_sha256(contract) != stored_hash:
+        return False
+    for key in ("model_keys", "dataset_version", "preprocessing_version", "seed_list"):
+        if bootstrap.get(key) != contract.get(key):
+            return False
+    return True
+
+
+def find_latest_resumable_run_dir(
+    base_dir: Path,
+    run_name: str,
+    expected_contract_hash: str,
+) -> Path | None:
     """Return the newest matching run directory that contains a last checkpoint."""
 
     if not base_dir.is_dir():
         return None
-    candidates = [
-        path
-        for path in base_dir.glob(f"{run_name}_*")
-        if path.is_dir() and any(path.glob("**/last_*.pt"))
-    ]
+    candidates = []
+    for path in base_dir.glob(f"{run_name}_*"):
+        if not path.is_dir():
+            continue
+        bootstrap = _load_run_bootstrap(path)
+        if bootstrap is None or not _bootstrap_matches_contract(
+            bootstrap, expected_contract_hash
+        ):
+            continue
+        if any(path.glob("**/last*.pt")):
+            candidates.append(path)
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def validate_resume_checkpoint_contract(checkpoint: Path, expected_contract_hash: str) -> None:
+    """Reject an explicit checkpoint unless its run has the exact current contract."""
+
+    checkpoint = Path(checkpoint)
+    for parent in (checkpoint.parent, *checkpoint.parents):
+        bootstrap = _load_run_bootstrap(parent)
+        if bootstrap is not None:
+            if not _bootstrap_matches_contract(bootstrap, expected_contract_hash):
+                raise ValueError(
+                    f"Explicit resume checkpoint contract mismatch: {checkpoint}"
+                )
+            return
+    raise ValueError(
+        f"Explicit resume checkpoint is missing run contract metadata: {checkpoint}"
+    )
 
 
 def build_runner_context(
@@ -239,33 +296,6 @@ def build_runner_context(
         f"{options.dataset_version}_final_confirmatory_weighted_ce_"
         f"{len(options.seeds)}seed"
     )
-    default_output_base_dir = default_training_output_dir(project_root=repository_root)
-    resumable_run_dir = (
-        None
-        if explicit_output_dir or not options.resume
-        else find_latest_resumable_run_dir(default_output_base_dir, run_name)
-    )
-    run_dir = (
-        Path(options.output_dir).expanduser().resolve()
-        if explicit_output_dir
-        else resumable_run_dir
-        or make_output_dir(run_name, base_dir=default_output_base_dir)
-    )
-    run_dir.mkdir(parents=True, exist_ok=True)
-    save_csv(
-        df_test[["combined_payload", "final_label"]].reset_index(drop=True),
-        run_dir / "evaluated_test_rows.csv",
-        index=False,
-    )
-    device = _device_for(options)
-    precision = resolve_precision(options.precision, device)
-    resolved_options = replace(
-        options,
-        data_dir=data_dir,
-        output_dir=run_dir,
-        device=str(device),
-        precision=precision,
-    )
     run_model_registry = {
         key: {
             **DEFAULT_MODEL_REGISTRY[key],
@@ -294,6 +324,73 @@ def build_runner_context(
         }
         for key in options.models
     }
+    first_model = run_model_registry[options.models[0]]
+    expected_contract = build_training_run_contract(
+        dataset_version=options.dataset_version,
+        preprocessing_version=options.preprocessing_version,
+        model_keys=options.models,
+        model_contracts={
+            key: {
+                "model_id": cfg["model_id"],
+                "model_revision": cfg.get("model_revision", "unresolved"),
+                "architecture": cfg["architecture"],
+            }
+            for key, cfg in run_model_registry.items()
+        },
+        seed_list=options.seeds,
+        loss_keys=sorted(
+            {loss_key for key in options.models for loss_key in ["weighted_ce"]}
+        ),
+        max_seq_len=int(options.max_seq_len or first_model["max_seq_len"]),
+        batch_size=int(
+            options.batch_size or first_model["per_device_train_batch_size"]
+        ),
+        eval_batch_size=int(
+            options.eval_batch_size
+            or first_model["per_device_train_batch_size"]
+            * first_model.get("eval_batch_multiplier", 1)
+        ),
+        epochs=options.epochs,
+        learning_rate=float(options.learning_rate or first_model["learning_rate"]),
+        gradient_accumulation_steps=int(
+            options.gradient_accumulation_steps
+            or first_model["gradient_accumulation_steps"]
+        ),
+    )
+    expected_contract_hash = contract_sha256(expected_contract)
+    default_output_base_dir = default_training_output_dir(project_root=repository_root)
+    if options.resume_checkpoint:
+        validate_resume_checkpoint_contract(
+            options.resume_checkpoint, expected_contract_hash
+        )
+    resumable_run_dir = (
+        None
+        if explicit_output_dir or not options.resume
+        else find_latest_resumable_run_dir(
+            default_output_base_dir, run_name, expected_contract_hash
+        )
+    )
+    run_dir = (
+        Path(options.output_dir).expanduser().resolve()
+        if explicit_output_dir
+        else resumable_run_dir
+        or make_output_dir(run_name, base_dir=default_output_base_dir)
+    )
+    run_dir.mkdir(parents=True, exist_ok=True)
+    save_csv(
+        df_test[["combined_payload", "final_label"]].reset_index(drop=True),
+        run_dir / "evaluated_test_rows.csv",
+        index=False,
+    )
+    device = _device_for(options)
+    precision = resolve_precision(options.precision, device)
+    resolved_options = replace(
+        options,
+        data_dir=data_dir,
+        output_dir=run_dir,
+        device=str(device),
+        precision=precision,
+    )
     run_kind = "final_confirmatory_benchmark"
     context = ConfirmatoryRunnerContext(
         df_train=df_train,
@@ -307,6 +404,8 @@ def build_runner_context(
         preprocessing_version=options.preprocessing_version,
         model_input_hash_policy=MODEL_INPUT_HASH_POLICY,
         dataset_metadata=dataset_metadata,
+        run_contract=expected_contract,
+        run_contract_sha256=expected_contract_hash,
         run_kind=run_kind,
         run_name=run_name,
         run_output_dir=run_dir,
@@ -353,6 +452,9 @@ def build_runner_context(
     )
     runner = FinalConfirmatoryRunner(context)
     bootstrap = {
+        "run_contract_version": CONTRACT_VERSION,
+        "run_contract": expected_contract,
+        "run_contract_sha256": expected_contract_hash,
         "run_kind": run_kind,
         "run_name": run_name,
         "dataset_version": options.dataset_version,
@@ -368,6 +470,7 @@ def build_runner_context(
         "num_classes": context.num_classes,
         "seed_list": list(options.seeds),
         "model_keys": list(options.models),
+        "model_contracts": expected_contract["model_contracts"],
         "checkpoint_selection_rule": context.checkpoint_selection_rule,
         "split_summaries": split_summaries,
         "split_hygiene_evidence": context.split_hygiene_evidence,
