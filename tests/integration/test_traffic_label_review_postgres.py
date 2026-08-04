@@ -45,7 +45,7 @@ async def test_concurrent_review_revisions_are_serialized_in_postgres():
                     confidence=0.98,
                     confidence_level="HIGH",
                     model_version="concurrency-test-model",
-                    model_input_hash="a" * 64,
+                    model_input_hash="56956b178f5eb0eb23f3a0ad66536f6753a8175ce2263bd0b4e8e5bfbcb5bfe2",
                     model_input_text="post /records/search injected=true",
                     preprocessing_version="http-preprocessor-v1",
                 )
