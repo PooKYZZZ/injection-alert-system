@@ -8,11 +8,13 @@ import pytest
 
 from ml_model.preprocessing.dataset_io import resolve_data_dir, validate_dataset_preprocessing
 from ml_model.preprocessing.model_input import (
+    LEGACY_MODEL_INPUT_VERSION,
     MODEL_INPUT_BUILDER,
     MODEL_INPUT_HASH_POLICY,
     MODEL_INPUT_TEXT_COLUMN,
     MODEL_INPUT_VERSION,
     build_model_input_text,
+    prepare_legacy_model_input,
     prepare_model_input,
 )
 
@@ -28,6 +30,31 @@ def test_shared_builder_redacts_query_and_body_without_removing_attack_indicator
     assert "bodysecret" not in text
     assert "union select" in text
     assert "or '1'='1" in text
+
+
+def test_sensitive_values_keep_only_safe_attack_indicators():
+    text = build_model_input_text(
+        "POST",
+        "/login?password=' OR 1=1--&token=TOPSECRET",
+        body='{"password":";cat /etc/passwd","token":"BODYSECRET"}',
+    )
+
+    assert "topsecret" not in text
+    assert "bodysecret" not in text
+    assert "[indicator:sql]" in text
+    assert "[indicator:command]" in text
+    assert "' or 1=1" not in text
+    assert ";cat /etc/passwd" not in text
+
+
+def test_legacy_model_input_preserves_inference_text_but_declares_legacy_contract():
+    raw = "POST /login?password=TOPSECRET HTTP/1.1\r\n\r\npassword=TOPSECRET"
+
+    model_input, model_input_hash, version = prepare_legacy_model_input(raw)
+
+    assert "topsecret" in model_input
+    assert model_input_hash == sha256(model_input.encode("utf-8")).hexdigest()
+    assert version == LEGACY_MODEL_INPUT_VERSION
 
 
 def test_runtime_prepare_uses_shared_hash_and_version():

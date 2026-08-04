@@ -15,7 +15,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
-    validate_model_input_version,
+    validate_supported_model_input_version,
 )
 
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
@@ -315,7 +315,7 @@ def build_manifest(
     local_reload_verified: bool,
 ) -> dict[str, Any]:
     config_metadata = json.loads(config_used_path.read_text(encoding="utf-8"))
-    validate_model_input_version(
+    preprocessing_version = validate_supported_model_input_version(
         config_metadata.get("preprocessing_version"), context="serving artifact"
     )
     if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
@@ -324,7 +324,7 @@ def build_manifest(
         "model_version": model_version,
         "model_key": model_key,
         "dataset_version": config_metadata.get("dataset_version"),
-        "preprocessing_version": config_metadata.get("preprocessing_version"),
+        "preprocessing_version": preprocessing_version,
         "model_input_hash_policy": config_metadata.get("model_input_hash_policy"),
         "base_model": base_model,
         "run_dir_name": run_dir.name,

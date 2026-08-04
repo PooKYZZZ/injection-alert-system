@@ -196,12 +196,54 @@ describe('AlertDrawer', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Approve for training' }))
 
-    expect(labelReviewMutateMock).toHaveBeenCalledWith({
-      id: 'drawer-review',
-      verifiedLabel: 'Normal',
-      approvalState: 'approved_for_training',
-      reviewNote: undefined,
+    expect(labelReviewMutateMock).toHaveBeenCalledWith(
+      {
+        id: 'drawer-review',
+        verifiedLabel: 'Normal',
+        approvalState: 'approved_for_training',
+        reviewNote: undefined,
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    )
+  })
+
+  it('forwards the returned review so the selected alert can refresh immediately', () => {
+    const onReviewUpdated = vi.fn()
+    const review = {
+      id: 4,
+      traffic_log_id: 7,
+      revision: 2,
+      verified_label: 'Normal',
+      approval_state: 'approved_for_training',
+      reviewer_id: 'analyst-1',
+      reviewer_role: 'ANALYST',
+      reviewed_at: '2026-08-04T00:00:00Z',
+    }
+
+    render(
+      <AlertDrawer
+        role="ANALYST"
+        alert={alertFixture}
+        onClose={vi.fn()}
+        onReviewUpdated={onReviewUpdated}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Verified classification'), {
+      target: { value: 'Normal' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Approve for training' }))
+
+    const [, options] = labelReviewMutateMock.mock.calls[0]
+    options.onSuccess(review)
+
+    expect(onReviewUpdated).toHaveBeenCalledWith(review)
+  })
+
+  it('makes the drawer content vertically scrollable', () => {
+    render(<AlertDrawer role="ANALYST" alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('alert-drawer-scroll-region')).toHaveClass('overflow-y-auto')
   })
 
   it('hides verified review mutation controls from viewers', () => {

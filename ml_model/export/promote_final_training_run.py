@@ -15,8 +15,7 @@ import torch
 from ml_model.export.package_serving_artifact import package_serving_artifact
 from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
-    MODEL_INPUT_VERSION,
-    validate_model_input_version,
+    validate_supported_model_input_version,
 )
 
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
@@ -428,8 +427,9 @@ def build_config_used(
     config_metadata: dict[str, Any],
     model_version: str,
 ) -> dict[str, Any]:
-    preprocessing_version = config_metadata.get("preprocessing_version")
-    validate_model_input_version(preprocessing_version, context="final training run")
+    preprocessing_version = validate_supported_model_input_version(
+        config_metadata.get("preprocessing_version"), context="final training run"
+    )
     if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
         raise PromotionError(
             "Final training metadata is missing the shared model-input hash policy."

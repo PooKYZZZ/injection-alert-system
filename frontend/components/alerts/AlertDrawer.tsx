@@ -3,7 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState } from 'react'
-import type { Alert, TriageStatus } from '@/features/alerts/types'
+import type { Alert, LabelReview, TriageStatus } from '@/features/alerts/types'
 import { ALERT_DISPLAY_ACTION_ALIASES, VERIFIED_LABEL_VALUES } from '@/features/alerts/contract'
 import type { AlertAction, VerifiedLabel } from '@/features/alerts/contract'
 import { useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
@@ -14,6 +14,7 @@ interface AlertDrawerProps {
   role?: unknown
   alert: Alert | null
   onClose: () => void
+  onReviewUpdated?: (review: LabelReview) => void
 }
 
 function formatAlertTimestamp(timestamp: string | null | undefined): string {
@@ -54,7 +55,7 @@ function formatCrsScore(score: number | null | undefined): string {
   return score.toFixed(2)
 }
 
-function AlertDrawerContent({ role, alert, onClose }: AlertDrawerProps) {
+function AlertDrawerContent({ role, alert, onClose, onReviewUpdated }: AlertDrawerProps) {
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
     role,
@@ -103,6 +104,8 @@ function AlertDrawerContent({ role, alert, onClose }: AlertDrawerProps) {
         verifiedLabel,
         approvalState,
         reviewNote: reviewNote || undefined,
+      }, {
+        onSuccess: (review) => onReviewUpdated?.(review),
       })
     }
   }
@@ -216,7 +219,10 @@ function AlertDrawerContent({ role, alert, onClose }: AlertDrawerProps) {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-hidden p-3">
+                <div
+                  data-testid="alert-drawer-scroll-region"
+                  className="min-h-0 flex-1 overflow-y-auto p-3"
+                >
                   <div className="grid content-start gap-3">
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">

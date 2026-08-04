@@ -40,13 +40,17 @@ must select only the latest review with `approval_state=approved_for_training`.
 Reviews marked `excluded_from_training` must remain excluded, and superseded
 history must not be exported as a second sample.
 
-Reviewer identity is derived from the authenticated server session. New
+Reviewer identity is derived from the authenticated server session. New v2
 inference rows persist the exact sanitized model-input text, its
 `model_input_hash`, and `preprocessing_version`; WAF query strings and
-sanitized bodies use the same canonical input before inference. Historical
-rows with missing text/provenance remain readable but are not eligible for
-approved training. The exporter is still not implemented, so automated or
-source-equivalent training data remains `Planned`.
+sanitized bodies use the same canonical input before inference. Sensitive
+fields are redacted while safe injection indicators are retained as explicit
+tokens for classification. The supported legacy v1 artifact keeps its exact
+inference behavior but persists only the model-input hash, so those rows are
+not eligible for approved training until a redacted v2 artifact is deployed.
+Historical rows with missing text/provenance remain readable but are not
+eligible for approved training. The exporter is still not implemented, so
+automated or source-equivalent training data remains `Planned`.
 
 This workflow does not provide a scheduler, daily retraining operation, blind
 promotion, automatic rollback, or production model-registry mutation. Any

@@ -38,6 +38,31 @@ _KEY_VALUE_SECRET_PATTERN = re.compile(
 )
 MAX_BODY_LENGTH = 1024
 
+_INJECTION_INDICATOR_PATTERNS = (
+    (
+        "sql",
+        re.compile(
+            r"(?:\bunion\b\s+\bselect\b|\b(?:or|and)\b\s+['\"]?\s*\d+\s*['\"]?\s*=\s*['\"]?\s*\d+|\b(?:sleep|benchmark)\s*\(|--|/\*|\*/|#)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "command",
+        re.compile(
+            r"(?:[;|]{1,2}\s*(?:cat|bash|sh|cmd|powershell|whoami|curl|wget|python|nc)\b|&&\s*(?:cat|bash|sh|cmd|powershell|whoami|curl|wget|python|nc)\b|`[^`]+`|\$\([^)]*\))",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "xss",
+        re.compile(r"<\s*script\b|javascript:|\bon\w+\s*=", re.IGNORECASE),
+    ),
+    (
+        "traversal",
+        re.compile(r"(?:\.\.[/\\]){1,}|%2e%2e(?:%2f|%5c)", re.IGNORECASE),
+    ),
+)
+
 
 def _is_sensitive_key(key: str) -> bool:
     normalized = str(key).lower().replace("-", "_")
@@ -48,10 +73,33 @@ def _is_sensitive_key(key: str) -> bool:
     )
 
 
+def _sensitive_value_indicators(value: Any) -> tuple[str, ...]:
+    """Extract non-secret attack indicators from a value being redacted."""
+
+    if isinstance(value, (dict, list, tuple, set)):
+        return ()
+    normalized = html.unescape(urllib.parse.unquote_plus(str(value)))
+    return tuple(
+        name
+        for name, pattern in _INJECTION_INDICATOR_PATTERNS
+        if pattern.search(normalized)
+    )
+
+
+def _redacted_sensitive_value(value: Any) -> str:
+    """Replace a sensitive value without discarding safe attack evidence."""
+
+    indicators = _sensitive_value_indicators(value)
+    suffix = " ".join(f"[INDICATOR:{indicator}]" for indicator in indicators)
+    return "[REDACTED]" + (f" {suffix}" if suffix else "")
+
+
 def _redact_json_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {
-            str(key): "[REDACTED]" if _is_sensitive_key(str(key)) else _redact_json_value(item)
+            str(key): _redacted_sensitive_value(item)
+            if _is_sensitive_key(str(key))
+            else _redact_json_value(item)
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -88,7 +136,7 @@ def _redact_form(value: str) -> str | None:
     for part in parts:
         key, separator, raw_value = part.partition("=")
         if _is_sensitive_key(urllib.parse.unquote_plus(key)) and separator:
-            redacted_parts.append(f"{key}=[REDACTED]")
+            redacted_parts.append(f"{key}={_redacted_sensitive_value(raw_value)}")
         else:
             redacted_parts.append(part)
     return "&".join(redacted_parts)
@@ -114,7 +162,11 @@ def redact_sensitive_text(value: str) -> str:
 
     redacted = _HEADER_LINE_PATTERN.sub(redact_header, value)
     redacted = _KEY_VALUE_SECRET_PATTERN.sub(
-        lambda match: f"{match.group('key')}=[REDACTED]", redacted
+        lambda match: (
+            f"{match.group('key')}="
+            f"{_redacted_sensitive_value(match.group('value'))}"
+        ),
+        redacted,
     )
     return redacted[:MAX_BODY_LENGTH]
 
@@ -134,7 +186,7 @@ def redact_query_string(value: str | None) -> str | None:
     for part in parts:
         key, separator, raw_value = part.partition("=")
         if _is_sensitive_key(urllib.parse.unquote_plus(key)) and separator:
-            redacted_parts.append(f"{key}=[REDACTED]")
+            redacted_parts.append(f"{key}={_redacted_sensitive_value(raw_value)}")
         else:
             redacted_parts.append(part)
     return "&".join(redacted_parts)

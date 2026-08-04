@@ -29,6 +29,7 @@ from web_app.domain.source_address import (
     SourceProvenance,
     SourceVerificationStatus,
 )
+from ml_model.preprocessing.model_input import LEGACY_MODEL_INPUT_VERSION
 
 
 @pytest.fixture
@@ -1525,3 +1526,37 @@ async def test_direct_model_input_redacts_sensitive_query_and_body_values(
     assert "TEST_SECRET" not in model_input
     assert "BODY_SECRET" not in model_input
     assert "[redacted]" in model_input
+
+
+@pytest.mark.asyncio
+async def test_legacy_model_input_is_not_persisted_as_plaintext(
+    mock_classifier,
+    mock_repository,
+):
+    mock_classifier.model_input_version = LEGACY_MODEL_INPUT_VERSION
+    mock_classifier.predict.return_value = {
+        "class": "SQL Injection",
+        "confidence": 0.92,
+        "confidence_level": "HIGH",
+    }
+    raw_request = (
+        "POST /login?password=TOP_SECRET HTTP/1.1\r\n"
+        "Content-Type: application/x-www-form-urlencoded\r\n\r\n"
+        "password=BODY_SECRET"
+    )
+
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        enable_preprocessing=True,
+    )
+    await use_case.execute(http_request=raw_request, source_ip="192.168.1.1")
+
+    mock_classifier.predict.assert_called_once()
+    assert "top_secret" in mock_classifier.predict.call_args.args[0]
+    saved_entity = mock_repository.save.call_args.args[0]
+    assert saved_entity.model_input_text is None
+    assert saved_entity.preprocessing_version == LEGACY_MODEL_INPUT_VERSION
+    assert saved_entity.model_input_hash == sha256(
+        mock_classifier.predict.call_args.args[0].encode("utf-8")
+    ).hexdigest()

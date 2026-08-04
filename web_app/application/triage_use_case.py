@@ -25,6 +25,7 @@ from starlette.concurrency import run_in_threadpool
 from web_app.application.alert_events import IAlertEventPublisher
 from web_app.application.http_parsing import parse_http_request_line
 from web_app.application.http_preprocessor import (
+    MODEL_INPUT_FALLBACK_VERSION,
     MODEL_INPUT_VERSION,
     prepare_model_input_for_version,
 )
@@ -349,6 +350,13 @@ class TriageUseCase:
             model_input_hash = sha256(model_input.encode("utf-8")).hexdigest()
             preprocessing_version = "raw-input-v1"
 
+        persisted_model_input = (
+            model_input
+            if preprocessing_version
+            in {MODEL_INPUT_VERSION, MODEL_INPUT_FALLBACK_VERSION}
+            else None
+        )
+
         raw_result = await run_in_threadpool(self._classifier.predict, model_input)
         prediction = raw_result.get("prediction") or raw_result.get("class")
         confidence_level = raw_result.get("confidence_level") or raw_result.get(
@@ -384,7 +392,10 @@ class TriageUseCase:
             "inference_latency_ms": raw_result.get("inference_latency_ms"),
             "model_version": model_version,
             "model_input_hash": model_input_hash,
-            "model_input_text": model_input,
+            # The supported legacy model receives its exact v1 text for
+            # inference, but that text may contain credentials. Keep only its
+            # one-way provenance hash until a redacted v2 model is deployed.
+            "model_input_text": persisted_model_input,
             "preprocessing_version": preprocessing_version,
         }
 
