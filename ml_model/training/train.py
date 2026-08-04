@@ -324,6 +324,9 @@ def build_runner_context(
     run_model_registry = {
         key: {
             **DEFAULT_MODEL_REGISTRY[key],
+            "model_revision": options.model_revision
+            if key == "distilbert"
+            else DEFAULT_MODEL_REGISTRY[key].get("model_revision", "unresolved"),
             "num_train_epochs": options.epochs,
             **(
                 {"per_device_train_batch_size": options.batch_size}
@@ -514,6 +517,13 @@ def build_runner_context(
 def run_training(options: TrainingOptions) -> Path:
     runner, run_dir, bootstrap = build_runner_context(options)
     save_json(run_dir / "run_bootstrap.json", bootstrap)
+    save_json(
+        run_dir / "run_contract.json",
+        {
+            **bootstrap["run_contract"],
+            "run_contract_sha256": bootstrap["run_contract_sha256"],
+        },
+    )
     runner.set_runtime_state(
         run_failures=(
             load_json(runner.ctx.run_failure_log_path)

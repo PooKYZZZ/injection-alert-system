@@ -359,6 +359,8 @@ def build_manifest(
         "head_type": config_metadata.get("head_type"),
         "model_class": config_metadata.get("model_class"),
         "model_revision": model_revision,
+        "tokenizer_id": config_metadata.get("tokenizer_id", base_model),
+        "tokenizer_revision": config_metadata.get("tokenizer_revision", model_revision),
         "run_contract_sha256": config_metadata.get("run_contract_sha256"),
         "base_model": base_model,
         "run_dir_name": run_dir.name,
@@ -521,6 +523,13 @@ def package_serving_artifact(
     if not isinstance(model_id, str) or not model_id.strip():
         raise PackagingError("Exact-run config_used.json does not contain a valid model_id.")
     model_id = model_id.strip()
+    model_revision = config_used.get("model_revision")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise PackagingError("Exact-run config_used.json does not contain a pinned model_revision.")
+    tokenizer_id = config_used.get("tokenizer_id", model_id)
+    tokenizer_revision = config_used.get("tokenizer_revision", model_revision)
+    if tokenizer_id != model_id or tokenizer_revision != model_revision:
+        raise PackagingError("Model and tokenizer revisions must match the exact run contract.")
     max_seq_len = int(config_used.get("max_seq_len", 128))
     model_version = derive_model_version(run_dir, config_used)
 
@@ -530,6 +539,7 @@ def package_serving_artifact(
     print(f"Packaging mode        : {packaging_mode}")
     print(f"Checkpoint            : {checkpoint_path.name}")
     print(f"Base model            : {model_id}")
+    print(f"Model revision        : {model_revision}")
     print(f"Model version         : {model_version}")
     print(f"Max seq len           : {max_seq_len}")
     print(f"Calibration source    : {calibration.result_path}")
@@ -537,6 +547,7 @@ def package_serving_artifact(
 
     model = AutoModelForSequenceClassification.from_pretrained(
         model_id,
+        revision=model_revision,
         num_labels=len(label_names),
     )
     state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
@@ -544,7 +555,10 @@ def package_serving_artifact(
         raise TypeError(f"Expected state_dict, got {type(state)}")
     model.load_state_dict(state, strict=True)
     model.to(DEVICE).eval()
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_id,
+        revision=tokenizer_revision,
+    )
     print("Checkpoint and tokenizer loaded successfully.")
 
     manifest = build_manifest(

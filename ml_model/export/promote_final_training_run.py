@@ -538,6 +538,10 @@ def build_config_used(
         "model_key": config_metadata.get("model_key", "distilbert"),
         "model_id": config_metadata.get("model_id", "distilbert-base-uncased"),
         "model_revision": config_metadata.get("model_revision"),
+        "tokenizer_id": config_metadata.get("tokenizer_id", config_metadata.get("model_id")),
+        "tokenizer_revision": config_metadata.get(
+            "tokenizer_revision", config_metadata.get("model_revision")
+        ),
         "architecture": config_metadata.get("architecture"),
         "architecture_family": config_metadata.get("architecture_family"),
         "head_type": config_metadata.get("head_type"),

@@ -220,9 +220,17 @@ class ALBERTCNNClassifier(nn.Module):
 def build_model(cfg: Mapping[str, Any], num_classes: int, device: torch.device) -> nn.Module:
     architecture = cfg["architecture"]
     if architecture == "distilbert_sequence_classification":
+        load_kwargs = {"num_labels": num_classes}
+        config = None
+        if cfg.get("model_revision"):
+            config = AutoConfig.from_pretrained(
+                cfg["model_id"], revision=cfg["model_revision"]
+            )
+            load_kwargs["revision"] = cfg["model_revision"]
+            load_kwargs["config"] = config
         model = AutoModelForSequenceClassification.from_pretrained(
             cfg["model_id"],
-            num_labels=num_classes,
+            **load_kwargs,
         )
     elif architecture == "transformer":
         model = TransformerClassifier(

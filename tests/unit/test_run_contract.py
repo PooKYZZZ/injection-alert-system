@@ -78,6 +78,22 @@ def test_reproducibility_changes_change_the_hash(change):
     assert contract_sha256(_contract()) != contract_sha256(_contract(**change))
 
 
+def test_model_revision_changes_the_hash():
+    from ml_model.training.run_contract import contract_sha256
+
+    changed = _contract(
+        model_contracts={
+            "distilbert": {
+                "model_id": "distilbert-base-uncased",
+                "model_revision": "different-revision",
+                "architecture": "distilbert_sequence_classification",
+            }
+        }
+    )
+
+    assert contract_sha256(_contract()) != contract_sha256(changed)
+
+
 def test_contract_contains_no_machine_specific_paths():
     from ml_model.training.run_contract import canonical_json
 

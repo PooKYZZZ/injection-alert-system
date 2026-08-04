@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+import hashlib
 import json
 import math
 import random
@@ -56,6 +57,7 @@ from ml_model.training.model_factory import (
     infer_architecture_family,
     infer_head_type,
 )
+from ml_model.training.run_contract import canonical_json
 
 SUMMARY_REQUIRED_KEYS = (
     "model_key",
@@ -74,6 +76,15 @@ LATENCY_REQUIRED_KEYS = (
     "latency_min_ms",
     "latency_max_ms",
 )
+
+
+def load_tokenizer_for_config(cfg: dict[str, Any]):
+    """Load a tokenizer from the exact model revision recorded in the run contract."""
+
+    kwargs: dict[str, Any] = {"use_fast": True}
+    if cfg.get("model_revision"):
+        kwargs["revision"] = cfg["model_revision"]
+    return AutoTokenizer.from_pretrained(cfg["model_id"], **kwargs)
 
 
 @dataclass
@@ -550,7 +561,7 @@ class FinalConfirmatoryRunner:
         print(f"Preparing tokenizer/resources for model={model_key} ({cfg['model_id']})")
         prep_start = time.time()
 
-        tokenizer = AutoTokenizer.from_pretrained(cfg["model_id"], use_fast=True)
+        tokenizer = load_tokenizer_for_config(cfg)
         pre_train, pre_val, pre_test, tokenization_sec, throughput = self.tokenize_all_splits(
             tokenizer, cfg["max_seq_len"]
         )
@@ -1159,6 +1170,8 @@ class FinalConfirmatoryRunner:
                 "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
                 "model_id": cfg["model_id"],
                 "model_revision": cfg.get("model_revision", "unresolved"),
+                "tokenizer_id": cfg["model_id"],
+                "tokenizer_revision": cfg.get("model_revision", "unresolved"),
                 "architecture": cfg["architecture"],
                 "seed": int(seed),
                 "loss_key": loss_key,
@@ -1206,11 +1219,23 @@ class FinalConfirmatoryRunner:
                     "Requested native DistilBERT architecture produced unexpected "
                     f"model class: {actual_model_class}"
                 )
+            model_config_sha256 = hashlib.sha256(
+                canonical_json(model.config.to_dict()).encode("utf-8")
+            ).hexdigest()
+            tokenizer_identity = {
+                "model_id": cfg["model_id"],
+                "revision": cfg.get("model_revision", "unresolved"),
+            }
             config_metadata.update(
                 {
                     "architecture_family": infer_architecture_family(cfg["architecture"]),
                     "head_type": infer_head_type(cfg["architecture"]),
                     "model_class": actual_model_class,
+                    "model_revision": cfg.get("model_revision", "unresolved"),
+                    "tokenizer_id": cfg["model_id"],
+                    "tokenizer_revision": cfg.get("model_revision", "unresolved"),
+                    "model_config_sha256": model_config_sha256,
+                    "tokenizer_identity": tokenizer_identity,
                 }
             )
             save_json(paths["seed_dir"] / "config_metadata.json", config_metadata)
@@ -1672,6 +1697,10 @@ class FinalConfirmatoryRunner:
                 "model_key": model_key,
                 "model_id": cfg["model_id"],
                 "model_revision": cfg.get("model_revision", "unresolved"),
+                "tokenizer_id": cfg["model_id"],
+                "tokenizer_revision": cfg.get("model_revision", "unresolved"),
+                "model_config_sha256": model_config_sha256,
+                "tokenizer_identity": tokenizer_identity,
                 "architecture": cfg["architecture"],
                 "architecture_family": infer_architecture_family(cfg["architecture"]),
                 "head_type": infer_head_type(cfg["architecture"]),

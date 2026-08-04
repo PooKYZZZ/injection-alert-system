@@ -55,6 +55,55 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
     )
 
 
+def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
+    from ml_model.training import model_factory
+
+    calls: list[dict[str, object]] = []
+
+    class FakeNativeModel(torch.nn.Module):
+        pass
+
+    def fake_from_pretrained(
+        model_id: str, *, num_labels: int, revision: str, config
+    ):
+        calls.append(
+            {"model_id": model_id, "num_labels": num_labels, "revision": revision}
+        )
+        return FakeNativeModel()
+
+    monkeypatch.setattr(
+        model_factory,
+        "AutoModelForSequenceClassification",
+        SimpleNamespace(from_pretrained=fake_from_pretrained),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        model_factory,
+        "AutoConfig",
+        SimpleNamespace(
+            from_pretrained=lambda model_id, *, revision: {"revision": revision}
+        ),
+    )
+
+    model_factory.build_model(
+        {
+            "architecture": "distilbert_sequence_classification",
+            "model_id": "distilbert-base-uncased",
+            "model_revision": "verified-revision",
+        },
+        num_classes=4,
+        device=torch.device("cpu"),
+    )
+
+    assert calls == [
+        {
+            "model_id": "distilbert-base-uncased",
+            "num_labels": 4,
+            "revision": "verified-revision",
+        }
+    ]
+
+
 def test_native_distilbert_metadata_is_truthful():
     from ml_model.training.model_factory import infer_architecture_family, infer_head_type
 

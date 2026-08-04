@@ -134,6 +134,34 @@ def test_native_root_model_contract_metadata_is_self_describing():
     }
 
 
+def test_tokenizer_loader_passes_pinned_revision(monkeypatch):
+    from ml_model.training import confirmatory_runner
+
+    calls: list[dict[str, object]] = []
+
+    def fake_from_pretrained(model_id: str, **kwargs):
+        calls.append({"model_id": model_id, **kwargs})
+        return object()
+
+    monkeypatch.setattr(
+        confirmatory_runner,
+        "AutoTokenizer",
+        SimpleNamespace(from_pretrained=fake_from_pretrained),
+    )
+
+    confirmatory_runner.load_tokenizer_for_config(
+        {"model_id": "distilbert-base-uncased", "model_revision": "verified-revision"}
+    )
+
+    assert calls == [
+        {
+            "model_id": "distilbert-base-uncased",
+            "use_fast": True,
+            "revision": "verified-revision",
+        }
+    ]
+
+
 def _runner(tmp_path: Path, *, seeds: list[int] | None = None):
     from ml_model.training.confirmatory_runner import FinalConfirmatoryRunner
     from ml_model.training.run_contract import contract_sha256

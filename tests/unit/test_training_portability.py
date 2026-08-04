@@ -51,6 +51,7 @@ resume = false
     assert config.data_dir == (tmp_path / "data/processed/fixture_dataset").resolve()
     assert config.output_dir == (tmp_path / "runs/smoke").resolve()
     assert config.models == ("distilbert",)
+    assert config.model_revision == "12040accade4e8a0f71eabdb258fecc2e7e948be"
     assert config.seeds == (42,)
     assert config.batch_size == 2
     assert config.resume is False
@@ -88,6 +89,7 @@ def test_laptop_smoke_config_is_cpu_safe():
     assert config.device == "cpu"
     assert config.precision == "full"
     assert config.models == ("distilbert",)
+    assert config.model_revision == "12040accade4e8a0f71eabdb258fecc2e7e948be"
     assert config.seeds == (42,)
     assert config.epochs == 1
     assert config.max_train_samples > 0

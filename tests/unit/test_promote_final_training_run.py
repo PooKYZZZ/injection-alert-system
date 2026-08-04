@@ -425,6 +425,7 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
 
     assert manifest["architecture"] == "distilbert_sequence_classification"
     assert manifest["model_class"] == "DistilBertForSequenceClassification"
+    assert manifest["model_revision"] == "12040accade4e8a0f71eabdb258fecc2e7e948be"
 
 
 @pytest.mark.parametrize("architecture", [None, "unknown_architecture"])
