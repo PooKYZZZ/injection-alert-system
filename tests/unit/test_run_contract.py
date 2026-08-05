@@ -27,6 +27,29 @@ def _contract(**overrides):
         "epochs": 4,
         "learning_rate": 0.00003,
         "gradient_accumulation_steps": 2,
+        "dataset_file_manifest_sha256": "f" * 64,
+        "label_names": [
+            "Code Injection",
+            "Normal",
+            "Other Attacks",
+            "SQL Injection",
+        ],
+        "class_mapping": {
+            "Code Injection": 0,
+            "Normal": 1,
+            "Other Attacks": 2,
+            "SQL Injection": 3,
+        },
+        "loss_contracts": {"weighted_ce": {"focal_gamma": None}},
+        "weight_decay": 0.01,
+        "warmup_ratio": 0.04,
+        "sample_limits": {
+            "train": 64,
+            "validation": 32,
+            "test": 32,
+        },
+        "precision": "full",
+        "training_implementation_version": "training-implementation.v1",
     }
     payload.update(overrides)
     return build_training_run_contract(**payload)
@@ -42,24 +65,7 @@ def test_dictionary_order_does_not_change_hash():
     from ml_model.training.run_contract import contract_sha256
 
     first = _contract()
-    second = {
-        "gradient_accumulation_steps": first["gradient_accumulation_steps"],
-        "learning_rate": first["learning_rate"],
-        "epochs": first["epochs"],
-        "eval_batch_size": first["eval_batch_size"],
-        "batch_size": first["batch_size"],
-        "max_seq_len": first["max_seq_len"],
-        "loss_keys": first["loss_keys"],
-        "seed_list": first["seed_list"],
-        "model_contracts": first["model_contracts"],
-        "model_keys": first["model_keys"],
-        "preprocessing_version": first["preprocessing_version"],
-        "dataset_version": first["dataset_version"],
-        "contract_version": first["contract_version"],
-        "model_id": first["model_id"],
-        "model_revision": first["model_revision"],
-        "architecture": first["architecture"],
-    }
+    second = dict(reversed(list(first.items())))
     assert contract_sha256(first) == contract_sha256(second)
 
 
@@ -78,6 +84,15 @@ def test_dictionary_order_does_not_change_hash():
         {"seed_list": [42]},
         {"learning_rate": 0.00002},
         {"epochs": 5},
+        {"dataset_file_manifest_sha256": "e" * 64},
+        {"label_names": ["Normal", "Code Injection", "Other Attacks", "SQL Injection"]},
+        {"class_mapping": {"Code Injection": 1, "Normal": 0, "Other Attacks": 2, "SQL Injection": 3}},
+        {"loss_contracts": {"weighted_ce": {"focal_gamma": 2.0}}},
+        {"weight_decay": 0.02},
+        {"warmup_ratio": 0.08},
+        {"sample_limits": {"train": 65, "validation": 32, "test": 32}},
+        {"precision": "fp16"},
+        {"training_implementation_version": "training-implementation.v2"},
     ],
 )
 def test_reproducibility_changes_change_the_hash(change):

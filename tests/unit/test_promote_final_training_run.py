@@ -47,6 +47,7 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
                 "architecture_family": "huggingface_sequence_classifier",
                 "head_type": "hf_sequence_classification_head",
                 "model_class": "DistilBertForSequenceClassification",
+                "run_contract_sha256": "a" * 64,
                 "dataset_version": "v3_907k_cleaned",
                 "preprocessing_version": "model-input-v2-redacted",
                 "model_input_hash_policy": "sha256(model_input_text)",
@@ -333,6 +334,7 @@ def test_build_config_used_preserves_native_architecture_metadata():
             "dataset_version": "v3_907k_cleaned",
             "preprocessing_version": "http-preprocessor-v1",
             "model_input_hash_policy": "sha256(model_input_text)",
+            "run_contract_sha256": "a" * 64,
             "max_seq_len": 128,
             "seed": 42,
         },
@@ -343,6 +345,49 @@ def test_build_config_used_preserves_native_architecture_metadata():
     assert payload["architecture_family"] == "huggingface_sequence_classifier"
     assert payload["head_type"] == "hf_sequence_classification_head"
     assert payload["model_class"] == "DistilBertForSequenceClassification"
+    assert payload["run_contract_sha256"] == "a" * 64
+
+
+@pytest.mark.parametrize("contract_hash", [None, "not-a-hash", "A" * 64])
+def test_build_config_used_rejects_missing_or_malformed_contract_hash(
+    contract_hash: str | None,
+):
+    metadata = {
+        "model_key": "distilbert",
+        "model_id": "distilbert-base-uncased",
+        "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+        "dataset_version": "v3_907k_cleaned",
+        "preprocessing_version": "http-preprocessor-v1",
+        "model_input_hash_policy": "sha256(model_input_text)",
+        "run_contract_sha256": contract_hash,
+    }
+
+    with pytest.raises(PromotionError, match="run_contract_sha256"):
+        build_config_used(config_metadata=metadata, model_version="distilbert_native")
+
+
+def test_build_config_used_rejects_contract_hash_mismatch():
+    metadata = {
+        "model_key": "distilbert",
+        "model_id": "distilbert-base-uncased",
+        "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+        "dataset_version": "v3_907k_cleaned",
+        "preprocessing_version": "http-preprocessor-v1",
+        "model_input_hash_policy": "sha256(model_input_text)",
+        "run_contract": {"contract_version": "training-run-contract.v1"},
+        "run_contract_sha256": "a" * 64,
+    }
+
+    with pytest.raises(PromotionError, match="run_contract_sha256"):
+        build_config_used(config_metadata=metadata, model_version="distilbert_native")
 
 
 def test_active_native_serving_artifact_reloads_without_changing_it():
@@ -401,6 +446,7 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
                 "model_key": "distilbert",
                 "model_id": "distilbert-base-uncased",
                 "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+                "run_contract_sha256": "a" * 64,
                 "architecture": "distilbert_sequence_classification",
                 "architecture_family": "huggingface_sequence_classifier",
                 "head_type": "hf_sequence_classification_head",
@@ -432,6 +478,7 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
     assert manifest["architecture"] == "distilbert_sequence_classification"
     assert manifest["model_class"] == "DistilBertForSequenceClassification"
     assert manifest["model_revision"] == "12040accade4e8a0f71eabdb258fecc2e7e948be"
+    assert manifest["run_contract_sha256"] == "a" * 64
 
 
 @pytest.mark.parametrize("architecture", [None, "unknown_architecture"])
@@ -471,6 +518,7 @@ def test_builds_config_used_from_final_training_metadata():
             "dataset_version": "v3_907k_cleaned",
             "preprocessing_version": "model-input-v2-redacted",
             "model_input_hash_policy": "sha256(model_input_text)",
+            "run_contract_sha256": "a" * 64,
             "max_seq_len": 128,
             "seed": 2026,
         },

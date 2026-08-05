@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -82,6 +83,66 @@ def _normalize_model_contracts(
     return normalized
 
 
+def _normalize_label_contract(
+    label_names: Sequence[str],
+    class_mapping: Mapping[str, Any] | None,
+) -> tuple[list[str], dict[str, int]]:
+    normalized_labels = [str(value).strip() for value in label_names]
+    if not normalized_labels or any(not value for value in normalized_labels):
+        raise ValueError("label_names must contain non-empty strings")
+    if len(set(normalized_labels)) != len(normalized_labels):
+        raise ValueError("label_names must be unique and ordered")
+    if class_mapping is None:
+        class_mapping = {
+            label: index for index, label in enumerate(normalized_labels)
+        }
+    if set(class_mapping) != set(normalized_labels):
+        raise ValueError("class_mapping must match label_names exactly")
+    raw_mapping = {str(label): int(index) for label, index in class_mapping.items()}
+    normalized_mapping = {label: raw_mapping[label] for label in normalized_labels}
+    if sorted(normalized_mapping.values()) != list(range(len(normalized_labels))):
+        raise ValueError("class_mapping values must be contiguous class ids")
+    return normalized_labels, normalized_mapping
+
+
+def _normalize_loss_contracts(
+    loss_keys: Sequence[str],
+    loss_contracts: Mapping[str, Mapping[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    normalized_loss_keys = [str(value).strip() for value in loss_keys]
+    if any(not value for value in normalized_loss_keys):
+        raise ValueError("loss_keys must contain non-empty strings")
+    if loss_contracts is None:
+        loss_contracts = {
+            loss_key: {"focal_gamma": None} for loss_key in normalized_loss_keys
+        }
+    if set(loss_contracts) != set(normalized_loss_keys):
+        raise ValueError("loss_contracts must match loss_keys exactly")
+    normalized: dict[str, dict[str, Any]] = {}
+    for loss_key in normalized_loss_keys:
+        raw = loss_contracts[loss_key]
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"loss contract for {loss_key!r} must be an object")
+        normalized[loss_key] = dict(raw)
+    return normalized
+
+
+def _normalize_sample_limits(
+    sample_limits: Mapping[str, Any] | None,
+) -> dict[str, int | None]:
+    sample_limits = sample_limits or {"train": None, "validation": None, "test": None}
+    expected_splits = {"train", "validation", "test"}
+    if set(sample_limits) != expected_splits:
+        raise ValueError("sample_limits must contain train, validation, and test")
+    normalized: dict[str, int | None] = {}
+    for split in ("train", "validation", "test"):
+        value = sample_limits[split]
+        if value is not None and int(value) < 1:
+            raise ValueError(f"sample_limits[{split!r}] must be positive or null")
+        normalized[split] = None if value is None else int(value)
+    return normalized
+
+
 def build_training_run_contract(
     *,
     dataset_version: str,
@@ -95,6 +156,15 @@ def build_training_run_contract(
     epochs: int,
     learning_rate: float,
     gradient_accumulation_steps: int,
+    dataset_file_manifest_sha256: str,
+    label_names: Sequence[str] = ("unresolved",),
+    class_mapping: Mapping[str, Any] | None = None,
+    loss_contracts: Mapping[str, Mapping[str, Any]] | None = None,
+    weight_decay: float = 0.0,
+    warmup_ratio: float = 0.0,
+    sample_limits: Mapping[str, Any] | None = None,
+    precision: str = "unresolved",
+    training_implementation_version: str = "training-implementation.v1",
     model_contracts: Mapping[str, Mapping[str, Any]] | None = None,
     model_id: str | None = None,
     model_revision: str | None = None,
@@ -121,6 +191,19 @@ def build_training_run_contract(
         model_revision=model_revision,
         architecture=architecture,
     )
+    if not isinstance(dataset_file_manifest_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", dataset_file_manifest_sha256
+    ):
+        raise ValueError("dataset_file_manifest_sha256 must be a lowercase SHA-256 digest")
+    if not isinstance(precision, str) or not precision.strip():
+        raise ValueError("precision must be non-empty")
+    if not isinstance(training_implementation_version, str) or not training_implementation_version.strip():
+        raise ValueError("training_implementation_version must be non-empty")
+    normalized_labels, normalized_class_mapping = _normalize_label_contract(
+        label_names, class_mapping
+    )
+    normalized_loss_contracts = _normalize_loss_contracts(loss_keys, loss_contracts)
+    normalized_sample_limits = _normalize_sample_limits(sample_limits)
     contract: dict[str, Any] = {
         "contract_version": CONTRACT_VERSION,
         "dataset_version": dataset_version.strip(),
@@ -135,6 +218,15 @@ def build_training_run_contract(
         "epochs": int(epochs),
         "learning_rate": float(learning_rate),
         "gradient_accumulation_steps": int(gradient_accumulation_steps),
+        "dataset_file_manifest_sha256": dataset_file_manifest_sha256.strip(),
+        "label_names": normalized_labels,
+        "class_mapping": normalized_class_mapping,
+        "loss_contracts": normalized_loss_contracts,
+        "weight_decay": float(weight_decay),
+        "warmup_ratio": float(warmup_ratio),
+        "sample_limits": normalized_sample_limits,
+        "precision": precision.strip(),
+        "training_implementation_version": training_implementation_version.strip(),
     }
     if len(normalized_contracts) == 1:
         single = next(iter(normalized_contracts.values()))
@@ -146,10 +238,10 @@ def require_contract_hash(payload: Mapping[str, Any]) -> str:
     """Return a stored contract hash, rejecting metadata from legacy runs."""
 
     value = payload.get(CONTRACT_HASH_FIELD)
-    if not isinstance(value, str) or len(value) != 64:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
         raise ValueError(f"metadata is missing a valid {CONTRACT_HASH_FIELD}")
-    try:
-        int(value, 16)
-    except ValueError as exc:
-        raise ValueError(f"metadata is missing a valid {CONTRACT_HASH_FIELD}") from exc
+    if "run_contract" in payload:
+        contract = payload.get("run_contract")
+        if not isinstance(contract, Mapping) or contract_sha256(contract) != value:
+            raise ValueError(f"metadata has an inconsistent {CONTRACT_HASH_FIELD}")
     return value

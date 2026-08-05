@@ -17,6 +17,7 @@ from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
     validate_supported_model_input_version,
 )
+from ml_model.training.run_contract import require_contract_hash
 
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 REQUIRED_FINAL_TRAINING_FILES = (
@@ -406,7 +407,11 @@ def validate_native_promotion_metadata(config_metadata: Mapping[str, Any]) -> No
                 f"{field}={expected_value!r}; got {config_metadata.get(field)!r}."
             )
     revision = config_metadata.get("model_revision")
-    if not isinstance(revision, str) or not revision.strip():
+    if (
+        not isinstance(revision, str)
+        or not revision.strip()
+        or revision.strip().lower() == "unresolved"
+    ):
         raise PromotionError(
             "Native DistilBERT promotion requires a pinned model_revision."
         )
@@ -541,7 +546,11 @@ def build_config_used(
         raise PromotionError(
             "Final training metadata is missing the shared model-input hash policy."
         )
-    return {
+    try:
+        contract_hash = require_contract_hash(config_metadata)
+    except ValueError as exc:
+        raise PromotionError(str(exc)) from exc
+    config_used = {
         "model_key": config_metadata.get("model_key", "distilbert"),
         "model_id": config_metadata.get("model_id", "distilbert-base-uncased"),
         "model_revision": config_metadata.get("model_revision"),
@@ -562,7 +571,11 @@ def build_config_used(
         "seed": config_metadata.get("seed"),
         "model_version": model_version,
         "label_names": list(DEFAULT_LABEL_NAMES),
+        "run_contract_sha256": contract_hash,
     }
+    if "run_contract" in config_metadata:
+        config_used["run_contract"] = config_metadata["run_contract"]
+    return config_used
 
 
 def build_eval_report(
