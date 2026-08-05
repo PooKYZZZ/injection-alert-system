@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -17,6 +18,13 @@ DEFAULT_DATASET_VERSION = "v3_907k_cleaned"
 DEFAULT_MODELS = ("distilbert",)
 DEFAULT_SEEDS = (42, 1337, 2026)
 DEFAULT_MODEL_REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
+FULL_COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+
+
+def is_pinned_model_revision(value: object) -> bool:
+    """Return whether a Hugging Face revision is an immutable full commit SHA."""
+
+    return isinstance(value, str) and bool(FULL_COMMIT_SHA_PATTERN.fullmatch(value.strip()))
 
 
 @dataclass(frozen=True)
@@ -75,8 +83,10 @@ class TrainingConfig:
             raise ValueError("dataset_version must not be empty")
         if not self.preprocessing_version.strip():
             raise ValueError("preprocessing_version must not be empty")
-        if not self.model_revision.strip() or self.model_revision == "unresolved":
-            raise ValueError("model_revision must be a pinned revision")
+        if not is_pinned_model_revision(self.model_revision):
+            raise ValueError(
+                "model_revision must be a pinned 40-character lowercase hexadecimal commit SHA"
+            )
         if not self.models:
             raise ValueError("models must contain at least one model key")
         if not self.seeds:

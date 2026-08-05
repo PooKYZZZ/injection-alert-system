@@ -148,6 +148,44 @@ def test_unresolved_model_revision_is_not_a_valid_training_config():
         TrainingConfig(model_revision="unresolved").validate()
 
 
+@pytest.mark.parametrize("revision", ["main", "v1.0", "12040accade4e8a0f"])
+def test_mutable_or_short_model_revision_is_not_a_valid_training_config(revision: str):
+    from ml_model.training.config import TrainingConfig
+
+    with pytest.raises(ValueError, match="40-character.*commit"):
+        TrainingConfig(model_revision=revision).validate()
+
+
+def test_custom_model_revision_guard_requires_a_full_commit_sha():
+    from ml_model.training.model_factory import require_pinned_model_revision
+
+    with pytest.raises(ValueError, match="40-character.*commit"):
+        require_pinned_model_revision({"model_revision": "main"})
+
+    revision = "a" * 40
+    assert require_pinned_model_revision({"model_revision": revision}) == revision
+
+
+def test_custom_model_provenance_hash_uses_encoder_config():
+    import hashlib
+
+    from ml_model.training.confirmatory_runner import model_config_sha256
+    from ml_model.training.run_contract import canonical_json
+
+    class FakeConfig:
+        def to_dict(self):
+            return {"hidden_size": 384, "model_type": "bert"}
+
+    class CustomWrapper:
+        encoder_config = FakeConfig()
+
+    expected = hashlib.sha256(
+        canonical_json(CustomWrapper.encoder_config.to_dict()).encode("utf-8")
+    ).hexdigest()
+
+    assert model_config_sha256(CustomWrapper(), architecture="transformer") == expected
+
+
 def test_model_training_settings_preserve_per_model_defaults():
     from ml_model.training.train import build_model_training_settings
 

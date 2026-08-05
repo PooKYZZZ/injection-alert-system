@@ -35,6 +35,16 @@ def test_current_documentation_has_one_canonical_route_per_operator_purpose() ->
         assert f"| {purpose} |" in index
 
 
+def test_training_promotion_docs_use_generated_loss_variant_directory() -> None:
+    expected_path = r"distilbert\loss_weighted_ce\seed_2026"
+    stale_path = r"distilbert\weighted_ce\seed_2026"
+
+    for relative_path in (Path("docs/SETUP.md"), Path("ml_model/export/README.md")):
+        content = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert expected_path in content
+        assert stale_path not in content
+
+
 def test_current_documentation_does_not_repeat_superseded_pr83_truth() -> None:
     combined = "\n".join(
         (REPO_ROOT / path).read_text(encoding="utf-8") for path in CURRENT_DOCS

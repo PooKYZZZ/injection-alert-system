@@ -7,6 +7,8 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from transformers import AutoConfig, AutoModel, AutoModelForSequenceClassification
 
+from ml_model.training.config import is_pinned_model_revision
+
 
 def build_activation(name: str):
     name = name.lower()
@@ -48,9 +50,10 @@ def infer_architecture_family(architecture: str) -> str:
 
 def require_pinned_model_revision(cfg: Mapping[str, Any]) -> str:
     revision = cfg.get("model_revision")
-    if not isinstance(revision, str) or not revision.strip() or revision == "unresolved":
+    if not is_pinned_model_revision(revision):
         raise ValueError(
-            "Every supported model configuration requires a pinned model_revision."
+            "Every supported model configuration requires a pinned model_revision "
+            "using a 40-character lowercase hexadecimal commit SHA."
         )
     return revision.strip()
 
