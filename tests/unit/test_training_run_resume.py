@@ -30,6 +30,7 @@ def _contract(**overrides):
         "epochs": 4,
         "learning_rate": 0.00003,
         "gradient_accumulation_steps": 2,
+        "dataset_file_manifest_sha256": "f" * 64,
     }
     payload.update(overrides)
     if "architecture" in overrides:
@@ -64,7 +65,17 @@ def _write_bootstrap(
     checkpoint = run_dir / "distilbert" / "weighted_ce" / "seed_0042" / "checkpoint"
     checkpoint.mkdir(parents=True)
     torch.save(
-        {"model_state_dict": {"distilbert.weight": torch.tensor([1.0])}},
+        {
+            "model_state_dict": {"distilbert.weight": torch.tensor([1.0])},
+            "model_key": "distilbert",
+            "seed": 42,
+            "loss_key": "weighted_ce",
+            "architecture": contract["model_contracts"]["distilbert"][
+                "architecture"
+            ],
+            "preprocessing_version": contract["preprocessing_version"],
+            "run_contract_sha256": contract_hash or contract_sha256(contract),
+        },
         checkpoint / "last.pt",
     )
 
@@ -115,11 +126,56 @@ def test_explicit_resume_checkpoint_rejects_incompatible_contract(tmp_path: Path
 
     checkpoint = tmp_path / "run" / "model" / "checkpoint" / "last.pt"
     checkpoint.parent.mkdir(parents=True)
-    checkpoint.write_bytes(b"checkpoint")
-    _write_bootstrap(checkpoint.parents[2], _contract(architecture="transformer"))
+    contract = _contract(seed_list=[42], architecture="transformer")
+    _write_bootstrap(checkpoint.parents[2], contract)
 
     with pytest.raises(ValueError, match="contract mismatch"):
-        validate_resume_checkpoint_contract(checkpoint, contract_sha256(_contract()))
+        validate_resume_checkpoint_contract(
+            checkpoint,
+            contract_sha256(_contract(seed_list=[42])),
+            expected_model_key="distilbert",
+            expected_seed=42,
+            expected_loss_key="weighted_ce",
+            expected_architecture="distilbert_sequence_classification",
+            expected_preprocessing_version="http-preprocessor-v1",
+        )
+
+
+def test_explicit_resume_requires_one_model_and_one_seed():
+    from ml_model.training.train import validate_explicit_resume_scope
+
+    with pytest.raises(ValueError, match="exactly one model and one seed"):
+        validate_explicit_resume_scope(
+            checkpoint=Path("checkpoint.pt"),
+            model_keys=["distilbert"],
+            seeds=[42, 1337, 2026],
+        )
+
+    with pytest.raises(ValueError, match="exactly one model and one seed"):
+        validate_explicit_resume_scope(
+            checkpoint=Path("checkpoint.pt"),
+            model_keys=["distilbert", "minilm_l6"],
+            seeds=[42],
+        )
+
+
+def test_matching_explicit_resume_checkpoint_is_accepted(tmp_path: Path):
+    from ml_model.training.run_contract import contract_sha256
+    from ml_model.training.train import validate_resume_checkpoint_contract
+
+    contract = _contract(seed_list=[42])
+    checkpoint = tmp_path / "run" / "distilbert" / "weighted_ce" / "seed_0042" / "checkpoint" / "last.pt"
+    _write_bootstrap(checkpoint.parents[4], contract)
+
+    validate_resume_checkpoint_contract(
+        checkpoint,
+        contract_sha256(contract),
+        expected_model_key="distilbert",
+        expected_seed=42,
+        expected_loss_key="weighted_ce",
+        expected_architecture="distilbert_sequence_classification",
+        expected_preprocessing_version="http-preprocessor-v1",
+    )
 
 
 def test_native_root_model_contract_metadata_is_self_describing():
@@ -199,7 +255,13 @@ def _runner(tmp_path: Path, *, seeds: list[int] | None = None):
     return runner
 
 
-def _write_completed_seed(runner, tmp_path: Path, seed_number: int = 42, **overrides):
+def _write_completed_seed(
+    runner,
+    tmp_path: Path,
+    seed_number: int = 42,
+    checkpoint_overrides: dict | None = None,
+    **overrides,
+):
     paths = runner.build_seed_paths(
         tmp_path / "variant", "distilbert", "weighted_ce", seed_number
     )
@@ -228,7 +290,19 @@ def _write_completed_seed(runner, tmp_path: Path, seed_number: int = 42, **overr
             json.dumps(payload), encoding="utf-8"
         )
     paths["completed_marker"].write_text(json.dumps(metadata), encoding="utf-8")
-    paths["best_ckpt"].write_bytes(b"checkpoint")
+    checkpoint_payload = {
+        "epoch": 1,
+        "model_state_dict": {"distilbert.weight": torch.tensor([1.0])},
+        "model_key": "distilbert",
+        "seed": seed_number,
+        "loss_key": "weighted_ce",
+        "architecture": "distilbert_sequence_classification",
+        "model_class": "DistilBertForSequenceClassification",
+        "preprocessing_version": runner.ctx.preprocessing_version,
+        "run_contract_sha256": runner.ctx.run_contract_sha256,
+    }
+    checkpoint_payload.update(checkpoint_overrides or {})
+    torch.save(checkpoint_payload, paths["best_ckpt"])
     return paths
 
 
@@ -272,6 +346,55 @@ def test_mismatched_completed_seed_is_rerun(tmp_path: Path, field, value, reason
 
     assert valid is False
     assert actual_reason == reason
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("model_key", "minilm_l6", "checkpoint_model_key_mismatch"),
+        ("seed", 1337, "checkpoint_seed_mismatch"),
+        ("architecture", "transformer", "checkpoint_architecture_mismatch"),
+        ("run_contract_sha256", "b" * 64, "checkpoint_contract_mismatch"),
+    ],
+)
+def test_checkpoint_identity_mismatch_invalidates_completed_seed(
+    tmp_path: Path, field, value, reason
+):
+    runner = _runner(tmp_path)
+    paths = _write_completed_seed(
+        runner,
+        tmp_path,
+        checkpoint_overrides={field: value},
+    )
+
+    valid, actual_reason, _ = runner.validate_completed_seed_artifacts(paths)
+
+    assert valid is False
+    assert actual_reason == reason
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"truncated checkpoint",
+        {"epoch": 1},
+        {"model_state_dict": {"distilbert.weight": "not a tensor"}},
+    ],
+)
+def test_corrupt_or_incomplete_best_checkpoint_invalidates_completed_seed(
+    tmp_path: Path, payload
+):
+    runner = _runner(tmp_path)
+    paths = _write_completed_seed(runner, tmp_path)
+    if isinstance(payload, bytes):
+        paths["best_ckpt"].write_bytes(payload)
+    else:
+        torch.save(payload, paths["best_ckpt"])
+
+    valid, reason, _ = runner.validate_completed_seed_artifacts(paths)
+
+    assert valid is False
+    assert reason.startswith("checkpoint_")
 
 
 def test_aggregation_rejects_mixed_contract_hashes(tmp_path: Path):

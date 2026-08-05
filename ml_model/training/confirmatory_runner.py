@@ -8,6 +8,7 @@ import random
 import shutil
 import time
 import traceback
+from collections.abc import Mapping
 from contextlib import nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
@@ -76,6 +77,66 @@ LATENCY_REQUIRED_KEYS = (
     "latency_min_ms",
     "latency_max_ms",
 )
+
+
+def load_checkpoint_payload(checkpoint_path: Path, *, context: str) -> dict[str, Any]:
+    """Load a training checkpoint using the safe weights-only path."""
+
+    try:
+        payload = torch.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+    except Exception as exc:
+        raise ValueError(
+            f"checkpoint_load_failed:{context}:{type(exc).__name__}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"checkpoint_not_object:{context}")
+
+    state_dict = payload.get("model_state_dict")
+    if not isinstance(state_dict, Mapping):
+        raise ValueError(f"checkpoint_missing_model_state_dict:{context}")
+    if not all(
+        isinstance(key, str) and torch.is_tensor(value)
+        for key, value in state_dict.items()
+    ):
+        raise ValueError(f"checkpoint_state_dict_invalid:{context}")
+    return payload
+
+
+def validate_checkpoint_identity(
+    payload: Mapping[str, Any],
+    *,
+    expected_model_key: str,
+    expected_seed: int,
+    expected_loss_key: str,
+    expected_architecture: str,
+    expected_preprocessing_version: str,
+    expected_contract_hash: str,
+    expected_model_class: str | None = None,
+    context: str = "checkpoint",
+) -> str | None:
+    """Return a clear identity mismatch reason, or None when it matches."""
+
+    expected = {
+        "model_key": expected_model_key,
+        "seed": int(expected_seed),
+        "loss_key": expected_loss_key,
+        "architecture": expected_architecture,
+        "preprocessing_version": expected_preprocessing_version,
+        "run_contract_sha256": expected_contract_hash,
+    }
+    for field, expected_value in expected.items():
+        if payload.get(field) != expected_value:
+            reason_field = (
+                "contract" if field == "run_contract_sha256" else field
+            )
+            return f"{context}_{reason_field}_mismatch"
+    if expected_model_class is not None and payload.get("model_class") != expected_model_class:
+        return f"{context}_model_class_mismatch"
+    return None
 
 
 def load_tokenizer_for_config(cfg: dict[str, Any]):
@@ -291,9 +352,21 @@ class FinalConfirmatoryRunner:
 
     @staticmethod
     def capture_rng_state() -> dict[str, Any]:
+        numpy_state = np.random.get_state()
+        python_state = random.getstate()
         state: dict[str, Any] = {
-            "python": random.getstate(),
-            "numpy": np.random.get_state(),
+            "python": [
+                int(python_state[0]),
+                list(python_state[1]),
+                int(python_state[2]),
+            ],
+            "numpy": {
+                "bit_generator": str(numpy_state[0]),
+                "state": [int(value) for value in numpy_state[1].tolist()],
+                "pos": int(numpy_state[2]),
+                "has_gauss": int(numpy_state[3]),
+                "cached_gaussian": float(numpy_state[4]),
+            },
             "torch": torch.get_rng_state(),
         }
         if torch.cuda.is_available():
@@ -305,9 +378,25 @@ class FinalConfirmatoryRunner:
         if not state:
             return
         if "python" in state:
-            random.setstate(state["python"])
+            python_state = state["python"]
+            random.setstate(
+                (
+                    int(python_state[0]),
+                    tuple(int(value) for value in python_state[1]),
+                    int(python_state[2]),
+                )
+            )
         if "numpy" in state:
-            np.random.set_state(state["numpy"])
+            numpy_state = state["numpy"]
+            np.random.set_state(
+                (
+                    str(numpy_state["bit_generator"]),
+                    np.asarray(numpy_state["state"], dtype=np.uint32),
+                    int(numpy_state["pos"]),
+                    int(numpy_state["has_gauss"]),
+                    float(numpy_state["cached_gaussian"]),
+                )
+            )
         if "torch" in state:
             torch.set_rng_state(state["torch"])
         if torch.cuda.is_available() and "cuda" in state:
@@ -783,6 +872,26 @@ class FinalConfirmatoryRunner:
         if not paths["best_ckpt"].exists():
             return False, "best_checkpoint_missing", summary
 
+        try:
+            checkpoint_payload = load_checkpoint_payload(
+                paths["best_ckpt"], context="best"
+            )
+        except ValueError as exc:
+            return False, str(exc), summary
+        checkpoint_reason = validate_checkpoint_identity(
+            checkpoint_payload,
+            expected_model_key=model_key,
+            expected_seed=seed,
+            expected_loss_key=loss_key,
+            expected_architecture=str(cfg["architecture"]),
+            expected_preprocessing_version=self.ctx.preprocessing_version,
+            expected_contract_hash=self.ctx.run_contract_sha256,
+            expected_model_class=expected_model_class,
+            context="checkpoint",
+        )
+        if checkpoint_reason is not None:
+            return False, checkpoint_reason, summary
+
         return True, "ok", summary
 
     def is_seed_completed(self, paths: dict[str, Path]) -> bool:
@@ -917,17 +1026,26 @@ class FinalConfirmatoryRunner:
                 f"Best checkpoint missing for deferred latency: {paths['best_ckpt']}"
             )
 
-        checkpoint_payload = torch.load(
-            paths["best_ckpt"], map_location="cpu", weights_only=False
+        checkpoint_payload = load_checkpoint_payload(
+            paths["best_ckpt"], context="deferred_latency"
         )
-        if "model_state_dict" not in checkpoint_payload:
-            raise RuntimeError(
-                f"Best checkpoint missing model_state_dict: {paths['best_ckpt']}"
-            )
 
         model = None
         try:
             model = build_model(cfg, self.ctx.num_classes, self.ctx.device)
+            checkpoint_reason = validate_checkpoint_identity(
+                checkpoint_payload,
+                expected_model_key=model_key,
+                expected_seed=int(seed),
+                expected_loss_key=loss_key,
+                expected_architecture=str(cfg["architecture"]),
+                expected_preprocessing_version=self.ctx.preprocessing_version,
+                expected_contract_hash=self.ctx.run_contract_sha256,
+                expected_model_class=type(model).__name__,
+                context="checkpoint",
+            )
+            if checkpoint_reason is not None:
+                raise RuntimeError(f"Checkpoint identity mismatch: {checkpoint_reason}")
             model.load_state_dict(checkpoint_payload["model_state_dict"])
 
             if resources is None:
@@ -1163,6 +1281,7 @@ class FinalConfirmatoryRunner:
 
             config_metadata = {
                 "run_contract_sha256": self.ctx.run_contract_sha256,
+                "run_contract": self.ctx.run_contract,
                 "run_kind": self.ctx.run_kind,
                 "run_name": self.ctx.run_name,
                 "dataset_version": self.ctx.dataset_version,
@@ -1264,13 +1383,28 @@ class FinalConfirmatoryRunner:
             resume_path = self.ctx.resume_checkpoint or paths["last_ckpt"]
             if resume_allowed and resume_path.exists():
                 try:
-                    resume_payload = torch.load(
-                        resume_path, map_location="cpu", weights_only=False
+                    resume_payload = load_checkpoint_payload(
+                        resume_path, context="resume"
                     )
-                except Exception as exc:
+                except ValueError as exc:
                     raise RuntimeError(
                         f"Could not load resume checkpoint: {resume_path}"
                     ) from exc
+                checkpoint_reason = validate_checkpoint_identity(
+                    resume_payload,
+                    expected_model_key=model_key,
+                    expected_seed=int(seed),
+                    expected_loss_key=loss_key,
+                    expected_architecture=str(cfg["architecture"]),
+                    expected_preprocessing_version=self.ctx.preprocessing_version,
+                    expected_contract_hash=self.ctx.run_contract_sha256,
+                    expected_model_class=actual_model_class,
+                    context="resume_checkpoint",
+                )
+                if checkpoint_reason is not None:
+                    raise RuntimeError(
+                        f"Resume checkpoint identity mismatch: {checkpoint_reason}"
+                    )
                 required_keys = ["epoch", "model_state_dict", "optimizer_state_dict", "scheduler_state_dict"]
                 missing_keys = [key for key in required_keys if key not in resume_payload]
                 if missing_keys:
@@ -1393,6 +1527,11 @@ class FinalConfirmatoryRunner:
                             "cfg": cfg,
                             "loss_key": loss_key,
                             "seed": int(seed),
+                            "model_key": model_key,
+                            "architecture": cfg["architecture"],
+                            "model_class": actual_model_class,
+                            "preprocessing_version": self.ctx.preprocessing_version,
+                            "run_contract_sha256": self.ctx.run_contract_sha256,
                         },
                         paths["best_ckpt"],
                     )
@@ -1451,6 +1590,11 @@ class FinalConfirmatoryRunner:
                             "cfg": cfg,
                             "seed": int(seed),
                             "loss_key": loss_key,
+                            "model_key": model_key,
+                            "architecture": cfg["architecture"],
+                            "model_class": actual_model_class,
+                            "preprocessing_version": self.ctx.preprocessing_version,
+                            "run_contract_sha256": self.ctx.run_contract_sha256,
                             "rng_state": self.capture_rng_state(),
                             "saved_at": self.utc_now_iso(),
                         },
@@ -1528,13 +1672,9 @@ class FinalConfirmatoryRunner:
                     f"Best checkpoint was not produced for model={model_key}, loss={loss_key}, seed={seed}."
                 )
 
-            best_payload = torch.load(
-                paths["best_ckpt"], map_location="cpu", weights_only=False
+            best_payload = load_checkpoint_payload(
+                paths["best_ckpt"], context="best"
             )
-            if "model_state_dict" not in best_payload:
-                raise RuntimeError(
-                    f"Best checkpoint missing model_state_dict for model={model_key}, loss={loss_key}, seed={seed}."
-                )
             model.load_state_dict(best_payload["model_state_dict"])
 
             _, best_val_logits, best_val_labels = collect_logits_labels_loss(

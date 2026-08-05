@@ -23,6 +23,7 @@ from ml_model.preprocessing.dataset_io import (
     build_split_summaries,
     encode_labels,
     load_data_splits,
+    load_dataset_file_manifest,
     load_json,
     make_output_dir,
     resolve_data_dir,
@@ -43,6 +44,8 @@ from ml_model.training.config import (
 from ml_model.training.confirmatory_runner import (
     ConfirmatoryRunnerContext,
     FinalConfirmatoryRunner,
+    load_checkpoint_payload,
+    validate_checkpoint_identity,
 )
 from ml_model.training.device import resolve_device, resolve_precision
 from ml_model.training.model_factory import infer_architecture_family, infer_head_type
@@ -59,6 +62,7 @@ EXPECTED_CLASSES = [
     "Other Attacks",
     "SQL Injection",
 ]
+TRAINING_IMPLEMENTATION_VERSION = "training-implementation.v2"
 DEFAULT_MODEL_KEYS = DEFAULT_MODELS
 
 
@@ -83,6 +87,7 @@ DEFAULT_MODEL_REGISTRY = {
     "minilm_l6": {
         "model_key": "minilm_l6",
         "model_id": "nreimers/MiniLM-L6-H384-uncased",
+        "model_revision": "a5ac6eee698c33c34973253b74007135d800f724",
         "architecture": "transformer",
         "experiment_phase": "controlled_backbone_benchmark",
         "learning_rate": 2e-5,
@@ -102,6 +107,7 @@ DEFAULT_MODEL_REGISTRY = {
     "tinybert_bigru_attn": {
         "model_key": "tinybert_bigru_attn",
         "model_id": "huawei-noah/TinyBERT_General_6L_768D",
+        "model_revision": "8b6152f3be8ab89055dea2d040cebb9591d97ef6",
         "architecture": "tinybert_bigru_attention",
         "experiment_phase": "architecture_search",
         "learning_rate": 3e-5,
@@ -218,7 +224,15 @@ def find_latest_resumable_run_dir(
 
 
 def validate_resume_checkpoint_contract(
-    checkpoint: Path, expected_contract_hash: str
+    checkpoint: Path,
+    expected_contract_hash: str,
+    *,
+    expected_model_key: str,
+    expected_seed: int,
+    expected_loss_key: str,
+    expected_architecture: str,
+    expected_preprocessing_version: str,
+    expected_model_class: str | None = None,
 ) -> None:
     """Reject an explicit checkpoint unless its run has the exact current contract."""
 
@@ -230,10 +244,37 @@ def validate_resume_checkpoint_contract(
                 raise ValueError(
                     f"Explicit resume checkpoint contract mismatch: {checkpoint}"
                 )
+            payload = load_checkpoint_payload(checkpoint, context="resume")
+            mismatch = validate_checkpoint_identity(
+                payload,
+                expected_model_key=expected_model_key,
+                expected_seed=expected_seed,
+                expected_loss_key=expected_loss_key,
+                expected_architecture=expected_architecture,
+                expected_preprocessing_version=expected_preprocessing_version,
+                expected_contract_hash=expected_contract_hash,
+                expected_model_class=expected_model_class,
+                context="resume_checkpoint",
+            )
+            if mismatch is not None:
+                raise ValueError(
+                    f"Explicit resume checkpoint identity mismatch: {mismatch}"
+                )
             return
     raise ValueError(
         f"Explicit resume checkpoint is missing run contract metadata: {checkpoint}"
     )
+
+
+def validate_explicit_resume_scope(
+    *, checkpoint: Path, model_keys: list[str] | tuple[str, ...], seeds: list[int] | tuple[int, ...]
+) -> None:
+    """Reject one checkpoint being reused across multiple model/seed runs."""
+
+    if len(model_keys) != 1 or len(seeds) != 1:
+        raise ValueError(
+            "An explicit resume checkpoint requires exactly one model and one seed."
+        )
 
 
 def build_model_contract_metadata(
@@ -250,7 +291,7 @@ def build_model_contract_metadata(
     return {
         model_key: {
             "model_id": str(cfg["model_id"]),
-            "model_revision": str(cfg.get("model_revision", "unresolved")),
+            "model_revision": str(cfg["model_revision"]),
             "architecture": str(cfg["architecture"]),
             "architecture_family": infer_architecture_family(cfg["architecture"]),
             "head_type": infer_head_type(cfg["architecture"]),
@@ -276,6 +317,12 @@ def build_runner_context(
         raise FileNotFoundError(
             f"Configured resume checkpoint does not exist: {options.resume_checkpoint}"
         )
+    if options.resume_checkpoint:
+        validate_explicit_resume_scope(
+            checkpoint=options.resume_checkpoint,
+            model_keys=options.models,
+            seeds=options.seeds,
+        )
 
     repository_root = resolve_project_root()
     data_dir = options.data_dir or resolve_data_dir(
@@ -287,6 +334,11 @@ def build_runner_context(
         expected_preprocessing_version=options.preprocessing_version,
         expected_text_column=MODEL_INPUT_TEXT_COLUMN,
     )
+    dataset_manifest = load_dataset_file_manifest(data_dir)
+    dataset_metadata = {
+        **dataset_metadata,
+        "dataset_file_manifest_sha256": dataset_manifest["sha256"],
+    }
     df_train, df_val, df_test = load_data_splits(
         data_dir, MODEL_INPUT_TEXT_COLUMN, "final_label"
     )
@@ -328,7 +380,7 @@ def build_runner_context(
             **DEFAULT_MODEL_REGISTRY[key],
             "model_revision": options.model_revision
             if key == "distilbert"
-            else DEFAULT_MODEL_REGISTRY[key].get("model_revision", "unresolved"),
+            else DEFAULT_MODEL_REGISTRY[key]["model_revision"],
             "num_train_epochs": options.epochs,
             **(
                 {"per_device_train_batch_size": options.batch_size}
@@ -355,6 +407,8 @@ def build_runner_context(
         for key in options.models
     }
     first_model = run_model_registry[options.models[0]]
+    device = _device_for(options)
+    precision = resolve_precision(options.precision, device)
     expected_contract = build_training_run_contract(
         dataset_version=options.dataset_version,
         preprocessing_version=options.preprocessing_version,
@@ -362,7 +416,7 @@ def build_runner_context(
         model_contracts={
             key: {
                 "model_id": cfg["model_id"],
-                "model_revision": cfg.get("model_revision", "unresolved"),
+                "model_revision": cfg["model_revision"],
                 "architecture": cfg["architecture"],
             }
             for key, cfg in run_model_registry.items()
@@ -386,13 +440,41 @@ def build_runner_context(
             options.gradient_accumulation_steps
             or first_model["gradient_accumulation_steps"]
         ),
+        dataset_file_manifest_sha256=dataset_manifest["sha256"],
+        label_names=label_names,
+        class_mapping={label: index for index, label in enumerate(label_names)},
+        loss_contracts={
+            "weighted_ce": {"focal_gamma": first_model.get("focal_gamma")}
+        },
+        weight_decay=float(first_model["weight_decay"]),
+        warmup_ratio=float(first_model["warmup_ratio"]),
+        sample_limits={
+            "train": options.max_train_samples,
+            "validation": options.max_validation_samples,
+            "test": options.max_test_samples,
+        },
+        precision=precision,
+        training_implementation_version=TRAINING_IMPLEMENTATION_VERSION,
     )
     expected_contract_hash = contract_sha256(expected_contract)
     model_contract_metadata = build_model_contract_metadata(run_model_registry)
     default_output_base_dir = default_training_output_dir(project_root=repository_root)
     if options.resume_checkpoint:
+        selected_cfg = run_model_registry[options.models[0]]
         validate_resume_checkpoint_contract(
-            options.resume_checkpoint, expected_contract_hash
+            options.resume_checkpoint,
+            expected_contract_hash,
+            expected_model_key=options.models[0],
+            expected_seed=int(options.seeds[0]),
+            expected_loss_key="weighted_ce",
+            expected_architecture=str(selected_cfg["architecture"]),
+            expected_preprocessing_version=options.preprocessing_version,
+            expected_model_class=(
+                "DistilBertForSequenceClassification"
+                if selected_cfg["architecture"]
+                == "distilbert_sequence_classification"
+                else None
+            ),
         )
     resumable_run_dir = (
         None
@@ -413,8 +495,6 @@ def build_runner_context(
         run_dir / "evaluated_test_rows.csv",
         index=False,
     )
-    device = _device_for(options)
-    precision = resolve_precision(options.precision, device)
     resolved_options = replace(
         options,
         data_dir=data_dir,
