@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 
@@ -23,7 +24,7 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         def forward(self, input_ids, attention_mask):
             return {"logits": torch.zeros((input_ids.shape[0], 4))}
 
-    def fake_from_pretrained(model_id: str, *, config):
+    def fake_from_pretrained(model_id: str, *, config, revision):
         calls.append((model_id, config.num_labels))
         return FakeNativeModel()
 
@@ -37,7 +38,9 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         model_factory,
         "AutoConfig",
         SimpleNamespace(
-            from_pretrained=lambda model_id: SimpleNamespace(num_labels=2)
+            from_pretrained=lambda model_id, *, revision: SimpleNamespace(
+                revision=revision, num_labels=2
+            )
         ),
     )
 
@@ -45,6 +48,7 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         {
             "architecture": "distilbert_sequence_classification",
             "model_id": "distilbert-base-uncased",
+            "model_revision": "verified-revision",
         },
         num_classes=4,
         device=torch.device("cpu"),
@@ -60,6 +64,29 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         not any(part in key for part in ("classifier_dense", "layer_norm", "output"))
         for key in model.state_dict()
     )
+
+
+def test_unresolved_or_missing_model_revision_is_rejected(monkeypatch):
+    from ml_model.training import model_factory
+
+    def unexpected_loader(*args, **kwargs):
+        raise AssertionError("model loader must not receive an unresolved revision")
+
+    monkeypatch.setattr(
+        model_factory,
+        "AutoConfig",
+        SimpleNamespace(from_pretrained=unexpected_loader),
+    )
+
+    for revision in (None, "unresolved"):
+        config = {
+            "architecture": "distilbert_sequence_classification",
+            "model_id": "distilbert-base-uncased",
+        }
+        if revision is not None:
+            config["model_revision"] = revision
+        with pytest.raises(ValueError, match="pinned model_revision"):
+            model_factory.build_model(config, 4, torch.device("cpu"))
 
 
 def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
@@ -140,19 +167,24 @@ def test_legacy_transformer_architecture_is_still_explicitly_selectable(monkeypa
         model_factory,
         "AutoConfig",
         SimpleNamespace(
-            from_pretrained=lambda model_id: SimpleNamespace(hidden_size=4)
+            from_pretrained=lambda model_id, *, revision: SimpleNamespace(
+                hidden_size=4, revision=revision
+            )
         ),
     )
     monkeypatch.setattr(
         model_factory,
         "AutoModel",
-        SimpleNamespace(from_pretrained=lambda model_id, config: FakeEncoder()),
+        SimpleNamespace(
+            from_pretrained=lambda model_id, *, config, revision: FakeEncoder()
+        ),
     )
 
     model = model_factory.build_model(
         {
             "architecture": "transformer",
             "model_id": "historical/model",
+            "model_revision": "historical-pinned-revision",
             "dropout_prob": 0.1,
             "head_hidden_dim": 8,
             "activation": "gelu",

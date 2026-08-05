@@ -141,6 +141,13 @@ def test_default_training_config_targets_distilbert_only():
     assert config.models == ("distilbert",)
 
 
+def test_unresolved_model_revision_is_not_a_valid_training_config():
+    from ml_model.training.config import TrainingConfig
+
+    with pytest.raises(ValueError, match="model_revision.*pinned"):
+        TrainingConfig(model_revision="unresolved").validate()
+
+
 def test_fp16_precision_is_allowed_for_cuda(monkeypatch):
     from ml_model.training.device import resolve_precision
 

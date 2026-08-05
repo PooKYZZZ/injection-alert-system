@@ -67,7 +67,7 @@ class TrainingConfig:
             max_train_samples=64,
             max_validation_samples=32,
             max_test_samples=32,
-            prepare_only=True,
+            prepare_only=False,
         )
 
     def validate(self) -> "TrainingConfig":
@@ -75,8 +75,8 @@ class TrainingConfig:
             raise ValueError("dataset_version must not be empty")
         if not self.preprocessing_version.strip():
             raise ValueError("preprocessing_version must not be empty")
-        if not self.model_revision.strip():
-            raise ValueError("model_revision must not be empty")
+        if not self.model_revision.strip() or self.model_revision == "unresolved":
+            raise ValueError("model_revision must be a pinned revision")
         if not self.models:
             raise ValueError("models must contain at least one model key")
         if not self.seeds:
