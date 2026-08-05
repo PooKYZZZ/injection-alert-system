@@ -358,7 +358,7 @@ class FinalConfirmatoryRunner:
             "python": [
                 int(python_state[0]),
                 list(python_state[1]),
-                int(python_state[2]),
+                None if python_state[2] is None else int(python_state[2]),
             ],
             "numpy": {
                 "bit_generator": str(numpy_state[0]),
@@ -383,7 +383,7 @@ class FinalConfirmatoryRunner:
                 (
                     int(python_state[0]),
                     tuple(int(value) for value in python_state[1]),
-                    int(python_state[2]),
+                    None if python_state[2] is None else int(python_state[2]),
                 )
             )
         if "numpy" in state:

@@ -28,10 +28,11 @@ def test_resume_state_is_restored_outside_checkpoint_load_exception_handler():
     assert "\n                best_epoch = int(resume_payload.get(\"best_epoch\", 0))" in source
 
 
-def test_training_loads_local_checkpoints_with_explicit_trusted_policy():
+def test_training_loads_local_checkpoints_with_safe_weights_only_policy():
     source = _source("ml_model/training/confirmatory_runner.py")
 
-    assert "weights_only=False" in source
+    assert "weights_only=True" in source
+    assert "weights_only=False" not in source
 
 
 def test_seed_summary_emits_balanced_accuracy_and_brier_metrics():

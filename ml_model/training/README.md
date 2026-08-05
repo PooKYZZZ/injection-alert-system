@@ -140,6 +140,11 @@ CPU mapping and then moved to the selected device.
 
 The training entrypoint records the resolved configuration, selected device,
 Python version, dependency versions, dataset information, and run identifier.
+The canonical run contract also includes the processed-file manifest digest from
+the existing `checksums.txt`, ordered labels and class mapping, loss/focal
+parameters, optimizer and schedule settings, sample limits, resolved precision,
+and the training implementation version. It contains stable metadata only; it
+does not embed machine-specific paths or regenerate the dataset.
 The training entrypoint does not promote or deploy an artifact. Promotion
 remains an explicit operation under `ml_model/export/`.
 
@@ -172,10 +177,14 @@ is preserved until a separately evaluated model is explicitly promoted.
 
 Every new run is self-describing. Its contract records the dataset and
 preprocessing versions, selected models, pinned Hugging Face revision, seeds,
-losses, and core training settings. Automatic or explicit resume requires an
-exact contract hash; runs without that metadata, or with changed architecture,
-dataset, revision, seeds, or core hyperparameters, are not resumable. Training
-does not rewrite historical results or the active staging artifact.
+losses, labels, dataset-file manifest, and core training settings. Automatic
+resume requires an exact contract hash. An explicit `--resume-checkpoint` is
+accepted only for one selected model and one seed, and its model, seed, loss,
+architecture, preprocessing, and contract identity must match exactly. A
+completed seed is considered resumable only when its checkpoint is a safe-load
+compatible object with tensor-only model weights and matching identity;
+corrupt or incomplete checkpoints are retrained. Training does not rewrite
+historical results or the active staging artifact.
 
 Promotion is architecture-aware and fail-closed: only the native
 `DistilBertForSequenceClassification` contract is eligible for the maintained

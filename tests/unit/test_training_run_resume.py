@@ -90,6 +90,25 @@ def test_resume_discovery_rejects_historical_runs_without_contract(tmp_path: Pat
     assert find_latest_resumable_run_dir(tmp_path, "run", "a" * 64) is None
 
 
+def test_rng_checkpoint_payload_is_safe_load_compatible(tmp_path: Path):
+    from ml_model.training.confirmatory_runner import (
+        FinalConfirmatoryRunner,
+        load_checkpoint_payload,
+    )
+
+    checkpoint = tmp_path / "rng.pt"
+    torch.save(
+        {
+            "model_state_dict": {"weight": torch.tensor([1.0])},
+            "rng_state": FinalConfirmatoryRunner.capture_rng_state(),
+        },
+        checkpoint,
+    )
+
+    payload = load_checkpoint_payload(checkpoint, context="rng-test")
+    FinalConfirmatoryRunner.restore_rng_state(payload["rng_state"])
+
+
 def test_resume_discovery_requires_exact_contract_hash_and_identity(tmp_path: Path):
     from ml_model.training.run_contract import contract_sha256
     from ml_model.training.train import find_latest_resumable_run_dir

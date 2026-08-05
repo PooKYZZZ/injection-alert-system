@@ -11,6 +11,13 @@ This directory contains model format conversion and optimization tools.
 - `package_serving_artifact.py` — packages and validates staged serving artifacts under `ml_model/model_registry/staging/`
 - `promote_final_training_run.py` — strict archive-and-recreate promotion pipeline from final-training outputs into the active staged run
 
+The maintained serving path packages native DistilBERT only. The CLI accepts
+`--model-key distilbert`; MiniLM, BERT-base, and other historical custom-model
+artifacts are preserved as reference material and are rejected by the native
+packager. Native checkpoint keys remain the Hugging Face keys (`distilbert.*`,
+`pre_classifier.*`, and `classifier.*`); the legacy custom-key mapping is never
+applied to them.
+
 ## DistilBERT Promotion Workflow
 
 Run a dry-run first:
@@ -40,6 +47,15 @@ The promotion flow is strict and fail-closed:
   `ml_model/model_registry/eval/<timestamp>/`, with packaging, reload, and
   quality readiness kept separate
 - writes `provenance.json` and `MODEL_CARD.md`
+
+Promotion and packaging require a valid lowercase SHA-256
+`run_contract_sha256`. When `run_contract` is present, the hash must recompute
+to the same value; missing, malformed, or inconsistent provenance is rejected.
+The packager then loads the checkpoint with `weights_only=True`, performs a
+strict state-dict load, saves the self-contained model, and verifies a local
+reload plus logits output. Use the real CPU smoke and the offline packaging
+test as the bounded validation path; do not turn legacy notebooks into a
+second implementation or edit the active staged artifact during validation.
 
 If a downstream step fails after archive, the script restores the archived run back to the active path.
 
