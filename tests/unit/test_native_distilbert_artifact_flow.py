@@ -20,10 +20,42 @@ from ml_model.export.package_serving_artifact import (
     build_manifest,
 )
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
-from ml_model.training.run_contract import contract_sha256
+from ml_model.training.run_contract import build_training_run_contract, contract_sha256
 
 REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
+
+
+def make_training_contract() -> dict:
+    return build_training_run_contract(
+        dataset_version="v3_907k_cleaned",
+        preprocessing_version="http-preprocessor-v1",
+        model_keys=["distilbert"],
+        model_contracts={
+            "distilbert": {
+                "model_id": "distilbert-base-uncased",
+                "model_revision": REVISION,
+                "architecture": "distilbert_sequence_classification",
+            }
+        },
+        seed_list=[42],
+        loss_keys=["weighted_ce"],
+        max_seq_len=128,
+        batch_size=4,
+        eval_batch_size=8,
+        epochs=1,
+        learning_rate=3e-5,
+        gradient_accumulation_steps=1,
+        dataset_file_manifest_sha256="f" * 64,
+        label_names=LABEL_NAMES,
+        class_mapping={label: index for index, label in enumerate(LABEL_NAMES)},
+        loss_contracts={"weighted_ce": {"focal_gamma": 2.0}},
+        weight_decay=0.01,
+        warmup_ratio=0.04,
+        sample_limits={"train": 64, "validation": 32, "test": 32},
+        precision="full",
+        training_implementation_version="training-implementation.v2",
+    )
 
 
 def test_native_distilbert_checkpoint_round_trips_through_packaging_contract(
@@ -57,6 +89,7 @@ def test_native_distilbert_checkpoint_round_trips_through_packaging_contract(
     reloaded_model.load_state_dict(state, strict=True)
 
     config_used_path = tmp_path / "config_used.json"
+    contract = make_training_contract()
     config_used_path.write_text(
         json.dumps(
             {
@@ -65,7 +98,8 @@ def test_native_distilbert_checkpoint_round_trips_through_packaging_contract(
                 "model_revision": REVISION,
                 "tokenizer_id": "distilbert-base-uncased",
                 "tokenizer_revision": REVISION,
-                "run_contract_sha256": "a" * 64,
+                "run_contract": contract,
+                "run_contract_sha256": contract_sha256(contract),
                 "dataset_version": "v3_907k_cleaned",
                 "preprocessing_version": "http-preprocessor-v1",
                 "model_input_hash_policy": "sha256(model_input_text)",
@@ -184,7 +218,7 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     eval_run_dir.mkdir(parents=True)
     monkeypatch.setattr(package_module, "find_repo_root", lambda _start: repo_root)
 
-    contract = {"contract_version": "training-run-contract.v1", "model_key": "distilbert"}
+    contract = make_training_contract()
     contract_hash = contract_sha256(contract)
     (run_dir / "config_used.json").write_text(
         json.dumps(

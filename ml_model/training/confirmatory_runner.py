@@ -57,6 +57,7 @@ from ml_model.training.model_factory import (
     build_model,
     infer_architecture_family,
     infer_head_type,
+    require_pinned_model_revision,
 )
 from ml_model.training.run_contract import canonical_json
 
@@ -142,9 +143,9 @@ def validate_checkpoint_identity(
 def load_tokenizer_for_config(cfg: dict[str, Any]):
     """Load the tokenizer revision recorded in the run contract."""
 
+    model_revision = require_pinned_model_revision(cfg)
     kwargs: dict[str, Any] = {"use_fast": True}
-    if cfg.get("model_revision"):
-        kwargs["revision"] = cfg["model_revision"]
+    kwargs["revision"] = model_revision
     return AutoTokenizer.from_pretrained(cfg["model_id"], **kwargs)
 
 
@@ -1206,6 +1207,7 @@ class FinalConfirmatoryRunner:
         test_loader = None
 
         model_key = cfg["model_key"]
+        model_revision = require_pinned_model_revision(cfg)
         paths = self.build_seed_paths(
             variant_dir=variant_dir,
             model_key=model_key,
@@ -1291,9 +1293,9 @@ class FinalConfirmatoryRunner:
                 "model_key": model_key,
                 "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
                 "model_id": cfg["model_id"],
-                "model_revision": cfg.get("model_revision", "unresolved"),
+                "model_revision": model_revision,
                 "tokenizer_id": cfg["model_id"],
-                "tokenizer_revision": cfg.get("model_revision", "unresolved"),
+                "tokenizer_revision": model_revision,
                 "architecture": cfg["architecture"],
                 "seed": int(seed),
                 "loss_key": loss_key,
@@ -1346,16 +1348,16 @@ class FinalConfirmatoryRunner:
             ).hexdigest()
             tokenizer_identity = {
                 "model_id": cfg["model_id"],
-                "revision": cfg.get("model_revision", "unresolved"),
+                "revision": model_revision,
             }
             config_metadata.update(
                 {
                     "architecture_family": infer_architecture_family(cfg["architecture"]),
                     "head_type": infer_head_type(cfg["architecture"]),
                     "model_class": actual_model_class,
-                    "model_revision": cfg.get("model_revision", "unresolved"),
+                    "model_revision": model_revision,
                     "tokenizer_id": cfg["model_id"],
-                    "tokenizer_revision": cfg.get("model_revision", "unresolved"),
+                    "tokenizer_revision": model_revision,
                     "model_config_sha256": model_config_sha256,
                     "tokenizer_identity": tokenizer_identity,
                 }
@@ -1839,9 +1841,9 @@ class FinalConfirmatoryRunner:
                 "preprocessing_version": self.ctx.preprocessing_version,
                 "model_key": model_key,
                 "model_id": cfg["model_id"],
-                "model_revision": cfg.get("model_revision", "unresolved"),
+                "model_revision": model_revision,
                 "tokenizer_id": cfg["model_id"],
-                "tokenizer_revision": cfg.get("model_revision", "unresolved"),
+                "tokenizer_revision": model_revision,
                 "model_config_sha256": model_config_sha256,
                 "tokenizer_identity": tokenizer_identity,
                 "architecture": cfg["architecture"],

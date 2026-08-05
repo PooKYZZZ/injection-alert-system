@@ -33,10 +33,45 @@ from ml_model.export.promote_final_training_run import (
     validate_label_names,
     write_eval_provenance_files,
 )
+from ml_model.training.run_contract import build_training_run_contract, contract_sha256
+
+
+def make_training_contract(*, preprocessing_version: str = "http-preprocessor-v1") -> dict:
+    labels = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
+    return build_training_run_contract(
+        dataset_version="v3_907k_cleaned",
+        preprocessing_version=preprocessing_version,
+        model_keys=["distilbert"],
+        model_contracts={
+            "distilbert": {
+                "model_id": "distilbert-base-uncased",
+                "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+                "architecture": "distilbert_sequence_classification",
+            }
+        },
+        seed_list=[42, 2026],
+        loss_keys=["weighted_ce"],
+        max_seq_len=128,
+        batch_size=64,
+        eval_batch_size=128,
+        epochs=4,
+        learning_rate=3e-5,
+        gradient_accumulation_steps=2,
+        dataset_file_manifest_sha256="f" * 64,
+        label_names=labels,
+        class_mapping={label: index for index, label in enumerate(labels)},
+        loss_contracts={"weighted_ce": {"focal_gamma": 2.0}},
+        weight_decay=0.01,
+        warmup_ratio=0.04,
+        sample_limits={"train": None, "validation": None, "test": None},
+        precision="full",
+        training_implementation_version="training-implementation.v2",
+    )
 
 
 def make_minimal_final_training_fixture(source_dir: Path) -> Path:
     source_dir.mkdir(parents=True, exist_ok=True)
+    contract = make_training_contract(preprocessing_version="model-input-v2-redacted")
     (source_dir / "config_metadata.json").write_text(
         json.dumps(
             {
@@ -47,7 +82,8 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
                 "architecture_family": "huggingface_sequence_classifier",
                 "head_type": "hf_sequence_classification_head",
                 "model_class": "DistilBertForSequenceClassification",
-                "run_contract_sha256": "a" * 64,
+                "run_contract": contract,
+                "run_contract_sha256": contract_sha256(contract),
                 "dataset_version": "v3_907k_cleaned",
                 "preprocessing_version": "model-input-v2-redacted",
                 "model_input_hash_policy": "sha256(model_input_text)",
@@ -322,6 +358,7 @@ def test_native_promotion_contract_rejects_non_native_metadata(
 
 
 def test_build_config_used_preserves_native_architecture_metadata():
+    contract = make_training_contract()
     payload = build_config_used(
         config_metadata={
             "model_key": "distilbert",
@@ -334,7 +371,8 @@ def test_build_config_used_preserves_native_architecture_metadata():
             "dataset_version": "v3_907k_cleaned",
             "preprocessing_version": "http-preprocessor-v1",
             "model_input_hash_policy": "sha256(model_input_text)",
-            "run_contract_sha256": "a" * 64,
+            "run_contract": contract,
+            "run_contract_sha256": contract_sha256(contract),
             "max_seq_len": 128,
             "seed": 42,
         },
@@ -345,7 +383,7 @@ def test_build_config_used_preserves_native_architecture_metadata():
     assert payload["architecture_family"] == "huggingface_sequence_classifier"
     assert payload["head_type"] == "hf_sequence_classification_head"
     assert payload["model_class"] == "DistilBertForSequenceClassification"
-    assert payload["run_contract_sha256"] == "a" * 64
+    assert payload["run_contract_sha256"] == contract_sha256(contract)
 
 
 @pytest.mark.parametrize("contract_hash", [None, "not-a-hash", "A" * 64])
@@ -371,6 +409,7 @@ def test_build_config_used_rejects_missing_or_malformed_contract_hash(
 
 
 def test_build_config_used_rejects_contract_hash_mismatch():
+    contract = make_training_contract()
     metadata = {
         "model_key": "distilbert",
         "model_id": "distilbert-base-uncased",
@@ -382,7 +421,7 @@ def test_build_config_used_rejects_contract_hash_mismatch():
         "dataset_version": "v3_907k_cleaned",
         "preprocessing_version": "http-preprocessor-v1",
         "model_input_hash_policy": "sha256(model_input_text)",
-        "run_contract": {"contract_version": "training-run-contract.v1"},
+        "run_contract": contract,
         "run_contract_sha256": "a" * 64,
     }
 
@@ -437,6 +476,7 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
     checkpoint_path = run_dir / "best_distilbert_ckpt.pt"
     checkpoint_path.write_bytes(b"checkpoint")
     config_used_path = run_dir / "config_used.json"
+    contract = make_training_contract()
     config_used_path.write_text(
         json.dumps(
             {
@@ -446,7 +486,8 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
                 "model_key": "distilbert",
                 "model_id": "distilbert-base-uncased",
                 "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
-                "run_contract_sha256": "a" * 64,
+                "run_contract": contract,
+                "run_contract_sha256": contract_sha256(contract),
                 "architecture": "distilbert_sequence_classification",
                 "architecture_family": "huggingface_sequence_classifier",
                 "head_type": "hf_sequence_classification_head",
@@ -478,7 +519,7 @@ def test_build_manifest_records_architecture_metadata(tmp_path: Path):
     assert manifest["architecture"] == "distilbert_sequence_classification"
     assert manifest["model_class"] == "DistilBertForSequenceClassification"
     assert manifest["model_revision"] == "12040accade4e8a0f71eabdb258fecc2e7e948be"
-    assert manifest["run_contract_sha256"] == "a" * 64
+    assert manifest["run_contract_sha256"] == contract_sha256(contract)
 
 
 @pytest.mark.parametrize("architecture", [None, "unknown_architecture"])
@@ -506,6 +547,7 @@ def test_promotion_fails_closed_for_missing_or_unknown_architecture(
 
 
 def test_builds_config_used_from_final_training_metadata():
+    contract = make_training_contract(preprocessing_version="model-input-v2-redacted")
     payload = build_config_used(
         config_metadata={
             "model_key": "distilbert",
@@ -518,7 +560,8 @@ def test_builds_config_used_from_final_training_metadata():
             "dataset_version": "v3_907k_cleaned",
             "preprocessing_version": "model-input-v2-redacted",
             "model_input_hash_policy": "sha256(model_input_text)",
-            "run_contract_sha256": "a" * 64,
+            "run_contract": contract,
+            "run_contract_sha256": contract_sha256(contract),
             "max_seq_len": 128,
             "seed": 2026,
         },

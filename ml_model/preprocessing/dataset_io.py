@@ -27,6 +27,14 @@ DEFAULT_RUNS_DIR = default_training_output_dir(project_root=REPO_ROOT)
 _SPLIT_FILENAMES = ("train.parquet", "validation.parquet", "test.parquet")
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def ensure_dir(path: Path) -> Path:
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
@@ -73,7 +81,7 @@ def load_dataset_metadata(data_dir: Path) -> dict[str, Any]:
 
 
 def load_dataset_file_manifest(data_dir: Path) -> dict[str, Any]:
-    """Return the canonical digest of the existing processed-file checksums."""
+    """Verify and return the canonical digest of processed-file checksums."""
 
     root = _resolve_split_root(Path(data_dir))
     checksums_path = root / "checksums.txt"
@@ -96,6 +104,17 @@ def load_dataset_file_manifest(data_dir: Path) -> dict[str, Any]:
         relative_path = Path(relative_name)
         if relative_path.is_absolute() or relative_path.name != relative_name:
             raise ValueError("Dataset file manifest must contain relative file names")
+        if relative_name in files:
+            raise ValueError(f"Dataset file manifest contains duplicate entry: {relative_name}")
+        dataset_file = root / relative_name
+        if not dataset_file.is_file():
+            raise ValueError(f"Dataset manifest references missing dataset file: {dataset_file}")
+        actual_digest = _sha256_file(dataset_file)
+        if actual_digest != digest:
+            raise ValueError(
+                f"Dataset checksum mismatch for {relative_name}: "
+                f"expected {digest}, got {actual_digest}"
+            )
         files[relative_name] = digest
 
     missing = [name for name in _SPLIT_FILENAMES if name not in files]

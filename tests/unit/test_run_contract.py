@@ -135,3 +135,105 @@ def test_contract_builder_does_not_upgrade_legacy_metadata():
         require_contract_hash(
             {"architecture": "transformer", "model_key": "distilbert"}
         )
+
+
+def test_persisted_contract_requires_current_schema_version_and_full_payload():
+    from ml_model.training.run_contract import contract_sha256, require_contract_hash
+
+    legacy_contract = _contract()
+    legacy_contract["contract_version"] = "training-run-contract.v1"
+    payload = {
+        "run_contract": legacy_contract,
+        "run_contract_sha256": contract_sha256(legacy_contract),
+    }
+
+    with pytest.raises(ValueError, match="contract_version"):
+        require_contract_hash(payload)
+
+
+def test_persisted_contract_rejects_incomplete_current_schema():
+    from ml_model.training.run_contract import contract_sha256, require_contract_hash
+
+    incomplete_contract = {
+        "contract_version": "training-run-contract.v2",
+        "model_key": "distilbert",
+    }
+
+    with pytest.raises(ValueError, match="missing required fields"):
+        require_contract_hash(
+            {
+                "run_contract": incomplete_contract,
+                "run_contract_sha256": contract_sha256(incomplete_contract),
+            }
+        )
+
+
+def test_multi_model_contract_records_each_models_training_settings():
+    from ml_model.training.run_contract import build_training_run_contract
+
+    contract = build_training_run_contract(
+        dataset_version="v3_907k_cleaned",
+        preprocessing_version="http-preprocessor-v1",
+        model_keys=["distilbert", "minilm_l6"],
+        model_contracts={
+            "distilbert": {
+                "model_id": "distilbert-base-uncased",
+                "model_revision": "distilbert-revision",
+                "architecture": "distilbert_sequence_classification",
+            },
+            "minilm_l6": {
+                "model_id": "nreimers/MiniLM-L6-H384-uncased",
+                "model_revision": "minilm-revision",
+                "architecture": "transformer",
+            },
+        },
+        training_settings_by_model={
+            "distilbert": {
+                "learning_rate": 3e-5,
+                "per_device_train_batch_size": 64,
+                "eval_batch_size": 128,
+                "gradient_accumulation_steps": 2,
+                "weight_decay": 0.01,
+                "warmup_ratio": 0.04,
+                "max_seq_len": 128,
+                "num_train_epochs": 4,
+                "focal_gamma": 2.0,
+            },
+            "minilm_l6": {
+                "learning_rate": 2e-5,
+                "per_device_train_batch_size": 128,
+                "eval_batch_size": 256,
+                "gradient_accumulation_steps": 1,
+                "weight_decay": 0.01,
+                "warmup_ratio": 0.03,
+                "max_seq_len": 128,
+                "num_train_epochs": 4,
+                "head_hidden_dim": 256,
+            },
+        },
+        seed_list=[42],
+        loss_keys=["weighted_ce"],
+        max_seq_len=128,
+        batch_size=64,
+        eval_batch_size=128,
+        epochs=4,
+        learning_rate=3e-5,
+        gradient_accumulation_steps=2,
+        dataset_file_manifest_sha256="f" * 64,
+        label_names=["Code Injection", "Normal", "Other Attacks", "SQL Injection"],
+        class_mapping={
+            "Code Injection": 0,
+            "Normal": 1,
+            "Other Attacks": 2,
+            "SQL Injection": 3,
+        },
+        loss_contracts={"weighted_ce": {"focal_gamma": 2.0}},
+        weight_decay=0.01,
+        warmup_ratio=0.04,
+        sample_limits={"train": None, "validation": None, "test": None},
+        precision="full",
+        training_implementation_version="training-implementation.v2",
+    )
+
+    assert contract["training_settings_by_model"]["distilbert"]["learning_rate"] == 3e-5
+    assert contract["training_settings_by_model"]["minilm_l6"]["learning_rate"] == 2e-5

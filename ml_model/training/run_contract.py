@@ -8,8 +8,36 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-CONTRACT_VERSION = "training-run-contract.v1"
+CONTRACT_VERSION = "training-run-contract.v2"
 CONTRACT_HASH_FIELD = "run_contract_sha256"
+
+_REQUIRED_CONTRACT_FIELDS = frozenset(
+    {
+        "contract_version",
+        "dataset_version",
+        "preprocessing_version",
+        "model_keys",
+        "model_contracts",
+        "training_settings_by_model",
+        "seed_list",
+        "loss_keys",
+        "max_seq_len",
+        "batch_size",
+        "eval_batch_size",
+        "epochs",
+        "learning_rate",
+        "gradient_accumulation_steps",
+        "dataset_file_manifest_sha256",
+        "label_names",
+        "class_mapping",
+        "loss_contracts",
+        "weight_decay",
+        "warmup_ratio",
+        "sample_limits",
+        "precision",
+        "training_implementation_version",
+    }
+)
 
 
 def canonical_json(payload: Mapping[str, Any]) -> str:
@@ -143,6 +171,50 @@ def _normalize_sample_limits(
     return normalized
 
 
+def _normalize_training_settings_by_model(
+    model_keys: Sequence[str],
+    training_settings_by_model: Mapping[str, Mapping[str, Any]] | None,
+    *,
+    learning_rate: float,
+    batch_size: int,
+    eval_batch_size: int,
+    gradient_accumulation_steps: int,
+    weight_decay: float,
+    warmup_ratio: float,
+    max_seq_len: int,
+    epochs: int,
+) -> dict[str, dict[str, Any]]:
+    """Preserve the resolved settings for every selected model."""
+
+    if training_settings_by_model is None:
+        fallback = {
+            "learning_rate": float(learning_rate),
+            "per_device_train_batch_size": int(batch_size),
+            "eval_batch_size": int(eval_batch_size),
+            "gradient_accumulation_steps": int(gradient_accumulation_steps),
+            "weight_decay": float(weight_decay),
+            "warmup_ratio": float(warmup_ratio),
+            "max_seq_len": int(max_seq_len),
+            "num_train_epochs": int(epochs),
+        }
+        return {model_key: dict(fallback) for model_key in model_keys}
+
+    if not isinstance(training_settings_by_model, Mapping):
+        raise ValueError("training_settings_by_model must be an object")
+    if set(training_settings_by_model) != set(model_keys):
+        raise ValueError("training_settings_by_model must match model_keys exactly")
+
+    normalized: dict[str, dict[str, Any]] = {}
+    for model_key in model_keys:
+        raw = training_settings_by_model[model_key]
+        if not isinstance(raw, Mapping) or not raw:
+            raise ValueError(
+                f"training settings for {model_key!r} must be a non-empty object"
+            )
+        normalized[model_key] = dict(raw)
+    return normalized
+
+
 def build_training_run_contract(
     *,
     dataset_version: str,
@@ -166,6 +238,7 @@ def build_training_run_contract(
     precision: str = "unresolved",
     training_implementation_version: str = "training-implementation.v1",
     model_contracts: Mapping[str, Mapping[str, Any]] | None = None,
+    training_settings_by_model: Mapping[str, Mapping[str, Any]] | None = None,
     model_id: str | None = None,
     model_revision: str | None = None,
     architecture: str | None = None,
@@ -204,12 +277,25 @@ def build_training_run_contract(
     )
     normalized_loss_contracts = _normalize_loss_contracts(loss_keys, loss_contracts)
     normalized_sample_limits = _normalize_sample_limits(sample_limits)
+    normalized_training_settings = _normalize_training_settings_by_model(
+        normalized_model_keys,
+        training_settings_by_model,
+        learning_rate=float(learning_rate),
+        batch_size=int(batch_size),
+        eval_batch_size=int(eval_batch_size),
+        gradient_accumulation_steps=int(gradient_accumulation_steps),
+        weight_decay=float(weight_decay),
+        warmup_ratio=float(warmup_ratio),
+        max_seq_len=int(max_seq_len),
+        epochs=int(epochs),
+    )
     contract: dict[str, Any] = {
         "contract_version": CONTRACT_VERSION,
         "dataset_version": dataset_version.strip(),
         "preprocessing_version": preprocessing_version.strip(),
         "model_keys": normalized_model_keys,
         "model_contracts": normalized_contracts,
+        "training_settings_by_model": normalized_training_settings,
         "seed_list": [int(value) for value in seed_list],
         "loss_keys": [str(value).strip() for value in loss_keys],
         "max_seq_len": int(max_seq_len),
@@ -234,14 +320,74 @@ def build_training_run_contract(
     return contract
 
 
+def validate_training_run_contract(contract: Mapping[str, Any]) -> None:
+    """Validate the persisted v2 contract before accepting its hash."""
+
+    if not isinstance(contract, Mapping):
+        raise ValueError("run_contract must be an object")
+    if contract.get("contract_version") != CONTRACT_VERSION:
+        raise ValueError(
+            "run_contract contract_version must be "
+            f"{CONTRACT_VERSION!r}"
+        )
+    missing = sorted(_REQUIRED_CONTRACT_FIELDS - set(contract))
+    if missing:
+        raise ValueError(
+            "run_contract is missing required fields: " + ", ".join(missing)
+        )
+
+    model_keys = contract["model_keys"]
+    if (
+        not isinstance(model_keys, Sequence)
+        or isinstance(model_keys, (str, bytes))
+        or not model_keys
+    ):
+        raise ValueError("run_contract model_keys must be a non-empty list")
+    if not isinstance(contract["model_contracts"], Mapping):
+        raise ValueError("run_contract model_contracts must be an object")
+    _normalize_model_contracts(
+        model_keys,
+        contract["model_contracts"],
+        model_id=None,
+        model_revision=None,
+        architecture=None,
+    )
+    _normalize_training_settings_by_model(
+        model_keys,
+        contract["training_settings_by_model"],
+        learning_rate=float(contract["learning_rate"]),
+        batch_size=int(contract["batch_size"]),
+        eval_batch_size=int(contract["eval_batch_size"]),
+        gradient_accumulation_steps=int(contract["gradient_accumulation_steps"]),
+        weight_decay=float(contract["weight_decay"]),
+        warmup_ratio=float(contract["warmup_ratio"]),
+        max_seq_len=int(contract["max_seq_len"]),
+        epochs=int(contract["epochs"]),
+    )
+    if not isinstance(contract["dataset_file_manifest_sha256"], str) or not re.fullmatch(
+        r"[0-9a-f]{64}", contract["dataset_file_manifest_sha256"]
+    ):
+        raise ValueError("run_contract dataset_file_manifest_sha256 is invalid")
+    _normalize_label_contract(contract["label_names"], contract["class_mapping"])
+    _normalize_loss_contracts(contract["loss_keys"], contract["loss_contracts"])
+    _normalize_sample_limits(contract["sample_limits"])
+
+
+def _validate_persisted_contract(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    contract = payload.get("run_contract")
+    if not isinstance(contract, Mapping):
+        raise ValueError("metadata is missing a complete run_contract")
+    validate_training_run_contract(contract)
+    return contract
+
+
 def require_contract_hash(payload: Mapping[str, Any]) -> str:
-    """Return a stored contract hash, rejecting metadata from legacy runs."""
+    """Return a stored hash only for a complete, current contract."""
 
     value = payload.get(CONTRACT_HASH_FIELD)
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
         raise ValueError(f"metadata is missing a valid {CONTRACT_HASH_FIELD}")
-    if "run_contract" in payload:
-        contract = payload.get("run_contract")
-        if not isinstance(contract, Mapping) or contract_sha256(contract) != value:
-            raise ValueError(f"metadata has an inconsistent {CONTRACT_HASH_FIELD}")
+    contract = _validate_persisted_contract(payload)
+    if contract_sha256(contract) != value:
+        raise ValueError(f"metadata has an inconsistent {CONTRACT_HASH_FIELD}")
     return value

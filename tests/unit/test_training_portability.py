@@ -148,6 +148,43 @@ def test_unresolved_model_revision_is_not_a_valid_training_config():
         TrainingConfig(model_revision="unresolved").validate()
 
 
+def test_model_training_settings_preserve_per_model_defaults():
+    from ml_model.training.train import build_model_training_settings
+
+    settings = build_model_training_settings(
+        {
+            "distilbert": {
+                "learning_rate": 3e-5,
+                "per_device_train_batch_size": 64,
+                "eval_batch_multiplier": 2,
+                "gradient_accumulation_steps": 2,
+                "weight_decay": 0.01,
+                "warmup_ratio": 0.04,
+                "max_seq_len": 128,
+                "num_train_epochs": 4,
+                "focal_gamma": 2.0,
+            },
+            "minilm_l6": {
+                "learning_rate": 2e-5,
+                "per_device_train_batch_size": 128,
+                "eval_batch_multiplier": 2,
+                "gradient_accumulation_steps": 1,
+                "weight_decay": 0.01,
+                "warmup_ratio": 0.03,
+                "max_seq_len": 128,
+                "num_train_epochs": 4,
+                "head_hidden_dim": 256,
+            },
+        }
+    )
+
+    assert settings["distilbert"]["learning_rate"] == 3e-5
+    assert settings["minilm_l6"]["learning_rate"] == 2e-5
+    assert settings["distilbert"]["eval_batch_size"] == 128
+    assert settings["minilm_l6"]["eval_batch_size"] == 256
+    assert settings["minilm_l6"]["head_hidden_dim"] == 256
+
+
 def test_fp16_precision_is_allowed_for_cuda(monkeypatch):
     from ml_model.training.device import resolve_precision
 

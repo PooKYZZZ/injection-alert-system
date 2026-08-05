@@ -301,6 +301,49 @@ def build_model_contract_metadata(
     }
 
 
+def build_model_training_settings(
+    model_registry: dict[str, dict],
+) -> dict[str, dict[str, object]]:
+    """Capture resolved, model-specific settings used by each runner."""
+
+    architecture_settings = (
+        "dropout_prob",
+        "head_hidden_dim",
+        "activation",
+        "rnn_hidden_dim",
+        "rnn_layers",
+        "bidirectional",
+        "attn_dim",
+        "num_filters",
+        "kernel_sizes",
+    )
+    settings: dict[str, dict[str, object]] = {}
+    for model_key, cfg in model_registry.items():
+        train_batch_size = int(cfg["per_device_train_batch_size"])
+        resolved = {
+            "learning_rate": float(cfg["learning_rate"]),
+            "per_device_train_batch_size": train_batch_size,
+            "eval_batch_size": int(
+                cfg.get(
+                    "eval_batch_size",
+                    train_batch_size * int(cfg.get("eval_batch_multiplier", 1)),
+                )
+            ),
+            "gradient_accumulation_steps": int(cfg["gradient_accumulation_steps"]),
+            "weight_decay": float(cfg["weight_decay"]),
+            "warmup_ratio": float(cfg["warmup_ratio"]),
+            "max_seq_len": int(cfg["max_seq_len"]),
+            "num_train_epochs": int(cfg["num_train_epochs"]),
+            "focal_gamma": cfg.get("focal_gamma"),
+            "experiment_phase": str(cfg.get("experiment_phase", "unspecified")),
+        }
+        for field in architecture_settings:
+            if field in cfg:
+                resolved[field] = cfg[field]
+        settings[model_key] = resolved
+    return settings
+
+
 def build_runner_context(
     options: TrainingOptions,
 ) -> tuple[FinalConfirmatoryRunner, Path, dict]:
@@ -421,6 +464,7 @@ def build_runner_context(
             }
             for key, cfg in run_model_registry.items()
         },
+        training_settings_by_model=build_model_training_settings(run_model_registry),
         seed_list=options.seeds,
         loss_keys=sorted(
             {loss_key for key in options.models for loss_key in ["weighted_ce"]}

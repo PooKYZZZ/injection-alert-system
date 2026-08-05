@@ -24,7 +24,7 @@ Run a dry-run first:
 
 ```powershell
 .venv\Scripts\python.exe -m ml_model.export.promote_final_training_run ^
-	--source-run-dir "ml_model\results\benchmarks\v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260412_035441\distilbert\loss_weighted_ce\seed_2026" ^
+	--source-run-dir "ml_model\results\training_runs\<run_name>\distilbert\weighted_ce\seed_2026" ^
 	--active-run-dir "ml_model\model_registry\staging\distilbert_v3_907k_cleaned_20260312_133755" ^
 	--archive-root "ml_model\model_registry\archive" ^
 	--checkpoint-filename "best_distilbert_weighted_ce_seed2026.pt" ^
@@ -48,9 +48,10 @@ The promotion flow is strict and fail-closed:
   quality readiness kept separate
 - writes `provenance.json` and `MODEL_CARD.md`
 
-Promotion and packaging require a valid lowercase SHA-256
-`run_contract_sha256`. When `run_contract` is present, the hash must recompute
-to the same value; missing, malformed, or inconsistent provenance is rejected.
+Promotion and packaging require a complete `training-run-contract.v2` payload
+embedded as `run_contract` and a valid lowercase SHA-256 `run_contract_sha256`
+that recomputes to the same value. Legacy, incomplete, missing, malformed, or
+inconsistent provenance is rejected.
 The packager then loads the checkpoint with `weights_only=True`, performs a
 strict state-dict load, saves the self-contained model, and verifies a local
 reload plus logits output. Use the real CPU smoke and the offline packaging
