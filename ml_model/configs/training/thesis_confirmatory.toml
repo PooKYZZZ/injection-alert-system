@@ -2,6 +2,7 @@
 dataset_version = "v3_907k_cleaned"
 preprocessing_version = "http-preprocessor-v1"
 models = ["distilbert"]
+model_revision = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 seeds = [42, 1337, 2026]
 device = "auto"
 precision = "auto"

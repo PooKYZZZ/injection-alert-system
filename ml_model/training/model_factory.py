@@ -5,7 +5,7 @@ from typing import Any, Mapping
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from transformers import AutoConfig, AutoModel
+from transformers import AutoConfig, AutoModel, AutoModelForSequenceClassification
 
 
 def build_activation(name: str):
@@ -26,6 +26,8 @@ def get_hidden_size(hf_config) -> int:
 
 def infer_head_type(architecture: str) -> str:
     architecture = architecture.lower()
+    if architecture == "distilbert_sequence_classification":
+        return "hf_sequence_classification_head"
     if architecture == "transformer":
         return "mean_pool_mlp"
     if architecture == "tinybert_bigru_attention":
@@ -37,23 +39,39 @@ def infer_head_type(architecture: str) -> str:
 
 def infer_architecture_family(architecture: str) -> str:
     architecture = architecture.lower()
+    if architecture == "distilbert_sequence_classification":
+        return "huggingface_sequence_classifier"
     if architecture == "transformer":
         return "backbone_with_standard_head"
     return "architecture_search_variant"
+
+
+def require_pinned_model_revision(cfg: Mapping[str, Any]) -> str:
+    revision = cfg.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip() or revision == "unresolved":
+        raise ValueError(
+            "Every supported model configuration requires a pinned model_revision."
+        )
+    return revision.strip()
 
 
 class TransformerClassifier(nn.Module):
     def __init__(
         self,
         model_id: str,
+        model_revision: str,
         num_classes: int,
         dropout_prob: float,
         head_hidden_dim: int,
         activation: str,
     ):
         super().__init__()
-        self.encoder_config = AutoConfig.from_pretrained(model_id)
-        self.encoder = AutoModel.from_pretrained(model_id, config=self.encoder_config)
+        self.encoder_config = AutoConfig.from_pretrained(
+            model_id, revision=model_revision
+        )
+        self.encoder = AutoModel.from_pretrained(
+            model_id, config=self.encoder_config, revision=model_revision
+        )
         hidden_size = get_hidden_size(self.encoder_config)
 
         self.dropout1 = nn.Dropout(dropout_prob)
@@ -86,6 +104,7 @@ class TinyBERTBiGRUAttentionClassifier(nn.Module):
     def __init__(
         self,
         model_id: str,
+        model_revision: str,
         num_classes: int,
         dropout_prob: float,
         head_hidden_dim: int,
@@ -96,8 +115,12 @@ class TinyBERTBiGRUAttentionClassifier(nn.Module):
         activation: str,
     ):
         super().__init__()
-        self.encoder_config = AutoConfig.from_pretrained(model_id)
-        self.encoder = AutoModel.from_pretrained(model_id, config=self.encoder_config)
+        self.encoder_config = AutoConfig.from_pretrained(
+            model_id, revision=model_revision
+        )
+        self.encoder = AutoModel.from_pretrained(
+            model_id, config=self.encoder_config, revision=model_revision
+        )
         encoder_hidden = get_hidden_size(self.encoder_config)
 
         self.bidirectional = bidirectional
@@ -159,6 +182,7 @@ class ALBERTCNNClassifier(nn.Module):
     def __init__(
         self,
         model_id: str,
+        model_revision: str,
         num_classes: int,
         dropout_prob: float,
         head_hidden_dim: int,
@@ -167,8 +191,12 @@ class ALBERTCNNClassifier(nn.Module):
         activation: str,
     ):
         super().__init__()
-        self.encoder_config = AutoConfig.from_pretrained(model_id)
-        self.encoder = AutoModel.from_pretrained(model_id, config=self.encoder_config)
+        self.encoder_config = AutoConfig.from_pretrained(
+            model_id, revision=model_revision
+        )
+        self.encoder = AutoModel.from_pretrained(
+            model_id, config=self.encoder_config, revision=model_revision
+        )
         hidden_size = get_hidden_size(self.encoder_config)
 
         self.convs = nn.ModuleList(
@@ -215,9 +243,21 @@ class ALBERTCNNClassifier(nn.Module):
 
 def build_model(cfg: Mapping[str, Any], num_classes: int, device: torch.device) -> nn.Module:
     architecture = cfg["architecture"]
-    if architecture == "transformer":
+    model_revision = require_pinned_model_revision(cfg)
+    if architecture == "distilbert_sequence_classification":
+        config_kwargs = {"revision": model_revision}
+        config = AutoConfig.from_pretrained(cfg["model_id"], **config_kwargs)
+        config.num_labels = num_classes
+        load_kwargs = {"config": config}
+        load_kwargs["revision"] = model_revision
+        model = AutoModelForSequenceClassification.from_pretrained(
+            cfg["model_id"],
+            **load_kwargs,
+        )
+    elif architecture == "transformer":
         model = TransformerClassifier(
             model_id=cfg["model_id"],
+            model_revision=model_revision,
             num_classes=num_classes,
             dropout_prob=cfg["dropout_prob"],
             head_hidden_dim=cfg["head_hidden_dim"],
@@ -226,6 +266,7 @@ def build_model(cfg: Mapping[str, Any], num_classes: int, device: torch.device) 
     elif architecture == "tinybert_bigru_attention":
         model = TinyBERTBiGRUAttentionClassifier(
             model_id=cfg["model_id"],
+            model_revision=model_revision,
             num_classes=num_classes,
             dropout_prob=cfg["dropout_prob"],
             head_hidden_dim=cfg["head_hidden_dim"],
@@ -238,6 +279,7 @@ def build_model(cfg: Mapping[str, Any], num_classes: int, device: torch.device) 
     elif architecture == "albert_cnn":
         model = ALBERTCNNClassifier(
             model_id=cfg["model_id"],
+            model_revision=model_revision,
             num_classes=num_classes,
             dropout_prob=cfg["dropout_prob"],
             head_hidden_dim=cfg["head_hidden_dim"],

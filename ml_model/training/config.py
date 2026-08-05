@@ -16,12 +16,14 @@ from ml_model.training.paths import (
 DEFAULT_DATASET_VERSION = "v3_907k_cleaned"
 DEFAULT_MODELS = ("distilbert",)
 DEFAULT_SEEDS = (42, 1337, 2026)
+DEFAULT_MODEL_REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 
 
 @dataclass(frozen=True)
 class TrainingConfig:
     dataset_version: str = DEFAULT_DATASET_VERSION
     preprocessing_version: str = LEGACY_MODEL_INPUT_VERSION
+    model_revision: str = DEFAULT_MODEL_REVISION
     data_dir: Path | None = None
     output_dir: Path | None = None
     models: tuple[str, ...] = DEFAULT_MODELS
@@ -65,7 +67,7 @@ class TrainingConfig:
             max_train_samples=64,
             max_validation_samples=32,
             max_test_samples=32,
-            prepare_only=True,
+            prepare_only=False,
         )
 
     def validate(self) -> "TrainingConfig":
@@ -73,6 +75,8 @@ class TrainingConfig:
             raise ValueError("dataset_version must not be empty")
         if not self.preprocessing_version.strip():
             raise ValueError("preprocessing_version must not be empty")
+        if not self.model_revision.strip() or self.model_revision == "unresolved":
+            raise ValueError("model_revision must be a pinned revision")
         if not self.models:
             raise ValueError("models must contain at least one model key")
         if not self.seeds:
@@ -149,6 +153,7 @@ def _from_mapping(mapping: Mapping[str, Any]) -> TrainingConfig:
         preprocessing_version=str(
             mapping.get("preprocessing_version", LEGACY_MODEL_INPUT_VERSION)
         ),
+        model_revision=str(mapping.get("model_revision", DEFAULT_MODEL_REVISION)),
         data_dir=Path(mapping["data_dir"]) if mapping.get("data_dir") else None,
         output_dir=Path(mapping["output_dir"]) if mapping.get("output_dir") else None,
         models=tuple(

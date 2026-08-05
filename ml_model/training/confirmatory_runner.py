@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import gc
+import hashlib
 import json
 import math
 import random
 import shutil
 import time
 import traceback
+from collections.abc import Mapping
 from contextlib import nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
@@ -55,7 +57,9 @@ from ml_model.training.model_factory import (
     build_model,
     infer_architecture_family,
     infer_head_type,
+    require_pinned_model_revision,
 )
+from ml_model.training.run_contract import canonical_json
 
 SUMMARY_REQUIRED_KEYS = (
     "model_key",
@@ -76,6 +80,75 @@ LATENCY_REQUIRED_KEYS = (
 )
 
 
+def load_checkpoint_payload(checkpoint_path: Path, *, context: str) -> dict[str, Any]:
+    """Load a training checkpoint using the safe weights-only path."""
+
+    try:
+        payload = torch.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+    except Exception as exc:
+        raise ValueError(
+            f"checkpoint_load_failed:{context}:{type(exc).__name__}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"checkpoint_not_object:{context}")
+
+    state_dict = payload.get("model_state_dict")
+    if not isinstance(state_dict, Mapping):
+        raise ValueError(f"checkpoint_missing_model_state_dict:{context}")
+    if not all(
+        isinstance(key, str) and torch.is_tensor(value)
+        for key, value in state_dict.items()
+    ):
+        raise ValueError(f"checkpoint_state_dict_invalid:{context}")
+    return payload
+
+
+def validate_checkpoint_identity(
+    payload: Mapping[str, Any],
+    *,
+    expected_model_key: str,
+    expected_seed: int,
+    expected_loss_key: str,
+    expected_architecture: str,
+    expected_preprocessing_version: str,
+    expected_contract_hash: str,
+    expected_model_class: str | None = None,
+    context: str = "checkpoint",
+) -> str | None:
+    """Return a clear identity mismatch reason, or None when it matches."""
+
+    expected = {
+        "model_key": expected_model_key,
+        "seed": int(expected_seed),
+        "loss_key": expected_loss_key,
+        "architecture": expected_architecture,
+        "preprocessing_version": expected_preprocessing_version,
+        "run_contract_sha256": expected_contract_hash,
+    }
+    for field, expected_value in expected.items():
+        if payload.get(field) != expected_value:
+            reason_field = (
+                "contract" if field == "run_contract_sha256" else field
+            )
+            return f"{context}_{reason_field}_mismatch"
+    if expected_model_class is not None and payload.get("model_class") != expected_model_class:
+        return f"{context}_model_class_mismatch"
+    return None
+
+
+def load_tokenizer_for_config(cfg: dict[str, Any]):
+    """Load the tokenizer revision recorded in the run contract."""
+
+    model_revision = require_pinned_model_revision(cfg)
+    kwargs: dict[str, Any] = {"use_fast": True}
+    kwargs["revision"] = model_revision
+    return AutoTokenizer.from_pretrained(cfg["model_id"], **kwargs)
+
+
 @dataclass
 class ConfirmatoryRunnerContext:
     df_train: pd.DataFrame
@@ -89,6 +162,9 @@ class ConfirmatoryRunnerContext:
     preprocessing_version: str
     model_input_hash_policy: str
     dataset_metadata: dict[str, Any]
+    run_contract: dict[str, Any]
+    run_contract_sha256: str
+    model_contracts: dict[str, dict[str, Any]]
 
     run_kind: str
     run_name: str
@@ -277,9 +353,21 @@ class FinalConfirmatoryRunner:
 
     @staticmethod
     def capture_rng_state() -> dict[str, Any]:
+        numpy_state = np.random.get_state()
+        python_state = random.getstate()
         state: dict[str, Any] = {
-            "python": random.getstate(),
-            "numpy": np.random.get_state(),
+            "python": [
+                int(python_state[0]),
+                list(python_state[1]),
+                None if python_state[2] is None else int(python_state[2]),
+            ],
+            "numpy": {
+                "bit_generator": str(numpy_state[0]),
+                "state": [int(value) for value in numpy_state[1].tolist()],
+                "pos": int(numpy_state[2]),
+                "has_gauss": int(numpy_state[3]),
+                "cached_gaussian": float(numpy_state[4]),
+            },
             "torch": torch.get_rng_state(),
         }
         if torch.cuda.is_available():
@@ -291,9 +379,25 @@ class FinalConfirmatoryRunner:
         if not state:
             return
         if "python" in state:
-            random.setstate(state["python"])
+            python_state = state["python"]
+            random.setstate(
+                (
+                    int(python_state[0]),
+                    tuple(int(value) for value in python_state[1]),
+                    None if python_state[2] is None else int(python_state[2]),
+                )
+            )
         if "numpy" in state:
-            np.random.set_state(state["numpy"])
+            numpy_state = state["numpy"]
+            np.random.set_state(
+                (
+                    str(numpy_state["bit_generator"]),
+                    np.asarray(numpy_state["state"], dtype=np.uint32),
+                    int(numpy_state["pos"]),
+                    int(numpy_state["has_gauss"]),
+                    float(numpy_state["cached_gaussian"]),
+                )
+            )
         if "torch" in state:
             torch.set_rng_state(state["torch"])
         if torch.cuda.is_available() and "cuda" in state:
@@ -547,7 +651,7 @@ class FinalConfirmatoryRunner:
         print(f"Preparing tokenizer/resources for model={model_key} ({cfg['model_id']})")
         prep_start = time.time()
 
-        tokenizer = AutoTokenizer.from_pretrained(cfg["model_id"], use_fast=True)
+        tokenizer = load_tokenizer_for_config(cfg)
         pre_train, pre_val, pre_test, tokenization_sec, throughput = self.tokenize_all_splits(
             tokenizer, cfg["max_seq_len"]
         )
@@ -680,8 +784,12 @@ class FinalConfirmatoryRunner:
         return {
             "seed_dir": seed_dir,
             "ckpt_dir": ckpt_dir,
+            "model_key": model_key,
+            "loss_key": loss_key,
+            "seed": int(seed),
             "best_ckpt": ckpt_dir / f"best_{model_key}_{loss_key}_seed{int(seed):04d}.pt",
             "last_ckpt": ckpt_dir / f"last_{model_key}_{loss_key}_seed{int(seed):04d}.pt",
+            "config_metadata": seed_dir / "config_metadata.json",
             "history": seed_dir / "train_history.json",
             "summary": seed_dir / "summary_metrics.json",
             "calibration": seed_dir / "calibration.json",
@@ -701,13 +809,20 @@ class FinalConfirmatoryRunner:
         if not paths["completed_marker"].exists():
             return False, "completed_marker_missing", None
 
+        if not paths["config_metadata"].exists():
+            return False, "config_metadata_missing", None
+
         if not paths["summary"].exists():
             return False, "summary_missing", None
 
         try:
+            config_metadata = load_json(paths["config_metadata"])
             summary = load_json(paths["summary"])
         except Exception as exc:
-            return False, f"summary_load_failed:{type(exc).__name__}", None
+            return False, f"metadata_load_failed:{type(exc).__name__}", None
+
+        if not isinstance(config_metadata, dict):
+            return False, "config_metadata_not_object", None
 
         if not isinstance(summary, dict):
             return False, "summary_not_object", None
@@ -716,8 +831,67 @@ class FinalConfirmatoryRunner:
         if missing_keys:
             return False, f"summary_missing_keys:{','.join(missing_keys)}", summary
 
+        model_key = paths["model_key"]
+        loss_key = paths["loss_key"]
+        seed = int(paths["seed"])
+        cfg = self.ctx.model_registry[model_key]
+        expected = {
+            "run_contract_sha256": self.ctx.run_contract_sha256,
+            "model_key": model_key,
+            "model_id": cfg["model_id"],
+            "architecture": cfg["architecture"],
+            "dataset_version": self.ctx.dataset_version,
+            "preprocessing_version": self.ctx.preprocessing_version,
+            "seed": seed,
+            "loss_key": loss_key,
+        }
+        for field, expected_value in expected.items():
+            for payload in (config_metadata, summary):
+                if payload.get(field) != expected_value:
+                    reason = {
+                        "run_contract_sha256": "contract_mismatch",
+                        "architecture": "architecture_mismatch",
+                        "model_id": "model_id_mismatch",
+                        "seed": "seed_mismatch",
+                        "loss_key": "loss_key_mismatch",
+                    }.get(field, f"{field}_mismatch")
+                    return False, reason, summary
+
+        expected_model_class = (
+            "DistilBertForSequenceClassification"
+            if cfg["architecture"] == "distilbert_sequence_classification"
+            else None
+        )
+        if (
+            expected_model_class
+            and config_metadata.get("model_class") != expected_model_class
+        ):
+            return False, "model_class_mismatch", summary
+        if expected_model_class and summary.get("model_class") != expected_model_class:
+            return False, "model_class_mismatch", summary
+
         if not paths["best_ckpt"].exists():
             return False, "best_checkpoint_missing", summary
+
+        try:
+            checkpoint_payload = load_checkpoint_payload(
+                paths["best_ckpt"], context="best"
+            )
+        except ValueError as exc:
+            return False, str(exc), summary
+        checkpoint_reason = validate_checkpoint_identity(
+            checkpoint_payload,
+            expected_model_key=model_key,
+            expected_seed=seed,
+            expected_loss_key=loss_key,
+            expected_architecture=str(cfg["architecture"]),
+            expected_preprocessing_version=self.ctx.preprocessing_version,
+            expected_contract_hash=self.ctx.run_contract_sha256,
+            expected_model_class=expected_model_class,
+            context="checkpoint",
+        )
+        if checkpoint_reason is not None:
+            return False, checkpoint_reason, summary
 
         return True, "ok", summary
 
@@ -853,17 +1027,26 @@ class FinalConfirmatoryRunner:
                 f"Best checkpoint missing for deferred latency: {paths['best_ckpt']}"
             )
 
-        checkpoint_payload = torch.load(
-            paths["best_ckpt"], map_location="cpu", weights_only=False
+        checkpoint_payload = load_checkpoint_payload(
+            paths["best_ckpt"], context="deferred_latency"
         )
-        if "model_state_dict" not in checkpoint_payload:
-            raise RuntimeError(
-                f"Best checkpoint missing model_state_dict: {paths['best_ckpt']}"
-            )
 
         model = None
         try:
             model = build_model(cfg, self.ctx.num_classes, self.ctx.device)
+            checkpoint_reason = validate_checkpoint_identity(
+                checkpoint_payload,
+                expected_model_key=model_key,
+                expected_seed=int(seed),
+                expected_loss_key=loss_key,
+                expected_architecture=str(cfg["architecture"]),
+                expected_preprocessing_version=self.ctx.preprocessing_version,
+                expected_contract_hash=self.ctx.run_contract_sha256,
+                expected_model_class=type(model).__name__,
+                context="checkpoint",
+            )
+            if checkpoint_reason is not None:
+                raise RuntimeError(f"Checkpoint identity mismatch: {checkpoint_reason}")
             model.load_state_dict(checkpoint_payload["model_state_dict"])
 
             if resources is None:
@@ -1024,6 +1207,7 @@ class FinalConfirmatoryRunner:
         test_loader = None
 
         model_key = cfg["model_key"]
+        model_revision = require_pinned_model_revision(cfg)
         paths = self.build_seed_paths(
             variant_dir=variant_dir,
             model_key=model_key,
@@ -1097,29 +1281,31 @@ class FinalConfirmatoryRunner:
             )
             self.write_run_heartbeat("seed_start", model_key=model_key, loss_key=loss_key, seed=int(seed))
 
-            save_json(
-                paths["seed_dir"] / "config_metadata.json",
-                {
-                    "run_kind": self.ctx.run_kind,
-                    "run_name": self.ctx.run_name,
-                    "dataset_version": self.ctx.dataset_version,
-                    "preprocessing_version": self.ctx.preprocessing_version,
-                    "model_input_hash_policy": self.ctx.model_input_hash_policy,
-                    "dataset_metadata": self.ctx.dataset_metadata,
-                    "model_key": model_key,
-                    "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
-                    "model_id": cfg["model_id"],
-                    "architecture": cfg["architecture"],
-                    "seed": int(seed),
-                    "loss_key": loss_key,
-                    "max_seq_len": int(cfg["max_seq_len"]),
-                    "checkpoint_selection_rule": self.ctx.checkpoint_selection_rule,
-                    "deterministic_mode": bool(self.ctx.deterministic_mode),
-                    "resume_if_available": bool(self.ctx.resume_if_available),
-                    "skip_completed_seeds": bool(self.ctx.skip_completed_seeds),
-                    "force_rerun_seeds": bool(self.ctx.force_rerun_seeds),
-                },
-            )
+            config_metadata = {
+                "run_contract_sha256": self.ctx.run_contract_sha256,
+                "run_contract": self.ctx.run_contract,
+                "run_kind": self.ctx.run_kind,
+                "run_name": self.ctx.run_name,
+                "dataset_version": self.ctx.dataset_version,
+                "preprocessing_version": self.ctx.preprocessing_version,
+                "model_input_hash_policy": self.ctx.model_input_hash_policy,
+                "dataset_metadata": self.ctx.dataset_metadata,
+                "model_key": model_key,
+                "model_version": f"{model_key}_{self.ctx.run_name}_seed{int(seed)}",
+                "model_id": cfg["model_id"],
+                "model_revision": model_revision,
+                "tokenizer_id": cfg["model_id"],
+                "tokenizer_revision": model_revision,
+                "architecture": cfg["architecture"],
+                "seed": int(seed),
+                "loss_key": loss_key,
+                "max_seq_len": int(cfg["max_seq_len"]),
+                "checkpoint_selection_rule": self.ctx.checkpoint_selection_rule,
+                "deterministic_mode": bool(self.ctx.deterministic_mode),
+                "resume_if_available": bool(self.ctx.resume_if_available),
+                "skip_completed_seeds": bool(self.ctx.skip_completed_seeds),
+                "force_rerun_seeds": bool(self.ctx.force_rerun_seeds),
+            }
             save_json(paths["seed_dir"] / "truncation_evidence.json", resources["truncation_evidence"])
 
             val_loader, test_loader, latency_batch = self.build_eval_loaders_and_latency_batch(resources, cfg)
@@ -1146,6 +1332,37 @@ class FinalConfirmatoryRunner:
             )
 
             model = build_model(cfg, self.ctx.num_classes, self.ctx.device)
+            actual_model_class = type(model).__name__
+            expected_model_class = (
+                "DistilBertForSequenceClassification"
+                if cfg["architecture"] == "distilbert_sequence_classification"
+                else None
+            )
+            if expected_model_class and actual_model_class != expected_model_class:
+                raise ValueError(
+                    "Requested native DistilBERT architecture produced unexpected "
+                    f"model class: {actual_model_class}"
+                )
+            model_config_sha256 = hashlib.sha256(
+                canonical_json(model.config.to_dict()).encode("utf-8")
+            ).hexdigest()
+            tokenizer_identity = {
+                "model_id": cfg["model_id"],
+                "revision": model_revision,
+            }
+            config_metadata.update(
+                {
+                    "architecture_family": infer_architecture_family(cfg["architecture"]),
+                    "head_type": infer_head_type(cfg["architecture"]),
+                    "model_class": actual_model_class,
+                    "model_revision": model_revision,
+                    "tokenizer_id": cfg["model_id"],
+                    "tokenizer_revision": model_revision,
+                    "model_config_sha256": model_config_sha256,
+                    "tokenizer_identity": tokenizer_identity,
+                }
+            )
+            save_json(paths["seed_dir"] / "config_metadata.json", config_metadata)
             optimizer = self.build_optimizer(model, cfg["learning_rate"], cfg["weight_decay"])
             scaler = GradScaler("cuda") if self.ctx.cuda_fp16 else None
 
@@ -1168,13 +1385,28 @@ class FinalConfirmatoryRunner:
             resume_path = self.ctx.resume_checkpoint or paths["last_ckpt"]
             if resume_allowed and resume_path.exists():
                 try:
-                    resume_payload = torch.load(
-                        resume_path, map_location="cpu", weights_only=False
+                    resume_payload = load_checkpoint_payload(
+                        resume_path, context="resume"
                     )
-                except Exception as exc:
+                except ValueError as exc:
                     raise RuntimeError(
                         f"Could not load resume checkpoint: {resume_path}"
                     ) from exc
+                checkpoint_reason = validate_checkpoint_identity(
+                    resume_payload,
+                    expected_model_key=model_key,
+                    expected_seed=int(seed),
+                    expected_loss_key=loss_key,
+                    expected_architecture=str(cfg["architecture"]),
+                    expected_preprocessing_version=self.ctx.preprocessing_version,
+                    expected_contract_hash=self.ctx.run_contract_sha256,
+                    expected_model_class=actual_model_class,
+                    context="resume_checkpoint",
+                )
+                if checkpoint_reason is not None:
+                    raise RuntimeError(
+                        f"Resume checkpoint identity mismatch: {checkpoint_reason}"
+                    )
                 required_keys = ["epoch", "model_state_dict", "optimizer_state_dict", "scheduler_state_dict"]
                 missing_keys = [key for key in required_keys if key not in resume_payload]
                 if missing_keys:
@@ -1297,6 +1529,11 @@ class FinalConfirmatoryRunner:
                             "cfg": cfg,
                             "loss_key": loss_key,
                             "seed": int(seed),
+                            "model_key": model_key,
+                            "architecture": cfg["architecture"],
+                            "model_class": actual_model_class,
+                            "preprocessing_version": self.ctx.preprocessing_version,
+                            "run_contract_sha256": self.ctx.run_contract_sha256,
                         },
                         paths["best_ckpt"],
                     )
@@ -1355,6 +1592,11 @@ class FinalConfirmatoryRunner:
                             "cfg": cfg,
                             "seed": int(seed),
                             "loss_key": loss_key,
+                            "model_key": model_key,
+                            "architecture": cfg["architecture"],
+                            "model_class": actual_model_class,
+                            "preprocessing_version": self.ctx.preprocessing_version,
+                            "run_contract_sha256": self.ctx.run_contract_sha256,
                             "rng_state": self.capture_rng_state(),
                             "saved_at": self.utc_now_iso(),
                         },
@@ -1432,13 +1674,9 @@ class FinalConfirmatoryRunner:
                     f"Best checkpoint was not produced for model={model_key}, loss={loss_key}, seed={seed}."
                 )
 
-            best_payload = torch.load(
-                paths["best_ckpt"], map_location="cpu", weights_only=False
+            best_payload = load_checkpoint_payload(
+                paths["best_ckpt"], context="best"
             )
-            if "model_state_dict" not in best_payload:
-                raise RuntimeError(
-                    f"Best checkpoint missing model_state_dict for model={model_key}, loss={loss_key}, seed={seed}."
-                )
             model.load_state_dict(best_payload["model_state_dict"])
 
             _, best_val_logits, best_val_labels = collect_logits_labels_loss(
@@ -1598,11 +1836,20 @@ class FinalConfirmatoryRunner:
             mean_epoch_sec = float(np.mean([row["epoch_time_sec"] for row in history])) if history else 0.0
 
             summary = {
+                "run_contract_sha256": self.ctx.run_contract_sha256,
+                "dataset_version": self.ctx.dataset_version,
+                "preprocessing_version": self.ctx.preprocessing_version,
                 "model_key": model_key,
                 "model_id": cfg["model_id"],
+                "model_revision": model_revision,
+                "tokenizer_id": cfg["model_id"],
+                "tokenizer_revision": model_revision,
+                "model_config_sha256": model_config_sha256,
+                "tokenizer_identity": tokenizer_identity,
                 "architecture": cfg["architecture"],
                 "architecture_family": infer_architecture_family(cfg["architecture"]),
                 "head_type": infer_head_type(cfg["architecture"]),
+                "model_class": type(model).__name__,
                 "experiment_phase": cfg["experiment_phase"],
                 "loss_key": loss_key,
                 "seed": int(seed),
@@ -1654,6 +1901,9 @@ class FinalConfirmatoryRunner:
             )
 
             completion_payload = {
+                "run_contract_sha256": self.ctx.run_contract_sha256,
+                "architecture": cfg["architecture"],
+                "model_id": cfg["model_id"],
                 "completed_at": self.utc_now_iso(),
                 "model_key": model_key,
                 "loss_key": loss_key,
@@ -1783,8 +2033,17 @@ class FinalConfirmatoryRunner:
                 loss_key=loss_key,
                 seed=int(seed),
             )
-            completed_ok, _, summary_payload = self.validate_completed_seed_artifacts(paths)
-            if not completed_ok or summary_payload is None:
+            completed_ok, completed_reason, summary_payload = (
+                self.validate_completed_seed_artifacts(paths)
+            )
+            if not completed_ok:
+                if paths["completed_marker"].exists():
+                    raise ValueError(
+                        "Cannot aggregate incompatible completed seed artifacts: "
+                        f"{paths['seed_dir']} ({completed_reason})"
+                    )
+                continue
+            if summary_payload is None:
                 continue
 
             seed_rows.append(summary_payload)
@@ -1800,6 +2059,16 @@ class FinalConfirmatoryRunner:
             return None
 
         seed_df = pd.DataFrame(seed_rows).sort_values(by="seed").reset_index(drop=True)
+        contract_hashes = set(seed_df["run_contract_sha256"].dropna().astype(str))
+        if contract_hashes != {self.ctx.run_contract_sha256}:
+            raise ValueError(
+                "Cannot aggregate seed summaries with mixed contract hashes"
+            )
+        architectures = set(seed_df["architecture"].dropna().astype(str))
+        if architectures != {str(cfg["architecture"])}:
+            raise ValueError(
+                "Cannot aggregate seed summaries with mixed architectures"
+            )
         save_csv(seed_df, variant_dir / "seed_summaries.csv", index=False)
 
         aggregate_payload = {
@@ -1817,9 +2086,11 @@ class FinalConfirmatoryRunner:
         return {
             "model_key": cfg["model_key"],
             "loss_key": loss_key,
-            "architecture": cfg["architecture"],
-            "architecture_family": infer_architecture_family(cfg["architecture"]),
-            "head_type": infer_head_type(cfg["architecture"]),
+            "architecture": next(iter(architectures)),
+            "architecture_family": infer_architecture_family(
+                next(iter(architectures))
+            ),
+            "head_type": infer_head_type(next(iter(architectures))),
             "experiment_phase": cfg["experiment_phase"],
             **aggregate_payload,
         }
@@ -2207,6 +2478,9 @@ class FinalConfirmatoryRunner:
 
         run_manifest = {
             "artifact_schema_version": "final_confirmatory_benchmark.v2",
+            "run_contract_version": self.ctx.run_contract.get("contract_version"),
+            "run_contract": self.ctx.run_contract,
+            "run_contract_sha256": self.ctx.run_contract_sha256,
             "run_kind": self.ctx.run_kind,
             "run_name": self.ctx.run_name,
             "dataset_version": self.ctx.dataset_version,
@@ -2220,6 +2494,7 @@ class FinalConfirmatoryRunner:
             "seed_list": [int(seed) for seed in self.ctx.benchmark_seeds],
             "n_seeds": int(len(self.ctx.benchmark_seeds)),
             "model_keys": list(self.ctx.run_model_keys),
+            "model_contracts": self.ctx.model_contracts,
             "completed_model_keys": sorted(completed_model_keys),
             "skipped_model_keys": skipped_model_keys,
             "loss_keys_by_model": self.ctx.loss_keys_by_model,

@@ -8,7 +8,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import torch
 
@@ -17,6 +17,7 @@ from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
     validate_supported_model_input_version,
 )
+from ml_model.training.run_contract import require_contract_hash
 
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 REQUIRED_FINAL_TRAINING_FILES = (
@@ -26,6 +27,11 @@ REQUIRED_FINAL_TRAINING_FILES = (
     "calibration.json",
 )
 DEFAULT_CHECKPOINT_FILENAME = "best_distilbert_weighted_ce_seed2026.pt"
+SUPPORTED_ARCHITECTURES = {
+    "distilbert_sequence_classification",
+    "transformer",
+    "legacy_transformer",
+}
 
 
 class PromotionError(RuntimeError):
@@ -374,7 +380,46 @@ def restore_archived_run(*, archived_run_dir: Path, active_run_dir: Path) -> Pat
     return restored_path
 
 
-def normalize_state_dict_for_packager(state_dict: dict[str, Any]) -> dict[str, Any]:
+def _validate_architecture(architecture: Any) -> str:
+    if not isinstance(architecture, str) or not architecture.strip():
+        raise PromotionError(f"Unsupported or missing architecture: {architecture!r}")
+    normalized = architecture.strip()
+    if normalized not in SUPPORTED_ARCHITECTURES:
+        raise PromotionError(f"Unsupported or missing architecture: {architecture!r}")
+    return normalized
+
+
+def validate_native_promotion_metadata(config_metadata: Mapping[str, Any]) -> None:
+    """Fail closed unless metadata describes the maintained native model."""
+
+    expected = {
+        "model_key": "distilbert",
+        "model_id": "distilbert-base-uncased",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+    }
+    for field, expected_value in expected.items():
+        if config_metadata.get(field) != expected_value:
+            raise PromotionError(
+                "Native DistilBERT promotion requires "
+                f"{field}={expected_value!r}; got {config_metadata.get(field)!r}."
+            )
+    revision = config_metadata.get("model_revision")
+    if (
+        not isinstance(revision, str)
+        or not revision.strip()
+        or revision.strip().lower() == "unresolved"
+    ):
+        raise PromotionError(
+            "Native DistilBERT promotion requires a pinned model_revision."
+        )
+
+
+def _normalize_legacy_custom_transformer_state_dict(
+    state_dict: Mapping[str, Any],
+) -> dict[str, Any]:
     normalized: dict[str, Any] = {}
     for key, value in state_dict.items():
         mapped_key = key
@@ -394,11 +439,67 @@ def normalize_state_dict_for_packager(state_dict: dict[str, Any]) -> dict[str, A
     return normalized
 
 
+def normalize_state_dict_for_packager(
+    state_dict: Mapping[str, Any],
+    *,
+    architecture: str | None,
+) -> dict[str, Any]:
+    architecture = _validate_architecture(architecture)
+    if architecture == "distilbert_sequence_classification":
+        required_prefixes = ("distilbert.", "pre_classifier.", "classifier.")
+        if not all(
+            any(key.startswith(prefix) for key in state_dict)
+            for prefix in required_prefixes
+        ):
+            raise PromotionError(
+                "Native DistilBERT checkpoint must preserve distilbert.*, "
+                "pre_classifier.*, and classifier.* keys."
+            )
+        if any(
+            key.startswith(("encoder.", "classifier_dense.", "layer_norm.", "output."))
+            for key in state_dict
+        ):
+            raise PromotionError(
+                "Native DistilBERT checkpoint contains custom-model keys."
+            )
+        return dict(state_dict)
+    if architecture == "legacy_transformer":
+        return _normalize_legacy_custom_transformer_state_dict(state_dict)
+    raise PromotionError(
+        "Generic transformer architecture cannot be promoted or normalized; "
+        "use the explicitly named legacy_transformer path."
+    )
+
+
+def _load_architecture_from_run_metadata(
+    run_dir: Path,
+    *,
+    config_metadata: Mapping[str, Any] | None = None,
+) -> str:
+    candidates: list[Mapping[str, Any]] = []
+    if config_metadata is not None:
+        candidates.append(config_metadata)
+    for filename in ("config_metadata.json", "config_used.json"):
+        metadata_path = Path(run_dir) / filename
+        if metadata_path.exists():
+            payload = load_json(metadata_path)
+            if isinstance(payload, dict):
+                candidates.append(payload)
+
+    for payload in candidates:
+        if "architecture" in payload:
+            return _validate_architecture(payload.get("architecture"))
+    raise PromotionError(
+        f"Unsupported or missing architecture metadata in training run: {Path(run_dir)}"
+    )
+
+
 def extract_state_dict_checkpoint(
     source_path: Path,
     target_path: Path,
     *,
     normalize_for_packager: bool = False,
+    architecture: str | None = None,
 ) -> None:
     source = Path(source_path)
     target = Path(target_path)
@@ -416,7 +517,17 @@ def extract_state_dict_checkpoint(
         )
 
     if normalize_for_packager:
-        state_dict = normalize_state_dict_for_packager(state_dict)
+        resolved_architecture = (
+            _load_architecture_from_run_metadata(
+                source.parent.parent if source.parent.name == "checkpoint" else source.parent
+            )
+            if architecture is None
+            else architecture
+        )
+        state_dict = normalize_state_dict_for_packager(
+            state_dict,
+            architecture=resolved_architecture,
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
     torch.save(state_dict, target)
@@ -427,6 +538,7 @@ def build_config_used(
     config_metadata: dict[str, Any],
     model_version: str,
 ) -> dict[str, Any]:
+    validate_native_promotion_metadata(config_metadata)
     preprocessing_version = validate_supported_model_input_version(
         config_metadata.get("preprocessing_version"), context="final training run"
     )
@@ -434,9 +546,24 @@ def build_config_used(
         raise PromotionError(
             "Final training metadata is missing the shared model-input hash policy."
         )
-    return {
+    try:
+        contract_hash = require_contract_hash(config_metadata)
+    except ValueError as exc:
+        raise PromotionError(str(exc)) from exc
+    config_used = {
         "model_key": config_metadata.get("model_key", "distilbert"),
         "model_id": config_metadata.get("model_id", "distilbert-base-uncased"),
+        "model_revision": config_metadata.get("model_revision"),
+        "tokenizer_id": config_metadata.get(
+            "tokenizer_id", config_metadata.get("model_id")
+        ),
+        "tokenizer_revision": config_metadata.get(
+            "tokenizer_revision", config_metadata.get("model_revision")
+        ),
+        "architecture": config_metadata.get("architecture"),
+        "architecture_family": config_metadata.get("architecture_family"),
+        "head_type": config_metadata.get("head_type"),
+        "model_class": config_metadata.get("model_class"),
         "dataset_version": config_metadata.get("dataset_version"),
         "preprocessing_version": preprocessing_version,
         "model_input_hash_policy": config_metadata.get("model_input_hash_policy"),
@@ -444,7 +571,11 @@ def build_config_used(
         "seed": config_metadata.get("seed"),
         "model_version": model_version,
         "label_names": list(DEFAULT_LABEL_NAMES),
+        "run_contract_sha256": contract_hash,
     }
+    if "run_contract" in config_metadata:
+        config_used["run_contract"] = config_metadata["run_contract"]
+    return config_used
 
 
 def build_eval_report(
@@ -493,6 +624,12 @@ def promote_final_training_run(
 ) -> PromotionResult:
     source_paths = validate_final_training_source(source_dir, checkpoint_filename)
     config_metadata = load_json(source_paths["config_metadata.json"])
+    architecture = _load_architecture_from_run_metadata(
+        Path(source_dir),
+        config_metadata=config_metadata,
+    )
+    config_metadata = {**config_metadata, "architecture": architecture}
+    validate_native_promotion_metadata(config_metadata)
     summary_metrics = load_json(source_paths["summary_metrics.json"])
     per_class_metrics = load_json(source_paths["per_class_metrics.json"])
     calibration_payload = load_json(source_paths["calibration.json"])
@@ -549,6 +686,7 @@ def promote_final_training_run(
             source_paths["checkpoint"],
             fresh_active_dir / f"best_{model_key}_ckpt.pt",
             normalize_for_packager=True,
+            architecture=architecture,
         )
         write_json(fresh_active_dir / "config_used.json", config_used)
         write_json(fresh_active_dir / "eval_report.json", eval_report)

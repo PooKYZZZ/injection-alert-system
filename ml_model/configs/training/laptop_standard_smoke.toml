@@ -1,0 +1,21 @@
+[training]
+dataset_version = "v3_907k_cleaned"
+preprocessing_version = "http-preprocessor-v1"
+models = ["distilbert"]
+model_revision = "12040accade4e8a0f71eabdb258fecc2e7e948be"
+seeds = [42]
+device = "cpu"
+precision = "full"
+batch_size = 2
+eval_batch_size = 4
+epochs = 1
+learning_rate = 3e-5
+num_workers = 0
+checkpoint_interval_epochs = 1
+resume = false
+max_train_samples = 64
+max_validation_samples = 32
+max_test_samples = 32
+max_seq_len = 128
+gradient_accumulation_steps = 1
+prepare_only = false

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from datetime import datetime
@@ -18,11 +19,20 @@ from ml_model.preprocessing.model_input import (
     validate_model_input_version,
 )
 from ml_model.training.paths import default_training_output_dir, resolve_project_root
+from ml_model.training.run_contract import canonical_json
 
 REPO_ROOT = resolve_project_root()
 DEFAULT_RUNS_DIR = default_training_output_dir(project_root=REPO_ROOT)
 
 _SPLIT_FILENAMES = ("train.parquet", "validation.parquet", "test.parquet")
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def ensure_dir(path: Path) -> Path:
@@ -68,6 +78,56 @@ def load_dataset_metadata(data_dir: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"Dataset preprocessing metadata must be an object: {metadata_path}")
     return payload
+
+
+def load_dataset_file_manifest(data_dir: Path) -> dict[str, Any]:
+    """Verify and return the canonical digest of processed-file checksums."""
+
+    root = _resolve_split_root(Path(data_dir))
+    checksums_path = root / "checksums.txt"
+    if not checksums_path.is_file():
+        raise ValueError(f"Dataset is missing required file manifest: {checksums_path}")
+
+    files: dict[str, str] = {}
+    for line_number, raw_line in enumerate(
+        checksums_path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) != 2 or len(parts[0]) != 64:
+            raise ValueError(f"Invalid dataset checksum entry on line {line_number}")
+        digest, relative_name = parts
+        if any(character not in "0123456789abcdef" for character in digest):
+            raise ValueError(f"Invalid dataset checksum digest on line {line_number}")
+        relative_path = Path(relative_name)
+        if relative_path.is_absolute() or relative_path.name != relative_name:
+            raise ValueError("Dataset file manifest must contain relative file names")
+        if relative_name in files:
+            raise ValueError(f"Dataset file manifest contains duplicate entry: {relative_name}")
+        dataset_file = root / relative_name
+        if not dataset_file.is_file():
+            raise ValueError(f"Dataset manifest references missing dataset file: {dataset_file}")
+        actual_digest = _sha256_file(dataset_file)
+        if actual_digest != digest:
+            raise ValueError(
+                f"Dataset checksum mismatch for {relative_name}: "
+                f"expected {digest}, got {actual_digest}"
+            )
+        files[relative_name] = digest
+
+    missing = [name for name in _SPLIT_FILENAMES if name not in files]
+    if missing:
+        raise ValueError(f"Dataset file manifest is missing split entries: {missing}")
+    canonical_files = {name: files[name] for name in sorted(files)}
+    manifest_payload = {"files": canonical_files}
+    return {
+        **manifest_payload,
+        "sha256": hashlib.sha256(
+            canonical_json(manifest_payload).encode("utf-8")
+        ).hexdigest(),
+    }
 
 
 def validate_dataset_preprocessing(

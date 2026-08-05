@@ -11,12 +11,13 @@ from typing import Any
 
 import torch
 import transformers
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
 
 from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
     validate_supported_model_input_version,
 )
+from ml_model.training.run_contract import require_contract_hash
 
 DEFAULT_LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
 MODEL_IDS = {
@@ -24,6 +25,7 @@ MODEL_IDS = {
     "distilbert": "distilbert-base-uncased",
     "bert-base": "bert-base-uncased",
 }
+NATIVE_MODEL_KEYS = ("distilbert",)
 PACKAGING_TOOL = "ml_model/export/package_serving_artifact.py"
 DEFAULT_SAMPLE_TEXT = "SELECT * FROM users WHERE 1=1 --"
 DEVICE = torch.device("cpu")
@@ -313,6 +315,7 @@ def build_manifest(
     max_seq_len: int,
     notes: str | None,
     local_reload_verified: bool,
+    actual_model: Any | None = None,
 ) -> dict[str, Any]:
     config_metadata = json.loads(config_used_path.read_text(encoding="utf-8"))
     preprocessing_version = validate_supported_model_input_version(
@@ -320,12 +323,61 @@ def build_manifest(
     )
     if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
         raise PackagingError("Serving artifact is missing the shared model-input hash policy.")
+    expected_metadata = {
+        "model_key": "distilbert",
+        "model_id": "distilbert-base-uncased",
+        "architecture": "distilbert_sequence_classification",
+        "architecture_family": "huggingface_sequence_classifier",
+        "head_type": "hf_sequence_classification_head",
+        "model_class": "DistilBertForSequenceClassification",
+    }
+    for field, expected_value in expected_metadata.items():
+        actual_value = model_key if field == "model_key" else (
+            base_model if field == "model_id" else config_metadata.get(field)
+        )
+        if actual_value != expected_value:
+            raise PackagingError(
+                "Native DistilBERT serving manifest requires "
+                f"{field}={expected_value!r}; got {actual_value!r}."
+            )
+    model_revision = config_metadata.get("model_revision")
+    if (
+        not isinstance(model_revision, str)
+        or not model_revision.strip()
+        or model_revision.strip().lower() == "unresolved"
+    ):
+        raise PackagingError(
+            "Native DistilBERT serving manifest requires model_revision."
+        )
+    try:
+        contract_hash = require_contract_hash(config_metadata)
+    except ValueError as exc:
+        raise PackagingError(str(exc)) from exc
+    if actual_model is not None:
+        if type(actual_model).__name__ != expected_metadata["model_class"]:
+            raise PackagingError(
+                "Loaded model class does not match native DistilBERT serving metadata."
+            )
+        if int(getattr(actual_model.config, "num_labels", -1)) != len(label_names):
+            raise PackagingError(
+                "Loaded model label count does not match serving labels."
+            )
     return {
         "model_version": model_version,
         "model_key": model_key,
         "dataset_version": config_metadata.get("dataset_version"),
         "preprocessing_version": preprocessing_version,
         "model_input_hash_policy": config_metadata.get("model_input_hash_policy"),
+        "architecture": config_metadata.get("architecture"),
+        "architecture_family": config_metadata.get("architecture_family"),
+        "head_type": config_metadata.get("head_type"),
+        "model_class": config_metadata.get("model_class"),
+        "model_revision": model_revision,
+        "tokenizer_id": config_metadata.get("tokenizer_id", base_model),
+        "tokenizer_revision": config_metadata.get(
+            "tokenizer_revision", model_revision
+        ),
+        "run_contract_sha256": contract_hash,
         "base_model": base_model,
         "run_dir_name": run_dir.name,
         "run_dir_path": str(run_dir.resolve()),
@@ -449,8 +501,11 @@ def package_serving_artifact(
     notes: str | None = None,
     calibration_eval_run_dir: Path | None = None,
 ) -> Path:
-    if model_key not in MODEL_IDS:
-        raise KeyError(f"Unknown model key: {model_key}")
+    if model_key not in NATIVE_MODEL_KEYS:
+        raise PackagingError(
+            "Native serving packaging supports only model_key='distilbert'; "
+            "historical custom-model artifacts remain reference-only."
+        )
 
     repo_root = find_repo_root(Path.cwd().resolve())
     model_registry = repo_root / "ml_model" / "model_registry"
@@ -487,6 +542,21 @@ def package_serving_artifact(
     if not isinstance(model_id, str) or not model_id.strip():
         raise PackagingError("Exact-run config_used.json does not contain a valid model_id.")
     model_id = model_id.strip()
+    model_revision = config_used.get("model_revision")
+    if (
+        not isinstance(model_revision, str)
+        or not model_revision.strip()
+        or model_revision.strip().lower() == "unresolved"
+    ):
+        raise PackagingError(
+            "Exact-run config_used.json does not contain a pinned model_revision."
+        )
+    tokenizer_id = config_used.get("tokenizer_id", model_id)
+    tokenizer_revision = config_used.get("tokenizer_revision", model_revision)
+    if tokenizer_id != model_id or tokenizer_revision != model_revision:
+        raise PackagingError(
+            "Model and tokenizer revisions must match the exact run contract."
+        )
     max_seq_len = int(config_used.get("max_seq_len", 128))
     model_version = derive_model_version(run_dir, config_used)
 
@@ -496,21 +566,28 @@ def package_serving_artifact(
     print(f"Packaging mode        : {packaging_mode}")
     print(f"Checkpoint            : {checkpoint_path.name}")
     print(f"Base model            : {model_id}")
+    print(f"Model revision        : {model_revision}")
     print(f"Model version         : {model_version}")
     print(f"Max seq len           : {max_seq_len}")
     print(f"Calibration source    : {calibration.result_path}")
     print(f"Calibration temperature: {calibration.temperature:.6f}")
 
+    model_config = AutoConfig.from_pretrained(model_id, revision=model_revision)
+    model_config.num_labels = len(label_names)
     model = AutoModelForSequenceClassification.from_pretrained(
         model_id,
-        num_labels=len(label_names),
+        revision=model_revision,
+        config=model_config,
     )
     state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if not isinstance(state, dict):
         raise TypeError(f"Expected state_dict, got {type(state)}")
     model.load_state_dict(state, strict=True)
     model.to(DEVICE).eval()
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_id,
+        revision=tokenizer_revision,
+    )
     print("Checkpoint and tokenizer loaded successfully.")
 
     manifest = build_manifest(
@@ -525,6 +602,7 @@ def package_serving_artifact(
         max_seq_len=max_seq_len,
         notes=notes,
         local_reload_verified=False,
+        actual_model=model,
     )
 
     model.save_pretrained(run_dir)
@@ -557,9 +635,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-key",
-        choices=sorted(MODEL_IDS),
+        choices=NATIVE_MODEL_KEYS,
         default="distilbert",
-        help="Model family to package.",
+        help="Native model family to package (currently only DistilBERT).",
     )
     parser.add_argument(
         "--run-dir-name",
