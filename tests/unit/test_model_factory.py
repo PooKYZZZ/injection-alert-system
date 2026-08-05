@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+PINNED_REVISION = "a" * 40
+
 
 def test_distilbert_registry_selects_native_sequence_classifier():
     from ml_model.training.train import DEFAULT_MODEL_REGISTRY
@@ -48,7 +50,7 @@ def test_native_distilbert_build_uses_hugging_face_sequence_classifier(monkeypat
         {
             "architecture": "distilbert_sequence_classification",
             "model_id": "distilbert-base-uncased",
-            "model_revision": "verified-revision",
+            "model_revision": PINNED_REVISION,
         },
         num_classes=4,
         device=torch.device("cpu"),
@@ -127,7 +129,7 @@ def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
         {
             "architecture": "distilbert_sequence_classification",
             "model_id": "distilbert-base-uncased",
-            "model_revision": "verified-revision",
+            "model_revision": PINNED_REVISION,
         },
         num_classes=4,
         device=torch.device("cpu"),
@@ -137,7 +139,7 @@ def test_native_distilbert_build_passes_pinned_revision(monkeypatch):
         {
             "model_id": "distilbert-base-uncased",
             "num_labels": 4,
-            "revision": "verified-revision",
+            "revision": PINNED_REVISION,
         }
     ]
 
@@ -184,7 +186,7 @@ def test_legacy_transformer_architecture_is_still_explicitly_selectable(monkeypa
         {
             "architecture": "transformer",
             "model_id": "historical/model",
-            "model_revision": "historical-pinned-revision",
+            "model_revision": PINNED_REVISION,
             "dropout_prob": 0.1,
             "head_hidden_dim": 8,
             "activation": "gelu",

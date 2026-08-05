@@ -7,6 +7,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+PINNED_REVISION = "a" * 40
+
 
 def _contract(**overrides):
     from ml_model.training.run_contract import build_training_run_contract
@@ -236,14 +238,14 @@ def test_tokenizer_loader_passes_pinned_revision(monkeypatch):
     )
 
     confirmatory_runner.load_tokenizer_for_config(
-        {"model_id": "distilbert-base-uncased", "model_revision": "verified-revision"}
+        {"model_id": "distilbert-base-uncased", "model_revision": PINNED_REVISION}
     )
 
     assert calls == [
         {
             "model_id": "distilbert-base-uncased",
             "use_fast": True,
-            "revision": "verified-revision",
+            "revision": PINNED_REVISION,
         }
     ]
 

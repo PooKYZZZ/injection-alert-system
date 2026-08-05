@@ -149,6 +149,26 @@ def load_tokenizer_for_config(cfg: dict[str, Any]):
     return AutoTokenizer.from_pretrained(cfg["model_id"], **kwargs)
 
 
+def model_config_sha256(model: torch.nn.Module, *, architecture: str) -> str:
+    """Hash the serializable backbone configuration used by a trained model."""
+
+    config_attribute = (
+        "config"
+        if architecture == "distilbert_sequence_classification"
+        else "encoder_config"
+    )
+    model_config = getattr(model, config_attribute, None)
+    to_dict = getattr(model_config, "to_dict", None)
+    if not callable(to_dict):
+        raise ValueError(
+            f"Model architecture {architecture!r} does not expose a serializable "
+            f"{config_attribute}."
+        )
+    return hashlib.sha256(
+        canonical_json(to_dict()).encode("utf-8")
+    ).hexdigest()
+
+
 @dataclass
 class ConfirmatoryRunnerContext:
     df_train: pd.DataFrame
@@ -1343,9 +1363,10 @@ class FinalConfirmatoryRunner:
                     "Requested native DistilBERT architecture produced unexpected "
                     f"model class: {actual_model_class}"
                 )
-            model_config_sha256 = hashlib.sha256(
-                canonical_json(model.config.to_dict()).encode("utf-8")
-            ).hexdigest()
+            model_config_digest = model_config_sha256(
+                model,
+                architecture=str(cfg["architecture"]),
+            )
             tokenizer_identity = {
                 "model_id": cfg["model_id"],
                 "revision": model_revision,
@@ -1358,7 +1379,7 @@ class FinalConfirmatoryRunner:
                     "model_revision": model_revision,
                     "tokenizer_id": cfg["model_id"],
                     "tokenizer_revision": model_revision,
-                    "model_config_sha256": model_config_sha256,
+                    "model_config_sha256": model_config_digest,
                     "tokenizer_identity": tokenizer_identity,
                 }
             )
@@ -1844,7 +1865,7 @@ class FinalConfirmatoryRunner:
                 "model_revision": model_revision,
                 "tokenizer_id": cfg["model_id"],
                 "tokenizer_revision": model_revision,
-                "model_config_sha256": model_config_sha256,
+                "model_config_sha256": model_config_digest,
                 "tokenizer_identity": tokenizer_identity,
                 "architecture": cfg["architecture"],
                 "architecture_family": infer_architecture_family(cfg["architecture"]),
