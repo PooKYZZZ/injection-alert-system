@@ -26,14 +26,24 @@ or automatic promotion path. The reusable training entrypoint remains under
   simulation fixtures and are rejected unless the smoke/test override is set.
 - `snapshots.py` creates versioned cumulative train snapshots and preserves the
   historical validation/test splits, including the metadata and checksum
-  contract required by the training preflight. It rejects exact and
-  near-duplicate historical contamination and records hashes for data,
-  metadata, checksums, historical inputs, and the canonical snapshot manifest.
+  contract required by the training preflight. It builds one reusable index
+  over train, validation, and test per simulation, checks exact normalized
+  hashes before safe length-bucketed fuzzy candidates, and checks only new
+  daily samples against historical and accepted daily records. It rejects
+  exact, near-duplicate, duplicate, and conflicting-label contamination and
+  records row counts, candidate comparisons, exact/fuzzy matches, rejected
+  IDs, and hashes for data, metadata, checksums, historical inputs, and the
+  canonical snapshot manifest.
 - `drift.py` records deterministic per-batch request, label, source,
   confidence, query-parameter, and validation-error dimensions.
-- `statistical_evidence.py` records paired McNemar and bootstrap evidence only
-  when aligned baseline and candidate predictions are supplied; otherwise it
-  reports `NOT_RUN`.
+- `prediction_artifacts.py` writes deterministic, hash-checked baseline and
+  candidate per-example artifacts from the locked golden controls. Stable
+  sample IDs and dataset/golden/split provenance are required for joining.
+- `statistical_evidence.py` records paired McNemar exact results, absolute
+  accuracy difference, paired error counts, and seeded bootstrap confidence
+  intervals only when those artifacts are valid and aligned. Missing evidence
+  is `NOT_RUN`; malformed or mismatched evidence is `INVALID`; no p-value is
+  promoted to a significance claim.
 - `integrity.py` blocks a candidate unless its serving manifest, exact-run
   contract, dataset hash, pinned model/tokenizer identity, policy mappings,
   selected checkpoint, and reload/hash identity remain unchanged.
@@ -46,12 +56,52 @@ or automatic promotion path. The reusable training entrypoint remains under
   the locked golden set without silently discovering or modifying staging.
 
 The `--smoke` mode uses tiny synthetic data and injected adapters to prove
-orchestration startup and failure safety. It reports `SMOKE_SUCCESS` and is
-not a model-quality result.
+orchestration startup and failure safety. It reports `SMOKE_SUCCESS`,
+`real_training_status=NOT_RUN`, `model_quality_conclusion=NOT_PERMITTED`, and
+`baseline_status=SMOKE_SYNTHETIC`; its statistical evidence is `NOT_RUN` and
+it is not a model-quality or thesis result. The synthetic fixture is not
+production data.
 
 The real baseline, corrected one-seed run, three-seed confirmation, and full
 20-day native simulation remain `REQUIRES_LAPTOP` unless their artifacts and
 reports are freshly generated and inspected.
+
+## Validation commands and evidence boundaries
+
+From the repository root, run the complete synthetic smoke with all days:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
+  --config ml_model/configs/retraining_20_day_v1.toml `
+  --output-dir ml_model/results/retraining_20_day_v1/smoke `
+  --smoke `
+  --days 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+```
+
+For native execution, first create a baseline artifact and its paired
+prediction artifact, then run the simulator with reviewed non-synthetic daily
+batches:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.retraining.run_baseline `
+  --config ml_model/configs/retraining_20_day_v1.toml `
+  --artifact-dir ml_model/model_registry/staging/<frozen-run> `
+  --output ml_model/results/retraining_20_day_v1/baseline.json
+
+.venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
+  --config ml_model/configs/retraining_20_day_v1.toml `
+  --historical-data-dir data/processed/v3_907k_cleaned `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --output-dir ml_model/results/retraining_20_day_v1/native `
+  --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --days 1
+```
+
+Then, only after the one-seed and three-seed prerequisites pass, run days 1
+through 20 using the same baseline, dataset version, reviewed batches, and
+locked golden set. Real training still must be performed on the laptop. No
+smoke run, aggregate metric, or present p-value is evidence that the real
+model improved.
 
 ## Architectural Role
 Closes the feedback loop:

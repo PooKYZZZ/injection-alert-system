@@ -86,15 +86,23 @@ Run the focused implementation tests:
 .venv\Scripts\python.exe -m pytest -q --tb=short tests/unit/test_run_baseline.py tests/unit/test_experiment_contract.py tests/unit/test_golden_controls.py tests/unit/test_retraining_batches.py tests/unit/test_simulate_20_day.py
 ```
 
-Run the tiny no-network, two-day orchestration smoke. Its success proves
+Run the complete synthetic, no-network orchestration smoke. Its success proves
 orchestration and failure safety only, not model quality:
 
 ```powershell
-.venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day --config ml_model/configs/retraining_20_day_v1.toml --output-dir ml_model/results/retraining_20_day_v1/smoke --smoke --days 1 2
+.venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
+  --config ml_model/configs/retraining_20_day_v1.toml `
+  --output-dir ml_model/results/retraining_20_day_v1/smoke `
+  --smoke `
+  --days 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
 ```
 
-Expected aggregate status is `SMOKE_SUCCESS`. This is explicitly separate
-from complete 20-day `SUCCESS` and contains no real model-quality result.
+Expected report values are `status=SMOKE_SUCCESS`,
+`experiment.real_training_status=NOT_RUN`,
+`experiment.model_quality_conclusion=NOT_PERMITTED`, and
+`baseline_status=SMOKE_SYNTHETIC`. Every day records statistical evidence as
+`NOT_RUN` with `thesis_evidence=false`. This is explicitly separate from
+complete 20-day native `SUCCESS` and contains no real model-quality result.
 
 Expected smoke files include:
 
@@ -117,10 +125,17 @@ arbitrary latest run or write to an active registry:
 
 Inspect `baseline.json` before candidate training. The report records artifact
 identity and hash, golden results, the exact pagination result, packaging and
-backend-loading status, and metric availability. Missing operational rates or
+backend-loading status, metric availability, and a provenance-bound
+`baseline_predictions.json` artifact. Missing operational rates or
 supported attack recalls remain `Unknown`/`REQUIRES_LAPTOP`; they are not
 converted to zero. The baseline is not frozen until every supported attack
 class recall is present and `baseline_status` is `FROZEN`.
+
+The baseline prediction artifact is the frozen comparison input for every
+candidate. It is keyed by stable golden `case_id` values and records
+`sample_id`, `split`, `y_true`, `prediction`, confidence/tier/action,
+`model_version`, `dataset_version`, and `golden_version`. Do not hand-edit it
+or pair it with a different dataset or golden manifest.
 
 ## Corrected one-seed run
 
@@ -139,8 +154,11 @@ cumulative day with seed `2026`:
 
 The run must use native DistilBERT, v1 preprocessing, the locked labels and
 policy, and a maximum of four epochs. Inspect the day report, evaluator output,
-candidate package, reload result, golden controls, exact pagination result, and
-acceptance gates before proceeding.
+candidate package, reload result, golden controls, exact pagination result,
+candidate prediction artifact, paired statistical evidence, and acceptance
+gates before proceeding. The candidate artifact is generated from the same
+locked golden controls and is joined to the frozen baseline by `sample_id`;
+a dataset/golden/version mismatch is `INVALID`, not a best-effort comparison.
 
 ## Three-seed confirmation
 
@@ -189,14 +207,37 @@ simulator does not modify `ml_model/model_registry/production/` or an active
 staging artifact. A one-day run is `PARTIAL`; only all accepted days 1–20 can
 be complete `SUCCESS`.
 
-Each accepted candidate must also pass the candidate contract gate: labels,
+Each accepted native candidate must also pass the candidate contract gate and
+the statistical-evidence gate: paired evidence must be `COMPUTED`. Labels,
 preprocessing, pinned model/tokenizer revision, thresholds, response actions,
 snapshot manifest hash, selected checkpoint, run-contract hash, and local
 reload identity. Snapshot manifests cover the parquet files, preprocessing
 metadata, checksum manifest, historical input hashes, and their canonical
-manifest hashes. Per-day drift summaries are descriptive evidence; paired
-baseline-versus-candidate statistical evidence remains `NOT_RUN` until paired
-predictions are supplied.
+manifest hashes. Per-day drift summaries are descriptive evidence. McNemar's
+exact test, absolute accuracy difference, paired error counts, and seeded
+bootstrap confidence intervals are computed only from aligned artifacts. A
+p-value is recorded descriptively; it is not a claim of statistical
+significance. Smoke/test overrides intentionally leave this evidence `NOT_RUN`.
+
+## Contamination index and evidence statuses
+
+The simulator builds one reusable `ContaminationIndex` from train,
+validation, and test. It first checks the exact hash of the canonicalized
+model input (including deterministic query-parameter ordering), then uses a
+safe normalized-length range before `SequenceMatcher`. Method/path are not
+used as exclusion filters, so near duplicates with changed request dimensions
+remain candidates. Only the newly accepted day is checked against the
+historical index and previously accepted daily samples; it is added after
+validation. Diagnostics record historical/daily row counts, candidate
+comparisons, exact/fuzzy counts, and rejected IDs. Near-duplicate detection is
+still heuristic at the configured 0.90 ratio and cannot establish semantic
+equivalence.
+
+`COMPUTED` means both prediction artifacts passed hash, stable-ID,
+dataset-version, golden-version, and split checks. `NOT_RUN` means paired
+predictions were unavailable, including synthetic smoke. `INVALID` means the
+artifacts or arrays were malformed or mismatched. Native acceptance does not
+pass with missing or invalid evidence.
 
 ## Reporting and copy-back
 
@@ -235,8 +276,8 @@ production readiness.
 
 | Operation | Status in this coding session |
 |---|---|
-| Contract, validator, snapshot, simulator, baseline tooling | `PASS` (implemented and focused-tested) |
-| Two-day synthetic orchestration smoke | `SMOKE_SUCCESS` (orchestration-only) |
+| Contract, validator, indexed snapshot, simulator, baseline/artifact tooling | `PASS` (implemented and focused-tested) |
+| Twenty-day synthetic orchestration smoke | `SMOKE_SUCCESS` (orchestration-only) |
 | Real current-model baseline | `NOT_RUN` / `REQUIRES_LAPTOP` |
 | Corrected seed-2026 native training | `NOT_RUN` / `REQUIRES_LAPTOP` |
 | Three-seed confirmation | `NOT_RUN` / `REQUIRES_LAPTOP` |
