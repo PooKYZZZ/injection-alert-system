@@ -6,7 +6,7 @@ or automatic promotion path. The reusable training entrypoint remains under
 `ml_model/training/`.
 
 ## Target Purpose
-- Manual or scheduled retraining trigger
+- Manual explicitly invoked retraining trigger
 - Analyst-labeled data export
 - Dataset validation before training
 - Dry-run/smoke mode for orchestration checks
@@ -20,17 +20,22 @@ or automatic promotion path. The reusable training entrypoint remains under
 - `experiment_contract.py` loads the immutable v1 TOML contract.
 - `validate_batch.py` rejects unapproved, unprovenanced, duplicate, conflicting,
   unknown-label, predicted-label, preprocessing-mismatched, and golden-overlap
-  samples while preserving quarantine evidence.
+  samples while preserving privacy-safe quarantine evidence. It also validates
+  model-input hashes and batch-day provenance.
 - `snapshots.py` creates versioned cumulative train snapshots and preserves the
-  historical validation/test splits.
+  historical validation/test splits, including the metadata and checksum
+  contract required by the training preflight.
 - `simulate_20_day.py` calls the maintained training/evaluation/export seams,
   performs isolated candidate packaging/reload/backend checks, applies frozen
-  gates, and records `ACCEPTED` or `REJECTED` per day.
+  gates, and records `ACCEPTED`, `REJECTED`, or `NOT_RUN` per day. A requested
+  final day includes every preceding cumulative day; partial runs are
+  `PARTIAL`, not complete `SUCCESS`.
 - `run_baseline.py` evaluates a specifically selected current artifact against
   the locked golden set without silently discovering or modifying staging.
 
 The `--smoke` mode uses tiny synthetic data and injected adapters to prove
-orchestration startup and failure safety. It is not a model-quality result.
+orchestration startup and failure safety. It reports `SMOKE_SUCCESS` and is
+not a model-quality result.
 
 The real baseline, corrected one-seed run, three-seed confirmation, and full
 20-day native simulation remain `REQUIRES_LAPTOP` unless their artifacts and

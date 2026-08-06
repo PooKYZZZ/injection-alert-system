@@ -10,6 +10,10 @@ encoded input, malformed/boundary input, SQL injection, code injection,
 command injection, other attacks, obfuscation, and a structured-body
 false-negative control.
 
+The daily JSONL inputs under `../daily_batches/` are controlled orchestration
+fixtures with two synthetic/curated rows per day. They are not production-like
+daily traffic and must not support a thesis claim about retraining quality.
+
 The manifest pins the JSONL SHA-256 and a canonical manifest hash. Before a
 future golden-set revision is created, compare exact and near-duplicate text
 against the historical train/validation/test data, remove contamination, and

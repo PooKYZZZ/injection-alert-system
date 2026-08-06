@@ -87,6 +87,9 @@ orchestration and failure safety only, not model quality:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day --config ml_model/configs/retraining_20_day_v1.toml --output-dir ml_model/results/retraining_20_day_v1/smoke --smoke --days 1 2
 ```
 
+Expected aggregate status is `SMOKE_SUCCESS`. This is explicitly separate
+from complete 20-day `SUCCESS` and contains no real model-quality result.
+
 Expected smoke files include:
 
 - `ml_model/results/retraining_20_day_v1/smoke/simulation_report.json`
@@ -109,7 +112,9 @@ arbitrary latest run or write to an active registry:
 Inspect `baseline.json` before candidate training. The report records artifact
 identity and hash, golden results, the exact pagination result, packaging and
 backend-loading status, and metric availability. Missing operational rates
-remain `Unknown`/`REQUIRES_LAPTOP`; they are not converted to zero.
+or supported attack recalls remain `Unknown`/`REQUIRES_LAPTOP`; they are not
+converted to zero, and the baseline is not frozen until every supported attack
+class recall is present.
 
 ## Corrected one-seed run
 
@@ -165,15 +170,18 @@ Run all days only after baseline, one-seed, and three-seed prerequisites pass:
 ```
 
 Expected output is one directory per day containing validation evidence,
-cumulative snapshot manifests, evaluator/training results, an isolated
+cumulative snapshot manifests including `metadata_preprocessing.json` and
+`checksums.txt`, evaluator/training results, an isolated
 candidate registry where applicable, and `day_report.json`, plus:
 
 - `ml_model/results/retraining_20_day_v1/full/simulation_report.json`
 - `ml_model/results/retraining_20_day_v1/full/simulation_report.md`
 
-Every day must be represented as `ACCEPTED` or `REJECTED`; a failed day must
-retain its error, stage, quarantine, and partial evidence. The simulator does
-not modify `ml_model/model_registry/production/` or an active staging artifact.
+Every day must be represented as `ACCEPTED`, `REJECTED`, or `NOT_RUN`; a failed
+day blocks later cumulative days, which retain their blocked reports. The
+simulator does not modify `ml_model/model_registry/production/` or an active
+staging artifact. A one-day run is `PARTIAL`; only all accepted days 1–20 can
+be complete `SUCCESS`.
 
 ## Reporting and copy-back
 
@@ -189,7 +197,8 @@ Get-ChildItem ml_model/results/retraining_20_day_v1/full -Recurse -File | Select
 Copy back only reviewable evidence: baseline and aggregate/day JSON or
 Markdown reports, validation/quarantine reports, snapshot manifests and
 hashes, selected small metadata manifests, and explicitly requested candidate
-identity evidence. Do not copy or commit private datasets, full checkpoints,
+identity evidence. Quarantine contains no raw request text. Do not copy or
+commit private datasets, full checkpoints,
 ordinary logs, secrets, virtual environments, caches, or generated model
 artifacts without an explicit artifact handoff decision.
 
@@ -212,7 +221,7 @@ production readiness.
 | Operation | Status in this coding session |
 |---|---|
 | Contract, validator, snapshot, simulator, baseline tooling | `PASS` (implemented and focused-tested) |
-| Two-day synthetic orchestration smoke | `PASS` (orchestration-only) |
+| Two-day synthetic orchestration smoke | `SMOKE_SUCCESS` (orchestration-only) |
 | Real current-model baseline | `NOT_RUN` / `REQUIRES_LAPTOP` |
 | Corrected seed-2026 native training | `NOT_RUN` / `REQUIRES_LAPTOP` |
 | Three-seed confirmation | `NOT_RUN` / `REQUIRES_LAPTOP` |

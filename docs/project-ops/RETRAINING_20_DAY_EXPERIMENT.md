@@ -35,35 +35,42 @@ The source of truth is
 The exact pagination request is locked in the golden set and is not present in
 the prepared training batches. Daily snapshots append only validated samples
 to the historical training split; validation, test, and golden controls stay
-unchanged.
+unchanged. Every generated snapshot also contains the shared preprocessing
+metadata and checksum manifest accepted by the maintained training preflight.
 
 ## Data controls
 
 Every prepared JSONL row contains:
 
-`sample_id`, `model_input_text`, `ground_truth_label`, `batch_day`,
-`source_type`, `is_synthetic`, `review_status`, `provenance_id`, and
-`preprocessing_version`.
+`sample_id`, `model_input_text`, `model_input_hash`, `ground_truth_label`,
+`batch_day`, `source_type`, `is_synthetic`, `review_status`, `provenance_id`,
+and `preprocessing_version`.
 
 Only `review_status=approved_for_training` is eligible. The validator rejects
 unknown labels, missing ground truth, any model-prediction label field,
 unapproved rows, missing provenance, mismatched preprocessing, duplicates,
-conflicting labels, and exact golden overlap. Rejected rows remain in a
-deterministic quarantine JSONL report.
+conflicting labels, exact or near-duplicate golden overlap, missing or invalid
+model-input hashes, and wrong batch-day provenance. Rejected rows remain in a
+deterministic privacy-safe quarantine JSONL report containing only identifiers,
+source type, and a request-text hash; raw request text is not stored.
 
 ## Orchestration and evidence
 
 For each simulated day the orchestrator validates the batch, builds a
-versioned cumulative snapshot, invokes `ml_model.training.train`, validates
-the run bundle through `ml_model.evaluation.evaluate`, packages into an
-isolated candidate registry through the existing export boundary, reload-tests
-the candidate, runs golden controls and the direct `ModelService` backend
-boundary, and applies the gates. A failed day is recorded as `REJECTED` with
-its stage and error; it is never silently skipped. No active registry path is
-used as an output target.
+versioned cumulative snapshot, validates all runtime inputs and the historical
+dataset contract before creating output, invokes `ml_model.training.train`,
+validates the run bundle through `ml_model.evaluation.evaluate`, packages into
+an isolated candidate registry through the existing export boundary,
+reload-tests the candidate, runs golden controls and the direct `ModelService`
+backend boundary using the contract policy, and applies the gates. A failed
+day is recorded as `REJECTED` with its stage and error; later cumulative days
+are recorded `NOT_RUN` and cannot produce accepted candidates. Normal callers
+cannot bypass the locked golden set or write inside the model registry. No
+active registry path is used as an output target.
 
-The smoke result proves orchestration and failure safety only. It does not
-support claims about accuracy or retraining quality.
+The smoke result is reported as `SMOKE_SUCCESS` and proves orchestration and
+failure safety only. It does not support claims about accuracy or retraining
+quality.
 
 ## Engineering and research basis
 
@@ -102,12 +109,14 @@ Before inspecting candidate results, the TOML freezes these gates:
 - macro F1 does not decrease by more than `0.002`;
 - normal recall is at least `0.995`;
 - supported attack recall does not decrease by more than `0.01`;
+- every supported attack class is present in the frozen baseline recall;
 - preprocessing, labels, thresholds, run-bundle completeness, packaging,
   reload, and backend checks remain valid.
 
 Missing baseline metrics are `Unknown`/`REQUIRES_LAPTOP`; they are never
 replaced with guessed zeros. A candidate that misses a mandatory gate is
-preserved and marked `REJECTED`.
+preserved and marked `REJECTED`. A one- or two-day normal run is `PARTIAL`,
+not the complete experiment `SUCCESS`.
 
 ## Reproducibility and limitations
 
