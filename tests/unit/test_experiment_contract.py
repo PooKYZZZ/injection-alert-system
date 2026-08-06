@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from ml_model.retraining.experiment_contract import (
+    EXPECTED_LABELS,
+    EXPECTED_MODEL_REVISION,
+    EXPECTED_PREPROCESSING_VERSION,
+    load_experiment_config,
+)
+
+
+def test_checked_in_experiment_contract_is_immutable_and_portable():
+    root = Path(__file__).resolve().parents[2]
+    config = load_experiment_config(root / "ml_model/configs/retraining_20_day_v1.toml")
+
+    assert config.preprocessing_version == EXPECTED_PREPROCESSING_VERSION
+    assert config.model_revision == EXPECTED_MODEL_REVISION
+    assert config.label_names == EXPECTED_LABELS
+    assert config.daily_seed == 2026
+    assert config.confirmation_seeds == (42, 1337, 2026)
+    assert config.max_epochs == 4
+    assert config.action_for("Normal", "CRITICAL") == "ALLOWED"
+    assert config.action_for("SQL Injection", "HIGH") == "BLOCKED"
+    assert config.output_dir.is_relative_to(root)
+
+
+def test_contract_rejects_v2_preprocessing(tmp_path: Path):
+    path = tmp_path / "bad.toml"
+    path.write_text(
+        """
+[experiment]
+name = "controlled-retraining-20-day"
+version = "retraining-20-day-v1"
+[data]
+historical_dataset_version = "v3_907k_cleaned"
+preprocessing_version = "model-input-v2-redacted"
+[model]
+model_family = "native_distilbert"
+model_id = "distilbert-base-uncased"
+model_revision = "12040accade4e8a0f71eabdb258fecc2e7e948be"
+daily_seed = 2026
+confirmation_seeds = [42, 1337, 2026]
+max_epochs = 4
+[golden]
+version = "golden-v1"
+manifest_file = "golden_manifest.json"
+[labels]
+names = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
+[policy.thresholds]
+low = 0.50
+high = 0.80
+critical = 0.90
+[policy.actions]
+normal = "ALLOWED"
+low = "ALLOWED"
+medium = "THROTTLED"
+high = "BLOCKED"
+critical = "BLOCKED"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="http-preprocessor-v1"):
+        load_experiment_config(path, project_root=tmp_path)
