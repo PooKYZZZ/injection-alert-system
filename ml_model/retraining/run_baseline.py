@@ -12,6 +12,10 @@ from ml_model.evaluation.golden_controls import (
     load_golden_controls,
 )
 from ml_model.retraining.experiment_contract import load_experiment_config, sha256_file
+from ml_model.retraining.prediction_artifacts import (
+    records_from_golden_evaluation,
+    write_prediction_artifact,
+)
 
 
 def extract_baseline_metrics(eval_report: Mapping[str, Any]) -> dict[str, Any]:
@@ -69,9 +73,7 @@ def _missing_baseline_metrics(
         if label not in metrics.get("supported_attack_recall", {})
     )
     if missing_attack_recall:
-        missing.append(
-            "supported_attack_recall:" + ",".join(missing_attack_recall)
-        )
+        missing.append("supported_attack_recall:" + ",".join(missing_attack_recall))
     return missing
 
 
@@ -83,6 +85,7 @@ def build_baseline_report(
 ) -> dict[str, Any]:
     artifact = Path(artifact_dir).expanduser().resolve()
     config = load_experiment_config(config_path)
+    destination = Path(output_path).expanduser().resolve()
     controls = load_golden_controls(config.golden_manifest_file)
     from web_app.config import Settings
     from web_app.services.model_service import ModelService
@@ -115,6 +118,22 @@ def build_baseline_report(
         if manifest_path.is_file()
         else {}
     )
+    prediction_path = destination.parent / "baseline_predictions.json"
+    model_version = str(manifest.get("model_version", artifact.name))
+    write_prediction_artifact(
+        prediction_path,
+        records_from_golden_evaluation(
+            controls.cases,
+            golden,
+            model_version=model_version,
+            dataset_version=config.historical_dataset_version,
+            golden_version=config.golden_version,
+        ),
+        model_version=model_version,
+        dataset_version=config.historical_dataset_version,
+        golden_version=config.golden_version,
+        golden_manifest_sha256=golden.get("manifest_sha256"),
+    )
     file_hashes = {
         path.name: sha256_file(path)
         for path in sorted(artifact.iterdir())
@@ -131,6 +150,10 @@ def build_baseline_report(
     )
     missing_metrics = _missing_baseline_metrics(metrics, config.label_names)
     baseline_ready = not missing_metrics
+    try:
+        prediction_reference = str(prediction_path.relative_to(config.project_root))
+    except ValueError:
+        prediction_reference = str(prediction_path)
     report = {
         "status": "PASS"
         if service.loaded and golden["passed"] and baseline_ready
@@ -140,8 +163,7 @@ def build_baseline_report(
             "READY_FOR_EXPERIMENT" if baseline_ready else "NOT_PERMITTED"
         ),
         "execution_boundary": (
-            "current staged artifact direct ModelService and locked golden "
-            "controls"
+            "current staged artifact direct ModelService and locked golden controls"
         ),
         "training_status": "NOT_RUN",
         "artifact_argument": str(artifact_dir),
@@ -155,6 +177,8 @@ def build_baseline_report(
         "metrics": metrics,
         "missing_required_metrics": missing_metrics,
         "golden": golden,
+        "prediction_artifact": prediction_reference,
+        "prediction_artifact_status": "WRITTEN",
         "exact_pagination": exact,
         "packaging_status": "VERIFIED_FROM_MANIFEST"
         if manifest.get("local_reload_verified")
@@ -163,7 +187,6 @@ def build_baseline_report(
         "waf_status": "NOT_RUN",
         "dashboard_status": "NOT_RUN",
     }
-    destination = Path(output_path).expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"

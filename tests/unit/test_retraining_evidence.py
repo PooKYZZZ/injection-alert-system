@@ -7,6 +7,11 @@ from pathlib import Path
 from ml_model.retraining.drift import build_batch_drift_summary
 from ml_model.retraining.experiment_contract import load_experiment_config
 from ml_model.retraining.integrity import validate_candidate_contract
+from ml_model.retraining.prediction_artifacts import (
+    join_prediction_artifacts,
+    load_prediction_artifact,
+    write_prediction_artifact,
+)
 from ml_model.retraining.statistical_evidence import build_statistical_evidence
 from ml_model.training.run_contract import build_training_run_contract, contract_sha256
 
@@ -131,6 +136,117 @@ def test_statistical_evidence_reports_paired_errors_and_mcnemar_result():
         "both_wrong": 1,
     }
     assert evidence["mcnemar_exact"]["discordant_total"] == 2
+
+
+def _prediction_records(labels: list[str], *, prefix: str = "sample") -> list[dict]:
+    return [
+        {
+            "sample_id": f"{prefix}-{index}",
+            "split": "golden",
+            "y_true": label,
+            "prediction": label if index % 2 == 0 else "Normal",
+            "confidence": 0.91,
+            "confidence_tier": "CRITICAL",
+            "response_action": "BLOCKED",
+        }
+        for index, label in enumerate(labels)
+    ]
+
+
+def test_prediction_artifacts_are_provenance_bound_and_join_by_stable_ids(
+    tmp_path: Path,
+):
+    baseline_path = tmp_path / "baseline_predictions.json"
+    candidate_path = tmp_path / "candidate_predictions.json"
+    baseline = write_prediction_artifact(
+        baseline_path,
+        _prediction_records(["Normal", "SQL Injection"]),
+        model_version="baseline-v1",
+        dataset_version="dataset-v1",
+        golden_version="golden-v1",
+    )
+    write_prediction_artifact(
+        candidate_path,
+        _prediction_records(["Normal", "SQL Injection"]),
+        model_version="candidate-v1",
+        dataset_version="dataset-v1",
+        golden_version="golden-v1",
+    )
+
+    loaded = load_prediction_artifact(baseline_path)
+    joined = join_prediction_artifacts(baseline_path, candidate_path)
+    evidence = build_statistical_evidence(
+        {"baseline_artifact": baseline_path, "candidate_artifact": candidate_path}
+    )
+
+    assert baseline["provenance"]["dataset_version"] == "dataset-v1"
+    assert loaded["records"][0]["sample_id"] == "sample-0"
+    assert joined["sample_ids"] == ["sample-0", "sample-1"]
+    assert evidence["status"] == "COMPUTED"
+    assert evidence["provenance"]["golden_version"] == "golden-v1"
+    assert evidence["significance_claim"] == "NOT_CLAIMED"
+
+
+def test_prediction_artifacts_reject_mismatched_ids_and_provenance(tmp_path: Path):
+    baseline_path = tmp_path / "baseline.json"
+    candidate_path = tmp_path / "candidate.json"
+    write_prediction_artifact(
+        baseline_path,
+        _prediction_records(["Normal", "SQL Injection"]),
+        model_version="baseline-v1",
+        dataset_version="dataset-v1",
+        golden_version="golden-v1",
+    )
+    write_prediction_artifact(
+        candidate_path,
+        _prediction_records(["Normal", "SQL Injection"], prefix="other"),
+        model_version="candidate-v1",
+        dataset_version="dataset-v1",
+        golden_version="golden-v1",
+    )
+    mismatch = build_statistical_evidence(
+        {"baseline_artifact": baseline_path, "candidate_artifact": candidate_path}
+    )
+    assert mismatch["status"] == "INVALID"
+    assert mismatch["reason"] == "prediction_ids_do_not_match"
+
+    write_prediction_artifact(
+        candidate_path,
+        _prediction_records(["Normal", "SQL Injection"]),
+        model_version="candidate-v1",
+        dataset_version="dataset-v2",
+        golden_version="golden-v1",
+    )
+    provenance_mismatch = build_statistical_evidence(
+        {"baseline_artifact": baseline_path, "candidate_artifact": candidate_path}
+    )
+    assert provenance_mismatch["status"] == "INVALID"
+    assert provenance_mismatch["reason"] == "prediction_provenance_mismatch"
+
+
+def test_statistical_evidence_rejects_malformed_arrays_and_keeps_smoke_non_thesis(
+    tmp_path: Path,
+):
+    assert (
+        build_statistical_evidence(
+            {"y_true": ["Normal"], "baseline_predictions": ["Normal"]}
+        )["status"]
+        == "NOT_RUN"
+    )
+    assert (
+        build_statistical_evidence(
+            {
+                "y_true": ["Normal"],
+                "baseline_predictions": ["Normal"],
+                "candidate_predictions": [],
+            }
+        )["status"]
+        == "INVALID"
+    )
+
+    smoke = build_statistical_evidence({"mode": "synthetic_orchestration_smoke"})
+    assert smoke["status"] == "NOT_RUN"
+    assert smoke["thesis_evidence"] is False
 
 
 def test_candidate_contract_gate_reports_all_locked_identity_checks(tmp_path: Path):

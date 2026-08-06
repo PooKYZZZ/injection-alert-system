@@ -15,6 +15,7 @@ from ml_model.retraining.simulate_20_day import (
     run_smoke,
     validate_baseline_attack_recall_completeness,
 )
+from ml_model.retraining.snapshots import ContaminationIndex
 
 
 def _write_config(path: Path) -> None:
@@ -146,6 +147,33 @@ def test_acceptance_gates_require_candidate_contract_integrity_when_supplied():
     assert "contract_integrity" in result.failures
 
 
+def test_native_acceptance_gates_require_computed_statistical_evidence():
+    result = evaluate_acceptance_gates(
+        baseline={
+            "normal_false_positive_rate": 0.01,
+            "attack_escape_rate": 0.01,
+            "macro_f1": 0.99,
+            "normal_recall": 1.0,
+            "supported_attack_recall": {},
+        },
+        candidate={
+            "normal_false_positive_rate": 0.01,
+            "attack_escape_rate": 0.01,
+            "macro_f1": 0.99,
+            "normal_recall": 1.0,
+            "supported_attack_recall": {},
+        },
+        golden={"passed": True},
+        package_passed=True,
+        reload_passed=True,
+        backend_passed=True,
+        statistical_evidence={"status": "NOT_RUN"},
+    )
+
+    assert result.passed is False
+    assert result.checks["statistical_evidence"] is False
+
+
 def test_nested_baseline_report_is_normalized():
     normalized = normalize_baseline_metrics(
         {
@@ -234,12 +262,39 @@ def test_two_day_smoke_completes_and_repeats_input_hashes(tmp_path: Path):
     assert first.baseline_status == "SMOKE_SYNTHETIC"
     assert first.to_dict()["experiment"]["real_training_status"] == "NOT_RUN"
     assert first.to_dict()["experiment"]["model_quality_conclusion"] == "NOT_PERMITTED"
+    assert all(day["statistical_evidence"]["status"] == "NOT_RUN" for day in first.days)
+    assert all(
+        day["statistical_evidence"]["thesis_evidence"] is False for day in first.days
+    )
     assert [day["input_hash"] for day in first.days] == [
         day["input_hash"] for day in second.days
     ]
     assert [day["snapshot_hash"] for day in first.days] == [
         day["snapshot_hash"] for day in second.days
     ]
+
+
+def test_simulation_builds_historical_contamination_index_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config_path = tmp_path / "experiment.toml"
+    _write_config(config_path)
+    original = ContaminationIndex.from_historical_dir
+    calls: list[Path | str] = []
+
+    def counted(historical_dir: Path | str) -> ContaminationIndex:
+        calls.append(historical_dir)
+        return original(historical_dir)
+
+    monkeypatch.setattr(ContaminationIndex, "from_historical_dir", counted)
+    report = run_smoke(
+        config_path=config_path,
+        output_dir=tmp_path / "indexed-smoke",
+        days=[1, 2, 3, 4],
+    )
+
+    assert report.status == "SMOKE_SUCCESS"
+    assert len(calls) == 1
 
 
 def test_simulation_preserves_incomplete_evaluation_and_packaging_failures(
@@ -380,6 +435,7 @@ def test_normal_partial_run_is_not_reported_as_complete_success(tmp_path: Path):
     batches = tmp_path / "batches"
     batches.mkdir()
     _write_batch(batches / "day_01.jsonl", 1)
+
     def train(**kwargs):
         path = kwargs["day_dir"] / "run"
         path.mkdir(parents=True)

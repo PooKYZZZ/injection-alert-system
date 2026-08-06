@@ -26,11 +26,16 @@ from ml_model.retraining.experiment_contract import (
     load_experiment_config,
 )
 from ml_model.retraining.integrity import validate_candidate_contract
+from ml_model.retraining.prediction_artifacts import (
+    records_from_golden_evaluation,
+    write_prediction_artifact,
+)
 from ml_model.retraining.report_simulation import (
     write_simulation_markdown,
     write_simulation_report,
 )
 from ml_model.retraining.snapshots import (
+    ContaminationIndex,
     SnapshotResult,
     build_cumulative_snapshot,
     validate_snapshot_integrity,
@@ -144,13 +149,17 @@ def normalize_baseline_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     supported_attack_recall = metrics["supported_attack_recall"]
     if not isinstance(supported_attack_recall, Mapping):
         raise ValueError("baseline supported_attack_recall must be a JSON object")
-    return {
+    normalized = {
         "normal_false_positive_rate": float(metrics["normal_false_positive_rate"]),
         "attack_escape_rate": float(metrics["attack_escape_rate"]),
         "macro_f1": float(metrics["macro_f1"]),
         "normal_recall": float(metrics["normal_recall"]),
         "supported_attack_recall": dict(supported_attack_recall),
     }
+    prediction_artifact = payload.get("prediction_artifact")
+    if prediction_artifact is not None:
+        normalized["prediction_artifact"] = str(prediction_artifact)
+    return normalized
 
 
 def validate_baseline_attack_recall_completeness(
@@ -164,8 +173,7 @@ def validate_baseline_attack_recall_completeness(
     )
     if missing:
         raise ValueError(
-            "baseline is missing supported attack recall metrics: "
-            + ", ".join(missing)
+            "baseline is missing supported attack recall metrics: " + ", ".join(missing)
         )
 
 
@@ -178,6 +186,7 @@ def evaluate_acceptance_gates(
     reload_passed: bool,
     backend_passed: bool,
     candidate_contract: Mapping[str, Any] | None = None,
+    statistical_evidence: Mapping[str, Any] | None = None,
     tolerances: AcceptanceTolerances | None = None,
 ) -> AcceptanceGateResult:
     tolerances = tolerances or AcceptanceTolerances()
@@ -189,6 +198,10 @@ def evaluate_acceptance_gates(
     }
     if candidate_contract is not None:
         checks["contract_integrity"] = bool(candidate_contract.get("passed"))
+    if statistical_evidence is not None:
+        checks["statistical_evidence"] = (
+            statistical_evidence.get("status") == "COMPUTED"
+        )
     checks["normal_false_positive_rate"] = _metric(
         candidate, "normal_false_positive_rate"
     ) <= (
@@ -429,12 +442,35 @@ def _default_golden(
             api_secret_key="controlled-retraining-local-check",
         )
     )
-    return evaluate_golden_controls(
+    evaluation = evaluate_golden_controls(
         controls,
         service.predict,
         confidence_thresholds=config.confidence_thresholds,
         response_actions=config.response_actions,
     ).to_dict()
+    prediction_path = artifact_path.parent / f"{artifact_path.name}.predictions.json"
+    write_prediction_artifact(
+        prediction_path,
+        records_from_golden_evaluation(
+            controls.cases,
+            evaluation,
+            model_version=service.model_version or artifact_path.name,
+            dataset_version=config.historical_dataset_version,
+            golden_version=config.golden_version,
+        ),
+        model_version=service.model_version or artifact_path.name,
+        dataset_version=config.historical_dataset_version,
+        golden_version=config.golden_version,
+        golden_manifest_sha256=evaluation.get("manifest_sha256"),
+    )
+    return {**evaluation, "prediction_artifact": str(prediction_path)}
+
+
+def _resolve_prediction_artifact(value: Any, config: ExperimentConfig) -> Path:
+    path = Path(str(value)).expanduser()
+    return (
+        path.resolve() if path.is_absolute() else (config.project_root / path).resolve()
+    )
 
 
 def _default_backend(
@@ -491,8 +527,7 @@ def _assert_safe_simulation_output(output_root: Path, project_root: Path) -> Non
     protected_root = (project_root / "ml_model" / "model_registry").resolve()
     if output_root == protected_root or protected_root in output_root.parents:
         raise ValueError(
-            "simulation output must not be inside the model registry: "
-            f"{output_root}"
+            f"simulation output must not be inside the model registry: {output_root}"
         )
 
 
@@ -582,6 +617,7 @@ def run_simulation(
         if allow_test_overrides and golden_texts is not None
         else load_golden_controls(config.golden_manifest_file)
     )
+    contamination_index = ContaminationIndex.from_historical_dir(historical_data_dir)
     cumulative_samples: list[dict[str, Any]] = []
     day_reports: list[dict[str, Any]] = []
     for day in days_to_process:
@@ -638,6 +674,8 @@ def run_simulation(
             snapshot: SnapshotResult = build_cumulative_snapshot(
                 historical_data_dir=historical_data_dir,
                 cumulative_samples=cumulative_samples,
+                new_samples=batch_report.accepted_samples,
+                contamination_index=contamination_index,
                 output_root=day_dir / "snapshots",
                 day=day,
                 dataset_version=config.historical_dataset_version,
@@ -690,9 +728,6 @@ def run_simulation(
                 else _extract_candidate_metrics(run_dir)
             )
             day_result["evaluation"] = evaluation
-            day_result["statistical_evidence"] = build_statistical_evidence(
-                evaluation
-            )
             day_result["stage"] = "packaging"
             package_hook = hooks.package or _default_package
             artifact_path = Path(
@@ -714,6 +749,7 @@ def run_simulation(
             )
             day_result["candidate_contract"] = candidate_contract
             if not candidate_contract["passed"]:
+                day_result["statistical_evidence"] = build_statistical_evidence({})
                 day_result.update(
                     {
                         "stage": "candidate_contract",
@@ -741,6 +777,24 @@ def run_simulation(
                         day=day,
                     )
                 )
+                evidence_payload = (
+                    dict(evaluation)
+                    if _smoke_mode or allow_test_overrides
+                    else {}
+                )
+                baseline_artifact = baseline.get("prediction_artifact")
+                candidate_artifact = golden_result.get("prediction_artifact")
+                if baseline_artifact is not None:
+                    evidence_payload["baseline_artifact"] = (
+                        _resolve_prediction_artifact(baseline_artifact, config)
+                    )
+                if candidate_artifact is not None:
+                    evidence_payload["candidate_artifact"] = (
+                        _resolve_prediction_artifact(candidate_artifact, config)
+                    )
+                day_result["statistical_evidence"] = build_statistical_evidence(
+                    evidence_payload
+                )
                 day_result["stage"] = "backend"
                 backend_hook = hooks.backend or _default_backend
                 backend_result = dict(
@@ -754,6 +808,11 @@ def run_simulation(
                     reload_passed=reload_passed,
                     backend_passed=_bool_result(backend_result),
                     candidate_contract=candidate_contract,
+                    statistical_evidence=(
+                        day_result["statistical_evidence"]
+                        if not _smoke_mode and not allow_test_overrides
+                        else None
+                    ),
                     tolerances=config.acceptance,
                 )
             day_result.update(
@@ -824,9 +883,7 @@ def run_simulation(
                 else "native_training_simulation"
             ),
             "real_training_status": (
-                "NOT_RUN"
-                if _smoke_mode or not training_attempted
-                else "ATTEMPTED"
+                "NOT_RUN" if _smoke_mode or not training_attempted else "ATTEMPTED"
             ),
             "model_quality_conclusion": (
                 "NOT_PERMITTED" if _smoke_mode else "PENDING_ACCEPTANCE_GATES"
