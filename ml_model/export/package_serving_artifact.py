@@ -500,6 +500,7 @@ def package_serving_artifact(
     sample_text: str = DEFAULT_SAMPLE_TEXT,
     notes: str | None = None,
     calibration_eval_run_dir: Path | None = None,
+    model_registry_path: Path | None = None,
 ) -> Path:
     if model_key not in NATIVE_MODEL_KEYS:
         raise PackagingError(
@@ -508,7 +509,11 @@ def package_serving_artifact(
         )
 
     repo_root = find_repo_root(Path.cwd().resolve())
-    model_registry = repo_root / "ml_model" / "model_registry"
+    model_registry = (
+        Path(model_registry_path).expanduser().resolve()
+        if model_registry_path is not None
+        else repo_root / "ml_model" / "model_registry"
+    )
     staging_dir = model_registry / "staging"
     eval_dir = model_registry / "eval"
 
