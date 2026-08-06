@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from math import ceil, floor
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -105,97 +106,317 @@ def _similarity_text(value: str) -> str:
     return f"{method} {normalized_target}"
 
 
+LENGTH_BUCKET_WIDTH = 32
+
+
+@dataclass(frozen=True)
+class ContaminationRecord:
+    """Normalized, non-sensitive index entry for one historical or daily row."""
+
+    record_key: str
+    sample_id: str
+    source: str
+    text: str
+    normalized_text: str
+    normalized_hash: str
+    label: str | None
+
+
+class ContaminationIndex:
+    """Reusable exact and length-bucketed near-duplicate contamination index.
+
+    The length-range candidate filter is the same safe precondition used by the
+    previous implementation: a SequenceMatcher ratio cannot reach the configured
+    threshold when the normalized lengths fall outside this range. It therefore
+    reduces comparisons without filtering on method/path, which could miss a
+    high-ratio near duplicate whose request dimensions changed.
+    """
+
+    def __init__(
+        self,
+        historical_records: Sequence[ContaminationRecord],
+    ) -> None:
+        self.exact_hashes: dict[str, list[ContaminationRecord]] = {}
+        self.buckets: dict[int, list[ContaminationRecord]] = {}
+        self._records: dict[str, ContaminationRecord] = {}
+        self._daily_record_keys: set[str] = set()
+        self._historical_row_count = len(historical_records)
+        self._candidate_comparisons_checked = 0
+        self._add_records(historical_records)
+
+    @classmethod
+    def from_historical_frames(
+        cls,
+        historical_frames: Sequence[tuple[str, pd.DataFrame]],
+    ) -> "ContaminationIndex":
+        records: list[ContaminationRecord] = []
+        for split, frame in historical_frames:
+            for row_number, row in frame.reset_index(drop=True).iterrows():
+                text = str(row["combined_payload"])
+                records.append(
+                    cls._record(
+                        record_key=f"historical:{split}:{row_number}",
+                        sample_id=str(row.get("sample_id", f"{split}:{row_number}")),
+                        source=str(split),
+                        text=text,
+                        label=(
+                            None
+                            if row.get("final_label") is None
+                            else str(row["final_label"])
+                        ),
+                    )
+                )
+        return cls(records)
+
+    @classmethod
+    def from_historical_dir(
+        cls, historical_data_dir: Path | str
+    ) -> "ContaminationIndex":
+        root = Path(historical_data_dir).expanduser().resolve()
+        historical = [
+            (split, _load_split(root, split))
+            for split in ("train", "validation", "test")
+        ]
+        return cls.from_historical_frames(historical)
+
+    @staticmethod
+    def _record(
+        *,
+        record_key: str,
+        sample_id: str,
+        source: str,
+        text: str,
+        label: str | None,
+    ) -> ContaminationRecord:
+        normalized_text = _similarity_text(text)
+        return ContaminationRecord(
+            record_key=record_key,
+            sample_id=sample_id,
+            source=source,
+            text=text,
+            normalized_text=normalized_text,
+            normalized_hash=sha256_text(normalized_text),
+            label=label,
+        )
+
+    @staticmethod
+    def _bucket_for(text: str) -> int:
+        return len(text) // LENGTH_BUCKET_WIDTH
+
+    def _add_records(self, records: Sequence[ContaminationRecord]) -> None:
+        for record in records:
+            self._records[record.record_key] = record
+            self.exact_hashes.setdefault(record.normalized_hash, []).append(record)
+            self.buckets.setdefault(
+                self._bucket_for(record.normalized_text), []
+            ).append(record)
+            if record.source == "cumulative_daily":
+                self._daily_record_keys.add(record.record_key)
+
+    @property
+    def historical_row_count(self) -> int:
+        return self._historical_row_count
+
+    @property
+    def daily_row_count(self) -> int:
+        return len(self._daily_record_keys)
+
+    @property
+    def sample_ids(self) -> frozenset[str]:
+        return frozenset(record.sample_id for record in self._records.values())
+
+    def diagnostics(self) -> dict[str, int]:
+        return {
+            "historical_row_count": self.historical_row_count,
+            "daily_row_count": self.daily_row_count,
+            "candidate_comparisons_checked": self._candidate_comparisons_checked,
+        }
+
+    def _candidate_records(
+        self, normalized_text: str, *, threshold: float
+    ) -> list[ContaminationRecord]:
+        minimum_length = ceil(len(normalized_text) * threshold)
+        maximum_length = floor(len(normalized_text) / threshold)
+        minimum_bucket = self._bucket_for("x" * minimum_length)
+        maximum_bucket = self._bucket_for("x" * maximum_length)
+        candidates: list[ContaminationRecord] = []
+        for bucket in range(minimum_bucket, maximum_bucket + 1):
+            candidates.extend(self.buckets.get(bucket, ()))
+        return [
+            record
+            for record in candidates
+            if minimum_length <= len(record.normalized_text) <= maximum_length
+        ]
+
+    def _find_record_matches(
+        self,
+        record: ContaminationRecord,
+        *,
+        threshold: float,
+    ) -> tuple[list[dict[str, Any]], int]:
+        exact_matches = self.exact_hashes.get(record.normalized_hash, [])
+        if exact_matches:
+            return [
+                self._match(record, match, similarity=1.0) for match in exact_matches
+            ], 0
+        candidates = self._candidate_records(
+            record.normalized_text, threshold=threshold
+        )
+        matches: list[dict[str, Any]] = []
+        comparisons = 0
+        for candidate in candidates:
+            comparisons += 1
+            matcher = SequenceMatcher(
+                None, record.normalized_text, candidate.normalized_text
+            )
+            if matcher.quick_ratio() < threshold:
+                continue
+            similarity = matcher.ratio()
+            if similarity >= threshold:
+                matches.append(self._match(record, candidate, similarity=similarity))
+        return matches, comparisons
+
+    @staticmethod
+    def _match(
+        candidate: ContaminationRecord,
+        matched: ContaminationRecord,
+        *,
+        similarity: float,
+    ) -> dict[str, Any]:
+        return {
+            "sample_id": candidate.sample_id,
+            "matched_sample_id": matched.sample_id,
+            "affected_split": matched.source,
+            "match_type": (
+                "exact"
+                if candidate.normalized_hash == matched.normalized_hash
+                else "near_duplicate"
+            ),
+            "similarity": round(similarity, 6),
+            "candidate_model_input_sha256": sha256_text(candidate.text),
+            "matched_model_input_sha256": sha256_text(matched.text),
+        }
+
+    def _report(
+        self,
+        *,
+        threshold: float,
+        matches: Sequence[dict[str, Any]],
+        candidate_comparisons_checked: int,
+    ) -> dict[str, Any]:
+        exact_count = sum(match["match_type"] == "exact" for match in matches)
+        near_count = sum(match["match_type"] == "near_duplicate" for match in matches)
+        return {
+            "near_duplicate_threshold": threshold,
+            "historical_row_count": self.historical_row_count,
+            "daily_row_count": self.daily_row_count,
+            "candidate_comparisons_checked": candidate_comparisons_checked,
+            "exact_overlap_count": exact_count,
+            "near_duplicate_count": near_count,
+            "rejected_sample_ids": sorted(
+                {str(match["sample_id"]) for match in matches}
+            ),
+            "matches": sorted(
+                (dict(match) for match in matches),
+                key=lambda match: (
+                    str(match.get("sample_id", "")),
+                    str(match.get("affected_split", "")),
+                    str(match.get("matched_sample_id", "")),
+                ),
+            ),
+        }
+
+    def check_new_samples(
+        self,
+        samples: Sequence[Mapping[str, Any]],
+        *,
+        threshold: float = 0.90,
+    ) -> dict[str, Any]:
+        if not 0.0 < threshold <= 1.0:
+            raise ValueError("near_duplicate_threshold must be within (0, 1]")
+        sample_list = list(samples)
+        seen_ids: set[str] = set()
+        seen_hashes: dict[str, str] = {}
+        records: list[ContaminationRecord] = []
+        for sample in sample_list:
+            sample_id = str(sample["sample_id"])
+            text = str(sample["model_input_text"])
+            label = str(sample["ground_truth_label"])
+            if sample_id in seen_ids:
+                raise ValueError(f"duplicate daily sample_id: {sample_id}")
+            if sample_id in self.sample_ids:
+                raise ValueError(f"duplicate daily sample_id: {sample_id}")
+            seen_ids.add(sample_id)
+            record = self._record(
+                record_key=f"daily:{sample_id}",
+                sample_id=sample_id,
+                source="cumulative_daily",
+                text=text,
+                label=label,
+            )
+            if record.normalized_hash in seen_hashes:
+                if seen_hashes[record.normalized_hash] != label:
+                    raise ValueError(f"conflicting daily label for: {sample_id}")
+                raise ValueError(f"duplicate daily text for: {sample_id}")
+            seen_hashes[record.normalized_hash] = label
+            records.append(record)
+
+        matches: list[dict[str, Any]] = []
+        candidate_comparisons = 0
+        pending = ContaminationIndex(())
+        for record in records:
+            existing_matches, comparisons = self._find_record_matches(
+                record, threshold=threshold
+            )
+            candidate_comparisons += comparisons
+            pending_matches, comparisons = pending._find_record_matches(
+                record, threshold=threshold
+            )
+            candidate_comparisons += comparisons
+            matches.extend(existing_matches)
+            for match in pending_matches:
+                matches.append(match)
+            pending._add_records((record,))
+        self._candidate_comparisons_checked += candidate_comparisons
+        return self._report(
+            threshold=threshold,
+            matches=matches,
+            candidate_comparisons_checked=candidate_comparisons,
+        )
+
+    def validate_new_samples(
+        self,
+        samples: Sequence[Mapping[str, Any]],
+        *,
+        threshold: float = 0.90,
+    ) -> dict[str, Any]:
+        report = self.check_new_samples(samples, threshold=threshold)
+        if report["matches"]:
+            raise SnapshotContaminationError(report)
+        return report
+
+    def add_daily_samples(self, samples: Sequence[Mapping[str, Any]]) -> None:
+        records = [
+            self._record(
+                record_key=f"daily:{sample['sample_id']}",
+                sample_id=str(sample["sample_id"]),
+                source="cumulative_daily",
+                text=str(sample["model_input_text"]),
+                label=str(sample["ground_truth_label"]),
+            )
+            for sample in samples
+        ]
+        self._add_records(records)
+
+
 def _contamination_report(
     samples: Sequence[Mapping[str, Any]],
     historical_frames: Sequence[tuple[str, pd.DataFrame]],
     *,
     threshold: float = 0.90,
 ) -> dict[str, Any]:
-    if not 0.0 < threshold <= 1.0:
-        raise ValueError("near_duplicate_threshold must be within (0, 1]")
-    historical_rows: list[tuple[str, str, str]] = []
-    for split, frame in historical_frames:
-        for text in frame["combined_payload"].astype(str):
-            normalized = _similarity_text(text)
-            historical_rows.append((split, str(text), normalized))
-    matches: list[dict[str, Any]] = []
-    for sample in samples:
-        sample_text = str(sample["model_input_text"])
-        normalized_sample = _similarity_text(sample_text)
-        for split, historical_text, normalized_historical in historical_rows:
-            length_ratio = min(
-                len(normalized_sample), len(normalized_historical)
-            ) / max(len(normalized_sample), len(normalized_historical), 1)
-            if length_ratio < threshold:
-                continue
-            matcher = SequenceMatcher(None, normalized_sample, normalized_historical)
-            if matcher.quick_ratio() < threshold:
-                continue
-            similarity = matcher.ratio()
-            if similarity < threshold:
-                continue
-            matches.append(
-                {
-                    "sample_id": str(sample["sample_id"]),
-                    "affected_split": split,
-                    "match_type": (
-                        "exact"
-                        if normalized_sample == normalized_historical
-                        else "near_duplicate"
-                    ),
-                    "similarity": round(similarity, 6),
-                    "candidate_model_input_sha256": sha256_text(sample_text),
-                    "matched_model_input_sha256": sha256_text(historical_text),
-                }
-            )
-    for index, left in enumerate(samples):
-        for right in samples[index + 1 :]:
-            left_text = str(left["model_input_text"])
-            right_text = str(right["model_input_text"])
-            similarity = SequenceMatcher(
-                None, _similarity_text(left_text), _similarity_text(right_text)
-            ).ratio()
-            if similarity < threshold:
-                continue
-            matches.append(
-                {
-                    "sample_id": str(left["sample_id"]),
-                    "matched_sample_id": str(right["sample_id"]),
-                    "affected_split": "cumulative_daily",
-                    "match_type": (
-                        "exact"
-                        if _similarity_text(left_text) == _similarity_text(right_text)
-                        else "near_duplicate"
-                    ),
-                    "similarity": round(similarity, 6),
-                    "candidate_model_input_sha256": sha256_text(left_text),
-                    "matched_model_input_sha256": sha256_text(right_text),
-                }
-            )
-    exact_count = sum(match["match_type"] == "exact" for match in matches)
-    near_count = sum(
-        match["match_type"] == "near_duplicate" for match in matches
-    )
-    return {
-        "near_duplicate_threshold": threshold,
-        "exact_overlap_count": exact_count,
-        "near_duplicate_count": near_count,
-        "rejected_sample_ids": sorted(
-            {
-                str(match["sample_id"])
-                for match in matches
-                if match.get("sample_id") is not None
-            }
-        ),
-        "matches": sorted(
-            matches,
-            key=lambda match: (
-                str(match.get("sample_id", "")),
-                str(match.get("affected_split", "")),
-                str(match.get("matched_sample_id", "")),
-            ),
-        ),
-    }
+    index = ContaminationIndex.from_historical_frames(historical_frames)
+    return index.validate_new_samples(samples, threshold=threshold)
 
 
 def sha256_text(value: str) -> str:
@@ -208,24 +429,7 @@ def _validate_daily_samples(
     samples: Sequence[Mapping[str, Any]],
     historical_frames: Sequence[tuple[str, pd.DataFrame]],
 ) -> dict[str, Any]:
-    seen_ids: set[str] = set()
-    seen_texts: dict[str, str] = {}
-    for sample in samples:
-        sample_id = str(sample["sample_id"])
-        text = str(sample["model_input_text"])
-        label = str(sample["ground_truth_label"])
-        if sample_id in seen_ids:
-            raise ValueError(f"duplicate daily sample_id: {sample_id}")
-        seen_ids.add(sample_id)
-        if text in seen_texts:
-            if seen_texts[text] != label:
-                raise ValueError(f"conflicting daily label for: {sample_id}")
-            raise ValueError(f"duplicate daily text for: {sample_id}")
-        seen_texts[text] = label
-    report = _contamination_report(samples, historical_frames)
-    if report["matches"]:
-        raise SnapshotContaminationError(report)
-    return report
+    return _contamination_report(samples, historical_frames)
 
 
 def _write_training_dataset_contract(
@@ -249,9 +453,7 @@ def _write_training_dataset_contract(
         encoding="utf-8",
     )
     split_names = ("train.parquet", "validation.parquet", "test.parquet")
-    checksum_lines = [
-        f"{output_files[name]}  {name}" for name in split_names
-    ]
+    checksum_lines = [f"{output_files[name]}  {name}" for name in split_names]
     (snapshot_dir / "checksums.txt").write_text(
         "\n".join(checksum_lines) + "\n", encoding="utf-8"
     )
@@ -321,6 +523,8 @@ def build_cumulative_snapshot(
     dataset_version: str,
     preprocessing_version: str,
     project_root: Path | str | None = None,
+    contamination_index: ContaminationIndex | None = None,
+    new_samples: Sequence[Mapping[str, Any]] | None = None,
 ) -> SnapshotResult:
     if not 1 <= int(day) <= 20:
         raise ValueError("simulation day must be between 1 and 20")
@@ -331,7 +535,24 @@ def build_cumulative_snapshot(
         (split, _load_split(historical_root, split))
         for split in ("train", "validation", "test")
     ]
-    contamination = _validate_daily_samples(cumulative_samples, historical)
+    if contamination_index is None:
+        contamination = _validate_daily_samples(cumulative_samples, historical)
+    else:
+        samples_to_validate = list(new_samples or ())
+        if new_samples is None:
+            known_ids = contamination_index.sample_ids
+            samples_to_validate = [
+                sample
+                for sample in cumulative_samples
+                if str(sample["sample_id"]) not in known_ids
+            ]
+        contamination = contamination_index.validate_new_samples(samples_to_validate)
+        contamination_index.add_daily_samples(samples_to_validate)
+        contamination = {
+            **contamination,
+            "daily_row_count": contamination_index.daily_row_count,
+            "index_diagnostics": contamination_index.diagnostics(),
+        }
     daily = _daily_frame(cumulative_samples)
     train = pd.concat([historical[0][1], daily], ignore_index=True, sort=False)
     snapshot_dir = output_root / f"day_{int(day):02d}"
@@ -366,9 +587,7 @@ def build_cumulative_snapshot(
             "preprocessing_version": preprocessing_version,
         }
     )
-    historical_data_file_manifest_sha256 = canonical_json_sha256(
-        {"files": input_files}
-    )
+    historical_data_file_manifest_sha256 = canonical_json_sha256({"files": input_files})
     integrity = _integrity_hashes(snapshot_dir, output_files)
     dataset_file_manifest_sha256 = canonical_json_sha256({"files": output_files})
     manifest: dict[str, Any] = {
