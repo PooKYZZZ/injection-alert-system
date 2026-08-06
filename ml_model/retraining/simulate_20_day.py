@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import tempfile
 from dataclasses import dataclass
@@ -14,6 +15,10 @@ from ml_model.evaluation.golden_controls import (
     GoldenControlSet,
     evaluate_golden_controls,
     load_golden_controls,
+)
+from ml_model.preprocessing.dataset_io import (
+    load_dataset_file_manifest,
+    validate_dataset_preprocessing,
 )
 from ml_model.retraining.experiment_contract import (
     AcceptanceTolerances,
@@ -86,6 +91,52 @@ def _metric(payload: Mapping[str, Any], key: str) -> float:
     if value is None:
         raise ValueError(f"candidate metrics are missing {key}")
     return float(value)
+
+
+REQUIRED_BASELINE_METRICS = {
+    "normal_false_positive_rate",
+    "attack_escape_rate",
+    "macro_f1",
+    "normal_recall",
+    "supported_attack_recall",
+}
+
+
+def normalize_baseline_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
+    metrics = payload.get("metrics", payload)
+    if not isinstance(metrics, Mapping):
+        raise ValueError("baseline metrics must be a JSON object")
+    missing = sorted(
+        key for key in REQUIRED_BASELINE_METRICS if key not in metrics or metrics[key] is None
+    )
+    if missing:
+        raise ValueError(f"baseline is missing required metrics: {missing}")
+    supported_attack_recall = metrics["supported_attack_recall"]
+    if not isinstance(supported_attack_recall, Mapping):
+        raise ValueError("baseline supported_attack_recall must be a JSON object")
+    return {
+        "normal_false_positive_rate": float(metrics["normal_false_positive_rate"]),
+        "attack_escape_rate": float(metrics["attack_escape_rate"]),
+        "macro_f1": float(metrics["macro_f1"]),
+        "normal_recall": float(metrics["normal_recall"]),
+        "supported_attack_recall": dict(supported_attack_recall),
+    }
+
+
+def validate_baseline_attack_recall_completeness(
+    baseline: Mapping[str, Any], required_attack_labels: Iterable[str]
+) -> None:
+    supported_attack_recall = baseline.get("supported_attack_recall", {})
+    missing = sorted(
+        label
+        for label in required_attack_labels
+        if label not in supported_attack_recall
+    )
+    if missing:
+        raise ValueError(
+            "baseline is missing supported attack recall metrics: "
+            + ", ".join(missing)
+        )
 
 
 def evaluate_acceptance_gates(
@@ -327,7 +378,7 @@ def _default_golden(
     config: ExperimentConfig,
     day: int,
 ) -> Mapping[str, Any]:
-    del config, day
+    del day
     if controls is None:
         return {"passed": False, "error": "golden controls were not loaded"}
     from web_app.config import Settings
@@ -342,13 +393,18 @@ def _default_golden(
             api_secret_key="controlled-retraining-local-check",
         )
     )
-    return evaluate_golden_controls(controls, service.predict).to_dict()
+    return evaluate_golden_controls(
+        controls,
+        service.predict,
+        confidence_thresholds=config.confidence_thresholds,
+        response_actions=config.response_actions,
+    ).to_dict()
 
 
 def _default_backend(
     *, artifact_path: Path, config: ExperimentConfig, day: int
 ) -> Mapping[str, Any]:
-    del config, day
+    del day
     from web_app.application.triage_use_case import TriageUseCase
     from web_app.config import Settings
     from web_app.services.model_service import ModelService
@@ -367,11 +423,19 @@ def _default_backend(
         prediction=str(result["prediction"]),
         confidence_level=str(result["confidence_tier"]),
     )
+    configured_action = config.action_for(
+        str(result["prediction"]), str(result["confidence_tier"])
+    )
     return {
-        "passed": result["prediction"] == "Normal" and action == "ALLOWED",
+        "passed": (
+            result["prediction"] == "Normal"
+            and action == "ALLOWED"
+            and action == configured_action
+        ),
         "request": EXACT_PAGINATION_REQUEST,
         "prediction": result["prediction"],
         "action": action,
+        "configured_action": configured_action,
     }
 
 
@@ -387,6 +451,34 @@ def _write_day_report(day_dir: Path, payload: Mapping[str, Any]) -> None:
     )
 
 
+def _assert_safe_simulation_output(output_root: Path, project_root: Path) -> None:
+    protected_root = (project_root / "ml_model" / "model_registry").resolve()
+    if output_root == protected_root or protected_root in output_root.parents:
+        raise ValueError(
+            "simulation output must not be inside the model registry: "
+            f"{output_root}"
+        )
+
+
+def _write_blocked_following_days(
+    output_root: Path,
+    day_reports: list[dict[str, Any]],
+    *,
+    failed_day: int,
+    last_day: int,
+) -> None:
+    for remaining_day in range(failed_day + 1, last_day + 1):
+        skipped_dir = output_root / f"day_{remaining_day:02d}"
+        skipped = {
+            "day": remaining_day,
+            "status": "NOT_RUN",
+            "stage": "blocked_by_previous_day",
+            "blocked_by_day": failed_day,
+        }
+        _write_day_report(skipped_dir, skipped)
+        day_reports.append(skipped)
+
+
 def run_simulation(
     *,
     config_path: Path | str,
@@ -396,8 +488,10 @@ def run_simulation(
     days: Iterable[int] | None = None,
     baseline: Mapping[str, Any] | None,
     golden_texts: Iterable[str] | None = None,
+    allow_test_overrides: bool = False,
     hooks: SimulationHooks | None = None,
     active_registry_dir: Path | str | None = None,
+    _smoke_mode: bool = False,
 ) -> SimulationReport:
     try:
         config = load_experiment_config(config_path)
@@ -407,6 +501,7 @@ def run_simulation(
             project_root=Path(config_path).resolve().parent,
         )
     output_root = Path(output_dir).expanduser().resolve()
+    _assert_safe_simulation_output(output_root, config.project_root)
     active_root = (
         Path(active_registry_dir).expanduser().resolve()
         if active_registry_dir
@@ -420,22 +515,40 @@ def run_simulation(
         )
     if baseline is None:
         raise ValueError("a frozen baseline is required before candidate simulation")
-    selected_days = tuple(int(day) for day in (days or range(1, 21)))
-    if not selected_days or any(day < 1 or day > 20 for day in selected_days):
+    baseline = normalize_baseline_metrics(baseline)
+    if golden_texts is not None and not allow_test_overrides:
+        raise ValueError("golden_texts overrides require allow_test_overrides=True")
+    requested_days = tuple(sorted({int(day) for day in (days or range(1, 21))}))
+    if not requested_days or any(day < 1 or day > 20 for day in requested_days):
         raise ValueError("days must contain values from 1 through 20")
+    last_day = max(requested_days)
+    days_to_process = tuple(range(1, last_day + 1))
+    is_complete_experiment = days_to_process == tuple(range(1, 21))
     hooks = hooks or SimulationHooks()
-    controls: GoldenControlSet | None = None
-    if golden_texts is None:
-        controls = load_golden_controls(config.golden_manifest_file)
-        golden_texts = controls.texts
-    else:
-        try:
-            controls = load_golden_controls(config.golden_manifest_file)
-        except Exception:
-            controls = None
+    if not allow_test_overrides:
+        validate_baseline_attack_recall_completeness(
+            baseline,
+            (label for label in config.label_names if label != "Normal"),
+        )
+        config.validate_runtime_inputs(
+            historical_data_dir=historical_data_dir,
+            daily_batch_dir=daily_batch_dir,
+            days=days_to_process,
+        )
+        validate_dataset_preprocessing(
+            Path(historical_data_dir).expanduser().resolve(),
+            expected_dataset_version=config.historical_dataset_version,
+            expected_preprocessing_version=config.preprocessing_version,
+        )
+        load_dataset_file_manifest(Path(historical_data_dir).expanduser().resolve())
+    controls: GoldenControlSet | None = (
+        None
+        if allow_test_overrides and golden_texts is not None
+        else load_golden_controls(config.golden_manifest_file)
+    )
     cumulative_samples: list[dict[str, Any]] = []
     day_reports: list[dict[str, Any]] = []
-    for day in selected_days:
+    for day in days_to_process:
         day_dir = output_root / f"day_{day:02d}"
         batch_path = (
             Path(daily_batch_dir).expanduser().resolve() / f"day_{day:02d}.jsonl"
@@ -449,7 +562,9 @@ def run_simulation(
             batch_report: BatchValidationReport = validate_batch_file(
                 batch_path,
                 expected_preprocessing_version=config.preprocessing_version,
-                golden_texts=golden_texts or set(),
+                expected_batch_day=day,
+                golden_controls=controls,
+                golden_texts=golden_texts if controls is None else None,
                 quarantine_dir=day_dir / "quarantine",
             )
             day_result["batch_validation"] = batch_report.to_dict()
@@ -460,13 +575,25 @@ def run_simulation(
                 )
                 _write_day_report(day_dir, day_result)
                 day_reports.append(day_result)
-                continue
+                _write_blocked_following_days(
+                    output_root,
+                    day_reports,
+                    failed_day=day,
+                    last_day=last_day,
+                )
+                break
             cumulative_samples.extend(batch_report.accepted_samples)
         except Exception as exc:
             day_result["error"] = str(exc)
             _write_day_report(day_dir, day_result)
             day_reports.append(day_result)
-            continue
+            _write_blocked_following_days(
+                output_root,
+                day_reports,
+                failed_day=day,
+                last_day=last_day,
+            )
+            break
 
         try:
             snapshot: SnapshotResult = build_cumulative_snapshot(
@@ -484,7 +611,13 @@ def run_simulation(
             day_result["error"] = str(exc)
             _write_day_report(day_dir, day_result)
             day_reports.append(day_result)
-            continue
+            _write_blocked_following_days(
+                output_root,
+                day_reports,
+                failed_day=day,
+                last_day=last_day,
+            )
+            break
 
         try:
             train_hook = hooks.train or _default_train
@@ -564,22 +697,62 @@ def run_simulation(
             day_result["error"] = str(exc)
         _write_day_report(day_dir, day_result)
         day_reports.append(day_result)
+        if day_result.get("status") != "ACCEPTED":
+            _write_blocked_following_days(
+                output_root,
+                day_reports,
+                failed_day=day,
+                last_day=last_day,
+            )
+            break
 
-    final_status = (
-        "SUCCESS"
-        if day_reports and all(day.get("status") == "ACCEPTED" for day in day_reports)
-        else "BLOCKED"
+    all_accepted = bool(day_reports) and all(
+        day.get("status") == "ACCEPTED" for day in day_reports
     )
+    training_attempted = any(
+        day.get("stage")
+        in {
+            "training",
+            "evaluation",
+            "packaging",
+            "reload",
+            "golden_controls",
+            "backend",
+            "acceptance_gates",
+        }
+        for day in day_reports
+    )
+    if _smoke_mode:
+        final_status = "SMOKE_SUCCESS" if all_accepted else "BLOCKED"
+    elif is_complete_experiment and all_accepted:
+        final_status = "SUCCESS"
+    elif all_accepted:
+        final_status = "PARTIAL"
+    else:
+        final_status = "BLOCKED"
     report = SimulationReport(
         experiment={
             "name": config.name,
             "version": config.version,
             "contract_hash": config.contract_hash,
             "scope": "controlled offline 20-day retraining simulation",
+            "execution_mode": (
+                "synthetic_orchestration_smoke"
+                if _smoke_mode
+                else "native_training_simulation"
+            ),
+            "real_training_status": (
+                "NOT_RUN"
+                if _smoke_mode or not training_attempted
+                else "ATTEMPTED"
+            ),
+            "model_quality_conclusion": (
+                "NOT_PERMITTED" if _smoke_mode else "PENDING_ACCEPTANCE_GATES"
+            ),
         },
         status=final_status,
         days=tuple(day_reports),
-        baseline_status="FROZEN_INPUT_REQUIRED",
+        baseline_status="SMOKE_SYNTHETIC" if _smoke_mode else "FROZEN",
     )
     write_simulation_report(output_root, report.to_dict())
     write_simulation_markdown(output_root, report.to_dict())
@@ -596,6 +769,9 @@ def run_smoke(
 
     import pandas as pd
 
+    requested_days = tuple(sorted({int(day) for day in days}))
+    if not requested_days:
+        raise ValueError("smoke requires at least one day")
     with tempfile.TemporaryDirectory(prefix="retraining-20-day-smoke-") as temp_dir:
         root = Path(temp_dir)
         historical = root / "historical"
@@ -613,12 +789,16 @@ def run_smoke(
             historical_frame.to_parquet(historical / f"{split}.parquet", index=False)
         batches = root / "batches"
         batches.mkdir()
-        for day in days:
+        for day in range(1, max(requested_days) + 1):
+            model_input_text = f"GET /smoke?page={day}&limit=2"
             (batches / f"day_{int(day):02d}.jsonl").write_text(
                 json.dumps(
                     {
                         "sample_id": f"smoke-day-{day}",
-                        "model_input_text": f"GET /smoke?page={day}&limit=2",
+                        "model_input_text": model_input_text,
+                        "model_input_hash": hashlib.sha256(
+                            model_input_text.encode("utf-8")
+                        ).hexdigest(),
                         "ground_truth_label": "Normal",
                         "batch_day": int(day),
                         "source_type": "synthetic_smoke",
@@ -663,7 +843,7 @@ def run_smoke(
             historical_data_dir=historical,
             daily_batch_dir=batches,
             output_dir=output_dir,
-            days=days,
+            days=requested_days,
             baseline={
                 "normal_false_positive_rate": 0.0,
                 "attack_escape_rate": 0.0,
@@ -672,6 +852,7 @@ def run_smoke(
                 "supported_attack_recall": {"SQL Injection": 1.0},
             },
             golden_texts=set(),
+            allow_test_overrides=True,
             hooks=SimulationHooks(
                 train=smoke_train,
                 evaluate=smoke_evaluate,
@@ -680,6 +861,7 @@ def run_smoke(
                 golden=lambda **_: {"passed": True, "mode": "smoke"},
                 backend=lambda **_: {"passed": True, "mode": "smoke"},
             ),
+            _smoke_mode=True,
         )
 
 
@@ -708,7 +890,7 @@ def main(argv: list[str] | None = None) -> int:
             days=args.days or (1, 2),
         )
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
-        return 0 if report.status == "SUCCESS" else 2
+        return 0 if report.status == "SMOKE_SUCCESS" else 2
     if (
         args.historical_data_dir is None
         or args.daily_batch_dir is None

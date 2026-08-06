@@ -49,6 +49,32 @@ def _optional_float(value: Any) -> float | None:
     return None if value is None else float(value)
 
 
+def _missing_baseline_metrics(
+    metrics: Mapping[str, Any], label_names: tuple[str, ...]
+) -> list[str]:
+    missing = [
+        key
+        for key in (
+            "normal_false_positive_rate",
+            "attack_escape_rate",
+            "macro_f1",
+            "normal_recall",
+        )
+        if metrics.get(key) is None
+    ]
+    required_labels = {label for label in label_names if label != "Normal"}
+    missing_attack_recall = sorted(
+        label
+        for label in required_labels
+        if label not in metrics.get("supported_attack_recall", {})
+    )
+    if missing_attack_recall:
+        missing.append(
+            "supported_attack_recall:" + ",".join(missing_attack_recall)
+        )
+    return missing
+
+
 def build_baseline_report(
     *,
     artifact_dir: Path | str,
@@ -70,7 +96,12 @@ def build_baseline_report(
             api_secret_key="controlled-retraining-baseline-check",
         )
     )
-    golden = evaluate_golden_controls(controls, service.predict).to_dict()
+    golden = evaluate_golden_controls(
+        controls,
+        service.predict,
+        confidence_thresholds=config.confidence_thresholds,
+        response_actions=config.response_actions,
+    ).to_dict()
     eval_report_path = artifact / "eval_report.json"
     eval_report = (
         json.loads(eval_report_path.read_text(encoding="utf-8"))
@@ -98,16 +129,7 @@ def build_baseline_report(
         ),
         {},
     )
-    missing_metrics = [
-        key
-        for key in (
-            "normal_false_positive_rate",
-            "attack_escape_rate",
-            "macro_f1",
-            "normal_recall",
-        )
-        if metrics.get(key) is None
-    ]
+    missing_metrics = _missing_baseline_metrics(metrics, config.label_names)
     report = {
         "status": "PASS"
         if service.loaded and golden["passed"] and not missing_metrics

@@ -92,6 +92,7 @@ class GoldenEvaluation:
     category_results: dict[str, dict[str, Any]]
     mandatory_failures: list[str]
     manifest_sha256: str
+    manifest_file_sha256: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -100,6 +101,7 @@ class GoldenEvaluation:
             "category_results": self.category_results,
             "mandatory_failures": list(self.mandatory_failures),
             "manifest_sha256": self.manifest_sha256,
+            "manifest_file_sha256": self.manifest_file_sha256,
         }
 
 
@@ -246,25 +248,30 @@ def find_golden_overlap(
 
 
 def _action_for(
-    *, label: str, confidence: float, confidence_tier: str | None
+    *,
+    label: str,
+    confidence: float,
+    confidence_thresholds: Mapping[str, float],
+    response_actions: Mapping[str, str],
 ) -> tuple[str, str]:
-    tier = confidence_tier or classify_confidence(
+    tier = classify_confidence(
         confidence,
-        thresholds=ConfidenceThresholds(low=0.50, high=0.80, critical=0.90),
+        thresholds=ConfidenceThresholds(
+            low=float(confidence_thresholds["low"]),
+            high=float(confidence_thresholds["high"]),
+            critical=float(confidence_thresholds["critical"]),
+        ),
     )
-    if label == "Normal":
-        return tier, "ALLOWED"
-    return tier, {
-        "LOW": "ALLOWED",
-        "MEDIUM": "THROTTLED",
-        "HIGH": "BLOCKED",
-        "CRITICAL": "BLOCKED",
-    }[tier]
+    action_key = "normal" if label == "Normal" else tier.lower()
+    return tier, str(response_actions[action_key])
 
 
 def evaluate_golden_controls(
     controls: GoldenControlSet,
     predictor: Callable[[str], Mapping[str, Any]],
+    *,
+    confidence_thresholds: Mapping[str, float],
+    response_actions: Mapping[str, str],
 ) -> GoldenEvaluation:
     case_results: list[dict[str, Any]] = []
     category_results: dict[str, dict[str, Any]] = {}
@@ -278,7 +285,8 @@ def evaluate_golden_controls(
         tier, predicted_action = _action_for(
             label=str(predicted_label),
             confidence=confidence,
-            confidence_tier=prediction.get("confidence_tier"),
+            confidence_thresholds=confidence_thresholds,
+            response_actions=response_actions,
         )
         label_passed = predicted_label == case["expected_label"]
         action_passed = predicted_action == case["expected_action"]
@@ -317,5 +325,6 @@ def evaluate_golden_controls(
         cases=tuple(case_results),
         category_results=category_results,
         mandatory_failures=failures,
-        manifest_sha256=canonical_json_sha256(controls.manifest),
+        manifest_sha256=str(controls.manifest["manifest_sha256"]),
+        manifest_file_sha256=sha256_file(controls.manifest_path),
     )

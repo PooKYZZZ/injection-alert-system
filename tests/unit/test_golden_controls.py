@@ -12,6 +12,15 @@ from ml_model.evaluation.golden_controls import (
 )
 from ml_model.retraining.experiment_contract import canonical_json_sha256
 
+THRESHOLDS = {"low": 0.50, "high": 0.80, "critical": 0.90}
+ACTIONS = {
+    "normal": "ALLOWED",
+    "low": "ALLOWED",
+    "medium": "THROTTLED",
+    "high": "BLOCKED",
+    "critical": "BLOCKED",
+}
+
 
 def _write_locked_golden(tmp_path: Path, cases: list[dict]) -> Path:
     cases_path = tmp_path / "golden_cases.jsonl"
@@ -96,6 +105,8 @@ def test_evaluator_reports_predictions_and_fails_mandatory_control(tmp_path: Pat
             "label": "SQL Injection",
             "confidence": 0.95,
         },
+        confidence_thresholds=THRESHOLDS,
+        response_actions=ACTIONS,
     )
 
     assert result.passed is False
@@ -103,6 +114,96 @@ def test_evaluator_reports_predictions_and_fails_mandatory_control(tmp_path: Pat
     assert result.cases[0]["predicted_label"] == "SQL Injection"
     assert result.cases[0]["predicted_action"] == "BLOCKED"
     assert result.category_results["sql_injection"]["passed"] is True
+
+
+def test_evaluator_reports_declared_manifest_hash(tmp_path: Path):
+    manifest_path = _write_locked_golden(
+        tmp_path,
+        [
+            _case(
+                "normal-pagination-exact",
+                "GET /api/users?page=1&limit=10",
+                "Normal",
+                "ALLOWED",
+                "normal_pagination",
+            )
+        ],
+    )
+    controls = load_golden_controls(manifest_path)
+
+    result = evaluate_golden_controls(
+        controls,
+        lambda text: {"label": "Normal", "confidence": 0.99},
+        confidence_thresholds=THRESHOLDS,
+        response_actions=ACTIONS,
+    )
+
+    assert result.to_dict()["manifest_sha256"] == controls.manifest["manifest_sha256"]
+
+
+def test_evaluator_uses_contract_thresholds_and_actions(tmp_path: Path):
+    controls = load_golden_controls(
+        _write_locked_golden(
+            tmp_path,
+            [
+                _case(
+                    "sql-control",
+                    "GET /items?id=1 UNION SELECT password FROM users",
+                    "SQL Injection",
+                    "THROTTLED",
+                    "sql_injection",
+                )
+            ],
+        )
+    )
+
+    result = evaluate_golden_controls(
+        controls,
+        lambda text: {"label": "SQL Injection", "confidence": 0.75},
+        confidence_thresholds={"low": 0.40, "high": 0.70, "critical": 0.95},
+        response_actions={
+            "normal": "ALLOWED",
+            "low": "ALLOWED",
+            "medium": "THROTTLED",
+            "high": "THROTTLED",
+            "critical": "BLOCKED",
+        },
+    )
+
+    assert result.passed is True
+    assert result.cases[0]["predicted_action"] == "THROTTLED"
+
+
+def test_evaluator_ignores_untrusted_model_supplied_confidence_tier(tmp_path: Path):
+    controls = load_golden_controls(
+        _write_locked_golden(
+            tmp_path,
+            [
+                _case(
+                    "sql-control",
+                    "GET /items?id=1 UNION SELECT password FROM users",
+                    "SQL Injection",
+                    "THROTTLED",
+                    "sql_injection",
+                )
+            ],
+        )
+    )
+
+    result = evaluate_golden_controls(
+        controls,
+        lambda text: {
+            "label": "SQL Injection",
+            "confidence": 0.75,
+            "confidence_tier": "CRITICAL",
+        },
+        confidence_thresholds=THRESHOLDS,
+        response_actions=ACTIONS,
+    )
+
+    assert result.passed is True
+    assert result.cases[0]["confidence_tier"] == "MEDIUM"
+    assert result.cases[0]["predicted_action"] == "THROTTLED"
 
 
 def test_golden_overlap_rejects_exact_and_near_duplicate_text(tmp_path: Path):
