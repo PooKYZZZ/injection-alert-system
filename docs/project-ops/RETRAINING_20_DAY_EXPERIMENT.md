@@ -51,7 +51,10 @@ identity, and review time. The checked-in daily files instead use
 `review_status=curated_simulation_fixture`, `source_type=curated_simulation_fixture`,
 and `is_synthetic=true`; normal training-mode validation rejects them. Only
 the explicit smoke/test override accepts these fixtures, and that override
-cannot produce a real model-quality conclusion. The validator rejects unknown
+cannot produce a real model-quality conclusion. A row marked `is_synthetic=true`
+is rejected even when it has approved-review metadata; only the explicit
+simulation-fixture status can be accepted under the override. Empty batches are
+also rejected. The validator rejects unknown
 labels, missing ground truth, any model-prediction label field, unapproved or
 synthetic rows in real mode, missing provenance, mismatched preprocessing,
 duplicates, conflicting labels, exact or near-duplicate historical overlap,
@@ -64,8 +67,10 @@ text is not stored.
 
 `snapshots.py` builds one `ContaminationIndex` per simulation from all three
 historical splits. The index stores the existing canonical request
-normalization, deterministic query-parameter ordering, an exact normalized
-text hash, and normalized-length buckets. An exact-hash lookup runs first.
+normalization through the shared comparison-only request canonicalizer,
+deterministic query-parameter ordering, an exact normalized text hash, and
+normalized-length buckets. The same canonicalizer is used by golden-overlap
+checks and preserves blank/repeated query parameters. An exact-hash lookup runs first.
 Non-exact candidates are limited only by the mathematically safe normalized
 length range before the existing `SequenceMatcher` threshold (`0.90`); its
 bounds are `ceil(t*q/(2-t))` through `floor(q*(2-t)/t)`, so a valid 85/100
@@ -139,6 +144,14 @@ comparison-set hash, and golden-manifest hash agree; baseline and candidate
 model hashes are retained separately because the models are expected to
 differ.
 
+The baseline report also records `baseline_gate`. It passes only when required
+metrics are present, the selected model loaded, every locked golden control
+passed, and the serving artifact reports `local_reload_verified=true`.
+Therefore `status=PARTIAL`, `baseline_status=REQUIRES_LAPTOP`, or
+`model_quality_conclusion=NOT_PERMITTED` cannot start a normal simulation. The
+native package must contain `summary_metrics.json`; missing security rates are
+left unknown and keep the baseline blocked.
+
 Evidence is `COMPUTED` only for a valid pair and includes McNemar's exact test,
 absolute accuracy difference, baseline-only/candidate-only/both-correct/
 both-wrong counts, and a seeded bootstrap confidence interval. `NOT_RUN` means
@@ -195,6 +208,11 @@ Before inspecting candidate results, the TOML freezes these gates:
 - preprocessing, labels, thresholds, run-bundle completeness, packaging,
   reload, and backend checks remain valid;
 - candidate contract integrity is explicitly `passed`.
+
+The acceptance tolerances are immutable for `retraining-20-day-v1`: `0.001`
+for normal false-positive and attack-escape increases, `0.002` macro-F1 drop,
+`0.995` minimum normal recall, and `0.01` supported-attack recall drop. A
+modified configuration is rejected before native execution.
 
 Missing baseline metrics are `Unknown`/`REQUIRES_LAPTOP`; they are never
 replaced with guessed zeros. A candidate that misses a mandatory gate is

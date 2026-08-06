@@ -22,8 +22,9 @@ or automatic promotion path. The reusable training entrypoint remains under
   unknown-label, predicted-label, preprocessing-mismatched, and golden-overlap
   samples while preserving privacy-safe quarantine evidence. It also validates
   model-input hashes and batch-day provenance. Real approved rows require
-  reviewer identity and review time; checked-in synthetic rows are explicitly
-  simulation fixtures and are rejected unless the smoke/test override is set.
+  reviewer identity and review time; empty batches and synthetic rows marked as
+  approved training data are rejected. Checked-in synthetic rows are explicitly
+  simulation fixtures and are accepted only with the smoke/test override.
 - `snapshots.py` creates versioned cumulative train snapshots and preserves the
   historical validation/test splits, including the metadata and checksum
   contract required by the training preflight. It builds one reusable index
@@ -41,6 +42,11 @@ or automatic promotion path. The reusable training entrypoint remains under
   --queries 10` before native training and record memory and comparison ratio
   against the full-scan baseline; the synthetic benchmark does not prove
   full-dataset fit.
+- `request_similarity.py` provides the comparison-only canonicalizer shared by
+  golden-overlap and contamination checks. It sorts decoded query key/value
+  pairs while preserving blank values and repeated parameters, without
+  changing the runtime model-input contract. Different values and paths remain
+  distinct, and the configured near-duplicate ratio remains a heuristic.
 - `drift.py` records deterministic per-batch request, label, source,
   confidence, query-parameter, and validation-error dimensions.
 - `prediction_artifacts.py` writes deterministic, hash-checked baseline and
@@ -63,7 +69,12 @@ or automatic promotion path. The reusable training entrypoint remains under
   final day includes every preceding cumulative day; partial runs are
   `PARTIAL`, not complete `SUCCESS`.
 - `run_baseline.py` evaluates a specifically selected current artifact against
-  the locked golden set without silently discovering or modifying staging.
+  the locked golden set without silently discovering or modifying staging. A
+  baseline is `FROZEN` only when required metrics (including security rates),
+  model loading, golden controls, and local reload verification all pass. The
+  report records this as `baseline_gate`; normal simulation rejects any other
+  baseline state. Native packaging also requires `summary_metrics.json`, which
+  supplies operational security rates when the classification report does not.
 
 The `--smoke` mode uses tiny synthetic data and injected adapters to prove
 orchestration startup and failure safety. It reports `SMOKE_SUCCESS`,
@@ -75,6 +86,12 @@ production data.
 The real baseline, corrected one-seed run, three-seed confirmation, and full
 20-day native simulation remain `REQUIRES_LAPTOP` unless their artifacts and
 reports are freshly generated and inspected.
+
+The v1 acceptance tolerances are locked in code: normal false-positive and
+attack-escape increases may each be at most `0.001`, macro-F1 may drop by at
+most `0.002`, normal recall must remain at least `0.995`, and supported attack
+recall may drop by at most `0.01`. Editing the TOML values cannot weaken these
+gates.
 
 ## Validation commands and evidence boundaries
 

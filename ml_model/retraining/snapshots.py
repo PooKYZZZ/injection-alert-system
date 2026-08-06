@@ -8,7 +8,6 @@ from difflib import SequenceMatcher
 from math import ceil, floor
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import pandas as pd
 
@@ -17,8 +16,8 @@ from ml_model.preprocessing.model_input import (
     MODEL_INPUT_BUILDER,
     MODEL_INPUT_HASH_POLICY,
     MODEL_INPUT_TEXT_COLUMN,
-    canonicalize_text,
 )
+from ml_model.preprocessing.request_similarity import canonicalize_similarity_text
 from ml_model.retraining.experiment_contract import canonical_json_sha256, sha256_file
 
 
@@ -86,24 +85,6 @@ def _daily_frame(samples: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
-
-
-def _similarity_text(value: str) -> str:
-    """Normalize request text and make query-parameter ordering deterministic."""
-
-    normalized = canonicalize_text(value)
-    parts = normalized.split(maxsplit=1)
-    if len(parts) != 2:
-        return normalized
-    method, target = parts
-    parsed = urlsplit(target)
-    if not parsed.query:
-        return normalized
-    query = urlencode(sorted(parse_qsl(parsed.query, keep_blank_values=True)))
-    normalized_target = urlunsplit(
-        (parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment)
-    )
-    return f"{method} {normalized_target}"
 
 
 LENGTH_BUCKET_WIDTH = 32
@@ -203,7 +184,7 @@ class ContaminationIndex:
         text: str,
         label: str | None,
     ) -> ContaminationRecord:
-        normalized_text = _similarity_text(text)
+        normalized_text = canonicalize_similarity_text(text)
         return ContaminationRecord(
             record_key=record_key,
             sample_id=sample_id,

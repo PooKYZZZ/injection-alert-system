@@ -10,6 +10,7 @@ from ml_model.evaluation.golden_controls import (
     find_golden_overlap,
     load_golden_controls,
 )
+from ml_model.preprocessing.request_similarity import canonicalize_similarity_text
 from ml_model.retraining.experiment_contract import canonical_json_sha256
 
 THRESHOLDS = {"low": 0.50, "high": 0.80, "critical": 0.90}
@@ -248,3 +249,49 @@ def test_golden_overlap_rejects_exact_and_near_duplicate_text(tmp_path: Path):
         pass
     else:
         raise AssertionError("golden overlap was not rejected")
+
+
+def test_similarity_canonicalizes_query_order_blank_repeated_and_encoded_values():
+    first = "GET /api/search?alpha=one%20two&empty=&tag=a&tag=b"
+    reordered = "GET /api/search?tag=b&alpha=one+two&tag=a&empty="
+
+    assert canonicalize_similarity_text(first) == canonicalize_similarity_text(
+        reordered
+    )
+    assert canonicalize_similarity_text(first) != canonicalize_similarity_text(
+        "GET /api/search?alpha=other&empty=&tag=a&tag=b"
+    )
+    assert canonicalize_similarity_text(first) != canonicalize_similarity_text(
+        "GET /api/other?alpha=one%20two&empty=&tag=a&tag=b"
+    )
+
+
+def test_golden_overlap_uses_canonical_query_order(tmp_path: Path):
+    controls = load_golden_controls(
+        _write_locked_golden(
+            tmp_path,
+            [
+                _case(
+                    "search-control",
+                    "GET /api/search?alpha=one%20two&empty=&tag=a&tag=b",
+                    "Normal",
+                    "ALLOWED",
+                    "normal_search",
+                )
+            ],
+        )
+    )
+
+    overlaps = find_golden_overlap(
+        controls,
+        [
+            {
+                "sample_id": "reordered-search",
+                "model_input_text": (
+                    "GET /api/search?tag=b&alpha=one+two&tag=a&empty="
+                ),
+            }
+        ],
+    )
+
+    assert overlaps[0]["matches"][0]["similarity"] == 1.0

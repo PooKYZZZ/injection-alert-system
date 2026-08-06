@@ -128,8 +128,13 @@ identity and hash, golden results, the exact pagination result, packaging and
 backend-loading status, metric availability, and a provenance-bound
 `baseline_predictions.json` artifact. Missing operational rates or
 supported attack recalls remain `Unknown`/`REQUIRES_LAPTOP`; they are not
-converted to zero. The baseline is not frozen until every supported attack
-class recall is present and `baseline_status` is `FROZEN`.
+converted to zero. The selected run must also contain `summary_metrics.json`
+with the operational security rates. The baseline is not frozen until every
+supported attack class recall is present, the model loaded, every locked
+golden control passed, and `local_reload_verified=true` is recorded in the
+serving manifest. Confirm `baseline_gate.passed=true`, `status=PASS`,
+`baseline_status=FROZEN`, and `model_quality_conclusion=READY_FOR_EXPERIMENT`.
+Otherwise the normal simulator fails closed before any candidate training.
 
 The baseline prediction artifact is the frozen comparison input for every
 candidate. It is keyed by stable golden `case_id` values and records
@@ -252,9 +257,17 @@ the ratio against the 1,000,000-comparison full-scan baseline. This is a laptop
 planning signal only; it does not prove that the full 907k-row dataset fits or
 establish semantic deduplication completeness.
 
+Golden-overlap and contamination checks share the comparison-only request
+canonicalizer. It sorts decoded query parameters while preserving blank and
+repeated values; it does not change the runtime model-input builder. A changed
+query value or path is not an exact duplicate, and near-duplicate matching
+remains a `0.90` SequenceMatcher heuristic.
+
 `COMPUTED` means both prediction artifacts passed hash, stable-ID,
 dataset-version, golden-version, split, and golden-manifest checks, and each
-artifact records its model package hash. `NOT_RUN` means paired predictions
+artifact records its model package hash. The baseline and candidate
+serving-manifest/checkpoint hashes must be present and are compared as
+provenance. `NOT_RUN` means paired predictions
 were unavailable, including synthetic smoke. `INVALID` means the artifacts or
 arrays were malformed or mismatched. Native acceptance does not pass with
 missing or invalid evidence.

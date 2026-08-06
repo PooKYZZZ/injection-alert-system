@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from ml_model.retraining.run_baseline import (
     _missing_baseline_metrics,
+    build_baseline_report,
     evaluate_baseline_gate,
     extract_baseline_metrics,
 )
@@ -59,6 +62,22 @@ def test_baseline_metric_extraction_reads_security_rates_from_summary_metrics():
     assert metrics["normal_false_positive_rate"] == 0.001
     assert metrics["attack_escape_rate"] == 0.002
     assert metrics["macro_f1"] == 0.91
+
+
+def test_baseline_with_unloadable_artifact_remains_requires_laptop(tmp_path: Path):
+    artifact_dir = tmp_path / "artifact"
+    artifact_dir.mkdir()
+    report = build_baseline_report(
+        artifact_dir=artifact_dir,
+        config_path=Path("ml_model/configs/retraining_20_day_v1.toml"),
+        output_path=tmp_path / "baseline.json",
+    )
+
+    assert report["status"] == "PARTIAL"
+    assert report["baseline_status"] == "REQUIRES_LAPTOP"
+    assert report["model_quality_conclusion"] == "NOT_PERMITTED"
+    assert report["baseline_gate"]["checks"]["model_loaded"] is False
+    assert report["prediction_artifact_status"] == "NOT_WRITTEN"
 
 
 def test_baseline_metric_extraction_preserves_unknown_operational_rates():

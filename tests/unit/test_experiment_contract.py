@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -8,8 +9,26 @@ from ml_model.retraining.experiment_contract import (
     EXPECTED_LABELS,
     EXPECTED_MODEL_REVISION,
     EXPECTED_PREPROCESSING_VERSION,
+    AcceptanceTolerances,
     load_experiment_config,
 )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "normal_false_positive_tolerance",
+        "attack_escape_tolerance",
+        "macro_f1_drop_tolerance",
+        "normal_recall_minimum",
+        "supported_attack_recall_drop_tolerance",
+    ],
+)
+def test_acceptance_tolerances_are_locked(field: str):
+    changed = replace(AcceptanceTolerances(), **{field: 0.5})
+
+    with pytest.raises(ValueError, match="locked"):
+        changed.validate()
 
 
 def test_checked_in_experiment_contract_is_immutable_and_portable():

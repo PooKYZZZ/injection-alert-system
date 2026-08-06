@@ -25,6 +25,13 @@ EXPECTED_MODEL_FAMILY = "native_distilbert"
 EXPECTED_MODEL_ID = "distilbert-base-uncased"
 EXPECTED_MODEL_REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 MODEL_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+LOCKED_ACCEPTANCE_TOLERANCES = {
+    "normal_false_positive_tolerance": 0.001,
+    "attack_escape_tolerance": 0.001,
+    "macro_f1_drop_tolerance": 0.002,
+    "normal_recall_minimum": 0.995,
+    "supported_attack_recall_drop_tolerance": 0.01,
+}
 
 
 def canonical_json_sha256(payload: Mapping[str, Any]) -> str:
@@ -56,19 +63,10 @@ class AcceptanceTolerances:
     supported_attack_recall_drop_tolerance: float = 0.01
 
     def validate(self) -> "AcceptanceTolerances":
-        numeric = {
-            "normal_false_positive_tolerance": self.normal_false_positive_tolerance,
-            "attack_escape_tolerance": self.attack_escape_tolerance,
-            "macro_f1_drop_tolerance": self.macro_f1_drop_tolerance,
-            "normal_recall_minimum": self.normal_recall_minimum,
-            "supported_attack_recall_drop_tolerance": (
-                self.supported_attack_recall_drop_tolerance
-            ),
-        }
-        if any(float(value) < 0 for value in numeric.values()):
-            raise ValueError("acceptance tolerances must be non-negative")
-        if not 0.0 <= self.normal_recall_minimum <= 1.0:
-            raise ValueError("normal_recall_minimum must be within 0..1")
+        if self.to_dict() != LOCKED_ACCEPTANCE_TOLERANCES:
+            raise ValueError(
+                "acceptance tolerances are locked by the retraining-20-day-v1 contract"
+            )
         return self
 
     def to_dict(self) -> dict[str, float]:

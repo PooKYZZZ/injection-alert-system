@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
 from ml_model.confidence_tiers import ConfidenceThresholds, classify_confidence
+from ml_model.preprocessing.request_similarity import canonicalize_similarity_text
 from ml_model.retraining.experiment_contract import (
     EXPECTED_LABELS,
     canonical_json_sha256,
@@ -209,10 +210,6 @@ def load_golden_controls(manifest_path: Path | str) -> GoldenControlSet:
     return GoldenControlSet(manifest_path, cases_path, manifest, tuple(cases))
 
 
-def _normalized_text(value: object) -> str:
-    return " ".join(str(value).split()).casefold()
-
-
 def find_golden_overlap(
     controls: GoldenControlSet,
     rows: Iterable[Mapping[str, Any]],
@@ -222,7 +219,7 @@ def find_golden_overlap(
     if not 0.0 < near_duplicate_threshold <= 1.0:
         raise ValueError("near_duplicate_threshold must be within (0, 1]")
     golden_texts = [
-        (case["case_id"], _normalized_text(case["model_input_text"]))
+        (case["case_id"], canonicalize_similarity_text(case["model_input_text"]))
         for case in controls.cases
     ]
     overlaps: list[dict[str, Any]] = []
@@ -230,7 +227,7 @@ def find_golden_overlap(
         text = row.get("model_input_text")
         if not isinstance(text, str) or not text.strip():
             continue
-        normalized = _normalized_text(text)
+        normalized = canonicalize_similarity_text(text)
         matches = [
             {
                 "case_id": case_id,
