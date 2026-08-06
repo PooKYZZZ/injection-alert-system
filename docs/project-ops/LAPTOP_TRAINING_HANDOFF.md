@@ -134,8 +134,10 @@ class recall is present and `baseline_status` is `FROZEN`.
 The baseline prediction artifact is the frozen comparison input for every
 candidate. It is keyed by stable golden `case_id` values and records
 `sample_id`, `split`, `y_true`, `prediction`, confidence/tier/action,
-`model_version`, `dataset_version`, and `golden_version`. Do not hand-edit it
-or pair it with a different dataset or golden manifest.
+`model_version`, `dataset_version`, and `golden_version`. It also requires the
+locked `golden_manifest_sha256` and the evaluated serving-manifest/checkpoint
+`model_artifact_sha256`. Do not hand-edit it or pair it with a different
+dataset or golden manifest.
 
 ## Corrected one-seed run
 
@@ -224,20 +226,38 @@ significance. Smoke/test overrides intentionally leave this evidence `NOT_RUN`.
 The simulator builds one reusable `ContaminationIndex` from train,
 validation, and test. It first checks the exact hash of the canonicalized
 model input (including deterministic query-parameter ordering), then uses a
-safe normalized-length range before `SequenceMatcher`. Method/path are not
-used as exclusion filters, so near duplicates with changed request dimensions
-remain candidates. Only the newly accepted day is checked against the
+safe normalized-length range before `SequenceMatcher`; the bounds are
+`ceil(t*q/(2-t))` through `floor(q*(2-t)/t)`, preserving valid 85/100-length
+near duplicates at threshold `0.90`. Method/path are not used as exclusion
+filters, so near duplicates with changed request dimensions remain candidates.
+Only the newly accepted day is checked against the
 historical index and previously accepted daily samples; it is added after
 validation. Diagnostics record historical/daily row counts, candidate
 comparisons, exact/fuzzy counts, and rejected IDs. Near-duplicate detection is
 still heuristic at the configured 0.90 ratio and cannot establish semantic
 equivalence.
 
+The index retains normalized comparison text and a SHA-256 of the raw model
+input rather than a duplicate full raw-text field. Before native training, run
+the representative synthetic memory/comparison benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.retraining.benchmark_contamination_index `
+  --rows 100000 `
+  --queries 10
+```
+
+Record peak/retained memory, build/query time, and candidate comparisons plus
+the ratio against the 1,000,000-comparison full-scan baseline. This is a laptop
+planning signal only; it does not prove that the full 907k-row dataset fits or
+establish semantic deduplication completeness.
+
 `COMPUTED` means both prediction artifacts passed hash, stable-ID,
-dataset-version, golden-version, and split checks. `NOT_RUN` means paired
-predictions were unavailable, including synthetic smoke. `INVALID` means the
-artifacts or arrays were malformed or mismatched. Native acceptance does not
-pass with missing or invalid evidence.
+dataset-version, golden-version, split, and golden-manifest checks, and each
+artifact records its model package hash. `NOT_RUN` means paired predictions
+were unavailable, including synthetic smoke. `INVALID` means the artifacts or
+arrays were malformed or mismatched. Native acceptance does not pass with
+missing or invalid evidence.
 
 ## Reporting and copy-back
 

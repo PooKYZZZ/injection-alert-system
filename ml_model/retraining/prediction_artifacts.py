@@ -27,11 +27,23 @@ PROVENANCE_FIELDS = {
     "golden_version",
     "split",
     "comparison_set_hash",
+    "golden_manifest_sha256",
+    "model_artifact_sha256",
 }
 
 
 class PredictionArtifactError(ValueError):
     """Raised when a prediction artifact is malformed or cannot be paired."""
+
+
+def _validate_sha256(value: object, *, field: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise PredictionArtifactError(f"{field} must be a lowercase SHA-256 hash")
+    return value
 
 
 def _comparison_set_hash(records: Sequence[Mapping[str, Any]]) -> str:
@@ -107,7 +119,8 @@ def write_prediction_artifact(
     dataset_version: str,
     golden_version: str,
     split: str = "golden",
-    golden_manifest_sha256: str | None = None,
+    golden_manifest_sha256: str,
+    model_artifact_sha256: str,
 ) -> dict[str, Any]:
     normalized_records = sorted(
         (
@@ -134,9 +147,13 @@ def write_prediction_artifact(
         "golden_version": golden_version,
         "split": split,
         "comparison_set_hash": _comparison_set_hash(normalized_records),
+        "golden_manifest_sha256": _validate_sha256(
+            golden_manifest_sha256, field="golden_manifest_sha256"
+        ),
+        "model_artifact_sha256": _validate_sha256(
+            model_artifact_sha256, field="model_artifact_sha256"
+        ),
     }
-    if golden_manifest_sha256 is not None:
-        provenance["golden_manifest_sha256"] = str(golden_manifest_sha256)
     unsigned = {
         "artifact_version": PREDICTION_ARTIFACT_VERSION,
         "provenance": provenance,
@@ -165,6 +182,12 @@ def _validate_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise PredictionArtifactError(
             "prediction artifact provenance is missing: " + ", ".join(missing)
         )
+    _validate_sha256(
+        provenance["golden_manifest_sha256"], field="golden_manifest_sha256"
+    )
+    _validate_sha256(
+        provenance["model_artifact_sha256"], field="model_artifact_sha256"
+    )
     if payload.get("artifact_sha256") != canonical_json_sha256(
         {key: payload[key] for key in ("artifact_version", "provenance", "records")}
     ):
@@ -236,7 +259,13 @@ def join_prediction_artifacts(
         raise PredictionArtifactError("prediction_ids_do_not_match")
     baseline_provenance = baseline["provenance"]
     candidate_provenance = candidate["provenance"]
-    for key in ("dataset_version", "golden_version", "split", "comparison_set_hash"):
+    for key in (
+        "dataset_version",
+        "golden_version",
+        "split",
+        "comparison_set_hash",
+        "golden_manifest_sha256",
+    ):
         if baseline_provenance[key] != candidate_provenance[key]:
             raise PredictionArtifactError("prediction_provenance_mismatch")
     sample_ids = sorted(baseline_records)
@@ -254,6 +283,15 @@ def join_prediction_artifacts(
             "golden_version": baseline_provenance["golden_version"],
             "split": baseline_provenance["split"],
             "comparison_set_hash": baseline_provenance["comparison_set_hash"],
+            "golden_manifest_sha256": baseline_provenance[
+                "golden_manifest_sha256"
+            ],
+            "baseline_model_artifact_sha256": baseline_provenance[
+                "model_artifact_sha256"
+            ],
+            "candidate_model_artifact_sha256": candidate_provenance[
+                "model_artifact_sha256"
+            ],
         },
         "baseline_model_version": baseline["records"][0]["model_version"],
         "candidate_model_version": candidate["records"][0]["model_version"],

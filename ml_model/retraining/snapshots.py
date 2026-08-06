@@ -116,20 +116,21 @@ class ContaminationRecord:
     record_key: str
     sample_id: str
     source: str
-    text: str
     normalized_text: str
     normalized_hash: str
+    model_input_sha256: str
     label: str | None
 
 
 class ContaminationIndex:
     """Reusable exact and length-bucketed near-duplicate contamination index.
 
-    The length-range candidate filter is the same safe precondition used by the
-    previous implementation: a SequenceMatcher ratio cannot reach the configured
-    threshold when the normalized lengths fall outside this range. It therefore
-    reduces comparisons without filtering on method/path, which could miss a
-    high-ratio near duplicate whose request dimensions changed.
+    The length-range candidate filter is a safe precondition for
+    ``SequenceMatcher``: a ratio at or above ``threshold`` is impossible when
+    normalized lengths fall outside ``ceil(t * q / (2 - t))`` through
+    ``floor(q * (2 - t) / t)``. It therefore reduces comparisons without
+    filtering on method/path, which could miss a high-ratio near duplicate
+    whose request dimensions changed.
     """
 
     def __init__(
@@ -151,18 +152,32 @@ class ContaminationIndex:
     ) -> "ContaminationIndex":
         records: list[ContaminationRecord] = []
         for split, frame in historical_frames:
-            for row_number, row in frame.reset_index(drop=True).iterrows():
-                text = str(row["combined_payload"])
+            normalized_frame = frame.reset_index(drop=True)
+            texts = normalized_frame["combined_payload"].tolist()
+            labels = normalized_frame["final_label"].tolist()
+            sample_ids = (
+                normalized_frame["sample_id"].tolist()
+                if "sample_id" in normalized_frame
+                else None
+            )
+            for row_number, (text_value, label_value) in enumerate(
+                zip(texts, labels)
+            ):
+                text = str(text_value)
                 records.append(
                     cls._record(
                         record_key=f"historical:{split}:{row_number}",
-                        sample_id=str(row.get("sample_id", f"{split}:{row_number}")),
+                        sample_id=(
+                            str(sample_ids[row_number])
+                            if sample_ids is not None
+                            else f"{split}:{row_number}"
+                        ),
                         source=str(split),
                         text=text,
                         label=(
                             None
-                            if row.get("final_label") is None
-                            else str(row["final_label"])
+                            if label_value is None
+                            else str(label_value)
                         ),
                     )
                 )
@@ -193,9 +208,9 @@ class ContaminationIndex:
             record_key=record_key,
             sample_id=sample_id,
             source=source,
-            text=text,
             normalized_text=normalized_text,
             normalized_hash=sha256_text(normalized_text),
+            model_input_sha256=sha256_text(text),
             label=label,
         )
 
@@ -235,8 +250,13 @@ class ContaminationIndex:
     def _candidate_records(
         self, normalized_text: str, *, threshold: float
     ) -> list[ContaminationRecord]:
-        minimum_length = ceil(len(normalized_text) * threshold)
-        maximum_length = floor(len(normalized_text) / threshold)
+        query_length = len(normalized_text)
+        minimum_length = ceil(
+            threshold * query_length / (2.0 - threshold)
+        )
+        maximum_length = floor(
+            query_length * (2.0 - threshold) / threshold
+        )
         minimum_bucket = self._bucket_for("x" * minimum_length)
         maximum_bucket = self._bucket_for("x" * maximum_length)
         candidates: list[ContaminationRecord] = []
@@ -293,8 +313,8 @@ class ContaminationIndex:
                 else "near_duplicate"
             ),
             "similarity": round(similarity, 6),
-            "candidate_model_input_sha256": sha256_text(candidate.text),
-            "matched_model_input_sha256": sha256_text(matched.text),
+            "candidate_model_input_sha256": candidate.model_input_sha256,
+            "matched_model_input_sha256": matched.model_input_sha256,
         }
 
     def _report(

@@ -28,17 +28,27 @@ or automatic promotion path. The reusable training entrypoint remains under
   historical validation/test splits, including the metadata and checksum
   contract required by the training preflight. It builds one reusable index
   over train, validation, and test per simulation, checks exact normalized
-  hashes before safe length-bucketed fuzzy candidates, and checks only new
+  hashes before safe length-bucketed fuzzy candidates. The length bounds use
+  the maximum possible `SequenceMatcher` ratio, so valid 85/100-length
+  near-duplicates at threshold `0.90` remain candidates. It checks only new
   daily samples against historical and accepted daily records. It rejects
   exact, near-duplicate, duplicate, and conflicting-label contamination and
   records row counts, candidate comparisons, exact/fuzzy matches, rejected
   IDs, and hashes for data, metadata, checksums, historical inputs, and the
-  canonical snapshot manifest.
+  canonical snapshot manifest. The index keeps normalized comparison text and
+  raw-input hashes, not a duplicate full raw-text field. Run
+  `python -m ml_model.retraining.benchmark_contamination_index --rows 100000
+  --queries 10` before native training and record memory and comparison ratio
+  against the full-scan baseline; the synthetic benchmark does not prove
+  full-dataset fit.
 - `drift.py` records deterministic per-batch request, label, source,
   confidence, query-parameter, and validation-error dimensions.
 - `prediction_artifacts.py` writes deterministic, hash-checked baseline and
   candidate per-example artifacts from the locked golden controls. Stable
-  sample IDs and dataset/golden/split provenance are required for joining.
+  sample IDs, dataset/golden/split provenance, the golden manifest hash, and
+  the evaluated serving-manifest/checkpoint hash are required. Baseline and
+  candidate model hashes are retained separately and are not expected to
+  match.
 - `statistical_evidence.py` records paired McNemar exact results, absolute
   accuracy difference, paired error counts, and seeded bootstrap confidence
   intervals only when those artifacts are valid and aligned. Missing evidence
@@ -77,6 +87,20 @@ From the repository root, run the complete synthetic smoke with all days:
   --smoke `
   --days 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
 ```
+
+Before native training, measure the contamination index with representative
+synthetic scale:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.retraining.benchmark_contamination_index `
+  --rows 100000 `
+  --queries 10
+```
+
+Capture `peak_memory_mib`, `retained_memory_mib`, build/query time, and
+`candidate_comparisons_checked` plus `candidate_comparison_ratio`. This does
+not modify the real dataset and is not a substitute for validating the actual
+laptop's full-dataset memory headroom.
 
 For native execution, first create a baseline artifact and its paired
 prediction artifact, then run the simulator with reviewed non-synthetic daily

@@ -12,6 +12,7 @@ from ml_model.preprocessing.dataset_io import (
     load_dataset_file_manifest,
     validate_dataset_preprocessing,
 )
+from ml_model.retraining.benchmark_contamination_index import run_benchmark
 from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotContaminationError,
@@ -408,6 +409,66 @@ def test_contamination_index_detects_near_duplicates_and_bounds_candidates():
     assert report["near_duplicate_count"] == 1
     assert report["historical_row_count"] == 2000
     assert 0 < report["candidate_comparisons_checked"] < 2000
+
+
+def test_contamination_index_uses_sequence_matcher_safe_length_bounds():
+    historical_text = "GET /" + ("a" * 95)
+    candidate_text = "GET /" + ("a" * 80)
+    assert len(historical_text) == 100
+    assert len(candidate_text) == 85
+
+    contamination_index = ContaminationIndex.from_historical_frames(
+        [
+            (
+                "train",
+                pd.DataFrame(
+                    [{"combined_payload": historical_text, "final_label": "Normal"}]
+                ),
+            )
+        ]
+    )
+    candidate = dict(
+        REQUIRED,
+        sample_id="length-bound-near-duplicate",
+        model_input_text=candidate_text,
+        model_input_hash=hashlib.sha256(candidate_text.encode()).hexdigest(),
+    )
+
+    with pytest.raises(SnapshotContaminationError) as exc_info:
+        contamination_index.validate_new_samples([candidate])
+
+    report = exc_info.value.report
+    assert report["near_duplicate_count"] == 1
+    assert report["matches"][0]["similarity"] == pytest.approx(0.918919, abs=1e-6)
+
+
+def test_contamination_index_does_not_retain_duplicate_raw_text():
+    raw_text = "GET /sensitive/" + ("x" * 100)
+    contamination_index = ContaminationIndex.from_historical_frames(
+        [
+            (
+                "train",
+                pd.DataFrame(
+                    [{"combined_payload": raw_text, "final_label": "Normal"}]
+                ),
+            )
+        ]
+    )
+
+    record = next(iter(contamination_index._records.values()))
+    assert "text" not in record.__dataclass_fields__
+    assert record.model_input_sha256 == hashlib.sha256(raw_text.encode()).hexdigest()
+
+
+def test_contamination_index_benchmark_reports_memory_and_comparisons():
+    result = run_benchmark(row_count=5000, query_count=8)
+
+    assert result["historical_row_count"] == 5000
+    assert result["query_count"] == 8
+    assert result["peak_memory_mib"] > 0
+    assert result["candidate_comparisons_checked"] >= 0
+    assert result["full_scan_comparisons"] == 5000 * 8
+    assert 0 <= result["candidate_comparison_ratio"] <= 1
 
 
 def test_index_rejects_conflicting_labels_and_cross_day_duplicates():

@@ -132,7 +132,8 @@ def build_baseline_report(
         model_version=model_version,
         dataset_version=config.historical_dataset_version,
         golden_version=config.golden_version,
-        golden_manifest_sha256=golden.get("manifest_sha256"),
+        golden_manifest_sha256=str(golden["manifest_sha256"]),
+        model_artifact_sha256=sha256_file(manifest_path),
     )
     file_hashes = {
         path.name: sha256_file(path)

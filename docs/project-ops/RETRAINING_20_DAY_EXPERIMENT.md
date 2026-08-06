@@ -67,10 +67,27 @@ historical splits. The index stores the existing canonical request
 normalization, deterministic query-parameter ordering, an exact normalized
 text hash, and normalized-length buckets. An exact-hash lookup runs first.
 Non-exact candidates are limited only by the mathematically safe normalized
-length range before the existing `SequenceMatcher` threshold (`0.90`); method
-and parsed path are deliberately not used as exclusion filters.
+length range before the existing `SequenceMatcher` threshold (`0.90`); its
+bounds are `ceil(t*q/(2-t))` through `floor(q*(2-t)/t)`, so a valid 85/100
+near-duplicate is not excluded at threshold `0.90`. Method and parsed path
+are deliberately not used as exclusion filters.
 This avoids a cumulative-day-by-full-history scan without silently dropping
 near duplicates whose method or path changed.
+
+The index retains normalized text for fuzzy comparison and a SHA-256 of the
+raw model input for diagnostics; it does not retain a second full raw-text
+copy. Before native training, run the representative synthetic benchmark:
+
+```powershell
+.venv\Scripts\python.exe -m ml_model.retraining.benchmark_contamination_index `
+  --rows 100000 `
+  --queries 10
+```
+
+Record its peak/retained memory, build/query time, and candidate-comparison
+count/ratio against the 1,000,000-comparison full-scan baseline. This is a
+memory/performance signal for the laptop, not proof that the full 907k-row
+dataset fits or that near-duplicate detection is semantically complete.
 
 Each new day is checked once against the historical index and the accepted
 daily index, including within-day duplicate/conflicting-label checks and
@@ -114,9 +131,13 @@ comparison set. `run_baseline.py` writes the frozen
 `baseline_predictions.json`; each native candidate writes a corresponding
 candidate artifact. Each row contains `sample_id`, `split`, `y_true`,
 `prediction`, confidence, confidence tier, response action, model version,
-dataset version, and golden version. The artifacts are hashed and joined by
-stable `sample_id` only when the dataset, golden set, split, and comparison-set
-hash agree.
+dataset version, and golden version. Each artifact also requires the locked
+`golden_manifest_sha256` and the evaluated model package's
+`model_artifact_sha256` (the serving-manifest hash). The artifacts are hashed
+and joined by stable `sample_id` only when the dataset, golden set, split,
+comparison-set hash, and golden-manifest hash agree; baseline and candidate
+model hashes are retained separately because the models are expected to
+differ.
 
 Evidence is `COMPUTED` only for a valid pair and includes McNemar's exact test,
 absolute accuracy difference, baseline-only/candidate-only/both-correct/

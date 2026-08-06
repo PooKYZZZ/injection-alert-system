@@ -24,6 +24,7 @@ from ml_model.retraining.experiment_contract import (
     AcceptanceTolerances,
     ExperimentConfig,
     load_experiment_config,
+    sha256_file,
 )
 from ml_model.retraining.integrity import validate_candidate_contract
 from ml_model.retraining.prediction_artifacts import (
@@ -461,7 +462,10 @@ def _default_golden(
         model_version=service.model_version or artifact_path.name,
         dataset_version=config.historical_dataset_version,
         golden_version=config.golden_version,
-        golden_manifest_sha256=evaluation.get("manifest_sha256"),
+        golden_manifest_sha256=str(evaluation["manifest_sha256"]),
+        model_artifact_sha256=sha256_file(
+            artifact_path / "serving_manifest.json"
+        ),
     )
     return {**evaluation, "prediction_artifact": str(prediction_path)}
 

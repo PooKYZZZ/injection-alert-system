@@ -164,6 +164,8 @@ def test_prediction_artifacts_are_provenance_bound_and_join_by_stable_ids(
         model_version="baseline-v1",
         dataset_version="dataset-v1",
         golden_version="golden-v1",
+        golden_manifest_sha256="d" * 64,
+        model_artifact_sha256="a" * 64,
     )
     write_prediction_artifact(
         candidate_path,
@@ -171,6 +173,8 @@ def test_prediction_artifacts_are_provenance_bound_and_join_by_stable_ids(
         model_version="candidate-v1",
         dataset_version="dataset-v1",
         golden_version="golden-v1",
+        golden_manifest_sha256="d" * 64,
+        model_artifact_sha256="b" * 64,
     )
 
     loaded = load_prediction_artifact(baseline_path)
@@ -184,6 +188,9 @@ def test_prediction_artifacts_are_provenance_bound_and_join_by_stable_ids(
     assert joined["sample_ids"] == ["sample-0", "sample-1"]
     assert evidence["status"] == "COMPUTED"
     assert evidence["provenance"]["golden_version"] == "golden-v1"
+    assert evidence["provenance"]["golden_manifest_sha256"] == "d" * 64
+    assert evidence["provenance"]["baseline_model_artifact_sha256"] == "a" * 64
+    assert evidence["provenance"]["candidate_model_artifact_sha256"] == "b" * 64
     assert evidence["significance_claim"] == "NOT_CLAIMED"
 
 
@@ -196,6 +203,8 @@ def test_prediction_artifacts_reject_mismatched_ids_and_provenance(tmp_path: Pat
         model_version="baseline-v1",
         dataset_version="dataset-v1",
         golden_version="golden-v1",
+        golden_manifest_sha256="d" * 64,
+        model_artifact_sha256="a" * 64,
     )
     write_prediction_artifact(
         candidate_path,
@@ -203,6 +212,8 @@ def test_prediction_artifacts_reject_mismatched_ids_and_provenance(tmp_path: Pat
         model_version="candidate-v1",
         dataset_version="dataset-v1",
         golden_version="golden-v1",
+        golden_manifest_sha256="d" * 64,
+        model_artifact_sha256="b" * 64,
     )
     mismatch = build_statistical_evidence(
         {"baseline_artifact": baseline_path, "candidate_artifact": candidate_path}
@@ -216,12 +227,29 @@ def test_prediction_artifacts_reject_mismatched_ids_and_provenance(tmp_path: Pat
         model_version="candidate-v1",
         dataset_version="dataset-v2",
         golden_version="golden-v1",
+        golden_manifest_sha256="d" * 64,
+        model_artifact_sha256="b" * 64,
     )
     provenance_mismatch = build_statistical_evidence(
         {"baseline_artifact": baseline_path, "candidate_artifact": candidate_path}
     )
     assert provenance_mismatch["status"] == "INVALID"
     assert provenance_mismatch["reason"] == "prediction_provenance_mismatch"
+
+    write_prediction_artifact(
+        candidate_path,
+        _prediction_records(["Normal", "SQL Injection"]),
+        model_version="candidate-v1",
+        dataset_version="dataset-v1",
+        golden_version="golden-v1",
+        golden_manifest_sha256="e" * 64,
+        model_artifact_sha256="b" * 64,
+    )
+    golden_manifest_mismatch = build_statistical_evidence(
+        {"baseline_artifact": baseline_path, "candidate_artifact": candidate_path}
+    )
+    assert golden_manifest_mismatch["status"] == "INVALID"
+    assert golden_manifest_mismatch["reason"] == "prediction_provenance_mismatch"
 
 
 def test_statistical_evidence_rejects_malformed_arrays_and_keeps_smoke_non_thesis(
