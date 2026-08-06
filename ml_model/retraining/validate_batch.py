@@ -43,7 +43,7 @@ class BatchValidationReport:
 
     @property
     def passed(self) -> bool:
-        return not self.rejected_samples
+        return bool(self.accepted_samples) and not self.rejected_samples
 
     @property
     def accepted_hash(self) -> str:
@@ -131,6 +131,13 @@ def _basic_reasons(
     ):
         reasons.append("predicted label cannot be used as ground truth")
     review_status = sample.get("review_status")
+    if sample.get("is_synthetic") is True and not (
+        allow_synthetic_fixtures and review_status == SIMULATION_FIXTURE_STATUS
+    ):
+        if review_status != SIMULATION_FIXTURE_STATUS:
+            reasons.append(
+                "synthetic samples are allowed only in explicit simulation-fixture mode"
+            )
     if review_status == APPROVED_REVIEW_STATUS:
         if not isinstance(sample.get("reviewer_id"), str) or not str(
             sample.get("reviewer_id")
@@ -191,6 +198,13 @@ def validate_batch_file(
     lines = batch_path.read_text(encoding="utf-8").splitlines()
     accepted_candidates: list[tuple[int, dict[str, Any]]] = []
     rejected: list[dict[str, Any]] = []
+    if not lines:
+        _reject(
+            rejected,
+            line_number=0,
+            sample={"sample_id": "empty-batch"},
+            reason="batch contains no samples",
+        )
     for line_number, line in enumerate(lines, 1):
         if not line.strip():
             _reject(

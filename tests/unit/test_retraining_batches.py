@@ -28,7 +28,7 @@ REQUIRED = {
     "ground_truth_label": "Normal",
     "batch_day": 1,
     "source_type": "curated_fixture",
-    "is_synthetic": True,
+    "is_synthetic": False,
     "review_status": "approved_for_training",
     "reviewer_id": "experiment-author",
     "reviewed_at": "2026-08-06T00:00:00Z",
@@ -194,6 +194,7 @@ def test_synthetic_fixture_requires_explicit_simulation_mode(tmp_path: Path):
     row = dict(
         REQUIRED,
         source_type="curated_simulation_fixture",
+        is_synthetic=True,
         review_status="curated_simulation_fixture",
         reviewer_id=None,
         reviewed_at=None,
@@ -218,6 +219,42 @@ def test_synthetic_fixture_requires_explicit_simulation_mode(tmp_path: Path):
     assert rejected.accepted_samples == []
     assert "simulation fixture" in rejected.rejected_samples[0]["reason"]
     assert len(accepted.accepted_samples) == 1
+
+
+def test_approved_synthetic_sample_is_rejected_even_with_fixture_override(
+    tmp_path: Path,
+):
+    row = dict(REQUIRED, is_synthetic=True)
+    batch_path = tmp_path / "day_01.jsonl"
+    _write_jsonl(batch_path, [row])
+
+    report = validate_batch_file(
+        batch_path,
+        expected_preprocessing_version="http-preprocessor-v1",
+        golden_texts=set(),
+        allow_synthetic_fixtures=True,
+        quarantine_dir=tmp_path / "quarantine",
+    )
+
+    assert report.accepted_samples == []
+    assert "synthetic samples are allowed only" in report.rejected_samples[0]["reason"]
+
+
+def test_empty_batch_is_rejected(tmp_path: Path):
+    batch_path = tmp_path / "day_01.jsonl"
+    batch_path.write_text("", encoding="utf-8")
+
+    report = validate_batch_file(
+        batch_path,
+        expected_preprocessing_version="http-preprocessor-v1",
+        golden_texts=set(),
+        quarantine_dir=tmp_path / "quarantine",
+    )
+
+    assert report.passed is False
+    assert report.accepted_samples == []
+    assert report.rejected_samples[0]["sample_id"] == "empty-batch"
+    assert "no samples" in report.rejected_samples[0]["reason"]
 
 
 def test_batch_report_is_deterministic_and_snapshot_is_cumulative(tmp_path: Path):
