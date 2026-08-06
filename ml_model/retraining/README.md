@@ -21,10 +21,22 @@ or automatic promotion path. The reusable training entrypoint remains under
 - `validate_batch.py` rejects unapproved, unprovenanced, duplicate, conflicting,
   unknown-label, predicted-label, preprocessing-mismatched, and golden-overlap
   samples while preserving privacy-safe quarantine evidence. It also validates
-  model-input hashes and batch-day provenance.
+  model-input hashes and batch-day provenance. Real approved rows require
+  reviewer identity and review time; checked-in synthetic rows are explicitly
+  simulation fixtures and are rejected unless the smoke/test override is set.
 - `snapshots.py` creates versioned cumulative train snapshots and preserves the
   historical validation/test splits, including the metadata and checksum
-  contract required by the training preflight.
+  contract required by the training preflight. It rejects exact and
+  near-duplicate historical contamination and records hashes for data,
+  metadata, checksums, historical inputs, and the canonical snapshot manifest.
+- `drift.py` records deterministic per-batch request, label, source,
+  confidence, query-parameter, and validation-error dimensions.
+- `statistical_evidence.py` records paired McNemar and bootstrap evidence only
+  when aligned baseline and candidate predictions are supplied; otherwise it
+  reports `NOT_RUN`.
+- `integrity.py` blocks a candidate unless its serving manifest, exact-run
+  contract, dataset hash, pinned model/tokenizer identity, policy mappings,
+  selected checkpoint, and reload/hash identity remain unchanged.
 - `simulate_20_day.py` calls the maintained training/evaluation/export seams,
   performs isolated candidate packaging/reload/backend checks, applies frozen
   gates, and records `ACCEPTED`, `REJECTED`, or `NOT_RUN` per day. A requested

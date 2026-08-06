@@ -22,15 +22,25 @@ def render_simulation_markdown(payload: Mapping[str, Any]) -> str:
     lines = [
         "# Controlled 20-Day Retraining Simulation",
         "",
-        "This report describes a controlled offline simulation using prepared daily batches.",
+        "This report describes a controlled offline simulation using prepared "
+        "daily batches.",
         "",
         f"- Experiment: `{payload.get('experiment', {}).get('name', 'unknown')}`",
         f"- Version: `{payload.get('experiment', {}).get('version', 'unknown')}`",
         f"- Final status: `{payload.get('status', 'UNKNOWN')}`",
         f"- Baseline status: `{payload.get('baseline_status', 'UNKNOWN')}`",
-        f"- Execution mode: `{payload.get('experiment', {}).get('execution_mode', 'UNKNOWN')}`",
-        f"- Real native training: `{payload.get('experiment', {}).get('real_training_status', 'UNKNOWN')}`",
-        f"- Model-quality conclusion: `{payload.get('experiment', {}).get('model_quality_conclusion', 'UNKNOWN')}`",
+        "- Execution mode: `{}".format(
+            payload.get("experiment", {}).get("execution_mode", "UNKNOWN")
+        )
+        + "`",
+        "- Real native training: `{}".format(
+            payload.get("experiment", {}).get("real_training_status", "UNKNOWN")
+        )
+        + "`",
+        "- Model-quality conclusion: `{}".format(
+            payload.get("experiment", {}).get("model_quality_conclusion", "UNKNOWN")
+        )
+        + "`",
         "",
         "## Daily results",
         "",
@@ -39,7 +49,10 @@ def render_simulation_markdown(payload: Mapping[str, Any]) -> str:
     ]
     for day in payload.get("days", []):
         lines.append(
-            "| {day} | {status} | {stage} | `{input_hash}` | `{snapshot_hash}` | {error} |".format(
+            (
+                "| {day} | {status} | {stage} | `{input_hash}` | "
+                "`{snapshot_hash}` | {error} |"
+            ).format(
                 day=day.get("day", ""),
                 status=day.get("status", ""),
                 stage=day.get("stage", ""),
@@ -53,8 +66,12 @@ def render_simulation_markdown(payload: Mapping[str, Any]) -> str:
             "",
             "## Execution boundary",
             "",
-            "Smoke mode validates orchestration, hashing, snapshot creation, gate wiring, and failure handling only; it does not run native training and cannot support a model-quality conclusion.",
-            "Full baseline, one-seed, three-seed, and 20-day native training remain laptop operations unless fresh artifacts and reports are present.",
+            "Smoke mode validates orchestration, hashing, snapshot creation, "
+            "gate wiring, and failure handling only; it does not run native "
+            "training and cannot support a model-quality conclusion.",
+            "Full baseline, one-seed, three-seed, and 20-day native training "
+            "remain laptop operations unless fresh artifacts and reports are "
+            "present.",
             "",
         ]
     )

@@ -82,7 +82,9 @@ def extract_calibration_temperature(calibration_payload: dict[str, Any]) -> floa
     try:
         temperature = float(raw_temperature)
     except (TypeError, ValueError) as exc:
-        raise PromotionError("Calibration payload temperature must be numeric.") from exc
+        raise PromotionError(
+            "Calibration payload temperature must be numeric."
+        ) from exc
 
     if not math.isfinite(temperature):
         raise PromotionError("Calibration payload temperature must be finite.")
@@ -205,7 +207,7 @@ def build_model_card(
     lines = [
         "# DistilBERT Injection Detector",
         "",
-        f"## Active version",
+        "## Active version",
         f"- {model_version}",
         "",
         "## Summary metrics",
@@ -278,11 +280,15 @@ def write_eval_provenance_files(
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         eval_run_dir = Path(eval_root) / timestamp
         if eval_run_dir.exists():
-            raise PromotionError(f"Evaluation provenance directory already exists: {eval_run_dir}")
+            raise PromotionError(
+                f"Evaluation provenance directory already exists: {eval_run_dir}"
+            )
         eval_run_dir.mkdir(parents=True, exist_ok=False)
     else:
         eval_run_dir = Path(eval_run_dir)
-        if not eval_run_dir.is_dir() or eval_run_dir.parent.resolve() != Path(eval_root).resolve():
+        if not eval_run_dir.is_dir() or eval_run_dir.parent.resolve() != Path(
+            eval_root
+        ).resolve():
             raise PromotionError(
                 "Evaluation provenance updates must target an existing direct child of "
                 f"'{Path(eval_root)}'."
@@ -352,6 +358,7 @@ def run_packager(
     run_dir_name: str,
     notes: str | None,
     calibration_eval_run_dir: Path,
+    repo_root: Path | None = None,
 ) -> Path:
     return package_serving_artifact(
         model_key=model_key,
@@ -361,6 +368,7 @@ def run_packager(
         strict=True,
         notes=notes,
         calibration_eval_run_dir=calibration_eval_run_dir,
+        repo_root=repo_root,
     )
 
 
@@ -372,7 +380,8 @@ def restore_archived_run(*, archived_run_dir: Path, active_run_dir: Path) -> Pat
         raise PromotionError(f"Archived run directory does not exist: {archived_dir}")
     if active_dir.exists():
         raise PromotionError(
-            f"Cannot restore archived run because active path already exists: {active_dir}"
+            "Cannot restore archived run because active path already exists: "
+            f"{active_dir}"
         )
 
     active_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -519,7 +528,9 @@ def extract_state_dict_checkpoint(
     if normalize_for_packager:
         resolved_architecture = (
             _load_architecture_from_run_metadata(
-                source.parent.parent if source.parent.name == "checkpoint" else source.parent
+                source.parent.parent
+                if source.parent.name == "checkpoint"
+                else source.parent
             )
             if architecture is None
             else architecture
@@ -644,7 +655,9 @@ def promote_final_training_run(
     active_dir = Path(active_run_dir)
     model_key = str(config_metadata.get("model_key", "distilbert"))
     model_version = active_dir.name
-    config_used = build_config_used(config_metadata=config_metadata, model_version=model_version)
+    config_used = build_config_used(
+        config_metadata=config_metadata, model_version=model_version
+    )
     eval_report = build_eval_report(
         summary_metrics=summary_metrics,
         per_class_metrics=per_class_metrics,
@@ -709,6 +722,7 @@ def promote_final_training_run(
             run_dir_name=fresh_active_dir.name,
             notes=notes,
             calibration_eval_run_dir=eval_run_dir,
+            repo_root=Path(repo_root),
         )
 
         validation_gates = {
@@ -788,7 +802,10 @@ def promote_final_training_run(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Promote a final-training DistilBERT run into staged serving artifacts.",
+        description=(
+            "Promote a final-training DistilBERT run into staged serving "
+            "artifacts."
+        ),
     )
     parser.add_argument(
         "--source-run-dir",
@@ -800,7 +817,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--active-run-dir",
         required=True,
         type=Path,
-        help="Path to active staged run directory to replace after archive-and-recreate.",
+        help=(
+            "Path to active staged run directory to replace after "
+            "archive-and-recreate."
+        ),
     )
     parser.add_argument(
         "--archive-root",
@@ -843,7 +863,10 @@ def main(argv: list[str] | None = None) -> PromotionResult:
         notes=args.notes,
         dry_run=args.dry_run,
     )
-    print(f"Promotion complete. dry_run={result.dry_run} active_run={result.active_run_dir}")
+    print(
+        f"Promotion complete. dry_run={result.dry_run} "
+        f"active_run={result.active_run_dir}"
+    )
     return result
 
 

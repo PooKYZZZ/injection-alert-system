@@ -3,14 +3,20 @@
 ## Current repository state
 
 - Branch: `feature/20-day-retraining-simulation`
-- Merge/PR state: local implementation branch; not pushed and no remote PR was
-  created in this session.
-- Experiment status on the development PC: unit tests and the two-day
+- Merge/PR state: pushed to origin and tracked by draft PR #106:
+  `https://github.com/PooKYZZZ/injection-alert-system/pull/106`.
+- Experiment status on the development PC: unit tests and the twenty-day
   orchestration smoke passed. The real baseline, seed-2026 training,
   three-seed confirmation, and full 20-day native DistilBERT simulation were
   `NOT_RUN` / `REQUIRES_LAPTOP`.
 - Primary contract: `ml_model/configs/retraining_20_day_v1.toml`
 - Primary output root: `ml_model/results/retraining_20_day_v1/`
+
+The checked-in `daily_batches/` files are explicitly marked
+`curated_simulation_fixture` and are rejected by normal training-mode batch
+validation. They exist only for the injected-adapter smoke path. Replace them
+with reviewed, non-synthetic exports containing reviewer identity and review
+time before attempting any real training run.
 
 All commands below are run from the repository root. They use relative paths,
 so they remain portable when the repository path contains spaces.
@@ -111,10 +117,10 @@ arbitrary latest run or write to an active registry:
 
 Inspect `baseline.json` before candidate training. The report records artifact
 identity and hash, golden results, the exact pagination result, packaging and
-backend-loading status, and metric availability. Missing operational rates
-or supported attack recalls remain `Unknown`/`REQUIRES_LAPTOP`; they are not
-converted to zero, and the baseline is not frozen until every supported attack
-class recall is present.
+backend-loading status, and metric availability. Missing operational rates or
+supported attack recalls remain `Unknown`/`REQUIRES_LAPTOP`; they are not
+converted to zero. The baseline is not frozen until every supported attack
+class recall is present and `baseline_status` is `FROZEN`.
 
 ## Corrected one-seed run
 
@@ -182,6 +188,15 @@ day blocks later cumulative days, which retain their blocked reports. The
 simulator does not modify `ml_model/model_registry/production/` or an active
 staging artifact. A one-day run is `PARTIAL`; only all accepted days 1–20 can
 be complete `SUCCESS`.
+
+Each accepted candidate must also pass the candidate contract gate: labels,
+preprocessing, pinned model/tokenizer revision, thresholds, response actions,
+snapshot manifest hash, selected checkpoint, run-contract hash, and local
+reload identity. Snapshot manifests cover the parquet files, preprocessing
+metadata, checksum manifest, historical input hashes, and their canonical
+manifest hashes. Per-day drift summaries are descriptive evidence; paired
+baseline-versus-candidate statistical evidence remains `NOT_RUN` until paired
+predictions are supplied.
 
 ## Reporting and copy-back
 

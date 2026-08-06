@@ -130,11 +130,19 @@ def build_baseline_report(
         {},
     )
     missing_metrics = _missing_baseline_metrics(metrics, config.label_names)
+    baseline_ready = not missing_metrics
     report = {
         "status": "PASS"
-        if service.loaded and golden["passed"] and not missing_metrics
+        if service.loaded and golden["passed"] and baseline_ready
         else "PARTIAL",
-        "execution_boundary": "current staged artifact direct ModelService and locked golden controls",
+        "baseline_status": "FROZEN" if baseline_ready else "REQUIRES_LAPTOP",
+        "model_quality_conclusion": (
+            "READY_FOR_EXPERIMENT" if baseline_ready else "NOT_PERMITTED"
+        ),
+        "execution_boundary": (
+            "current staged artifact direct ModelService and locked golden "
+            "controls"
+        ),
         "training_status": "NOT_RUN",
         "artifact_argument": str(artifact_dir),
         "artifact_identity": {

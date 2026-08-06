@@ -81,6 +81,8 @@ def _write_batch(path: Path, day: int) -> None:
                 "source_type": "curated_fixture",
                 "is_synthetic": True,
                 "review_status": "approved_for_training",
+                "reviewer_id": "experiment-author",
+                "reviewed_at": "2026-08-06T00:00:00Z",
                 "provenance_id": f"fixture:day-{day:02d}-001",
                 "preprocessing_version": "http-preprocessor-v1",
             },
@@ -115,6 +117,33 @@ def test_acceptance_gates_report_rejection_reasons():
 
     assert result.passed is False
     assert "normal_false_positive_rate" in result.failures
+
+
+def test_acceptance_gates_require_candidate_contract_integrity_when_supplied():
+    result = evaluate_acceptance_gates(
+        baseline={
+            "normal_false_positive_rate": 0.01,
+            "attack_escape_rate": 0.01,
+            "macro_f1": 0.99,
+            "normal_recall": 1.0,
+            "supported_attack_recall": {"SQL Injection": 1.0},
+        },
+        candidate={
+            "normal_false_positive_rate": 0.01,
+            "attack_escape_rate": 0.01,
+            "macro_f1": 0.99,
+            "normal_recall": 1.0,
+            "supported_attack_recall": {"SQL Injection": 1.0},
+        },
+        golden={"passed": True},
+        package_passed=True,
+        reload_passed=True,
+        backend_passed=True,
+        candidate_contract={"passed": False},
+    )
+
+    assert result.passed is False
+    assert "contract_integrity" in result.failures
 
 
 def test_nested_baseline_report_is_normalized():

@@ -46,13 +46,19 @@ Every prepared JSONL row contains:
 `batch_day`, `source_type`, `is_synthetic`, `review_status`, `provenance_id`,
 and `preprocessing_version`.
 
-Only `review_status=approved_for_training` is eligible. The validator rejects
-unknown labels, missing ground truth, any model-prediction label field,
-unapproved rows, missing provenance, mismatched preprocessing, duplicates,
-conflicting labels, exact or near-duplicate golden overlap, missing or invalid
-model-input hashes, and wrong batch-day provenance. Rejected rows remain in a
-deterministic privacy-safe quarantine JSONL report containing only identifiers,
-source type, and a request-text hash; raw request text is not stored.
+Real training rows require `review_status=approved_for_training`, reviewer
+identity, and review time. The checked-in daily files instead use
+`review_status=curated_simulation_fixture`, `source_type=curated_simulation_fixture`,
+and `is_synthetic=true`; normal training-mode validation rejects them. Only
+the explicit smoke/test override accepts these fixtures, and that override
+cannot produce a real model-quality conclusion. The validator rejects unknown
+labels, missing ground truth, any model-prediction label field, unapproved or
+synthetic rows in real mode, missing provenance, mismatched preprocessing,
+duplicates, conflicting labels, exact or near-duplicate historical overlap,
+missing or invalid model-input hashes, and wrong batch-day provenance.
+Rejected rows remain in a deterministic privacy-safe quarantine JSONL report
+containing only identifiers, source type, and a request-text hash; raw request
+text is not stored.
 
 ## Orchestration and evidence
 
@@ -67,6 +73,21 @@ day is recorded as `REJECTED` with its stage and error; later cumulative days
 are recorded `NOT_RUN` and cannot produce accepted candidates. Normal callers
 cannot bypass the locked golden set or write inside the model registry. No
 active registry path is used as an output target.
+
+The backend evidence is intentionally limited to the direct `ModelService`
+boundary. FastAPI route integration, Next.js/BFF behavior, WAF enforcement,
+dashboard behavior, hosted deployment, and production traffic are not run by
+this experiment and remain separate evidence obligations.
+
+The snapshot manifest records parquet hashes, the preprocessing metadata hash,
+the checksum-file hash, the historical input file hashes, and canonical
+manifest hashes. The candidate contract gate then verifies that the serving
+manifest and exact-run contract preserve labels, preprocessing, model and
+tokenizer revision, thresholds, action mapping, dataset hash, selected best
+checkpoint, and artifact identity. Every day also records deterministic batch
+drift dimensions. Paired statistical comparison is computed only when aligned
+baseline and candidate predictions are present; otherwise the report says
+`NOT_RUN`.
 
 The smoke result is reported as `SMOKE_SUCCESS` and proves orchestration and
 failure safety only. It does not support claims about accuracy or retraining
@@ -111,7 +132,8 @@ Before inspecting candidate results, the TOML freezes these gates:
 - supported attack recall does not decrease by more than `0.01`;
 - every supported attack class is present in the frozen baseline recall;
 - preprocessing, labels, thresholds, run-bundle completeness, packaging,
-  reload, and backend checks remain valid.
+  reload, and backend checks remain valid;
+- candidate contract integrity is explicitly `passed`.
 
 Missing baseline metrics are `Unknown`/`REQUIRES_LAPTOP`; they are never
 replaced with guessed zeros. A candidate that misses a mandatory gate is

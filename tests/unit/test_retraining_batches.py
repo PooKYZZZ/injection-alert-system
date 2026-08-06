@@ -12,7 +12,11 @@ from ml_model.preprocessing.dataset_io import (
     load_dataset_file_manifest,
     validate_dataset_preprocessing,
 )
-from ml_model.retraining.snapshots import build_cumulative_snapshot
+from ml_model.retraining.snapshots import (
+    SnapshotContaminationError,
+    build_cumulative_snapshot,
+    validate_snapshot_integrity,
+)
 from ml_model.retraining.validate_batch import validate_batch_file
 
 REQUIRED = {
@@ -26,6 +30,8 @@ REQUIRED = {
     "source_type": "curated_fixture",
     "is_synthetic": True,
     "review_status": "approved_for_training",
+    "reviewer_id": "experiment-author",
+    "reviewed_at": "2026-08-06T00:00:00Z",
     "provenance_id": "fixture:day-01-001",
     "preprocessing_version": "http-preprocessor-v1",
 }
@@ -188,6 +194,36 @@ def test_batch_validator_rejects_wrong_batch_day(tmp_path: Path):
     assert "does not match expected day 1" in report.rejected_samples[0]["reason"]
 
 
+def test_synthetic_fixture_requires_explicit_simulation_mode(tmp_path: Path):
+    row = dict(
+        REQUIRED,
+        source_type="curated_simulation_fixture",
+        review_status="curated_simulation_fixture",
+        reviewer_id=None,
+        reviewed_at=None,
+    )
+    batch_path = tmp_path / "day_01.jsonl"
+    _write_jsonl(batch_path, [row])
+
+    rejected = validate_batch_file(
+        batch_path,
+        expected_preprocessing_version="http-preprocessor-v1",
+        golden_texts=set(),
+        quarantine_dir=tmp_path / "rejected-quarantine",
+    )
+    accepted = validate_batch_file(
+        batch_path,
+        expected_preprocessing_version="http-preprocessor-v1",
+        golden_texts=set(),
+        allow_synthetic_fixtures=True,
+        quarantine_dir=tmp_path / "accepted-quarantine",
+    )
+
+    assert rejected.accepted_samples == []
+    assert "simulation fixture" in rejected.rejected_samples[0]["reason"]
+    assert len(accepted.accepted_samples) == 1
+
+
 def test_batch_report_is_deterministic_and_snapshot_is_cumulative(tmp_path: Path):
     batch_path = tmp_path / "day_01.jsonl"
     _write_jsonl(batch_path, [REQUIRED])
@@ -223,9 +259,9 @@ def test_batch_report_is_deterministic_and_snapshot_is_cumulative(tmp_path: Path
         REQUIRED,
         sample_id="day-02-001",
         batch_day=2,
-        model_input_text="GET /api/users?page=3&limit=25",
+        model_input_text="GET /api/teams?offset=0&count=25",
         model_input_hash=hashlib.sha256(
-            b"GET /api/users?page=3&limit=25"
+            b"GET /api/teams?offset=0&count=25"
         ).hexdigest(),
     )
     day_two = build_cumulative_snapshot(
@@ -274,3 +310,73 @@ def test_snapshot_is_accepted_by_training_dataset_preflight(tmp_path: Path):
     assert manifest["files"]["train.parquet"]
     assert (result.snapshot_dir / "metadata_preprocessing.json").is_file()
     assert (result.snapshot_dir / "checksums.txt").is_file()
+
+
+def test_snapshot_rejects_near_duplicate_historical_sample_with_split_report(
+    tmp_path: Path,
+):
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    splits = {
+        "train": "GET /api/users?page=1&limit=10",
+        "validation": "POST /api/login",
+        "test": "GET /api/search?q=books",
+    }
+    for split, text in splits.items():
+        pd.DataFrame(
+            [{"combined_payload": text, "final_label": "Normal"}]
+        ).to_parquet(historical / f"{split}.parquet", index=False)
+
+    near_duplicate = dict(
+        REQUIRED,
+        sample_id="near-historical",
+        model_input_text="GET /api/users?page=1&limit=11",
+        model_input_hash=hashlib.sha256(
+            b"GET /api/users?page=1&limit=11"
+        ).hexdigest(),
+    )
+
+    with pytest.raises(SnapshotContaminationError) as exc_info:
+        build_cumulative_snapshot(
+            historical_data_dir=historical,
+            cumulative_samples=[near_duplicate],
+            output_root=tmp_path / "outputs",
+            day=1,
+            dataset_version="v3_907k_cleaned",
+            preprocessing_version="http-preprocessor-v1",
+        )
+
+    report = exc_info.value.report
+    assert report["near_duplicate_count"] == 1
+    assert report["exact_overlap_count"] == 0
+    assert report["matches"][0]["affected_split"] == "train"
+    assert report["rejected_sample_ids"] == ["near-historical"]
+
+
+def test_snapshot_integrity_detects_contract_file_tampering(tmp_path: Path):
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    base = pd.DataFrame([{"combined_payload": "GET /health", "final_label": "Normal"}])
+    for split in ("train", "validation", "test"):
+        base.to_parquet(historical / f"{split}.parquet", index=False)
+
+    result = build_cumulative_snapshot(
+        historical_data_dir=historical,
+        cumulative_samples=[REQUIRED],
+        output_root=tmp_path / "outputs",
+        day=1,
+        dataset_version="v3_907k_cleaned",
+        preprocessing_version="http-preprocessor-v1",
+    )
+
+    assert validate_snapshot_integrity(result.snapshot_dir)["passed"] is True
+    metadata_path = result.snapshot_dir / "metadata_preprocessing.json"
+    metadata_path.write_text(
+        metadata_path.read_text(encoding="utf-8").replace(
+            "http-preprocessor-v1", "tampered-preprocessor"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="contract_files_hash"):
+        validate_snapshot_integrity(result.snapshot_dir)

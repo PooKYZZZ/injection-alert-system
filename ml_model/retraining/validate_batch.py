@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from ml_model.evaluation.golden_controls import GoldenControlSet, find_golden_overlap
+from ml_model.retraining.drift import build_batch_drift_summary
 from ml_model.retraining.experiment_contract import (
     EXPECTED_LABELS,
     canonical_json_sha256,
@@ -28,6 +29,7 @@ REQUIRED_BATCH_FIELDS = {
     "preprocessing_version",
 }
 APPROVED_REVIEW_STATUS = "approved_for_training"
+SIMULATION_FIXTURE_STATUS = "curated_simulation_fixture"
 
 
 @dataclass
@@ -37,6 +39,7 @@ class BatchValidationReport:
     accepted_samples: list[dict[str, Any]]
     rejected_samples: list[dict[str, Any]]
     preprocessing_version: str
+    drift: dict[str, Any]
 
     @property
     def passed(self) -> bool:
@@ -55,6 +58,7 @@ class BatchValidationReport:
             "rejected_count": len(self.rejected_samples),
             "rejected_samples": self.rejected_samples,
             "preprocessing_version": self.preprocessing_version,
+            "drift": self.drift,
             "passed": self.passed,
         }
 
@@ -99,6 +103,7 @@ def _basic_reasons(
     *,
     expected_preprocessing_version: str,
     expected_batch_day: int | None,
+    allow_synthetic_fixtures: bool,
 ) -> list[str]:
     reasons: list[str] = []
     missing = sorted(REQUIRED_BATCH_FIELDS - set(sample))
@@ -125,7 +130,20 @@ def _basic_reasons(
         or "model_prediction" in sample
     ):
         reasons.append("predicted label cannot be used as ground truth")
-    if sample.get("review_status") != APPROVED_REVIEW_STATUS:
+    review_status = sample.get("review_status")
+    if review_status == APPROVED_REVIEW_STATUS:
+        if not isinstance(sample.get("reviewer_id"), str) or not str(
+            sample.get("reviewer_id")
+        ).strip():
+            reasons.append("approved training row is missing reviewer_id")
+        if not isinstance(sample.get("reviewed_at"), str) or not str(
+            sample.get("reviewed_at")
+        ).strip():
+            reasons.append("approved training row is missing reviewed_at")
+    elif review_status == SIMULATION_FIXTURE_STATUS:
+        if not allow_synthetic_fixtures or sample.get("is_synthetic") is not True:
+            reasons.append("simulation fixture is not allowed in real training mode")
+    else:
         reasons.append("not approved for training")
     provenance = sample.get("provenance_id")
     if not isinstance(provenance, str) or not provenance.strip():
@@ -142,7 +160,10 @@ def _basic_reasons(
         or not 1 <= int(sample.get("batch_day", 0)) <= 20
     ):
         reasons.append("batch_day must be an integer from 1 to 20")
-    elif expected_batch_day is not None and sample.get("batch_day") != expected_batch_day:
+    elif (
+        expected_batch_day is not None
+        and sample.get("batch_day") != expected_batch_day
+    ):
         reasons.append(f"batch_day does not match expected day {expected_batch_day}")
     if (
         not isinstance(sample.get("source_type"), str)
@@ -161,6 +182,7 @@ def validate_batch_file(
     golden_texts: Iterable[str] | None = None,
     golden_controls: GoldenControlSet | None = None,
     expected_batch_day: int | None = None,
+    allow_synthetic_fixtures: bool = False,
     quarantine_dir: Path | str,
 ) -> BatchValidationReport:
     batch_path = Path(batch_path).expanduser().resolve()
@@ -197,6 +219,7 @@ def validate_batch_file(
             payload,
             expected_preprocessing_version=expected_preprocessing_version,
             expected_batch_day=expected_batch_day,
+            allow_synthetic_fixtures=allow_synthetic_fixtures,
         )
         if reasons:
             _reject(
@@ -275,6 +298,7 @@ def validate_batch_file(
         accepted_samples=accepted,
         rejected_samples=rejected,
         preprocessing_version=expected_preprocessing_version,
+        drift=build_batch_drift_summary(accepted, rejected),
     )
     (quarantine_path / f"{batch_path.stem}.validation.json").write_text(
         json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",

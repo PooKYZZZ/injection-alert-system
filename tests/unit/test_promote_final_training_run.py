@@ -18,9 +18,9 @@ from ml_model.export.package_serving_artifact import (
 from ml_model.export.promote_final_training_run import (
     PromotionError,
     archive_existing_run,
-    build_model_card,
     build_config_used,
     build_eval_report,
+    build_model_card,
     build_provenance_payload,
     create_fresh_active_run_dir,
     extract_calibration_temperature,
@@ -36,7 +36,9 @@ from ml_model.export.promote_final_training_run import (
 from ml_model.training.run_contract import build_training_run_contract, contract_sha256
 
 
-def make_training_contract(*, preprocessing_version: str = "http-preprocessor-v1") -> dict:
+def make_training_contract(
+    *, preprocessing_version: str = "http-preprocessor-v1"
+) -> dict:
     labels = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
     return build_training_run_contract(
         dataset_version="v3_907k_cleaned",
@@ -310,14 +312,18 @@ def test_legacy_state_dict_mapping_requires_explicit_legacy_architecture():
 
 @pytest.mark.parametrize("architecture", [None, "", "unknown_architecture"])
 def test_state_dict_normalization_rejects_missing_or_unknown_architecture(architecture):
-    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+    from ml_model.export.promote_final_training_run import (
+        normalize_state_dict_for_packager,
+    )
 
     with pytest.raises(PromotionError, match="Unsupported or missing architecture"):
         normalize_state_dict_for_packager({}, architecture=architecture)
 
 
 def test_generic_transformer_architecture_cannot_use_legacy_mapping():
-    from ml_model.export.promote_final_training_run import normalize_state_dict_for_packager
+    from ml_model.export.promote_final_training_run import (
+        normalize_state_dict_for_packager,
+    )
 
     with pytest.raises(PromotionError, match="Generic transformer"):
         normalize_state_dict_for_packager(
@@ -447,7 +453,9 @@ def test_active_native_serving_artifact_reloads_without_changing_it():
     assert model.config.num_labels == 4
 
 
-def test_native_sequence_classifier_round_trips_strictly_from_local_files(tmp_path: Path):
+def test_native_sequence_classifier_round_trips_strictly_from_local_files(
+    tmp_path: Path,
+):
     config = DistilBertConfig(
         vocab_size=101,
         max_position_embeddings=16,
@@ -687,7 +695,9 @@ def test_preflight_fails_when_required_final_training_files_are_missing(tmp_path
 
 def test_preflight_fails_when_label_names_do_not_match_serving_contract():
     with pytest.raises(PromotionError, match="label names"):
-        validate_label_names(["Normal", "Code Injection", "Other Attacks", "SQL Injection"])
+        validate_label_names(
+            ["Normal", "Code Injection", "Other Attacks", "SQL Injection"]
+        )
 
 
 def test_preflight_fails_when_calibration_temperature_is_missing():
@@ -712,7 +722,9 @@ def test_archive_existing_run_moves_active_folder_to_archive_location(tmp_path: 
     assert (archived_path / "serving_manifest.json").exists()
 
 
-def test_archive_existing_run_refuses_when_archive_target_already_exists(tmp_path: Path):
+def test_archive_existing_run_refuses_when_archive_target_already_exists(
+    tmp_path: Path,
+):
     active = tmp_path / "staging" / "distilbert_v3_907k_cleaned_20260312_133755"
     active.mkdir(parents=True)
     archive_root = tmp_path / "archive"
@@ -752,7 +764,10 @@ def test_build_provenance_payload_records_checkpoint_archive_and_gates():
     )
 
     assert payload["checkpoint_identity"]["checkpoint_sha256"] == checkpoint_sha256
-    assert payload["previous_version_archived_to"] == "ml_model/model_registry/archive/run_old"
+    assert (
+        payload["previous_version_archived_to"]
+        == "ml_model/model_registry/archive/run_old"
+    )
     assert payload["artifact_packaging_ready"] is True
     assert payload["quality_gates_passed"] is False
     assert payload["ready_for_promotion"] is False
@@ -919,12 +934,14 @@ def test_run_packager_invokes_existing_package_serving_artifact(
         run_dir_name="distilbert_v3_907k_cleaned_20260312_133755",
         notes=None,
         calibration_eval_run_dir=calibration_eval_run_dir,
+        repo_root=tmp_path,
     )
 
     assert calls[0]["model_key"] == "distilbert"
     assert calls[0]["run_dir_name"] == "distilbert_v3_907k_cleaned_20260312_133755"
     assert calls[0]["strict"] is True
     assert calls[0]["calibration_eval_run_dir"] == calibration_eval_run_dir
+    assert calls[0]["repo_root"] == tmp_path
 
 
 def test_restore_archive_reinstates_old_active_run_after_failure(tmp_path: Path):

@@ -61,7 +61,9 @@ class AcceptanceTolerances:
             "attack_escape_tolerance": self.attack_escape_tolerance,
             "macro_f1_drop_tolerance": self.macro_f1_drop_tolerance,
             "normal_recall_minimum": self.normal_recall_minimum,
-            "supported_attack_recall_drop_tolerance": self.supported_attack_recall_drop_tolerance,
+            "supported_attack_recall_drop_tolerance": (
+                self.supported_attack_recall_drop_tolerance
+            ),
         }
         if any(float(value) < 0 for value in numeric.values()):
             raise ValueError("acceptance tolerances must be non-negative")
@@ -75,7 +77,9 @@ class AcceptanceTolerances:
             "attack_escape_tolerance": self.attack_escape_tolerance,
             "macro_f1_drop_tolerance": self.macro_f1_drop_tolerance,
             "normal_recall_minimum": self.normal_recall_minimum,
-            "supported_attack_recall_drop_tolerance": self.supported_attack_recall_drop_tolerance,
+            "supported_attack_recall_drop_tolerance": (
+                self.supported_attack_recall_drop_tolerance
+            ),
         }
 
 

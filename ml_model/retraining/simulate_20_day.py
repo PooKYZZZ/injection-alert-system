@@ -25,17 +25,45 @@ from ml_model.retraining.experiment_contract import (
     ExperimentConfig,
     load_experiment_config,
 )
+from ml_model.retraining.integrity import validate_candidate_contract
 from ml_model.retraining.report_simulation import (
     write_simulation_markdown,
     write_simulation_report,
 )
-from ml_model.retraining.snapshots import SnapshotResult, build_cumulative_snapshot
+from ml_model.retraining.snapshots import (
+    SnapshotResult,
+    build_cumulative_snapshot,
+    validate_snapshot_integrity,
+)
+from ml_model.retraining.statistical_evidence import build_statistical_evidence
 from ml_model.retraining.validate_batch import (
     BatchValidationReport,
     validate_batch_file,
 )
 
 EXACT_PAGINATION_REQUEST = "GET /api/users?page=1&limit=10"
+SMOKE_REQUESTS = (
+    "GET /smoke/health/check",
+    "POST /control/items/create",
+    "PUT /fixture/search/update",
+    "DELETE /sample/events/remove",
+    "PATCH /synthetic/roles/rename",
+    "GET /orchestration/teams/list",
+    "POST /evidence/projects/add",
+    "PUT /validation/reports/refresh",
+    "DELETE /testing/alerts/clear",
+    "PATCH /contract/users/rotate",
+    "GET /integrity/audit/read",
+    "POST /pipeline/status/write",
+    "PUT /snapshot/metrics/replace",
+    "DELETE /candidate/profile/remove",
+    "PATCH /artifact/catalog/patch",
+    "GET /quarantine/assets/list",
+    "POST /baseline/billing/check",
+    "PUT /manifest/settings/update",
+    "DELETE /registry/sessions/revoke",
+    "PATCH /simulation/notifications/send",
+)
 
 
 TrainHook = Callable[..., Path]
@@ -107,7 +135,9 @@ def normalize_baseline_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(metrics, Mapping):
         raise ValueError("baseline metrics must be a JSON object")
     missing = sorted(
-        key for key in REQUIRED_BASELINE_METRICS if key not in metrics or metrics[key] is None
+        key
+        for key in REQUIRED_BASELINE_METRICS
+        if key not in metrics or metrics[key] is None
     )
     if missing:
         raise ValueError(f"baseline is missing required metrics: {missing}")
@@ -147,6 +177,7 @@ def evaluate_acceptance_gates(
     package_passed: bool,
     reload_passed: bool,
     backend_passed: bool,
+    candidate_contract: Mapping[str, Any] | None = None,
     tolerances: AcceptanceTolerances | None = None,
 ) -> AcceptanceGateResult:
     tolerances = tolerances or AcceptanceTolerances()
@@ -156,6 +187,8 @@ def evaluate_acceptance_gates(
         "reload": bool(reload_passed),
         "backend": bool(backend_passed),
     }
+    if candidate_contract is not None:
+        checks["contract_integrity"] = bool(candidate_contract.get("passed"))
     checks["normal_false_positive_rate"] = _metric(
         candidate, "normal_false_positive_rate"
     ) <= (
@@ -352,6 +385,9 @@ def _default_package(
         strict=True,
         calibration_eval_run_dir=eval_dir,
         model_registry_path=candidate_registry,
+        repo_root=config.project_root,
+        confidence_thresholds=config.confidence_thresholds,
+        response_actions=config.response_actions,
         notes="offline controlled retraining candidate; never automatically promoted",
     )
 
@@ -565,6 +601,7 @@ def run_simulation(
                 expected_batch_day=day,
                 golden_controls=controls,
                 golden_texts=golden_texts if controls is None else None,
+                allow_synthetic_fixtures=allow_test_overrides,
                 quarantine_dir=day_dir / "quarantine",
             )
             day_result["batch_validation"] = batch_report.to_dict()
@@ -585,6 +622,8 @@ def run_simulation(
             cumulative_samples.extend(batch_report.accepted_samples)
         except Exception as exc:
             day_result["error"] = str(exc)
+            if getattr(exc, "report", None) is not None:
+                day_result["contamination"] = exc.report
             _write_day_report(day_dir, day_result)
             day_reports.append(day_result)
             _write_blocked_following_days(
@@ -603,12 +642,17 @@ def run_simulation(
                 day=day,
                 dataset_version=config.historical_dataset_version,
                 preprocessing_version=config.preprocessing_version,
+                project_root=config.project_root,
             )
+            snapshot_integrity = validate_snapshot_integrity(snapshot.snapshot_dir)
             day_result["stage"] = "training"
             day_result["snapshot_hash"] = snapshot.output_hash
             day_result["snapshot"] = snapshot.manifest
+            day_result["snapshot_integrity"] = snapshot_integrity
         except Exception as exc:
             day_result["error"] = str(exc)
+            if getattr(exc, "report", None) is not None:
+                day_result["contamination"] = exc.report
             _write_day_report(day_dir, day_result)
             day_reports.append(day_result)
             _write_blocked_following_days(
@@ -646,53 +690,91 @@ def run_simulation(
                 else _extract_candidate_metrics(run_dir)
             )
             day_result["evaluation"] = evaluation
+            day_result["statistical_evidence"] = build_statistical_evidence(
+                evaluation
+            )
             day_result["stage"] = "packaging"
             package_hook = hooks.package or _default_package
             artifact_path = Path(
                 package_hook(run_dir=run_dir, day_dir=day_dir, config=config, day=day)
             ).resolve()
-            day_result["stage"] = "reload"
-            reload_hook = hooks.reload or _default_reload
-            reload_passed = bool(
-                reload_hook(artifact_path=artifact_path, config=config, day=day)
-            )
-            day_result["stage"] = "golden_controls"
-            golden_hook = hooks.golden or _default_golden
-            golden_result = dict(
-                golden_hook(
-                    artifact_path=artifact_path,
-                    controls=controls,
+            candidate_contract = (
+                {
+                    "passed": True,
+                    "mode": "explicit_test_override",
+                    "checks": {},
+                    "failures": [],
+                }
+                if allow_test_overrides
+                else validate_candidate_contract(
                     config=config,
-                    day=day,
+                    artifact_dir=artifact_path,
+                    snapshot_manifest=snapshot.manifest,
+                ).to_dict()
+            )
+            day_result["candidate_contract"] = candidate_contract
+            if not candidate_contract["passed"]:
+                day_result.update(
+                    {
+                        "stage": "candidate_contract",
+                        "acceptance": {
+                            "passed": False,
+                            "checks": {"contract_integrity": False},
+                            "failures": ["contract_integrity"],
+                        },
+                        "status": "REJECTED",
+                    }
                 )
-            )
-            day_result["stage"] = "backend"
-            backend_hook = hooks.backend or _default_backend
-            backend_result = dict(
-                backend_hook(artifact_path=artifact_path, config=config, day=day)
-            )
-            gates = evaluate_acceptance_gates(
-                baseline=baseline,
-                candidate=metrics,
-                golden=golden_result,
-                package_passed=artifact_path.is_dir(),
-                reload_passed=reload_passed,
-                backend_passed=_bool_result(backend_result),
-                tolerances=config.acceptance,
-            )
+            else:
+                day_result["stage"] = "reload"
+                reload_hook = hooks.reload or _default_reload
+                reload_passed = bool(
+                    reload_hook(artifact_path=artifact_path, config=config, day=day)
+                )
+                day_result["stage"] = "golden_controls"
+                golden_hook = hooks.golden or _default_golden
+                golden_result = dict(
+                    golden_hook(
+                        artifact_path=artifact_path,
+                        controls=controls,
+                        config=config,
+                        day=day,
+                    )
+                )
+                day_result["stage"] = "backend"
+                backend_hook = hooks.backend or _default_backend
+                backend_result = dict(
+                    backend_hook(artifact_path=artifact_path, config=config, day=day)
+                )
+                gates = evaluate_acceptance_gates(
+                    baseline=baseline,
+                    candidate=metrics,
+                    golden=golden_result,
+                    package_passed=artifact_path.is_dir(),
+                    reload_passed=reload_passed,
+                    backend_passed=_bool_result(backend_result),
+                    candidate_contract=candidate_contract,
+                    tolerances=config.acceptance,
+                )
             day_result.update(
                 {
-                    "stage": "acceptance_gates",
+                    "stage": day_result.get("stage", "acceptance_gates"),
                     "run_dir": str(run_dir),
                     "artifact_path": str(artifact_path),
                     "metrics": metrics,
-                    "reload_passed": reload_passed,
-                    "golden": golden_result,
-                    "backend": backend_result,
-                    "acceptance": gates.to_dict(),
-                    "status": "ACCEPTED" if gates.passed else "REJECTED",
                 }
             )
+            if candidate_contract["passed"]:
+                day_result.update(
+                    {
+                        "stage": "acceptance_gates",
+                        "reload_passed": reload_passed,
+                        "golden": golden_result,
+                        "backend": backend_result,
+                        "acceptance": gates.to_dict(),
+                        "status": "ACCEPTED" if gates.passed else "REJECTED",
+                    }
+                )
         except Exception as exc:
             day_result["error"] = str(exc)
         _write_day_report(day_dir, day_result)
@@ -790,7 +872,7 @@ def run_smoke(
         batches = root / "batches"
         batches.mkdir()
         for day in range(1, max(requested_days) + 1):
-            model_input_text = f"GET /smoke?page={day}&limit=2"
+            model_input_text = SMOKE_REQUESTS[day - 1]
             (batches / f"day_{int(day):02d}.jsonl").write_text(
                 json.dumps(
                     {
@@ -803,7 +885,7 @@ def run_smoke(
                         "batch_day": int(day),
                         "source_type": "synthetic_smoke",
                         "is_synthetic": True,
-                        "review_status": "approved_for_training",
+                        "review_status": "curated_simulation_fixture",
                         "provenance_id": f"smoke:{day}",
                         "preprocessing_version": "http-preprocessor-v1",
                     },
@@ -897,7 +979,8 @@ def main(argv: list[str] | None = None) -> int:
         or args.baseline is None
     ):
         raise SystemExit(
-            "--historical-data-dir, --daily-batch-dir, and --baseline are required unless --smoke is used"
+            "--historical-data-dir, --daily-batch-dir, and --baseline are "
+            "required unless --smoke is used"
         )
     baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
     report = run_simulation(
