@@ -81,9 +81,9 @@ def _write_batch(path: Path, day: int) -> None:
                 "batch_day": day,
                 "source_type": "curated_fixture",
                 "is_synthetic": True,
-                "review_status": "approved_for_training",
-                "reviewer_id": "experiment-author",
-                "reviewed_at": "2026-08-06T00:00:00Z",
+                "review_status": "curated_simulation_fixture",
+                "reviewer_id": None,
+                "reviewed_at": None,
                 "provenance_id": f"fixture:day-{day:02d}-001",
                 "preprocessing_version": "http-preprocessor-v1",
             },
@@ -92,6 +92,26 @@ def _write_batch(path: Path, day: int) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+def _frozen_baseline() -> dict[str, object]:
+    return {
+        "status": "PASS",
+        "baseline_status": "FROZEN",
+        "model_quality_conclusion": "READY_FOR_EXPERIMENT",
+        "baseline_gate": {"passed": True},
+        "metrics": {
+            "normal_false_positive_rate": 0.0,
+            "attack_escape_rate": 0.0,
+            "macro_f1": 1.0,
+            "normal_recall": 1.0,
+            "supported_attack_recall": {
+                "Code Injection": 1.0,
+                "Other Attacks": 1.0,
+                "SQL Injection": 1.0,
+            },
+        },
+    }
 
 
 def test_acceptance_gates_report_rejection_reasons():
@@ -195,6 +215,32 @@ def test_nested_baseline_report_is_normalized():
 def test_baseline_missing_metric_is_rejected():
     with pytest.raises(ValueError, match="missing required metrics"):
         normalize_baseline_metrics({"metrics": {"macro_f1": 0.98}})
+
+
+def test_real_simulation_requires_a_frozen_baseline_report(tmp_path: Path):
+    config_path = tmp_path / "experiment.toml"
+    _write_config(config_path)
+
+    with pytest.raises(ValueError, match="frozen baseline"):
+        run_simulation(
+            config_path=config_path,
+            historical_data_dir=tmp_path / "historical",
+            daily_batch_dir=tmp_path / "batches",
+            output_dir=tmp_path / "output",
+            days=[1],
+            baseline={
+                "status": "PARTIAL",
+                "baseline_status": "REQUIRES_LAPTOP",
+                "model_quality_conclusion": "NOT_PERMITTED",
+                "metrics": {
+                    "normal_false_positive_rate": 0.0,
+                    "attack_escape_rate": 0.0,
+                    "macro_f1": 1.0,
+                    "normal_recall": 1.0,
+                    "supported_attack_recall": {},
+                },
+            },
+        )
 
 
 def test_normal_baseline_requires_each_configured_attack_recall():
@@ -396,13 +442,7 @@ def test_simulation_rejects_model_registry_output(tmp_path: Path):
             daily_batch_dir=batches,
             output_dir=protected_output,
             days=[1],
-            baseline={
-                "normal_false_positive_rate": 0.0,
-                "attack_escape_rate": 0.0,
-                "macro_f1": 1.0,
-                "normal_recall": 1.0,
-                "supported_attack_recall": {},
-            },
+            baseline=_frozen_baseline(),
             golden_texts=set(),
             allow_test_overrides=True,
         )
@@ -496,13 +536,7 @@ def test_normal_simulation_rejects_golden_override_without_test_flag(
             daily_batch_dir=tmp_path / "batches",
             output_dir=tmp_path / "output",
             days=[1],
-            baseline={
-                "normal_false_positive_rate": 0.0,
-                "attack_escape_rate": 0.0,
-                "macro_f1": 1.0,
-                "normal_recall": 1.0,
-                "supported_attack_recall": {},
-            },
+            baseline=_frozen_baseline(),
             golden_texts=set(),
         )
 
@@ -519,17 +553,7 @@ def test_normal_preflight_runs_before_creating_output(tmp_path: Path):
             daily_batch_dir=tmp_path / "batches",
             output_dir=output_dir,
             days=[1],
-            baseline={
-                "normal_false_positive_rate": 0.0,
-                "attack_escape_rate": 0.0,
-                "macro_f1": 1.0,
-                "normal_recall": 1.0,
-                "supported_attack_recall": {
-                    "Code Injection": 1.0,
-                    "Other Attacks": 1.0,
-                    "SQL Injection": 1.0,
-                },
-            },
+            baseline=_frozen_baseline(),
         )
 
     assert not output_dir.exists()

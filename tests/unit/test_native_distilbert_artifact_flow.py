@@ -17,12 +17,21 @@ from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
     PackagingError,
     build_manifest,
+    ensure_required_run_files,
 )
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
 from ml_model.training.run_contract import build_training_run_contract, contract_sha256
 
 REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
+
+
+def test_packaging_requires_summary_metrics_provenance_file(tmp_path: Path):
+    for name in ("config_used.json", "eval_report.json", "git_hash.txt"):
+        (tmp_path / name).write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(PackagingError, match="summary_metrics.json"):
+        ensure_required_run_files(tmp_path)
 
 
 def make_training_contract() -> dict:
@@ -259,6 +268,10 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
         encoding="utf-8",
     )
     (run_dir / "eval_report.json").write_text(json.dumps({}), encoding="utf-8")
+    (run_dir / "summary_metrics.json").write_text(
+        json.dumps({"accuracy": 1.0, "macro avg": {}, "weighted avg": {}}),
+        encoding="utf-8",
+    )
     (run_dir / "git_hash.txt").write_text("fixture\n", encoding="utf-8")
     torch.save(
         fixture_model.state_dict(),

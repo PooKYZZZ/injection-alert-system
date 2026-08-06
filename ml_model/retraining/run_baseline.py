@@ -18,9 +18,14 @@ from ml_model.retraining.prediction_artifacts import (
 )
 
 
-def extract_baseline_metrics(eval_report: Mapping[str, Any]) -> dict[str, Any]:
+def extract_baseline_metrics(
+    eval_report: Mapping[str, Any],
+    *,
+    summary_metrics: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Normalize existing evaluation metadata without inventing missing rates."""
 
+    summary = summary_metrics or {}
     macro = eval_report.get("macro avg", {})
     normal = eval_report.get("Normal", {})
     per_class = eval_report.get("per_class", {})
@@ -38,12 +43,21 @@ def extract_baseline_metrics(eval_report: Mapping[str, Any]) -> dict[str, Any]:
         and isinstance(values, Mapping)
         and values.get("recall") is not None
     }
+    normal_false_positive_rate = eval_report.get("normal_false_positive_rate")
+    if normal_false_positive_rate is None:
+        normal_false_positive_rate = summary.get("normal_false_positive_rate")
+    attack_escape_rate = eval_report.get("attack_escape_rate")
+    if attack_escape_rate is None:
+        attack_escape_rate = summary.get("attack_escape_rate")
+    macro_f1 = eval_report.get("macro_f1")
+    if macro_f1 is None:
+        macro_f1 = macro.get("f1-score")
+    if macro_f1 is None:
+        macro_f1 = summary.get("test_macro_f1")
     return {
-        "normal_false_positive_rate": _optional_float(
-            eval_report.get("normal_false_positive_rate")
-        ),
-        "attack_escape_rate": _optional_float(eval_report.get("attack_escape_rate")),
-        "macro_f1": _optional_float(eval_report.get("macro_f1", macro.get("f1-score"))),
+        "normal_false_positive_rate": _optional_float(normal_false_positive_rate),
+        "attack_escape_rate": _optional_float(attack_escape_rate),
+        "macro_f1": _optional_float(macro_f1),
         "normal_recall": _optional_float(normal.get("recall")),
         "supported_attack_recall": supported,
     }
@@ -77,6 +91,44 @@ def _missing_baseline_metrics(
     return missing
 
 
+def evaluate_baseline_gate(
+    *,
+    metrics: Mapping[str, Any],
+    label_names: tuple[str, ...],
+    service_loaded: bool,
+    golden_passed: bool,
+    reload_verified: bool,
+) -> dict[str, Any]:
+    """Return the complete, fail-closed gate for a frozen baseline artifact."""
+
+    missing_metrics = _missing_baseline_metrics(metrics, label_names)
+    checks = {
+        "metrics_complete": not missing_metrics,
+        "model_loaded": bool(service_loaded),
+        "golden_controls_passed": bool(golden_passed),
+        "local_reload_verified": bool(reload_verified),
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "missing_required_metrics": missing_metrics,
+    }
+
+
+def _failed_golden_result(
+    controls: Any,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "passed": False,
+        "cases": [],
+        "category_results": {},
+        "mandatory_failures": [reason],
+        "manifest_sha256": str(controls.manifest["manifest_sha256"]),
+        "manifest_file_sha256": sha256_file(controls.manifest_path),
+    }
+
+
 def build_baseline_report(
     *,
     artifact_dir: Path | str,
@@ -90,28 +142,53 @@ def build_baseline_report(
     from web_app.config import Settings
     from web_app.services.model_service import ModelService
 
-    service = ModelService(
-        Settings(
-            database_url="sqlite+aiosqlite://",
-            app_env="development",
-            model_path="unused",
-            model_registry_path=str(artifact),
-            api_secret_key="controlled-retraining-baseline-check",
+    model_load_error = None
+    try:
+        service = ModelService(
+            Settings(
+                database_url="sqlite+aiosqlite://",
+                app_env="development",
+                model_path="unused",
+                model_registry_path=str(artifact),
+                api_secret_key="controlled-retraining-baseline-check",
+            )
         )
-    )
-    golden = evaluate_golden_controls(
-        controls,
-        service.predict,
-        confidence_thresholds=config.confidence_thresholds,
-        response_actions=config.response_actions,
-    ).to_dict()
+    except Exception as exc:
+        service = None
+        model_load_error = str(exc)
+    service_loaded = bool(service is not None and service.loaded)
+    if not service_loaded:
+        golden = _failed_golden_result(controls, "model_not_loaded")
+    else:
+        try:
+            golden = evaluate_golden_controls(
+                controls,
+                service.predict,
+                confidence_thresholds=config.confidence_thresholds,
+                response_actions=config.response_actions,
+            ).to_dict()
+        except Exception as exc:
+            golden = _failed_golden_result(controls, "golden_evaluation_failed")
+            golden["error"] = str(exc)
     eval_report_path = artifact / "eval_report.json"
     eval_report = (
         json.loads(eval_report_path.read_text(encoding="utf-8"))
         if eval_report_path.is_file()
         else {}
     )
-    metrics = extract_baseline_metrics(eval_report)
+    summary_metrics_path = artifact / "summary_metrics.json"
+    loaded_summary_metrics = (
+        json.loads(summary_metrics_path.read_text(encoding="utf-8"))
+        if summary_metrics_path.is_file()
+        else {}
+    )
+    summary_metrics = (
+        loaded_summary_metrics if isinstance(loaded_summary_metrics, Mapping) else {}
+    )
+    metrics = extract_baseline_metrics(
+        eval_report,
+        summary_metrics=summary_metrics,
+    )
     manifest_path = artifact / "serving_manifest.json"
     manifest = (
         json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -120,21 +197,34 @@ def build_baseline_report(
     )
     prediction_path = destination.parent / "baseline_predictions.json"
     model_version = str(manifest.get("model_version", artifact.name))
-    write_prediction_artifact(
-        prediction_path,
-        records_from_golden_evaluation(
-            controls.cases,
-            golden,
-            model_version=model_version,
-            dataset_version=config.historical_dataset_version,
-            golden_version=config.golden_version,
-        ),
-        model_version=model_version,
-        dataset_version=config.historical_dataset_version,
-        golden_version=config.golden_version,
-        golden_manifest_sha256=str(golden["manifest_sha256"]),
-        model_artifact_sha256=sha256_file(manifest_path),
-    )
+    prediction_artifact_status = "NOT_WRITTEN"
+    prediction_artifact_error = None
+    if service_loaded and manifest_path.is_file():
+        try:
+            write_prediction_artifact(
+                prediction_path,
+                records_from_golden_evaluation(
+                    controls.cases,
+                    golden,
+                    model_version=model_version,
+                    dataset_version=config.historical_dataset_version,
+                    golden_version=config.golden_version,
+                ),
+                model_version=model_version,
+                dataset_version=config.historical_dataset_version,
+                golden_version=config.golden_version,
+                golden_manifest_sha256=str(golden["manifest_sha256"]),
+                model_artifact_sha256=sha256_file(manifest_path),
+            )
+            prediction_artifact_status = "WRITTEN"
+        except (OSError, TypeError, ValueError, KeyError) as exc:
+            prediction_artifact_error = str(exc)
+    else:
+        prediction_artifact_error = (
+            "model is not loaded"
+            if not service_loaded
+            else "serving_manifest.json is missing"
+        )
     file_hashes = {
         path.name: sha256_file(path)
         for path in sorted(artifact.iterdir())
@@ -150,15 +240,20 @@ def build_baseline_report(
         {},
     )
     missing_metrics = _missing_baseline_metrics(metrics, config.label_names)
-    baseline_ready = not missing_metrics
+    baseline_gate = evaluate_baseline_gate(
+        metrics=metrics,
+        label_names=config.label_names,
+        service_loaded=service_loaded,
+        golden_passed=bool(golden.get("passed")),
+        reload_verified=manifest.get("local_reload_verified") is True,
+    )
+    baseline_ready = bool(baseline_gate["passed"])
     try:
         prediction_reference = str(prediction_path.relative_to(config.project_root))
     except ValueError:
         prediction_reference = str(prediction_path)
     report = {
-        "status": "PASS"
-        if service.loaded and golden["passed"] and baseline_ready
-        else "PARTIAL",
+        "status": "PASS" if baseline_ready else "PARTIAL",
         "baseline_status": "FROZEN" if baseline_ready else "REQUIRES_LAPTOP",
         "model_quality_conclusion": (
             "READY_FOR_EXPERIMENT" if baseline_ready else "NOT_PERMITTED"
@@ -177,14 +272,19 @@ def build_baseline_report(
         },
         "metrics": metrics,
         "missing_required_metrics": missing_metrics,
+        "baseline_gate": baseline_gate,
         "golden": golden,
-        "prediction_artifact": prediction_reference,
-        "prediction_artifact_status": "WRITTEN",
+        "prediction_artifact": (
+            prediction_reference if prediction_artifact_status == "WRITTEN" else None
+        ),
+        "prediction_artifact_status": prediction_artifact_status,
+        "prediction_artifact_error": prediction_artifact_error,
         "exact_pagination": exact,
         "packaging_status": "VERIFIED_FROM_MANIFEST"
         if manifest.get("local_reload_verified")
         else "UNKNOWN",
-        "backend_status": "PASS" if service.loaded else "FAIL",
+        "backend_status": "PASS" if service_loaded else "FAIL",
+        "backend_error": model_load_error,
         "waf_status": "NOT_RUN",
         "dashboard_status": "NOT_RUN",
     }

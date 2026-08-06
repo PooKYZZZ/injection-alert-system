@@ -163,6 +163,37 @@ def normalize_baseline_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def validate_frozen_baseline_report(
+    payload: Mapping[str, Any],
+    *,
+    allow_smoke: bool = False,
+) -> None:
+    """Reject incomplete or synthetic baseline reports for native runs."""
+
+    if allow_smoke:
+        return
+    required_state = {
+        "status": "PASS",
+        "baseline_status": "FROZEN",
+        "model_quality_conclusion": "READY_FOR_EXPERIMENT",
+    }
+    mismatches = {
+        key: payload.get(key)
+        for key, expected in required_state.items()
+        if payload.get(key) != expected
+    }
+    gate = payload.get("baseline_gate")
+    if not isinstance(gate, Mapping) or gate.get("passed") is not True:
+        mismatches["baseline_gate"] = gate
+    if mismatches:
+        details = ", ".join(
+            f"{key}={value!r}" for key, value in sorted(mismatches.items())
+        )
+        raise ValueError(
+            "a real retraining simulation requires a frozen baseline: " + details
+        )
+
+
 def validate_baseline_attack_recall_completeness(
     baseline: Mapping[str, Any], required_attack_labels: Iterable[str]
 ) -> None:
@@ -590,6 +621,10 @@ def run_simulation(
         )
     if baseline is None:
         raise ValueError("a frozen baseline is required before candidate simulation")
+    validate_frozen_baseline_report(
+        baseline,
+        allow_smoke=_smoke_mode or allow_test_overrides,
+    )
     baseline = normalize_baseline_metrics(baseline)
     if golden_texts is not None and not allow_test_overrides:
         raise ValueError("golden_texts overrides require allow_test_overrides=True")

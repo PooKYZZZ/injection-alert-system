@@ -30,7 +30,12 @@ PACKAGING_TOOL = "ml_model/export/package_serving_artifact.py"
 DEFAULT_SAMPLE_TEXT = "SELECT * FROM users WHERE 1=1 --"
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
 DEVICE = torch.device("cpu")
-REQUIRED_RUN_FILES = ("config_used.json", "eval_report.json", "git_hash.txt")
+REQUIRED_RUN_FILES = (
+    "config_used.json",
+    "eval_report.json",
+    "summary_metrics.json",
+    "git_hash.txt",
+)
 MANIFEST_NAME = "serving_manifest.json"
 SUMMARY_METRIC_KEYS = {"accuracy", "macro avg", "weighted avg"}
 PACKAGED_FILE_CONFLICTS = {
