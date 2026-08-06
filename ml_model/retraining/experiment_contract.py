@@ -8,7 +8,7 @@ import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from ml_model.training.paths import resolve_project_root
 
@@ -125,6 +125,36 @@ class ExperimentConfig:
             if path.is_absolute()
             else (self.project_root / path).resolve()
         )
+
+    def validate_runtime_inputs(
+        self,
+        *,
+        historical_data_dir: Path | str,
+        daily_batch_dir: Path | str,
+        days: Iterable[int] | None = None,
+    ) -> None:
+        historical_root = Path(historical_data_dir).expanduser().resolve()
+        daily_root = Path(daily_batch_dir).expanduser().resolve()
+        required = [
+            self.golden_manifest_file,
+            self.golden_cases_file,
+            historical_root / "train.parquet",
+            historical_root / "validation.parquet",
+            historical_root / "test.parquet",
+            historical_root / "metadata_preprocessing.json",
+            historical_root / "checksums.txt",
+        ]
+        if self.training_config is not None:
+            required.append(self.training_config)
+        requested_days = tuple(int(day) for day in (days or range(1, 21)))
+        required.extend(
+            daily_root / f"day_{day:02d}.jsonl" for day in requested_days
+        )
+        missing = [str(path) for path in required if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                "Experiment preflight failed. Missing:\n" + "\n".join(missing)
+            )
 
     def to_dict(self, *, include_paths: bool = True) -> dict[str, Any]:
         def portable(path: Path | None) -> str | None:

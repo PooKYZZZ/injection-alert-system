@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from ml_model.evaluation.golden_controls import GoldenControlSet, find_golden_overlap
 from ml_model.retraining.experiment_contract import (
     EXPECTED_LABELS,
     canonical_json_sha256,
@@ -16,6 +18,7 @@ from ml_model.retraining.experiment_contract import (
 REQUIRED_BATCH_FIELDS = {
     "sample_id",
     "model_input_text",
+    "model_input_hash",
     "ground_truth_label",
     "batch_day",
     "source_type",
@@ -63,20 +66,39 @@ def _reject(
     sample: Mapping[str, Any] | None,
     reason: str,
 ) -> None:
+    safe_sample = _safe_rejection_sample(sample)
     rejected.append(
         {
             "line_number": line_number,
             "sample_id": sample.get("sample_id") if sample else f"line-{line_number}",
             "reason": reason,
-            "sample": dict(sample or {}),
+            "sample": safe_sample,
         }
     )
+
+
+def _safe_rejection_sample(
+    sample: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if not sample:
+        return {}
+    summary: dict[str, Any] = {
+        "sample_id": sample.get("sample_id"),
+        "source_type": sample.get("source_type"),
+    }
+    text = sample.get("model_input_text")
+    if isinstance(text, str):
+        summary["model_input_sha256"] = hashlib.sha256(
+            text.encode("utf-8")
+        ).hexdigest()
+    return summary
 
 
 def _basic_reasons(
     sample: Mapping[str, Any],
     *,
     expected_preprocessing_version: str,
+    expected_batch_day: int | None,
 ) -> list[str]:
     reasons: list[str] = []
     missing = sorted(REQUIRED_BATCH_FIELDS - set(sample))
@@ -85,6 +107,13 @@ def _basic_reasons(
     text = sample.get("model_input_text")
     if not isinstance(text, str) or not text.strip():
         reasons.append("missing model_input_text")
+    stored_hash = sample.get("model_input_hash")
+    if not isinstance(stored_hash, str) or not stored_hash.strip():
+        reasons.append("missing model_input_hash")
+    elif isinstance(text, str):
+        actual_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if stored_hash != actual_hash:
+            reasons.append("model_input_hash does not match model_input_text")
     ground_truth = sample.get("ground_truth_label")
     if not isinstance(ground_truth, str) or not ground_truth.strip():
         reasons.append("missing ground truth")
@@ -113,6 +142,8 @@ def _basic_reasons(
         or not 1 <= int(sample.get("batch_day", 0)) <= 20
     ):
         reasons.append("batch_day must be an integer from 1 to 20")
+    elif expected_batch_day is not None and sample.get("batch_day") != expected_batch_day:
+        reasons.append(f"batch_day does not match expected day {expected_batch_day}")
     if (
         not isinstance(sample.get("source_type"), str)
         or not str(sample.get("source_type")).strip()
@@ -127,7 +158,9 @@ def validate_batch_file(
     batch_path: Path | str,
     *,
     expected_preprocessing_version: str,
-    golden_texts: Iterable[str],
+    golden_texts: Iterable[str] | None = None,
+    golden_controls: GoldenControlSet | None = None,
+    expected_batch_day: int | None = None,
     quarantine_dir: Path | str,
 ) -> BatchValidationReport:
     batch_path = Path(batch_path).expanduser().resolve()
@@ -161,7 +194,9 @@ def validate_batch_file(
             )
             continue
         reasons = _basic_reasons(
-            payload, expected_preprocessing_version=expected_preprocessing_version
+            payload,
+            expected_preprocessing_version=expected_preprocessing_version,
+            expected_batch_day=expected_batch_day,
         )
         if reasons:
             _reject(
@@ -174,16 +209,34 @@ def validate_batch_file(
             accepted_candidates.append((line_number, dict(payload)))
 
     invalid_lines: set[int] = set()
-    golden_text_set = set(golden_texts)
-    for line_number, sample in accepted_candidates:
-        if sample["model_input_text"] in golden_text_set:
-            invalid_lines.add(line_number)
-            _reject(
-                rejected,
-                line_number=line_number,
-                sample=sample,
-                reason="golden overlap",
-            )
+    if golden_controls is not None:
+        overlaps = find_golden_overlap(
+            golden_controls,
+            [sample for _, sample in accepted_candidates],
+            near_duplicate_threshold=0.90,
+        )
+        overlap_by_id = {item["sample_id"]: item for item in overlaps}
+        for line_number, sample in accepted_candidates:
+            overlap = overlap_by_id.get(sample["sample_id"])
+            if overlap is not None:
+                invalid_lines.add(line_number)
+                _reject(
+                    rejected,
+                    line_number=line_number,
+                    sample=sample,
+                    reason=f"golden overlap: {overlap['matches']}",
+                )
+    else:
+        golden_text_set = set(golden_texts or ())
+        for line_number, sample in accepted_candidates:
+            if sample["model_input_text"] in golden_text_set:
+                invalid_lines.add(line_number)
+                _reject(
+                    rejected,
+                    line_number=line_number,
+                    sample=sample,
+                    reason="golden overlap",
+                )
 
     by_text: dict[str, list[tuple[int, dict[str, Any]]]] = {}
     for line_number, sample in accepted_candidates:

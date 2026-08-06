@@ -9,6 +9,10 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 
+from ml_model.preprocessing.model_input import (
+    MODEL_INPUT_HASH_POLICY,
+    MODEL_INPUT_TEXT_COLUMN,
+)
 from ml_model.retraining.experiment_contract import canonical_json_sha256, sha256_file
 
 
@@ -53,6 +57,7 @@ def _daily_frame(samples: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
         rows.append(
             {
                 "combined_payload": str(sample["model_input_text"]),
+                "model_input_hash": str(sample["model_input_hash"]),
                 "final_label": str(sample["ground_truth_label"]),
                 "sample_id": str(sample["sample_id"]),
                 "source_type": str(sample["source_type"]),
@@ -93,6 +98,33 @@ def _validate_daily_samples(
         seen_texts[text] = label
 
 
+def _write_training_dataset_contract(
+    snapshot_dir: Path,
+    *,
+    dataset_version: str,
+    preprocessing_version: str,
+) -> None:
+    metadata = {
+        "dataset_version": dataset_version,
+        "preprocessing_version": preprocessing_version,
+        "text_column": MODEL_INPUT_TEXT_COLUMN,
+        "model_input_hash_policy": MODEL_INPUT_HASH_POLICY,
+        "shared_builder_name": "shared-model-input-contract",
+        "source_type": "controlled_retraining_snapshot",
+    }
+    (snapshot_dir / "metadata_preprocessing.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    split_names = ("train.parquet", "validation.parquet", "test.parquet")
+    checksum_lines = [
+        f"{sha256_file(snapshot_dir / name)}  {name}" for name in split_names
+    ]
+    (snapshot_dir / "checksums.txt").write_text(
+        "\n".join(checksum_lines) + "\n", encoding="utf-8"
+    )
+
+
 def build_cumulative_snapshot(
     *,
     historical_data_dir: Path | str,
@@ -118,6 +150,11 @@ def build_cumulative_snapshot(
     split_frames = {"train": train, "validation": historical[1], "test": historical[2]}
     for split, frame in split_frames.items():
         frame.to_parquet(snapshot_dir / f"{split}.parquet", index=False)
+    _write_training_dataset_contract(
+        snapshot_dir,
+        dataset_version=dataset_version,
+        preprocessing_version=preprocessing_version,
+    )
 
     input_files = {
         split: sha256_file(historical_root / f"{split}.parquet")

@@ -65,3 +65,14 @@ critical = "BLOCKED"
 
     with pytest.raises(ValueError, match="http-preprocessor-v1"):
         load_experiment_config(path, project_root=tmp_path)
+
+
+def test_runtime_preflight_reports_missing_inputs(tmp_path: Path):
+    root = Path(__file__).resolve().parents[2]
+    config = load_experiment_config(root / "ml_model/configs/retraining_20_day_v1.toml")
+
+    with pytest.raises(FileNotFoundError, match="Experiment preflight failed"):
+        config.validate_runtime_inputs(
+            historical_data_dir=tmp_path / "historical",
+            daily_batch_dir=tmp_path / "daily",
+        )
