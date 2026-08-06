@@ -1,6 +1,9 @@
 # ML Retraining Pipeline
 
-This directory documents the planned retraining pipeline. It does not currently contain a runnable scheduled retraining implementation; the reusable benchmark training entrypoint now lives under `ml_model/training/`.
+This directory contains a controlled offline 20-day cumulative retraining
+simulation. It is not a production scheduler, queue, online-learning service,
+or automatic promotion path. The reusable training entrypoint remains under
+`ml_model/training/`.
 
 ## Target Purpose
 - Manual or scheduled retraining trigger
@@ -12,10 +15,26 @@ This directory documents the planned retraining pipeline. It does not currently 
 - Manual approval before promotion
 - Rollback path if promotion fails
 
-## Current Repo State
-- This package currently contains only the package marker and documentation.
-- The daily retraining flow and scheduler are still design-level in this repo. `ml_model/training/train.py` is a script-first confirmatory benchmark entrypoint, not a complete labeled-sample retraining service.
-- Do not claim blind auto-promotion, production retraining automation, or a working 20-day scheduler from this directory.
+## Implemented controlled experiment
+
+- `experiment_contract.py` loads the immutable v1 TOML contract.
+- `validate_batch.py` rejects unapproved, unprovenanced, duplicate, conflicting,
+  unknown-label, predicted-label, preprocessing-mismatched, and golden-overlap
+  samples while preserving quarantine evidence.
+- `snapshots.py` creates versioned cumulative train snapshots and preserves the
+  historical validation/test splits.
+- `simulate_20_day.py` calls the maintained training/evaluation/export seams,
+  performs isolated candidate packaging/reload/backend checks, applies frozen
+  gates, and records `ACCEPTED` or `REJECTED` per day.
+- `run_baseline.py` evaluates a specifically selected current artifact against
+  the locked golden set without silently discovering or modifying staging.
+
+The `--smoke` mode uses tiny synthetic data and injected adapters to prove
+orchestration startup and failure safety. It is not a model-quality result.
+
+The real baseline, corrected one-seed run, three-seed confirmation, and full
+20-day native simulation remain `REQUIRES_LAPTOP` unless their artifacts and
+reports are freshly generated and inspected.
 
 ## Architectural Role
 Closes the feedback loop:
@@ -52,6 +71,8 @@ Historical rows with missing text/provenance remain readable but are not
 eligible for approved training. The exporter is still not implemented, so
 automated or source-equivalent training data remains `Planned`.
 
-This workflow does not provide a scheduler, daily retraining operation, blind
-promotion, automatic rollback, or production model-registry mutation. Any
-training and promotion remains an explicit, manually reviewed operation.
+This workflow does not provide a scheduler, daily production retraining
+operation, blind promotion, automatic rollback, or production model-registry
+mutation. Any training and promotion remains an explicit, manually reviewed
+operation. See `docs/project-ops/LAPTOP_TRAINING_HANDOFF.md` for the exact
+operator sequence.
