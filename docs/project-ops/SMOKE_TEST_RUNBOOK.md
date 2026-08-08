@@ -84,15 +84,17 @@ This is local evidence only. It requires Docker Desktop and takes about two
 minutes; it does not prove external ingress identity, the complete attack-to-ML
 creation path, integrated PR6/PR7 regression, or hosted/production readiness.
 
-Backend-only smoke against a directly reachable FastAPI process:
+Backend-only smoke uses a Docker-internal health check by default. The backend
+service intentionally exposes port `8000` only to the Compose network; this
+avoids depending on a host-published backend port:
 
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode backend --json
 ```
 
-The backend default is `http://127.0.0.1:8000`. Override it only for an
-intentionally reachable backend:
+Use `--base-url` only when an intentionally host-reachable FastAPI process is
+being tested:
 
 ### PR4 shadow check (opt-in)
 
@@ -149,7 +151,20 @@ Technical WAF proof through `localhost:8088`:
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode waf-8088 --json
 ```
 
-Realistic demo-target proof through `localhost:8089`:
+For the realistic demo-target smoke, use the explicit local collection overlay
+so benign requests are written to the audit log. The base Compose file and the
+hosted-target overlays remain `RelevantOnly`; the collection overlay is local
+thesis-lab configuration only:
+
+```powershell
+docker compose -p injection-alert-system `
+  -f docker-compose.yml `
+  -f docker-compose.demo-target.yml `
+  -f docker-compose.demo-target.collection.yml `
+  --profile demo-target up -d --build --force-recreate
+```
+
+Then run the full normal-plus-attack chain through `localhost:8089`:
 
 ```powershell
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089
@@ -157,18 +172,21 @@ Realistic demo-target proof through `localhost:8089`:
 .venv\Scripts\python.exe scripts\run_final_demo_smoke.py --mode demo-target-8089 --json
 ```
 
-Each WAF run generates a unique `CYBERTRACE_SMOKE_*` marker and accepts only an
-audit event containing that exact marker. The correlated audit event supplies
-the transaction ID. With `--require-backend-lookup`, the script runs the
-Docker-internal lookup and also requires the backend row to contain the same
-marker with a timestamp at or after the smoke start. Use `--audit-log` to point
-either WAF mode at a different local JSONL path. Audit-log discovery and
-backend persistence use bounded retries because ModSecurity flush and bridge
-ingest are asynchronous; a stale or never-persisted marker still fails.
+Each WAF run records the audit-log byte offset before sending requests. It then
+parses only complete, newly appended JSONL events and correlates them by route
+and HTTP status. The smoke identifier is output for run identification but is
+never inserted into the query or request body. Historical invalid bytes are
+ignored because they precede the cursor; malformed newly appended events fail
+the check. With `--require-backend-lookup`, the script also requires the
+Docker-internal lookup to match the transaction, route, timestamp, expected
+classification, and expected action. Audit-log discovery and backend
+persistence use bounded retries because ModSecurity flush and bridge ingest
+are asynchronous; a stale or never-persisted event fails.
 
 Interpretation:
 
-- `PASS` means every requested proof boundary passed for the current marker.
+- `PASS` means every requested proof boundary passed for the current run's
+  newly appended event(s).
 - `WARN` means required checks passed but optional backend lookup was skipped;
   this is audit-only proof, not full WAF-to-backend proof.
 - `FAIL` means a required check failed; the process exits `1`.
