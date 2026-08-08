@@ -19,16 +19,14 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/records/search',
     method: 'GET',
-    purpose: 'Query indexed public land records with branch and verification status filters',
+    purpose: 'Query indexed public land records by the portal search text',
     expectedParams: [
-      { name: 'q', type: 'query', required: false, description: 'Text search string matches land tract record numbers, owner name, or physical address details' },
-      { name: 'city', type: 'query', required: false, description: 'Registry municipal branch name (e.g. Pasig, Cainta, Marikina, Quezon City or "all")' },
-      { name: 'status', type: 'query', required: false, description: 'Land record checking status (e.g. "Verified", "Disputed" or "all")' }
+      { name: 'query', type: 'query', required: false, description: 'Text search string matched against seeded land-record fields' }
     ],
     wafInspectionUseful: true,
-    wafInspectionReason: 'Useful for testing query parameter validation and reflected content handling directly through GET parameters.',
-    safeExample: '/records/search?q=Maple&city=Pasig&status=Verified',
-    suspiciousExample: '/records/search?q=%27+OR+1%3D1+--&city=all&status=all'
+    wafInspectionReason: 'Useful for testing query parameter handling directly through the portal search form.',
+    safeExample: '/records/search?query=Maple',
+    suspiciousExample: '/records/search?query=%27+OR+1%3D1+--'
   },
   {
     path: '/records/[recordNo]',
@@ -104,7 +102,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
     suspiciousExample: 'displayName=Attacker&message=%3Cimg+src%3Dx+onerror%3Dalert%28document.cookie%29%3E'
   },
   {
-    path: '/login',
+    path: '/login/submit',
     method: 'POST',
     purpose: 'Authenticate land department personnel against the registry gateway',
     expectedParams: [
@@ -130,7 +128,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
     suspiciousExample: '/records/INVALID%27%22%2Frequest-copy'
   },
   {
-    path: '/records/[recordNo]/request-copy',
+    path: '/records/[recordNo]/request-copy/submit',
     method: 'POST',
     purpose: 'Submit and file property certification copy order, storing transactional status code',
     expectedParams: [
