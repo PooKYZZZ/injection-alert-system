@@ -7,7 +7,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import torch
 import transformers
@@ -28,8 +28,14 @@ MODEL_IDS = {
 NATIVE_MODEL_KEYS = ("distilbert",)
 PACKAGING_TOOL = "ml_model/export/package_serving_artifact.py"
 DEFAULT_SAMPLE_TEXT = "SELECT * FROM users WHERE 1=1 --"
+DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
 DEVICE = torch.device("cpu")
-REQUIRED_RUN_FILES = ("config_used.json", "eval_report.json", "git_hash.txt")
+REQUIRED_RUN_FILES = (
+    "config_used.json",
+    "eval_report.json",
+    "summary_metrics.json",
+    "git_hash.txt",
+)
 MANIFEST_NAME = "serving_manifest.json"
 SUMMARY_METRIC_KEYS = {"accuracy", "macro avg", "weighted avg"}
 PACKAGED_FILE_CONFLICTS = {
@@ -101,7 +107,9 @@ def sha256_file(path: Path) -> str:
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def discover_latest_run(staging_dir: Path, model_key: str) -> Path:
@@ -130,7 +138,9 @@ def resolve_run_dir(
     if run_dir_name:
         run_dir = staging_dir / run_dir_name
         if not run_dir.exists() or not run_dir.is_dir():
-            raise FileNotFoundError(f"Specified run directory does not exist: {run_dir}")
+            raise FileNotFoundError(
+                f"Specified run directory does not exist: {run_dir}"
+            )
         if not run_dir.name.startswith(model_key + "_"):
             raise PackagingError(
                 f"Run directory '{run_dir.name}' does not match model key '{model_key}'"
@@ -139,7 +149,8 @@ def resolve_run_dir(
 
     if strict and discover_latest:
         raise PackagingError(
-            "Strict mode requires --run-dir-name; convenience latest-run discovery is disabled."
+            "Strict mode requires --run-dir-name; convenience latest-run "
+            "discovery is disabled."
         )
 
     if discover_latest:
@@ -183,7 +194,8 @@ def resolve_label_names(
 
     raise PackagingError(
         "Could not resolve label names from exact-run artifacts. "
-        "Expected 'label_names' in config_used.json or class sections in eval_report.json."
+        "Expected 'label_names' in config_used.json or class sections in "
+        "eval_report.json."
     )
 
 
@@ -215,7 +227,8 @@ def resolve_calibration_provenance(
             )
         if not explicit_eval_run_dir.is_dir():
             raise PackagingError(
-                f"Explicit calibration evaluation directory does not exist: {explicit_eval_run_dir}"
+                "Explicit calibration evaluation directory does not exist: "
+                f"{explicit_eval_run_dir}"
             )
         candidate_dirs = [explicit_eval_run_dir]
     else:
@@ -262,7 +275,8 @@ def resolve_calibration_provenance(
         summary_temperature = float(summary_temperature_raw)
         if round(result_temperature, 6) != round(summary_temperature, 6):
             raise PackagingError(
-                "Calibration temperature mismatch between promotion summary and eval results "
+                "Calibration temperature mismatch between promotion summary "
+                "and eval results "
                 f"for run '{run_dir_name}' in '{eval_run_dir}'."
             )
 
@@ -277,7 +291,8 @@ def resolve_calibration_provenance(
 
     if not matches:
         raise PackagingError(
-            f"Could not determine exact-run calibration provenance for '{run_dir_name}' "
+            "Could not determine exact-run calibration provenance for "
+            f"'{run_dir_name}' "
             f"and model '{model_key}'."
         )
     if len(matches) > 1:
@@ -316,13 +331,17 @@ def build_manifest(
     notes: str | None,
     local_reload_verified: bool,
     actual_model: Any | None = None,
+    confidence_thresholds: Mapping[str, float] | None = None,
+    response_actions: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     config_metadata = json.loads(config_used_path.read_text(encoding="utf-8"))
     preprocessing_version = validate_supported_model_input_version(
         config_metadata.get("preprocessing_version"), context="serving artifact"
     )
     if config_metadata.get("model_input_hash_policy") != MODEL_INPUT_HASH_POLICY:
-        raise PackagingError("Serving artifact is missing the shared model-input hash policy.")
+        raise PackagingError(
+            "Serving artifact is missing the shared model-input hash policy."
+        )
     expected_metadata = {
         "model_key": "distilbert",
         "model_id": "distilbert-base-uncased",
@@ -378,6 +397,9 @@ def build_manifest(
             "tokenizer_revision", model_revision
         ),
         "run_contract_sha256": contract_hash,
+        "dataset_file_manifest_sha256": config_metadata.get(
+            "run_contract", {}
+        ).get("dataset_file_manifest_sha256"),
         "base_model": base_model,
         "run_dir_name": run_dir.name,
         "run_dir_path": str(run_dir.resolve()),
@@ -389,6 +411,12 @@ def build_manifest(
         "temperature_source_file": str(calibration.result_path),
         "label_names": label_names,
         "num_labels": len(label_names),
+        "confidence_thresholds": dict(confidence_thresholds or config_metadata.get(
+            "confidence_thresholds", {}
+        )),
+        "response_actions": dict(response_actions or config_metadata.get(
+            "response_actions", {}
+        )),
         "max_seq_len": max_seq_len,
         "packaged_at_utc": utc_now_iso(),
         "packaging_tool": PACKAGING_TOOL,
@@ -424,19 +452,29 @@ def validate_packaged_artifact(
 ) -> None:
     for name in REQUIRED_CONFIG_FILES:
         if not (run_dir / name).exists():
-            raise PackagingError(f"Packaged artifact missing required file: {run_dir / name}")
+            raise PackagingError(
+                f"Packaged artifact missing required file: {run_dir / name}"
+            )
 
     if not any((run_dir / name).exists() for name in TOKENIZER_FAMILY_FILES):
         raise PackagingError(
-            "Packaged tokenizer artifacts are incomplete; none of the tokenizer-family files "
+            "Packaged tokenizer artifacts are incomplete; none of the "
+            "tokenizer-family files "
             f"were found in '{run_dir}'."
         )
 
-    optional_present = [name for name in OPTIONAL_TOKENIZER_METADATA_FILES if (run_dir / name).exists()]
+    optional_present = [
+        name
+        for name in OPTIONAL_TOKENIZER_METADATA_FILES
+        if (run_dir / name).exists()
+    ]
     if optional_present:
         print(f"Optional tokenizer metadata present: {optional_present}")
     else:
-        print("Optional tokenizer metadata files not emitted for this tokenizer family.")
+        print(
+            "Optional tokenizer metadata files not emitted for this tokenizer "
+            "family."
+        )
 
     if not manifest_path.exists():
         raise PackagingError(f"Serving manifest was not written: {manifest_path}")
@@ -479,10 +517,15 @@ def validate_packaged_artifact(
 
     manifest_payload = load_json(manifest_path)
     if manifest_payload.get("run_dir_name") != run_dir.name:
-        raise PackagingError("Serving manifest run_dir_name does not match selected run.")
-    if manifest_payload.get("temperature_source_file") != str(temperature_source_file.resolve()):
         raise PackagingError(
-            "Serving manifest temperature_source_file does not match exact calibration source."
+            "Serving manifest run_dir_name does not match selected run."
+        )
+    if manifest_payload.get("temperature_source_file") != str(
+        temperature_source_file.resolve()
+    ):
+        raise PackagingError(
+            "Serving manifest temperature_source_file does not match exact "
+            "calibration source."
         )
 
     print(f"Sample prediction : {label_names[pred_idx]}")
@@ -500,6 +543,10 @@ def package_serving_artifact(
     sample_text: str = DEFAULT_SAMPLE_TEXT,
     notes: str | None = None,
     calibration_eval_run_dir: Path | None = None,
+    model_registry_path: Path | None = None,
+    repo_root: Path | None = None,
+    confidence_thresholds: Mapping[str, float] | None = None,
+    response_actions: Mapping[str, str] | None = None,
 ) -> Path:
     if model_key not in NATIVE_MODEL_KEYS:
         raise PackagingError(
@@ -507,8 +554,16 @@ def package_serving_artifact(
             "historical custom-model artifacts remain reference-only."
         )
 
-    repo_root = find_repo_root(Path.cwd().resolve())
-    model_registry = repo_root / "ml_model" / "model_registry"
+    repo_root = (
+        Path(repo_root).expanduser().resolve()
+        if repo_root is not None
+        else DEFAULT_REPO_ROOT
+    )
+    model_registry = (
+        Path(model_registry_path).expanduser().resolve()
+        if model_registry_path is not None
+        else repo_root / "ml_model" / "model_registry"
+    )
     staging_dir = model_registry / "staging"
     eval_dir = model_registry / "eval"
 
@@ -540,7 +595,9 @@ def package_serving_artifact(
 
     model_id = config_used.get("model_id", MODEL_IDS[model_key])
     if not isinstance(model_id, str) or not model_id.strip():
-        raise PackagingError("Exact-run config_used.json does not contain a valid model_id.")
+        raise PackagingError(
+            "Exact-run config_used.json does not contain a valid model_id."
+        )
     model_id = model_id.strip()
     model_revision = config_used.get("model_revision")
     if (
@@ -603,6 +660,8 @@ def package_serving_artifact(
         notes=notes,
         local_reload_verified=False,
         actual_model=model,
+        confidence_thresholds=confidence_thresholds,
+        response_actions=response_actions,
     )
 
     model.save_pretrained(run_dir)
@@ -631,7 +690,10 @@ def package_serving_artifact(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Package one staged transformer checkpoint as a local serving artifact.",
+        description=(
+            "Package one staged transformer checkpoint as a local serving "
+            "artifact."
+        ),
     )
     parser.add_argument(
         "--model-key",
@@ -647,12 +709,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--discover-latest",
         action="store_true",
-        help="Convenience-only mode: explicitly discover the latest run for the model key.",
+        help=(
+            "Convenience-only mode: explicitly discover the latest run for "
+            "the model key."
+        ),
     )
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Allow overwriting previously packaged serving files in the target run directory.",
+        help=(
+            "Allow overwriting previously packaged serving files in the target "
+            "run directory."
+        ),
     )
     parser.add_argument(
         "--strict",

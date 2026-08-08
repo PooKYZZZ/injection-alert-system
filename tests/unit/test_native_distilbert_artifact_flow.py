@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 import torch
 from transformers import (
-    AutoConfig,
     AutoModelForSequenceClassification,
     BertTokenizerFast,
     DistilBertConfig,
@@ -18,12 +17,21 @@ from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
     PackagingError,
     build_manifest,
+    ensure_required_run_files,
 )
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
 from ml_model.training.run_contract import build_training_run_contract, contract_sha256
 
 REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
+
+
+def test_packaging_requires_summary_metrics_provenance_file(tmp_path: Path):
+    for name in ("config_used.json", "eval_report.json", "git_hash.txt"):
+        (tmp_path / name).write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(PackagingError, match="summary_metrics.json"):
+        ensure_required_run_files(tmp_path)
 
 
 def make_training_contract() -> dict:
@@ -148,7 +156,9 @@ def test_native_packaging_rejects_historical_custom_model_keys(model_key: str):
 
 
 def test_packaging_cli_only_advertises_distilbert(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(sys, "argv", ["package_serving_artifact", "--model-key", "minilm"])
+    monkeypatch.setattr(
+        sys, "argv", ["package_serving_artifact", "--model-key", "minilm"]
+    )
     with pytest.raises(SystemExit):
         package_module.parse_args()
 
@@ -208,15 +218,29 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
             return original_tokenizer.from_pretrained(name, **kwargs)
 
     monkeypatch.setattr(package_module, "AutoConfig", OfflineConfig)
-    monkeypatch.setattr(package_module, "AutoModelForSequenceClassification", OfflineModel)
+    monkeypatch.setattr(
+        package_module, "AutoModelForSequenceClassification", OfflineModel
+    )
     monkeypatch.setattr(package_module, "AutoTokenizer", OfflineTokenizer)
 
     repo_root = tmp_path / "repo"
-    run_dir = repo_root / "ml_model" / "model_registry" / "staging" / "distilbert_native_fixture"
+    run_dir = (
+        repo_root
+        / "ml_model"
+        / "model_registry"
+        / "staging"
+        / "distilbert_native_fixture"
+    )
     eval_run_dir = repo_root / "ml_model" / "model_registry" / "eval" / "eval_fixture"
     run_dir.mkdir(parents=True)
     eval_run_dir.mkdir(parents=True)
-    monkeypatch.setattr(package_module, "find_repo_root", lambda _start: repo_root)
+    monkeypatch.setattr(
+        package_module,
+        "find_repo_root",
+        lambda _start: (_ for _ in ()).throw(
+            AssertionError("explicit repo_root must bypass cwd discovery")
+        ),
+    )
 
     contract = make_training_contract()
     contract_hash = contract_sha256(contract)
@@ -244,6 +268,10 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
         encoding="utf-8",
     )
     (run_dir / "eval_report.json").write_text(json.dumps({}), encoding="utf-8")
+    (run_dir / "summary_metrics.json").write_text(
+        json.dumps({"accuracy": 1.0, "macro avg": {}, "weighted avg": {}}),
+        encoding="utf-8",
+    )
     (run_dir / "git_hash.txt").write_text("fixture\n", encoding="utf-8")
     torch.save(
         fixture_model.state_dict(),
@@ -251,7 +279,14 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     )
     (eval_run_dir / "promotion_summary.json").write_text(
         json.dumps(
-            {"promotion_summary": {"distilbert": {"run_dir": run_dir.name, "temperature": 1.0}}}
+            {
+                "promotion_summary": {
+                    "distilbert": {
+                        "run_dir": run_dir.name,
+                        "temperature": 1.0,
+                    }
+                }
+            }
         ),
         encoding="utf-8",
     )
@@ -260,10 +295,15 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     )
 
     result = package_module.package_serving_artifact(
-        model_key="distilbert", run_dir_name=run_dir.name, strict=True
+        model_key="distilbert",
+        run_dir_name=run_dir.name,
+        strict=True,
+        repo_root=repo_root,
     )
 
-    manifest = json.loads((result / "serving_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (result / "serving_manifest.json").read_text(encoding="utf-8")
+    )
     assert result == run_dir.resolve()
     assert manifest["run_contract_sha256"] == contract_hash
     assert manifest["local_reload_verified"] is True
