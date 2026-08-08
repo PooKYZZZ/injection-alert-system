@@ -1,0 +1,6 @@
+services:
+  demo-target-modsecurity:
+    environment:
+      # Local thesis data-collection mode: persist benign and blocked requests.
+      # The base and hosted-target files remain RelevantOnly by default.
+      MODSEC_AUDIT_ENGINE: On

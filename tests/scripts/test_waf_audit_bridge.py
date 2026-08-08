@@ -909,6 +909,84 @@ def test_run_bridge_counts_malformed_json_and_keeps_processing(monkeypatch):
     assert [payload["transaction_id"] for payload in posted] == ["tx-after-bad-json"]
 
 
+def test_run_bridge_skips_duplicate_transaction_ids(monkeypatch):
+    event = {
+        "transaction_id": "tx-file-duplicate",
+        "timestamp": "2026-03-24T10:00:00Z",
+        "source_ip": "203.0.113.10",
+        "request_method": "GET",
+        "request_path": "/records/search",
+        "crs_score": 8,
+        "crs_rule_ids": ["942100"],
+    }
+    posted = []
+
+    def _fake_post(payload, endpoint, api_secret, timeout):
+        posted.append(payload)
+        return 200
+
+    monkeypatch.setattr("scripts.waf_audit_bridge.post_event", _fake_post)
+
+    totals = run_bridge(
+        input_stream=StringIO(json.dumps(event) + "\n" + json.dumps(event) + "\n"),
+        endpoint="http://backend:8000/api/internal/waf-events",
+        api_secret="test-secret",
+        timeout=10,
+    )
+
+    assert totals == (2, 1, 0)
+    assert [payload["transaction_id"] for payload in posted] == [
+        "tx-file-duplicate"
+    ]
+
+
+def test_retryable_direct_timeout_is_retried(monkeypatch):
+    attempts = 0
+
+    def _post(payload, endpoint, api_secret, timeout):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TimeoutError("backend cold start")
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", _post)
+    monkeypatch.setattr(waf_audit_bridge.time, "sleep", lambda _: None)
+
+    status = waf_audit_bridge._post_event_with_retry(
+        {"transaction_id": "tx-direct-timeout"},
+        endpoint="http://backend:8000/api/internal/waf-events",
+        api_secret="api-secret",
+        timeout=30,
+        max_retries=1,
+        retry_delay_seconds=0,
+    )
+
+    assert status == 200
+    assert attempts == 2
+
+
+def test_bridge_cli_defaults_are_configurable_from_environment(monkeypatch):
+    monkeypatch.setenv("WAF_INGEST_TIMEOUT_SECONDS", "30")
+    monkeypatch.setenv("WAF_INGEST_MAX_RETRIES", "3")
+    monkeypatch.setenv("WAF_INGEST_RETRY_DELAY_SECONDS", "1.5")
+
+    captured = {}
+
+    def _run_bridge(**kwargs):
+        captured.update(kwargs)
+        return 0, 0, 0
+
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-secret")
+    monkeypatch.setattr(waf_audit_bridge, "run_bridge", _run_bridge)
+    monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
+
+    assert main() == 0
+    assert captured["timeout"] == 30
+    assert captured["max_retries"] == 3
+    assert captured["retry_delay_seconds"] == 1.5
+
+
 def test_run_bridge_success_log_contains_transaction_id_and_rule_ids(
     monkeypatch, capsys
 ):
