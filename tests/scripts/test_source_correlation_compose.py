@@ -145,7 +145,7 @@ def test_local_collection_overlay_captures_benign_events_without_changing_defaul
     )
     bridge = collection_config["services"]["demo-target-bridge"]
     assert bridge["environment"]["WAF_INGEST_TIMEOUT_SECONDS"] == "30"
-    assert bridge["environment"]["WAF_INGEST_MAX_RETRIES"] == "3"
+    assert bridge["environment"]["WAF_INGEST_MAX_RETRIES"] == "20"
     assert bridge["environment"]["WAF_INGEST_RETRY_DELAY_SECONDS"] == "2"
     assert "--timeout \"$$WAF_INGEST_TIMEOUT_SECONDS\"" in bridge["command"][2]
 

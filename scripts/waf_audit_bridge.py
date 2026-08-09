@@ -924,10 +924,10 @@ def main() -> int:
     parser.add_argument(
         "--max-retries",
         type=int,
-        default=os.getenv("WAF_INGEST_MAX_RETRIES", "3"),
+        default=os.getenv("WAF_INGEST_MAX_RETRIES", "20"),
         help=(
             "Retries for transient connection/5xx errors "
-            "(default: WAF_INGEST_MAX_RETRIES or 3)"
+            "(default: WAF_INGEST_MAX_RETRIES or 20)"
         ),
     )
     parser.add_argument(
