@@ -15,8 +15,8 @@ confirmation_seeds = [42, 1337, 2026]
 max_epochs = 4
 
 [golden]
-version = "golden-v1"
-manifest_file = "data/experiments/retraining_20_day_v1/golden/golden_manifest.json"
+version = "golden-v2"
+manifest_file = "data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json"
 
 [labels]
 names = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]

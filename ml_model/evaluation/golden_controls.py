@@ -29,6 +29,12 @@ REQUIRED_CASE_FIELDS = {
     "locked_at",
 }
 EXPECTED_ACTIONS = {"ALLOWED", "THROTTLED", "BLOCKED"}
+TARGET_ROUTE_SCOPES = {"target_route", "legacy_regression"}
+TARGET_ROUTE_MANIFEST_FIELDS = {
+    "target_method",
+    "target_route",
+    "target_case_count",
+}
 
 
 class GoldenControlError(ValueError):
@@ -141,6 +147,32 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         raise GoldenControlError("golden cases hash is invalid")
     if not isinstance(manifest["case_count"], int) or manifest["case_count"] < 1:
         raise GoldenControlError("golden case_count must be a positive integer")
+    target_fields = TARGET_ROUTE_MANIFEST_FIELDS & set(manifest)
+    if target_fields:
+        missing_target_fields = sorted(
+            TARGET_ROUTE_MANIFEST_FIELDS - set(manifest)
+        )
+        if missing_target_fields:
+            raise GoldenControlError(
+                "target route manifest is missing fields: "
+                f"{missing_target_fields}"
+            )
+        if not isinstance(manifest["target_method"], str) or not manifest[
+            "target_method"
+        ].strip():
+            raise GoldenControlError("target_method must be non-empty")
+        if not isinstance(manifest["target_route"], str) or not manifest[
+            "target_route"
+        ].startswith("/"):
+            raise GoldenControlError("target_route must be an absolute route path")
+        if (
+            not isinstance(manifest["target_case_count"], int)
+            or manifest["target_case_count"] < 1
+            or manifest["target_case_count"] > manifest["case_count"]
+        ):
+            raise GoldenControlError(
+                "target_case_count must be between 1 and case_count"
+            )
 
 
 def _validate_case(case: Mapping[str, Any], *, golden_version: str) -> dict[str, Any]:
@@ -172,6 +204,36 @@ def _validate_case(case: Mapping[str, Any], *, golden_version: str) -> dict[str,
     return dict(case)
 
 
+def _validate_target_case(case: Mapping[str, Any], manifest: Mapping[str, Any]) -> bool:
+    """Validate route metadata when a golden manifest declares a target route."""
+
+    if not (TARGET_ROUTE_MANIFEST_FIELDS <= set(manifest)):
+        return False
+    required = {"request_method", "request_path", "route_scope"}
+    missing = sorted(required - set(case))
+    if missing:
+        raise GoldenControlError(
+            "target route metadata is missing fields: " f"{missing}"
+        )
+    for field in required:
+        if not isinstance(case[field], str) or not case[field].strip():
+            raise GoldenControlError(f"target route metadata field is invalid: {field}")
+    if case["route_scope"] not in TARGET_ROUTE_SCOPES:
+        raise GoldenControlError(
+            f"unknown target route scope: {case['route_scope']}"
+        )
+    if case["route_scope"] == "target_route":
+        if (
+            case["request_method"] != manifest["target_method"]
+            or case["request_path"] != manifest["target_route"]
+        ):
+            raise GoldenControlError(
+                f"case {case.get('case_id', '<unknown>')} does not match target route"
+            )
+        return True
+    return False
+
+
 def load_golden_controls(manifest_path: Path | str) -> GoldenControlSet:
     manifest_path = Path(manifest_path).expanduser().resolve()
     manifest = _load_json(manifest_path)
@@ -184,6 +246,7 @@ def load_golden_controls(manifest_path: Path | str) -> GoldenControlSet:
     cases: list[GoldenCase] = []
     seen_ids: set[str] = set()
     seen_texts: set[str] = set()
+    target_case_count = 0
     for line_number, line in enumerate(
         cases_path.read_text(encoding="utf-8").splitlines(), 1
     ):
@@ -200,6 +263,8 @@ def load_golden_controls(manifest_path: Path | str) -> GoldenControlSet:
                 f"golden case at line {line_number} is not an object"
             )
         case = _validate_case(payload, golden_version=str(manifest["golden_version"]))
+        if _validate_target_case(case, manifest):
+            target_case_count += 1
         if case["case_id"] in seen_ids or case["model_input_text"] in seen_texts:
             raise GoldenControlError("golden cases contain duplicate IDs or texts")
         seen_ids.add(case["case_id"])
@@ -207,6 +272,12 @@ def load_golden_controls(manifest_path: Path | str) -> GoldenControlSet:
         cases.append(GoldenCase(case))
     if len(cases) != manifest["case_count"]:
         raise GoldenControlError("golden case_count does not match cases file")
+    if TARGET_ROUTE_MANIFEST_FIELDS <= set(manifest) and target_case_count != manifest[
+        "target_case_count"
+    ]:
+        raise GoldenControlError(
+            "target_case_count does not match target-route cases in cases file"
+        )
     return GoldenControlSet(manifest_path, cases_path, manifest, tuple(cases))
 
 
