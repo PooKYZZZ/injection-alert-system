@@ -44,6 +44,6 @@ normal_recall_minimum = 0.995
 supported_attack_recall_drop_tolerance = 0.01
 
 [runtime]
-daily_batch_dir = "data/experiments/retraining_20_day_v1/daily_batches"
+daily_batch_dir = "data/experiments/retraining_20_day_v1/daily_batches/records_search_v1"
 output_dir = "ml_model/results/retraining_20_day_v1"
 training_config = "ml_model/configs/training/thesis_confirmatory.toml"

@@ -47,7 +47,10 @@ from ml_model.retraining.validate_batch import (
     validate_batch_file,
 )
 
-EXACT_PAGINATION_REQUEST = "GET /api/users?page=1&limit=10"
+# Backend acceptance probe for the actual target application. The historical
+# /api/users regression remains in golden-v2, but it is not an LRP route and
+# must not be the simulator's primary backend probe.
+TARGET_BACKEND_REQUEST = "GET /records/search?query=Maple"
 SMOKE_REQUESTS = (
     "GET /smoke/health/check",
     "POST /control/items/create",
@@ -525,7 +528,7 @@ def _default_backend(
             api_secret_key="controlled-retraining-local-check",
         )
     )
-    result = service.predict(EXACT_PAGINATION_REQUEST)
+    result = service.predict(TARGET_BACKEND_REQUEST)
     action = TriageUseCase._action_for(
         prediction=str(result["prediction"]),
         confidence_level=str(result["confidence_tier"]),
@@ -539,7 +542,7 @@ def _default_backend(
             and action == "ALLOWED"
             and action == configured_action
         ),
-        "request": EXACT_PAGINATION_REQUEST,
+        "request": TARGET_BACKEND_REQUEST,
         "prediction": result["prediction"],
         "action": action,
         "configured_action": configured_action,
@@ -595,6 +598,7 @@ def run_simulation(
     baseline: Mapping[str, Any] | None,
     golden_texts: Iterable[str] | None = None,
     allow_test_overrides: bool = False,
+    controlled_simulation: bool = False,
     hooks: SimulationHooks | None = None,
     active_registry_dir: Path | str | None = None,
     _smoke_mode: bool = False,
@@ -621,6 +625,10 @@ def run_simulation(
         )
     if baseline is None:
         raise ValueError("a frozen baseline is required before candidate simulation")
+    if controlled_simulation and _smoke_mode:
+        raise ValueError(
+            "controlled simulation cannot be combined with orchestration smoke mode"
+        )
     validate_frozen_baseline_report(
         baseline,
         allow_smoke=_smoke_mode or allow_test_overrides,
@@ -676,7 +684,9 @@ def run_simulation(
                 expected_batch_day=day,
                 golden_controls=controls,
                 golden_texts=golden_texts if controls is None else None,
-                allow_synthetic_fixtures=allow_test_overrides,
+                allow_synthetic_fixtures=(
+                    controlled_simulation or allow_test_overrides
+                ),
                 quarantine_dir=day_dir / "quarantine",
             )
             day_result["batch_validation"] = batch_report.to_dict()
@@ -919,13 +929,23 @@ def run_simulation(
             "execution_mode": (
                 "synthetic_orchestration_smoke"
                 if _smoke_mode
-                else "native_training_simulation"
+                else (
+                    "controlled_fixture_training_simulation"
+                    if controlled_simulation
+                    else "native_training_simulation"
+                )
             ),
             "real_training_status": (
                 "NOT_RUN" if _smoke_mode or not training_attempted else "ATTEMPTED"
             ),
             "model_quality_conclusion": (
-                "NOT_PERMITTED" if _smoke_mode else "PENDING_ACCEPTANCE_GATES"
+                "NOT_PERMITTED"
+                if _smoke_mode
+                else (
+                    "CONTROLLED_SIMULATION_ONLY"
+                    if controlled_simulation
+                    else "PENDING_ACCEPTANCE_GATES"
+                )
             ),
         },
         status=final_status,
@@ -1055,6 +1075,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the two-day synthetic orchestration smoke",
     )
+    parser.add_argument(
+        "--controlled-simulation",
+        action="store_true",
+        help=(
+            "Allow explicitly marked curated simulation fixtures; results are "
+            "controlled-simulation evidence, not production retraining evidence"
+        ),
+    )
     parser.add_argument("--days", nargs="+", type=int, default=None)
     return parser
 
@@ -1086,6 +1114,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=args.output_dir,
         days=args.days,
         baseline=baseline,
+        controlled_simulation=args.controlled_simulation,
     )
     print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
     return 0 if report.status == "SUCCESS" else 2

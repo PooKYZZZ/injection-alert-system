@@ -76,6 +76,14 @@ or automatic promotion path. The reusable training entrypoint remains under
   baseline state. Native packaging also requires `summary_metrics.json`, which
   supplies operational security rates when the classification report does not.
 
+The checked-in route-specific prepared batches are under
+`data/experiments/retraining_20_day_v1/daily_batches/records_search_v1/`.
+They are explicitly marked as curated simulation fixtures (`is_synthetic=true`)
+and are not treated as reviewed production samples. Use them only with the
+explicit `--controlled-simulation` mode. That mode still requires a frozen
+real baseline, performs normal snapshot/contamination/package/reload/golden/
+backend gates, and labels its final evidence `CONTROLLED_SIMULATION_ONLY`.
+
 ### Current golden-control scope
 
 The active experiment contract uses `golden-v2`:
@@ -151,17 +159,24 @@ batches:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
   --config ml_model/configs/retraining_20_day_v1.toml `
   --historical-data-dir data/processed/v3_907k_cleaned `
-  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches/records_search_v1 `
   --output-dir ml_model/results/retraining_20_day_v1/native `
   --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --controlled-simulation `
   --days 1
 ```
 
+The `--controlled-simulation` option is deliberately explicit. It permits the
+prepared fixtures for the thesis simulation; it must not be used to disguise
+synthetic data as real reviewed production data. Omit it when using a reviewed
+non-synthetic batch export.
+
 Then, only after the one-seed and three-seed prerequisites pass, run days 1
-through 20 using the same baseline, dataset version, reviewed batches, and
-locked golden set. Real training still must be performed on the laptop. No
-smoke run, aggregate metric, or present p-value is evidence that the real
-model improved.
+through 20 using the same baseline, dataset version, prepared route-specific
+batches, and locked golden set. Real training still must be performed on the
+laptop. No smoke run, aggregate metric, or present p-value is evidence that
+the model improved on production traffic; controlled-fixture results must keep
+their simulation-only evidence label.
 
 ## Architectural Role
 Closes the feedback loop:

@@ -17,11 +17,15 @@
   is not counted in target-route coverage.
 - Primary output root: `ml_model/results/retraining_20_day_v1/`
 
-The checked-in `daily_batches/` files are explicitly marked
-`curated_simulation_fixture` and are rejected by normal training-mode batch
-validation. They exist only for the injected-adapter smoke path. Replace them
-with reviewed, non-synthetic exports containing reviewer identity and review
-time before attempting any real training run.
+The canonical route-specific prepared batches are under
+`data/experiments/retraining_20_day_v1/daily_batches/records_search_v1/`. They
+are explicitly marked `curated_simulation_fixture` and `is_synthetic=true`.
+Normal training-mode validation rejects them. The controlled thesis
+simulation may use them only with the explicit `--controlled-simulation` flag;
+its result remains controlled-simulation evidence, not twenty days of reviewed
+production traffic. For a production-like evidence run, replace them with a
+reviewed non-synthetic export containing reviewer identity and review time and
+omit that flag.
 
 All commands below are run from the repository root. They use relative paths,
 so they remain portable when the repository path contains spaces.
@@ -163,9 +167,10 @@ cumulative day with seed `2026`:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
   --config ml_model/configs/retraining_20_day_v1.toml `
   --historical-data-dir data/processed/v3_907k_cleaned `
-  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches/records_search_v1 `
   --output-dir ml_model/results/retraining_20_day_v1/seed_2026 `
   --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --controlled-simulation `
   --days 1
 ```
 
@@ -205,9 +210,10 @@ Run all days only after baseline, one-seed, and three-seed prerequisites pass:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
   --config ml_model/configs/retraining_20_day_v1.toml `
   --historical-data-dir data/processed/v3_907k_cleaned `
-  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches/records_search_v1 `
   --output-dir ml_model/results/retraining_20_day_v1/full `
   --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --controlled-simulation `
   --days 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
 ```
 

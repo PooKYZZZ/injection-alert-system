@@ -221,6 +221,59 @@ def test_synthetic_fixture_requires_explicit_simulation_mode(tmp_path: Path):
     assert len(accepted.accepted_samples) == 1
 
 
+def test_checked_in_records_search_simulation_batches_match_target_contract(
+    tmp_path: Path,
+):
+    root = Path(__file__).resolve().parents[2]
+    batch_root = (
+        root
+        / "data/experiments/retraining_20_day_v1/daily_batches/records_search_v1"
+    )
+    controls = load_golden_controls(
+        root
+        / "data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json"
+    )
+    rows = []
+    for day in range(1, 21):
+        batch_path = batch_root / f"day_{day:02d}.jsonl"
+        payloads = [
+            json.loads(line)
+            for line in batch_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        report = validate_batch_file(
+            batch_path,
+            expected_preprocessing_version="http-preprocessor-v1",
+            expected_batch_day=day,
+            golden_controls=controls,
+            allow_synthetic_fixtures=True,
+            quarantine_dir=tmp_path / "quarantine" / f"day_{day:02d}",
+        )
+        assert report.passed is True
+        assert len(payloads) == 2
+        assert all(
+            row["model_input_text"].startswith("GET /records/search?")
+            for row in payloads
+        )
+        assert all(row["request_method"] == "GET" for row in payloads)
+        assert all(row["request_path"] == "/records/search" for row in payloads)
+        assert all(row["route_scope"] == "target_route" for row in payloads)
+        assert all(
+            row["source_type"] == "curated_simulation_fixture" for row in payloads
+        )
+        assert all(row["is_synthetic"] is True for row in payloads)
+        rows.extend(payloads)
+
+    assert len(rows) == 40
+    assert {row["ground_truth_label"] for row in rows} == {
+        "Code Injection",
+        "Normal",
+        "Other Attacks",
+        "SQL Injection",
+    }
+    assert sum(row["ground_truth_label"] == "Normal" for row in rows) == 20
+
+
 def test_approved_synthetic_sample_is_rejected_even_with_fixture_override(
     tmp_path: Path,
 ):

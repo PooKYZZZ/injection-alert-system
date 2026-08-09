@@ -51,14 +51,16 @@ Every prepared JSONL row contains:
 and `preprocessing_version`.
 
 Real training rows require `review_status=approved_for_training`, reviewer
-identity, and review time. The checked-in daily files instead use
+identity, and review time. The checked-in route-specific files under
+`daily_batches/records_search_v1/` instead use
 `review_status=curated_simulation_fixture`, `source_type=curated_simulation_fixture`,
-and `is_synthetic=true`; normal training-mode validation rejects them. Only
-the explicit smoke/test override accepts these fixtures, and that override
-cannot produce a real model-quality conclusion. A row marked `is_synthetic=true`
-is rejected even when it has approved-review metadata; only the explicit
-simulation-fixture status can be accepted under the override. Empty batches are
-also rejected. The validator rejects unknown
+and `is_synthetic=true`; ordinary training-mode validation rejects them. The
+explicit `--controlled-simulation` mode accepts only these marked fixtures and
+records `CONTROLLED_SIMULATION_ONLY`; it does not turn them into reviewed
+production evidence. A row marked `is_synthetic=true` is rejected even when it
+has approved-review metadata; only the explicit simulation-fixture status can
+be accepted under the controlled-simulation flag. Empty batches are also
+rejected. The validator rejects unknown
 labels, missing ground truth, any model-prediction label field, unapproved or
 synthetic rows in real mode, missing provenance, mismatched preprocessing,
 duplicates, conflicting labels, exact or near-duplicate historical overlap,
@@ -167,7 +169,11 @@ acceptance requires `COMPUTED`; smoke remains explicitly non-thesis evidence.
 The synthetic smoke result is reported as `SMOKE_SUCCESS`, with
 `real_training_status=NOT_RUN`, `model_quality_conclusion=NOT_PERMITTED`, and
 `baseline_status=SMOKE_SYNTHETIC`. The synthetic fixture must not be treated as
-production data or as evidence that a model improved. Real native training on
+production data or as evidence that a model improved. Controlled fixture
+training is reported with `execution_mode=controlled_fixture_training_simulation`
+and `model_quality_conclusion=CONTROLLED_SIMULATION_ONLY`; it can support the
+bounded thesis simulation but must not be described as production daily
+retraining. Real native training on
 the laptop, with the historical dataset, prepared reviewed batches, frozen
 baseline, candidate artifacts, reload, and acceptance gates, remains required.
 

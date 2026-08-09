@@ -44,6 +44,7 @@ def test_checked_in_experiment_contract_is_immutable_and_portable():
     assert config.max_epochs == 4
     assert config.golden_version == "golden-v2"
     assert config.golden_manifest_file.name == "golden_manifest.json"
+    assert config.daily_batch_dir.name == "records_search_v1"
     controls = load_golden_controls(config.golden_manifest_file)
     assert controls.golden_version == "golden-v2"
     assert controls.manifest["target_route"] == "/records/search"

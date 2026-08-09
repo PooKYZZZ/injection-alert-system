@@ -129,6 +129,61 @@ def _failed_golden_result(
     }
 
 
+def _build_golden_scope_summaries(
+    controls: Any, golden: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Summarize target-route coverage and retain the legacy regression view."""
+
+    results_by_id = {
+        str(result.get("case_id")): result
+        for result in golden.get("cases", [])
+        if isinstance(result, Mapping)
+    }
+    target_cases = [
+        case for case in controls.cases if case.get("route_scope") == "target_route"
+    ]
+    target_case_ids = [str(case["case_id"]) for case in target_cases]
+    target_results = [results_by_id.get(case_id) for case_id in target_case_ids]
+    target_results = [
+        result for result in target_results if isinstance(result, Mapping)
+    ]
+    target_summary = {
+        "method": controls.manifest.get("target_method"),
+        "route": controls.manifest.get("target_route"),
+        "case_count": len(target_case_ids),
+        "passed": bool(target_case_ids)
+        and len(target_results) == len(target_case_ids)
+        and all(bool(result.get("passed")) for result in target_results),
+        "failed_case_ids": sorted(
+            str(result["case_id"])
+            for result in target_results
+            if not result.get("passed")
+        ),
+    }
+    legacy_case = next(
+        (
+            case
+            for case in controls.cases
+            if case.get("route_scope") == "legacy_regression"
+        ),
+        None,
+    )
+    legacy_result = (
+        dict(results_by_id.get(str(legacy_case["case_id"]), {}))
+        if legacy_case is not None
+        else {}
+    )
+    if legacy_case is not None:
+        legacy_result.update(
+            {
+                "request_method": legacy_case.get("request_method"),
+                "request_path": legacy_case.get("request_path"),
+                "route_scope": legacy_case.get("route_scope"),
+            }
+        )
+    return target_summary, legacy_result
+
+
 def build_baseline_report(
     *,
     artifact_dir: Path | str,
@@ -231,13 +286,8 @@ def build_baseline_report(
         if path.is_file()
         and path.suffix.lower() in {".pt", ".safetensors", ".json", ".txt"}
     }
-    exact = next(
-        (
-            case
-            for case in golden["cases"]
-            if case["case_id"] == "normal-pagination-exact"
-        ),
-        {},
+    target_route_controls, legacy_regression = _build_golden_scope_summaries(
+        controls, golden
     )
     missing_metrics = _missing_baseline_metrics(metrics, config.label_names)
     baseline_gate = evaluate_baseline_gate(
@@ -279,7 +329,10 @@ def build_baseline_report(
         ),
         "prediction_artifact_status": prediction_artifact_status,
         "prediction_artifact_error": prediction_artifact_error,
-        "exact_pagination": exact,
+        "target_route_controls": target_route_controls,
+        "legacy_regression": legacy_regression,
+        # Compatibility alias for consumers of the original baseline schema.
+        "exact_pagination": legacy_regression,
         "packaging_status": "VERIFIED_FROM_MANIFEST"
         if manifest.get("local_reload_verified")
         else "UNKNOWN",
