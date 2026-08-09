@@ -76,6 +76,25 @@ or automatic promotion path. The reusable training entrypoint remains under
   baseline state. Native packaging also requires `summary_metrics.json`, which
   supplies operational security rates when the classification report does not.
 
+### Current golden-control scope
+
+The active experiment contract uses `golden-v2`:
+
+`data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json`
+
+It contains 28 locked target-route controls for the Land Records Portal search
+route, `GET /records/search`, plus one legacy regression control for
+`GET /api/users?page=1&limit=10`. The legacy case is retained to detect an old
+model regression, but it is not counted as coverage of the Land Records Portal
+because that route does not exist in the target application. The immutable
+`golden-v1` files remain available as historical evidence and are not the
+current experiment input.
+
+The golden cases are offline model controls. They verify model classification,
+confidence, and action mapping; they do not prove that a request passed through
+Cloudflare, ModSecurity, the audit bridge, or the live portal. That live path
+requires a separate authorized Docker/Cloudflare smoke test.
+
 The `--smoke` mode uses tiny synthetic data and injected adapters to prove
 orchestration startup and failure safety. It reports `SMOKE_SUCCESS`,
 `real_training_status=NOT_RUN`, `model_quality_conclusion=NOT_PERMITTED`, and

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from ml_model.evaluation.golden_controls import load_golden_controls
 from ml_model.retraining.experiment_contract import (
     EXPECTED_LABELS,
     EXPECTED_MODEL_REVISION,
@@ -41,6 +42,12 @@ def test_checked_in_experiment_contract_is_immutable_and_portable():
     assert config.daily_seed == 2026
     assert config.confirmation_seeds == (42, 1337, 2026)
     assert config.max_epochs == 4
+    assert config.golden_version == "golden-v2"
+    assert config.golden_manifest_file.name == "golden_manifest.json"
+    controls = load_golden_controls(config.golden_manifest_file)
+    assert controls.golden_version == "golden-v2"
+    assert controls.manifest["target_route"] == "/records/search"
+    assert controls.manifest["target_case_count"] == 28
     assert config.action_for("Normal", "CRITICAL") == "ALLOWED"
     assert config.action_for("SQL Injection", "HIGH") == "BLOCKED"
     assert config.output_dir.is_relative_to(root)

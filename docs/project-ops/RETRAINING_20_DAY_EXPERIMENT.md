@@ -9,9 +9,11 @@ traffic. The result must therefore be described as a controlled simulation,
 not production daily retraining.
 
 The primary research question is whether cumulative replay of reviewed benign
-and attack examples reduces the benign false positive for
-`GET /api/users?page=1&limit=10` without increasing attack escapes, changing
-the confidence/action contract, or breaking packaging and backend loading.
+and attack examples improves classification for the actual Land Records Portal
+search route, `GET /records/search`, without increasing attack escapes,
+changing the confidence/action contract, or breaking packaging and backend
+loading. The former `/api/users?page=1&limit=10` case remains as a legacy
+regression control because it is not an LRP route.
 
 There is no scheduler, queue, database migration, dashboard training button,
 online learning from predictions, automatic staging replacement, production
@@ -28,15 +30,17 @@ The source of truth is
   `12040accade4e8a0f71eabdb258fecc2e7e948be`;
 - daily seed `2026`, confirmation seeds `42`, `1337`, and `2026`;
 - maximum four epochs;
-- `golden-v1`, the label order, confidence thresholds, and
+- `golden-v2`, the label order, confidence thresholds, and
   `ALLOWED`/`THROTTLED`/`BLOCKED` mapping;
 - pre-result acceptance tolerances.
 
-The exact pagination request is locked in the golden set and is not present in
-the prepared training batches. Daily snapshots append only validated samples
-to the historical training split; validation, test, and golden controls stay
-unchanged. Every generated snapshot also contains the shared preprocessing
-metadata and checksum manifest accepted by the maintained training preflight.
+The golden-v2 set locks 28 target-route controls for `GET /records/search` and
+one legacy `/api/users?page=1&limit=10` regression control. The target controls
+are not present in the prepared training batches. Daily snapshots append only
+validated samples to the historical training split; validation, test, and
+golden controls stay unchanged. Every generated snapshot also contains the
+shared preprocessing metadata and checksum manifest accepted by the maintained
+training preflight.
 
 ## Data controls
 
@@ -197,7 +201,8 @@ learning dependency is introduced on that basis.
 
 Before inspecting candidate results, the TOML freezes these gates:
 
-- exact pagination: `Normal` and `ALLOWED`;
+- all 28 `/records/search` target controls and the retained legacy regression
+  control pass their expected label and action;
 - all locked benign/attack controls pass their expected label and action;
 - normal false-positive rate is no more than baseline + `0.001`;
 - attack escape rate is no more than baseline + `0.001`;
