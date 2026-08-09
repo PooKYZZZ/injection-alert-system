@@ -2,21 +2,30 @@
 
 ## Current repository state
 
-- Branch: `feature/20-day-retraining-simulation`
-- Merge/PR state: pushed to origin and tracked by draft PR #106:
-  `https://github.com/PooKYZZZ/injection-alert-system/pull/106`.
+- Source state: use the branch/commit containing the `golden-v2` contract and
+  the `records_search_v1` batch set. The earlier PR #106 reference is historical
+  and is not a required execution branch.
 - Experiment status on the development PC: unit tests and the twenty-day
   orchestration smoke passed. The real baseline, seed-2026 training,
   three-seed confirmation, and full 20-day native DistilBERT simulation were
   `NOT_RUN` / `REQUIRES_LAPTOP`.
 - Primary contract: `ml_model/configs/retraining_20_day_v1.toml`
+- Active golden controls: `golden-v2` at
+  `data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json`.
+  This contains 28 locked `GET /records/search` target-route cases and one
+  legacy `/api/users` regression case. The legacy case is not an LRP route and
+  is not counted in target-route coverage.
 - Primary output root: `ml_model/results/retraining_20_day_v1/`
 
-The checked-in `daily_batches/` files are explicitly marked
-`curated_simulation_fixture` and are rejected by normal training-mode batch
-validation. They exist only for the injected-adapter smoke path. Replace them
-with reviewed, non-synthetic exports containing reviewer identity and review
-time before attempting any real training run.
+The canonical route-specific prepared batches are under
+`data/experiments/retraining_20_day_v1/daily_batches/records_search_v1/`. They
+are explicitly marked `curated_simulation_fixture` and `is_synthetic=true`.
+Normal training-mode validation rejects them. The controlled thesis
+simulation may use them only with the explicit `--controlled-simulation` flag;
+its result remains controlled-simulation evidence, not twenty days of reviewed
+production traffic. For a production-like evidence run, replace them with a
+reviewed non-synthetic export containing reviewer identity and review time and
+omit that flag.
 
 All commands below are run from the repository root. They use relative paths,
 so they remain portable when the repository path contains spaces.
@@ -72,7 +81,11 @@ Test-Path data/processed/v3_907k_cleaned/train.parquet
 Test-Path data/processed/v3_907k_cleaned/validation.parquet
 Test-Path data/processed/v3_907k_cleaned/test.parquet
 Get-ChildItem data/processed/v3_907k_cleaned -File | Select-Object Name,Length
+
+python -c "from pathlib import Path; from ml_model.evaluation.golden_controls import load_golden_controls; c=load_golden_controls(Path('data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json')); target=[x for x in c.cases if x.get('route_scope') == 'target_route']; print({'golden_version': c.golden_version, 'target_route': c.manifest['target_route'], 'target_cases': len(target), 'total_cases': len(c.cases)})"
 ```
+
+The final command must report `golden-v2`, `/records/search`, `28`, and `29`.
 
 If CUDA, the expected GPU, or the established dataset is unavailable, stop and
 record the operation as `BLOCKED`; do not substitute v2 preprocessing or an
@@ -124,8 +137,9 @@ arbitrary latest run or write to an active registry:
 ```
 
 Inspect `baseline.json` before candidate training. The report records artifact
-identity and hash, golden results, the exact pagination result, packaging and
-backend-loading status, metric availability, and a provenance-bound
+identity and hash, golden results for the records-search target controls and
+the retained legacy regression, packaging and backend-loading status, metric
+availability, and a provenance-bound
 `baseline_predictions.json` artifact. Missing operational rates or
 supported attack recalls remain `Unknown`/`REQUIRES_LAPTOP`; they are not
 converted to zero. The selected run must also contain `summary_metrics.json`
@@ -153,15 +167,17 @@ cumulative day with seed `2026`:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
   --config ml_model/configs/retraining_20_day_v1.toml `
   --historical-data-dir data/processed/v3_907k_cleaned `
-  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches/records_search_v1 `
   --output-dir ml_model/results/retraining_20_day_v1/seed_2026 `
   --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --controlled-simulation `
   --days 1
 ```
 
 The run must use native DistilBERT, v1 preprocessing, the locked labels and
 policy, and a maximum of four epochs. Inspect the day report, evaluator output,
-candidate package, reload result, golden controls, exact pagination result,
+candidate package, reload result, records-search golden controls, legacy
+regression result,
 candidate prediction artifact, paired statistical evidence, and acceptance
 gates before proceeding. The candidate artifact is generated from the same
 locked golden controls and is joined to the frozen baseline by `sample_id`;
@@ -194,9 +210,10 @@ Run all days only after baseline, one-seed, and three-seed prerequisites pass:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
   --config ml_model/configs/retraining_20_day_v1.toml `
   --historical-data-dir data/processed/v3_907k_cleaned `
-  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches/records_search_v1 `
   --output-dir ml_model/results/retraining_20_day_v1/full `
   --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --controlled-simulation `
   --days 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
 ```
 
@@ -310,6 +327,9 @@ production readiness.
 | Operation | Status in this coding session |
 |---|---|
 | Contract, validator, indexed snapshot, simulator, baseline/artifact tooling | `PASS` (implemented and focused-tested) |
+| Records-search `golden-v2` controls | `PASS` (28 target cases plus one legacy regression) |
+| Records-search prepared-batch preflight | `PASS` (20 days, 40 accepted, zero golden/contamination overlaps) |
+| Controlled-fixture simulation boundary | `PASS` (explicit flag and simulation-only report label) |
 | Twenty-day synthetic orchestration smoke | `SMOKE_SUCCESS` (orchestration-only) |
 | Real current-model baseline | `NOT_RUN` / `REQUIRES_LAPTOP` |
 | Corrected seed-2026 native training | `NOT_RUN` / `REQUIRES_LAPTOP` |

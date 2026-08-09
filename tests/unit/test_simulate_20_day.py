@@ -7,8 +7,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from ml_model.retraining.experiment_contract import load_experiment_config
 from ml_model.retraining.simulate_20_day import (
     SimulationHooks,
+    _build_parser,
+    _default_backend,
     evaluate_acceptance_gates,
     normalize_baseline_metrics,
     run_simulation,
@@ -112,6 +115,112 @@ def _frozen_baseline() -> dict[str, object]:
             },
         },
     }
+
+
+def test_default_backend_probe_uses_the_actual_target_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    observed: list[str] = []
+
+    class FakeModelService:
+        def __init__(self, _settings):
+            pass
+
+        def predict(self, request_text: str) -> dict[str, str]:
+            observed.append(request_text)
+            return {"prediction": "Normal", "confidence_tier": "LOW"}
+
+    from web_app.services import model_service
+
+    monkeypatch.setattr(model_service, "ModelService", FakeModelService)
+    root = Path(__file__).resolve().parents[2]
+    config = load_experiment_config(root / "ml_model/configs/retraining_20_day_v1.toml")
+
+    result = _default_backend(
+        artifact_path=tmp_path / "candidate",
+        config=config,
+        day=1,
+    )
+
+    assert observed == ["GET /records/search?query=Maple"]
+    assert result["request"] == "GET /records/search?query=Maple"
+    assert result["passed"] is True
+
+
+def test_controlled_simulation_requires_an_explicit_cli_flag():
+    args = _build_parser().parse_args(
+        [
+            "--config",
+            "experiment.toml",
+            "--output-dir",
+            "output",
+            "--controlled-simulation",
+        ]
+    )
+
+    assert args.controlled_simulation is True
+
+
+def test_controlled_simulation_reports_a_simulation_only_boundary(tmp_path: Path):
+    config_path = tmp_path / "experiment.toml"
+    _write_config(config_path)
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    base = pd.DataFrame([{"combined_payload": "GET /health", "final_label": "Normal"}])
+    for split in ("train", "validation", "test"):
+        base.to_parquet(historical / f"{split}.parquet", index=False)
+    batches = tmp_path / "batches"
+    batches.mkdir()
+    _write_batch(batches / "day_01.jsonl", 1)
+
+    def train(*, day_dir: Path, **_: object) -> Path:
+        run_dir = day_dir / "training_run"
+        run_dir.mkdir(parents=True)
+        return run_dir
+
+    def package(*, day_dir: Path, **_: object) -> Path:
+        artifact = day_dir / "candidate"
+        artifact.mkdir(parents=True)
+        (artifact / "serving_manifest.json").write_text(
+            '{"local_reload_verified":true}\n', encoding="utf-8"
+        )
+        return artifact
+
+    report = run_simulation(
+        config_path=config_path,
+        historical_data_dir=historical,
+        daily_batch_dir=batches,
+        output_dir=tmp_path / "output",
+        days=[1],
+        baseline=_frozen_baseline(),
+        golden_texts=set(),
+        allow_test_overrides=True,
+        controlled_simulation=True,
+        hooks=SimulationHooks(
+            train=train,
+            evaluate=lambda **_: {
+                "status": "complete",
+                "metrics": {
+                    "normal_false_positive_rate": 0.0,
+                    "attack_escape_rate": 0.0,
+                    "macro_f1": 1.0,
+                    "normal_recall": 1.0,
+                    "supported_attack_recall": {"SQL Injection": 1.0},
+                },
+            },
+            package=package,
+            reload=lambda **_: True,
+            golden=lambda **_: {"passed": True},
+            backend=lambda **_: {"passed": True},
+        ),
+    )
+
+    assert report.experiment["execution_mode"] == (
+        "controlled_fixture_training_simulation"
+    )
+    assert report.experiment["model_quality_conclusion"] == (
+        "CONTROLLED_SIMULATION_ONLY"
+    )
 
 
 def test_acceptance_gates_report_rejection_reasons():

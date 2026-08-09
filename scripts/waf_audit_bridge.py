@@ -9,6 +9,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import OrderedDict
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -33,6 +34,8 @@ _MAX_BODY_LENGTH = 1024
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _RETRYABLE_ERRNOS = {61, 111, 10061}
 _MAX_RETRY_DELAY_SECONDS = 60.0
+_TRANSACTION_DEDUP_MAX_ENTRIES = 10_000
+_TRANSACTION_DEDUP_TTL_SECONDS = 60.0 * 60.0
 _TOTAL_SCORE_RE = re.compile(r"Total Score:\s*`?(\d+)`?", re.IGNORECASE)
 _SOURCE_PROVENANCE_MODES = {
     "direct_remote_addr",
@@ -40,6 +43,38 @@ _SOURCE_PROVENANCE_MODES = {
 }
 _TRUTHY = {"1", "true", "yes", "on"}
 _LOOPBACKS = {"127.0.0.1", "::1"}
+
+
+class _TransactionDedupCache:
+    """Bounded, process-local duplicate suppression for audit-line replay."""
+
+    def __init__(self, *, max_entries: int, ttl_seconds: float) -> None:
+        if max_entries <= 0:
+            raise ValueError("max_entries must be greater than zero")
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be greater than zero")
+        self._max_entries = max_entries
+        self._ttl_seconds = ttl_seconds
+        self._entries: OrderedDict[str, float] = OrderedDict()
+
+    def _prune(self, now: float) -> None:
+        while self._entries:
+            _transaction_id, seen_at = next(iter(self._entries.items()))
+            if now - seen_at < self._ttl_seconds:
+                break
+            self._entries.popitem(last=False)
+
+    def __contains__(self, transaction_id: str) -> bool:
+        self._prune(time.monotonic())
+        return transaction_id in self._entries
+
+    def add(self, transaction_id: str) -> None:
+        now = time.monotonic()
+        self._prune(now)
+        self._entries.pop(transaction_id, None)
+        while len(self._entries) >= self._max_entries:
+            self._entries.popitem(last=False)
+        self._entries[transaction_id] = now
 
 
 def _safe_log_value(value: Any) -> Any:
@@ -466,6 +501,9 @@ def post_event(
 
 
 def _is_retryable_exception(exc: Exception) -> bool:
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return True
+
     if not isinstance(exc, urllib.error.URLError):
         return False
 
@@ -614,6 +652,10 @@ def run_bridge(
     total = 0
     success = 0
     failed = 0
+    seen_transaction_ids = _TransactionDedupCache(
+        max_entries=_TRANSACTION_DEDUP_MAX_ENTRIES,
+        ttl_seconds=_TRANSACTION_DEDUP_TTL_SECONDS,
+    )
 
     for raw_line in input_stream:
         line = raw_line.strip()
@@ -621,80 +663,20 @@ def run_bridge(
             continue
 
         total += 1
-        transaction_id = "unknown"
-        try:
-            event = json.loads(line)
-            if not isinstance(event, dict):
-                raise ValueError("event line must be a JSON object")
-            if _internal_probe_event(event):
-                _log_event(
-                    "bridge.internal_probe_skipped",
-                    "Internal WAF probe event skipped from external ingest",
-                    transaction_id=str(
-                        (event.get("transaction") or {}).get("unique_id")
-                        if isinstance(event.get("transaction"), dict)
-                        else "unknown"
-                    ),
-                )
-                continue
-            payload = normalize_event(event, provenance_mode=provenance_mode)
-            transaction_id = str(payload.get("transaction_id") or "unknown")
-            audit_evidence = (
-                provenance_mode == "cloudflare_connecting_ip"
-                and isinstance(event.get("transaction"), dict)
-            )
-            status = _post_event_with_retry(
-                payload,
-                endpoint=endpoint,
-                api_secret=api_secret,
-                timeout=timeout,
-                max_retries=max_retries,
-                retry_delay_seconds=retry_delay_seconds,
-                audit_evidence=audit_evidence,
-            )
-            if 200 <= status < 300:
-                success += 1
-                _log_event(
-                    "bridge.post.completed",
-                    "Bridge event posted",
-                    status_code=status,
-                    transaction_id=transaction_id,
-                    crs_score=payload.get("crs_score"),
-                    crs_rule_ids=payload.get("crs_rule_ids"),
-                    cf_connecting_ip_matches_client_ip=payload.get(
-                        "cf_connecting_ip_matches_client_ip"
-                    ),
-                )
-            else:
-                failed += 1
-                _log_event(
-                    "bridge.post.failed",
-                    "Bridge event post failed",
-                    level="ERROR",
-                    status_code=status,
-                    transaction_id=transaction_id,
-                )
-        except urllib.error.HTTPError as exc:
+        line_ok, posted = _process_event_line(
+            line,
+            endpoint=endpoint,
+            api_secret=api_secret,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_delay_seconds=retry_delay_seconds,
+            provenance_mode=provenance_mode,
+            seen_transaction_ids=seen_transaction_ids,
+        )
+        if posted:
+            success += 1
+        elif not line_ok:
             failed += 1
-            _log_event(
-                "bridge.post.failed",
-                "Bridge event post failed",
-                level="ERROR",
-                status_code=exc.code,
-                transaction_id=transaction_id,
-                error_type=type(exc).__name__,
-                error_message="Bridge HTTP request failed",
-            )
-        except Exception as exc:  # noqa: BLE001
-            failed += 1
-            _log_event(
-                "bridge.post.failed",
-                "Bridge event processing failed",
-                level="ERROR",
-                transaction_id=transaction_id,
-                error_type=type(exc).__name__,
-                error_message="Bridge event processing failed",
-            )
 
     return total, success, failed
 
@@ -708,7 +690,7 @@ def _process_event_line(
     max_retries: int,
     retry_delay_seconds: float,
     provenance_mode: str,
-    seen_transaction_ids: set[str] | None = None,
+    seen_transaction_ids: _TransactionDedupCache | None = None,
 ) -> tuple[bool, bool]:
     transaction_id = "unknown"
     try:
@@ -815,7 +797,10 @@ def follow_bridge(
     total = 0
     success = 0
     failed = 0
-    seen_transaction_ids: set[str] = set()
+    seen_transaction_ids = _TransactionDedupCache(
+        max_entries=_TRANSACTION_DEDUP_MAX_ENTRIES,
+        ttl_seconds=_TRANSACTION_DEDUP_TTL_SECONDS,
+    )
     last_activity = time.monotonic()
     stop_signal = stop_event or threading.Event()
     current_position = 0
@@ -930,18 +915,29 @@ def main() -> int:
     parser.add_argument(
         "--endpoint", default=None, help="Internal FastAPI WAF ingest endpoint"
     )
-    parser.add_argument("--timeout", type=int, default=10, help="HTTP timeout seconds")
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=os.getenv("WAF_INGEST_TIMEOUT_SECONDS", "30"),
+        help="HTTP timeout seconds (default: WAF_INGEST_TIMEOUT_SECONDS or 30)",
+    )
     parser.add_argument(
         "--max-retries",
         type=int,
-        default=20,
-        help="Retries for transient connection/5xx errors",
+        default=os.getenv("WAF_INGEST_MAX_RETRIES", "20"),
+        help=(
+            "Retries for transient connection/5xx errors "
+            "(default: WAF_INGEST_MAX_RETRIES or 20)"
+        ),
     )
     parser.add_argument(
         "--retry-delay",
         type=float,
-        default=2.0,
-        help="Delay between retries in seconds",
+        default=os.getenv("WAF_INGEST_RETRY_DELAY_SECONDS", "2"),
+        help=(
+            "Delay between retries in seconds "
+            "(default: WAF_INGEST_RETRY_DELAY_SECONDS or 2)"
+        ),
     )
     parser.add_argument(
         "--waf-ingest-api-key",
@@ -949,6 +945,14 @@ def main() -> int:
         help="WAF submission key (defaults to WAF_INGEST_API_KEY env var)",
     )
     args = parser.parse_args()
+
+    if args.timeout <= 0:
+        parser.error("--timeout must be greater than zero")
+    if args.max_retries < 0:
+        parser.error("--max-retries must be zero or greater")
+    if args.retry_delay < 0:
+        parser.error("--retry-delay must be zero or greater")
+
 
     api_secret = args.waf_ingest_api_key or os.getenv("WAF_INGEST_API_KEY")
     if not api_secret:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from ml_model.evaluation.golden_controls import load_golden_controls
 from ml_model.retraining.run_baseline import (
     _missing_baseline_metrics,
     build_baseline_report,
@@ -109,3 +111,77 @@ def test_baseline_requires_every_supported_attack_recall():
     )
 
     assert missing == ["supported_attack_recall:Code Injection,Other Attacks"]
+
+
+def test_baseline_report_separates_target_route_and_legacy_regression(
+    tmp_path: Path, monkeypatch
+):
+    root = Path(__file__).resolve().parents[2]
+    controls = load_golden_controls(
+        root
+        / "data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json"
+    )
+    expected = {
+        case["model_input_text"]: case["expected_label"] for case in controls.cases
+    }
+
+    class FakeModelService:
+        loaded = True
+        model_version = "baseline-test"
+
+        def __init__(self, _settings):
+            pass
+
+        def predict(self, request_text: str) -> dict[str, object]:
+            return {"prediction": expected[request_text], "confidence": 0.99}
+
+    from web_app.services import model_service
+
+    monkeypatch.setattr(model_service, "ModelService", FakeModelService)
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    (artifact / "serving_manifest.json").write_text(
+        json.dumps({"model_version": "baseline-test", "local_reload_verified": True}),
+        encoding="utf-8",
+    )
+    (artifact / "eval_report.json").write_text(
+        json.dumps(
+            {
+                "macro avg": {"f1-score": 0.99},
+                "Normal": {"recall": 1.0},
+                "per_class": {
+                    "Code Injection": {"recall": 1.0},
+                    "Other Attacks": {"recall": 1.0},
+                    "SQL Injection": {"recall": 1.0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact / "summary_metrics.json").write_text(
+        json.dumps(
+            {
+                "normal_false_positive_rate": 0.0,
+                "attack_escape_rate": 0.0,
+                "test_macro_f1": 0.99,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_baseline_report(
+        artifact_dir=artifact,
+        config_path=root / "ml_model/configs/retraining_20_day_v1.toml",
+        output_path=tmp_path / "baseline.json",
+    )
+
+    assert report["golden"]["passed"] is True
+    assert report["target_route_controls"]["route"] == "/records/search"
+    assert report["target_route_controls"]["case_count"] == 28
+    assert report["target_route_controls"]["passed"] is True
+    assert report["legacy_regression"]["case_id"] == (
+        "legacy-api-users-pagination-regression"
+    )
+    assert report["exact_pagination"]["case_id"] == (
+        "legacy-api-users-pagination-regression"
+    )

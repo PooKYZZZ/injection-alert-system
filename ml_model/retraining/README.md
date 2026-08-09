@@ -24,7 +24,8 @@ or automatic promotion path. The reusable training entrypoint remains under
   model-input hashes and batch-day provenance. Real approved rows require
   reviewer identity and review time; empty batches and synthetic rows marked as
   approved training data are rejected. Checked-in synthetic rows are explicitly
-  simulation fixtures and are accepted only with the smoke/test override.
+  simulation fixtures and are accepted only with the smoke, test override, or
+  explicit controlled-simulation mode.
 - `snapshots.py` creates versioned cumulative train snapshots and preserves the
   historical validation/test splits, including the metadata and checksum
   contract required by the training preflight. It builds one reusable index
@@ -75,6 +76,33 @@ or automatic promotion path. The reusable training entrypoint remains under
   report records this as `baseline_gate`; normal simulation rejects any other
   baseline state. Native packaging also requires `summary_metrics.json`, which
   supplies operational security rates when the classification report does not.
+
+The checked-in route-specific prepared batches are under
+`data/experiments/retraining_20_day_v1/daily_batches/records_search_v1/`.
+They are explicitly marked as curated simulation fixtures (`is_synthetic=true`)
+and are not treated as reviewed production samples. Use them only with the
+explicit `--controlled-simulation` mode. That mode still requires a frozen
+real baseline, performs normal snapshot/contamination/package/reload/golden/
+backend gates, and labels its final evidence `CONTROLLED_SIMULATION_ONLY`.
+
+### Current golden-control scope
+
+The active experiment contract uses `golden-v2`:
+
+`data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json`
+
+It contains 28 locked target-route controls for the Land Records Portal search
+route, `GET /records/search`, plus one legacy regression control for
+`GET /api/users?page=1&limit=10`. The legacy case is retained to detect an old
+model regression, but it is not counted as coverage of the Land Records Portal
+because that route does not exist in the target application. The immutable
+`golden-v1` files remain available as historical evidence and are not the
+current experiment input.
+
+The golden cases are offline model controls. They verify model classification,
+confidence, and action mapping; they do not prove that a request passed through
+Cloudflare, ModSecurity, the audit bridge, or the live portal. That live path
+requires a separate authorized Docker/Cloudflare smoke test.
 
 The `--smoke` mode uses tiny synthetic data and injected adapters to prove
 orchestration startup and failure safety. It reports `SMOKE_SUCCESS`,
@@ -132,17 +160,24 @@ batches:
 .venv\Scripts\python.exe -m ml_model.retraining.simulate_20_day `
   --config ml_model/configs/retraining_20_day_v1.toml `
   --historical-data-dir data/processed/v3_907k_cleaned `
-  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches `
+  --daily-batch-dir data/experiments/retraining_20_day_v1/daily_batches/records_search_v1 `
   --output-dir ml_model/results/retraining_20_day_v1/native `
   --baseline ml_model/results/retraining_20_day_v1/baseline.json `
+  --controlled-simulation `
   --days 1
 ```
 
+The `--controlled-simulation` option is deliberately explicit. It permits the
+prepared fixtures for the thesis simulation; it must not be used to disguise
+synthetic data as real reviewed production data. Omit it when using a reviewed
+non-synthetic batch export.
+
 Then, only after the one-seed and three-seed prerequisites pass, run days 1
-through 20 using the same baseline, dataset version, reviewed batches, and
-locked golden set. Real training still must be performed on the laptop. No
-smoke run, aggregate metric, or present p-value is evidence that the real
-model improved.
+through 20 using the same baseline, dataset version, prepared route-specific
+batches, and locked golden set. Real training still must be performed on the
+laptop. No smoke run, aggregate metric, or present p-value is evidence that
+the model improved on production traffic; controlled-fixture results must keep
+their simulation-only evidence label.
 
 ## Architectural Role
 Closes the feedback loop:

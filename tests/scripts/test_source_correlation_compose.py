@@ -120,6 +120,36 @@ def test_demo_portal_receives_internal_shadow_check_wiring() -> None:
     assert "ports" not in portal
 
 
+def test_local_collection_overlay_captures_benign_events_without_changing_default():
+    default_config = _compose_config(
+        "docker-compose.yml", "docker-compose.demo-target.yml", profile="demo-target"
+    )
+    collection_config = _compose_config(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.demo-target.collection.yml",
+        profile="demo-target",
+    )
+
+    assert (
+        default_config["services"]["demo-target-modsecurity"]["environment"][
+            "MODSEC_AUDIT_ENGINE"
+        ]
+        == "RelevantOnly"
+    )
+    assert (
+        collection_config["services"]["demo-target-modsecurity"]["environment"][
+            "MODSEC_AUDIT_ENGINE"
+        ]
+        == "On"
+    )
+    bridge = collection_config["services"]["demo-target-bridge"]
+    assert bridge["environment"]["WAF_INGEST_TIMEOUT_SECONDS"] == "30"
+    assert bridge["environment"]["WAF_INGEST_MAX_RETRIES"] == "20"
+    assert bridge["environment"]["WAF_INGEST_RETRY_DELAY_SECONDS"] == "2"
+    assert "--timeout \"$$WAF_INGEST_TIMEOUT_SECONDS\"" in bridge["command"][2]
+
+
 def test_technical_profile_contains_the_existing_8088_pair() -> None:
     config = _compose_config("docker-compose.yml", profile="technical-waf")
 

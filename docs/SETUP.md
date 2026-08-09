@@ -612,8 +612,12 @@ Do not use `localhost:8000` for Docker proof unless backend port 8000 is explici
 For normal developer startup, the demo-target profile is not required. For the final realistic WAF demonstration, start this repo with the demo-target profile:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.demo-target.collection.yml --profile demo-target up -d --build
 ```
+
+The collection overlay changes only the local ModSecurity audit engine from
+`RelevantOnly` to `On`, so benign requests are persisted for thesis data
+collection. The base and hosted Compose paths remain `RelevantOnly` by default.
 
 By default, the profile builds the protected demo website from the sibling path `../../land-records-portal`, which resolves to `G:\AI\land-records-portal` from this repo layout. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` before running Compose.
 

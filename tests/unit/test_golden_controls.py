@@ -4,7 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from ml_model.evaluation.golden_controls import (
+    GoldenControlError,
     GoldenOverlapError,
     evaluate_golden_controls,
     find_golden_overlap,
@@ -57,6 +60,54 @@ def _case(case_id: str, text: str, label: str, action: str, category: str) -> di
         "golden_version": "golden-v1",
         "locked_at": "2026-08-06T00:00:00Z",
     }
+
+
+def _target_case(
+    case_id: str,
+    text: str,
+    label: str,
+    action: str,
+    category: str,
+    *,
+    request_path: str = "/records/search",
+    route_scope: str = "target_route",
+) -> dict:
+    case = _case(case_id, text, label, action, category)
+    case.update(
+        {
+            "golden_version": "golden-v2",
+            "request_method": "GET",
+            "request_path": request_path,
+            "route_scope": route_scope,
+        }
+    )
+    return case
+
+
+def _write_target_locked_golden(tmp_path: Path, cases: list[dict]) -> Path:
+    cases_path = tmp_path / "golden_cases.jsonl"
+    cases_path.write_bytes(
+        b"".join(
+            (json.dumps(case, sort_keys=True, separators=(",", ":")) + "\n").encode()
+            for case in cases
+        )
+    )
+    manifest = {
+        "manifest_version": "golden-manifest.v1",
+        "golden_version": "golden-v2",
+        "cases_file": cases_path.name,
+        "cases_sha256": hashlib.sha256(cases_path.read_bytes()).hexdigest(),
+        "case_count": len(cases),
+        "target_method": "GET",
+        "target_route": "/records/search",
+        "target_case_count": sum(
+            case.get("route_scope") == "target_route" for case in cases
+        ),
+    }
+    manifest["manifest_sha256"] = canonical_json_sha256(manifest)
+    manifest_path = tmp_path / "golden_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return manifest_path
 
 
 def test_loader_validates_manifest_and_exact_pagination_control(tmp_path: Path):
@@ -295,3 +346,60 @@ def test_golden_overlap_uses_canonical_query_order(tmp_path: Path):
     )
 
     assert overlaps[0]["matches"][0]["similarity"] == 1.0
+
+
+def test_checked_in_golden_v2_targets_records_search_and_preserves_legacy_regression():
+    root = Path(__file__).resolve().parents[2]
+    controls = load_golden_controls(
+        root
+        / "data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json"
+    )
+
+    target_cases = [
+        case for case in controls.cases if case.get("route_scope") == "target_route"
+    ]
+    legacy_cases = [
+        case
+        for case in controls.cases
+        if case.get("route_scope") == "legacy_regression"
+    ]
+
+    assert controls.golden_version == "golden-v2"
+    assert controls.manifest["target_method"] == "GET"
+    assert controls.manifest["target_route"] == "/records/search"
+    assert controls.manifest["target_case_count"] == 28
+    assert len(target_cases) == 28
+    assert all(case["request_method"] == "GET" for case in target_cases)
+    assert all(case["request_path"] == "/records/search" for case in target_cases)
+    assert not any("/api/users" in case.model_input_text for case in target_cases)
+    assert len(legacy_cases) == 1
+    assert legacy_cases[0].model_input_text == "GET /api/users?page=1&limit=10"
+
+
+def test_target_golden_requires_route_metadata(tmp_path: Path):
+    case = _case(
+        "normal-search",
+        "GET /records/search?query=Maple",
+        "Normal",
+        "ALLOWED",
+        "normal_search",
+    )
+    case["golden_version"] = "golden-v2"
+    case["route_scope"] = "target_route"
+
+    with pytest.raises(GoldenControlError, match="route metadata"):
+        load_golden_controls(_write_target_locked_golden(tmp_path, [case]))
+
+
+def test_target_golden_rejects_case_outside_declared_route(tmp_path: Path):
+    case = _target_case(
+        "wrong-route",
+        "GET /api/users?page=1&limit=10",
+        "Normal",
+        "ALLOWED",
+        "legacy_regression",
+        request_path="/api/users",
+    )
+
+    with pytest.raises(GoldenControlError, match="does not match target route"):
+        load_golden_controls(_write_target_locked_golden(tmp_path, [case]))

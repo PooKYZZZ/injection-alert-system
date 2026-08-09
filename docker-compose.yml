@@ -90,11 +90,14 @@ services:
     environment:
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
       WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
+      WAF_INGEST_TIMEOUT_SECONDS: ${WAF_INGEST_TIMEOUT_SECONDS:-30}
+      WAF_INGEST_MAX_RETRIES: ${WAF_INGEST_MAX_RETRIES:-20}
+      WAF_INGEST_RETRY_DELAY_SECONDS: ${WAF_INGEST_RETRY_DELAY_SECONDS:-2}
     command:
       [
         "sh",
         "-c",
-        "while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events",
+        "while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events --timeout \"$$WAF_INGEST_TIMEOUT_SECONDS\" --max-retries \"$$WAF_INGEST_MAX_RETRIES\" --retry-delay \"$$WAF_INGEST_RETRY_DELAY_SECONDS\"",
       ]
     volumes:
       - ./logs/modsecurity:/var/log/modsecurity:ro

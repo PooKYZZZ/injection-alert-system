@@ -24,6 +24,7 @@ EXPECTED_PREPROCESSING_VERSION = "http-preprocessor-v1"
 EXPECTED_MODEL_FAMILY = "native_distilbert"
 EXPECTED_MODEL_ID = "distilbert-base-uncased"
 EXPECTED_MODEL_REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
+SUPPORTED_GOLDEN_VERSIONS = ("golden-v1", "golden-v2")
 MODEL_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 LOCKED_ACCEPTANCE_TOLERANCES = {
     "normal_false_positive_tolerance": 0.001,
@@ -211,8 +212,8 @@ class ExperimentConfig:
             raise ValueError("daily and confirmation seeds are immutable")
         if not 1 <= self.max_epochs <= 4:
             raise ValueError("max_epochs must be between 1 and 4")
-        if self.golden_version != "golden-v1":
-            raise ValueError("golden version is immutable")
+        if self.golden_version not in SUPPORTED_GOLDEN_VERSIONS:
+            raise ValueError("golden version is unsupported")
         if self.label_names != EXPECTED_LABELS:
             raise ValueError("label mapping/order differs from the serving contract")
         thresholds = self.confidence_thresholds

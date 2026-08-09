@@ -19,6 +19,9 @@ def write_simulation_report(output_dir: Path | str, payload: Mapping[str, Any]) 
 
 
 def render_simulation_markdown(payload: Mapping[str, Any]) -> str:
+    execution_mode = payload.get("experiment", {}).get(
+        "execution_mode", "UNKNOWN"
+    )
     lines = [
         "# Controlled 20-Day Retraining Simulation",
         "",
@@ -29,10 +32,7 @@ def render_simulation_markdown(payload: Mapping[str, Any]) -> str:
         f"- Version: `{payload.get('experiment', {}).get('version', 'unknown')}`",
         f"- Final status: `{payload.get('status', 'UNKNOWN')}`",
         f"- Baseline status: `{payload.get('baseline_status', 'UNKNOWN')}`",
-        "- Execution mode: `{}".format(
-            payload.get("experiment", {}).get("execution_mode", "UNKNOWN")
-        )
-        + "`",
+        f"- Execution mode: `{execution_mode}`",
         "- Real native training: `{}".format(
             payload.get("experiment", {}).get("real_training_status", "UNKNOWN")
         )
@@ -69,6 +69,10 @@ def render_simulation_markdown(payload: Mapping[str, Any]) -> str:
             "Smoke mode validates orchestration, hashing, snapshot creation, "
             "gate wiring, and failure handling only; it does not run native "
             "training and cannot support a model-quality conclusion.",
+            "Controlled-fixture mode runs the maintained training and evaluation "
+            "path over explicitly marked prepared fixtures. Its result is "
+            "controlled-simulation evidence only, not reviewed production-data "
+            "evidence or a production retraining claim.",
             "Full baseline, one-seed, three-seed, and 20-day native training "
             "remain laptop operations unless fresh artifacts and reports are "
             "present.",

@@ -9,9 +9,11 @@ traffic. The result must therefore be described as a controlled simulation,
 not production daily retraining.
 
 The primary research question is whether cumulative replay of reviewed benign
-and attack examples reduces the benign false positive for
-`GET /api/users?page=1&limit=10` without increasing attack escapes, changing
-the confidence/action contract, or breaking packaging and backend loading.
+and attack examples improves classification for the actual Land Records Portal
+search route, `GET /records/search`, without increasing attack escapes,
+changing the confidence/action contract, or breaking packaging and backend
+loading. The former `/api/users?page=1&limit=10` case remains as a legacy
+regression control because it is not an LRP route.
 
 There is no scheduler, queue, database migration, dashboard training button,
 online learning from predictions, automatic staging replacement, production
@@ -28,15 +30,17 @@ The source of truth is
   `12040accade4e8a0f71eabdb258fecc2e7e948be`;
 - daily seed `2026`, confirmation seeds `42`, `1337`, and `2026`;
 - maximum four epochs;
-- `golden-v1`, the label order, confidence thresholds, and
+- `golden-v2`, the label order, confidence thresholds, and
   `ALLOWED`/`THROTTLED`/`BLOCKED` mapping;
 - pre-result acceptance tolerances.
 
-The exact pagination request is locked in the golden set and is not present in
-the prepared training batches. Daily snapshots append only validated samples
-to the historical training split; validation, test, and golden controls stay
-unchanged. Every generated snapshot also contains the shared preprocessing
-metadata and checksum manifest accepted by the maintained training preflight.
+The golden-v2 set locks 28 target-route controls for `GET /records/search` and
+one legacy `/api/users?page=1&limit=10` regression control. The target controls
+are not present in the prepared training batches. Daily snapshots append only
+validated samples to the historical training split; validation, test, and
+golden controls stay unchanged. Every generated snapshot also contains the
+shared preprocessing metadata and checksum manifest accepted by the maintained
+training preflight.
 
 ## Data controls
 
@@ -47,14 +51,16 @@ Every prepared JSONL row contains:
 and `preprocessing_version`.
 
 Real training rows require `review_status=approved_for_training`, reviewer
-identity, and review time. The checked-in daily files instead use
+identity, and review time. The checked-in route-specific files under
+`daily_batches/records_search_v1/` instead use
 `review_status=curated_simulation_fixture`, `source_type=curated_simulation_fixture`,
-and `is_synthetic=true`; normal training-mode validation rejects them. Only
-the explicit smoke/test override accepts these fixtures, and that override
-cannot produce a real model-quality conclusion. A row marked `is_synthetic=true`
-is rejected even when it has approved-review metadata; only the explicit
-simulation-fixture status can be accepted under the override. Empty batches are
-also rejected. The validator rejects unknown
+and `is_synthetic=true`; ordinary training-mode validation rejects them. The
+explicit `--controlled-simulation` mode accepts only these marked fixtures and
+records `CONTROLLED_SIMULATION_ONLY`; it does not turn them into reviewed
+production evidence. A row marked `is_synthetic=true` is rejected even when it
+has approved-review metadata; only the explicit simulation-fixture status can
+be accepted under the controlled-simulation flag. Empty batches are also
+rejected. The validator rejects unknown
 labels, missing ground truth, any model-prediction label field, unapproved or
 synthetic rows in real mode, missing provenance, mismatched preprocessing,
 duplicates, conflicting labels, exact or near-duplicate historical overlap,
@@ -163,7 +169,11 @@ acceptance requires `COMPUTED`; smoke remains explicitly non-thesis evidence.
 The synthetic smoke result is reported as `SMOKE_SUCCESS`, with
 `real_training_status=NOT_RUN`, `model_quality_conclusion=NOT_PERMITTED`, and
 `baseline_status=SMOKE_SYNTHETIC`. The synthetic fixture must not be treated as
-production data or as evidence that a model improved. Real native training on
+production data or as evidence that a model improved. Controlled fixture
+training is reported with `execution_mode=controlled_fixture_training_simulation`
+and `model_quality_conclusion=CONTROLLED_SIMULATION_ONLY`; it can support the
+bounded thesis simulation but must not be described as production daily
+retraining. Real native training on
 the laptop, with the historical dataset, prepared reviewed batches, frozen
 baseline, candidate artifacts, reload, and acceptance gates, remains required.
 
@@ -197,7 +207,8 @@ learning dependency is introduced on that basis.
 
 Before inspecting candidate results, the TOML freezes these gates:
 
-- exact pagination: `Normal` and `ALLOWED`;
+- all 28 `/records/search` target controls and the retained legacy regression
+  control pass their expected label and action;
 - all locked benign/attack controls pass their expected label and action;
 - normal false-positive rate is no more than baseline + `0.001`;
 - attack escape rate is no more than baseline + `0.001`;

@@ -1,0 +1,11 @@
+{
+  "manifest_version": "golden-manifest.v2",
+  "golden_version": "golden-v2",
+  "cases_file": "golden_cases.jsonl",
+  "cases_sha256": "bcde236e5f51ea4491d891e94f3a17df4753038e0030ad502067ab3aca84b100",
+  "case_count": 29,
+  "target_method": "GET",
+  "target_route": "/records/search",
+  "target_case_count": 28,
+  "manifest_sha256": "574ab5bf46eb94adaa2f266c7b3237bf20a78e6bcc417b5be90ad1863c5be3d1"
+}
