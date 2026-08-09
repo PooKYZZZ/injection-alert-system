@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -35,6 +36,13 @@ REQUIRED_RUN_FILES = (
     "eval_report.json",
     "summary_metrics.json",
     "git_hash.txt",
+)
+REQUIRED_TRAINING_SUMMARY_METRICS = (
+    "test_accuracy",
+    "test_macro_f1",
+    "test_weighted_f1",
+    "normal_false_positive_rate",
+    "attack_escape_rate",
 )
 MANIFEST_NAME = "serving_manifest.json"
 SUMMARY_METRIC_KEYS = {"accuracy", "macro avg", "weighted avg"}
@@ -104,6 +112,117 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def load_training_summary(path: Path) -> dict[str, Any]:
+    """Load the exact training summary required by artifact packaging."""
+
+    summary_path = Path(path)
+    if not summary_path.is_file():
+        raise PackagingError(f"Training summary is missing: {summary_path}")
+
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PackagingError(
+            f"Training summary is malformed: {summary_path}"
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise PackagingError("summary_metrics.json must contain an object")
+
+    missing = [
+        key
+        for key in REQUIRED_TRAINING_SUMMARY_METRICS
+        if key not in payload or payload[key] is None
+    ]
+    if missing:
+        raise PackagingError(
+            "Training summary is missing required metrics: "
+            f"{sorted(missing)}"
+        )
+
+    for key in REQUIRED_TRAINING_SUMMARY_METRICS:
+        try:
+            value = float(payload[key])
+        except (TypeError, ValueError) as exc:
+            raise PackagingError(
+                f"Training summary metric {key!r} must be numeric"
+            ) from exc
+        if not math.isfinite(value):
+            raise PackagingError(
+                f"Training summary metric {key!r} must be finite"
+            )
+
+    return payload
+
+
+def stage_training_summary_for_packaging(
+    *, source_summary_path: Path, candidate_run: Path
+) -> dict[str, Any]:
+    """Copy a validated training summary into a fresh candidate run."""
+
+    summary_metrics = load_training_summary(source_summary_path)
+    summary_path = Path(candidate_run) / "summary_metrics.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(
+        json.dumps(summary_metrics, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return summary_metrics
+
+
+def bind_summary_metrics_to_packaged_artifact(
+    *,
+    packaged_run: Path,
+    source_summary_path: Path,
+    summary_metrics: Mapping[str, Any],
+) -> Path:
+    """Bind a source training summary to the final packaged artifact hashes."""
+
+    packaged_dir = Path(packaged_run)
+    manifest_path = packaged_dir / MANIFEST_NAME
+    if not manifest_path.is_file():
+        raise PackagingError(
+            f"Packaged serving manifest is missing: {manifest_path}"
+        )
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PackagingError(
+            f"Packaged serving manifest is malformed: {manifest_path}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise PackagingError("serving_manifest.json must contain an object")
+
+    checkpoint_name = manifest.get("checkpoint_file")
+    if not isinstance(checkpoint_name, str) or not checkpoint_name:
+        raise PackagingError(
+            "Serving manifest does not define checkpoint_file"
+        )
+    checkpoint_path = packaged_dir / checkpoint_name
+    if not checkpoint_path.is_file():
+        raise PackagingError(f"Packaged checkpoint is missing: {checkpoint_path}")
+
+    checkpoint_hash = sha256_file(checkpoint_path)
+    if manifest.get("checkpoint_sha256") != checkpoint_hash:
+        raise PackagingError(
+            "Serving manifest checkpoint hash does not match packaged checkpoint"
+        )
+
+    verified_summary = {
+        **dict(summary_metrics),
+        "checkpoint_sha256": checkpoint_hash,
+        "artifact_manifest_sha256": sha256_file(manifest_path),
+        "source_summary_sha256": sha256_file(Path(source_summary_path)),
+    }
+    summary_path = packaged_dir / "summary_metrics.json"
+    summary_path.write_text(
+        json.dumps(verified_summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return summary_path
 
 
 def utc_now_iso() -> str:
