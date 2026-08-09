@@ -86,6 +86,12 @@ def _relative_source_path(path: Path) -> str:
         return path.name
 
 
+def _portable_path_name(value: str) -> str:
+    """Read a path leaf even when it was written on another OS."""
+
+    return value.rstrip("/\\").replace("\\", "/").rsplit("/", 1)[-1]
+
+
 def build_legacy_summary(
     *,
     artifact_dir: Path | str,
@@ -110,14 +116,14 @@ def build_legacy_summary(
 
     calibration_dir = manifest.get("calibration_eval_run_dir")
     if isinstance(calibration_dir, str) and calibration_dir.strip():
-        if Path(calibration_dir).expanduser().name != evaluation_path.parent.name:
+        if _portable_path_name(calibration_dir) != evaluation_path.parent.name:
             raise LegacyBaselineError(
                 "evaluation file run identifier does not match the artifact's "
                 "calibration_eval_run_dir"
             )
     temperature_source_file = manifest.get("temperature_source_file")
     if isinstance(temperature_source_file, str) and temperature_source_file.strip():
-        if Path(temperature_source_file).expanduser().name != evaluation_path.name:
+        if _portable_path_name(temperature_source_file) != evaluation_path.name:
             raise LegacyBaselineError(
                 "evaluation file name does not match the artifact's "
                 "temperature_source_file"

@@ -334,6 +334,7 @@ def validate_fixture_manifest(
     experiment_root: Path | str,
     *,
     expected_days: Iterable[int] | None = None,
+    require_complete: bool = False,
 ) -> dict[str, Any]:
     """Verify the manifest and every generated batch before preflight use."""
 
@@ -386,6 +387,10 @@ def validate_fixture_manifest(
         raise ValueError("fixture manifest days must be sorted and unique")
     if manifest.get("day_count") != len(manifest_days):
         raise ValueError("fixture manifest day_count does not match days")
+    if require_complete and normalized_manifest_days != tuple(
+        range(1, TOTAL_DAYS + 1)
+    ):
+        raise ValueError("fixture manifest must cover all 20 simulation days")
     requested_days = tuple(
         sorted({int(day) for day in expected_days})
     ) if expected_days is not None else normalized_manifest_days

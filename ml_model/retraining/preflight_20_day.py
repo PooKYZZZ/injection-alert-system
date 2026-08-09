@@ -51,13 +51,16 @@ def _fixture_manifest_info(
     daily_batch_dir: Path,
     *,
     expected_days: Iterable[int] | None = None,
+    require_complete: bool = False,
 ) -> dict[str, Any]:
     experiment_root = daily_batch_dir.parent.parent
     manifest_path = experiment_root / "manifest.json"
     if not manifest_path.is_file():
         return {"present": False}
     manifest = validate_fixture_manifest(
-        experiment_root, expected_days=expected_days
+        experiment_root,
+        expected_days=expected_days,
+        require_complete=require_complete,
     )
     return {
         "present": True,
@@ -130,6 +133,7 @@ def run_data_preflight(
         validate_fixture_manifest(
             batch_root.parent.parent,
             expected_days=days_to_process,
+            require_complete=not allow_test_overrides,
         )
     except Exception as exc:
         output_root.mkdir(parents=True, exist_ok=True)
@@ -288,7 +292,9 @@ def run_data_preflight(
         "production_data": False,
         "experiment_contract_hash": config.contract_hash,
         "fixture_manifest": _fixture_manifest_info(
-            batch_root, expected_days=days_to_process
+            batch_root,
+            expected_days=days_to_process,
+            require_complete=not allow_test_overrides,
         ),
         "golden_controls": {
             "manifest_file_sha256": sha256_file(config.golden_manifest_file),

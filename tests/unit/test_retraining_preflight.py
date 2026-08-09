@@ -121,3 +121,20 @@ def test_data_preflight_blocks_missing_fixture_manifest(tmp_path: Path):
     assert report["status"] == "BLOCKED"
     assert "manifest" in report["fixture_manifest"]["error"].lower()
     assert (tmp_path / "preflight" / "preflight_report.json").is_file()
+
+
+def test_real_preflight_blocks_partial_fixture_manifest(tmp_path: Path):
+    experiment_root = tmp_path / "experiment"
+    generate_experiment_batches(experiment_root, days=(1,))
+    root = Path(__file__).resolve().parents[2]
+
+    report = run_data_preflight(
+        config_path=root / "ml_model/configs/retraining_20_day_v2.toml",
+        historical_data_dir=tmp_path / "missing-historical",
+        daily_batch_dir=experiment_root / "daily_batches" / "records_search_v2",
+        output_dir=tmp_path / "preflight",
+        days=(1,),
+    )
+
+    assert report["status"] == "BLOCKED"
+    assert "all 20" in report["fixture_manifest"]["error"].lower()
