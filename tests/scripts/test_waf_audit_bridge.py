@@ -8,6 +8,7 @@ import pytest
 
 import scripts.waf_audit_bridge as waf_audit_bridge
 from scripts.waf_audit_bridge import (
+    _TransactionDedupCache,
     follow_bridge,
     main,
     normalize_event,
@@ -31,6 +32,32 @@ def _wait_for_follow_ready(monkeypatch):
 
 def _json_log_lines(output):
     return [json.loads(line) for line in output.splitlines() if line.strip()]
+
+
+def test_transaction_dedup_cache_is_bounded(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr(waf_audit_bridge.time, "monotonic", lambda: now[0])
+    cache = _TransactionDedupCache(max_entries=2, ttl_seconds=60)
+
+    cache.add("tx-one")
+    cache.add("tx-two")
+    cache.add("tx-three")
+
+    assert "tx-one" not in cache
+    assert "tx-two" in cache
+    assert "tx-three" in cache
+
+
+def test_transaction_dedup_cache_expires_entries(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr(waf_audit_bridge.time, "monotonic", lambda: now[0])
+    cache = _TransactionDedupCache(max_entries=10, ttl_seconds=5)
+
+    cache.add("tx-expiring")
+    assert "tx-expiring" in cache
+
+    now[0] = 105.0
+    assert "tx-expiring" not in cache
 
 
 def test_normalize_event_redacts_headers_and_preserves_waf_fields():
@@ -985,6 +1012,27 @@ def test_bridge_cli_defaults_are_configurable_from_environment(monkeypatch):
     assert captured["timeout"] == 30
     assert captured["max_retries"] == 3
     assert captured["retry_delay_seconds"] == 1.5
+
+
+def test_bridge_cli_default_retry_window_is_long_enough_for_restart(monkeypatch):
+    for variable in (
+        "WAF_INGEST_TIMEOUT_SECONDS",
+        "WAF_INGEST_MAX_RETRIES",
+        "WAF_INGEST_RETRY_DELAY_SECONDS",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-secret")
+    captured = {}
+
+    def _run_bridge(**kwargs):
+        captured.update(kwargs)
+        return 0, 0, 0
+
+    monkeypatch.setattr(waf_audit_bridge, "run_bridge", _run_bridge)
+    monkeypatch.setattr("sys.argv", ["waf_audit_bridge.py"])
+
+    assert main() == 0
+    assert captured["max_retries"] == 20
 
 
 def test_run_bridge_success_log_contains_transaction_id_and_rule_ids(

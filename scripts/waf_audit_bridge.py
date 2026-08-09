@@ -9,6 +9,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import OrderedDict
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -33,6 +34,8 @@ _MAX_BODY_LENGTH = 1024
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 _RETRYABLE_ERRNOS = {61, 111, 10061}
 _MAX_RETRY_DELAY_SECONDS = 60.0
+_TRANSACTION_DEDUP_MAX_ENTRIES = 10_000
+_TRANSACTION_DEDUP_TTL_SECONDS = 60.0 * 60.0
 _TOTAL_SCORE_RE = re.compile(r"Total Score:\s*`?(\d+)`?", re.IGNORECASE)
 _SOURCE_PROVENANCE_MODES = {
     "direct_remote_addr",
@@ -40,6 +43,38 @@ _SOURCE_PROVENANCE_MODES = {
 }
 _TRUTHY = {"1", "true", "yes", "on"}
 _LOOPBACKS = {"127.0.0.1", "::1"}
+
+
+class _TransactionDedupCache:
+    """Bounded, process-local duplicate suppression for audit-line replay."""
+
+    def __init__(self, *, max_entries: int, ttl_seconds: float) -> None:
+        if max_entries <= 0:
+            raise ValueError("max_entries must be greater than zero")
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be greater than zero")
+        self._max_entries = max_entries
+        self._ttl_seconds = ttl_seconds
+        self._entries: OrderedDict[str, float] = OrderedDict()
+
+    def _prune(self, now: float) -> None:
+        while self._entries:
+            _transaction_id, seen_at = next(iter(self._entries.items()))
+            if now - seen_at < self._ttl_seconds:
+                break
+            self._entries.popitem(last=False)
+
+    def __contains__(self, transaction_id: str) -> bool:
+        self._prune(time.monotonic())
+        return transaction_id in self._entries
+
+    def add(self, transaction_id: str) -> None:
+        now = time.monotonic()
+        self._prune(now)
+        self._entries.pop(transaction_id, None)
+        while len(self._entries) >= self._max_entries:
+            self._entries.popitem(last=False)
+        self._entries[transaction_id] = now
 
 
 def _safe_log_value(value: Any) -> Any:
@@ -617,7 +652,10 @@ def run_bridge(
     total = 0
     success = 0
     failed = 0
-    seen_transaction_ids: set[str] = set()
+    seen_transaction_ids = _TransactionDedupCache(
+        max_entries=_TRANSACTION_DEDUP_MAX_ENTRIES,
+        ttl_seconds=_TRANSACTION_DEDUP_TTL_SECONDS,
+    )
 
     for raw_line in input_stream:
         line = raw_line.strip()
@@ -652,7 +690,7 @@ def _process_event_line(
     max_retries: int,
     retry_delay_seconds: float,
     provenance_mode: str,
-    seen_transaction_ids: set[str] | None = None,
+    seen_transaction_ids: _TransactionDedupCache | None = None,
 ) -> tuple[bool, bool]:
     transaction_id = "unknown"
     try:
@@ -759,7 +797,10 @@ def follow_bridge(
     total = 0
     success = 0
     failed = 0
-    seen_transaction_ids: set[str] = set()
+    seen_transaction_ids = _TransactionDedupCache(
+        max_entries=_TRANSACTION_DEDUP_MAX_ENTRIES,
+        ttl_seconds=_TRANSACTION_DEDUP_TTL_SECONDS,
+    )
     last_activity = time.monotonic()
     stop_signal = stop_event or threading.Event()
     current_position = 0
