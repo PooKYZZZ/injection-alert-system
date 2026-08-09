@@ -23,6 +23,7 @@ from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotResult,
     build_cumulative_snapshot,
+    capture_historical_file_hashes,
     load_historical_frames,
     validate_snapshot_integrity,
 )
@@ -46,12 +47,18 @@ def _write_day_report(day_dir: Path, payload: dict[str, Any]) -> None:
     )
 
 
-def _fixture_manifest_info(daily_batch_dir: Path) -> dict[str, Any]:
+def _fixture_manifest_info(
+    daily_batch_dir: Path,
+    *,
+    expected_days: Iterable[int] | None = None,
+) -> dict[str, Any]:
     experiment_root = daily_batch_dir.parent.parent
     manifest_path = experiment_root / "manifest.json"
     if not manifest_path.is_file():
         return {"present": False}
-    manifest = validate_fixture_manifest(experiment_root)
+    manifest = validate_fixture_manifest(
+        experiment_root, expected_days=expected_days
+    )
     return {
         "present": True,
         "manifest_sha256": sha256_file(manifest_path),
@@ -118,6 +125,43 @@ def run_data_preflight(
     output_root = Path(output_dir).expanduser().resolve()
     days_to_process = _requested_days(days)
 
+    fixture_manifest_path = batch_root.parent.parent / "manifest.json"
+    try:
+        validate_fixture_manifest(
+            batch_root.parent.parent,
+            expected_days=days_to_process,
+        )
+    except Exception as exc:
+        output_root.mkdir(parents=True, exist_ok=True)
+        unsigned_report: dict[str, Any] = {
+            "report_version": "controlled-data-preflight.v1",
+            "status": "BLOCKED",
+            "execution_mode": "controlled_data_preflight",
+            "real_training_status": "NOT_RUN",
+            "model_quality_conclusion": "NOT_PERMITTED",
+            "production_data": False,
+            "experiment_contract_hash": config.contract_hash,
+            "fixture_manifest": {
+                "present": fixture_manifest_path.is_file(),
+                "error": str(exc),
+            },
+            "requested_days": list(days_to_process),
+            "day_count": 0,
+            "total_accepted_samples": 0,
+            "total_rejected_samples": 0,
+            "days": [],
+        }
+        report = {
+            **unsigned_report,
+            "report_sha256": canonical_json_sha256(unsigned_report),
+        }
+        (output_root / "preflight_report.json").write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_markdown(output_root, report)
+        return report
+
     if not allow_test_overrides:
         config.validate_runtime_inputs(
             historical_data_dir=historical_root,
@@ -137,6 +181,7 @@ def run_data_preflight(
 
     controls = load_golden_controls(config.golden_manifest_file)
     historical_frames = load_historical_frames(historical_root)
+    historical_data_file_hashes = capture_historical_file_hashes(historical_root)
     contamination_index = ContaminationIndex.from_historical_frames(
         historical_frames
     )
@@ -191,6 +236,7 @@ def run_data_preflight(
                 project_root=config.project_root,
                 contamination_index=contamination_index,
                 historical_frames=historical_frames,
+                historical_data_file_hashes=historical_data_file_hashes,
             )
             report["contamination"] = snapshot.manifest["contamination"]
             report["snapshot_integrity"] = validate_snapshot_integrity(
@@ -241,7 +287,16 @@ def run_data_preflight(
         "model_quality_conclusion": "NOT_PERMITTED",
         "production_data": False,
         "experiment_contract_hash": config.contract_hash,
-        "fixture_manifest": _fixture_manifest_info(batch_root),
+        "fixture_manifest": _fixture_manifest_info(
+            batch_root, expected_days=days_to_process
+        ),
+        "golden_controls": {
+            "manifest_file_sha256": sha256_file(config.golden_manifest_file),
+            "canonical_manifest_sha256": str(
+                controls.manifest["manifest_sha256"]
+            ),
+            "cases_file_sha256": sha256_file(config.golden_cases_file),
+        },
         "requested_days": list(days_to_process),
         "day_count": len(day_reports),
         "total_accepted_samples": accepted_total,

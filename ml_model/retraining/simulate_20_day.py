@@ -39,6 +39,7 @@ from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotResult,
     build_cumulative_snapshot,
+    capture_historical_file_hashes,
     load_historical_frames,
     validate_snapshot_integrity,
 )
@@ -666,12 +667,17 @@ def run_simulation(
         else load_golden_controls(config.golden_manifest_file)
     )
     historical_frames = load_historical_frames(historical_data_dir)
+    historical_data_file_hashes = capture_historical_file_hashes(
+        historical_data_dir
+    )
     contamination_index = ContaminationIndex.from_historical_frames(
         historical_frames
     )
     cumulative_samples: list[dict[str, Any]] = []
     day_reports: list[dict[str, Any]] = []
     for day in days_to_process:
+        if historical_frames is None:
+            historical_frames = load_historical_frames(historical_data_dir)
         day_dir = output_root / f"day_{day:02d}"
         batch_path = (
             Path(daily_batch_dir).expanduser().resolve() / f"day_{day:02d}.jsonl"
@@ -735,6 +741,7 @@ def run_simulation(
                 preprocessing_version=config.preprocessing_version,
                 project_root=config.project_root,
                 historical_frames=historical_frames,
+                historical_data_file_hashes=historical_data_file_hashes,
             )
             snapshot_integrity = validate_snapshot_integrity(snapshot.snapshot_dir)
             day_result["stage"] = "training"
@@ -754,6 +761,13 @@ def run_simulation(
                 last_day=last_day,
             )
             break
+
+        # Native DistilBERT training can occupy most laptop RAM.  The
+        # contamination index and immutable source hashes survive; reload the
+        # DataFrames for the next day instead of retaining three full splits
+        # while the trainer runs.
+        if not _smoke_mode:
+            historical_frames = None
 
         try:
             train_hook = hooks.train or _default_train

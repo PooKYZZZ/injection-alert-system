@@ -99,6 +99,7 @@ def evaluate_baseline_gate(
     golden_passed: bool,
     golden_evaluated: bool,
     reload_verified: bool,
+    summary_metrics_verified: bool = True,
 ) -> dict[str, Any]:
     """Validate baseline integrity while preserving baseline quality failures.
 
@@ -115,6 +116,7 @@ def evaluate_baseline_gate(
         "golden_controls_evaluated": bool(golden_evaluated),
         "golden_controls_passed": bool(golden_passed),
         "local_reload_verified": bool(reload_verified),
+        "summary_metrics_provenance_verified": bool(summary_metrics_verified),
     }
     required_checks = {
         key: value
@@ -130,6 +132,36 @@ def evaluate_baseline_gate(
         },
         "missing_required_metrics": missing_metrics,
     }
+
+
+def _load_verified_summary_metrics(
+    artifact: Path,
+    manifest_path: Path,
+    manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    summary_path = artifact / "summary_metrics.json"
+    if not summary_path.is_file():
+        raise ValueError("summary_metrics.json is missing")
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, Mapping):
+        raise ValueError("summary_metrics.json must contain an object")
+    checkpoint_name = manifest.get("checkpoint_file")
+    if not isinstance(checkpoint_name, str) or not checkpoint_name:
+        raise ValueError("serving_manifest.json is missing checkpoint_file")
+    checkpoint_path = artifact / checkpoint_name
+    if not checkpoint_path.is_file():
+        raise ValueError("serving manifest checkpoint_file does not exist")
+    checkpoint_hash = sha256_file(checkpoint_path)
+    if manifest.get("checkpoint_sha256") != checkpoint_hash:
+        raise ValueError("staged checkpoint hash does not match manifest")
+    if payload.get("checkpoint_sha256") != checkpoint_hash:
+        raise ValueError("summary metrics checkpoint hash does not match artifact")
+    manifest_hash = sha256_file(manifest_path)
+    if payload.get("artifact_manifest_sha256") != manifest_hash:
+        raise ValueError(
+            "summary metrics artifact manifest hash does not match artifact"
+        )
+    return dict(payload)
 
 
 def _failed_golden_result(
@@ -248,24 +280,25 @@ def build_baseline_report(
         if eval_report_path.is_file()
         else {}
     )
-    summary_metrics_path = artifact / "summary_metrics.json"
-    loaded_summary_metrics = (
-        json.loads(summary_metrics_path.read_text(encoding="utf-8"))
-        if summary_metrics_path.is_file()
-        else {}
-    )
-    summary_metrics = (
-        loaded_summary_metrics if isinstance(loaded_summary_metrics, Mapping) else {}
-    )
-    metrics = extract_baseline_metrics(
-        eval_report,
-        summary_metrics=summary_metrics,
-    )
     manifest_path = artifact / "serving_manifest.json"
     manifest = (
         json.loads(manifest_path.read_text(encoding="utf-8"))
         if manifest_path.is_file()
         else {}
+    )
+    summary_metrics_error = None
+    try:
+        summary_metrics = _load_verified_summary_metrics(
+            artifact,
+            manifest_path,
+            manifest,
+        )
+    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        summary_metrics = {}
+        summary_metrics_error = str(exc)
+    metrics = extract_baseline_metrics(
+        eval_report,
+        summary_metrics=summary_metrics,
     )
     prediction_path = destination.parent / "baseline_predictions.json"
     model_version = str(manifest.get("model_version", artifact.name))
@@ -315,6 +348,7 @@ def build_baseline_report(
         golden_passed=bool(golden.get("passed")),
         golden_evaluated=golden_evaluated,
         reload_verified=manifest.get("local_reload_verified") is True,
+        summary_metrics_verified=summary_metrics_error is None,
     )
     baseline_ready = bool(baseline_gate["passed"])
     try:
@@ -341,6 +375,7 @@ def build_baseline_report(
         },
         "metrics": metrics,
         "missing_required_metrics": missing_metrics,
+        "summary_metrics_provenance_error": summary_metrics_error,
         "baseline_gate": baseline_gate,
         "baseline_quality": {
             "golden_controls_passed": bool(golden.get("passed")),

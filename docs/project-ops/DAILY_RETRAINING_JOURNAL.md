@@ -26,14 +26,16 @@ required item below is complete and tested.
 - [x] Dashboard supports triage statuses such as Resolve and False Positive.
 - [x] Candidate packaging, archive, and rollback foundations exist under
   `ml_model/export/`.
+- [x] Verified-label review controls exist in
+  `web_app/application/label_review_use_case.py` and
+  `frontend/components/alerts/AlertDrawer.tsx`.
+- [x] Review persistence is append-only and records reviewer, label, and
+  review provenance in `traffic_label_reviews`.
+- [x] Approved-for-training eligibility is enforced by the backend review
+  repository before a sample can enter a future export.
 
 ## What is still missing
 
-- [ ] A dashboard control for selecting a verified canonical model label.
-- [ ] Backend validation that allows only the canonical model labels.
-- [ ] Reviewer identity derived from the authenticated account.
-- [ ] Immutable review history instead of replacing the prior label.
-- [ ] Explicit `approved_for_training` state.
 - [ ] Approved-sample export to the model dataset format:
   `combined_payload` and `final_label`.
 - [ ] A safe policy for the model-input text used in retraining. Dashboard
@@ -49,17 +51,20 @@ required item below is complete and tested.
 
 ### Step 0 — Finish the current baseline run
 
-Status: **Complete and verified as the controlled baseline**
+Status: **REQUIRES_LAPTOP — externally reported, not verified in this checkout**
 
-- [x] Let the current three-seed DistilBERT run finish.
-- [x] Run the existing evaluation command for its output folder.
-- [x] Record the mean and variation across seeds.
-- [x] Select and document one baseline artifact before any retraining study.
+- [x] (Externally reported) Let the current three-seed DistilBERT run finish.
+- [x] (Externally reported) Run the existing evaluation command for its output folder.
+- [x] (Externally reported) Record the mean and variation across seeds.
+- [ ] Supply and verify an immutable baseline evidence bundle before the
+  retraining study.
 
-The terminal output, laptop run metadata, checkpoint inventory, canonical
-dataset audit, and cross-machine dataset hashes confirm that training and
-aggregation completed on the intended dataset. The run is the controlled
-baseline for the next retraining experiment.
+The terminal output and laptop run metadata were reported outside this
+checkout. The run directory, manifest, checkpoint inventory, and seed-summary
+files are not committed here, so the numerical results below are **external
+evidence**, not locally verified repository evidence. Do not call this a
+complete or frozen baseline until the laptop evidence bundle is supplied,
+hash-checked, and linked to the selected artifact.
 
 Baseline run:
 `v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260802_155314`
@@ -119,13 +124,13 @@ Recovered dataset provenance from `data/processed/v3_907k_cleaned/`:
 - Exact-hash and cluster-overlap checks across splits both passed with zero
   overlap; the audit also reports a zero-similarity 5,000-row near-duplicate
   sample check.
-- Canonical split checksums are recorded in `checksums.txt`; the laptop copy
-  were compared against the laptop copy and matched exactly for train,
+- Canonical split checksums are recorded in `checksums.txt`; the two machine
+  copies were compared and matched exactly for train,
   validation, and test Parquet files.
 
 ### Step 1 — Design the verified-label workflow
 
-Status: **Not started**
+Status: **Partial — runtime controls exist; lifecycle documentation remains**
 
 - [ ] Decide the exact canonical labels shown to reviewers.
 - [ ] Define what `False Positive` means for training (normally `Normal`).
@@ -138,13 +143,13 @@ classes.
 
 ### Step 2 — Implement review and approval
 
-Status: **Not started**
+Status: **Partial — review and approval controls are implemented; export is not**
 
-- [ ] Add the dashboard review control.
-- [ ] Add the BFF route; preserve Browser -> Next.js BFF -> FastAPI.
-- [ ] Validate labels in the backend.
-- [ ] Use authenticated reviewer identity.
-- [ ] Store review history and approval state.
+- [x] Add the dashboard review control.
+- [x] Add the BFF route; preserve Browser -> Next.js BFF -> FastAPI.
+- [x] Validate labels in the backend.
+- [x] Use authenticated reviewer identity.
+- [x] Store review history and approval state.
 - [ ] Add focused backend and frontend tests.
 
 Done when: an authorized reviewer can approve one alert with a valid label and

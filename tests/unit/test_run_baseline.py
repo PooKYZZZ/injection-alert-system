@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 from ml_model.evaluation.golden_controls import load_golden_controls
 from ml_model.retraining.run_baseline import (
+    _load_verified_summary_metrics,
     _missing_baseline_metrics,
     build_baseline_report,
     evaluate_baseline_gate,
@@ -42,6 +44,9 @@ def test_baseline_gate_requires_complete_operational_controls():
     }
 
     assert evaluate_baseline_gate(**common)["passed"] is True
+    assert evaluate_baseline_gate(
+        **common, summary_metrics_verified=False
+    )["passed"] is False
     for field in ("service_loaded", "golden_evaluated", "reload_verified"):
         failed = dict(common, **{field: False})
         assert evaluate_baseline_gate(**failed)["passed"] is False
@@ -70,6 +75,50 @@ def test_baseline_metric_extraction_reads_security_rates_from_summary_metrics():
     assert metrics["normal_false_positive_rate"] == 0.001
     assert metrics["attack_escape_rate"] == 0.002
     assert metrics["macro_f1"] == 0.91
+
+
+def test_summary_metrics_must_match_checkpoint_and_serving_manifest(tmp_path: Path):
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    checkpoint = artifact / "checkpoint.pt"
+    checkpoint.write_bytes(b"checkpoint")
+    checkpoint_hash = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    manifest_path = artifact / "serving_manifest.json"
+    manifest = {
+        "checkpoint_file": checkpoint.name,
+        "checkpoint_sha256": checkpoint_hash,
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    summary_path = artifact / "summary_metrics.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "checkpoint_sha256": checkpoint_hash,
+                "artifact_manifest_sha256": manifest_hash,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    verified = _load_verified_summary_metrics(artifact, manifest_path, manifest)
+    assert verified["checkpoint_sha256"] == checkpoint_hash
+
+    summary_path.write_text(
+        json.dumps(
+            {
+                "checkpoint_sha256": "wrong",
+                "artifact_manifest_sha256": manifest_hash,
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        _load_verified_summary_metrics(artifact, manifest_path, manifest)
+    except ValueError as exc:
+        assert "checkpoint hash" in str(exc)
+    else:
+        raise AssertionError("unlinked summary metrics should be rejected")
 
 
 def test_baseline_with_unloadable_artifact_remains_requires_laptop(tmp_path: Path):

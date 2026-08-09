@@ -1,6 +1,5 @@
-from pathlib import Path
 import tomllib
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PYTHON_314_DIGEST = (
@@ -32,6 +31,7 @@ def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
         PROJECT_ROOT / "Dockerfile",
         PROJECT_ROOT / "Dockerfile.bridge",
     ]
+    compose_files = [PROJECT_ROOT / "docker-compose.pr7-block3.yml"]
     lock_files = [
         PROJECT_ROOT / "docs" / "project-ops" / "pr7-block3-artifact-lock.json",
         PROJECT_ROOT / "docs" / "project-ops" / "pr7-block3bc-artifact-lock.json",
@@ -40,6 +40,11 @@ def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
     for dockerfile in dockerfiles:
         assert dockerfile.read_text(encoding="utf-8").splitlines()[0] == (
             f"FROM {PYTHON_314_DIGEST}"
+        )
+
+    for compose_file in compose_files:
+        assert f"image: {PYTHON_314_DIGEST}" in compose_file.read_text(
+            encoding="utf-8"
         )
 
     for lock_file in lock_files:

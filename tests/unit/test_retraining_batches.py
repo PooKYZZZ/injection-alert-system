@@ -17,6 +17,7 @@ from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotContaminationError,
     build_cumulative_snapshot,
+    capture_historical_file_hashes,
     load_historical_frames,
     validate_snapshot_integrity,
 )
@@ -407,6 +408,7 @@ def test_snapshot_reuses_preloaded_historical_frames(
         base.to_parquet(historical / f"{split}.parquet", index=False)
 
     historical_frames = load_historical_frames(historical)
+    historical_hashes = capture_historical_file_hashes(historical)
 
     def fail_if_reloaded(*args, **kwargs):
         raise AssertionError("preloaded frames should avoid parquet reloads")
@@ -420,9 +422,36 @@ def test_snapshot_reuses_preloaded_historical_frames(
         day=1,
         dataset_version="v3_907k_cleaned",
         preprocessing_version="http-preprocessor-v1",
+        historical_data_file_hashes=historical_hashes,
     )
 
     assert result.train_rows == 2
+
+
+def test_cached_historical_frames_fail_if_files_change_after_capture(tmp_path: Path):
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    base = pd.DataFrame([{"combined_payload": "GET /health", "final_label": "Normal"}])
+    for split in ("train", "validation", "test"):
+        base.to_parquet(historical / f"{split}.parquet", index=False)
+
+    historical_frames = load_historical_frames(historical)
+    historical_hashes = capture_historical_file_hashes(historical)
+    base.assign(combined_payload="GET /changed").to_parquet(
+        historical / "train.parquet", index=False
+    )
+
+    with pytest.raises(ValueError, match="historical data changed"):
+        build_cumulative_snapshot(
+            historical_data_dir=historical,
+            historical_frames=historical_frames,
+            historical_data_file_hashes=historical_hashes,
+            cumulative_samples=[REQUIRED],
+            output_root=tmp_path / "outputs",
+            day=1,
+            dataset_version="v3_907k_cleaned",
+            preprocessing_version="http-preprocessor-v1",
+        )
 
 
 def test_snapshot_rejects_near_duplicate_historical_sample_with_split_report(

@@ -5,6 +5,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from ml_model.retraining.experiment_contract import (
+    load_experiment_config,
+    sha256_file,
+)
 from ml_model.retraining.generate_batches import generate_experiment_batches
 from ml_model.retraining.preflight_20_day import run_data_preflight
 
@@ -26,6 +30,9 @@ def test_data_preflight_produces_all_twenty_cumulative_days_without_training(
         frame.to_parquet(historical / f"{split}.parquet", index=False)
 
     root = Path(__file__).resolve().parents[2]
+    config = load_experiment_config(
+        root / "ml_model/configs/retraining_20_day_v2.toml"
+    )
     report = run_data_preflight(
         config_path=root / "ml_model/configs/retraining_20_day_v2.toml",
         historical_data_dir=historical,
@@ -46,6 +53,17 @@ def test_data_preflight_produces_all_twenty_cumulative_days_without_training(
     assert report["days"][-1]["day"] == 20
     assert report["days"][-1]["cumulative_fixture_samples"] == 600
     assert all(day["status"] == "READY_FOR_NATIVE_TRAINING" for day in report["days"])
+    golden_manifest = config.golden_manifest_file
+    golden_cases = config.golden_cases_file
+    assert report["golden_controls"]["manifest_file_sha256"] == sha256_file(
+        golden_manifest
+    )
+    assert report["golden_controls"]["canonical_manifest_sha256"] == json.loads(
+        golden_manifest.read_text(encoding="utf-8")
+    )["manifest_sha256"]
+    assert report["golden_controls"]["cases_file_sha256"] == sha256_file(
+        golden_cases
+    )
     assert (tmp_path / "preflight" / "preflight_report.json").is_file()
     assert (tmp_path / "preflight" / "preflight_report.md").is_file()
 
@@ -78,3 +96,28 @@ def test_data_preflight_report_is_json_reproducible(tmp_path: Path):
     ) == json.loads(
         (tmp_path / "second" / "preflight_report.json").read_text(encoding="utf-8")
     )
+
+
+def test_data_preflight_blocks_missing_fixture_manifest(tmp_path: Path):
+    experiment_root = tmp_path / "experiment"
+    generate_experiment_batches(experiment_root, days=(1,))
+    (experiment_root / "manifest.json").unlink()
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    frame = pd.DataFrame([{"combined_payload": "get /health", "final_label": "Normal"}])
+    for split in ("train", "validation", "test"):
+        frame.to_parquet(historical / f"{split}.parquet", index=False)
+
+    root = Path(__file__).resolve().parents[2]
+    report = run_data_preflight(
+        config_path=root / "ml_model/configs/retraining_20_day_v2.toml",
+        historical_data_dir=historical,
+        daily_batch_dir=experiment_root / "daily_batches" / "records_search_v2",
+        output_dir=tmp_path / "preflight",
+        days=(1,),
+        allow_test_overrides=True,
+    )
+
+    assert report["status"] == "BLOCKED"
+    assert "manifest" in report["fixture_manifest"]["error"].lower()
+    assert (tmp_path / "preflight" / "preflight_report.json").is_file()

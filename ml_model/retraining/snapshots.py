@@ -80,6 +80,18 @@ def load_historical_frames(
     ]
 
 
+def capture_historical_file_hashes(
+    historical_data_dir: Path | str,
+) -> dict[str, str]:
+    """Capture the exact source files represented by historical frames."""
+
+    root = Path(historical_data_dir).expanduser().resolve()
+    return {
+        split: sha256_file(root / f"{split}.parquet")
+        for split in ("train", "validation", "test")
+    }
+
+
 def _daily_frame(samples: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
     rows = []
     for sample in sorted(samples, key=lambda row: str(row.get("sample_id", ""))):
@@ -536,6 +548,7 @@ def build_cumulative_snapshot(
     contamination_index: ContaminationIndex | None = None,
     new_samples: Sequence[Mapping[str, Any]] | None = None,
     historical_frames: Sequence[tuple[str, pd.DataFrame]] | None = None,
+    historical_data_file_hashes: Mapping[str, str] | None = None,
 ) -> SnapshotResult:
     if not 1 <= int(day) <= 20:
         raise ValueError("simulation day must be between 1 and 20")
@@ -547,6 +560,26 @@ def build_cumulative_snapshot(
         if historical_frames is not None
         else load_historical_frames(historical_root)
     )
+    if historical_frames is not None and historical_data_file_hashes is None:
+        raise ValueError(
+            "historical_data_file_hashes are required when cached historical "
+            "frames are supplied"
+        )
+    captured_historical_hashes = dict(
+        historical_data_file_hashes
+        if historical_data_file_hashes is not None
+        else capture_historical_file_hashes(historical_root)
+    )
+    expected_splits = {"train", "validation", "test"}
+    if set(captured_historical_hashes) != expected_splits:
+        raise ValueError(
+            "historical_data_file_hashes must contain train, validation, and test"
+        )
+    current_historical_hashes = capture_historical_file_hashes(historical_root)
+    if current_historical_hashes != captured_historical_hashes:
+        raise ValueError(
+            "historical data changed after cached frame capture; reload frames"
+        )
     historical_by_split = {split: frame for split, frame in historical}
     missing_splits = sorted(
         {"train", "validation", "test"} - set(historical_by_split)
@@ -597,10 +630,7 @@ def build_cumulative_snapshot(
         output_files=output_files,
     )
 
-    input_files = {
-        split: sha256_file(historical_root / f"{split}.parquet")
-        for split in ("train", "validation", "test")
-    }
+    input_files = captured_historical_hashes
     input_hash = canonical_json_sha256(
         {
             "historical_files": input_files,

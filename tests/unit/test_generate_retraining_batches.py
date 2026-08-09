@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
+from ml_model.preprocessing.model_input import prepare_legacy_model_input
 from ml_model.retraining.generate_batches import (
     DAILY_SAMPLE_COUNT,
     HARD_NORMAL_COUNT,
     NORMAL_COUNT,
+    _encoded_request,
     generate_experiment_batches,
     validate_fixture_manifest,
 )
@@ -111,6 +114,16 @@ def test_generator_rejects_unknown_seed_contract(tmp_path: Path):
         raise AssertionError("unsupported seed should be rejected")
 
 
+def test_generated_text_uses_the_declared_legacy_preprocessor():
+    raw = "GET /records/search?query=North%20District HTTP/1.1\r\n\r\n"
+    expected, _, version = prepare_legacy_model_input(raw)
+
+    assert version == "http-preprocessor-v1"
+    assert _encoded_request("North District") == expected
+    assert "%20" not in expected
+    assert expected == "get /records/search?query=north district"
+
+
 def test_fixture_manifest_rejects_tampered_batch(tmp_path: Path):
     experiment_root = tmp_path / "experiment"
     generate_experiment_batches(experiment_root, days=(1,))
@@ -128,3 +141,17 @@ def test_fixture_manifest_rejects_tampered_batch(tmp_path: Path):
         assert "hash mismatch" in str(exc)
     else:
         raise AssertionError("tampered fixture batch should be rejected")
+
+
+def test_fixture_manifest_rejects_unlisted_or_unexpected_days(tmp_path: Path):
+    experiment_root = tmp_path / "experiment"
+    generate_experiment_batches(experiment_root, days=(1, 2))
+    batch_root = experiment_root / "daily_batches" / "records_search_v2"
+    shutil.copyfile(batch_root / "day_02.jsonl", batch_root / "day_03.jsonl")
+
+    try:
+        validate_fixture_manifest(experiment_root, expected_days=(1, 2))
+    except ValueError as exc:
+        assert "day" in str(exc).lower()
+    else:
+        raise AssertionError("unlisted fixture days should be rejected")

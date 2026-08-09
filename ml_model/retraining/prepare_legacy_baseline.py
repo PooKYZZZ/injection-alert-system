@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -30,16 +31,51 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return payload
 
 
-def _float(payload: Mapping[str, Any], key: str, *, context: str) -> float:
+def _float(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    context: str,
+    minimum: float | None = None,
+    maximum: float | None = None,
+    strictly_positive: bool = False,
+) -> float:
     value = payload.get(key)
     if isinstance(value, bool) or value is None:
         raise LegacyBaselineError(f"{context} is missing numeric field {key!r}")
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError) as exc:
         raise LegacyBaselineError(
             f"{context} field {key!r} must be numeric"
         ) from exc
+    if not math.isfinite(parsed):
+        raise LegacyBaselineError(
+            f"{context} field {key!r} must be finite"
+        )
+    if strictly_positive and parsed <= 0:
+        raise LegacyBaselineError(
+            f"{context} field {key!r} must be strictly positive"
+        )
+    if minimum is not None and parsed < minimum:
+        raise LegacyBaselineError(
+            f"{context} field {key!r} must be between {minimum} and {maximum}"
+        )
+    if maximum is not None and parsed > maximum:
+        raise LegacyBaselineError(
+            f"{context} field {key!r} must be between {minimum} and {maximum}"
+        )
+    return parsed
+
+
+def _probability(payload: Mapping[str, Any], key: str, *, context: str) -> float:
+    return _float(
+        payload,
+        key,
+        context=context,
+        minimum=0.0,
+        maximum=1.0,
+    )
 
 
 def _relative_source_path(path: Path) -> str:
@@ -74,16 +110,30 @@ def build_legacy_summary(
 
     calibration_dir = manifest.get("calibration_eval_run_dir")
     if isinstance(calibration_dir, str) and calibration_dir.strip():
-        if Path(calibration_dir).expanduser().resolve() != evaluation_path.parent:
+        if Path(calibration_dir).expanduser().name != evaluation_path.parent.name:
             raise LegacyBaselineError(
-                "evaluation file is outside the artifact's calibration_eval_run_dir"
+                "evaluation file run identifier does not match the artifact's "
+                "calibration_eval_run_dir"
+            )
+    temperature_source_file = manifest.get("temperature_source_file")
+    if isinstance(temperature_source_file, str) and temperature_source_file.strip():
+        if Path(temperature_source_file).expanduser().name != evaluation_path.name:
+            raise LegacyBaselineError(
+                "evaluation file name does not match the artifact's "
+                "temperature_source_file"
             )
 
     manifest_temperature = _float(
-        manifest, "temperature", context="serving manifest"
+        manifest,
+        "temperature",
+        context="serving manifest",
+        strictly_positive=True,
     )
     evaluation_temperature = _float(
-        evaluation, "temperature", context="evaluation file"
+        evaluation,
+        "temperature",
+        context="evaluation file",
+        strictly_positive=True,
     )
     if abs(manifest_temperature - evaluation_temperature) > 1e-6:
         raise LegacyBaselineError(
@@ -101,15 +151,15 @@ def build_legacy_summary(
     operational = evaluation.get("operational")
     if not isinstance(operational, Mapping):
         raise LegacyBaselineError("evaluation file is missing operational metrics")
-    normal_false_positive_rate = _float(
+    normal_false_positive_rate = _probability(
         operational, "benign_false_positive_rate", context="operational metrics"
     )
     if "attack_escape_rate" in operational:
-        attack_escape_rate = _float(
+        attack_escape_rate = _probability(
             operational, "attack_escape_rate", context="operational metrics"
         )
     else:
-        attack_detection_rate = _float(
+        attack_detection_rate = _probability(
             operational, "attack_detection_rate", context="operational metrics"
         )
         attack_escape_rate = 1.0 - attack_detection_rate
@@ -129,7 +179,7 @@ def build_legacy_summary(
     for label, values in per_class.items():
         if label == "Normal" or not isinstance(values, Mapping):
             continue
-        supported_attack_recall[str(label)] = _float(
+        supported_attack_recall[str(label)] = _probability(
             values, "recall", context=f"eval_report[{label}]"
         )
 
@@ -148,16 +198,26 @@ def build_legacy_summary(
         "artifact_manifest_sha256": sha256_file(manifest_path),
         "source_evaluation_file": _relative_source_path(evaluation_path),
         "source_evaluation_sha256": sha256_file(evaluation_path),
-        "test_accuracy": _float(evaluation, "accuracy", context="evaluation file"),
-        "test_macro_f1": _float(evaluation, "macro_f1", context="evaluation file"),
-        "test_weighted_f1": _float(
+        "test_accuracy": _probability(
+            evaluation, "accuracy", context="evaluation file"
+        ),
+        "test_macro_f1": _probability(
+            evaluation, "macro_f1", context="evaluation file"
+        ),
+        "test_weighted_f1": _probability(
             evaluation, "weighted_f1", context="evaluation file"
         ),
-        "test_ece_calibrated": _float(evaluation, "ece", context="evaluation file"),
+        "test_ece_calibrated": _probability(
+            evaluation, "ece", context="evaluation file"
+        ),
         "normal_false_positive_rate": normal_false_positive_rate,
         "attack_escape_rate": attack_escape_rate,
-        "normal_recall": _float(normal, "recall", context="eval_report[Normal]"),
+        "normal_recall": _probability(
+            normal, "recall", context="eval_report[Normal]"
+        ),
         "supported_attack_recall": supported_attack_recall,
+        "calibration_eval_run_id": evaluation_path.parent.name,
+        "calibration_eval_file_name": evaluation_path.name,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

@@ -70,8 +70,10 @@ supported_attack_recall_drop_tolerance = 0.01
     )
 
 
-def _write_batch(path: Path, day: int) -> None:
-    model_input_text = f"GET /api/users?page={day + 1}&limit=25"
+def _write_batch(path: Path, day: int, *, model_input_text: str | None = None) -> None:
+    model_input_text = model_input_text or (
+        f"GET /api/users?page={day + 1}&limit=25"
+    )
     path.write_text(
         json.dumps(
             {
@@ -205,7 +207,11 @@ def test_controlled_simulation_reports_a_simulation_only_boundary(tmp_path: Path
                     "attack_escape_rate": 0.0,
                     "macro_f1": 1.0,
                     "normal_recall": 1.0,
-                    "supported_attack_recall": {"SQL Injection": 1.0},
+                    "supported_attack_recall": {
+                        "Code Injection": 1.0,
+                        "Other Attacks": 1.0,
+                        "SQL Injection": 1.0,
+                    },
                 },
             },
             package=package,
@@ -221,6 +227,96 @@ def test_controlled_simulation_reports_a_simulation_only_boundary(tmp_path: Path
     assert report.experiment["model_quality_conclusion"] == (
         "CONTROLLED_SIMULATION_ONLY"
     )
+
+
+def test_native_simulation_reloads_historical_frames_between_days(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config_path = tmp_path / "experiment.toml"
+    _write_config(config_path)
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    base = pd.DataFrame([{"combined_payload": "GET /health", "final_label": "Normal"}])
+    for split in ("train", "validation", "test"):
+        base.to_parquet(historical / f"{split}.parquet", index=False)
+    batches = tmp_path / "batches"
+    batches.mkdir()
+    _write_batch(
+        batches / "day_01.jsonl",
+        1,
+        model_input_text=(
+            "GET /records/search?query=Oak Valley agricultural cooperative "
+            "permit registry marker alpha"
+        ),
+    )
+    _write_batch(
+        batches / "day_02.jsonl",
+        2,
+        model_input_text=(
+            "POST /transactions/status?reference=Stonebridge public easement "
+            "verification marker omega"
+        ),
+    )
+
+    original_loader = simulate_module.load_historical_frames
+    load_count = 0
+
+    def counting_loader(path):
+        nonlocal load_count
+        load_count += 1
+        return original_loader(path)
+
+    monkeypatch.setattr(simulate_module, "load_historical_frames", counting_loader)
+
+    def train(*, day_dir: Path, **_: object) -> Path:
+        run_dir = day_dir / "training_run"
+        run_dir.mkdir(parents=True)
+        return run_dir
+
+    def package(*, day_dir: Path, **_: object) -> Path:
+        artifact = day_dir / "candidate"
+        artifact.mkdir(parents=True)
+        (artifact / "serving_manifest.json").write_text(
+            '{"local_reload_verified":true}\n', encoding="utf-8"
+        )
+        return artifact
+
+    report = run_simulation(
+        config_path=config_path,
+        historical_data_dir=historical,
+        daily_batch_dir=batches,
+        output_dir=tmp_path / "output",
+        days=[1, 2],
+        baseline=_frozen_baseline(),
+        golden_texts=set(),
+        allow_test_overrides=True,
+        controlled_simulation=True,
+        hooks=SimulationHooks(
+            train=train,
+            evaluate=lambda **_: {
+                "status": "complete",
+                "metrics": {
+                    "normal_false_positive_rate": 0.0,
+                    "attack_escape_rate": 0.0,
+                    "macro_f1": 1.0,
+                    "normal_recall": 1.0,
+                    "supported_attack_recall": {
+                        "Code Injection": 1.0,
+                        "Other Attacks": 1.0,
+                        "SQL Injection": 1.0,
+                    },
+                },
+            },
+            package=package,
+            reload=lambda **_: True,
+            golden=lambda **_: {"passed": True},
+            backend=lambda **_: {"passed": True},
+        ),
+    )
+
+    assert report.status == "PARTIAL"
+    assert len(report.days) == 2
+    assert load_count == 2
 
 
 def test_acceptance_gates_report_rejection_reasons():

@@ -15,7 +15,9 @@ Every row is marked `is_synthetic=true` and
 `review_status=curated_simulation_fixture`. These are not reviewed production
 samples and must not be exported as approved training data. They are allowed
 only when the simulator is run with the explicit `--controlled-simulation`
-flag.
+flag. The generated `model_input_text` is built through the shared
+`http-preprocessor-v1` contract used by runtime inference; it is not a separate
+URL-encoding implementation.
 
 The existing locked `golden-v2` set remains separate and is never copied into
 these batches. The historical `v3_907k_cleaned` validation and test splits also

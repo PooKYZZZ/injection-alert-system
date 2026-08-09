@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import quote
 
+from ml_model.preprocessing.model_input import prepare_legacy_model_input
 from ml_model.retraining.experiment_contract import canonical_json_sha256, sha256_file
 
 EXPERIMENT_VERSION = "retraining-20-day-v2"
-GENERATOR_VERSION = "records-search-generator.v1"
+GENERATOR_VERSION = "records-search-generator.v2"
 SUPPORTED_SEED = 2026
 TOTAL_DAYS = 20
 DAILY_SAMPLE_COUNT = 30
@@ -133,7 +134,16 @@ def _sha256_text(value: str) -> str:
 
 def _encoded_request(value: str) -> str:
     encoded = quote(value, safe="-._~")
-    return f"get {TARGET_ROUTE}?query={encoded}"
+    raw_request = f"GET {TARGET_ROUTE}?query={encoded} HTTP/1.1\r\n\r\n"
+    model_input_text, _, preprocessing_version = prepare_legacy_model_input(
+        raw_request
+    )
+    if preprocessing_version != PREPROCESSING_VERSION:
+        raise RuntimeError(
+            "fixture generation produced an unexpected preprocessing version: "
+            f"{preprocessing_version}"
+        )
+    return model_input_text
 
 
 def _sample(
@@ -320,7 +330,11 @@ def generate_experiment_batches(
     return manifest
 
 
-def validate_fixture_manifest(experiment_root: Path | str) -> dict[str, Any]:
+def validate_fixture_manifest(
+    experiment_root: Path | str,
+    *,
+    expected_days: Iterable[int] | None = None,
+) -> dict[str, Any]:
     """Verify the manifest and every generated batch before preflight use."""
 
     root = Path(experiment_root).expanduser().resolve()
@@ -336,11 +350,78 @@ def validate_fixture_manifest(experiment_root: Path | str) -> dict[str, Any]:
     }
     if stored_hash != canonical_json_sha256(unsigned):
         raise ValueError("fixture manifest hash mismatch")
+    required_contract = {
+        "manifest_version": "retraining-fixture-manifest.v2",
+        "experiment_version": EXPERIMENT_VERSION,
+        "generator_version": GENERATOR_VERSION,
+        "seed": SUPPORTED_SEED,
+        "daily_sample_count": DAILY_SAMPLE_COUNT,
+        "normal_samples_per_day": NORMAL_COUNT,
+        "hard_normal_samples_per_day": HARD_NORMAL_COUNT,
+        "attack_samples_per_day": ATTACK_COUNT,
+        "target_method": TARGET_METHOD,
+        "target_route": TARGET_ROUTE,
+        "preprocessing_version": PREPROCESSING_VERSION,
+        "historical_dataset_version": "v3_907k_cleaned",
+        "golden_version": "golden-v2",
+        "synthetic_fixture_only": True,
+        "production_data": False,
+    }
+    mismatches = [
+        key
+        for key, expected in required_contract.items()
+        if manifest.get(key) != expected
+    ]
+    if mismatches:
+        raise ValueError(
+            "fixture manifest contract mismatch: " + ", ".join(mismatches)
+        )
+    manifest_days = manifest.get("days")
+    if not isinstance(manifest_days, list) or any(
+        not isinstance(day, int) for day in manifest_days
+    ):
+        raise ValueError("fixture manifest days must be a list of integers")
+    normalized_manifest_days = tuple(sorted(set(manifest_days)))
+    if normalized_manifest_days != tuple(manifest_days):
+        raise ValueError("fixture manifest days must be sorted and unique")
+    if manifest.get("day_count") != len(manifest_days):
+        raise ValueError("fixture manifest day_count does not match days")
+    requested_days = tuple(
+        sorted({int(day) for day in expected_days})
+    ) if expected_days is not None else normalized_manifest_days
+    if not set(requested_days).issubset(set(normalized_manifest_days)):
+        raise ValueError(
+            "fixture manifest does not cover the requested simulation days"
+        )
     batch_root = root / "daily_batches" / "records_search_v2"
     batch_hashes = manifest.get("batch_hashes")
     batch_counts = manifest.get("batch_counts")
     if not isinstance(batch_hashes, dict) or not isinstance(batch_counts, dict):
         raise ValueError("fixture manifest batch hashes/counts are missing")
+    expected_names = {
+        f"day_{day:02d}.jsonl" for day in normalized_manifest_days
+    }
+    if set(batch_hashes) != expected_names or set(batch_counts) != expected_names:
+        raise ValueError("fixture manifest batch days do not match the contract")
+    actual_names = {path.name for path in batch_root.glob("day_*.jsonl")}
+    if actual_names != expected_names:
+        raise ValueError("fixture directory contains unlisted or stale day files")
+    label_distribution: Counter[str] = Counter()
+    scenario_distribution: Counter[str] = Counter()
+    total_sample_count = 0
+    allowed_labels = {
+        "Code Injection",
+        "Normal",
+        "Other Attacks",
+        "SQL Injection",
+    }
+    allowed_scenarios = {
+        "code_injection",
+        "hard_normal",
+        "ordinary_normal",
+        "other_attack",
+        "sql_injection",
+    }
     for name, expected_hash in batch_hashes.items():
         path = batch_root / str(name)
         if not path.is_file():
@@ -348,15 +429,63 @@ def validate_fixture_manifest(experiment_root: Path | str) -> dict[str, Any]:
         actual_hash = sha256_file(path)
         if actual_hash != expected_hash:
             raise ValueError(f"fixture batch hash mismatch: {name}")
-        line_count = len(
-            [
-                line
-                for line in path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-        )
+        rows = []
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"fixture batch {name} has invalid JSON at line {line_number}"
+                ) from exc
+            if not isinstance(row, dict):
+                raise ValueError(f"fixture batch {name} rows must be objects")
+            rows.append(row)
+        line_count = len(rows)
         if line_count != int(batch_counts.get(name, -1)):
             raise ValueError(f"fixture batch count mismatch: {name}")
+        day_number = int(Path(name).stem.split("_")[-1])
+        for row in rows:
+            required_row_values = {
+                "batch_day": day_number,
+                "is_synthetic": True,
+                "preprocessing_version": PREPROCESSING_VERSION,
+                "request_method": TARGET_METHOD,
+                "request_path": TARGET_ROUTE,
+                "review_status": REVIEW_STATUS,
+                "route_scope": "target_route",
+                "source_type": SOURCE_TYPE,
+            }
+            if row.get("batch_day") != required_row_values["batch_day"]:
+                raise ValueError(f"fixture batch day mismatch: {name}")
+            for key, expected in required_row_values.items():
+                if key != "batch_day" and row.get(key) != expected:
+                    raise ValueError(f"fixture row contract mismatch: {name}:{key}")
+            if row.get("ground_truth_label") not in allowed_labels:
+                raise ValueError(f"fixture row label is unsupported: {name}")
+            if row.get("scenario_type") not in allowed_scenarios:
+                raise ValueError(f"fixture row scenario is unsupported: {name}")
+            model_input_text = row.get("model_input_text")
+            if not isinstance(model_input_text, str) or not model_input_text:
+                raise ValueError(f"fixture row model input is missing: {name}")
+            if row.get("model_input_hash") != _sha256_text(model_input_text):
+                raise ValueError(f"fixture row model input hash mismatch: {name}")
+            label_distribution[str(row["ground_truth_label"])] += 1
+            scenario_distribution[str(row.get("scenario_type"))] += 1
+        total_sample_count += line_count
+    if manifest.get("total_sample_count") != total_sample_count:
+        raise ValueError("fixture manifest total_sample_count does not match batches")
+    if manifest.get("label_distribution") != dict(sorted(label_distribution.items())):
+        raise ValueError("fixture manifest label distribution does not match batches")
+    if manifest.get("scenario_distribution") != dict(
+        sorted(scenario_distribution.items())
+    ):
+        raise ValueError(
+            "fixture manifest scenario distribution does not match batches"
+        )
     return manifest
 
 

@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from ml_model.retraining.prepare_legacy_baseline import build_legacy_summary
+from ml_model.retraining.prepare_legacy_baseline import (
+    LegacyBaselineError,
+    build_legacy_summary,
+)
 
 
 def test_build_legacy_summary_links_metrics_to_exact_staged_artifact(tmp_path: Path):
@@ -24,7 +27,9 @@ def test_build_legacy_summary_links_metrics_to_exact_staged_artifact(tmp_path: P
         "temperature": 0.596868,
         "checkpoint_file": checkpoint.name,
         "checkpoint_sha256": checkpoint_hash,
-        "calibration_eval_run_dir": str(evaluation.resolve()),
+        "calibration_eval_run_dir": str(
+            Path("C:/original-training-host") / evaluation.name
+        ),
         "local_reload_verified": True,
     }
     (artifact / "serving_manifest.json").write_text(
@@ -81,3 +86,57 @@ def test_build_legacy_summary_links_metrics_to_exact_staged_artifact(tmp_path: P
     assert json.loads(output.read_text(encoding="utf-8"))["checkpoint_sha256"] == (
         checkpoint_hash
     )
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -0.01, 1.01])
+def test_build_legacy_summary_rejects_invalid_probability_metrics(
+    tmp_path: Path, value: float
+):
+    artifact = tmp_path / "staged"
+    evaluation = tmp_path / "eval"
+    artifact.mkdir()
+    evaluation.mkdir()
+    checkpoint = artifact / "best_distilbert_ckpt.pt"
+    checkpoint.write_bytes(b"legacy-checkpoint")
+    checkpoint_hash = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    (artifact / "serving_manifest.json").write_text(
+        json.dumps(
+            {
+                "model_key": "distilbert",
+                "temperature": 1.0,
+                "checkpoint_file": checkpoint.name,
+                "checkpoint_sha256": checkpoint_hash,
+                "calibration_eval_run_dir": str(evaluation.resolve()),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact / "eval_report.json").write_text(
+        json.dumps({"Normal": {"recall": 1.0}, "SQL Injection": {"recall": 1.0}}),
+        encoding="utf-8",
+    )
+    evaluation_file = evaluation / "evaluation.json"
+    evaluation_file.write_text(
+        json.dumps(
+            {
+                "model": "distilbert",
+                "temperature": 1.0,
+                "accuracy": 1.0,
+                "macro_f1": 1.0,
+                "weighted_f1": 1.0,
+                "ece": 0.0,
+                "operational": {
+                    "benign_false_positive_rate": value,
+                    "attack_detection_rate": 1.0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LegacyBaselineError, match="finite|between"):
+        build_legacy_summary(
+            artifact_dir=artifact,
+            evaluation_file=evaluation_file,
+            output_path=tmp_path / "summary.json",
+        )
