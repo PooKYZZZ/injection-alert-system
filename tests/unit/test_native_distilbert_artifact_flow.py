@@ -16,10 +16,13 @@ import ml_model.export.package_serving_artifact as package_module
 from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
     PackagingError,
+    bind_summary_metrics_to_packaged_artifact,
     build_manifest,
     ensure_required_run_files,
+    stage_training_summary_for_packaging,
 )
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
+from ml_model.retraining.run_baseline import _load_verified_summary_metrics
 from ml_model.training.run_contract import build_training_run_contract, contract_sha256
 
 REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
@@ -32,6 +35,81 @@ def test_packaging_requires_summary_metrics_provenance_file(tmp_path: Path):
 
     with pytest.raises(PackagingError, match="summary_metrics.json"):
         ensure_required_run_files(tmp_path)
+
+
+def test_candidate_summary_is_staged_and_bound_to_final_artifact(tmp_path: Path):
+    source_summary_path = tmp_path / "training" / "summary_metrics.json"
+    original_summary = {
+        "test_accuracy": 0.99,
+        "test_macro_f1": 0.98,
+        "test_weighted_f1": 0.991,
+        "normal_false_positive_rate": 0.001,
+        "attack_escape_rate": 0.002,
+        "custom_metric": {"preserve": True},
+    }
+    source_summary_path.parent.mkdir(parents=True)
+    source_summary_path.write_text(
+        json.dumps(original_summary, indent=2) + "\n", encoding="utf-8"
+    )
+
+    candidate_run = tmp_path / "candidate"
+    staged = stage_training_summary_for_packaging(
+        source_summary_path=source_summary_path,
+        candidate_run=candidate_run,
+    )
+    assert staged == original_summary
+    assert json.loads(
+        (candidate_run / "summary_metrics.json").read_text(encoding="utf-8")
+    ) == original_summary
+
+    checkpoint_path = candidate_run / "model.safetensors"
+    checkpoint_path.write_bytes(b"packaged-checkpoint")
+    manifest_path = candidate_run / "serving_manifest.json"
+    manifest = {
+        "checkpoint_file": checkpoint_path.name,
+        "checkpoint_sha256": package_module.sha256_file(checkpoint_path),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+    summary_path = bind_summary_metrics_to_packaged_artifact(
+        packaged_run=candidate_run,
+        source_summary_path=source_summary_path,
+        summary_metrics=staged,
+    )
+    final_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert final_summary["custom_metric"] == original_summary["custom_metric"]
+    assert final_summary["checkpoint_sha256"] == package_module.sha256_file(
+        checkpoint_path
+    )
+    assert final_summary["artifact_manifest_sha256"] == package_module.sha256_file(
+        manifest_path
+    )
+    assert final_summary["source_summary_sha256"] == package_module.sha256_file(
+        source_summary_path
+    )
+    verified = _load_verified_summary_metrics(
+        candidate_run, manifest_path, manifest
+    )
+    assert verified["test_macro_f1"] == original_summary["test_macro_f1"]
+
+
+def test_training_summary_staging_fails_for_missing_source(tmp_path: Path):
+    with pytest.raises(PackagingError, match="Training summary is missing"):
+        stage_training_summary_for_packaging(
+            source_summary_path=tmp_path / "missing-summary.json",
+            candidate_run=tmp_path / "candidate",
+        )
+
+
+def test_training_summary_staging_fails_for_malformed_source(tmp_path: Path):
+    source_summary_path = tmp_path / "summary_metrics.json"
+    source_summary_path.write_text("not-json", encoding="utf-8")
+
+    with pytest.raises(PackagingError, match="Training summary is malformed"):
+        stage_training_summary_for_packaging(
+            source_summary_path=source_summary_path,
+            candidate_run=tmp_path / "candidate",
+        )
 
 
 def make_training_contract() -> dict:

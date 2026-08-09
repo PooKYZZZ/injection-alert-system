@@ -14,6 +14,7 @@ from ml_model.export.package_serving_artifact import (
     PackagingError,
     build_manifest,
     resolve_calibration_provenance,
+    sha256_file,
 )
 from ml_model.export.promote_final_training_run import (
     PromotionError,
@@ -101,6 +102,8 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
                 "test_accuracy": 0.99,
                 "test_macro_f1": 0.98,
                 "test_weighted_f1": 0.991,
+                "normal_false_positive_rate": 0.001,
+                "attack_escape_rate": 0.002,
             }
         ),
         encoding="utf-8",
@@ -978,6 +981,22 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
     def fake_run_packager(**kwargs):
         packager_calls.append(kwargs)
         eval_run_dir = Path(kwargs["calibration_eval_run_dir"])
+        staged_summary_path = active_run_dir / "summary_metrics.json"
+        assert staged_summary_path.is_file()
+        assert json.loads(staged_summary_path.read_text(encoding="utf-8"))[
+            "test_macro_f1"
+        ] == 0.98
+        checkpoint_path = active_run_dir / "best_distilbert_ckpt.pt"
+        assert checkpoint_path.is_file()
+        (active_run_dir / "serving_manifest.json").write_text(
+            json.dumps(
+                {
+                    "checkpoint_file": checkpoint_path.name,
+                    "checkpoint_sha256": sha256_file(checkpoint_path),
+                }
+            ),
+            encoding="utf-8",
+        )
         provisional_summary = json.loads(
             (eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
         )["promotion_summary"]["distilbert"]
