@@ -4,7 +4,7 @@ import tomllib
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PYTHON_314_DIGEST = (
-    "python@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92"
+    "python@sha256:a7fb1e634c4a578f9e0bd6327f11a3cde11b7a9395f48e24360c0988bcc5c2bc"
 )
 
 
@@ -44,3 +44,11 @@ def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
 
     for lock_file in lock_files:
         assert PYTHON_314_DIGEST in lock_file.read_text(encoding="utf-8")
+
+
+def test_backend_uses_cpu_torch_index_for_container_runtime() -> None:
+    dockerfile = PROJECT_ROOT / "Dockerfile"
+
+    source = dockerfile.read_text(encoding="utf-8")
+
+    assert "https://download.pytorch.org/whl/cpu" in source

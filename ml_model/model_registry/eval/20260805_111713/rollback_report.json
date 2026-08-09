@@ -1,0 +1,80 @@
+{
+  "status": "ROLLED_BACK",
+  "generated_at_utc": "2026-08-05T11:35:03Z",
+  "generated_at_local": "2026-08-05T19:35:03+08:00",
+  "seed": 2026,
+  "previous_model": {
+    "active_path": "ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755",
+    "model_version": "distilbert_v3_907k_cleaned_20260312_133755",
+    "model_sha256": "3BB44256EFEF909BF4E1EB299D19FEF3CAE94BEFC0827D551CCCDD8302739466",
+    "manifest_sha256": "CB5D39A8124AB1D5D4E60DA093A33690B1839B65824D79820319888C003B88AB",
+    "archive_path": "ml_model/model_registry/archive/distilbert_v3_907k_cleaned_20260312_133755_pre_native_20260805_201500",
+    "archive_verified": true
+  },
+  "candidate_model": {
+    "source_checkpoint": "ml_model/results/training_runs/v3_907k_cleaned_final_confirmatory_weighted_ce_3seed_20260805_163848/distilbert/loss_weighted_ce/seed_2026/checkpoint/best_distilbert_weighted_ce_seed2026.pt",
+    "source_checkpoint_sha256": "BAE05312DF79E14F3B448DD2D672FEBD5415D5109AB9F2F80EB8E8F02CFCB101",
+    "packaged_model_sha256": "17153094C1EE6373CFD5F95B40B3205E5C6C966DEA3BA1A2A0E7E1A1B7113BF6",
+    "preserved_failed_candidate_path": "ml_model/model_registry/archive/distilbert_v3_907k_cleaned_20260312_133755_candidate_failed_benign_smoke_20260805_193600",
+    "dataset_version": "v3_907k_cleaned",
+    "preprocessing_version": "http-preprocessor-v1",
+    "model_id": "distilbert-base-uncased",
+    "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+    "architecture": "distilbert_sequence_classification",
+    "labels": [
+      "Code Injection",
+      "Normal",
+      "Other Attacks",
+      "SQL Injection"
+    ],
+    "run_contract_sha256": "29d40956ccb7614bcfeec3809ac3fc755bf6dd58669cefaef541417a4e0c05b2"
+  },
+  "rollback_reason": {
+    "required_test": "A normal benign request remains allowed.",
+    "input": "GET /api/users?page=1&limit=10",
+    "candidate_actual": {
+      "class_label": "Other Attacks",
+      "confidence": 0.878627,
+      "confidence_level": "HIGH",
+      "action_taken": "BLOCKED",
+      "passed": false
+    },
+    "previous_model_actual": {
+      "class_label": "Other Attacks",
+      "confidence": 0.712763,
+      "confidence_level": "MEDIUM",
+      "action_taken": "THROTTLED",
+      "passed": false
+    },
+    "interpretation": "The candidate did not introduce this particular false positive, but the required benign-request acceptance criterion is not satisfied by either model. The candidate was therefore not left active."
+  },
+  "validation": {
+    "candidate_native_load_and_roundtrip": "PASS",
+    "candidate_packaging_and_local_reload": "PASS",
+    "candidate_sql_control": "PASS",
+    "candidate_code_control": "PASS",
+    "candidate_backend_health": "PASS",
+    "candidate_ml_health": "PASS",
+    "waf_route_and_snapshot_tests": "PASS: 29 passed",
+    "dashboard_typescript": "PASS",
+    "dashboard_source_lint": "PASS",
+    "dashboard_bff_tests": "PASS: 100 passed",
+    "post_rollback_previous_model_load": "PASS",
+    "post_rollback_health": "PASS",
+    "post_rollback_benign_request": "FAIL: pre-existing false positive remains",
+    "post_rollback_sql_control": "PASS",
+    "post_rollback_code_control": "PASS",
+    "live_docker_dashboard_waf_smoke": "NOT_RUN: no application stack was running; route-level WAF tests were run"
+  },
+  "commands": [
+    "python -m ml_model.export.promote_final_training_run --source-run-dir <seed-2026-source> --active-run-dir ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755 --archive-root ml_model/model_registry/archive --archive-suffix pre_native_20260805_201500",
+    ".venv\\Scripts\\python.exe -m pytest -q --tb=short tests/integration/test_waf_ingest_route.py tests/integration/test_pr7_waf_snapshot_http.py",
+    "npm run typecheck",
+    "npx eslint app components features lib mocks scripts store test-support types --max-warnings=0",
+    "npx vitest run --pool=threads app/api/bff-routes.test.ts lib/bff-client.test.ts lib/searchParams.test.ts",
+    "Safe copy-and-restore from the verified archive, then ModelService/TestClient health and inference smoke"
+  ],
+  "repository_commit": "7ab68c1af0b121ee92912b1837a21c630cc5dfeb",
+  "rollback_procedure": "Keep ml_model/model_registry/archive/distilbert_v3_907k_cleaned_20260312_133755_pre_native_20260805_201500 intact; restore its contents to the active staging path using an atomic temporary-copy then directory-rename procedure, and reload ModelService/backend before accepting traffic.",
+  "secrets_included": false
+}
