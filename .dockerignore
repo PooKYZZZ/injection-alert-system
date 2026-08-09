@@ -36,7 +36,6 @@ coverage/
 htmlcov/
 test-results/
 tmp/
-waf_runtime/
 .mypy_cache/
 .cache/
 frontend/
