@@ -2,9 +2,9 @@
 
 ## Current repository state
 
-- Branch: `feature/20-day-retraining-simulation`
-- Merge/PR state: pushed to origin and tracked by draft PR #106:
-  `https://github.com/PooKYZZZ/injection-alert-system/pull/106`.
+- Source state: use the branch/commit containing the `golden-v2` contract and
+  the `records_search_v1` batch set. The earlier PR #106 reference is historical
+  and is not a required execution branch.
 - Experiment status on the development PC: unit tests and the twenty-day
   orchestration smoke passed. The real baseline, seed-2026 training,
   three-seed confirmation, and full 20-day native DistilBERT simulation were
@@ -327,6 +327,9 @@ production readiness.
 | Operation | Status in this coding session |
 |---|---|
 | Contract, validator, indexed snapshot, simulator, baseline/artifact tooling | `PASS` (implemented and focused-tested) |
+| Records-search `golden-v2` controls | `PASS` (28 target cases plus one legacy regression) |
+| Records-search prepared-batch preflight | `PASS` (20 days, 40 accepted, zero golden/contamination overlaps) |
+| Controlled-fixture simulation boundary | `PASS` (explicit flag and simulation-only report label) |
 | Twenty-day synthetic orchestration smoke | `SMOKE_SUCCESS` (orchestration-only) |
 | Real current-model baseline | `NOT_RUN` / `REQUIRES_LAPTOP` |
 | Corrected seed-2026 native training | `NOT_RUN` / `REQUIRES_LAPTOP` |

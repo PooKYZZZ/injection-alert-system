@@ -24,7 +24,8 @@ or automatic promotion path. The reusable training entrypoint remains under
   model-input hashes and batch-day provenance. Real approved rows require
   reviewer identity and review time; empty batches and synthetic rows marked as
   approved training data are rejected. Checked-in synthetic rows are explicitly
-  simulation fixtures and are accepted only with the smoke/test override.
+  simulation fixtures and are accepted only with the smoke, test override, or
+  explicit controlled-simulation mode.
 - `snapshots.py` creates versioned cumulative train snapshots and preserves the
   historical validation/test splits, including the metadata and checksum
   contract required by the training preflight. It builds one reusable index
