@@ -141,6 +141,7 @@ ml_model/model_registry/staging/**/config.json
 ml_model/model_registry/staging/**/serving_manifest.json
 ml_model/model_registry/staging/**/tokenizer.json
 ml_model/model_registry/staging/**/tokenizer_config.json
+ml_model/model_registry/staging/**/summary_metrics.json
 ml_model/model_registry/eval/**/eval_raw_outputs_*.parquet
 
 # Packaged serving artifacts under web_app - keep source code, ignore generated model assets

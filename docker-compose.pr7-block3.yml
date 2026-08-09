@@ -133,7 +133,7 @@ services:
       - pr7-block3
 
   source-client-a:
-    image: python@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
+    image: python@sha256:a7fb1e634c4a578f9e0bd6327f11a3cde11b7a9395f48e24360c0988bcc5c2bc
     profiles:
       - pr7-block3
     command: ["python", "-c", "import time; time.sleep(3600)"]
@@ -142,7 +142,7 @@ services:
         ipv4_address: 172.31.7.10
 
   source-client-b:
-    image: python@sha256:26730869004e2b9c4b9ad09cab8625e81d256d1ce97e72df5520e806b1709f92
+    image: python@sha256:a7fb1e634c4a578f9e0bd6327f11a3cde11b7a9395f48e24360c0988bcc5c2bc
     profiles:
       - pr7-block3
     command: ["python", "-c", "import time; time.sleep(3600)"]

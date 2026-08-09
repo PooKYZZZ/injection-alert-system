@@ -1,0 +1,48 @@
+# The experiment contract remains retraining-20-day-v1.  v2 identifies the
+# route-aware 30-sample-per-day fixture collection, not a new policy contract.
+[experiment]
+name = "controlled-retraining-20-day"
+version = "retraining-20-day-v1"
+
+[data]
+historical_dataset_version = "v3_907k_cleaned"
+preprocessing_version = "http-preprocessor-v1"
+
+[model]
+model_family = "native_distilbert"
+model_id = "distilbert-base-uncased"
+model_revision = "12040accade4e8a0f71eabdb258fecc2e7e948be"
+daily_seed = 2026
+confirmation_seeds = [42, 1337, 2026]
+max_epochs = 4
+
+[golden]
+version = "golden-v2"
+manifest_file = "data/experiments/retraining_20_day_v1/golden/golden-v2/golden_manifest.json"
+
+[labels]
+names = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
+
+[policy.thresholds]
+low = 0.50
+high = 0.80
+critical = 0.90
+
+[policy.actions]
+normal = "ALLOWED"
+low = "ALLOWED"
+medium = "THROTTLED"
+high = "BLOCKED"
+critical = "BLOCKED"
+
+[acceptance]
+normal_false_positive_tolerance = 0.001
+attack_escape_tolerance = 0.001
+macro_f1_drop_tolerance = 0.002
+normal_recall_minimum = 0.995
+supported_attack_recall_drop_tolerance = 0.01
+
+[runtime]
+daily_batch_dir = "data/experiments/retraining_20_day_v2/daily_batches/records_search_v2"
+output_dir = "ml_model/results/retraining_20_day_v2"
+training_config = "ml_model/configs/training/thesis_confirmatory.toml"
