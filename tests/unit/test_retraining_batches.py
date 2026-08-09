@@ -17,6 +17,7 @@ from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotContaminationError,
     build_cumulative_snapshot,
+    load_historical_frames,
     validate_snapshot_integrity,
 )
 from ml_model.retraining.validate_batch import validate_batch_file
@@ -394,6 +395,34 @@ def test_snapshot_is_accepted_by_training_dataset_preflight(tmp_path: Path):
     assert manifest["files"]["train.parquet"]
     assert (result.snapshot_dir / "metadata_preprocessing.json").is_file()
     assert (result.snapshot_dir / "checksums.txt").is_file()
+
+
+def test_snapshot_reuses_preloaded_historical_frames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    historical = tmp_path / "historical"
+    historical.mkdir()
+    base = pd.DataFrame([{"combined_payload": "GET /health", "final_label": "Normal"}])
+    for split in ("train", "validation", "test"):
+        base.to_parquet(historical / f"{split}.parquet", index=False)
+
+    historical_frames = load_historical_frames(historical)
+
+    def fail_if_reloaded(*args, **kwargs):
+        raise AssertionError("preloaded frames should avoid parquet reloads")
+
+    monkeypatch.setattr(pd, "read_parquet", fail_if_reloaded)
+    result = build_cumulative_snapshot(
+        historical_data_dir=historical,
+        historical_frames=historical_frames,
+        cumulative_samples=[REQUIRED],
+        output_root=tmp_path / "outputs",
+        day=1,
+        dataset_version="v3_907k_cleaned",
+        preprocessing_version="http-preprocessor-v1",
+    )
+
+    assert result.train_rows == 2
 
 
 def test_snapshot_rejects_near_duplicate_historical_sample_with_split_report(

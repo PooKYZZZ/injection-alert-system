@@ -23,6 +23,7 @@ from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotResult,
     build_cumulative_snapshot,
+    load_historical_frames,
     validate_snapshot_integrity,
 )
 from ml_model.retraining.validate_batch import (
@@ -135,7 +136,10 @@ def run_data_preflight(
                 raise FileNotFoundError(f"historical {split} split is missing")
 
     controls = load_golden_controls(config.golden_manifest_file)
-    contamination_index = ContaminationIndex.from_historical_dir(historical_root)
+    historical_frames = load_historical_frames(historical_root)
+    contamination_index = ContaminationIndex.from_historical_frames(
+        historical_frames
+    )
     output_root.mkdir(parents=True, exist_ok=True)
     cumulative_samples: list[dict[str, Any]] = []
     day_reports: list[dict[str, Any]] = []
@@ -186,6 +190,7 @@ def run_data_preflight(
                 preprocessing_version=config.preprocessing_version,
                 project_root=config.project_root,
                 contamination_index=contamination_index,
+                historical_frames=historical_frames,
             )
             report["contamination"] = snapshot.manifest["contamination"]
             report["snapshot_integrity"] = validate_snapshot_integrity(

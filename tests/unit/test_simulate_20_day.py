@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+import ml_model.retraining.simulate_20_day as simulate_module
 from ml_model.retraining.experiment_contract import load_experiment_config
 from ml_model.retraining.simulate_20_day import (
     SimulationHooks,
@@ -18,7 +19,6 @@ from ml_model.retraining.simulate_20_day import (
     run_smoke,
     validate_baseline_attack_recall_completeness,
 )
-from ml_model.retraining.snapshots import ContaminationIndex
 
 
 def _write_config(path: Path) -> None:
@@ -429,19 +429,19 @@ def test_two_day_smoke_completes_and_repeats_input_hashes(tmp_path: Path):
     ]
 
 
-def test_simulation_builds_historical_contamination_index_once(
+def test_simulation_loads_historical_frames_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     config_path = tmp_path / "experiment.toml"
     _write_config(config_path)
-    original = ContaminationIndex.from_historical_dir
+    original = simulate_module.load_historical_frames
     calls: list[Path | str] = []
 
-    def counted(historical_dir: Path | str) -> ContaminationIndex:
+    def counted(historical_dir: Path | str):
         calls.append(historical_dir)
         return original(historical_dir)
 
-    monkeypatch.setattr(ContaminationIndex, "from_historical_dir", counted)
+    monkeypatch.setattr(simulate_module, "load_historical_frames", counted)
     report = run_smoke(
         config_path=config_path,
         output_dir=tmp_path / "indexed-smoke",

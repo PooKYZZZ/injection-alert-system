@@ -68,6 +68,18 @@ def _load_split(root: Path, split: str) -> pd.DataFrame:
     return frame
 
 
+def load_historical_frames(
+    historical_data_dir: Path | str,
+) -> list[tuple[str, pd.DataFrame]]:
+    """Load the three historical splits once for a multi-day run."""
+
+    root = Path(historical_data_dir).expanduser().resolve()
+    return [
+        (split, _load_split(root, split))
+        for split in ("train", "validation", "test")
+    ]
+
+
 def _daily_frame(samples: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
     rows = []
     for sample in sorted(samples, key=lambda row: str(row.get("sample_id", ""))):
@@ -168,12 +180,9 @@ class ContaminationIndex:
     def from_historical_dir(
         cls, historical_data_dir: Path | str
     ) -> "ContaminationIndex":
-        root = Path(historical_data_dir).expanduser().resolve()
-        historical = [
-            (split, _load_split(root, split))
-            for split in ("train", "validation", "test")
-        ]
-        return cls.from_historical_frames(historical)
+        return cls.from_historical_frames(
+            load_historical_frames(historical_data_dir)
+        )
 
     @staticmethod
     def _record(
@@ -526,14 +535,26 @@ def build_cumulative_snapshot(
     project_root: Path | str | None = None,
     contamination_index: ContaminationIndex | None = None,
     new_samples: Sequence[Mapping[str, Any]] | None = None,
+    historical_frames: Sequence[tuple[str, pd.DataFrame]] | None = None,
 ) -> SnapshotResult:
     if not 1 <= int(day) <= 20:
         raise ValueError("simulation day must be between 1 and 20")
     historical_root = Path(historical_data_dir).expanduser().resolve()
     output_root = Path(output_root).expanduser().resolve()
     _safe_output_root(output_root, historical_root, dataset_version)
+    historical = list(
+        historical_frames
+        if historical_frames is not None
+        else load_historical_frames(historical_root)
+    )
+    historical_by_split = {split: frame for split, frame in historical}
+    missing_splits = sorted(
+        {"train", "validation", "test"} - set(historical_by_split)
+    )
+    if missing_splits:
+        raise ValueError(f"historical frames are missing splits: {missing_splits}")
     historical = [
-        (split, _load_split(historical_root, split))
+        (split, historical_by_split[split])
         for split in ("train", "validation", "test")
     ]
     if contamination_index is None:

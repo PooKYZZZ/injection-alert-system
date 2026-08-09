@@ -39,6 +39,7 @@ from ml_model.retraining.snapshots import (
     ContaminationIndex,
     SnapshotResult,
     build_cumulative_snapshot,
+    load_historical_frames,
     validate_snapshot_integrity,
 )
 from ml_model.retraining.statistical_evidence import build_statistical_evidence
@@ -664,7 +665,10 @@ def run_simulation(
         if allow_test_overrides and golden_texts is not None
         else load_golden_controls(config.golden_manifest_file)
     )
-    contamination_index = ContaminationIndex.from_historical_dir(historical_data_dir)
+    historical_frames = load_historical_frames(historical_data_dir)
+    contamination_index = ContaminationIndex.from_historical_frames(
+        historical_frames
+    )
     cumulative_samples: list[dict[str, Any]] = []
     day_reports: list[dict[str, Any]] = []
     for day in days_to_process:
@@ -730,6 +734,7 @@ def run_simulation(
                 dataset_version=config.historical_dataset_version,
                 preprocessing_version=config.preprocessing_version,
                 project_root=config.project_root,
+                historical_frames=historical_frames,
             )
             snapshot_integrity = validate_snapshot_integrity(snapshot.snapshot_dir)
             day_result["stage"] = "training"
