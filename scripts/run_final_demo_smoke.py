@@ -151,7 +151,9 @@ def _read_new_audit_events(
     return events, start_offset + consumed, None
 
 
-def _audit_event_details(payload: dict) -> tuple[str | None, int | None, str | None]:
+def _audit_event_details(
+    payload: dict,
+) -> tuple[str | None, int | None, str | None, str | None]:
     transaction = payload.get("transaction")
     if not isinstance(transaction, dict):
         transaction = {}
@@ -168,6 +170,9 @@ def _audit_event_details(payload: dict) -> tuple[str | None, int | None, str | N
     request_path = payload.get("request_path")
     if not isinstance(request_path, str) or not request_path:
         request_path = urlsplit(str(uri)).path if uri is not None else None
+    query_string = payload.get("query_string")
+    if not isinstance(query_string, str):
+        query_string = urlsplit(str(uri)).query if uri is not None else None
 
     raw_status = (
         response.get("http_code")
@@ -184,6 +189,7 @@ def _audit_event_details(payload: dict) -> tuple[str | None, int | None, str | N
         str(transaction_id).strip() if transaction_id is not None else None,
         response_status,
         request_path,
+        query_string,
     )
 
 
@@ -192,6 +198,7 @@ def _check_audit_log(
     *,
     start_offset: int,
     expected_path: str,
+    expected_query: str | None = None,
     expected_status: int,
     check_name: str = "audit_transaction",
 ) -> CheckResult:
@@ -220,11 +227,21 @@ def _check_audit_log(
             correlated=False,
         )
 
+    request_label = _audit_request_label(expected_path, expected_query)
     matching_payload = None
     matching_transaction_id = None
     for payload in events:
-        transaction_id, response_status, request_path = _audit_event_details(payload)
-        if request_path == expected_path and response_status == expected_status:
+        (
+            transaction_id,
+            response_status,
+            request_path,
+            query_string,
+        ) = _audit_event_details(payload)
+        if (
+            request_path == expected_path
+            and (expected_query is None or query_string == expected_query)
+            and response_status == expected_status
+        ):
             matching_payload = payload
             matching_transaction_id = transaction_id
 
@@ -233,7 +250,9 @@ def _check_audit_log(
             name=check_name,
             status="FAIL",
             details=(
-                f"new audit event for {expected_path} with HTTP {expected_status} "
+                "new audit event for "
+                f"{request_label} "
+                f"with HTTP {expected_status} "
                 "was not found"
             ),
             correlated=False,
@@ -251,7 +270,9 @@ def _check_audit_log(
         name=check_name,
         status="PASS",
         details=(
-            f"new audit event for {expected_path} with HTTP {expected_status} "
+            "new audit event for "
+            f"{request_label} "
+            f"with HTTP {expected_status} "
             "has a transaction_id"
         ),
         correlated=True,
@@ -264,6 +285,7 @@ def _wait_for_audit_log(
     *,
     start_offset: int,
     expected_path: str,
+    expected_query: str | None = None,
     expected_status: int,
     check_name: str = "audit_transaction",
 ) -> CheckResult:
@@ -273,6 +295,7 @@ def _wait_for_audit_log(
             path=path,
             start_offset=start_offset,
             expected_path=expected_path,
+            expected_query=expected_query,
             expected_status=expected_status,
             check_name=check_name,
         )
@@ -282,6 +305,12 @@ def _wait_for_audit_log(
             time.sleep(AUDIT_LOOKUP_RETRY_INTERVAL_SECONDS)
     assert result is not None
     return result
+
+
+def _audit_request_label(expected_path: str, expected_query: str | None) -> str:
+    if expected_query is None:
+        return expected_path
+    return f"{expected_path}?{expected_query}"
 
 
 def _run_backend_lookup(transaction_id: str) -> dict:
@@ -320,12 +349,13 @@ def _run_backend_lookup(transaction_id: str) -> dict:
 
 
 def _run_backend_internal_health(timeout: float) -> dict:
+    health_timeout = float(timeout)
     health_script = (
         "import json, urllib.request;"
         "result={};"
         "\nfor key,path in [('health','/health'),('api_health','/api/health')]:"
         "\n  with urllib.request.urlopen("
-        "'http://127.0.0.1:8000'+path, timeout=10) as response:"
+        f"'http://127.0.0.1:8000'+path, timeout={health_timeout!r}) as response:"
         "\n    result[key]=response.status"
         "\nprint(json.dumps(result))"
     )
@@ -343,7 +373,7 @@ def _run_backend_internal_health(timeout: float) -> dict:
         check=True,
         capture_output=True,
         text=True,
-        timeout=max(20.0, timeout * 2),
+        timeout=max(1.0, health_timeout * 2 + 1.0),
         cwd=REPO_ROOT,
     )
     output_lines = [
@@ -574,6 +604,7 @@ def run_checks(
             path=audit_path,
             start_offset=audit_start_offset,
             expected_path="/api/health",
+            expected_query="id=17%27%20OR%2017%3D17--",
             expected_status=403,
             check_name="audit_transaction",
         )
@@ -605,6 +636,7 @@ def run_checks(
         path=audit_path,
         start_offset=audit_start_offset,
         expected_path="/records/search",
+        expected_query="query=Maple",
         expected_status=200,
         check_name="audit_transaction_normal",
     )
@@ -637,6 +669,7 @@ def run_checks(
         path=audit_path,
         start_offset=attack_start_offset,
         expected_path="/records/search",
+        expected_query="%27%20UNION%20SELECT%20null,null,null--",
         expected_status=403,
         check_name="audit_transaction_attack",
     )

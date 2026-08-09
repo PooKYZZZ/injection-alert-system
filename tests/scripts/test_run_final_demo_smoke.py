@@ -297,6 +297,22 @@ def test_backend_health_command_is_anchored_to_repository_root(monkeypatch):
     assert calls[0][1]["cwd"] == smoke.REPO_ROOT
 
 
+def test_backend_internal_health_uses_requested_timeout(monkeypatch):
+    calls = []
+
+    def _run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(stdout='{"health":200,"api_health":200}\n')
+
+    monkeypatch.setattr(smoke.subprocess, "run", _run)
+
+    smoke._run_backend_internal_health(timeout=2.5)
+
+    command = calls[0][0][-1]
+    assert "timeout=2.5" in command
+    assert calls[0][1]["timeout"] == 6.0
+
+
 def test_backend_lookup_command_is_anchored_to_repository_root(monkeypatch):
     calls = []
 
@@ -330,6 +346,26 @@ def test_audit_jsonl_finds_new_route_status_transaction_id(tmp_path):
     assert result.status == "PASS"
     assert result.transaction_id == "tx-current"
     assert result.correlated is True
+
+
+def test_audit_jsonl_requires_probe_query_for_correlation(tmp_path):
+    audit_log = tmp_path / "modsec_audit.jsonl"
+    audit_log.write_text(
+        '{"transaction":{"unique_id":"tx-unrelated","request":'
+        '{"uri":"/records/search?query=Other"},"response":{"http_code":200}}}\n',
+        encoding="utf-8",
+    )
+
+    result = smoke._check_audit_log(
+        audit_log,
+        start_offset=0,
+        expected_path="/records/search",
+        expected_query="query=Maple",
+        expected_status=200,
+    )
+
+    assert result.status == "FAIL"
+    assert result.correlated is False
 
 
 def test_historical_audit_line_before_cursor_is_not_reused(tmp_path):
