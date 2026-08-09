@@ -71,11 +71,14 @@ or automatic promotion path. The reusable training entrypoint remains under
   `PARTIAL`, not complete `SUCCESS`.
 - `run_baseline.py` evaluates a specifically selected current artifact against
   the locked golden set without silently discovering or modifying staging. A
-  baseline is `FROZEN` only when required metrics (including security rates),
-  model loading, golden controls, and local reload verification all pass. The
-  report records this as `baseline_gate`; normal simulation rejects any other
-  baseline state. Native packaging also requires `summary_metrics.json`, which
-  supplies operational security rates when the classification report does not.
+  baseline is `FROZEN` when required metrics (including security rates), model
+  loading, complete golden evaluation, and local reload verification all pass.
+  Golden-control failures are retained as baseline evidence; they do not make
+  the comparison baseline disappear. Candidate acceptance still requires all
+  locked controls to pass. The report records these separate concerns as
+  `baseline_gate` and `baseline_quality`. Native packaging also requires
+  `summary_metrics.json`, which supplies operational security rates when the
+  classification report does not.
 
 The checked-in route-specific prepared batches are under
 `data/experiments/retraining_20_day_v1/daily_batches/records_search_v1/`.

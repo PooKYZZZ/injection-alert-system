@@ -37,13 +37,19 @@ def test_baseline_gate_requires_complete_operational_controls():
         ),
         "service_loaded": True,
         "golden_passed": True,
+        "golden_evaluated": True,
         "reload_verified": True,
     }
 
     assert evaluate_baseline_gate(**common)["passed"] is True
-    for field in ("service_loaded", "golden_passed", "reload_verified"):
+    for field in ("service_loaded", "golden_evaluated", "reload_verified"):
         failed = dict(common, **{field: False})
         assert evaluate_baseline_gate(**failed)["passed"] is False
+
+    golden_failed = dict(common, golden_passed=False)
+    failed_gate = evaluate_baseline_gate(**golden_failed)
+    assert failed_gate["passed"] is True
+    assert failed_gate["checks"]["golden_controls_passed"] is False
 
     incomplete = dict(_complete_metrics())
     incomplete["attack_escape_rate"] = None

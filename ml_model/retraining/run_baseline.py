@@ -97,20 +97,37 @@ def evaluate_baseline_gate(
     label_names: tuple[str, ...],
     service_loaded: bool,
     golden_passed: bool,
+    golden_evaluated: bool,
     reload_verified: bool,
 ) -> dict[str, Any]:
-    """Return the complete, fail-closed gate for a frozen baseline artifact."""
+    """Validate baseline integrity while preserving baseline quality failures.
+
+    A baseline is the comparison point for the experiment. It is allowed to
+    fail golden controls; those failures are the evidence the candidate is
+    intended to improve. Candidate acceptance still requires every locked
+    golden control to pass.
+    """
 
     missing_metrics = _missing_baseline_metrics(metrics, label_names)
     checks = {
         "metrics_complete": not missing_metrics,
         "model_loaded": bool(service_loaded),
+        "golden_controls_evaluated": bool(golden_evaluated),
         "golden_controls_passed": bool(golden_passed),
         "local_reload_verified": bool(reload_verified),
     }
+    required_checks = {
+        key: value
+        for key, value in checks.items()
+        if key != "golden_controls_passed"
+    }
     return {
-        "passed": all(checks.values()),
+        "passed": all(required_checks.values()),
         "checks": checks,
+        "required_checks": required_checks,
+        "quality_checks": {
+            "golden_controls_passed": bool(golden_passed),
+        },
         "missing_required_metrics": missing_metrics,
     }
 
@@ -290,11 +307,13 @@ def build_baseline_report(
         controls, golden
     )
     missing_metrics = _missing_baseline_metrics(metrics, config.label_names)
+    golden_evaluated = len(golden.get("cases", [])) == len(controls.cases)
     baseline_gate = evaluate_baseline_gate(
         metrics=metrics,
         label_names=config.label_names,
         service_loaded=service_loaded,
         golden_passed=bool(golden.get("passed")),
+        golden_evaluated=golden_evaluated,
         reload_verified=manifest.get("local_reload_verified") is True,
     )
     baseline_ready = bool(baseline_gate["passed"])
@@ -323,6 +342,15 @@ def build_baseline_report(
         "metrics": metrics,
         "missing_required_metrics": missing_metrics,
         "baseline_gate": baseline_gate,
+        "baseline_quality": {
+            "golden_controls_passed": bool(golden.get("passed")),
+            "failed_case_count": len(golden.get("mandatory_failures", [])),
+            "interpretation": (
+                "baseline_controls_passed"
+                if golden.get("passed")
+                else "baseline_failures_recorded_for_candidate_comparison"
+            ),
+        },
         "golden": golden,
         "prediction_artifact": (
             prediction_reference if prediction_artifact_status == "WRITTEN" else None

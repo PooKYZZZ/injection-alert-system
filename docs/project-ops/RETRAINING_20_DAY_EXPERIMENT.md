@@ -150,13 +150,17 @@ comparison-set hash, and golden-manifest hash agree; baseline and candidate
 model hashes are retained separately because the models are expected to
 differ.
 
-The baseline report also records `baseline_gate`. It passes only when required
-metrics are present, the selected model loaded, every locked golden control
-passed, and the serving artifact reports `local_reload_verified=true`.
-Therefore `status=PARTIAL`, `baseline_status=REQUIRES_LAPTOP`, or
-`model_quality_conclusion=NOT_PERMITTED` cannot start a normal simulation. The
-native package must contain `summary_metrics.json`; missing security rates are
-left unknown and keep the baseline blocked.
+The baseline report also records `baseline_gate`. It passes when required
+metrics are present, the selected model loaded, the complete locked golden set
+was evaluated, and the serving artifact reports `local_reload_verified=true`.
+The baseline may fail individual golden controls; those failures are recorded
+under `baseline_quality` as the comparison evidence for the corrected
+candidate. Candidate acceptance remains stricter and requires every locked
+golden control to pass. Therefore `status=PARTIAL`,
+`baseline_status=REQUIRES_LAPTOP`, or `model_quality_conclusion=NOT_PERMITTED`
+cannot start a normal simulation. The native package must contain
+`summary_metrics.json`; missing security rates are left unknown and keep the
+baseline blocked.
 
 Evidence is `COMPUTED` only for a valid pair and includes McNemar's exact test,
 absolute accuracy difference, baseline-only/candidate-only/both-correct/
