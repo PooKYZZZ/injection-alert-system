@@ -210,6 +210,36 @@ def test_notification_settings_are_safe_by_default():
     assert settings.telegram_available is False
 
 
+def test_retraining_output_root_is_local_and_repository_relative():
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+    )
+    assert settings.retraining_output_root == "ml_model/results/dashboard_retraining"
+
+    with pytest.raises(ValueError, match="repository-relative"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            retraining_output_root="../outside",
+        )
+
+
+def test_retraining_cannot_be_enabled_in_deployed_environments():
+    with pytest.raises(ValueError, match="controlled local"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            app_env="production",
+            api_secret_key=VALID_API_KEY,
+            waf_ingest_api_key=VALID_WAF_KEY,
+            retraining_enabled=True,
+        )
+
+
 def test_telegram_is_available_only_with_complete_enabled_configuration():
     settings = Settings(
         env_file=False,
