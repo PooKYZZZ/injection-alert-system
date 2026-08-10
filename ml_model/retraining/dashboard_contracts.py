@@ -25,6 +25,7 @@ CANONICAL_LABELS = (
     "SQL Injection",
 )
 DEFAULT_RETRAINING_RESULTS_ROOT = Path("ml_model/results/dashboard_retraining")
+DATASET_MANIFEST_VERSION = "dashboard-dataset.v1"
 RUN_ID_PATTERN = re.compile(r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$")
 DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 MAX_REASON_LENGTH = 500

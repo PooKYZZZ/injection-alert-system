@@ -116,6 +116,16 @@ class RetrainingRunUseCase:
                 ord(char) < 32 for char in operator_note
             ):
                 raise ValueError("operator note is invalid")
+            if any(
+                marker in operator_note
+                for marker in (
+                    "model_input_text",
+                    "http_request",
+                    "API_SECRET_KEY",
+                    "INTERNAL_API_KEY",
+                )
+            ):
+                raise ValueError("operator note contains forbidden content")
 
     @staticmethod
     def _input_fingerprint(snapshot: RetrainingInputSnapshot) -> str:
