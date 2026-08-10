@@ -19,6 +19,20 @@ from web_app.infrastructure.repositories.retraining_run_artifact_repository impo
     RetrainingRunRecord,
 )
 
+_SCHEDULE_ACTIVE_STATES = frozenset(
+    {
+        RunState.QUEUED,
+        RunState.EXPORTING,
+        RunState.DATASET_VALIDATED,
+        RunState.TRAINING,
+        RunState.EVALUATING,
+        RunState.PENDING_APPROVAL,
+        RunState.APPROVED,
+        RunState.DEPLOYING,
+        RunState.RETRYABLE_FAILED,
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class RetrainingInputSnapshot:
@@ -144,6 +158,7 @@ class RetrainingRunUseCase:
         requested_by: str,
         requested_timezone: str,
         operator_note: str | None = None,
+        scheduled_at: datetime | None = None,
     ) -> RetrainingStartResult:
         self._validate_request(
             trigger=trigger,
@@ -151,13 +166,52 @@ class RetrainingRunUseCase:
             requested_timezone=requested_timezone,
             operator_note=operator_note,
         )
+        if scheduled_at is not None and scheduled_at.tzinfo is None:
+            raise ValueError("scheduled_at must be timezone-aware")
         snapshot = await self._resolve_snapshot()
         fingerprint = self._input_fingerprint(snapshot)
         existing = self._repository.find_by_input_fingerprint(fingerprint)
         if existing is not None:
             if existing.state in {RunState.QUEUED, RunState.RETRYABLE_FAILED}:
                 self._ensure_worker_safely(existing.run_id)
+            if trigger == "scheduled":
+                self._repository.append_event(
+                    existing.run_id,
+                    stage="schedule",
+                    outcome="SKIPPED",
+                    code="SCHEDULE_IDEMPOTENT_RUN",
+                    message="scheduled request matched an existing retraining snapshot",
+                    actor_id=requested_by,
+                    actor_role="SCHEDULER",
+                    scheduled_at=scheduled_at,
+                    exit_code=0,
+                )
             return RetrainingStartResult(run=existing, created=False)
+
+        if trigger == "scheduled" and snapshot.approved_sample_count > 0:
+            active_run = next(
+                (
+                    record
+                    for record in self._repository.list_runs()
+                    if record.state in _SCHEDULE_ACTIVE_STATES
+                ),
+                None,
+            )
+            if active_run is not None:
+                self._repository.append_event(
+                    active_run.run_id,
+                    stage="schedule",
+                    outcome="SKIPPED",
+                    code="SCHEDULE_SKIPPED_CONCURRENT_RUN",
+                    message=(
+                        "scheduled request skipped because a retraining run is active"
+                    ),
+                    actor_id=requested_by,
+                    actor_role="SCHEDULER",
+                    scheduled_at=scheduled_at,
+                    exit_code=0,
+                )
+                return RetrainingStartResult(run=active_run, created=False)
 
         now = self._clock().astimezone(timezone.utc)
         initial_state = (
@@ -198,6 +252,8 @@ class RetrainingRunUseCase:
                 outcome="SKIPPED",
                 code="NO_APPROVED_DATA",
                 message="no approved data was eligible for this snapshot",
+                scheduled_at=scheduled_at,
+                exit_code=0,
             )
         else:
             self._repository.append_event(
@@ -206,6 +262,8 @@ class RetrainingRunUseCase:
                 outcome="INFO",
                 code="RUN_QUEUED",
                 message="run accepted by the local queue",
+                scheduled_at=scheduled_at,
+                exit_code=0,
             )
             self._ensure_worker_safely(created.run_id)
         return RetrainingStartResult(run=created, created=True)

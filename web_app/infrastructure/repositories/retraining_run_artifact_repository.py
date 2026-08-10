@@ -79,7 +79,7 @@ _RUN_TRANSITIONS: dict[RunState, frozenset[RunState]] = {
     RunState.QUARANTINED_FOR_REVIEW: frozenset(),
     RunState.HELD: frozenset(),
     RunState.REJECTED: frozenset(),
-    RunState.DEPLOYED: frozenset(),
+    RunState.DEPLOYED: frozenset({RunState.DEPLOYING, RunState.ROLLED_BACK}),
     RunState.ROLLED_BACK: frozenset(),
     RunState.SKIPPED_NO_APPROVED_DATA: frozenset(),
     RunState.FAILED: frozenset(),
@@ -708,6 +708,14 @@ class RetrainingRunArtifactRepository:
     def read_artifact_manifest(self, run_id: str) -> dict[str, Any]:
         return self._read_json(self._run_dir(run_id) / ARTIFACT_MANIFEST_FILENAME)
 
+    def read_json_artifact(self, run_id: str, relative_path: str) -> dict[str, Any]:
+        """Read one manifest-tracked JSON artifact after verifying its hash."""
+
+        if not self.verify_artifacts(run_id, (relative_path,)):
+            raise ArtifactIntegrityError("required JSON artifact is missing or invalid")
+        path = self._safe_artifact_path(run_id, relative_path)
+        return self._read_json(path)
+
     def verify_artifacts(self, run_id: str, relative_paths: Iterable[str]) -> bool:
         manifest = self.read_artifact_manifest(run_id)
         artifacts = manifest.get("artifacts", {})
@@ -755,6 +763,13 @@ class RetrainingRunArtifactRepository:
         duration_ms: int | None = None,
         actor_id: str | None = None,
         actor_role: str | None = None,
+        candidate_model_version: str | None = None,
+        candidate_model_digest: str | None = None,
+        active_model_digest: str | None = None,
+        previous_staging_version: str | None = None,
+        decision: str | None = None,
+        scheduled_at: datetime | None = None,
+        exit_code: int | None = None,
     ) -> dict[str, Any]:
         if not SAFE_CODE.fullmatch(code):
             raise ArtifactRepositoryError("event code is not bounded")
@@ -782,6 +797,32 @@ class RetrainingRunArtifactRepository:
             if not actor_role.strip() or len(actor_role) > 32:
                 raise ArtifactRepositoryError("event actor role is invalid")
             event["actor_role"] = actor_role[:32]
+        for value, field_name in (
+            (candidate_model_version, "candidate model version"),
+            (previous_staging_version, "previous staging version"),
+            (decision, "decision"),
+        ):
+            if value is not None:
+                if (
+                    not value.strip()
+                    or len(value) > 128
+                    or any(marker in value for marker in ("/", "\\", ".."))
+                ):
+                    raise ArtifactRepositoryError(f"{field_name} is invalid")
+                event[field_name.replace(" ", "_")] = value
+        for value, field_name in (
+            (candidate_model_digest, "candidate_model_digest"),
+            (active_model_digest, "active_model_digest"),
+        ):
+            if value is not None:
+                _validate_digest(value, field_name)
+                event[field_name] = value
+        if scheduled_at is not None:
+            event["scheduled_at"] = _iso(scheduled_at)
+        if exit_code is not None:
+            if not isinstance(exit_code, int) or not 0 <= exit_code <= 255:
+                raise ArtifactRepositoryError("event exit code is invalid")
+            event["exit_code"] = exit_code
         path = self._run_dir(run_id) / EVENTS_FILENAME
         existing = []
         if path.is_file():

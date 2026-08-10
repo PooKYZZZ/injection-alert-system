@@ -28,9 +28,7 @@ class Settings(BaseSettings):
         super().__init__(**values)
 
     database_url: str
-    app_env: Literal["development", "testing", "staging", "production"] = (
-        "development"
-    )
+    app_env: Literal["development", "testing", "staging", "production"] = "development"
     log_level: str = "INFO"
     model_path: str
     model_registry_path: str = ""
@@ -83,6 +81,9 @@ class Settings(BaseSettings):
     # repository-relative, non-secret path and is never request-selectable.
     retraining_enabled: bool = False
     retraining_output_root: str = "ml_model/results/dashboard_retraining"
+    retraining_staging_root: str = "ml_model/model_registry/staging"
+    retraining_staging_archive_root: str = "ml_model/model_registry/archive"
+    retraining_schedule_timezone: str = "Asia/Manila"
     retraining_worker_poll_seconds: float = Field(default=5.0, gt=0, le=60)
     retraining_worker_timeout_seconds: int = Field(default=3600, ge=30, le=86400)
     retraining_max_retries: int = Field(default=2, ge=0, le=5)
@@ -179,9 +180,7 @@ class Settings(BaseSettings):
             if not self.database_url.startswith(
                 ("postgresql+asyncpg://", "postgresql://")
             ):
-                raise ValueError(
-                    "PR7 CRITICAL mutation requires a PostgreSQL database"
-                )
+                raise ValueError("PR7 CRITICAL mutation requires a PostgreSQL database")
         if self.enforcement_allow_unverified_source_for_tests and (
             self.is_production or self.is_staging
         ):
@@ -283,7 +282,7 @@ class Settings(BaseSettings):
                     if re.fullmatch(r"[0-9a-fA-F]{64}", raw_key)
                     else base64.b64decode(raw_key, validate=True)
                 )
-            except (ValueError, base64.binascii.Error):
+            except ValueError, base64.binascii.Error:
                 payload_key = b""
             if len(payload_key) != 32:
                 raise ValueError(
@@ -299,6 +298,41 @@ class Settings(BaseSettings):
             raise ValueError(
                 "RETRAINING_OUTPUT_ROOT must be a non-empty repository-relative path"
             )
+        retraining_staging_root = Path(self.retraining_staging_root).expanduser()
+        retraining_archive_root = Path(
+            self.retraining_staging_archive_root
+        ).expanduser()
+        for root, field_name in (
+            (retraining_staging_root, "RETRAINING_STAGING_ROOT"),
+            (retraining_archive_root, "RETRAINING_STAGING_ARCHIVE_ROOT"),
+        ):
+            if (
+                not str(root).strip()
+                or root.is_absolute()
+                or ".." in root.parts
+                or any(part.lower() == "production" for part in root.parts)
+            ):
+                raise ValueError(
+                    f"{field_name} must be a non-production repository-relative path"
+                )
+        if retraining_staging_root.name.lower() != "staging":
+            raise ValueError("RETRAINING_STAGING_ROOT must end in staging")
+        if retraining_staging_root == retraining_archive_root:
+            raise ValueError(
+                "RETRAINING_STAGING_ARCHIVE_ROOT must differ from the staging root"
+            )
+        if (
+            retraining_staging_root in retraining_archive_root.parents
+            or retraining_archive_root in retraining_staging_root.parents
+        ):
+            raise ValueError(
+                "RETRAINING_STAGING_ROOT and archive root must not contain one another"
+            )
+        if (
+            not self.retraining_schedule_timezone.strip()
+            or len(self.retraining_schedule_timezone) > 64
+        ):
+            raise ValueError("RETRAINING_SCHEDULE_TIMEZONE is invalid")
         if self.retraining_enabled and (self.is_production or self.is_staging):
             raise ValueError(
                 "dashboard retraining is restricted to controlled local environments"

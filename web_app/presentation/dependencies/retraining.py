@@ -29,6 +29,7 @@ from web_app.infrastructure.repositories.traffic_label_review_repository import 
     TrafficLabelReviewRepository,
 )
 from web_app.infrastructure.retraining_process_runner import RetrainingProcessRunner
+from web_app.infrastructure.retraining_staging_adapter import LocalStagingAdapter
 from web_app.infrastructure.retraining_worker_supervisor import (
     RetrainingWorkerSupervisor,
 )
@@ -126,12 +127,43 @@ def get_retraining_control_use_case(
         source_dataset_version=RETRAINING_SOURCE_DATASET_VERSION,
         expected_preprocessing_version=model_input_version,
     )
+
+    def load_staging_model(path: Path, expected_version: str):
+        # ModelService is imported only when an explicit local staging operation
+        # needs it; ordinary API import and route tests must not load ML stacks.
+        from web_app.services.model_service import ModelService
+
+        model_settings = settings.model_copy(update={"model_registry_path": str(path)})
+        service = ModelService(model_settings)
+        if service.model_version != expected_version:
+            raise RuntimeError("staging model version mismatch")
+        result = service.predict("SELECT * FROM users WHERE id = 1")
+        if not isinstance(result.get("prediction"), str) or not isinstance(
+            result.get("confidence"), (int, float)
+        ):
+            raise RuntimeError("staging prediction smoke failed")
+        return service
+
+    def reload_staging_model(path: Path, expected_version: str):
+        service = load_staging_model(path, expected_version)
+        request.app.state.model_service = service
+        return service
+
+    staging_adapter = LocalStagingAdapter(
+        staging_root=Path.cwd() / settings.retraining_staging_root,
+        archive_root=Path.cwd() / settings.retraining_staging_archive_root,
+        load_validator=load_staging_model,
+        reload_callback=reload_staging_model,
+    )
     return RetrainingControlUseCase(
         review_repository,
         artifact_repository,
         run_use_case,
         export_use_case,
         active_model_version=model_version,
+        active_model_digest=active_model_digest,
+        active_model_input_version=model_input_version,
+        staging_adapter=staging_adapter,
     )
 
 
