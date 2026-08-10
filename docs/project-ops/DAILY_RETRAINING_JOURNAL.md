@@ -11,8 +11,23 @@ Reviewed alert -> approved training sample -> versioned dataset -> candidate mod
 -> evaluation against active model -> PROMOTE, HOLD, or REJECT -> manual promotion
 ```
 
-This is not yet a daily automated pipeline. Do not claim that it is until every
-required item below is complete and tested.
+The controlled-local pipeline and bounded scheduled trigger are implemented.
+Hosted/production deployment and native model-quality execution remain separate
+evidence and must not be inferred from local tests.
+
+## Model Operations lifecycle — PR6
+
+- [x] Add explicit local staging promotion with allowlisted artifact and
+  manifest/hash/load verification.
+- [x] Preserve the prior staging artifact and verify rollback on load failure.
+- [x] Bind deploy/rollback to the approved run, evaluation, active-model state,
+  and administrator identity.
+- [x] Add a bounded scheduled trigger with no-approved-data and concurrent-run
+  no-op behavior.
+- [x] Document reviewer workflow, retention, evidence boundaries, and
+  troubleshooting.
+- [ ] Install and execute a Windows Task Scheduler task in this environment.
+- [ ] Perform native laptop retraining and hosted/production promotion proof.
 
 ## Retraining evidence contract — PR1
 

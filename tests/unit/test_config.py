@@ -226,6 +226,25 @@ def test_retraining_output_root_is_local_and_repository_relative():
             retraining_output_root="../outside",
         )
 
+    assert settings.retraining_staging_root.replace("\\", "/").endswith("/staging")
+    assert settings.retraining_staging_archive_root.replace("\\", "/").endswith(
+        "/archive"
+    )
+    with pytest.raises(ValueError, match="non-production"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            retraining_staging_root="ml_model/model_registry/production",
+        )
+    with pytest.raises(ValueError, match="differ"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            retraining_staging_archive_root="ml_model/model_registry/staging",
+        )
+
 
 def test_retraining_cannot_be_enabled_in_deployed_environments():
     with pytest.raises(ValueError, match="controlled local"):

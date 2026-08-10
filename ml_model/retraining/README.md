@@ -1,9 +1,9 @@
 # ML Retraining Pipeline
 
 This directory contains a controlled offline 20-day cumulative retraining
-simulation. It is not a production scheduler, queue, online-learning service,
-or automatic promotion path. The reusable training entrypoint remains under
-`ml_model/training/`.
+simulation plus the local dashboard retraining contracts. It is not a hosted or
+production MLOps service, online-learning service, or automatic promotion path.
+The reusable training entrypoint remains under `ml_model/training/`.
 
 ## Target Purpose
 - Manual explicitly invoked retraining trigger
@@ -188,6 +188,24 @@ batches, and locked golden set. Real training still must be performed on the
 laptop. No smoke run, aggregate metric, or present p-value is evidence that
 the model improved on production traffic; controlled-fixture results must keep
 their simulation-only evidence label.
+
+## Dashboard Model Operations boundary
+
+The dashboard lifecycle is now durable and local-only:
+
+```text
+approved review -> export -> cumulative snapshot -> worker run -> candidate
+-> native/verified evidence -> admin decision -> explicit local staging action
+-> load verification -> rollback on failure
+```
+
+The FastAPI request only enqueues or records an explicit operator action;
+long-running training remains outside the request lifecycle. The scheduled
+wrapper requests the same pipeline with `trigger=scheduled`, skips safely when
+there is no approved input or another run is active, and never approves,
+deploys, or catches up missed schedules. See
+`docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md` for the local staging and
+retention boundary.
 
 ## Architectural Role
 Closes the feedback loop:

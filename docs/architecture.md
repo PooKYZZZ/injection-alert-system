@@ -52,9 +52,9 @@ flowchart LR
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 and Block 2 controlled-local WAF runtime implemented and E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use the existing expiring recommendation store; LOW/MEDIUM retain PostgreSQL fixed-window counters and tier-bound server-verified challenge grants. `/api/internal/enforcement/check` returns exact `ALLOW`, `CHALLENGE`, `THROTTLE`, or `BLOCK` decisions only for `/records/search`. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`. PR7 adds durable revisioned effective WAF state, an authenticated snapshot boundary, deterministic candidate rendering, reload/generation confirmation, candidate-specific probing, and rollback. The controlled PostgreSQL-to-backend-to-WAF path passes; Block 3 still owns full attack-to-ML creation, external ingress/source identity, PR6/PR7 integrated regression, and portal no-upstream evidence. Hosted active enforcement remains disabled. |
-| Verified label review workflow | Implemented locally; exporter and retraining remain planned | Analysts and admins append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Alert responses project only the latest revision. Only `approved_for_training` is a future training-export eligibility state; no scheduler, auto-promotion, rollback automation, or web-app model-registry writes are implemented. |
+| Verified label review workflow | Implemented locally; export and retraining lifecycle implemented in controlled local mode | Analysts and admins append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Alert responses project only the latest revision. Only `approved_for_training` enters the retraining snapshot. The Model Operations control plane, worker lifecycle, evidence gates, explicit local staging promotion, rollback, and scheduled trigger are implemented; hosted/production promotion remains disabled and unverified. |
 | Training/evaluation source organization | Partially implemented | Canonical benchmark helpers and script-first entrypoints now live under `ml_model/training/`, `ml_model/preprocessing/`, and `ml_model/evaluation/`; retraining remains design-level |
-| Retraining pipeline | Planned | `ml_model/retraining/README.md` still documents the missing reviewed-sample export, scheduler, and candidate retraining workflow |
+| Retraining pipeline | Implemented controlled-local lifecycle; hosted/production NOT_RUN | Reviewed-sample export, cumulative snapshots, durable worker runs, evidence-gated decisions, explicit local staging promotion/rollback, and a bounded scheduled trigger are implemented. Native model-quality execution, installed scheduling, hosted promotion, and production registry writes remain separate evidence. |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
 | Full Wazuh/SIEM, Kubernetes, Kafka/Celery/Elasticsearch | Deferred | PD2 scope keeps these out unless explicitly approved |
 
@@ -237,8 +237,11 @@ The canonical verified-label vocabulary is `SQL Injection`, `Code Injection`,
 tiers and triage transport states (`BLOCKED`, `THROTTLED`, `ALLOWED`). The
 future exporter may select only rows whose latest review is
 `approved_for_training`; `excluded_from_training` is never an export approval.
-The exporter, scheduler, training orchestration, automatic model promotion,
-rollback automation, and production model writes are not implemented.
+The exporter, worker orchestration, evidence-gated review, explicit controlled-
+local staging promotion, rollback, and bounded scheduler trigger are
+implemented. The scheduler cannot approve or deploy. Hosted/production
+promotion, installed scheduling, native model-quality execution, and
+production model writes are not implemented or verified.
 The legacy response field `input_hash`, when present, is an ingest-event hash
 kept for compatibility; new exporter code must use `model_input_hash` and
 `model_input_text` instead.

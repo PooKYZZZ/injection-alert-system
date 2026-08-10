@@ -189,7 +189,7 @@ def test_deploy_and_rollback_requests_reject_model_paths_and_forbidden_text(clie
     )
     rollback = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/rollback",
-        headers=_headers(role="ADMIN"),
+        headers=_headers(role="ADMIN", actor="admin-1"),
         json={
             "previous_staging_version": "staging-v1",
             "reason": "INTERNAL_API_KEY=not-a-reason",
@@ -198,6 +198,39 @@ def test_deploy_and_rollback_requests_reject_model_paths_and_forbidden_text(clie
 
     assert deploy.status_code == 422
     assert rollback.status_code == 422
+
+
+def test_deploy_and_rollback_return_typed_run_records(client):
+    test_client, control = client
+    deploy_calls = []
+    rollback_calls = []
+    control.deploy = lambda **kwargs: (
+        deploy_calls.append(kwargs) or _record(RunState.DEPLOYED)
+    )
+    control.rollback = lambda **kwargs: (
+        rollback_calls.append(kwargs) or _record(RunState.ROLLED_BACK)
+    )
+
+    deploy = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/deploy",
+        headers=_headers(role="ADMIN"),
+        json={"expected_candidate_version": "candidate-v1"},
+    )
+    rollback = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/rollback",
+        headers=_headers(role="ADMIN", actor="admin-1"),
+        json={
+            "previous_staging_version": "active-v1",
+            "reason": "Restore the verified local staging model.",
+        },
+    )
+
+    assert deploy.status_code == 200
+    assert deploy.json()["state"] == "deployed"
+    assert rollback.status_code == 200
+    assert rollback.json()["state"] == "rolled_back"
+    assert deploy_calls[0]["actor_role"] == "ADMIN"
+    assert rollback_calls[0]["actor_id"] == "admin-1"
 
 
 def test_retraining_run_is_accepted_without_waiting_for_worker(client):
@@ -235,6 +268,32 @@ def test_retraining_run_preserves_idempotent_existing_run_response(client):
     assert first.json()["created"] is True
     assert second.json()["created"] is False
     assert len(control.start_calls) == 2
+
+
+def test_scheduled_run_accepts_bounded_schedule_timestamp(client):
+    test_client, control = client
+
+    response = test_client.post(
+        "/api/retraining/runs",
+        headers={
+            **_headers(),
+            "X-Requester-Timezone": "Asia/Manila",
+            "X-Scheduled-At": "2026-08-11T12:00:00+00:00",
+        },
+        json={"trigger": "scheduled"},
+    )
+
+    assert response.status_code == 202
+    assert control.start_calls[0]["scheduled_at"] == datetime(
+        2026, 8, 11, 12, 0, tzinfo=timezone.utc
+    )
+
+    invalid = test_client.post(
+        "/api/retraining/runs",
+        headers={**_headers(), "X-Scheduled-At": "not-a-timestamp"},
+        json={"trigger": "scheduled"},
+    )
+    assert invalid.status_code == 422
 
 
 def test_summary_and_run_detail_are_safe_contracts(client):

@@ -168,12 +168,26 @@ async def start_retraining_run(
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunStartResponse:
     actor = _operator(request)
+    scheduled_at = None
+    raw_scheduled_at = request.headers.get("X-Scheduled-At")
+    if payload.trigger == "scheduled" and raw_scheduled_at:
+        try:
+            scheduled_at = datetime.fromisoformat(
+                raw_scheduled_at.replace("Z", "+00:00")
+            )
+            if scheduled_at.tzinfo is None:
+                raise ValueError("scheduled timestamp must include a timezone")
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail="Scheduled timestamp is invalid."
+            ) from exc
     try:
         result = await control.start_run(
             trigger=payload.trigger,
             requested_by=actor.reviewer_id,
             requested_timezone=request.headers.get("X-Requester-Timezone", "UTC"),
             operator_note=payload.operator_note,
+            scheduled_at=scheduled_at,
         )
     except RetrainingControlError as exc:
         _raise_control_error(exc)
@@ -252,41 +266,53 @@ async def decide_retraining_run(
     )
 
 
-@router.post("/runs/{run_id}/deploy", status_code=status.HTTP_501_NOT_IMPLEMENTED)
+@router.post(
+    "/runs/{run_id}/deploy",
+    response_model=RetrainingRunResponse,
+    status_code=status.HTTP_200_OK,
+)
 async def deploy_retraining_run(
     request: Request,
     payload: RetrainingDeployRequest,
     run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ):
-    _administrator(request)
+    actor = _administrator(request)
     try:
-        control.deploy(
+        result = control.deploy(
             run_id=run_id,
             expected_candidate_version=payload.expected_candidate_version,
+            actor_id=actor.reviewer_id,
+            actor_role=actor.reviewer_role,
         )
     except RetrainingControlError as exc:
         _raise_control_error(exc)
-    raise HTTPException(status_code=501, detail="Deployment is not available.")
+    return _run_response(result)
 
 
-@router.post("/runs/{run_id}/rollback", status_code=status.HTTP_501_NOT_IMPLEMENTED)
+@router.post(
+    "/runs/{run_id}/rollback",
+    response_model=RetrainingRunResponse,
+    status_code=status.HTTP_200_OK,
+)
 async def rollback_retraining_run(
     request: Request,
     payload: RetrainingRollbackRequest,
     run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ):
-    _administrator(request)
+    actor = _administrator(request)
     try:
-        control.rollback(
+        result = control.rollback(
             run_id=run_id,
             previous_staging_version=payload.previous_staging_version,
             reason=payload.reason,
+            actor_id=actor.reviewer_id,
+            actor_role=actor.reviewer_role,
         )
     except RetrainingControlError as exc:
         _raise_control_error(exc)
-    raise HTTPException(status_code=501, detail="Rollback is not available.")
+    return _run_response(result)
 
 
 __all__ = ["get_retraining_control_use_case", "router"]
