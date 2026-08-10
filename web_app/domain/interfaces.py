@@ -186,6 +186,59 @@ class TrafficLabelReview:
     created_at: Optional[datetime] = None
 
 
+@dataclass(frozen=True)
+class RetrainingReviewCandidate:
+    """Snapshot of one latest review and its non-sensitive source metadata.
+
+    The repository deliberately does not select ``TrafficLog.http_request``.
+    ``model_input_text`` is the already-redacted model-input contract captured
+    by the review revision and is written only to a local run artifact.
+    """
+
+    review_id: Optional[int]
+    traffic_log_id: int
+    revision: int
+    predicted_label: Optional[str]
+    verified_label: str
+    approval_state: str
+    reviewer_id: str
+    reviewer_role: str
+    reviewed_at: datetime
+    model_version: Optional[str]
+    prediction_confidence: Optional[float]
+    prediction_confidence_level: Optional[str]
+    model_input_hash: Optional[str]
+    model_input_text: Optional[str]
+    preprocessing_version: Optional[str]
+    ingest_event_hash: Optional[str]
+    source_verification_status: Optional[str]
+    source_provenance: Optional[str]
+    source_alert_created_at: Optional[datetime] = None
+
+    @property
+    def sample_id(self) -> str:
+        return f"traffic-{self.traffic_log_id}-review-{self.revision}"
+
+    @property
+    def source_family(self) -> str:
+        return str(self.source_provenance or "UNKNOWN")
+
+
+@dataclass(frozen=True)
+class RetrainingReviewSummary:
+    """Bounded review-state counts used to detect query truncation."""
+
+    approved: int = 0
+    excluded: int = 0
+    unreviewed: int = 0
+    invalid: int = 0
+    duplicate: int = 0
+
+    @property
+    def reviewed(self) -> int:
+        return self.approved + self.excluded
+
+
 class ReviewNotEligibleError(ValueError):
     """Alert cannot receive the requested verified-label review action."""
 
@@ -217,6 +270,18 @@ class ITrafficLabelReviewRepository(ABC):
         self, traffic_log_id: int
     ) -> Optional[TrafficLabelReview]:
         """Return only the highest revision for an alert."""
+        ...
+
+    @abstractmethod
+    async def list_latest_retraining_candidates(
+        self, *, limit: int
+    ) -> list[RetrainingReviewCandidate]:
+        """Return a bounded, deterministic latest-review export projection."""
+        ...
+
+    @abstractmethod
+    async def get_retraining_review_summary(self) -> RetrainingReviewSummary:
+        """Return review-state counts without selecting raw request payloads."""
         ...
 
 

@@ -345,6 +345,12 @@ class ExportedSample(SerializableContract):
     model_version: str | None
     preprocessing_version: str
     reviewer_id: str
+    # These fields are optional for backwards-compatible contract consumers;
+    # the dashboard exporter always populates them from the immutable review.
+    reviewed_at: str | None = None
+    source_provenance: str | None = None
+    source_verification_status: str | None = None
+    ingest_event_hash: str | None = None
 
     def __post_init__(self) -> None:
         if not self.sample_id.strip() or not self.model_input_text.strip():
@@ -378,6 +384,16 @@ class ExportedSample(SerializableContract):
             raise ContractValidationError(
                 "preprocessing version and reviewer id are required"
             )
+        for field_name in (
+            "reviewed_at",
+            "source_provenance",
+            "source_verification_status",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and not str(value).strip():
+                raise ContractValidationError(f"{field_name} cannot be blank")
+        if self.ingest_event_hash is not None:
+            _require_digest(self.ingest_event_hash, "ingest event hash")
 
 
 @dataclass(frozen=True, slots=True)

@@ -221,8 +221,23 @@ tokens for classification. The supported legacy v1 artifact keeps its exact
 inference behavior but persists only the model-input hash, so those rows are
 not eligible for approved training until a redacted v2 artifact is deployed.
 Historical rows with missing text/provenance remain readable but are not
-eligible for approved training. The exporter is still not implemented, so
-automated or source-equivalent training data remains `Planned`.
+eligible for approved training. The dashboard exporter now writes a bounded,
+immutable run-local JSONL export and a privacy-safe manifest. It selects the
+latest review revision in SQL, never consumes or deletes review history, keeps
+verified labels separate from predictions, and records hash, reviewer,
+timestamp, source-provenance, preprocessing, duplicate, quota, and exclusion
+evidence. Raw model-input text is limited to the run-local export artifact and
+is not part of the manifest or an API response.
+
+`dashboard_dataset.py` copies the frozen historical validation/test splits and
+appends approved rows only to a run-local training split. It reuses the shared
+request-similarity and contamination index, checks the locked golden controls,
+verifies the current loader/preprocessing contract, and records checksums,
+lineage, class/source/temporal coverage, and a deterministic
+`dashboard-<run-id>-<content-hash>` dataset version. A held or rejected later
+review does not consume an earlier approved row; the next export simply uses
+the latest eligible review projection again. The worker, API, UI, training,
+promotion, and scheduling stages remain separate later tasks.
 
 This workflow does not provide a scheduler, daily production retraining
 operation, blind promotion, automatic rollback, or production model-registry
