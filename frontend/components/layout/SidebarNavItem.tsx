@@ -38,6 +38,14 @@ export function SidebarIcon({ icon }: { icon: string }) {
           <path d="M7 11l2-3 2 4 2-2 2 1" />
         </svg>
       )
+    case 'model_training':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 3 4 7l8 4 8-4-8-4Z" />
+          <path d="m4 12 8 4 8-4" />
+          <path d="m4 17 8 4 8-4" />
+        </svg>
+      )
     case 'manage_accounts':
       return (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -109,4 +117,3 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
     </Link>
   )
 }
-
