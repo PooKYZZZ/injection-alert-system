@@ -315,3 +315,68 @@ async def test_database_rejects_noncanonical_label_and_approval_state(repository
             approval_state="maybe_training",
         )
     await repository._session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_retraining_projection_selects_latest_revision_without_raw_request(repository):
+    first_alert_id = await _insert_alert(repository._session)
+    second_alert_id = await _insert_alert(repository._session)
+    common = {
+        "reviewer_id": "analyst-1",
+        "reviewer_role": "ANALYST",
+        "reviewed_at": datetime.now(timezone.utc),
+    }
+    await repository.create_review_revision(
+        traffic_log_id=first_alert_id,
+        verified_label="SQL Injection",
+        approval_state="approved_for_training",
+        **common,
+    )
+    await repository.create_review_revision(
+        traffic_log_id=first_alert_id,
+        verified_label="Other Attacks",
+        approval_state="excluded_from_training",
+        **common,
+    )
+    await repository.create_review_revision(
+        traffic_log_id=second_alert_id,
+        verified_label="Normal",
+        approval_state="approved_for_training",
+        **common,
+    )
+
+    candidates = await repository.list_latest_retraining_candidates(limit=10)
+
+    assert [(item.traffic_log_id, item.revision, item.approval_state) for item in candidates] == [
+        (first_alert_id, 2, "excluded_from_training"),
+        (second_alert_id, 1, "approved_for_training"),
+    ]
+    assert not hasattr(candidates[0], "http_request")
+
+
+@pytest.mark.asyncio
+async def test_retraining_summary_counts_latest_states_and_unreviewed(repository):
+    reviewed_alert_id = await _insert_alert(repository._session)
+    unreviewed_alert = TrafficLog(
+        source_ip="203.0.113.99",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="UNVERIFIED",
+        http_request="GET /records/unreviewed HTTP/1.1",
+        status="COMPLETED",
+    )
+    repository._session.add(unreviewed_alert)
+    await repository._session.commit()
+    await repository.create_review_revision(
+        traffic_log_id=reviewed_alert_id,
+        verified_label="Normal",
+        approval_state="approved_for_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime.now(timezone.utc),
+    )
+
+    summary = await repository.get_retraining_review_summary()
+
+    assert summary.approved == 1
+    assert summary.excluded == 0
+    assert summary.unreviewed == 1
