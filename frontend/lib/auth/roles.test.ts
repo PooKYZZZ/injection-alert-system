@@ -19,6 +19,10 @@ describe('role permission policy', () => {
       ALERTS_ACTION_UPDATE: 'alerts:action:update',
       STATS_READ: 'stats:read',
       ML_HEALTH_READ: 'ml-health:read',
+      ML_MODEL_READ: 'ml-model:read',
+      ML_MODEL_RUN: 'ml-model:run',
+      ML_MODEL_APPROVE: 'ml-model:approve',
+      ML_MODEL_DEPLOY: 'ml-model:deploy',
       ACCOUNTS_READ: 'accounts:read',
       ACCOUNTS_MANAGE: 'accounts:manage',
       MFA_ENROLLMENT: 'mfa:enrollment',
@@ -29,6 +33,8 @@ describe('role permission policy', () => {
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ALERTS_READ)).toBe(true)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.STATS_READ)).toBe(true)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ML_HEALTH_READ)).toBe(true)
+    expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ML_MODEL_READ)).toBe(true)
+    expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ML_MODEL_RUN)).toBe(false)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ALERTS_TRIAGE)).toBe(false)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ALERTS_ACTION_UPDATE)).toBe(false)
     expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.ACCOUNTS_READ)).toBe(false)
@@ -38,6 +44,9 @@ describe('role permission policy', () => {
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_READ)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.STATS_READ)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ML_HEALTH_READ)).toBe(true)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ML_MODEL_READ)).toBe(true)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ML_MODEL_RUN)).toBe(true)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ML_MODEL_APPROVE)).toBe(false)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_TRIAGE)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_ACTION_UPDATE)).toBe(false)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ACCOUNTS_MANAGE)).toBe(false)

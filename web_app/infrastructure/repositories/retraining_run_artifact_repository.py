@@ -278,7 +278,15 @@ def _safe_message(value: str | None) -> str | None:
     if value is None:
         return None
     text = str(value).replace("\r", " ").replace("\n", " ").strip()
-    if "model_input_text" in text or "http_request" in text:
+    if any(
+        marker in text
+        for marker in (
+            "model_input_text",
+            "http_request",
+            "API_SECRET_KEY",
+            "INTERNAL_API_KEY",
+        )
+    ):
         raise ArtifactRepositoryError("run event contains forbidden payload fields")
     return text[:500]
 
@@ -485,6 +493,7 @@ class RetrainingRunArtifactRepository:
             stage=stage or target.value,
             updated_at=now,
             heartbeat_at=(now if target in _HEARTBEAT_STATES else current.heartbeat_at),
+            worker_id=current.worker_id if target in _HEARTBEAT_STATES else None,
             error_code=error_code,
             error_message=_safe_message(error_message),
             generation=current.generation + 1,
@@ -744,6 +753,8 @@ class RetrainingRunArtifactRepository:
         code: str,
         message: str | None = None,
         duration_ms: int | None = None,
+        actor_id: str | None = None,
+        actor_role: str | None = None,
     ) -> dict[str, Any]:
         if not SAFE_CODE.fullmatch(code):
             raise ArtifactRepositoryError("event code is not bounded")
@@ -763,6 +774,14 @@ class RetrainingRunArtifactRepository:
         }
         if duration_ms is not None:
             event["duration_ms"] = max(0, min(int(duration_ms), 86_400_000))
+        if actor_id is not None:
+            if not actor_id.strip() or len(actor_id) > 128:
+                raise ArtifactRepositoryError("event actor identity is invalid")
+            event["actor_id"] = actor_id[:128]
+        if actor_role is not None:
+            if not actor_role.strip() or len(actor_role) > 32:
+                raise ArtifactRepositoryError("event actor role is invalid")
+            event["actor_role"] = actor_role[:32]
         path = self._run_dir(run_id) / EVENTS_FILENAME
         existing = []
         if path.is_file():

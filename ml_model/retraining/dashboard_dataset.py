@@ -30,6 +30,7 @@ from ml_model.preprocessing.model_input import (
 )
 from ml_model.retraining.dashboard_contracts import (
     CANONICAL_LABELS,
+    DATASET_MANIFEST_VERSION,
     ExportedSample,
     canonical_json,
     get_run_artifact_directory,
@@ -42,7 +43,6 @@ from ml_model.retraining.snapshots import (
 )
 
 DATASET_VERSION_PREFIX = "dashboard"
-DATASET_MANIFEST_VERSION = "dashboard-dataset.v1"
 DEFAULT_GOLDEN_MANIFEST = (
     Path(__file__).resolve().parents[2]
     / "data"
