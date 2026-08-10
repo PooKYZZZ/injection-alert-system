@@ -1,6 +1,7 @@
 import base64
 import re
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -78,6 +79,13 @@ class Settings(BaseSettings):
     notification_worker_batch_size: int = Field(default=1, ge=1, le=100)
     notification_worker_required: bool = False
     notification_worker_lease_seconds: int = Field(default=60, ge=5, le=300)
+    # Dashboard retraining is a controlled local feature. Its root is a
+    # repository-relative, non-secret path and is never request-selectable.
+    retraining_enabled: bool = False
+    retraining_output_root: str = "ml_model/results/dashboard_retraining"
+    retraining_worker_poll_seconds: float = Field(default=5.0, gt=0, le=60)
+    retraining_worker_timeout_seconds: int = Field(default=3600, ge=30, le=86400)
+    retraining_max_retries: int = Field(default=2, ge=0, le=5)
     notification_payload_encryption_key: str | None = None
     email_provider: Literal["fake", "resend"] = "fake"
     resend_api_key: str | None = None
@@ -282,6 +290,19 @@ class Settings(BaseSettings):
                     "enabled notification worker requires a valid payload "
                     "encryption key"
                 )
+        retraining_root = Path(self.retraining_output_root).expanduser()
+        if (
+            not self.retraining_output_root.strip()
+            or retraining_root.is_absolute()
+            or ".." in retraining_root.parts
+        ):
+            raise ValueError(
+                "RETRAINING_OUTPUT_ROOT must be a non-empty repository-relative path"
+            )
+        if self.retraining_enabled and (self.is_production or self.is_staging):
+            raise ValueError(
+                "dashboard retraining is restricted to controlled local environments"
+            )
         if (
             self.notification_worker_enabled
             and self.email_provider == "resend"
