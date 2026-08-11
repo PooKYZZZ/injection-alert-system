@@ -292,10 +292,6 @@ export function DashboardTopBar() {
     return <TopBar title="ML Health" showConfidenceTierControls={false} showSearch={false} />
   }
 
-  if (pathname === '/ml-model') {
-    return <TopBar title="Model Operations" showConfidenceTierControls={false} showSearch={false} />
-  }
-
   const fallbackTitle =
     pathname
       .split('/')

@@ -11,41 +11,8 @@ Reviewed alert -> approved training sample -> versioned dataset -> candidate mod
 -> evaluation against active model -> PROMOTE, HOLD, or REJECT -> manual promotion
 ```
 
-The controlled-local pipeline and bounded scheduled trigger are implemented.
-Hosted/production deployment and native model-quality execution remain separate
-evidence and must not be inferred from local tests.
-
-## Model Operations lifecycle — PR6
-
-- [x] Add explicit local staging promotion with allowlisted artifact and
-  manifest/hash/load verification.
-- [x] Preserve the prior staging artifact and verify rollback on load failure.
-- [x] Bind deploy/rollback to the approved run, evaluation, active-model state,
-  and administrator identity.
-- [x] Add a bounded scheduled trigger with no-approved-data and concurrent-run
-  no-op behavior.
-- [x] Document reviewer workflow, retention, evidence boundaries, and
-  troubleshooting.
-- [ ] Install and execute a Windows Task Scheduler task in this environment.
-- [ ] Perform native laptop retraining and hosted/production promotion proof.
-
-## Retraining evidence contract — PR1
-
-The dashboard field historically named `false_positive_rate` is an operational
-proxy: it counts allowed requests with a non-Normal prediction divided by all
-completed requests. It is not a ground-truth false-positive rate because the
-traffic window does not provide verified labels. The dashboard now labels that
-field `Allowed non-Normal prediction rate (proxy)` and keeps the API field for
-backward compatibility.
-
-Retraining and candidate comparison use `verified_label` as ground truth. A
-verified Normal row predicted as an attack is a true Normal false positive; a
-verified attack row predicted as Normal is an attack escape/false negative. The
-typed metric contract carries numerator, denominator, source, evaluation split,
-support, and evidence status. Missing or insufficient support produces
-`NOT_RUN` or `NOT_ENOUGH_EVIDENCE`, never a zero-valued passing metric. A
-candidate with better macro F1 still fails when a security-critical regression
-such as Normal FPR exceeds the configured tolerance.
+This is not yet a daily automated pipeline. Do not claim that it is until every
+required item below is complete and tested.
 
 ## What already exists
 

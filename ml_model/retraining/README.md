@@ -1,9 +1,9 @@
 # ML Retraining Pipeline
 
 This directory contains a controlled offline 20-day cumulative retraining
-simulation plus the local dashboard retraining contracts. It is not a hosted or
-production MLOps service, online-learning service, or automatic promotion path.
-The reusable training entrypoint remains under `ml_model/training/`.
+simulation. It is not a production scheduler, queue, online-learning service,
+or automatic promotion path. The reusable training entrypoint remains under
+`ml_model/training/`.
 
 ## Target Purpose
 - Manual explicitly invoked retraining trigger
@@ -189,24 +189,6 @@ laptop. No smoke run, aggregate metric, or present p-value is evidence that
 the model improved on production traffic; controlled-fixture results must keep
 their simulation-only evidence label.
 
-## Dashboard Model Operations boundary
-
-The dashboard lifecycle is now durable and local-only:
-
-```text
-approved review -> export -> cumulative snapshot -> worker run -> candidate
--> native/verified evidence -> admin decision -> explicit local staging action
--> load verification -> rollback on failure
-```
-
-The FastAPI request only enqueues or records an explicit operator action;
-long-running training remains outside the request lifecycle. The scheduled
-wrapper requests the same pipeline with `trigger=scheduled`, skips safely when
-there is no approved input or another run is active, and never approves,
-deploys, or catches up missed schedules. See
-`docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md` for the local staging and
-retention boundary.
-
 ## Architectural Role
 Closes the feedback loop:
   Analyst corrections → reviewed-sample export → data/staging/ → retrain → validate → ml_model/model_registry/
@@ -239,23 +221,8 @@ tokens for classification. The supported legacy v1 artifact keeps its exact
 inference behavior but persists only the model-input hash, so those rows are
 not eligible for approved training until a redacted v2 artifact is deployed.
 Historical rows with missing text/provenance remain readable but are not
-eligible for approved training. The dashboard exporter now writes a bounded,
-immutable run-local JSONL export and a privacy-safe manifest. It selects the
-latest review revision in SQL, never consumes or deletes review history, keeps
-verified labels separate from predictions, and records hash, reviewer,
-timestamp, source-provenance, preprocessing, duplicate, quota, and exclusion
-evidence. Raw model-input text is limited to the run-local export artifact and
-is not part of the manifest or an API response.
-
-`dashboard_dataset.py` copies the frozen historical validation/test splits and
-appends approved rows only to a run-local training split. It reuses the shared
-request-similarity and contamination index, checks the locked golden controls,
-verifies the current loader/preprocessing contract, and records checksums,
-lineage, class/source/temporal coverage, and a deterministic
-`dashboard-<run-id>-<content-hash>` dataset version. A held or rejected later
-review does not consume an earlier approved row; the next export simply uses
-the latest eligible review projection again. The worker, API, UI, training,
-promotion, and scheduling stages remain separate later tasks.
+eligible for approved training. The exporter is still not implemented, so
+automated or source-equivalent training data remains `Planned`.
 
 This workflow does not provide a scheduler, daily production retraining
 operation, blind promotion, automatic rollback, or production model-registry

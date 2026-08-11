@@ -148,12 +148,14 @@ export default function DashboardPage() {
         delay: 0.2,
       },
     {
-      label: 'Allowed non-Normal prediction rate (proxy)',
+      label: 'False Positive Rate',
       value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
         secondary:
           stats?.false_positive_rate == null
-            ? 'No telemetry in window'
-            : 'Not ground-truth FPR',
+            ? 'No data'
+            : stats.false_positive_rate > 0
+              ? 'Of total requests'
+              : 'Clean window',
         secondaryColor: 'text-[var(--color-text-secondary)]',
         delay: 0.25,
       },

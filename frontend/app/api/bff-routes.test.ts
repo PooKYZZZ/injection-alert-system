@@ -80,13 +80,6 @@ describe('BFF route handlers', () => {
       'alerts/[id]/label-review/route.ts',
       'stats/route.ts',
       'ml-health/route.ts',
-      'ml-model/summary/route.ts',
-      'ml-model/export/route.ts',
-      'ml-model/runs/route.ts',
-      'ml-model/runs/[runId]/route.ts',
-      'ml-model/runs/[runId]/decision/route.ts',
-      'ml-model/runs/[runId]/deploy/route.ts',
-      'ml-model/runs/[runId]/rollback/route.ts',
     ]
 
     for (const routeFile of routeFiles) {
