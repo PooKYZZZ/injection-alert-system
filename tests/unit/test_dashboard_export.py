@@ -81,6 +81,27 @@ def test_exact_and_normalized_duplicates_are_rejected(tmp_path):
     assert result.summary.duplicate == 1
 
 
+def test_export_directory_is_reserved_and_never_overwritten(tmp_path):
+    export_dashboard_reviews(
+        [_candidate(1, text="GET /a")],
+        run_id=RUN_ID,
+        output_root=tmp_path,
+        source_dataset_version="v3_907k_cleaned",
+    )
+
+    with pytest.raises(FileExistsError):
+        export_dashboard_reviews(
+            [_candidate(1, text="GET /changed")],
+            run_id=RUN_ID,
+            output_root=tmp_path,
+            source_dataset_version="v3_907k_cleaned",
+        )
+
+    assert "GET /a" in (
+        tmp_path / RUN_ID / "export" / "approved_samples.jsonl"
+    ).read_text(encoding="utf-8")
+
+
 def test_limits_record_observed_values_without_truncating(tmp_path):
     result = export_dashboard_reviews(
         [_candidate(1, text="GET /a"), _candidate(2, text="GET /b")],

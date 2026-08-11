@@ -14,6 +14,7 @@ def test_verified_labels_distinguish_normal_false_positives_from_attack_escapes(
         verified_labels=["Normal", "SQL Injection"],
         predictions=["SQL Injection", "Normal"],
         evaluation_split="frozen_holdout",
+        evaluation_digest="a" * 64,
     )
 
     normal_fpr = metrics["normal_false_positive_rate"]
@@ -29,6 +30,8 @@ def test_verified_labels_distinguish_normal_false_positives_from_attack_escapes(
     assert attack_escape.value == 1.0
     assert attack_escape.ground_truth_source == "verified_label"
     assert attack_escape.evaluation_split == "frozen_holdout"
+    assert metrics["macro_f1"].numerator is None
+    assert metrics["macro_f1"].denominator == 2
 
 
 def test_triage_status_cannot_be_used_as_a_training_or_evaluation_label():
@@ -36,6 +39,7 @@ def test_triage_status_cannot_be_used_as_a_training_or_evaluation_label():
         calculate_ground_truth_metrics(
             verified_labels=["false_positive"],
             predictions=["Normal"],
+            evaluation_digest="a" * 64,
         )
 
 
@@ -44,6 +48,7 @@ def test_missing_or_insufficient_support_is_not_a_zero_passing_metric():
         verified_labels=["Normal"],
         predictions=["Normal"],
         min_attack_support=2,
+        evaluation_digest="a" * 64,
     )
 
     attack_escape = metrics["attack_escape_rate"]
@@ -52,7 +57,7 @@ def test_missing_or_insufficient_support_is_not_a_zero_passing_metric():
     assert attack_escape.denominator == 0
     assert attack_escape.support_count == 0
 
-    empty_metrics = calculate_ground_truth_metrics([], [])
+    empty_metrics = calculate_ground_truth_metrics([], [], evaluation_digest="a" * 64)
     assert empty_metrics["normal_false_positive_rate"].value is None
     assert (
         empty_metrics["normal_false_positive_rate"].evidence_status

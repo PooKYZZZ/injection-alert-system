@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from hashlib import sha256
 
 from sqlalchemy import func, select
@@ -17,6 +17,14 @@ from web_app.domain.interfaces import (
 )
 from web_app.infrastructure.database.database import TrafficLabelReview as ReviewRow
 from web_app.infrastructure.database.database import TrafficLog
+
+
+def _utc_timestamp(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
@@ -42,7 +50,7 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             approval_state=row.approval_state,
             reviewer_id=row.reviewer_id,
             reviewer_role=row.reviewer_role,
-            reviewed_at=row.reviewed_at,
+            reviewed_at=_utc_timestamp(row.reviewed_at),
             model_version=row.model_version,
             prediction_confidence=row.prediction_confidence,
             prediction_confidence_level=row.prediction_confidence_level,
@@ -54,7 +62,7 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             source_provenance=row.source_provenance,
             input_hash=row.input_hash,
             review_note=row.review_note,
-            created_at=row.created_at,
+            created_at=_utc_timestamp(row.created_at),
         )
 
     async def create_review_revision(
@@ -170,7 +178,7 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             approval_state=review.approval_state,
             reviewer_id=review.reviewer_id,
             reviewer_role=review.reviewer_role,
-            reviewed_at=review.reviewed_at,
+            reviewed_at=_utc_timestamp(review.reviewed_at),
             model_version=review.model_version,
             prediction_confidence=review.prediction_confidence,
             prediction_confidence_level=review.prediction_confidence_level,
@@ -180,7 +188,7 @@ class TrafficLabelReviewRepository(ITrafficLabelReviewRepository):
             ingest_event_hash=review.ingest_event_hash,
             source_verification_status=review.source_verification_status,
             source_provenance=review.source_provenance,
-            source_alert_created_at=source_alert_created_at,
+            source_alert_created_at=_utc_timestamp(source_alert_created_at),
         )
 
     async def list_latest_retraining_candidates(
