@@ -115,8 +115,10 @@ class RetrainingWorkerSupervisor:
             return WorkerSupervisorResult(False, None, "no_runnable_run")
 
         guard = self._root / SUPERVISOR_GUARD_FILENAME
+        guard_acquired = False
         try:
             with guard.open("x", encoding="utf-8"):
+                guard_acquired = True
                 marker = self._read_marker()
                 if marker is not None:
                     try:
@@ -131,7 +133,8 @@ class RetrainingWorkerSupervisor:
         except FileExistsError:
             return WorkerSupervisorResult(False, None, "another_supervisor_starting")
         finally:
-            guard.unlink(missing_ok=True)
+            if guard_acquired:
+                guard.unlink(missing_ok=True)
 
     @staticmethod
     def clear_worker_marker(root: Path | str, pid: int) -> None:

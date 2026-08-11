@@ -14,6 +14,13 @@ const safeOperatorText = z
   .string()
   .max(500)
   .refine(
+    (value) => ![...value].some((character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127
+    }),
+    'Text contains control characters.'
+  )
+  .refine(
     (value) =>
       !['model_input_text', 'http_request', 'API_SECRET_KEY', 'INTERNAL_API_KEY'].some(
         (marker) => value.includes(marker)

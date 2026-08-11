@@ -110,6 +110,8 @@ function setHarness({
   summaryData = summary,
   isPending = false,
   isError = false,
+  detailPending = false,
+  detailError = false,
   mutations = {},
 }: {
   runs?: RetrainingRun[]
@@ -117,6 +119,8 @@ function setHarness({
   summaryData?: RetrainingSummary
   isPending?: boolean
   isError?: boolean
+  detailPending?: boolean
+  detailError?: boolean
   mutations?: Record<string, ReturnType<typeof mutation>>
 } = {}) {
   mockedUseSummary.mockReturnValue({
@@ -133,8 +137,8 @@ function setHarness({
   } as never)
   mockedUseRun.mockReturnValue({
     data: selectedRun,
-    isPending: false,
-    isError: false,
+    isPending: detailPending,
+    isError: detailError,
     refetch: vi.fn(),
   } as never)
   mockedUseStart.mockReturnValue((mutations.start ?? mutation()) as never)
@@ -182,6 +186,25 @@ describe('MLModelWorkspace', () => {
     expect(screen.getByText(/ground-truth evidence uses verified_label/i)).toBeInTheDocument()
   })
 
+  it('does not invent detail evidence or controls while the selected run detail is unavailable', () => {
+    setHarness({
+      selectedRun: null as never,
+      detailPending: true,
+      runs: [
+        run({
+          state: 'pending_approval',
+          candidate_model_version: 'candidate-v1',
+          candidate_model_digest: digest('e'),
+          evaluation_digest: digest('f'),
+        }),
+      ],
+    })
+    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+
+    expect(screen.queryByRole('heading', { name: 'Candidate decision' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading selected run evidence' })).toBeInTheDocument()
+  })
+
   it('keeps manual request and export actions on the typed BFF boundary', async () => {
     const start = mutation()
     const exportSamples = mutation()
@@ -197,6 +220,43 @@ describe('MLModelWorkspace', () => {
     await waitFor(() => {
       expect(start.mutateAsync).toHaveBeenCalledWith({ trigger: 'manual' })
       expect(exportSamples.mutateAsync).toHaveBeenCalledWith()
+    })
+  })
+
+  it('explains when an idempotent request or export is not a new run', async () => {
+    const start = mutation()
+    start.mutateAsync.mockResolvedValue({
+      run_id: 'retrain-existing',
+      state: 'NOT_ENOUGH_EVIDENCE',
+      stage: 'evidence_comparison',
+      created: false,
+      attempt: 1,
+    })
+    const exportSamples = mutation()
+    exportSamples.mutateAsync.mockResolvedValue({
+      export_id: 'export-existing',
+      status: 'QUARANTINED_FOR_REVIEW',
+      approved_count: 3,
+      exported_count: 1,
+      rejected_count: 2,
+      excluded_count: 0,
+      quarantined: true,
+    })
+    setHarness({
+      runs: [],
+      mutations: { start, export: exportSamples },
+    })
+    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request retraining' }))
+    await waitFor(() => {
+      expect(screen.getByText(/No duplicate run was created/i)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export approved samples' }))
+    await waitFor(() => {
+      expect(screen.getByText(/quarantined for review/i)).toBeInTheDocument()
+      expect(screen.getByText(/No training run was started/i)).toBeInTheDocument()
     })
   })
 
@@ -251,6 +311,9 @@ describe('MLModelWorkspace', () => {
       mutations: { decision },
     })
     rerender(<MLModelWorkspace role={ROLES.ADMIN} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Decision reason' }), {
+      target: { value: 'Approved after review.' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Approve candidate' }))
 
     await waitFor(() => {
@@ -258,7 +321,7 @@ describe('MLModelWorkspace', () => {
       expect(decision.mutateAsync).toHaveBeenCalledWith({
         runId: 'retrain-20260811T120000Z-000000000001',
         decision: 'approve',
-        reason: null,
+        reason: 'Approved after review.',
       })
     })
     confirm.mockRestore()
@@ -285,6 +348,17 @@ describe('MLModelWorkspace', () => {
     rerender(<MLModelWorkspace role={ROLES.VIEWER} />)
     expect(screen.getByText('Worker failed')).toBeInTheDocument()
     expect(screen.getByText(/Keep the active model and inspect the manifest/i)).toBeInTheDocument()
+  })
+
+  it('shows an explicit reconciliation action for recoverable staging state', () => {
+    setHarness({
+      selectedRun: detail({ state: 'RECOVERY_REQUIRED', stage: 'deploy_recovery_required' }),
+    })
+
+    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+
+    expect(screen.getByText('Deployment state needs reconciliation')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reconcile with rollback' })).toBeInTheDocument()
   })
 
   it('shows deploy and rollback only at their explicit local-staging boundaries', () => {
