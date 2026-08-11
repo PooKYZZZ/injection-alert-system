@@ -164,10 +164,10 @@ export default function DashboardPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="flex flex-col gap-3 p-4"
+      className="min-w-0 flex flex-col gap-3 p-3 sm:p-4"
     >
       {/* Stats Row */}
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {statCards.map((card) => (
             <StatCard
               key={card.label}
@@ -191,19 +191,20 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-4"
+        className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3 sm:p-4"
       >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
+            <span className="min-w-0 text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
               Attack events — last {timeWindow}
             </span>
-            <div className="flex gap-1">
+            <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
               {(['1h', '6h', '24h', '7d'] as TimeWindow[]).map((win) => (
                 <button
                   key={win}
+                  type="button"
                   onClick={() => setTimeWindow(win)}
-                className={cn(
+                  className={cn(
                     'rounded px-3 py-1 text-xs font-medium transition-colors',
                     timeWindow === win
                       ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
@@ -216,7 +217,7 @@ export default function DashboardPage() {
             </div>
           </div>
           {/* Time window filter applied to stats query */}
-          <span className="text-[10px] text-[var(--color-text-muted)]">Hover for details</span>
+          <span className="hidden shrink-0 text-[10px] text-[var(--color-text-muted)] sm:inline">Hover for details</span>
         </div>
         <AnimatePresence mode="wait">
           <motion.div
@@ -242,14 +243,13 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Distribution Grid */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {/* Attack Type Panel */}
         <motion.div
-          key={`attack-type-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
-          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
+          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
         >
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             Attack type dist.
@@ -259,11 +259,10 @@ export default function DashboardPage() {
 
         {/* ML Confidence Bands + Enforcement Map */}
         <motion.div
-          key={`ml-confidence-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
+          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
         >
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             ML confidence bands
@@ -276,7 +275,7 @@ export default function DashboardPage() {
               isPending={alertsPending}
             />
 
-          <div className="mt-4 pt-3 border-t border-[var(--color-text-ghost)] flex flex-col gap-2">
+          <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
                 ML Enforcement Map
@@ -294,11 +293,10 @@ export default function DashboardPage() {
 
         {/* Top Source IPs */}
         <motion.div
-          key={`source-ips-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
+          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
         >
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             Top source IPs
@@ -308,11 +306,10 @@ export default function DashboardPage() {
 
         {/* Top Targeted Paths */}
         <motion.div
-          key={`targeted-paths-${timeWindow}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
-          className="bg-[var(--color-bg-panel)] border border-[var(--color-text-ghost)] rounded-lg p-3.5 flex flex-col gap-2"
+          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
         >
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
             Top targeted paths

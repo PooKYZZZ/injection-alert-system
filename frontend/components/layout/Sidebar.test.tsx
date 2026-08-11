@@ -76,6 +76,17 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'Log out' })).toHaveAttribute('aria-label', 'Log out')
   })
 
+  it('provides a responsive mobile navigation dialog', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Dashboard navigation' })
+    expect(within(dialog).getByRole('navigation', { name: 'Dashboard navigation' })).toBeInTheDocument()
+    expect(within(dialog).getByText('CyberTrace')).toBeInTheDocument()
+  })
+
   it('opens confirmation dialog and signs out only after confirm', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)

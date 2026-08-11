@@ -31,4 +31,13 @@ describe('StatCard', () => {
     expect(valueEl).not.toHaveClass('text-severity-safe-text')
     expect(screen.getByText('↑ 20 vs prev')).toHaveClass('text-severity-high-text/80')
   })
+
+  it('allows long metric labels to shrink inside responsive grids', () => {
+    render(<StatCard label="Allowed non-Normal prediction rate (proxy)" value="—" />)
+
+    const labelEl = screen.getByText('Allowed non-Normal prediction rate (proxy)')
+    const card = labelEl.closest('div')?.parentElement
+
+    expect(card).toHaveClass('min-w-0')
+  })
 })

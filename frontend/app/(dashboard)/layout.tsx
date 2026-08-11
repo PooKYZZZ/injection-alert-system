@@ -48,7 +48,7 @@ export default async function DashboardLayout({
       />
       <div className="flex flex-col flex-1 overflow-hidden">
         <DashboardTopBar />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-auto p-3 sm:p-4 lg:p-6">{children}</main>
       </div>
     </div>
   )

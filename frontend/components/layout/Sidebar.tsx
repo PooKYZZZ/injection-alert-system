@@ -25,6 +25,96 @@ function getInitials(name: string): string {
   return initials || 'U'
 }
 
+function SidebarBrand() {
+  return (
+    <div className="flex h-20 flex-col justify-center border-b border-border-light bg-surface-panel px-6">
+      <div className="mb-1 flex items-center gap-2">
+        <Image src="/logo.png" alt="logo" width={32} height={32} className="h-8 w-8" />
+        <h1 className="font-orbitron text-base font-bold leading-tight tracking-wide text-text-primary">
+          CyberTrace
+        </h1>
+      </div>
+      <p className="pl-9 text-[12px] font-medium tracking-wide text-text-secondary">
+        WAF-ML Security Dashboard
+      </p>
+    </div>
+  )
+}
+
+function SidebarNavigation({ role }: { role?: UserRole }) {
+  return (
+    <nav
+      aria-label="Dashboard navigation"
+      className="flex flex-1 flex-col overflow-y-auto bg-surface-panel py-4"
+    >
+      {NAV_ITEMS.filter(
+        (item) => !('adminOnly' in item) || role === 'ADMIN'
+      ).map((item) =>
+        item.href === '/alerts' ? (
+          <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
+        ) : (
+          <SidebarNavItem
+            key={item.href}
+            href={item.href}
+            icon={item.icon}
+            label={item.label}
+            badge={'badge' in item && typeof item.badge === 'number' ? item.badge : undefined}
+          />
+        )
+      )}
+    </nav>
+  )
+}
+
+function SidebarUserFooter({
+  resolvedName,
+  initials,
+  onLogout,
+}: {
+  resolvedName: string
+  initials: string
+  onLogout: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 border-t border-border-light bg-surface-panel px-4 py-3">
+      <div className="flex h-8 w-8 items-center justify-center rounded border border-border-light bg-surface-card">
+        <span className="text-xs font-bold text-accent-action">{initials}</span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-text-primary">{resolvedName}</div>
+      </div>
+
+      <button
+        onClick={onLogout}
+        aria-label="Log out"
+        type="button"
+        title="Log out"
+        style={{
+          marginLeft: 'auto',
+          minWidth: '24px',
+          minHeight: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'transparent',
+          border: 'none',
+          color: 'var(--color-text-muted)',
+          cursor: 'pointer',
+          borderRadius: '4px',
+          padding: '4px',
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
 export function Sidebar({ displayName, role }: SidebarProps) {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
   const resolvedName = displayName?.trim() || 'SOC Analyst'
@@ -34,80 +124,71 @@ export function Sidebar({ displayName, role }: SidebarProps) {
   return (
     <Dialog.Root open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
       <>
-        <aside className="flex h-full w-[260px] flex-shrink-0 flex-col border-r border-border-light bg-surface-shell">
-          <div className="flex h-20 flex-col justify-center border-b border-border-light bg-surface-panel px-6">
-            <div className="mb-1 flex items-center gap-2">
-              <Image src="/logo.png" alt="logo" width={32} height={32} className="h-8 w-8" />
-              <h1 className="font-orbitron text-base font-bold leading-tight tracking-wide text-text-primary">
-                CyberTrace
-              </h1>
-            </div>
-            <p className="pl-9 text-[12px] font-medium tracking-wide text-text-secondary">
-              WAF-ML Security Dashboard
-            </p>
-          </div>
-
-          <nav className="flex flex-1 flex-col overflow-y-auto bg-surface-panel py-4">
-            {NAV_ITEMS.filter(
-              (item) => !('adminOnly' in item) || role === 'ADMIN'
-            ).map((item) =>
-              item.href === '/alerts' ? (
-                <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
-              ) : (
-                <SidebarNavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  badge={'badge' in item && typeof item.badge === 'number' ? item.badge : undefined}
-                />
-              )
-            )}
-          </nav>
+        <aside className="hidden h-full w-[260px] flex-shrink-0 flex-col border-r border-border-light bg-surface-shell lg:flex">
+          <SidebarBrand />
+          <SidebarNavigation role={role} />
 
           <div className="bg-surface-panel">
             <div className="border-t border-border-light">
               <MLHealthWidget />
             </div>
-
-            <div className="flex items-center gap-3 border-t border-border-light bg-surface-panel px-4 py-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded border border-border-light bg-surface-card">
-                <span className="text-xs font-bold text-accent-action">{initials}</span>
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-medium text-text-primary">{resolvedName}</div>
-              </div>
-
-              <button
-                onClick={() => setIsLogoutDialogOpen(true)}
-                aria-label="Log out"
-                type="button"
-                title="Log out"
-                style={{
-                  marginLeft: 'auto',
-                  minWidth: '24px',
-                  minHeight: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--color-text-muted)',
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  padding: '4px',
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </button>
-            </div>
+            <SidebarUserFooter
+              resolvedName={resolvedName}
+              initials={initials}
+              onLogout={() => setIsLogoutDialogOpen(true)}
+            />
           </div>
         </aside>
+
+        <Dialog.Root>
+          <Dialog.Trigger asChild>
+            <button
+              type="button"
+              aria-label="Open navigation"
+              title="Open navigation"
+              className="fixed left-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-md border border-border-light bg-surface-panel text-text-primary shadow-subtle transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel lg:hidden"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+              </svg>
+            </button>
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 lg:hidden" />
+            <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,260px)] flex-col overflow-y-auto border-r border-border-light bg-surface-shell shadow-2xl focus:outline-none lg:hidden">
+              <Dialog.Title className="sr-only">Dashboard navigation</Dialog.Title>
+              <Dialog.Description className="sr-only">
+                Primary navigation for the CyberTrace dashboard.
+              </Dialog.Description>
+              <div className="flex items-center justify-between bg-surface-panel pr-3">
+                <SidebarBrand />
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    aria-label="Close navigation"
+                    title="Close navigation"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-light text-text-secondary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85"
+                  >
+                    <span aria-hidden="true" className="text-lg leading-none">×</span>
+                  </button>
+                </Dialog.Close>
+              </div>
+              <SidebarNavigation role={role} />
+              <div className="bg-surface-panel">
+                <div className="border-t border-border-light">
+                  <MLHealthWidget />
+                </div>
+                <SidebarUserFooter
+                  resolvedName={resolvedName}
+                  initials={initials}
+                  onLogout={() => setIsLogoutDialogOpen(true)}
+                />
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
 
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />

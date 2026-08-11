@@ -46,14 +46,14 @@ export function TopSourceIPs({ ips, isPending = false }: TopSourceIPsProps) {
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="min-w-0 flex flex-col gap-1.5">
       {ips.map((item) => (
         <div
           key={item.ip}
-          className="flex items-center justify-between border-b border-surface-border py-3 text-[11px] last:border-0"
+          className="flex min-w-0 items-center justify-between gap-2 border-b border-surface-border py-3 text-[11px] last:border-0"
         >
-          <span className="font-mono text-[var(--color-accent-analytic)]">{item.ip}</span>
-          <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate font-mono text-[var(--color-accent-analytic)]">{item.ip}</span>
+          <div className="flex shrink-0 items-center gap-2">
             <span className="font-medium text-[var(--color-text-primary)]">{item.count}</span>
             {item.action && statusStyles[item.action as AlertAction] && (
               <span
@@ -71,4 +71,3 @@ export function TopSourceIPs({ ips, isPending = false }: TopSourceIPsProps) {
     </div>
   )
 }
-

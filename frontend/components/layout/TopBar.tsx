@@ -117,22 +117,22 @@ function TopBarContent({
   }
 
   return (
-    <header className="z-10 flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light bg-surface-panel px-6 shadow-subtle">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
+    <header className="z-10 flex h-16 min-w-0 flex-shrink-0 items-center justify-between gap-3 border-b border-border-light bg-surface-panel pl-16 pr-3 shadow-subtle sm:gap-4 sm:pr-4 lg:gap-6 lg:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-3">
+          <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
 
           {showLiveStatus ? (
             <>
-              <div className="h-4 w-px bg-border-light" />
-              <div className="flex items-center gap-1.5 rounded-full border border-severity-safe-border bg-severity-safe-bg px-2 py-0.5">
+              <div className="hidden h-4 w-px bg-border-light sm:block" />
+              <div className="hidden items-center gap-1.5 rounded-full border border-severity-safe-border bg-severity-safe-bg px-2 py-0.5 sm:flex">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-severity-safe-text opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-severity-safe-accent" />
                 </span>
                 <span className="text-[10px] font-medium text-severity-safe-text">Snapshot</span>
               </div>
-              <span className="text-[10px] text-[var(--color-text-secondary)]">Reported in latest refresh</span>
+              <span className="hidden text-[10px] text-[var(--color-text-secondary)] md:inline">Reported in latest refresh</span>
             </>
           ) : null}
         </div>
@@ -163,8 +163,8 @@ function TopBarContent({
       </div>
 
       {showSearch ? (
-        <div className="flex items-center gap-6">
-          <div className="relative">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4 lg:gap-6">
+          <div className="relative min-w-0 flex-1 lg:flex-none">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
               <svg
                 width="14"
@@ -187,13 +187,13 @@ function TopBarContent({
               defaultValue={searchParams?.get('search') ?? ''}
               onChange={(event) => handleSearch(event.target.value)}
               placeholder={searchPlaceholder}
-              className="w-64 rounded-md border border-border-light bg-surface-inset py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
+              className="w-full min-w-0 max-w-64 rounded-md border border-border-light bg-surface-inset py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
             />
           </div>
           <ThemeToggleButton />
         </div>
       ) : (
-        <div className="w-64" aria-hidden="true" />
+        <div className="hidden w-64 lg:block" aria-hidden="true" />
       )}
     </header>
   )

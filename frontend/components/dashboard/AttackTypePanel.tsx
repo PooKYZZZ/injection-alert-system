@@ -47,8 +47,8 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
         const percentage = total > 0 ? (count / total) * 100 : 0
 
         return (
-          <div key={label} className="grid grid-cols-[1fr_96px_64px] items-center gap-2">
-            <span className="text-[11px] text-[var(--color-text-secondary)] truncate">
+          <div key={label} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(48px,96px)_auto] items-center gap-2">
+            <span className="min-w-0 truncate text-[11px] text-[var(--color-text-secondary)]">
               {label}
             </span>
             <div className="h-[3px] rounded-full bg-surface-inset">
@@ -57,7 +57,7 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
                 style={{ width: `${percentage}%`, background: colorMap[label] }}
               />
             </div>
-            <div className="flex items-center justify-end gap-2 tabular-nums">
+            <div className="flex shrink-0 items-center justify-end gap-2 tabular-nums">
               <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-right">
                 {count}
               </span>
@@ -71,4 +71,3 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
     </div>
   )
 }
-
