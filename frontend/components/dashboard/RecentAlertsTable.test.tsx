@@ -44,8 +44,12 @@ describe('RecentAlertsTable', () => {
     const { container } = render(<RecentAlertsTable alerts={[]} />)
 
     expect(screen.getByRole('region', { name: 'Recent alerts table' })).toBeInTheDocument()
+    const scrollRegion = screen.getByRole('region', { name: 'Recent alerts data' })
+    expect(scrollRegion).toHaveAttribute('tabindex', '0')
     expect(screen.getByRole('table', { name: 'Recent alerts' })).toBeInTheDocument()
     expect(screen.getByText('No recent alerts in this window.')).toBeInTheDocument()
     expect(container.querySelector('[data-testid="recent-alerts-scroll"]')).not.toBeNull()
+    expect(screen.getAllByRole('columnheader')).toHaveLength(8)
+    expect(screen.getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col')
   })
 })

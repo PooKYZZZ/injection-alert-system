@@ -41,7 +41,13 @@ function SidebarBrand() {
   )
 }
 
-function SidebarNavigation({ role }: { role?: UserRole }) {
+function SidebarNavigation({
+  role,
+  onNavigate,
+}: {
+  role?: UserRole
+  onNavigate?: () => void
+}) {
   return (
     <nav
       aria-label="Dashboard navigation"
@@ -51,7 +57,13 @@ function SidebarNavigation({ role }: { role?: UserRole }) {
         (item) => !('adminOnly' in item) || role === 'ADMIN'
       ).map((item) =>
         item.href === '/alerts' ? (
-          <AlertsNavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
+          <AlertsNavItem
+            key={item.href}
+            href={item.href}
+            icon={item.icon}
+            label={item.label}
+            onNavigate={onNavigate}
+          />
         ) : (
           <SidebarNavItem
             key={item.href}
@@ -59,6 +71,7 @@ function SidebarNavigation({ role }: { role?: UserRole }) {
             icon={item.icon}
             label={item.label}
             badge={'badge' in item && typeof item.badge === 'number' ? item.badge : undefined}
+            onNavigate={onNavigate}
           />
         )
       )}
@@ -117,6 +130,7 @@ function SidebarUserFooter({
 
 export function Sidebar({ displayName, role }: SidebarProps) {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const resolvedName = displayName?.trim() || 'SOC Analyst'
   const initials = getInitials(resolvedName)
   const handleLogout = () => signOut({ callbackUrl: '/login' })
@@ -140,7 +154,7 @@ export function Sidebar({ displayName, role }: SidebarProps) {
           </div>
         </aside>
 
-        <Dialog.Root>
+        <Dialog.Root open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
           <Dialog.Trigger asChild>
             <button
               type="button"
@@ -175,7 +189,10 @@ export function Sidebar({ displayName, role }: SidebarProps) {
                   </button>
                 </Dialog.Close>
               </div>
-              <SidebarNavigation role={role} />
+              <SidebarNavigation
+                role={role}
+                onNavigate={() => setIsMobileNavOpen(false)}
+              />
               <div className="bg-surface-panel">
                 <div className="border-t border-border-light">
                   <MLHealthWidget />

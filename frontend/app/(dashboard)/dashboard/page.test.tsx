@@ -12,7 +12,9 @@ const { useDashboardStats, useAlerts } = vi.hoisted(() => ({
 
 vi.mock('@/features/stats/queries', () => ({ useDashboardStats }))
 vi.mock('@/features/alerts/queries', () => ({ useAlerts }))
-vi.mock('next/dynamic', () => ({ default: () => () => null }))
+vi.mock('next/dynamic', () => ({
+  default: () => () => <div data-testid="timeline-chart" />,
+}))
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   motion: { div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div> },
@@ -28,12 +30,24 @@ vi.mock('@/components/dashboard/StatCard', () => ({
   ),
 }))
 
-vi.mock('@/components/dashboard/AttackTypePanel', () => ({ AttackTypePanel: () => null }))
-vi.mock('@/components/dashboard/MLConfidenceBands', () => ({ MLConfidenceBands: () => null }))
-vi.mock('@/components/dashboard/MLEnforcementMap', () => ({ MLEnforcementMap: () => null }))
-vi.mock('@/components/dashboard/TopSourceIPs', () => ({ TopSourceIPs: () => null }))
-vi.mock('@/components/dashboard/TopTargetedPaths', () => ({ TopTargetedPaths: () => null }))
-vi.mock('@/components/dashboard/RecentAlertsTable', () => ({ RecentAlertsTable: () => null }))
+vi.mock('@/components/dashboard/AttackTypePanel', () => ({
+  AttackTypePanel: () => <div data-testid="attack-type-panel">Attack type panel</div>,
+}))
+vi.mock('@/components/dashboard/MLConfidenceBands', () => ({
+  MLConfidenceBands: () => <div data-testid="confidence-bands">Confidence bands</div>,
+}))
+vi.mock('@/components/dashboard/MLEnforcementMap', () => ({
+  MLEnforcementMap: () => <div data-testid="enforcement-map">Enforcement map</div>,
+}))
+vi.mock('@/components/dashboard/TopSourceIPs', () => ({
+  TopSourceIPs: () => <div data-testid="top-source-ips">Top source IPs</div>,
+}))
+vi.mock('@/components/dashboard/TopTargetedPaths', () => ({
+  TopTargetedPaths: () => <div data-testid="top-targeted-paths">Top targeted paths</div>,
+}))
+vi.mock('@/components/dashboard/RecentAlertsTable', () => ({
+  RecentAlertsTable: () => <div data-testid="recent-alerts-table">Recent alerts table</div>,
+}))
 
 import DashboardPage from './page'
 
@@ -87,6 +101,7 @@ describe('DashboardPage metric definitions', () => {
     expect(group).toBeInTheDocument()
     expect(sixHourButton).toHaveAttribute('aria-pressed', 'true')
     expect(sixHourButton).toHaveClass('focus-visible:outline-none')
+    expect(dayButton).toHaveClass('text-text-muted', 'hover:bg-surface-inset', 'hover:text-text-primary')
 
     await user.click(dayButton)
 
@@ -108,5 +123,55 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Dashboard metrics are unavailable')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.getByText('High-confidence alerts')).toBeInTheDocument()
+    expect(screen.getByText('Timeline unavailable')).toBeInTheDocument()
+    expect(screen.queryByTestId('timeline-chart')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
+  })
+
+  it('does not present an alerts query failure as an empty result', () => {
+    const refetchAlerts = vi.fn()
+    useAlerts.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: new Error('Alerts API failed'),
+      refetch: refetchAlerts,
+    })
+
+    render(<DashboardPage />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Alert data is unavailable')
+    expect(screen.queryByTestId('attack-type-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('confidence-bands')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('recent-alerts-table')).not.toBeInTheDocument()
+  })
+
+  it('keeps cached dashboard data visible when a refresh fails', () => {
+    useDashboardStats.mockReturnValue({
+      data: stats,
+      isPending: false,
+      error: new Error('Stats refresh failed'),
+      refetch: vi.fn(),
+    })
+
+    render(<DashboardPage />)
+
+    expect(screen.getByText('High-confidence alerts')).toBeInTheDocument()
+    expect(screen.getByTestId('timeline-chart')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/showing the last successful data/i)
+  })
+
+  it('keeps cached alert data visible when a refresh fails', () => {
+    useAlerts.mockReturnValue({
+      data: { items: [{ alert_id: 'cached-alert' }] },
+      isPending: false,
+      error: new Error('Alerts refresh failed'),
+      refetch: vi.fn(),
+    })
+
+    render(<DashboardPage />)
+
+    expect(screen.getByTestId('attack-type-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('recent-alerts-table')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/showing the last successful data/i)
   })
 })

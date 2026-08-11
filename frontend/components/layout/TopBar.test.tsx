@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TopBar } from './TopBar'
 
@@ -18,10 +18,31 @@ vi.mock('@/features/alerts/queries', () => ({
 }))
 
 describe('TopBar', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   it('allows the title and search control to shrink within the shell', () => {
     render(<TopBar title="Dashboard" showSearch showLiveStatus />)
 
     expect(screen.getByRole('banner')).toHaveClass('min-w-0')
     expect(screen.getByRole('textbox')).toHaveClass('w-full', 'max-w-64', 'min-w-0')
+    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search path, attack type...')
+  })
+
+  it('wraps alert counts into a narrow layout without clipping them', () => {
+    render(
+      <TopBar
+        title="Alerts"
+        showSearch
+        showConfidenceTierControls={false}
+        showNewIndicator
+      />
+    )
+
+    const header = screen.getByRole('banner')
+    expect(header).toHaveClass('min-h-16', 'flex-wrap')
+    expect(screen.getByText('NEW:')).toBeVisible()
+    expect(screen.getByText('IN REVIEW:')).toBeVisible()
   })
 })

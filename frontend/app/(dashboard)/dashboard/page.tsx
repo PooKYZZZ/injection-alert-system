@@ -34,6 +34,19 @@ const TimelineChart = dynamic(
   }
 )
 
+interface DashboardQueryErrorProps {
+  message: string
+  onRetry: () => void
+}
+
+function DashboardQueryError({ message, onRetry }: DashboardQueryErrorProps) {
+  return (
+    <div className="min-w-0 rounded-lg border border-severity-high-border bg-severity-high-bg/30 p-3">
+      <ErrorState message={message} onRetry={onRetry} />
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   // Time window selector state (display-only until backend supports it)
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('6h')
@@ -63,6 +76,8 @@ export default function DashboardPage() {
     refetch: refetchAlerts,
   } = useAlerts(dashboardFilters)
   const alerts = useMemo(() => alertsData?.items ?? [], [alertsData?.items])
+  const statsUnavailable = statsError != null && stats == null
+  const alertsUnavailable = alertsError != null && alertsData == null
 
   // Calculate attack type distribution from alerts
   const attackCounts = useMemo(() => {
@@ -99,75 +114,85 @@ export default function DashboardPage() {
 
   // Stat card values with honest fallback
   const statCards = [
-      {
-        label: 'High-confidence alerts',
-        value: stats?.high_alert_count ?? '—',
+    {
+      label: 'High-confidence alerts',
+      value: stats?.high_alert_count ?? '—',
       valueColor: 'text-emerald-500',
       valueFlashColor: 'text-red-200',
       secondary:
-        stats?.high_alert_count === 0
-          ? timeWindow
-            ? 'No threats in this window'
-            : 'No threats detected'
-          : undefined,
-        secondaryColor: 'text-red-400',
-        previousValue: stats?.prev_high_alert_count ?? null,
-        hideDeltaWhenValueZero: true,
-        delay: 0,
+        statsUnavailable
+          ? 'Unavailable'
+          : stats?.high_alert_count === 0
+            ? timeWindow
+              ? 'No threats in this window'
+              : 'No threats detected'
+            : undefined,
+      secondaryColor: 'text-red-400',
+      previousValue: stats?.prev_high_alert_count ?? null,
+      hideDeltaWhenValueZero: true,
+      delay: 0,
     },
     {
       label: 'Blocked',
       value: stats?.blocked_count ?? '—',
-        valueColor: 'text-red-500',
-        valueFlashColor: 'text-red-200',
-        secondary:
-          stats?.blocked_count != null && stats?.total_requests
+      valueColor: 'text-red-500',
+      valueFlashColor: 'text-red-200',
+      secondary:
+        statsUnavailable
+          ? 'Unavailable'
+          : stats?.blocked_count != null && stats?.total_requests
             ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
             : 'No traffic in window',
-        secondaryColor: 'text-violet-400',
-        previousValue: stats?.prev_blocked_count ?? null,
-        progressBar:
-          stats?.total_requests && stats.total_requests > 0
+      secondaryColor: 'text-violet-400',
+      previousValue: stats?.prev_blocked_count ?? null,
+      progressBar:
+        stats?.total_requests && stats.total_requests > 0
           ? (stats.blocked_count / stats.total_requests) * 100
           : undefined,
       delay: 0.05,
     },
     {
       label: 'Throttled',
-        value: stats?.throttled_count ?? '—',
-        valueColor: 'text-amber-400',
-        valueFlashColor: 'text-amber-200',
-        secondaryColor: 'text-amber-400',
-        previousValue: stats?.prev_throttled_count ?? null,
-        delay: 0.1,
-      },
+      value: stats?.throttled_count ?? '—',
+      valueColor: 'text-amber-400',
+      valueFlashColor: 'text-amber-200',
+      secondaryColor: 'text-amber-400',
+      previousValue: stats?.prev_throttled_count ?? null,
+      delay: 0.1,
+    },
     {
       label: 'Allowed',
       value: stats?.allowed_count ?? '—',
-        secondary: 'Benign / LOW conf',
-        secondaryColor: 'text-emerald-400',
-        previousValue: stats?.prev_allowed_count ?? null,
-        deltaInverted: true,
-        delay: 0.15,
+      secondary: statsUnavailable ? 'Unavailable' : 'Benign / LOW conf',
+      secondaryColor: 'text-emerald-400',
+      previousValue: stats?.prev_allowed_count ?? null,
+      deltaInverted: true,
+      delay: 0.15,
     },
     {
       label: 'Avg ML confidence',
-        value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
-        secondary:
-          stats?.avg_confidence != null ? 'Model stable' : 'No traffic in window',
-        secondaryColor: 'text-emerald-400',
-        delay: 0.2,
-      },
+      value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
+      secondary:
+        statsUnavailable
+          ? 'Unavailable'
+          : stats?.avg_confidence != null
+            ? 'Model stable'
+            : 'No traffic in window',
+      secondaryColor: 'text-emerald-400',
+      delay: 0.2,
+    },
     {
       label: 'Allowed non-Normal prediction rate (proxy)',
       value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
-        secondary:
-          stats?.false_positive_rate == null
+      secondary:
+        statsUnavailable
+          ? 'Unavailable'
+          : stats?.false_positive_rate == null
             ? 'No telemetry in window'
             : 'Not ground-truth FPR',
-        secondaryColor: 'text-[var(--color-text-secondary)]',
-        delay: 0.25,
-      },
+      secondaryColor: 'text-[var(--color-text-secondary)]',
+      delay: 0.25,
+    },
   ]
 
   return (
@@ -221,7 +246,7 @@ export default function DashboardPage() {
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg-panel)]',
                     timeWindow === win
                       ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
-                      : 'text-[#7d8590] hover:bg-[#1e2a3d]/50 hover:text-[#e6edf3]'
+                      : 'text-text-muted hover:bg-surface-inset hover:text-text-primary'
                   )}
                 >
                   {win}
@@ -232,125 +257,143 @@ export default function DashboardPage() {
           {/* Time window filter applied to stats query */}
           <span className="hidden shrink-0 text-[10px] text-[var(--color-text-muted)] sm:inline">Hover for details</span>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={timeWindow}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <TimelineChart
-              buckets={stats?.activity_buckets ?? []}
-              timeWindow={timeWindow}
-              isPending={statsPending}
-              hasEvents={hasTimelineEvents}
-              consistencyWarning={
-                hasWindowDataMismatch
-                  ? 'Window totals are being recalculated. Timeline data may be briefly out of sync.'
-                  : null
-              }
-            />
-          </motion.div>
-        </AnimatePresence>
+        {statsUnavailable ? (
+          <div className="flex h-[140px] items-center justify-center">
+            <p className="text-[11px] text-[var(--color-text-secondary)]">Timeline unavailable</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={timeWindow}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <TimelineChart
+                buckets={stats?.activity_buckets ?? []}
+                timeWindow={timeWindow}
+                isPending={statsPending}
+                hasEvents={hasTimelineEvents}
+                consistencyWarning={
+                  hasWindowDataMismatch
+                    ? 'Window totals are being recalculated. Timeline data may be briefly out of sync.'
+                    : null
+                }
+              />
+            </motion.div>
+          </AnimatePresence>
+        )}
       </motion.div>
 
       {statsError ? (
-        <div className="min-w-0 rounded-lg border border-severity-high-border bg-severity-high-bg/30 p-3">
-          <ErrorState
-            message="Dashboard metrics are unavailable. Try again."
-            onRetry={() => void refetchStats()}
-          />
-        </div>
+        <DashboardQueryError
+          message={
+            statsUnavailable
+              ? 'Dashboard metrics are unavailable. Try again.'
+              : 'Dashboard metrics refresh failed. Showing the last successful data.'
+          }
+          onRetry={() => void refetchStats()}
+        />
       ) : null}
 
       {/* Distribution Grid */}
       <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {/* Attack Type Panel */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
-          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-        >
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-            Attack type dist.
-          </div>
-          <AttackTypePanel countsByLabel={attackCounts} isPending={alertsPending} />
-        </motion.div>
-
-        {/* ML Confidence Bands + Enforcement Map */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-        >
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-            ML confidence bands
-          </div>
-            <MLConfidenceBands
-              critical={allConfidenceBands.critical}
-              high={allConfidenceBands.high}
-              medium={allConfidenceBands.medium}
-              low={allConfidenceBands.low}
-              isPending={alertsPending}
-            />
-
-          <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
-                ML Enforcement Map
-              </span>
-              <div className="h-1 w-8 bg-violet-500/30 rounded-full overflow-hidden">
-                <div className="h-full bg-violet-500 w-2/3" />
+        {!alertsUnavailable ? (
+          <>
+            {/* Attack Type Panel */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
+              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+            >
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+                Attack type dist.
               </div>
-            </div>
-            <MLEnforcementMap
-              nonNormalCounts={nonNormalEnforcementBands}
-              isPending={alertsPending}
-            />
-          </div>
-        </motion.div>
+              <AttackTypePanel countsByLabel={attackCounts} isPending={alertsPending} />
+            </motion.div>
 
-        {/* Top Source IPs */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-        >
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-            Top source IPs
-          </div>
-          <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
-        </motion.div>
+            {/* ML Confidence Bands + Enforcement Map */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
+              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+            >
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+                ML confidence bands
+              </div>
+              <MLConfidenceBands
+                critical={allConfidenceBands.critical}
+                high={allConfidenceBands.high}
+                medium={allConfidenceBands.medium}
+                low={allConfidenceBands.low}
+                isPending={alertsPending}
+              />
 
-        {/* Top Targeted Paths */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
-          className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-        >
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-            Top targeted paths
-          </div>
-          <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
-        </motion.div>
+              <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
+                    ML Enforcement Map
+                  </span>
+                  <div className="h-1 w-8 bg-violet-500/30 rounded-full overflow-hidden">
+                    <div className="h-full bg-violet-500 w-2/3" />
+                  </div>
+                </div>
+                <MLEnforcementMap
+                  nonNormalCounts={nonNormalEnforcementBands}
+                  isPending={alertsPending}
+                />
+              </div>
+            </motion.div>
+          </>
+        ) : null}
+
+        {!statsUnavailable ? (
+          <>
+            {/* Top Source IPs */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
+              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+            >
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+                Top source IPs
+              </div>
+              <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
+            </motion.div>
+
+            {/* Top Targeted Paths */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
+              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+            >
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+                Top targeted paths
+              </div>
+              <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
+            </motion.div>
+          </>
+        ) : null}
       </div>
 
       {alertsError ? (
-        <div className="min-w-0 rounded-lg border border-severity-high-border bg-severity-high-bg/30 p-3">
-          <ErrorState
-            message="Alert data is unavailable. Try again."
-            onRetry={() => void refetchAlerts()}
-          />
-        </div>
+        <DashboardQueryError
+          message={
+            alertsUnavailable
+              ? 'Alert data is unavailable. Try again.'
+              : 'Alert data refresh failed. Showing the last successful data.'
+          }
+          onRetry={() => void refetchAlerts()}
+        />
       ) : null}
 
       {/* Recent Alerts Table (Preview) */}
-      <RecentAlertsTable alerts={alerts} isPending={alertsPending} />
+      {alertsUnavailable ? null : <RecentAlertsTable alerts={alerts} isPending={alertsPending} />}
     </motion.div>
   )
 }
