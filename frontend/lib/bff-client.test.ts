@@ -24,6 +24,54 @@ describe('bff-client', () => {
     fetchMock.mockReset()
   })
 
+  it('keeps retraining BFF calls server-authenticated and schema validated', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          active_model_version: 'active-v1',
+          latest_run_state: 'queued',
+          approved_count: 2,
+          unreviewed_count: 1,
+          excluded_count: 0,
+          latest_dataset_version: null,
+          run_in_progress: true,
+          last_trigger_time: '2026-08-11T12:00:00Z',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getRetrainingSummary, startRetrainingRun, getRetrainingRun } = await loadClient()
+    const summary = await getRetrainingSummary()
+    const invalidRequest = await startRetrainingRun(
+      { trigger: 'manual', filesystem_path: 'C:/outside' },
+      { id: 'analyst-1', role: 'ANALYST' }
+    )
+    const invalidRun = await getRetrainingRun('../outside')
+
+    expect(summary.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/retraining/summary',
+      expect.objectContaining({
+        headers: {
+          Authorization: 'Bearer test-secret',
+          'Content-Type': 'application/json',
+        },
+      })
+    )
+    expect(invalidRequest).toEqual({
+      ok: false,
+      status: 400,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid retraining request.' },
+    })
+    expect(invalidRun).toEqual({
+      ok: false,
+      status: 400,
+      error: { code: 'INVALID_RUN_ID', message: 'Retraining run ID is invalid.' },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   afterEach(() => {
     process.env = originalEnv
     vi.doUnmock('@/mocks/alerts')

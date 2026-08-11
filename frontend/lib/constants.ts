@@ -2,6 +2,7 @@ export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
   { label: 'Alerts', href: '/alerts', icon: 'notifications' },
   { label: 'ML Health', href: '/ml-health', icon: 'monitor_heart' },
+  { label: 'Model Operations', href: '/ml-model', icon: 'model_training' },
   {
     label: 'User Management',
     href: '/user-management',
