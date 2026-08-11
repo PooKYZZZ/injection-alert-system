@@ -375,7 +375,10 @@ def _reservation_owner_is_live(pid: object) -> bool:
     except PermissionError:
         return True
     except OSError:
-        return False
+        # Unknown inspection failures must not be treated as proof that the
+        # owner exited; preserving the reservation is safer than reclaiming a
+        # potentially live creator.
+        return True
     return True
 
 

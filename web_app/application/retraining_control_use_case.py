@@ -376,7 +376,7 @@ class RetrainingControlUseCase:
             return exc.code, "Local staging model load verification failed."
         if exc.code.startswith("ROLLBACK"):
             return exc.code, "Local staging rollback could not be completed safely."
-        return exc.code, "Local staging deployment preflight failed."
+        return exc.code, "Local staging deployment failed."
 
     def _mark_recovery_required(
         self,
@@ -697,7 +697,8 @@ class RetrainingControlUseCase:
                         actor_id=actor_id,
                         actor_role=actor_role,
                         message=(
-                            "candidate load failed; known-good staging was restored"
+                            "candidate deployment failed; known-good staging was "
+                            "restored"
                             if exc.rolled_back
                             else "local staging deployment requires recovery"
                             if target is RunState.RECOVERY_REQUIRED

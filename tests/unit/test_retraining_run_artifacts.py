@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import threading
@@ -162,6 +163,28 @@ def test_orphaned_fingerprint_reservation_is_recovered(tmp_path, monkeypatch):
     assert not reservation.exists()
 
 
+def test_empty_fingerprint_reservation_is_recovered_after_owner_crash(tmp_path):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = artifact_repository.RetrainingRunArtifactRepository(
+        tmp_path / "runs", clock=lambda: NOW
+    )
+    reservation = repository.root / (
+        f".run-fingerprint.{_record().input_fingerprint}.reservation"
+    )
+    reservation.mkdir()
+    stale_at = time.time() - artifact_repository.RUN_RESERVATION_STALE_SECONDS - 1
+    os.utime(reservation, (stale_at, stale_at))
+
+    created = repository.create_or_get_run(_record())
+
+    assert created.run_id == RUN_ID
+    assert len(repository.list_runs()) == 1
+    assert not reservation.exists()
+
+
 def test_live_fingerprint_reservation_is_not_recovered(tmp_path, monkeypatch):
     from web_app.infrastructure.repositories import (
         retraining_run_artifact_repository as artifact_repository,
@@ -194,6 +217,20 @@ def test_live_fingerprint_reservation_is_not_recovered(tmp_path, monkeypatch):
         repository.create_or_get_run(_record())
 
     assert reservation.exists()
+
+
+def test_unknown_process_inspection_failure_is_treated_as_live(monkeypatch):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    def fail_process_inspection(_pid, _signal):
+        raise OSError(errno.EIO, "simulated process inspection failure")
+
+    monkeypatch.setattr(artifact_repository.os, "name", "posix")
+    monkeypatch.setattr(artifact_repository.os, "kill", fail_process_inspection)
+
+    assert artifact_repository._reservation_owner_is_live(12345) is True
 
 
 def test_run_manifest_is_published_after_supporting_artifacts(tmp_path, monkeypatch):

@@ -738,13 +738,6 @@ class LocalStagingAdapter:
                     plan.preflight.candidate_model_version,
                     reload=True,
                 )
-            except StagingDeploymentError as exc:
-                self._restore_previous_after_failed_deploy(
-                    plan,
-                    archive_path=archive_path,
-                    failure=exc,
-                )
-            try:
                 self._write_active_pointer(
                     model_version=plan.preflight.candidate_model_version,
                     artifact_digest=plan.preflight.candidate_model_digest,
@@ -835,12 +828,12 @@ class LocalStagingAdapter:
         except Exception as exc:
             raise StagingDeploymentError(
                 "STAGING_ROLLBACK_FAILED",
-                "candidate load failed and known-good staging restore could "
+                "candidate deployment failed and known-good staging restore could "
                 "not be verified",
             ) from exc
         raise StagingDeploymentError(
             failure.code,
-            "candidate load failed; previous staging model was restored",
+            "candidate deployment failed; previous staging model was restored",
             rolled_back=True,
         )
 
@@ -879,7 +872,13 @@ class LocalStagingAdapter:
                     "DEPLOYMENT_RECOVERY_REQUIRED",
                     "interrupted candidate staging artifact failed verification",
                 )
-            shutil.rmtree(candidate_path)
+            try:
+                shutil.rmtree(candidate_path)
+            except OSError as exc:
+                raise StagingDeploymentError(
+                    "DEPLOYMENT_RECOVERY_REQUIRED",
+                    "interrupted candidate staging artifact could not be removed",
+                ) from exc
         return StagingDeploymentRecord.from_payload(
             {**record.to_payload(), "status": "PREPARED"}
         )
