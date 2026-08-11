@@ -31,17 +31,16 @@ export function TopTargetedPaths({ paths, isPending = false }: TopTargetedPathsP
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="min-w-0 flex flex-col gap-1.5">
       {paths.map((item) => (
         <div
           key={item.path}
-          className="flex items-center justify-between border-b border-surface-border py-1 text-[11px] last:border-0"
+          className="flex min-w-0 items-center justify-between gap-2 border-b border-surface-border py-1 text-[11px] last:border-0"
         >
-          <span className="max-w-[120px] truncate font-mono text-[var(--color-accent-analytic)]">{item.path}</span>
-          <span className="text-[var(--color-text-secondary)]">{item.hits} hits</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[var(--color-accent-analytic)]">{item.path}</span>
+          <span className="shrink-0 text-[var(--color-text-secondary)]">{item.hits} hits</span>
         </div>
       ))}
     </div>
   )
 }
-

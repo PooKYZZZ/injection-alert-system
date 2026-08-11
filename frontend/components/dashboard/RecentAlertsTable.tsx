@@ -29,63 +29,77 @@ function formatCrsScore(score: number | null | undefined): string {
 export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
   if (isPending) {
     return (
-      <div className="rounded-lg border border-surface-border bg-surface-card p-4">
+      <section
+        aria-label="Recent alerts table"
+        className="min-w-0 rounded-lg border border-surface-border bg-surface-card p-4"
+      >
         <LoadingSkeleton rows={4} />
-      </div>
+      </section>
     )
   }
 
   const displayAlerts = alerts.slice(0, 4)
 
   return (
-    <div className="rounded-lg border border-surface-border bg-surface-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
+    <section
+      aria-label="Recent alerts table"
+      className="min-w-0 rounded-lg border border-surface-border bg-surface-card p-4"
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 id="recent-alerts-title" className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
           Recent alerts
-        </span>
+        </h2>
         <Link href="/alerts" className="text-[11px] text-[var(--color-accent-analytic)] hover:underline">
           View all →
         </Link>
       </div>
-      <table className="w-full text-[11px] border-collapse">
-        <thead>
-          <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
-            <th className="pb-2 text-left px-2">Triage</th>
-            <th className="pb-2 text-left px-2">Timestamp</th>
-            <th className="pb-2 text-left px-2">Source IP</th>
-            <th className="pb-2 text-left px-2">Request</th>
-            <th className="pb-2 text-left px-2">Prediction</th>
-            <th className="pb-2 text-left px-2">Confidence</th>
-            <th className="pb-2 text-left px-2">Action Taken</th>
-            <th className="pb-2 text-left px-2">CRS Score</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-surface-border">
-          {displayAlerts.map((alert) => (
-            <tr
-              key={alert.alert_id}
-              className="transition-colors hover:bg-surface-inset"
-            >
-              <td className="p-2">
-                <TriageBadge triage_status={alert.triage_status ?? null} />
-              </td>
-              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
-              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</td>
-              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
-              <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
-              <td className="p-2">
-                <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
-              </td>
-              <td className="p-2">
-                <ActionLabel action={alert.action_taken} bordered={false} />
-              </td>
-              <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</td>
+      <div data-testid="recent-alerts-scroll" className="min-w-0 overflow-x-auto">
+        <table aria-labelledby="recent-alerts-title" className="min-w-[720px] w-full border-collapse text-[11px]">
+          <thead>
+            <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Triage</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Timestamp</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Source IP</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Request</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Prediction</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Confidence</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">Action Taken</th>
+              <th className="whitespace-nowrap px-2 pb-2 text-left">CRS Score</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {displayAlerts.length > 0 ? (
+              displayAlerts.map((alert) => (
+                <tr
+                  key={alert.alert_id}
+                  className="transition-colors hover:bg-surface-inset"
+                >
+                  <td className="p-2">
+                    <TriageBadge triage_status={alert.triage_status ?? null} />
+                  </td>
+                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
+                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</td>
+                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
+                  <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
+                  <td className="p-2">
+                    <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
+                  </td>
+                  <td className="p-2">
+                    <ActionLabel action={alert.action_taken} bordered={false} />
+                  </td>
+                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={8} className="px-2 py-8 text-center text-xs text-text-muted">
+                  No recent alerts in this window.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }
-
-

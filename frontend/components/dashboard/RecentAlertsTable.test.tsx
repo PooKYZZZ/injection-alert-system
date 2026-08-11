@@ -39,4 +39,13 @@ describe('RecentAlertsTable', () => {
     expect(tableCard).not.toBeNull()
     expect(tableCard).toHaveClass('bg-surface-card')
   })
+
+  it('keeps the empty table state understandable and horizontally contained', () => {
+    const { container } = render(<RecentAlertsTable alerts={[]} />)
+
+    expect(screen.getByRole('region', { name: 'Recent alerts table' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Recent alerts' })).toBeInTheDocument()
+    expect(screen.getByText('No recent alerts in this window.')).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="recent-alerts-scroll"]')).not.toBeNull()
+  })
 })
