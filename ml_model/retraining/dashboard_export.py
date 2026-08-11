@@ -478,7 +478,7 @@ def export_dashboard_reviews(
     except BaseException as exc:
         if temporary_run_dir.exists():
             shutil.rmtree(temporary_run_dir)
-        if isinstance(exc, PermissionError) and run_dir.exists():
+        if isinstance(exc, OSError) and run_dir.exists():
             raise FileExistsError(f"export already exists: {run_dir}") from exc
         raise
     export_path = run_dir / "approved_samples.jsonl"
