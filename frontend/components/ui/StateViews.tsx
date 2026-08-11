@@ -12,7 +12,7 @@ export function LoadingSkeleton({ rows = 5, className }: LoadingSkeletonProps) {
   const widths = ['w-full', 'w-4/5', 'w-full', 'w-3/4', 'w-full']
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
+    <div role="status" aria-label="Loading" className={cn('flex flex-col gap-2', className)}>
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
@@ -40,6 +40,7 @@ function AlertCircleIcon({ className }: { className?: string }) {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <circle cx="12" cy="12" r="10" />
       <line x1="12" x2="12" y1="8" y2="12" />
@@ -56,6 +57,7 @@ interface ErrorStateProps {
 export function ErrorState({ message = 'Failed to load data', onRetry }: ErrorStateProps) {
   return (
     <motion.div
+      role="alert"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
@@ -65,8 +67,9 @@ export function ErrorState({ message = 'Failed to load data', onRetry }: ErrorSt
       <span className="text-sm">{message}</span>
       {onRetry && (
         <button
+          type="button"
           onClick={onRetry}
-          className="mt-2 rounded border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-3 py-1 text-xs text-[var(--color-text-primary)] transition-all hover:border-[var(--color-text-secondary)]"
+          className="mt-2 min-h-8 rounded border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] px-3 py-1 text-xs text-[var(--color-text-primary)] transition-all hover:border-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-panel)]"
         >
           Retry
         </button>
@@ -96,5 +99,4 @@ export function EmptyState({ message = 'No results found', subtext }: EmptyState
     </motion.div>
   )
 }
-
 

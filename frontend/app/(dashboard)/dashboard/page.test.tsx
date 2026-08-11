@@ -1,6 +1,7 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DashboardStats } from '@/features/stats/types'
 
@@ -59,6 +60,10 @@ const stats: DashboardStats = {
 }
 
 describe('DashboardPage metric definitions', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   beforeEach(() => {
     useDashboardStats.mockReturnValue({ data: stats, isPending: false })
     useAlerts.mockReturnValue({ data: { items: [] }, isPending: false })
@@ -69,5 +74,39 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
     expect(screen.getByText('Not ground-truth FPR')).toBeInTheDocument()
+  })
+
+  it('exposes the time-window control as an accessible pressed-button group', async () => {
+    const user = userEvent.setup()
+    render(<DashboardPage />)
+
+    const group = screen.getByRole('group', { name: 'Timeline window' })
+    const sixHourButton = screen.getByRole('button', { name: '6h' })
+    const dayButton = screen.getByRole('button', { name: '24h' })
+
+    expect(group).toBeInTheDocument()
+    expect(sixHourButton).toHaveAttribute('aria-pressed', 'true')
+    expect(sixHourButton).toHaveClass('focus-visible:outline-none')
+
+    await user.click(dayButton)
+
+    expect(sixHourButton).toHaveAttribute('aria-pressed', 'false')
+    expect(dayButton).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('surfaces dashboard query errors without removing the dashboard shell', () => {
+    const refetchStats = vi.fn()
+    useDashboardStats.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: new Error('Stats API failed'),
+      refetch: refetchStats,
+    })
+
+    render(<DashboardPage />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Dashboard metrics are unavailable')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.getByText('High-confidence alerts')).toBeInTheDocument()
   })
 })

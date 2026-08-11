@@ -11,6 +11,7 @@ import { MLEnforcementMap } from '@/components/dashboard/MLEnforcementMap'
 import { TopSourceIPs } from '@/components/dashboard/TopSourceIPs'
 import { TopTargetedPaths } from '@/components/dashboard/TopTargetedPaths'
 import { RecentAlertsTable } from '@/components/dashboard/RecentAlertsTable'
+import { ErrorState } from '@/components/ui/StateViews'
 import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
@@ -47,10 +48,20 @@ export default function DashboardPage() {
   )
 
   // Stats query for dashboard data
-  const { data: stats, isPending: statsPending } = useDashboardStats(timeWindow)
+  const {
+    data: stats,
+    isPending: statsPending,
+    error: statsError,
+    refetch: refetchStats,
+  } = useDashboardStats(timeWindow)
 
   // Alerts query for recent alerts preview
-  const { data: alertsData, isPending: alertsPending } = useAlerts(dashboardFilters)
+  const {
+    data: alertsData,
+    isPending: alertsPending,
+    error: alertsError,
+    refetch: refetchAlerts,
+  } = useAlerts(dashboardFilters)
   const alerts = useMemo(() => alertsData?.items ?? [], [alertsData?.items])
 
   // Calculate attack type distribution from alerts
@@ -203,9 +214,11 @@ export default function DashboardPage() {
                 <button
                   key={win}
                   type="button"
+                  aria-pressed={timeWindow === win}
                   onClick={() => setTimeWindow(win)}
                   className={cn(
                     'rounded px-3 py-1 text-xs font-medium transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg-panel)]',
                     timeWindow === win
                       ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
                       : 'text-[#7d8590] hover:bg-[#1e2a3d]/50 hover:text-[#e6edf3]'
@@ -241,6 +254,15 @@ export default function DashboardPage() {
           </motion.div>
         </AnimatePresence>
       </motion.div>
+
+      {statsError ? (
+        <div className="min-w-0 rounded-lg border border-severity-high-border bg-severity-high-bg/30 p-3">
+          <ErrorState
+            message="Dashboard metrics are unavailable. Try again."
+            onRetry={() => void refetchStats()}
+          />
+        </div>
+      ) : null}
 
       {/* Distribution Grid */}
       <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -317,6 +339,15 @@ export default function DashboardPage() {
           <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
         </motion.div>
       </div>
+
+      {alertsError ? (
+        <div className="min-w-0 rounded-lg border border-severity-high-border bg-severity-high-bg/30 p-3">
+          <ErrorState
+            message="Alert data is unavailable. Try again."
+            onRetry={() => void refetchAlerts()}
+          />
+        </div>
+      ) : null}
 
       {/* Recent Alerts Table (Preview) */}
       <RecentAlertsTable alerts={alerts} isPending={alertsPending} />
