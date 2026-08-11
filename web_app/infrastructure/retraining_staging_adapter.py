@@ -731,7 +731,6 @@ class LocalStagingAdapter:
                     "CANDIDATE_ARTIFACT_TAMPERED",
                     "candidate copy failed integrity verification",
                 )
-            shutil.move(str(plan.previous_staging_path), str(archive_path))
             os.replace(temporary_path, plan.target_path)
             try:
                 self._load_and_verify(
@@ -758,6 +757,10 @@ class LocalStagingAdapter:
                     archive_path=archive_path,
                     failure=exc,
                 )
+            # Keep the previous directory in place until the pointer names the
+            # validated candidate. A process termination at any point before
+            # the pointer replacement therefore leaves the old pointer valid.
+            shutil.move(str(plan.previous_staging_path), str(archive_path))
             return StagingDeploymentRecord.from_payload(
                 {**plan.record.to_payload(), "status": "DEPLOYED"}
             )
@@ -841,6 +844,127 @@ class LocalStagingAdapter:
             rolled_back=True,
         )
 
+    def reconcile_prepared_deployment(
+        self, record: StagingDeploymentRecord
+    ) -> StagingDeploymentRecord:
+        """Discard a deployment that never switched the active pointer."""
+
+        pointer = self.read_active_pointer()
+        if (
+            pointer.model_version != record.previous_staging_version
+            or pointer.artifact_digest != record.previous_staging_digest
+        ):
+            raise StagingDeploymentError(
+                "DEPLOYMENT_RECOVERY_REQUIRED",
+                "active staging does not prove that deployment was never activated",
+            )
+        previous_path = self.staging_root / record.previous_staging_dir_name
+        if (
+            not previous_path.is_dir()
+            or compute_artifact_digest(previous_path)
+            != record.previous_staging_digest
+        ):
+            raise StagingDeploymentError(
+                "DEPLOYMENT_RECOVERY_REQUIRED",
+                "known-good staging could not be verified during recovery",
+            )
+        candidate_path = self.staging_root / record.candidate_model_version
+        if candidate_path.exists():
+            if (
+                not candidate_path.is_dir()
+                or compute_artifact_digest(candidate_path)
+                != record.candidate_model_digest
+            ):
+                raise StagingDeploymentError(
+                    "DEPLOYMENT_RECOVERY_REQUIRED",
+                    "interrupted candidate staging artifact failed verification",
+                )
+            shutil.rmtree(candidate_path)
+        return StagingDeploymentRecord.from_payload(
+            {**record.to_payload(), "status": "PREPARED"}
+        )
+
+    def reconcile_completed_rollback(
+        self, record: StagingDeploymentRecord
+    ) -> StagingDeploymentRecord:
+        """Verify a rollback whose physical work completed before its audit write."""
+
+        pointer = self.read_active_pointer()
+        if (
+            pointer.model_version != record.previous_staging_version
+            or pointer.artifact_digest != record.previous_staging_digest
+        ):
+            raise StagingDeploymentError(
+                "ROLLBACK_RECOVERY_REQUIRED",
+                "active staging does not prove that rollback completed",
+            )
+        previous_path = self.staging_root / record.previous_staging_dir_name
+        if (
+            not previous_path.is_dir()
+            or compute_artifact_digest(previous_path)
+            != record.previous_staging_digest
+        ):
+            raise StagingDeploymentError(
+                "ROLLBACK_RECOVERY_REQUIRED",
+                "known-good staging could not be verified after rollback",
+            )
+        current_path = self.staging_root / record.candidate_model_version
+        current_archive = self._archive_target(
+            f"{current_path.name}__rollback__{record.run_id[-12:]}"
+        )
+        if current_path.exists():
+            raise StagingDeploymentError(
+                "ROLLBACK_NOT_COMPLETE",
+                "rollback still has an active candidate directory",
+            )
+        if (
+            not current_archive.is_dir()
+            or compute_artifact_digest(current_archive)
+            != record.candidate_model_digest
+        ):
+            raise StagingDeploymentError(
+                "ROLLBACK_RECOVERY_REQUIRED",
+                "rolled-back candidate artifact could not be verified",
+            )
+        return StagingDeploymentRecord.from_payload(
+            {**record.to_payload(), "status": "ROLLED_BACK"}
+        )
+
+    def _restore_deployed_after_failed_rollback(
+        self,
+        record: StagingDeploymentRecord,
+        *,
+        current_path: Path,
+        archive_path: Path,
+        previous_path: Path,
+        current_archive: Path,
+        moved_previous_from_archive: bool,
+    ) -> None:
+        try:
+            if current_archive.exists() and not current_path.exists():
+                shutil.move(str(current_archive), str(current_path))
+            if (
+                moved_previous_from_archive
+                and previous_path.exists()
+                and not archive_path.exists()
+            ):
+                shutil.move(str(previous_path), str(archive_path))
+            self._load_and_verify(
+                current_path, record.candidate_model_version, reload=True
+            )
+            self._write_active_pointer(
+                model_version=record.candidate_model_version,
+                artifact_digest=record.candidate_model_digest,
+                directory=current_path,
+                preprocessing_version=record.preprocessing_version,
+            )
+        except Exception as exc:
+            raise StagingDeploymentError(
+                "ROLLBACK_RECOVERY_FAILED",
+                "rollback failed and deployed staging recovery could not be "
+                "verified",
+            ) from exc
+
     def rollback(
         self,
         record: StagingDeploymentRecord,
@@ -854,89 +978,86 @@ class LocalStagingAdapter:
             )
         current_path = self.staging_root / record.candidate_model_version
         archive_path = self._archive_target(record.archive_name)
-        if not current_path.is_dir() or not archive_path.is_dir():
+        if not current_path.is_dir():
             raise StagingDeploymentError(
-                "ROLLBACK_ARTIFACT_MISSING", "rollback artifacts are not available"
+                "ROLLBACK_ARTIFACT_MISSING", "deployed candidate is not available"
             )
         if compute_artifact_digest(current_path) != record.candidate_model_digest:
             raise StagingDeploymentError(
                 "ROLLBACK_ARTIFACT_TAMPERED",
                 "deployed candidate failed integrity verification",
             )
-        if compute_artifact_digest(archive_path) != record.previous_staging_digest:
+        previous_path = self.staging_root / record.previous_staging_dir_name
+        previous_in_staging = previous_path.is_dir()
+        previous_in_archive = archive_path.is_dir()
+        if not previous_in_staging and not previous_in_archive:
+            raise StagingDeploymentError(
+                "ROLLBACK_ARTIFACT_MISSING", "known-good staging is not available"
+            )
+        if (
+            previous_in_staging
+            and compute_artifact_digest(previous_path)
+            != record.previous_staging_digest
+        ):
+            raise StagingDeploymentError(
+                "ROLLBACK_ARTIFACT_TAMPERED",
+                "known-good staging artifact failed integrity verification",
+            )
+        if (
+            previous_in_archive
+            and compute_artifact_digest(archive_path)
+            != record.previous_staging_digest
+        ):
             raise StagingDeploymentError(
                 "ROLLBACK_ARTIFACT_TAMPERED",
                 "known-good staging archive failed integrity verification",
             )
-        previous_path = self.staging_root / record.previous_staging_dir_name
-        if previous_path.exists():
-            raise StagingDeploymentError(
-                "ROLLBACK_TARGET_EXISTS", "previous staging target is already occupied"
-            )
         current_archive = self._archive_target(
             f"{current_path.name}__rollback__{record.run_id[-12:]}"
         )
+        moved_previous_from_archive = False
         try:
+            if not previous_in_staging:
+                shutil.move(str(archive_path), str(previous_path))
+                moved_previous_from_archive = True
+            self._load_and_verify(
+                previous_path, record.previous_staging_version, reload=True
+            )
+            # Keep the candidate directory until the pointer names the known
+            # good predecessor. A termination here leaves the candidate pointer
+            # and candidate directory valid for another recovery attempt.
+            self._write_active_pointer(
+                model_version=record.previous_staging_version,
+                artifact_digest=record.previous_staging_digest,
+                directory=previous_path,
+                preprocessing_version=record.preprocessing_version,
+            )
             shutil.move(str(current_path), str(current_archive))
-            shutil.move(str(archive_path), str(previous_path))
-            try:
-                self._load_and_verify(
-                    previous_path, record.previous_staging_version, reload=True
-                )
-                self._write_active_pointer(
-                    model_version=record.previous_staging_version,
-                    artifact_digest=record.previous_staging_digest,
-                    directory=previous_path,
-                    preprocessing_version=record.preprocessing_version,
-                )
-            except StagingDeploymentError as exc:
-                try:
-                    if previous_path.exists():
-                        shutil.move(str(previous_path), str(archive_path))
-                    if current_archive.exists():
-                        shutil.move(str(current_archive), str(current_path))
-                    self._write_active_pointer(
-                        model_version=record.candidate_model_version,
-                        artifact_digest=record.candidate_model_digest,
-                        directory=current_path,
-                        preprocessing_version=record.preprocessing_version,
-                    )
-                except Exception as restore_exc:
-                    raise StagingDeploymentError(
-                        "ROLLBACK_RECOVERY_FAILED",
-                        "rollback load verification failed and deployed staging "
-                        "could not be restored",
-                    ) from restore_exc
-                raise StagingDeploymentError(
-                    exc.code,
-                    "rollback load verification failed; deployed candidate was "
-                    "restored",
-                ) from exc
             return StagingDeploymentRecord.from_payload(
                 {**record.to_payload(), "status": "ROLLED_BACK"}
             )
-        except StagingDeploymentError:
-            raise
+        except StagingDeploymentError as exc:
+            self._restore_deployed_after_failed_rollback(
+                record,
+                current_path=current_path,
+                archive_path=archive_path,
+                previous_path=previous_path,
+                current_archive=current_archive,
+                moved_previous_from_archive=moved_previous_from_archive,
+            )
+            raise StagingDeploymentError(
+                exc.code,
+                "rollback load verification failed; deployed candidate was restored",
+            ) from exc
         except Exception as exc:
-            if previous_path.exists() and not archive_path.exists():
-                shutil.move(str(previous_path), str(archive_path))
-            if current_archive.exists() and not current_path.exists():
-                shutil.move(str(current_archive), str(current_path))
-            try:
-                self._load_and_verify(
-                    current_path, record.candidate_model_version, reload=True
-                )
-                self._write_active_pointer(
-                    model_version=record.candidate_model_version,
-                    artifact_digest=record.candidate_model_digest,
-                    directory=current_path,
-                    preprocessing_version=record.preprocessing_version,
-                )
-            except Exception as restore_exc:
-                raise StagingDeploymentError(
-                    "ROLLBACK_RECOVERY_FAILED",
-                    "rollback failed and deployed staging recovery could not be verified",
-                ) from restore_exc
+            self._restore_deployed_after_failed_rollback(
+                record,
+                current_path=current_path,
+                archive_path=archive_path,
+                previous_path=previous_path,
+                current_archive=current_archive,
+                moved_previous_from_archive=moved_previous_from_archive,
+            )
             raise StagingDeploymentError(
                 "ROLLBACK_FAILED", "local staging rollback failed"
             ) from exc

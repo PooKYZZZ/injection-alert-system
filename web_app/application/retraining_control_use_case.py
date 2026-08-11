@@ -445,6 +445,27 @@ class RetrainingControlUseCase:
             "The local deployment record is missing or invalid.",
         ) from last_error
 
+    def _rollback_is_in_progress(self, run_id: str) -> bool:
+        try:
+            events = self._artifact_repository.read_events(run_id)
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
+            return False
+        for event in reversed(events):
+            code = event.get("code")
+            if code == "ROLLBACK_STARTED":
+                return True
+            if code in {
+                "DEPLOY_STARTED",
+                "DEPLOY_SUCCEEDED",
+                "DEPLOY_FAILED",
+                "DEPLOY_ROLLED_BACK",
+                "ROLLBACK_SUCCEEDED",
+                "ROLLBACK_RECONCILED",
+                "DEPLOYMENT_RECONCILED",
+            }:
+                return False
+        return False
+
     def _validate_deployment_evidence(
         self,
         record: RetrainingRunRecord,
@@ -746,13 +767,19 @@ class RetrainingControlUseCase:
                 "INVALID_REASON", "Rollback reason contains forbidden content."
             )
         record = self._load_control_run(run_id)
-        if record.state not in {RunState.DEPLOYED, RunState.RECOVERY_REQUIRED}:
+        if record.state not in {
+            RunState.DEPLOYED,
+            RunState.DEPLOYING,
+            RunState.RECOVERY_REQUIRED,
+        }:
             raise RetrainingControlError(
                 "RUN_NOT_DEPLOYED", "Only a deployed candidate can be rolled back."
             )
         adapter = self._require_staging_adapter()
         deployment = self._load_deployment_record(
-            run_id, allow_plan=record.state is RunState.RECOVERY_REQUIRED
+            run_id,
+            allow_plan=record.state
+            in {RunState.DEPLOYING, RunState.RECOVERY_REQUIRED},
         )
         allowed_statuses = (
             {"DEPLOYED"}
@@ -764,7 +791,7 @@ class RetrainingControlUseCase:
                 "DEPLOYMENT_RECORD_INVALID",
                 "The local deployment record is not bound to this deployed run.",
             )
-        if record.state is RunState.RECOVERY_REQUIRED:
+        if record.state in {RunState.DEPLOYING, RunState.RECOVERY_REQUIRED}:
             try:
                 pointer = adapter.read_active_pointer()
             except StagingDeploymentError:
@@ -774,7 +801,9 @@ class RetrainingControlUseCase:
                 and pointer.artifact_digest == deployment.previous_staging_digest
             ):
                 try:
-                    if deployment.status == "PREPARED":
+                    rollback_in_progress = self._rollback_is_in_progress(run_id)
+                    if deployment.status == "PREPARED" and not rollback_in_progress:
+                        adapter.reconcile_prepared_deployment(deployment)
                         reconciled = self._artifact_repository.transition(
                             run_id,
                             RunState.APPROVED,
@@ -796,37 +825,47 @@ class RetrainingControlUseCase:
                             decision="recovery",
                         )
                         return reconciled
-                    reconciled_record = StagingDeploymentRecord.from_payload(
-                        {**deployment.to_payload(), "status": "ROLLED_BACK"}
-                    )
-                    self._artifact_repository.publish_json_artifact(
-                        run_id,
-                        "staging/rollback-recovery-result.json",
-                        reconciled_record.to_payload(),
-                        stage="rollback_recovery",
-                    )
-                    reconciled = self._artifact_repository.transition(
-                        run_id,
-                        RunState.ROLLED_BACK,
-                        stage="rollback_reconciled",
-                        error_code=None,
-                        error_message=None,
-                    )
-                    self._append_event(
-                        run_id,
-                        stage="rollback",
-                        outcome="SUCCESS",
-                        code="ROLLBACK_RECONCILED",
-                        actor_id=actor_id,
-                        actor_role=actor_role,
-                        message=(
-                            "known-good staging was active; rollback audit state "
-                            "was reconciled"
-                        ),
-                        decision="recovery",
-                    )
-                    return reconciled
-                except ArtifactRepositoryError as exc:
+                    try:
+                        reconciled_record = adapter.reconcile_completed_rollback(
+                            deployment
+                        )
+                    except StagingDeploymentError as exc:
+                        if exc.code != "ROLLBACK_NOT_COMPLETE":
+                            raise
+                        reconciled_record = None
+                    if reconciled_record is None:
+                        # The candidate is still present, so the normal adapter
+                        # rollback path can finish an interrupted operation.
+                        pass
+                    else:
+                        self._artifact_repository.publish_json_artifact(
+                            run_id,
+                            "staging/rollback-recovery-result.json",
+                            reconciled_record.to_payload(),
+                            stage="rollback_recovery",
+                        )
+                        reconciled = self._artifact_repository.transition(
+                            run_id,
+                            RunState.ROLLED_BACK,
+                            stage="rollback_reconciled",
+                            error_code=None,
+                            error_message=None,
+                        )
+                        self._append_event(
+                            run_id,
+                            stage="rollback",
+                            outcome="SUCCESS",
+                            code="ROLLBACK_RECONCILED",
+                            actor_id=actor_id,
+                            actor_role=actor_role,
+                            message=(
+                                "known-good staging was active; rollback audit state "
+                                "was reconciled"
+                            ),
+                            decision="recovery",
+                        )
+                        return reconciled
+                except (ArtifactRepositoryError, StagingDeploymentError) as exc:
                     self._mark_recovery_required(
                         run_id,
                         stage="rollback_recovery_required",
