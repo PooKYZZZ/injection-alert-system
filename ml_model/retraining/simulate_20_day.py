@@ -360,7 +360,6 @@ def _default_package(
     *, run_dir: Path, day_dir: Path, config: ExperimentConfig, day: int
 ) -> Path:
     from ml_model.export.package_serving_artifact import (
-        bind_summary_metrics_to_packaged_artifact,
         package_serving_artifact,
         stage_training_summary_for_packaging,
     )
@@ -394,10 +393,11 @@ def _default_package(
     candidate_registry = day_dir / "candidate_registry"
     candidate_run = candidate_registry / "staging" / model_version
     candidate_run.mkdir(parents=True, exist_ok=False)
-    summary_metrics = stage_training_summary_for_packaging(
+    summary_snapshot = stage_training_summary_for_packaging(
         source_summary_path=source_summary_path,
         candidate_run=candidate_run,
     )
+    summary_metrics = summary_snapshot.metrics
     extract_state_dict_checkpoint(
         checkpoint_candidates[0],
         candidate_run / "best_distilbert_ckpt.pt",
@@ -445,11 +445,7 @@ def _default_package(
         confidence_thresholds=config.confidence_thresholds,
         response_actions=config.response_actions,
         notes="offline controlled retraining candidate; never automatically promoted",
-    )
-    bind_summary_metrics_to_packaged_artifact(
-        packaged_run=packaged_run,
-        source_summary_path=source_summary_path,
-        summary_metrics=summary_metrics,
+        training_summary_snapshot=summary_snapshot,
     )
     return packaged_run
 

@@ -16,9 +16,10 @@ import ml_model.export.package_serving_artifact as package_module
 from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
     PackagingError,
-    bind_summary_metrics_to_packaged_artifact,
     build_manifest,
     ensure_required_run_files,
+    finalize_summary_provenance,
+    load_training_summary,
     stage_training_summary_for_packaging,
 )
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
@@ -57,7 +58,8 @@ def test_candidate_summary_is_staged_and_bound_to_final_artifact(tmp_path: Path)
         source_summary_path=source_summary_path,
         candidate_run=candidate_run,
     )
-    assert staged == original_summary
+    assert staged.metrics == original_summary
+    assert staged.raw_bytes == source_summary_path.read_bytes()
     assert json.loads(
         (candidate_run / "summary_metrics.json").read_text(encoding="utf-8")
     ) == original_summary
@@ -71,12 +73,12 @@ def test_candidate_summary_is_staged_and_bound_to_final_artifact(tmp_path: Path)
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-    summary_path = bind_summary_metrics_to_packaged_artifact(
+    summary_path = finalize_summary_provenance(
         packaged_run=candidate_run,
-        source_summary_path=source_summary_path,
-        summary_metrics=staged,
+        summary_snapshot=staged,
     )
     final_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    final_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert final_summary["custom_metric"] == original_summary["custom_metric"]
     assert final_summary["checkpoint_sha256"] == package_module.sha256_file(
         checkpoint_path
@@ -87,6 +89,7 @@ def test_candidate_summary_is_staged_and_bound_to_final_artifact(tmp_path: Path)
     assert final_summary["source_summary_sha256"] == package_module.sha256_file(
         source_summary_path
     )
+    assert final_manifest["summary_metrics_sha256"]
     verified = _load_verified_summary_metrics(
         candidate_run, manifest_path, manifest
     )
@@ -110,6 +113,24 @@ def test_training_summary_staging_fails_for_malformed_source(tmp_path: Path):
             source_summary_path=source_summary_path,
             candidate_run=tmp_path / "candidate",
         )
+
+
+@pytest.mark.parametrize("invalid_value", [True, False, "0.98", None, {}, []])
+def test_training_summary_rejects_non_json_numeric_required_metrics(
+    tmp_path: Path, invalid_value: object
+):
+    payload = {
+        "test_accuracy": 0.99,
+        "test_macro_f1": invalid_value,
+        "test_weighted_f1": 0.991,
+        "normal_false_positive_rate": 0.001,
+        "attack_escape_rate": 0.002,
+    }
+    summary_path = tmp_path / "summary_metrics.json"
+    summary_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PackagingError):
+        load_training_summary(summary_path)
 
 
 def make_training_contract() -> dict:
@@ -347,7 +368,15 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     )
     (run_dir / "eval_report.json").write_text(json.dumps({}), encoding="utf-8")
     (run_dir / "summary_metrics.json").write_text(
-        json.dumps({"accuracy": 1.0, "macro avg": {}, "weighted avg": {}}),
+        json.dumps(
+            {
+                "test_accuracy": 1.0,
+                "test_macro_f1": 1.0,
+                "test_weighted_f1": 1.0,
+                "normal_false_positive_rate": 0.0,
+                "attack_escape_rate": 0.0,
+            }
+        ),
         encoding="utf-8",
     )
     (run_dir / "git_hash.txt").write_text("fixture\n", encoding="utf-8")
@@ -386,3 +415,19 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     assert manifest["run_contract_sha256"] == contract_hash
     assert manifest["local_reload_verified"] is True
     assert any(path.name == "model.safetensors" for path in result.iterdir())
+
+    verified = _load_verified_summary_metrics(
+        result, result / "serving_manifest.json", manifest
+    )
+    assert verified["test_macro_f1"] == 1.0
+
+    summary_path = result / "summary_metrics.json"
+    mutated_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    mutated_summary["test_macro_f1"] = 0.01
+    summary_path.write_text(json.dumps(mutated_summary), encoding="utf-8")
+    with pytest.raises(ValueError, match="summary metrics content hash"):
+        _load_verified_summary_metrics(
+            result,
+            result / "serving_manifest.json",
+            manifest,
+        )

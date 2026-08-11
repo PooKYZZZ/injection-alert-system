@@ -12,6 +12,7 @@ from ml_model.evaluation.golden_controls import (
     load_golden_controls,
 )
 from ml_model.retraining.experiment_contract import load_experiment_config, sha256_file
+from ml_model.retraining.integrity import verify_summary_metrics_provenance
 from ml_model.retraining.prediction_artifacts import (
     records_from_golden_evaluation,
     write_prediction_artifact,
@@ -139,29 +140,11 @@ def _load_verified_summary_metrics(
     manifest_path: Path,
     manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
-    summary_path = artifact / "summary_metrics.json"
-    if not summary_path.is_file():
-        raise ValueError("summary_metrics.json is missing")
-    payload = json.loads(summary_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping):
-        raise ValueError("summary_metrics.json must contain an object")
-    checkpoint_name = manifest.get("checkpoint_file")
-    if not isinstance(checkpoint_name, str) or not checkpoint_name:
-        raise ValueError("serving_manifest.json is missing checkpoint_file")
-    checkpoint_path = artifact / checkpoint_name
-    if not checkpoint_path.is_file():
-        raise ValueError("serving manifest checkpoint_file does not exist")
-    checkpoint_hash = sha256_file(checkpoint_path)
-    if manifest.get("checkpoint_sha256") != checkpoint_hash:
-        raise ValueError("staged checkpoint hash does not match manifest")
-    if payload.get("checkpoint_sha256") != checkpoint_hash:
-        raise ValueError("summary metrics checkpoint hash does not match artifact")
-    manifest_hash = sha256_file(manifest_path)
-    if payload.get("artifact_manifest_sha256") != manifest_hash:
-        raise ValueError(
-            "summary metrics artifact manifest hash does not match artifact"
-        )
-    return dict(payload)
+    return verify_summary_metrics_provenance(
+        artifact_dir=artifact,
+        manifest_path=manifest_path,
+        manifest=manifest,
+    )
 
 
 def _failed_golden_result(
