@@ -15,6 +15,7 @@ from web_app.application.retraining_control_use_case import (
     RetrainingControlUseCase,
 )
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
+    ArtifactRepositoryError,
     RetrainingRunArtifactRepository,
     RetrainingRunRecord,
 )
@@ -101,6 +102,8 @@ def _record(
         active_model_version=active_version,
         active_model_digest=active_digest,
         approved_sample_count=2,
+        dataset_version="dashboard-dataset-v1",
+        dataset_digest="b" * 64,
         candidate_model_version=candidate_version,
         candidate_model_digest=candidate_digest,
         evaluation_digest="0" * 64,
@@ -112,20 +115,29 @@ class NoopDependency:
 
 
 def _comparison(
-    active_digest: str, candidate_digest: str, *, status: str = "PASS"
+    active_digest: str,
+    candidate_digest: str,
+    *,
+    evaluation_digest: str,
+    status: str = "PASS",
 ) -> dict:
     return {
         "overall_status": status,
         "decision_allowed": status == "PASS",
         "provenance": {
+            "dataset_version": "dashboard-dataset-v1",
+            "dataset_digest": "b" * 64,
+            "evaluation_digest": evaluation_digest,
             "active_model_digest": active_digest,
             "candidate_model_digest": candidate_digest,
         },
         "gate_results": {
             "active_model_binding": {"status": status},
+            "evaluation_binding": {"status": status},
             "evidence": {"status": status},
             "security_regression": {"status": status},
             "quality": {"status": status},
+            "improvement": {"status": status},
         },
     }
 
@@ -135,7 +147,7 @@ def _make_control(
     *,
     loader=None,
     active_version: str = "active-v1",
-    active_digest: str = "d" * 64,
+    active_digest: str | None = None,
     candidate_version: str = "candidate-v1",
     comparison_status: str = "PASS",
     state: RunState = RunState.APPROVED,
@@ -147,7 +159,8 @@ def _make_control(
         tmp_path / "candidate-fixture", candidate_version
     )
     candidate_digest = compute_artifact_digest(candidate_fixture)
-    _make_serving_artifact(staging_root, active_version)
+    active_fixture = _make_serving_artifact(staging_root, active_version)
+    active_digest = active_digest or compute_artifact_digest(active_fixture)
     adapter = LocalStagingAdapter(
         staging_root=staging_root,
         archive_root=archive_root,
@@ -177,7 +190,12 @@ def _make_control(
     repository.publish_json_artifact(
         RUN_ID,
         "stages/comparison.json",
-        _comparison(active_digest, candidate_digest, status=comparison_status),
+        _comparison(
+            active_digest,
+            candidate_digest,
+            evaluation_digest=evaluation["sha256"],
+            status=comparison_status,
+        ),
         stage="evidence_comparison",
     )
     control = RetrainingControlUseCase(
@@ -299,7 +317,9 @@ def test_successful_local_staging_deploy_and_rollback_reload_known_good_model(
     started = next(event for event in events if event["code"] == "DEPLOY_STARTED")
     assert started["candidate_model_version"] == "candidate-v1"
     assert started["candidate_model_digest"] == candidate_digest
-    assert started["active_model_digest"] == "d" * 64
+    assert started["active_model_digest"] == compute_artifact_digest(
+        archive_root / next(path.name for path in archive_root.iterdir())
+    )
     assert started["previous_staging_version"] == "active-v1"
     assert started["actor_id"] == "admin-1"
 
@@ -340,6 +360,86 @@ def test_candidate_load_failure_restores_previous_staging_and_marks_rolled_back(
     assert repository.load_run(RUN_ID).state is RunState.ROLLED_BACK
     assert (staging_root / "active-v1").is_dir()
     assert not (staging_root / "candidate-v1").exists()
+
+
+def test_deploy_audit_failure_enters_recovery_and_can_rollback_after_restart_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    control, repository, staging_root, _, _, _, _ = _make_control(tmp_path)
+    original_publish = repository.publish_json_artifact
+
+    def fail_after_activation(run_id, artifact_path, payload, **kwargs):
+        if artifact_path == "staging/deployment.json":
+            raise ArtifactRepositoryError("simulated post-activation audit failure")
+        return original_publish(run_id, artifact_path, payload, **kwargs)
+
+    monkeypatch.setattr(repository, "publish_json_artifact", fail_after_activation)
+
+    with pytest.raises(RetrainingControlError, match="recovery"):
+        control.deploy(
+            run_id=RUN_ID,
+            expected_candidate_version="candidate-v1",
+            actor_id="admin-1",
+            actor_role="ADMIN",
+        )
+
+    assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
+    pointer = json.loads((staging_root / "active_model.json").read_text())
+    assert pointer["model_version"] == "candidate-v1"
+
+    rolled_back = control.rollback(
+        run_id=RUN_ID,
+        previous_staging_version="active-v1",
+        reason="Reconcile the local staging state.",
+        actor_id="admin-1",
+        actor_role="ADMIN",
+    )
+
+    assert rolled_back.state is RunState.ROLLED_BACK
+    assert json.loads((staging_root / "active_model.json").read_text())["model_version"] == "active-v1"
+
+
+def test_rollback_audit_failure_enters_recovery_and_reconciles_known_good_pointer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    control, repository, staging_root, _, _, _, _ = _make_control(tmp_path)
+    control.deploy(
+        run_id=RUN_ID,
+        expected_candidate_version="candidate-v1",
+        actor_id="admin-1",
+        actor_role="ADMIN",
+    )
+    original_publish = repository.publish_json_artifact
+
+    def fail_after_rollback(run_id, artifact_path, payload, **kwargs):
+        if artifact_path == "staging/rollback-result.json":
+            raise ArtifactRepositoryError("simulated rollback audit failure")
+        return original_publish(run_id, artifact_path, payload, **kwargs)
+
+    monkeypatch.setattr(repository, "publish_json_artifact", fail_after_rollback)
+
+    with pytest.raises(RetrainingControlError, match="recovery"):
+        control.rollback(
+            run_id=RUN_ID,
+            previous_staging_version="active-v1",
+            reason="Restore the known-good local staging version.",
+            actor_id="admin-1",
+            actor_role="ADMIN",
+        )
+
+    assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
+    assert json.loads((staging_root / "active_model.json").read_text())["model_version"] == "active-v1"
+
+    monkeypatch.setattr(repository, "publish_json_artifact", original_publish)
+    reconciled = control.rollback(
+        run_id=RUN_ID,
+        previous_staging_version="active-v1",
+        reason="Finalize the recoverable rollback record.",
+        actor_id="admin-1",
+        actor_role="ADMIN",
+    )
+
+    assert reconciled.state is RunState.ROLLED_BACK
 
 
 def test_staging_adapter_rejects_production_paths(tmp_path: Path):

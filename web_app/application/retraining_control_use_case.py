@@ -27,11 +27,13 @@ from web_app.infrastructure.retraining_staging_adapter import (
 
 RUNNING_STATES = frozenset(
     {
+        RunState.QUEUED,
         RunState.EXPORTING,
         RunState.DATASET_VALIDATED,
         RunState.TRAINING,
         RunState.EVALUATING,
         RunState.DEPLOYING,
+        RunState.RECOVERY_REQUIRED,
     }
 )
 
@@ -224,6 +226,8 @@ class RetrainingControlUseCase:
                     "STALE_ACTIVE_MODEL_BINDING",
                     "The active model changed while this candidate was under review.",
                 )
+        if decision == "approve":
+            self._validate_approval_evidence(current)
 
         target = {
             "approve": RunState.APPROVED,
@@ -259,6 +263,83 @@ class RetrainingControlUseCase:
             and record.active_model_version == self._active_model_version
             and record.active_model_digest == self._active_model_digest
         )
+
+    def _read_evidence_artifacts(
+        self, record: RetrainingRunRecord
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        try:
+            evaluation = self._artifact_repository.read_json_artifact(
+                record.run_id, "stages/evaluation.json"
+            )
+            comparison = self._artifact_repository.read_json_artifact(
+                record.run_id, "stages/comparison.json"
+            )
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError) as exc:
+            raise RetrainingControlError(
+                "EVIDENCE_NOT_READY",
+                "Approval requires a published passing evaluation.",
+            ) from exc
+        return evaluation, comparison
+
+    def _validate_evidence_binding(
+        self,
+        record: RetrainingRunRecord,
+        evaluation: Mapping[str, Any],
+        comparison: Mapping[str, Any],
+        *,
+        error_code: str = "EVIDENCE_NOT_READY",
+    ) -> None:
+        if (
+            evaluation.get("evidence_status") not in {"NATIVE", "VERIFIED"}
+            or evaluation.get("status") != "PASS"
+        ):
+            raise RetrainingControlError(
+                error_code,
+                "Approval requires native or verified passing evaluation evidence.",
+            )
+        provenance = comparison.get("provenance")
+        if not isinstance(provenance, Mapping) or any(
+            provenance.get(field) != expected
+            for field, expected in (
+                ("dataset_version", record.dataset_version),
+                ("dataset_digest", record.dataset_digest),
+                ("evaluation_digest", record.evaluation_digest),
+                ("active_model_digest", record.active_model_digest),
+                ("candidate_model_digest", record.candidate_model_digest),
+            )
+        ):
+            raise RetrainingControlError(
+                error_code,
+                "Approval evidence is not bound to this run and active model.",
+            )
+        if comparison.get("overall_status") != "PASS" or comparison.get(
+            "decision_allowed"
+        ) is not True:
+            raise RetrainingControlError(
+                error_code,
+                "Approval requires passing comparison gates.",
+            )
+        gates = comparison.get("gate_results")
+        if not isinstance(gates, Mapping) or any(
+            not isinstance(gates.get(name), Mapping)
+            or gates[name].get("status") != "PASS"
+            for name in (
+                "active_model_binding",
+                "evaluation_binding",
+                "evidence",
+                "security_regression",
+                "quality",
+                "improvement",
+            )
+        ):
+            raise RetrainingControlError(
+                error_code,
+                "Approval requires complete passing evidence gates.",
+            )
+
+    def _validate_approval_evidence(self, record: RetrainingRunRecord) -> None:
+        evaluation, comparison = self._read_evidence_artifacts(record)
+        self._validate_evidence_binding(record, evaluation, comparison)
 
     def _require_admin(self, actor_id: str, actor_role: str) -> None:
         if actor_role != "ADMIN":
@@ -297,6 +378,73 @@ class RetrainingControlUseCase:
             return exc.code, "Local staging rollback could not be completed safely."
         return exc.code, "Local staging deployment preflight failed."
 
+    def _mark_recovery_required(
+        self,
+        run_id: str,
+        *,
+        stage: str,
+        code: str,
+        message: str,
+        actor_id: str,
+        actor_role: str,
+    ) -> None:
+        """Best-effort durable marker when physical state outruns audit state."""
+
+        try:
+            current = self._artifact_repository.load_run(run_id)
+            if current.state is not RunState.RECOVERY_REQUIRED:
+                self._artifact_repository.transition(
+                    run_id,
+                    RunState.RECOVERY_REQUIRED,
+                    stage=stage,
+                    error_code=code,
+                    error_message=message,
+                )
+            try:
+                self._append_event(
+                    run_id,
+                    stage=stage,
+                    outcome="WARN",
+                    code=code,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    message=message,
+                    decision="recovery_required",
+                )
+            except ArtifactRepositoryError:
+                pass
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
+            pass
+
+    def _current_state_or_none(self, run_id: str) -> RunState | None:
+        try:
+            return self._artifact_repository.load_run(run_id).state
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
+            return None
+
+    def _load_deployment_record(
+        self, run_id: str, *, allow_plan: bool = False
+    ) -> StagingDeploymentRecord:
+        paths = ("staging/deployment.json",)
+        if allow_plan:
+            paths += ("staging/deployment-plan.json",)
+        last_error: Exception | None = None
+        for path in paths:
+            try:
+                payload = self._artifact_repository.read_json_artifact(run_id, path)
+                return StagingDeploymentRecord.from_payload(payload)
+            except (
+                ArtifactRepositoryError,
+                FileNotFoundError,
+                ValueError,
+                StagingDeploymentError,
+            ) as exc:
+                last_error = exc
+        raise RetrainingControlError(
+            "DEPLOYMENT_RECORD_INVALID",
+            "The local deployment record is missing or invalid.",
+        ) from last_error
+
     def _validate_deployment_evidence(
         self,
         record: RetrainingRunRecord,
@@ -330,45 +478,13 @@ class RetrainingControlUseCase:
                 "EVIDENCE_NOT_READY",
                 "The candidate has incomplete deployment evidence.",
             )
-        try:
-            evaluation = self._artifact_repository.read_json_artifact(
-                record.run_id, "stages/evaluation.json"
-            )
-            comparison = self._artifact_repository.read_json_artifact(
-                record.run_id, "stages/comparison.json"
-            )
-        except (ArtifactRepositoryError, FileNotFoundError, ValueError) as exc:
-            raise RetrainingControlError(
-                "EVIDENCE_NOT_READY",
-                "Required evaluation evidence is missing or invalid.",
-            ) from exc
-        if (
-            evaluation.get("evidence_status") not in {"NATIVE", "VERIFIED"}
-            or evaluation.get("status") != "PASS"
-        ):
-            raise RetrainingControlError(
-                "EVIDENCE_NOT_READY",
-                "Deployment requires native or verified passing evaluation evidence.",
-            )
-        if evaluation.get("evaluation_digest") not in {None, record.evaluation_digest}:
-            raise RetrainingControlError(
-                "EVIDENCE_NOT_READY", "Evaluation evidence is not bound to this run."
-            )
-        provenance = comparison.get("provenance")
-        if not isinstance(provenance, Mapping):
-            raise RetrainingControlError(
-                "DEPLOY_GATE_FAILED", "Candidate comparison provenance is incomplete."
-            )
-        if (
-            comparison.get("overall_status") != "PASS"
-            or comparison.get("decision_allowed") is not True
-            or provenance.get("active_model_digest") != self._active_model_digest
-            or provenance.get("candidate_model_digest") != record.candidate_model_digest
-        ):
-            raise RetrainingControlError(
-                "DEPLOY_GATE_FAILED",
-                "Candidate comparison gates do not permit local staging deployment.",
-            )
+        evaluation, comparison = self._read_evidence_artifacts(record)
+        self._validate_evidence_binding(
+            record,
+            evaluation,
+            comparison,
+            error_code="DEPLOY_GATE_FAILED",
+        )
         return evaluation, comparison
 
     def _append_event(
@@ -433,6 +549,7 @@ class RetrainingControlUseCase:
                 )
             raise
         adapter = self._require_staging_adapter()
+        activation_completed = False
         try:
             plan = adapter.prepare_deployment(
                 artifact_root=self._artifact_repository.root,
@@ -445,7 +562,7 @@ class RetrainingControlUseCase:
             )
             self._artifact_repository.publish_json_artifact(
                 run_id,
-                "staging/deployment.json",
+                "staging/deployment-plan.json",
                 plan.record.to_payload(),
                 stage="deployment_plan",
             )
@@ -467,6 +584,7 @@ class RetrainingControlUseCase:
                 decision="approve",
             )
             adapter_record = adapter.deploy(plan)
+            activation_completed = True
             self._artifact_repository.publish_json_artifact(
                 run_id,
                 "staging/deployment.json",
@@ -488,45 +606,114 @@ class RetrainingControlUseCase:
             return deployed
         except StagingDeploymentError as exc:
             code, message = self._safe_staging_error(exc)
-            current = self._artifact_repository.load_run(run_id)
+            try:
+                current = self._artifact_repository.load_run(run_id)
+            except (
+                ArtifactRepositoryError,
+                FileNotFoundError,
+                ValueError,
+            ) as record_exc:
+                raise RetrainingControlError(
+                    "DEPLOYMENT_RECORD_FAILED",
+                    "Local deployment state could not be recorded safely.",
+                ) from record_exc
+            target: RunState | None = None
             if current.state is RunState.APPROVED:
-                self._append_event(
-                    run_id,
-                    stage="deployment",
-                    outcome="WARN",
-                    code="DEPLOY_PREFLIGHT_FAILED",
-                    actor_id=actor_id,
-                    actor_role=actor_role,
-                    message="candidate deployment preflight was refused",
-                    candidate_model_version=current.candidate_model_version,
-                    candidate_model_digest=current.candidate_model_digest,
-                    active_model_digest=self._active_model_digest,
-                    decision="approve",
-                )
+                try:
+                    self._append_event(
+                        run_id,
+                        stage="deployment",
+                        outcome="WARN",
+                        code="DEPLOY_PREFLIGHT_FAILED",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        message="candidate deployment preflight was refused",
+                        candidate_model_version=current.candidate_model_version,
+                        candidate_model_digest=current.candidate_model_digest,
+                        active_model_digest=self._active_model_digest,
+                        decision="approve",
+                    )
+                except ArtifactRepositoryError as record_exc:
+                    raise RetrainingControlError(
+                        "DEPLOYMENT_RECORD_FAILED",
+                        "Local deployment state could not be recorded safely.",
+                    ) from record_exc
             if current.state is RunState.DEPLOYING:
-                target = RunState.ROLLED_BACK if exc.rolled_back else RunState.FAILED
-                self._artifact_repository.transition(
-                    run_id,
-                    target,
-                    stage="deploy_rolled_back" if exc.rolled_back else "deploy_failed",
-                    error_code=code,
-                    error_message=message,
+                target = (
+                    RunState.ROLLED_BACK
+                    if exc.rolled_back
+                    else RunState.RECOVERY_REQUIRED
+                    if "RECOVERY" in exc.code or "ROLLBACK_FAILED" in exc.code
+                    else RunState.FAILED
                 )
-                self._append_event(
-                    run_id,
-                    stage="deployment",
-                    outcome="WARN" if exc.rolled_back else "FAIL",
-                    code="DEPLOY_ROLLED_BACK" if exc.rolled_back else "DEPLOY_FAILED",
-                    actor_id=actor_id,
-                    actor_role=actor_role,
-                    message=(
-                        "candidate load failed; known-good staging was restored"
-                        if exc.rolled_back
-                        else "local staging deployment failed"
-                    ),
-                )
+                try:
+                    self._artifact_repository.transition(
+                        run_id,
+                        target,
+                        stage=(
+                            "deploy_rolled_back"
+                            if exc.rolled_back
+                            else "deploy_recovery_required"
+                            if target is RunState.RECOVERY_REQUIRED
+                            else "deploy_failed"
+                        ),
+                        error_code=code,
+                        error_message=message,
+                    )
+                    self._append_event(
+                        run_id,
+                        stage="deployment",
+                        outcome="WARN" if exc.rolled_back else "FAIL",
+                        code=(
+                            "DEPLOY_ROLLED_BACK"
+                            if exc.rolled_back
+                            else "DEPLOY_RECOVERY_REQUIRED"
+                            if target is RunState.RECOVERY_REQUIRED
+                            else "DEPLOY_FAILED"
+                        ),
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        message=(
+                            "candidate load failed; known-good staging was restored"
+                            if exc.rolled_back
+                            else "local staging deployment requires recovery"
+                            if target is RunState.RECOVERY_REQUIRED
+                            else "local staging deployment failed"
+                        ),
+                    )
+                except ArtifactRepositoryError as record_exc:
+                    self._mark_recovery_required(
+                        run_id,
+                        stage="deploy_recovery_required",
+                        code="DEPLOYMENT_RECOVERY_REQUIRED",
+                        message="local staging state requires durable recovery",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                    )
+                    raise RetrainingControlError(
+                        "DEPLOYMENT_RECOVERY_REQUIRED",
+                        "Local staging state requires explicit recovery.",
+                    ) from record_exc
+            if target is RunState.RECOVERY_REQUIRED:
+                raise RetrainingControlError(
+                    "DEPLOYMENT_RECOVERY_REQUIRED",
+                    "Local staging state requires explicit recovery.",
+                ) from exc
             raise RetrainingControlError(code, message) from exc
         except ArtifactRepositoryError as exc:
+            if activation_completed:
+                self._mark_recovery_required(
+                    run_id,
+                    stage="deploy_recovery_required",
+                    code="DEPLOYMENT_RECOVERY_REQUIRED",
+                    message="local staging changed before audit state was recorded",
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                )
+                raise RetrainingControlError(
+                    "DEPLOYMENT_RECOVERY_REQUIRED",
+                    "Local staging state requires explicit recovery.",
+                ) from exc
             raise RetrainingControlError(
                 "DEPLOYMENT_RECORD_FAILED",
                 "Local deployment audit state could not be recorded.",
@@ -559,31 +746,100 @@ class RetrainingControlUseCase:
                 "INVALID_REASON", "Rollback reason contains forbidden content."
             )
         record = self._load_control_run(run_id)
-        if record.state is not RunState.DEPLOYED:
+        if record.state not in {RunState.DEPLOYED, RunState.RECOVERY_REQUIRED}:
             raise RetrainingControlError(
                 "RUN_NOT_DEPLOYED", "Only a deployed candidate can be rolled back."
             )
         adapter = self._require_staging_adapter()
-        try:
-            payload = self._artifact_repository.read_json_artifact(
-                run_id, "staging/deployment.json"
-            )
-            deployment = StagingDeploymentRecord.from_payload(payload)
-        except (
-            ArtifactRepositoryError,
-            FileNotFoundError,
-            ValueError,
-            StagingDeploymentError,
-        ) as exc:
-            raise RetrainingControlError(
-                "DEPLOYMENT_RECORD_INVALID",
-                "The local deployment record is missing or invalid.",
-            ) from exc
-        if deployment.run_id != run_id or deployment.status != "DEPLOYED":
+        deployment = self._load_deployment_record(
+            run_id, allow_plan=record.state is RunState.RECOVERY_REQUIRED
+        )
+        allowed_statuses = (
+            {"DEPLOYED"}
+            if record.state is RunState.DEPLOYED
+            else {"PREPARED", "DEPLOYED"}
+        )
+        if deployment.run_id != run_id or deployment.status not in allowed_statuses:
             raise RetrainingControlError(
                 "DEPLOYMENT_RECORD_INVALID",
                 "The local deployment record is not bound to this deployed run.",
             )
+        if record.state is RunState.RECOVERY_REQUIRED:
+            try:
+                pointer = adapter.read_active_pointer()
+            except StagingDeploymentError:
+                pointer = None
+            if pointer is not None and (
+                pointer.model_version == deployment.previous_staging_version
+                and pointer.artifact_digest == deployment.previous_staging_digest
+            ):
+                try:
+                    if deployment.status == "PREPARED":
+                        reconciled = self._artifact_repository.transition(
+                            run_id,
+                            RunState.APPROVED,
+                            stage="deployment_reconciled_before_activation",
+                            error_code=None,
+                            error_message=None,
+                        )
+                        self._append_event(
+                            run_id,
+                            stage="deployment",
+                            outcome="SUCCESS",
+                            code="DEPLOYMENT_RECONCILED",
+                            actor_id=actor_id,
+                            actor_role=actor_role,
+                            message=(
+                                "known-good staging was active; deployment audit "
+                                "state was reconciled"
+                            ),
+                            decision="recovery",
+                        )
+                        return reconciled
+                    reconciled_record = StagingDeploymentRecord.from_payload(
+                        {**deployment.to_payload(), "status": "ROLLED_BACK"}
+                    )
+                    self._artifact_repository.publish_json_artifact(
+                        run_id,
+                        "staging/rollback-recovery-result.json",
+                        reconciled_record.to_payload(),
+                        stage="rollback_recovery",
+                    )
+                    reconciled = self._artifact_repository.transition(
+                        run_id,
+                        RunState.ROLLED_BACK,
+                        stage="rollback_reconciled",
+                        error_code=None,
+                        error_message=None,
+                    )
+                    self._append_event(
+                        run_id,
+                        stage="rollback",
+                        outcome="SUCCESS",
+                        code="ROLLBACK_RECONCILED",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        message=(
+                            "known-good staging was active; rollback audit state "
+                            "was reconciled"
+                        ),
+                        decision="recovery",
+                    )
+                    return reconciled
+                except ArtifactRepositoryError as exc:
+                    self._mark_recovery_required(
+                        run_id,
+                        stage="rollback_recovery_required",
+                        code="ROLLBACK_RECOVERY_REQUIRED",
+                        message="durable recovery reconciliation could not be recorded",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                    )
+                    raise RetrainingControlError(
+                        "ROLLBACK_RECOVERY_REQUIRED",
+                        "Local rollback state requires explicit recovery.",
+                    ) from exc
+        rollback_completed = False
         try:
             self._artifact_repository.transition(
                 run_id, RunState.DEPLOYING, stage="rolling_back"
@@ -606,9 +862,10 @@ class RetrainingControlUseCase:
                 deployment,
                 requested_previous_version=previous_staging_version,
             )
+            rollback_completed = True
             self._artifact_repository.publish_json_artifact(
                 run_id,
-                "staging/deployment.json",
+                "staging/rollback-result.json",
                 rolled_back_record.to_payload(),
                 stage="rollback_result",
             )
@@ -627,26 +884,97 @@ class RetrainingControlUseCase:
             return result
         except StagingDeploymentError as exc:
             code, message = self._safe_staging_error(exc)
-            current = self._artifact_repository.load_run(run_id)
-            if current.state is RunState.DEPLOYING:
-                self._artifact_repository.transition(
+            try:
+                current = self._artifact_repository.load_run(run_id)
+            except (
+                ArtifactRepositoryError,
+                FileNotFoundError,
+                ValueError,
+            ) as record_exc:
+                self._mark_recovery_required(
                     run_id,
-                    RunState.DEPLOYED,
-                    stage="rollback_failed",
-                    error_code=code,
-                    error_message=message,
-                )
-                self._append_event(
-                    run_id,
-                    stage="rollback",
-                    outcome="WARN",
-                    code="ROLLBACK_FAILED",
+                    stage="rollback_recovery_required",
+                    code="ROLLBACK_RECOVERY_REQUIRED",
+                    message="rollback state could not be read after a staging failure",
                     actor_id=actor_id,
                     actor_role=actor_role,
-                    message="rollback failed; deployed candidate remains active",
                 )
+                raise RetrainingControlError(
+                    "ROLLBACK_RECOVERY_REQUIRED",
+                    "Local rollback state requires explicit recovery.",
+                ) from record_exc
+            if current.state is RunState.DEPLOYING:
+                target = (
+                    RunState.RECOVERY_REQUIRED
+                    if "RECOVERY" in exc.code
+                    else RunState.DEPLOYED
+                )
+                try:
+                    self._artifact_repository.transition(
+                        run_id,
+                        target,
+                        stage=(
+                            "rollback_recovery_required"
+                            if target is RunState.RECOVERY_REQUIRED
+                            else "rollback_failed"
+                        ),
+                        error_code=code,
+                        error_message=message,
+                    )
+                    self._append_event(
+                        run_id,
+                        stage="rollback",
+                        outcome="WARN",
+                        code=(
+                            "ROLLBACK_RECOVERY_REQUIRED"
+                            if target is RunState.RECOVERY_REQUIRED
+                            else "ROLLBACK_FAILED"
+                        ),
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        message=(
+                            "rollback state requires explicit recovery"
+                            if target is RunState.RECOVERY_REQUIRED
+                            else "rollback failed; deployed candidate remains active"
+                        ),
+                    )
+                except ArtifactRepositoryError as record_exc:
+                    self._mark_recovery_required(
+                        run_id,
+                        stage="rollback_recovery_required",
+                        code="ROLLBACK_RECOVERY_REQUIRED",
+                        message="rollback state requires durable recovery",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                    )
+                    raise RetrainingControlError(
+                        "ROLLBACK_RECOVERY_REQUIRED",
+                        "Local rollback state requires explicit recovery.",
+                    ) from record_exc
+                if target is RunState.RECOVERY_REQUIRED:
+                    raise RetrainingControlError(
+                        "ROLLBACK_RECOVERY_REQUIRED",
+                        "Local rollback state requires explicit recovery.",
+                    ) from exc
             raise RetrainingControlError(code, message) from exc
         except ArtifactRepositoryError as exc:
+            current_state = self._current_state_or_none(run_id)
+            if rollback_completed or current_state is RunState.DEPLOYING:
+                self._mark_recovery_required(
+                    run_id,
+                    stage="rollback_recovery_required",
+                    code="ROLLBACK_RECOVERY_REQUIRED",
+                    message=(
+                        "local staging changed before rollback audit state was "
+                        "recorded"
+                    ),
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                )
+                raise RetrainingControlError(
+                    "ROLLBACK_RECOVERY_REQUIRED",
+                    "Local rollback state requires explicit recovery.",
+                ) from exc
             raise RetrainingControlError(
                 "ROLLBACK_RECORD_FAILED",
                 "Local rollback audit state could not be recorded.",

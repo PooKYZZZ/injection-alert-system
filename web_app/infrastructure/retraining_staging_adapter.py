@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -18,14 +17,19 @@ from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
     validate_supported_model_input_version,
 )
+from ml_model.retraining.content_digest import (
+    ContentDigestError,
+    compute_content_digest,
+    sha256_file,
+)
 from ml_model.retraining.dashboard_contracts import (
     CANONICAL_LABELS,
-    canonical_json,
     get_run_artifact_directory,
     is_valid_run_id,
 )
 
 CANDIDATE_ARTIFACT_DIR_NAME = "candidate_model"
+ACTIVE_MODEL_POINTER_FILENAME = "active_model.json"
 MODEL_VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -198,6 +202,14 @@ class StagingDeploymentRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ActiveStagingPointer:
+    model_version: str
+    artifact_digest: str
+    directory: str
+    preprocessing_version: str
+
+
+@dataclass(frozen=True, slots=True)
 class StagingDeploymentPlan:
     preflight: StagingPreflight
     previous_staging_path: Path
@@ -212,42 +224,13 @@ class StagingDeploymentPlan:
 LoadValidator = Callable[[Path, str], Any]
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def compute_artifact_digest(artifact_path: Path) -> str:
-    """Hash every regular file and relative name in deterministic order."""
-
-    raw_root = Path(artifact_path).expanduser()
-    if raw_root.is_symlink() or not raw_root.is_dir():
+    try:
+        return compute_content_digest(artifact_path)
+    except ContentDigestError as exc:
         raise StagingDeploymentError(
-            "CANDIDATE_ARTIFACT_INVALID", "candidate artifact directory is invalid"
-        )
-    root = raw_root.resolve()
-    entries: list[dict[str, Any]] = []
-    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
-        if path.is_symlink() or not path.is_file():
-            raise StagingDeploymentError(
-                "CANDIDATE_ARTIFACT_INVALID",
-                "candidate artifact contains an unsafe entry",
-            )
-        entries.append(
-            {
-                "path": path.relative_to(root).as_posix(),
-                "size": path.stat().st_size,
-                "sha256": _sha256_file(path),
-            }
-        )
-    if not entries:
-        raise StagingDeploymentError(
-            "CANDIDATE_ARTIFACT_INVALID", "candidate artifact is empty"
-        )
-    return hashlib.sha256(canonical_json(entries).encode("utf-8")).hexdigest()
+            "CANDIDATE_ARTIFACT_INVALID", "candidate artifact cannot be verified"
+        ) from exc
 
 
 def _read_json(path: Path, *, code: str) -> dict[str, Any]:
@@ -306,6 +289,134 @@ class LocalStagingAdapter:
             raise StagingDeploymentError(
                 "CANDIDATE_METADATA_INVALID", f"{field_name} is invalid"
             )
+
+    @property
+    def active_pointer_path(self) -> Path:
+        return self.staging_root / ACTIVE_MODEL_POINTER_FILENAME
+
+    def _write_active_pointer(
+        self,
+        *,
+        model_version: str,
+        artifact_digest: str,
+        directory: Path,
+        preprocessing_version: str,
+    ) -> ActiveStagingPointer:
+        self._validate_version(model_version, "active model version")
+        self._validate_digest(artifact_digest, "active model digest")
+        if directory.parent.resolve() != self.staging_root:
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model directory is outside staging"
+            )
+        actual_digest = compute_artifact_digest(directory)
+        if actual_digest != artifact_digest:
+            raise StagingDeploymentError(
+                "ACTIVE_STAGING_TAMPERED",
+                "active staging artifact digest does not match its identity",
+            )
+        try:
+            validate_supported_model_input_version(
+                preprocessing_version, context="active model pointer"
+            )
+        except ValueError as exc:
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model preprocessing is invalid"
+            ) from exc
+        pointer = ActiveStagingPointer(
+            model_version=model_version,
+            artifact_digest=artifact_digest,
+            directory=directory.name,
+            preprocessing_version=preprocessing_version,
+        )
+        temporary = self.active_pointer_path.with_name(
+            f".{ACTIVE_MODEL_POINTER_FILENAME}.{uuid.uuid4().hex}.tmp"
+        )
+        try:
+            temporary.write_text(
+                json.dumps(
+                    {
+                        "artifact_version": "staging-pointer.v1",
+                        "model_version": pointer.model_version,
+                        "artifact_digest": pointer.artifact_digest,
+                        "directory": pointer.directory,
+                        "preprocessing_version": pointer.preprocessing_version,
+                        "updated_at": self._clock()
+                        .astimezone(timezone.utc)
+                        .isoformat()
+                        .replace("+00:00", "Z"),
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            os.replace(temporary, self.active_pointer_path)
+        except OSError as exc:
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_WRITE_FAILED", "active model pointer could not be saved"
+            ) from exc
+        finally:
+            if temporary.exists():
+                temporary.unlink(missing_ok=True)
+        return pointer
+
+    def read_active_pointer(self) -> ActiveStagingPointer:
+        payload = _read_json(
+            self.active_pointer_path, code="ACTIVE_POINTER_INVALID"
+        )
+        if payload.get("artifact_version") != "staging-pointer.v1":
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model pointer version is invalid"
+            )
+        model_version = payload.get("model_version")
+        artifact_digest = payload.get("artifact_digest")
+        directory = payload.get("directory")
+        preprocessing_version = payload.get("preprocessing_version")
+        if (
+            not isinstance(model_version, str)
+            or not isinstance(artifact_digest, str)
+            or not isinstance(directory, str)
+            or not isinstance(preprocessing_version, str)
+        ):
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model pointer is incomplete"
+            )
+        self._validate_version(model_version, "active model version")
+        self._validate_digest(artifact_digest, "active model digest")
+        if Path(directory).name != directory:
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model directory is invalid"
+            )
+        try:
+            validate_supported_model_input_version(
+                preprocessing_version, context="active model pointer"
+            )
+        except ValueError as exc:
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model preprocessing is invalid"
+            ) from exc
+        directory_path = (self.staging_root / directory).resolve()
+        if directory_path.parent != self.staging_root:
+            raise StagingDeploymentError(
+                "ACTIVE_POINTER_INVALID", "active model directory is outside staging"
+            )
+        try:
+            actual_digest = compute_artifact_digest(directory_path)
+        except StagingDeploymentError as exc:
+            raise StagingDeploymentError(
+                "ACTIVE_STAGING_TAMPERED",
+                "active staging artifact cannot be verified",
+            ) from exc
+        if actual_digest != artifact_digest:
+            raise StagingDeploymentError(
+                "ACTIVE_STAGING_TAMPERED",
+                "active model pointer digest does not match the artifact",
+            )
+        return ActiveStagingPointer(
+            model_version=model_version,
+            artifact_digest=artifact_digest,
+            directory=directory,
+            preprocessing_version=preprocessing_version,
+        )
 
     def _validate_artifact_files(self, artifact: Path) -> dict[str, Any]:
         if not artifact.is_dir() or artifact.is_symlink():
@@ -443,7 +554,7 @@ class LocalStagingAdapter:
                 "CANDIDATE_METADATA_INVALID", "candidate file hash metadata is invalid"
             )
         path = artifact / name
-        if not path.is_file() or _sha256_file(path) != expected_digest:
+        if not path.is_file() or sha256_file(path) != expected_digest:
             raise StagingDeploymentError(
                 "CANDIDATE_ARTIFACT_TAMPERED", "candidate file hash verification failed"
             )
@@ -529,6 +640,12 @@ class LocalStagingAdapter:
         previous_path, previous_digest = self._discover_active(
             active_model_version, expected_preprocessing_version
         )
+        self._validate_digest(active_model_digest, "active model digest")
+        if previous_digest != active_model_digest:
+            raise StagingDeploymentError(
+                "ACTIVE_STAGING_TAMPERED",
+                "active staging artifact does not match the reviewed model digest",
+            )
         target_path = self.staging_root / candidate_model_version
         if target_path.exists():
             raise StagingDeploymentError(
@@ -628,6 +745,19 @@ class LocalStagingAdapter:
                     archive_path=archive_path,
                     failure=exc,
                 )
+            try:
+                self._write_active_pointer(
+                    model_version=plan.preflight.candidate_model_version,
+                    artifact_digest=plan.preflight.candidate_model_digest,
+                    directory=plan.target_path,
+                    preprocessing_version=plan.preflight.preprocessing_version,
+                )
+            except StagingDeploymentError as exc:
+                self._restore_previous_after_failed_deploy(
+                    plan,
+                    archive_path=archive_path,
+                    failure=exc,
+                )
             return StagingDeploymentRecord.from_payload(
                 {**plan.record.to_payload(), "status": "DEPLOYED"}
             )
@@ -635,11 +765,9 @@ class LocalStagingAdapter:
             raise
         except Exception as exc:
             try:
-                self._restore_if_archived(plan, archive_path)
-                self._load_and_verify(
-                    plan.previous_staging_path,
-                    plan.previous_staging_version,
-                    reload=True,
+                self._restore_previous_state(
+                    plan,
+                    archive_path=archive_path,
                 )
             except Exception as restore_exc:
                 raise StagingDeploymentError(
@@ -654,6 +782,34 @@ class LocalStagingAdapter:
         finally:
             if temporary_path.exists():
                 shutil.rmtree(temporary_path, ignore_errors=True)
+
+    def _restore_previous_state(
+        self,
+        plan: StagingDeploymentPlan,
+        *,
+        archive_path: Path,
+    ) -> None:
+        if plan.target_path.is_dir():
+            failed_target = self._archive_target(
+                f"{plan.target_path.name}__failed__{plan.record.run_id[-12:]}"
+            )
+            if failed_target.exists():
+                failed_target = self._archive_target(
+                    f"{plan.target_path.name}__failed__{uuid.uuid4().hex}"
+                )
+            shutil.move(str(plan.target_path), str(failed_target))
+        self._restore_if_archived(plan, archive_path)
+        self._load_and_verify(
+            plan.previous_staging_path,
+            plan.previous_staging_version,
+            reload=True,
+        )
+        self._write_active_pointer(
+            model_version=plan.previous_staging_version,
+            artifact_digest=plan.previous_staging_digest,
+            directory=plan.previous_staging_path,
+            preprocessing_version=plan.record.preprocessing_version,
+        )
 
     def _restore_if_archived(
         self, plan: StagingDeploymentPlan, archive_path: Path
@@ -672,15 +828,7 @@ class LocalStagingAdapter:
         failure: StagingDeploymentError,
     ) -> None:
         try:
-            if plan.target_path.is_dir():
-                failed_target = self._archive_target(
-                    f"{plan.target_path.name}__failed__{plan.record.run_id[-12:]}"
-                )
-                shutil.move(str(plan.target_path), str(failed_target))
-            self._restore_if_archived(plan, archive_path)
-            self._load_and_verify(
-                plan.previous_staging_path, plan.previous_staging_version, reload=True
-            )
+            self._restore_previous_state(plan, archive_path=archive_path)
         except Exception as exc:
             raise StagingDeploymentError(
                 "STAGING_ROLLBACK_FAILED",
@@ -735,11 +883,30 @@ class LocalStagingAdapter:
                 self._load_and_verify(
                     previous_path, record.previous_staging_version, reload=True
                 )
+                self._write_active_pointer(
+                    model_version=record.previous_staging_version,
+                    artifact_digest=record.previous_staging_digest,
+                    directory=previous_path,
+                    preprocessing_version=record.preprocessing_version,
+                )
             except StagingDeploymentError as exc:
-                if previous_path.exists():
-                    shutil.move(str(previous_path), str(archive_path))
-                if current_archive.exists():
-                    shutil.move(str(current_archive), str(current_path))
+                try:
+                    if previous_path.exists():
+                        shutil.move(str(previous_path), str(archive_path))
+                    if current_archive.exists():
+                        shutil.move(str(current_archive), str(current_path))
+                    self._write_active_pointer(
+                        model_version=record.candidate_model_version,
+                        artifact_digest=record.candidate_model_digest,
+                        directory=current_path,
+                        preprocessing_version=record.preprocessing_version,
+                    )
+                except Exception as restore_exc:
+                    raise StagingDeploymentError(
+                        "ROLLBACK_RECOVERY_FAILED",
+                        "rollback load verification failed and deployed staging "
+                        "could not be restored",
+                    ) from restore_exc
                 raise StagingDeploymentError(
                     exc.code,
                     "rollback load verification failed; deployed candidate was "
@@ -755,6 +922,21 @@ class LocalStagingAdapter:
                 shutil.move(str(previous_path), str(archive_path))
             if current_archive.exists() and not current_path.exists():
                 shutil.move(str(current_archive), str(current_path))
+            try:
+                self._load_and_verify(
+                    current_path, record.candidate_model_version, reload=True
+                )
+                self._write_active_pointer(
+                    model_version=record.candidate_model_version,
+                    artifact_digest=record.candidate_model_digest,
+                    directory=current_path,
+                    preprocessing_version=record.preprocessing_version,
+                )
+            except Exception as restore_exc:
+                raise StagingDeploymentError(
+                    "ROLLBACK_RECOVERY_FAILED",
+                    "rollback failed and deployed staging recovery could not be verified",
+                ) from restore_exc
             raise StagingDeploymentError(
                 "ROLLBACK_FAILED", "local staging rollback failed"
             ) from exc
@@ -785,6 +967,8 @@ class LocalStagingAdapter:
 
 
 __all__ = [
+    "ACTIVE_MODEL_POINTER_FILENAME",
+    "ActiveStagingPointer",
     "CANDIDATE_ARTIFACT_DIR_NAME",
     "LocalStagingAdapter",
     "StagingDeploymentError",

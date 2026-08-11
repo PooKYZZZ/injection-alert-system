@@ -29,7 +29,11 @@ from web_app.infrastructure.repositories.traffic_label_review_repository import 
     TrafficLabelReviewRepository,
 )
 from web_app.infrastructure.retraining_process_runner import RetrainingProcessRunner
-from web_app.infrastructure.retraining_staging_adapter import LocalStagingAdapter
+from web_app.infrastructure.retraining_staging_adapter import (
+    LocalStagingAdapter,
+    StagingDeploymentError,
+    compute_artifact_digest,
+)
 from web_app.infrastructure.retraining_worker_supervisor import (
     RetrainingWorkerSupervisor,
 )
@@ -45,13 +49,33 @@ def _identity_digest(payload: object) -> str:
     return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
-def _active_model_identity(request: Request) -> tuple[str, str]:
+def _content_digest(path: Path) -> str:
+    try:
+        return compute_artifact_digest(path)
+    except StagingDeploymentError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Retraining content identity is unavailable.",
+        ) from exc
+
+
+def _active_model_identity(request: Request) -> tuple[str, str, str]:
     model_service = getattr(request.app.state, "model_service", None)
     model_version = str(getattr(model_service, "model_version", "NOT_AVAILABLE"))
     model_input_version = str(
         getattr(model_service, "model_input_version", MODEL_INPUT_VERSION)
     )
-    return model_version or "NOT_AVAILABLE", model_input_version
+    artifact_path = getattr(model_service, "artifact_path", None)
+    if not isinstance(artifact_path, Path):
+        raise HTTPException(
+            status_code=503,
+            detail="Retraining active model identity is unavailable.",
+        )
+    return (
+        model_version or "NOT_AVAILABLE",
+        model_input_version,
+        _content_digest(artifact_path),
+    )
 
 
 def get_retraining_control_use_case(
@@ -69,18 +93,11 @@ def get_retraining_control_use_case(
     artifact_repository = RetrainingRunArtifactRepository(
         settings.retraining_output_root
     )
-    model_version, model_input_version = _active_model_identity(request)
-    source_dataset_digest = _identity_digest(
-        {
-            "dataset_version": RETRAINING_SOURCE_DATASET_VERSION,
-            "preprocessing_version": model_input_version,
-        }
+    model_version, model_input_version, active_model_digest = _active_model_identity(
+        request
     )
-    active_model_digest = _identity_digest(
-        {
-            "model_version": model_version,
-            "model_input_version": model_input_version,
-        }
+    source_dataset_digest = _content_digest(
+        Path.cwd() / "data" / "processed" / RETRAINING_SOURCE_DATASET_VERSION
     )
     pipeline_fingerprint = _identity_digest(
         {
@@ -109,7 +126,11 @@ def get_retraining_control_use_case(
             approved_sample_count=summary.approved,
         )
 
-    process_runner = RetrainingProcessRunner(project_root=Path.cwd())
+    process_runner = RetrainingProcessRunner(
+        project_root=Path.cwd(),
+        smoke=True,
+        timeout_seconds=settings.retraining_worker_timeout_seconds,
+    )
     supervisor = RetrainingWorkerSupervisor(
         artifact_repository,
         root=artifact_repository.root,
