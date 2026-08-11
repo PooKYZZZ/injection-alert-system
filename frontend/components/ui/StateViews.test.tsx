@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ErrorState, LoadingSkeleton } from './StateViews'
+import { EmptyState, ErrorState, LoadingSkeleton } from './StateViews'
 
 describe('StateViews', () => {
   it('announces loading and error states with a keyboard-safe retry button', async () => {
@@ -25,5 +25,11 @@ describe('StateViews', () => {
 
     await user.click(retryButton)
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('hides the decorative empty-state icon from assistive technology', () => {
+    const { container } = render(<EmptyState />)
+
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
 })

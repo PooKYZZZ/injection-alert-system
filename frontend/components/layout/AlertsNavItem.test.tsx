@@ -15,8 +15,20 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
-    <a href={href} className={className}>
+  default: ({
+    href,
+    children,
+    className,
+    onClick,
+    'aria-current': ariaCurrent,
+  }: {
+    href: string
+    children: ReactNode
+    className?: string
+    onClick?: () => void
+    'aria-current'?: 'page'
+  }) => (
+    <a href={href} className={className} onClick={onClick} aria-current={ariaCurrent}>
       {children}
     </a>
   ),
@@ -52,6 +64,7 @@ describe('AlertsNavItem', () => {
 
     const link = screen.getByRole('link', { name: /alerts/i })
     expect(link).toHaveClass('border-accent-action')
+    expect(link).toHaveAttribute('aria-current', 'page')
 
     const badge = screen.getByText('17')
     expect(badge).toHaveClass('bg-severity-high-accent')

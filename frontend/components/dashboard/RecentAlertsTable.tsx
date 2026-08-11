@@ -53,18 +53,24 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
           View all →
         </Link>
       </div>
-      <div data-testid="recent-alerts-scroll" className="min-w-0 overflow-x-auto">
+      <div
+        data-testid="recent-alerts-scroll"
+        role="region"
+        aria-label="Recent alerts data"
+        tabIndex={0}
+        className="min-w-0 overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
+      >
         <table aria-labelledby="recent-alerts-title" className="min-w-[720px] w-full border-collapse text-[11px]">
           <thead>
             <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Triage</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Timestamp</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Source IP</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Request</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Prediction</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Confidence</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">Action Taken</th>
-              <th className="whitespace-nowrap px-2 pb-2 text-left">CRS Score</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Triage</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Timestamp</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Source IP</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Request</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Prediction</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Confidence</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Action Taken</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">CRS Score</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">

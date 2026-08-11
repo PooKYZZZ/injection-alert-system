@@ -8,9 +8,10 @@ interface AlertsNavItemProps {
   href: string
   icon: string
   label: string
+  onNavigate?: () => void
 }
 
-export function AlertsNavItem({ href, icon, label }: AlertsNavItemProps) {
+export function AlertsNavItem({ href, icon, label, onNavigate }: AlertsNavItemProps) {
   const { data } = useAlertsFromFilters(DEFAULT_ALERT_FILTERS)
 
   return (
@@ -19,6 +20,7 @@ export function AlertsNavItem({ href, icon, label }: AlertsNavItemProps) {
       icon={icon}
       label={label}
       badge={typeof data?.total === 'number' ? data.total : undefined}
+      onNavigate={onNavigate}
     />
   )
 }

@@ -14,14 +14,16 @@ vi.mock('./SidebarNavItem', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./SidebarNavItem')>()
   return {
     ...actual,
-    SidebarNavItem: ({ children, label }: { children?: React.ReactNode; label?: string }) => (
-      <div data-testid="sidebar-nav-item">{label}{children}</div>
+    SidebarNavItem: ({ label, onNavigate }: { label?: string; onNavigate?: () => void }) => (
+      <button type="button" onClick={onNavigate}>{label}</button>
     ),
   }
 })
 
 vi.mock('./AlertsNavItem', () => ({
-  AlertsNavItem: ({ label }: { label: string }) => <div>{label}</div>,
+  AlertsNavItem: ({ label, onNavigate }: { label: string; onNavigate?: () => void }) => (
+    <button type="button" onClick={onNavigate}>{label}</button>
+  ),
 }))
 
 vi.mock('./MLHealthWidget', () => ({
@@ -85,6 +87,18 @@ describe('Sidebar', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Dashboard navigation' })
     expect(within(dialog).getByRole('navigation', { name: 'Dashboard navigation' })).toBeInTheDocument()
     expect(within(dialog).getByText('CyberTrace')).toBeInTheDocument()
+  })
+
+  it('closes the mobile navigation after selecting a route', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Dashboard navigation' })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Dashboard' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Dashboard navigation' })).not.toBeInTheDocument()
   })
 
   it('opens confirmation dialog and signs out only after confirm', async () => {

@@ -147,7 +147,7 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
                   contentStyle={{
                     border: '1px solid var(--color-border-light)',
                     borderRadius: '0.375rem',
-                    backgroundColor: 'var(--color-bg-card)',
+                    backgroundColor: 'var(--color-surface-card)',
                     boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
                     backdropFilter: 'blur(12px)',
                   }}

@@ -5,6 +5,7 @@ import { useAlertsFromFilters } from '@/features/alerts/queries'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { ConfidenceTierFilter } from '@/lib/searchParams'
 import { useTheme } from '@/app/providers'
+import { cn } from '@/lib/utils'
 
 const CONFIDENCE_TIER_OPTIONS: { value: ConfidenceTierFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
@@ -117,8 +118,22 @@ function TopBarContent({
   }
 
   return (
-    <header className="z-10 flex h-16 min-w-0 flex-shrink-0 items-center justify-between gap-3 border-b border-border-light bg-surface-panel pl-16 pr-3 shadow-subtle sm:gap-4 sm:pr-4 lg:gap-6 lg:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
+    <header
+      className={cn(
+        'z-10 flex min-w-0 flex-shrink-0 items-center justify-between border-b border-border-light bg-surface-panel shadow-subtle',
+        showNewIndicator
+          ? 'min-h-16 flex-wrap gap-x-3 gap-y-2 py-2 pl-16 pr-3 sm:h-16 sm:flex-nowrap sm:gap-4 sm:py-0 sm:pr-4 lg:gap-6 lg:px-6'
+          : 'h-16 gap-3 pl-16 pr-3 sm:gap-4 sm:pr-4 lg:gap-6 lg:px-6'
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-w-0 items-center gap-4',
+          showNewIndicator
+            ? 'w-full flex-wrap gap-x-4 gap-y-1 overflow-visible sm:w-auto sm:flex-1 sm:flex-nowrap'
+            : 'flex-1 overflow-hidden'
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
 
@@ -155,7 +170,7 @@ function TopBarContent({
             </div>
           </>
         ) : showNewIndicator ? (
-          <div className="flex items-center gap-5">
+          <div className="flex shrink-0 items-center gap-5">
             <div className="h-4 w-px bg-border-light" />
             <NewAlertIndicator />
           </div>
@@ -163,7 +178,12 @@ function TopBarContent({
       </div>
 
       {showSearch ? (
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4 lg:gap-6">
+        <div
+          className={cn(
+            'flex min-w-0 items-center justify-end gap-2 sm:gap-4 lg:gap-6',
+            showNewIndicator ? 'w-full sm:w-auto sm:flex-1' : 'flex-1'
+          )}
+        >
           <div className="relative min-w-0 flex-1 lg:flex-none">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
               <svg
@@ -187,6 +207,7 @@ function TopBarContent({
               defaultValue={searchParams?.get('search') ?? ''}
               onChange={(event) => handleSearch(event.target.value)}
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
               className="w-full min-w-0 max-w-64 rounded-md border border-border-light bg-surface-inset py-1.5 pl-10 pr-4 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
             />
           </div>
@@ -248,12 +269,12 @@ function NewAlertIndicator() {
   const inReviewCount = inReviewAlerts?.total ?? 0
 
   return (
-    <div className="flex items-center gap-5">
-      <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-5">
+      <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">NEW:</span>
         <span className="text-sm font-semibold text-accent-action">{newCount}</span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
         <span className="text-sm font-semibold text-[var(--color-text-secondary)]">IN REVIEW:</span>
         <span className="text-sm font-semibold text-severity-blocked-text">{inReviewCount}</span>
       </div>

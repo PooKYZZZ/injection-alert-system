@@ -9,6 +9,7 @@ interface SidebarNavItemProps {
   icon: string
   label: string
   badge?: number
+  onNavigate?: () => void
 }
 
 export function SidebarIcon({ icon }: { icon: string }) {
@@ -85,7 +86,7 @@ export function SidebarIcon({ icon }: { icon: string }) {
   }
 }
 
-export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps) {
+export function SidebarNavItem({ href, icon, label, badge, onNavigate }: SidebarNavItemProps) {
   const pathname = usePathname()
   const isActive =
     href === '/dashboard' ? pathname === href : pathname.startsWith(href)
@@ -93,6 +94,8 @@ export function SidebarNavItem({ href, icon, label, badge }: SidebarNavItemProps
   return (
     <Link
       href={href}
+      onClick={onNavigate}
+      aria-current={isActive ? 'page' : undefined}
       className={
         isActive
           ? 'group flex h-[40px] items-center gap-3 border-l-[3px] border-accent-action bg-surface-card px-6 text-text-primary'
