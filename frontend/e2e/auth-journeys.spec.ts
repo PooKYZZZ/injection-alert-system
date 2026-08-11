@@ -129,9 +129,26 @@ test.describe('critical authentication journeys', () => {
     await page
       .getByLabel('Enter the six-digit code')
       .fill(totpCodeAtTime(secret).code)
+    const enrollmentResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/auth/mfa/enroll/verify') &&
+        response.request().method() === 'POST',
+      { timeout: 60_000 }
+    )
     await page
       .getByRole('button', { name: /verify authenticator/i })
       .click()
+    const response = await enrollmentResponse
+    expect(response.ok()).toBe(true)
+    const enrollmentPayload = (await response.json()) as {
+      backup_codes?: unknown
+      status?: unknown
+    }
+    expect(enrollmentPayload).toMatchObject({
+      status: 'pending_finalization',
+      backup_codes: expect.any(Array),
+    })
+    expect(enrollmentPayload.backup_codes).toHaveLength(8)
 
     await expect(
       page.getByRole('heading', { name: /save your backup codes/i })
