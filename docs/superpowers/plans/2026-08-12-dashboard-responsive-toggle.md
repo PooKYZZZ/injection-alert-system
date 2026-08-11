@@ -46,6 +46,8 @@ No public API, database, authentication, backend, or external integration contra
 
 ## PR dependency map
 
+> **REVISED after implementation:** The three bounded slices below were executed as three dependency-ordered commits in one hosted PR. Keeping one PR avoids temporarily merging a responsive foundation without the requested toggle and keeps the final review focused on the single active dashboard boundary. The commit boundaries remain available for review and rollback.
+
 ### PR1 — `dashboard responsive foundation`
 
 **Depends on:** `master`.
@@ -259,9 +261,18 @@ npx vitest run --pool=threads components/dashboard/RecentAlertsTable.test.tsx co
 
 ## Final completion gate
 
-- [ ] All three PRs are merged in dependency order.
+- [ ] The single hosted PR containing the three dependency-ordered slices is merged.
 - [ ] The final plan records any `REVISED`, `REJECTED`, `DEFERRED`, or `NOT_RUN` items.
 - [ ] No API/backend/database/dependency changes were introduced.
 - [ ] Responsive behavior was actually inspected or explicitly marked `NOT_RUN`.
 - [ ] Keyboard and selected-state behavior was verified.
 - [ ] The working tree is clean.
+
+## Execution record
+
+- `CONFIRMED` — `master` was the implementation base; `panel-review` supplied only the existing pie presentation reference.
+- `CONFIRMED` — one alerts query and one local normalized attack-type entry list drive both visualization modes.
+- `CONFIRMED` — no new npm dependencies, API changes, backend changes, or persisted/global view state were required.
+- `REVISED` — PR1/PR2/PR3 remain separate commit-level slices inside one hosted PR because of their direct dependency chain.
+- `BLOCKED` — `npm run build` compiled and typechecked but page-data collection requires `AUTH_SECRET` or `NEXTAUTH_SECRET`, which is not present in the isolated worktree; no credential was copied or exposed.
+- `NOT_RUN` — authenticated browser viewport and production dashboard interaction checks were not run because the isolated worktree lacks the required auth runtime secret/session setup.
