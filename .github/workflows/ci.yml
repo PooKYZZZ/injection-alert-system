@@ -20,6 +20,8 @@ jobs:
       LOG_LEVEL: WARNING
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare non-secret Compose environment
+        run: cp .env.example .env
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
