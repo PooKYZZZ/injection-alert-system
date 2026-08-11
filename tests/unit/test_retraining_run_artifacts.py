@@ -314,6 +314,75 @@ def test_worker_lock_contention_and_stale_recovery_are_bounded(tmp_path):
     recovered.release()
 
 
+def test_worker_lock_is_not_observable_before_contents_are_published(
+    tmp_path, monkeypatch
+):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    dump_started = threading.Event()
+    allow_dump = threading.Event()
+    dump_calls = 0
+    dump_calls_lock = threading.Lock()
+    original_dump = artifact_repository.json.dump
+
+    def blocking_dump(payload, handle, *args, **kwargs):
+        nonlocal dump_calls
+        with dump_calls_lock:
+            dump_calls += 1
+            is_first_dump = dump_calls == 1
+        if is_first_dump:
+            dump_started.set()
+            if not allow_dump.wait(timeout=5):
+                raise TimeoutError("timed out waiting to publish worker lock")
+        return original_dump(payload, handle, *args, **kwargs)
+
+    monkeypatch.setattr(artifact_repository.json, "dump", blocking_dump)
+    first_lock = []
+    second_lock = []
+    first_errors = []
+    second_errors = []
+
+    def acquire_first():
+        try:
+            first_lock.append(
+                repository.acquire_worker_lock(
+                    worker_id="worker-a", now=NOW, stale_after_seconds=60
+                )
+            )
+        except Exception as exc:  # pragma: no cover - assertion reports the error
+            first_errors.append(exc)
+
+    first_thread = threading.Thread(target=acquire_first)
+    first_thread.start()
+    assert dump_started.wait(timeout=5)
+
+    def acquire_second():
+        try:
+            second_lock.append(
+                repository.acquire_worker_lock(
+                    worker_id="worker-b", now=NOW, stale_after_seconds=60
+                )
+            )
+        except Exception as exc:
+            second_errors.append(exc)
+
+    second_thread = threading.Thread(target=acquire_second)
+    second_thread.start()
+    second_thread.join(timeout=5)
+    allow_dump.set()
+    first_thread.join(timeout=5)
+
+    assert first_errors == []
+    assert len(first_lock) == 1
+    assert second_lock == []
+    assert len(second_errors) == 1
+    assert isinstance(second_errors[0], WorkerLockBusy)
+    first_lock[0].release()
+
+
 def test_expired_run_heartbeat_becomes_retryable_with_recovery_code(tmp_path):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     repository.create_or_get_run(_record())
@@ -384,10 +453,52 @@ def test_events_are_bounded_and_artifact_manifest_is_hash_checked(tmp_path):
         )
 
 
+def test_artifact_written_before_manifest_publication_is_repaired_on_retry(
+    tmp_path, monkeypatch
+):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    repository.create_or_get_run(_record())
+    original_atomic_json = repository._atomic_json
+
+    def fail_manifest_publication(path, payload):
+        if path.name == "artifact_manifest.json" and "stages/export.json" in payload[
+            "artifacts"
+        ]:
+            raise RuntimeError("simulated manifest publication failure")
+        original_atomic_json(path, payload)
+
+    monkeypatch.setattr(repository, "_atomic_json", fail_manifest_publication)
+    with pytest.raises(RuntimeError, match="manifest publication"):
+        repository.publish_json_artifact(
+            RUN_ID,
+            "stages/export.json",
+            {"status": "CONTROLLED_SMOKE"},
+            stage="export",
+        )
+
+    monkeypatch.setattr(repository, "_atomic_json", original_atomic_json)
+    assert (tmp_path / "runs" / RUN_ID / "stages" / "export.json").is_file()
+    assert "stages/export.json" not in repository.read_artifact_manifest(RUN_ID)[
+        "artifacts"
+    ]
+
+    published = repository.publish_json_artifact(
+        RUN_ID,
+        "stages/export.json",
+        {"status": "CONTROLLED_SMOKE"},
+        stage="export",
+    )
+
+    assert published["sha256"]
+    assert repository.verify_artifacts(RUN_ID, ("stages/export.json",)) is True
+
+
 def test_malformed_worker_lock_is_quarantined_instead_of_blocking_forever(tmp_path):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     lock_path = tmp_path / "runs" / ".worker.lock.json"
     lock_path.write_text("{not-json", encoding="utf-8")
+    stale_at = time.time() - 61
+    os.utime(lock_path, (stale_at, stale_at))
 
     recovered = repository.acquire_worker_lock(
         worker_id="worker-a", now=NOW, stale_after_seconds=60

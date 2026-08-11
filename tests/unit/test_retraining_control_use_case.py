@@ -7,12 +7,12 @@ from web_app.application.retraining_control_use_case import (
     RetrainingControlError,
     RetrainingControlUseCase,
 )
+from web_app.domain.retraining import RetrainingReviewSummary
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
     ArtifactRepositoryError,
     RetrainingRunArtifactRepository,
     RetrainingRunRecord,
 )
-from web_app.domain.retraining import RetrainingReviewSummary
 
 NOW = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
 
@@ -80,6 +80,23 @@ async def test_summary_marks_queued_runs_as_in_progress(tmp_path):
     summary = await control.get_summary()
 
     assert summary.run_in_progress is True
+
+
+def test_run_detail_reports_published_evidence_status(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    run_id = "retrain-20260811T120000Z-000000000005"
+    repository.create_or_get_run(_record(run_id))
+    evaluation = repository.publish_json_artifact(
+        run_id,
+        "stages/evaluation.json",
+        {"evidence_status": "NATIVE", "status": "PASS"},
+        stage="evaluation",
+    )
+    repository.update_run_metadata(run_id, evaluation_digest=evaluation["sha256"])
+
+    detail = _control(repository).get_run_detail(run_id)
+
+    assert detail.evidence_status == "NATIVE"
 
 
 def test_hold_requires_reason_and_records_administrator_event(tmp_path):

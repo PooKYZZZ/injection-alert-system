@@ -921,6 +921,26 @@ class RetrainingRunArtifactRepository:
                     "size": len(content),
                     "stage": str(existing.get("stage", stage))[:64],
                 }
+            if existing is None:
+                try:
+                    published_content = path.read_bytes()
+                except OSError as exc:
+                    raise ArtifactIntegrityError(
+                        "untracked published artifact cannot be read for recovery"
+                    ) from exc
+                if published_content != content:
+                    raise ArtifactIntegrityError(
+                        "untracked published artifact does not match the requested content"
+                    )
+                artifacts[relative_path] = {
+                    "sha256": digest,
+                    "size": len(content),
+                    "stage": str(stage)[:64],
+                }
+                manifest["generation"] = int(manifest.get("generation", 0)) + 1
+                manifest["artifacts"] = dict(sorted(artifacts.items()))
+                self._atomic_json(manifest_path, manifest)
+                return dict(artifacts[relative_path])
             raise ArtifactIntegrityError(
                 "published artifacts are immutable within a run"
             )
@@ -1146,6 +1166,18 @@ class RetrainingRunArtifactRepository:
                     owner = self._read_json(lock_path)
                     heartbeat = _parse_time(owner.get("heartbeat_at"))
                 except ArtifactRepositoryError, ValueError, OSError:
+                    try:
+                        lock_age = time.time() - lock_path.stat().st_mtime
+                    except FileNotFoundError:
+                        continue
+                    except OSError as exc:
+                        raise WorkerLockBusy(
+                            "worker lock is unreadable and cannot be inspected"
+                        ) from exc
+                    if lock_age < stale_after_seconds:
+                        raise WorkerLockBusy(
+                            "worker lock is still being published or is unreadable"
+                        )
                     corrupt_path = self.root / (
                         f".worker.lock.corrupt.{uuid.uuid4().hex}.json"
                     )

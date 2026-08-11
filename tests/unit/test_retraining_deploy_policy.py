@@ -438,6 +438,41 @@ def test_deploy_audit_failure_enters_recovery_and_can_rollback_after_restart_bou
     )
 
 
+def test_deploy_audit_failure_before_activation_restores_approved_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    control, repository, staging_root, _, _, _, adapter = _make_control(tmp_path)
+    original_append = control._append_event
+
+    def fail_started_event(run_id, **kwargs):
+        if kwargs["code"] == "DEPLOY_STARTED":
+            raise ArtifactRepositoryError("simulated audit event failure")
+        return original_append(run_id, **kwargs)
+
+    monkeypatch.setattr(control, "_append_event", fail_started_event)
+    deployment_called = False
+
+    def unexpected_deploy(_plan):
+        nonlocal deployment_called
+        deployment_called = True
+        raise AssertionError("physical activation must not begin")
+
+    monkeypatch.setattr(adapter, "deploy", unexpected_deploy)
+
+    with pytest.raises(RetrainingControlError, match="audit state"):
+        control.deploy(
+            run_id=RUN_ID,
+            expected_candidate_version="candidate-v1",
+            actor_id="admin-1",
+            actor_role="ADMIN",
+        )
+
+    assert deployment_called is False
+    assert repository.load_run(RUN_ID).state is RunState.APPROVED
+    assert (staging_root / "active-v1").is_dir()
+    assert not (staging_root / "candidate-v1").exists()
+
+
 def test_unclean_deploy_before_activation_is_reconciled_after_restart(
     tmp_path: Path,
 ):

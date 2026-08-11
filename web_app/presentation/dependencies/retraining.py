@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
@@ -59,6 +60,14 @@ def _content_digest(path: Path) -> str:
         ) from exc
 
 
+@lru_cache(maxsize=16)
+def _cached_content_digest(path: str, immutable_identity: str) -> str:
+    """Reuse a verified digest while its immutable owner identity is stable."""
+
+    del immutable_identity
+    return _content_digest(Path(path))
+
+
 def _active_model_identity(request: Request) -> tuple[str, str, str]:
     model_service = getattr(request.app.state, "model_service", None)
     model_version = str(getattr(model_service, "model_version", "NOT_AVAILABLE"))
@@ -74,7 +83,10 @@ def _active_model_identity(request: Request) -> tuple[str, str, str]:
     return (
         model_version or "NOT_AVAILABLE",
         model_input_version,
-        _content_digest(artifact_path),
+        _cached_content_digest(
+            str(artifact_path),
+            f"model:{id(model_service)}:{model_version}:{model_input_version}",
+        ),
     )
 
 
@@ -96,8 +108,9 @@ def get_retraining_control_use_case(
     model_version, model_input_version, active_model_digest = _active_model_identity(
         request
     )
-    source_dataset_digest = _content_digest(
-        Path.cwd() / "data" / "processed" / RETRAINING_SOURCE_DATASET_VERSION
+    source_dataset_digest = _cached_content_digest(
+        str(Path.cwd() / "data" / "processed" / RETRAINING_SOURCE_DATASET_VERSION),
+        f"dataset:{RETRAINING_SOURCE_DATASET_VERSION}:{DATASET_MANIFEST_VERSION}:{model_input_version}",
     )
     pipeline_fingerprint = _identity_digest(
         {

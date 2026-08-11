@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
 
-from ml_model.retraining.dashboard_contracts import RunState
+from ml_model.retraining.dashboard_contracts import EvidenceStatus, RunState
 from ml_model.retraining.dashboard_export import DashboardExportResult
 from web_app.application.retraining_export_use_case import RetrainingExportUseCase
 from web_app.application.retraining_run_use_case import (
@@ -150,6 +150,20 @@ class RetrainingControlUseCase:
             if record.state is RunState.NOT_ENOUGH_EVIDENCE
             else "NOT_RUN"
         )
+        try:
+            evaluation = self._artifact_repository.read_json_artifact(
+                record.run_id, "stages/evaluation.json"
+            )
+            evidence_status = EvidenceStatus.parse(
+                evaluation.get("evidence_status")
+            ).value
+        except (
+            ArtifactRepositoryError,
+            FileNotFoundError,
+            TypeError,
+            ValueError,
+        ):
+            pass
         return RetrainingRunDetail(
             record=record,
             events=events,
@@ -738,6 +752,43 @@ class RetrainingControlUseCase:
                     "DEPLOYMENT_RECOVERY_REQUIRED",
                     "Local staging state requires explicit recovery.",
                 ) from exc
+            try:
+                current = self._artifact_repository.load_run(run_id)
+            except (ArtifactRepositoryError, FileNotFoundError, ValueError) as record_exc:
+                self._mark_recovery_required(
+                    run_id,
+                    stage="deploy_recovery_required",
+                    code="DEPLOYMENT_RECOVERY_REQUIRED",
+                    message="local deployment audit state requires recovery",
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                )
+                raise RetrainingControlError(
+                    "DEPLOYMENT_RECOVERY_REQUIRED",
+                    "Local staging state requires explicit recovery.",
+                ) from record_exc
+            if current.state is RunState.DEPLOYING:
+                try:
+                    self._artifact_repository.transition(
+                        run_id,
+                        RunState.APPROVED,
+                        stage="deployment_audit_failed_before_activation",
+                        error_code="DEPLOYMENT_RECORD_FAILED",
+                        error_message="Local deployment audit state could not be recorded.",
+                    )
+                except ArtifactRepositoryError as restore_exc:
+                    self._mark_recovery_required(
+                        run_id,
+                        stage="deploy_recovery_required",
+                        code="DEPLOYMENT_RECOVERY_REQUIRED",
+                        message="local deployment audit state requires recovery",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                    )
+                    raise RetrainingControlError(
+                        "DEPLOYMENT_RECOVERY_REQUIRED",
+                        "Local staging state requires explicit recovery.",
+                    ) from restore_exc
             raise RetrainingControlError(
                 "DEPLOYMENT_RECORD_FAILED",
                 "Local deployment audit state could not be recorded.",
