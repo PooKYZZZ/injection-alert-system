@@ -1,4 +1,8 @@
+import errno
 import json
+import os
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -6,6 +10,7 @@ import pytest
 from ml_model.retraining.dashboard_contracts import RunState
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
     ArtifactIntegrityError,
+    ArtifactRepositoryError,
     InvalidRunTransition,
     RetrainingRunArtifactRepository,
     RetrainingRunRecord,
@@ -69,6 +74,178 @@ def test_queue_is_atomic_versioned_and_rejects_path_traversal(tmp_path):
 
     with pytest.raises(ValueError):
         repository.load_run("../outside")
+
+
+def test_reviewed_run_states_require_dataset_candidate_and_evaluation_bindings(
+    tmp_path,
+):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+
+    with pytest.raises(ArtifactRepositoryError, match="state requires"):
+        repository.create_or_get_run(_record(state=RunState.APPROVED))
+
+
+def test_fingerprint_reservation_makes_concurrent_run_creation_idempotent(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    first_observers = threading.Barrier(2)
+    original_find = repository.find_by_input_fingerprint
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def synchronized_find(fingerprint):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            should_wait = calls <= 2
+        if should_wait:
+            first_observers.wait(timeout=5)
+        return original_find(fingerprint)
+
+    repository.find_by_input_fingerprint = synchronized_find
+    records = []
+    errors = []
+
+    def create(record):
+        try:
+            records.append(repository.create_or_get_run(record))
+        except Exception as exc:  # pragma: no cover - assertion reports the error
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=create, args=(_record(run_id=run_id),))
+        for run_id in (
+            RUN_ID,
+            "retrain-20260810T120001Z-000000000002",
+        )
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert errors == []
+    assert len(records) == 2
+    assert len({record.run_id for record in records}) == 1
+    assert len(repository.list_runs()) == 1
+
+
+def test_orphaned_fingerprint_reservation_is_recovered(tmp_path, monkeypatch):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = artifact_repository.RetrainingRunArtifactRepository(
+        tmp_path / "runs", clock=lambda: NOW
+    )
+    reservation = repository.root / (
+        f".run-fingerprint.{_record().input_fingerprint}.reservation"
+    )
+    reservation.mkdir()
+    (reservation / artifact_repository.RUN_RESERVATION_OWNER_FILENAME).write_text(
+        json.dumps(
+            {
+                "pid": 4_000_000,
+                "created_at": time.time()
+                - artifact_repository.RUN_RESERVATION_STALE_SECONDS
+                - 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        artifact_repository, "_reservation_owner_is_live", lambda _pid: False
+    )
+
+    created = repository.create_or_get_run(_record())
+
+    assert created.run_id == RUN_ID
+    assert len(repository.list_runs()) == 1
+    assert not reservation.exists()
+
+
+def test_empty_fingerprint_reservation_is_recovered_after_owner_crash(tmp_path):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = artifact_repository.RetrainingRunArtifactRepository(
+        tmp_path / "runs", clock=lambda: NOW
+    )
+    reservation = repository.root / (
+        f".run-fingerprint.{_record().input_fingerprint}.reservation"
+    )
+    reservation.mkdir()
+    stale_at = time.time() - artifact_repository.RUN_RESERVATION_STALE_SECONDS - 1
+    os.utime(reservation, (stale_at, stale_at))
+
+    created = repository.create_or_get_run(_record())
+
+    assert created.run_id == RUN_ID
+    assert len(repository.list_runs()) == 1
+    assert not reservation.exists()
+
+
+def test_live_fingerprint_reservation_is_not_recovered(tmp_path, monkeypatch):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = artifact_repository.RetrainingRunArtifactRepository(
+        tmp_path / "runs", clock=lambda: NOW
+    )
+    reservation = repository.root / (
+        f".run-fingerprint.{_record().input_fingerprint}.reservation"
+    )
+    reservation.mkdir()
+    (reservation / artifact_repository.RUN_RESERVATION_OWNER_FILENAME).write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "created_at": time.time()
+                - artifact_repository.RUN_RESERVATION_STALE_SECONDS
+                - 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(artifact_repository, "RUN_RESERVATION_WAIT_SECONDS", 0.02)
+    monkeypatch.setattr(
+        artifact_repository, "_reservation_owner_is_live", lambda _pid: True
+    )
+
+    with pytest.raises(ArtifactRepositoryError, match="same input fingerprint"):
+        repository.create_or_get_run(_record())
+
+    assert reservation.exists()
+
+
+def test_unknown_process_inspection_failure_is_treated_as_live(monkeypatch):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    def fail_process_inspection(_pid, _signal):
+        raise OSError(errno.EIO, "simulated process inspection failure")
+
+    monkeypatch.setattr(artifact_repository.os, "name", "posix")
+    monkeypatch.setattr(artifact_repository.os, "kill", fail_process_inspection)
+
+    assert artifact_repository._reservation_owner_is_live(12345) is True
+
+
+def test_run_manifest_is_published_after_supporting_artifacts(tmp_path, monkeypatch):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    original_atomic_json = repository._atomic_json
+
+    def observe_publication(path, payload):
+        if path.name == "run.json":
+            assert (path.parent / "artifact_manifest.json").is_file()
+            assert (path.parent / "events.jsonl").is_file()
+        original_atomic_json(path, payload)
+
+    monkeypatch.setattr(repository, "_atomic_json", observe_publication)
+
+    repository.create_or_get_run(_record())
 
 
 def test_stage_completion_requires_published_artifact_and_valid_transition(tmp_path):
@@ -137,6 +314,75 @@ def test_worker_lock_contention_and_stale_recovery_are_bounded(tmp_path):
     recovered.release()
 
 
+def test_worker_lock_is_not_observable_before_contents_are_published(
+    tmp_path, monkeypatch
+):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    dump_started = threading.Event()
+    allow_dump = threading.Event()
+    dump_calls = 0
+    dump_calls_lock = threading.Lock()
+    original_dump = artifact_repository.json.dump
+
+    def blocking_dump(payload, handle, *args, **kwargs):
+        nonlocal dump_calls
+        with dump_calls_lock:
+            dump_calls += 1
+            is_first_dump = dump_calls == 1
+        if is_first_dump:
+            dump_started.set()
+            if not allow_dump.wait(timeout=5):
+                raise TimeoutError("timed out waiting to publish worker lock")
+        return original_dump(payload, handle, *args, **kwargs)
+
+    monkeypatch.setattr(artifact_repository.json, "dump", blocking_dump)
+    first_lock = []
+    second_lock = []
+    first_errors = []
+    second_errors = []
+
+    def acquire_first():
+        try:
+            first_lock.append(
+                repository.acquire_worker_lock(
+                    worker_id="worker-a", now=NOW, stale_after_seconds=60
+                )
+            )
+        except Exception as exc:  # pragma: no cover - assertion reports the error
+            first_errors.append(exc)
+
+    first_thread = threading.Thread(target=acquire_first)
+    first_thread.start()
+    assert dump_started.wait(timeout=5)
+
+    def acquire_second():
+        try:
+            second_lock.append(
+                repository.acquire_worker_lock(
+                    worker_id="worker-b", now=NOW, stale_after_seconds=60
+                )
+            )
+        except Exception as exc:
+            second_errors.append(exc)
+
+    second_thread = threading.Thread(target=acquire_second)
+    second_thread.start()
+    second_thread.join(timeout=5)
+    allow_dump.set()
+    first_thread.join(timeout=5)
+
+    assert first_errors == []
+    assert len(first_lock) == 1
+    assert second_lock == []
+    assert len(second_errors) == 1
+    assert isinstance(second_errors[0], WorkerLockBusy)
+    first_lock[0].release()
+
+
 def test_expired_run_heartbeat_becomes_retryable_with_recovery_code(tmp_path):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     repository.create_or_get_run(_record())
@@ -170,12 +416,121 @@ def test_events_are_bounded_and_artifact_manifest_is_hash_checked(tmp_path):
         {"status": "CONTROLLED_SMOKE"},
         stage="export",
     )
+    assert repository.publish_json_artifact(
+        RUN_ID,
+        "stages/export.json",
+        {"status": "CONTROLLED_SMOKE"},
+        stage="export",
+    )["sha256"]
+    with pytest.raises(ArtifactIntegrityError, match="immutable"):
+        repository.publish_json_artifact(
+            RUN_ID,
+            "stages/export.json",
+            {"status": "changed"},
+            stage="export",
+        )
     manifest = repository.read_artifact_manifest(RUN_ID)
     assert manifest["artifacts"]["stages/export.json"]["sha256"]
     assert repository.verify_artifacts(RUN_ID, ("stages/export.json",)) is True
     path = tmp_path / "runs" / RUN_ID / "stages" / "export.json"
     path.write_text("tampered", encoding="utf-8")
     assert repository.verify_artifacts(RUN_ID, ("stages/export.json",)) is False
+    path.unlink()
+    with pytest.raises(ArtifactIntegrityError, match="manifest is inconsistent"):
+        repository.publish_json_artifact(
+            RUN_ID,
+            "stages/export.json",
+            {"status": "CONTROLLED_SMOKE"},
+            stage="export",
+        )
+
+    with pytest.raises(ArtifactRepositoryError):
+        repository.publish_json_artifact(
+            RUN_ID,
+            "artifact_manifest.json",
+            {"unsafe": True},
+            stage="export",
+        )
+
+
+def test_artifact_written_before_manifest_publication_is_repaired_on_retry(
+    tmp_path, monkeypatch
+):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    repository.create_or_get_run(_record())
+    original_atomic_json = repository._atomic_json
+
+    def fail_manifest_publication(path, payload):
+        if path.name == "artifact_manifest.json" and "stages/export.json" in payload[
+            "artifacts"
+        ]:
+            raise RuntimeError("simulated manifest publication failure")
+        original_atomic_json(path, payload)
+
+    monkeypatch.setattr(repository, "_atomic_json", fail_manifest_publication)
+    with pytest.raises(RuntimeError, match="manifest publication"):
+        repository.publish_json_artifact(
+            RUN_ID,
+            "stages/export.json",
+            {"status": "CONTROLLED_SMOKE"},
+            stage="export",
+        )
+
+    monkeypatch.setattr(repository, "_atomic_json", original_atomic_json)
+    assert (tmp_path / "runs" / RUN_ID / "stages" / "export.json").is_file()
+    assert "stages/export.json" not in repository.read_artifact_manifest(RUN_ID)[
+        "artifacts"
+    ]
+
+    published = repository.publish_json_artifact(
+        RUN_ID,
+        "stages/export.json",
+        {"status": "CONTROLLED_SMOKE"},
+        stage="export",
+    )
+
+    assert published["sha256"]
+    assert repository.verify_artifacts(RUN_ID, ("stages/export.json",)) is True
+
+
+def test_malformed_worker_lock_is_quarantined_instead_of_blocking_forever(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    lock_path = tmp_path / "runs" / ".worker.lock.json"
+    lock_path.write_text("{not-json", encoding="utf-8")
+    stale_at = time.time() - 61
+    os.utime(lock_path, (stale_at, stale_at))
+
+    recovered = repository.acquire_worker_lock(
+        worker_id="worker-a", now=NOW, stale_after_seconds=60
+    )
+
+    assert recovered.worker_id == "worker-a"
+    assert list((tmp_path / "runs").glob(".worker.lock.corrupt.*.json"))
+    recovered.release()
+
+
+def test_stale_worker_cannot_publish_after_run_ownership_is_cleared(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    repository.create_or_get_run(_record())
+    claimed = repository.claim_next(worker_id="worker-a", now=NOW)
+    assert claimed is not None
+    repository.fail_run(
+        RUN_ID,
+        error_code="WORKER_TIMEOUT",
+        error_message="bounded timeout",
+        retryable=False,
+        worker_id="worker-a",
+        now=NOW,
+    )
+
+    with pytest.raises(ArtifactRepositoryError, match="ownership"):
+        repository.publish_json_artifact(
+            RUN_ID,
+            "stages/late.json",
+            {"stale": True},
+            stage="late",
+            worker_id="worker-a",
+        )
 
 
 def test_claim_cleans_only_abandoned_atomic_temporary_artifacts(tmp_path):

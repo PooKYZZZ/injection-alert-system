@@ -703,7 +703,7 @@ async function fetchUpstream<T>(
   return normalizeWithSchema(schema, payload)
 }
 
-type RetrainingActor = { id: string; role: string }
+export type RetrainingActor = { id: string; role: string }
 
 function parseRetrainingRunId(runId: string): BffResult<string> {
   if (!/^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/.test(runId)) {
@@ -810,21 +810,25 @@ export async function startRetrainingRun(
   })
 }
 
-export async function getRetrainingRuns(): Promise<BffResult<RetrainingRunList>> {
+export async function getRetrainingRuns(
+  actor: RetrainingActor
+): Promise<BffResult<RetrainingRunList>> {
   return fetchRetrainingUpstream('/api/retraining/runs', RetrainingRunListSchema, {
     method: 'GET',
+    actor,
   })
 }
 
 export async function getRetrainingRun(
-  runId: string
+  runId: string,
+  actor: RetrainingActor
 ): Promise<BffResult<RetrainingRunDetail>> {
   const parsed = parseRetrainingRunId(runId)
   if (!parsed.ok) return parsed
   return fetchRetrainingUpstream(
     `/api/retraining/runs/${encodeURIComponent(parsed.data)}`,
     RetrainingRunDetailSchema,
-    { method: 'GET' }
+    { method: 'GET', actor }
   )
 }
 

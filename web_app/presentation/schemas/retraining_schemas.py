@@ -25,6 +25,10 @@ class RetrainingRunRequest(StrictSchema):
     @classmethod
     def reject_raw_payload_markers(cls, value: str | None) -> str | None:
         if value is not None and any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        ):
+            raise ValueError("operator note contains control characters")
+        if value is not None and any(
             marker in value
             for marker in (
                 "model_input_text",
@@ -50,6 +54,10 @@ class RetrainingDecisionRequest(StrictSchema):
     @field_validator("reason")
     @classmethod
     def reject_raw_payload_markers(cls, value: str | None) -> str | None:
+        if value is not None and any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        ):
+            raise ValueError("decision reason contains control characters")
         if value is not None and any(
             marker in value
             for marker in (
@@ -78,6 +86,8 @@ class RetrainingRollbackRequest(StrictSchema):
     @field_validator("reason")
     @classmethod
     def reject_raw_payload_markers(cls, value: str) -> str:
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("rollback reason contains control characters")
         if any(
             marker in value
             for marker in (

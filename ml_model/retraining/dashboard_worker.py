@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -30,6 +33,15 @@ EXIT_SUCCESS = 0
 EXIT_NOOP = 10
 EXIT_RETRYABLE_FAILURE = 20
 EXIT_TERMINAL_FAILURE = 30
+_PIPELINE_ACTIVE_STATES = frozenset(
+    {
+        RunState.QUEUED,
+        RunState.EXPORTING,
+        RunState.DATASET_VALIDATED,
+        RunState.TRAINING,
+        RunState.EVALUATING,
+    }
+)
 
 
 class DashboardPipeline(Protocol):
@@ -69,6 +81,8 @@ class DashboardWorker:
             raise ValueError("worker timeout must be positive")
         self._repository = repository
         self._root = Path(root).expanduser().resolve()
+        self._pipeline_isolated = pipeline is None
+        self._smoke = smoke
         self._pipeline = pipeline or (
             SmokeDashboardPipeline() if smoke else NativeDashboardPipeline()
         )
@@ -85,6 +99,114 @@ class DashboardWorker:
             worker_id=self._worker_id,
             now=self._clock().astimezone(timezone.utc),
         )
+
+    def _refresh_lock(self, lock) -> None:
+        try:
+            lock.heartbeat(self._clock().astimezone(timezone.utc))
+        except WorkerLockBusy as exc:
+            raise PipelineFailure(
+                "WORKER_LOCK_LOST",
+                retryable=True,
+                message="worker lock ownership was lost during execution",
+            ) from exc
+
+    @staticmethod
+    def _terminate_pipeline_process(process: subprocess.Popen[bytes]) -> None:
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
+                    timeout=5,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                pass
+        try:
+            process.kill()
+        except (OSError, ProcessLookupError):
+            pass
+        try:
+            process.wait(timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    def _execute_isolated_pipeline(
+        self,
+        run,
+        lock,
+    ) -> PipelineResult:
+        command = [
+            sys.executable,
+            "-m",
+            "ml_model.retraining.dashboard_pipeline",
+            "--root",
+            str(self._root),
+            "--run-id",
+            run.run_id,
+        ]
+        if self._smoke:
+            command.append("--smoke")
+        creation_flags = 0
+        if os.name == "nt":
+            creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=False,
+            creationflags=creation_flags,
+            start_new_session=os.name != "nt",
+        )
+        try:
+            deadline = self._monotonic() + self._timeout_seconds
+            heartbeat_interval = max(
+                0.1, min(30.0, self._heartbeat_timeout_seconds / 3)
+            )
+            while True:
+                remaining = deadline - self._monotonic()
+                if remaining <= 0:
+                    self._terminate_pipeline_process(process)
+                    raise PipelineFailure(
+                        "WORKER_TIMEOUT",
+                        retryable=True,
+                        message="worker execution exceeded the configured timeout",
+                    )
+                try:
+                    return_code = process.wait(
+                        timeout=min(remaining, heartbeat_interval)
+                    )
+                    break
+                except subprocess.TimeoutExpired:
+                    self._refresh_lock(lock)
+            if return_code == 20:
+                raise PipelineFailure(
+                    "PIPELINE_PROCESS_RETRYABLE_FAILURE",
+                    retryable=True,
+                    message="pipeline subprocess reported a retryable failure",
+                )
+            if return_code != 0:
+                raise PipelineFailure(
+                    "PIPELINE_PROCESS_FAILED",
+                    retryable=False,
+                    message="pipeline subprocess failed",
+                )
+            current = self._repository.load_run(run.run_id)
+            return PipelineResult(
+                terminal_state=current.state,
+                evidence_status="CONTROLLED_SMOKE" if self._smoke else "NATIVE",
+            )
+        except BaseException:
+            self._terminate_pipeline_process(process)
+            raise
 
     def run_once(self, *, now: datetime | None = None) -> WorkerResult:
         current_time = (now or self._clock()).astimezone(timezone.utc)
@@ -132,13 +254,20 @@ class DashboardWorker:
                 return WorkerResult(EXIT_SUCCESS, run.run_id, skipped.state)
             started = self._monotonic()
             try:
-                result = self._pipeline.execute(
-                    run,
-                    self._repository,
-                    lambda: self._heartbeat(run.run_id),
-                )
+                if self._pipeline_isolated:
+                    result = self._execute_isolated_pipeline(run, lock)
+                else:
+                    def pipeline_heartbeat() -> None:
+                        self._heartbeat(run.run_id)
+                        self._refresh_lock(lock)
+
+                    result = self._pipeline.execute(
+                        run,
+                        self._repository,
+                        pipeline_heartbeat,
+                    )
                 elapsed = self._monotonic() - started
-                if elapsed > self._timeout_seconds:
+                if not self._pipeline_isolated and elapsed > self._timeout_seconds:
                     raise PipelineFailure(
                         "WORKER_TIMEOUT",
                         retryable=True,
@@ -146,6 +275,12 @@ class DashboardWorker:
                     )
                 current = self._repository.load_run(run.run_id)
                 if current.state is not result.terminal_state:
+                    raise PipelineFailure(
+                        "PIPELINE_STATE_INCOMPLETE",
+                        retryable=False,
+                        message="pipeline did not publish its terminal state",
+                    )
+                if current.state in _PIPELINE_ACTIVE_STATES:
                     raise PipelineFailure(
                         "PIPELINE_STATE_INCOMPLETE",
                         retryable=False,
@@ -244,11 +379,39 @@ class DashboardWorker:
         last = WorkerResult(EXIT_NOOP, None, None)
         while self._monotonic() < deadline:
             last = self.run_once()
-            if last.exit_code in {EXIT_RETRYABLE_FAILURE, EXIT_TERMINAL_FAILURE}:
+            now = self._clock().astimezone(timezone.utc)
+            runnable = any(
+                record.state is RunState.QUEUED
+                or (
+                    record.state is RunState.RETRYABLE_FAILED
+                    and (record.next_retry_at is None or record.next_retry_at <= now)
+                )
+                for record in self._repository.list_runs()
+            )
+            if runnable:
+                if last.exit_code == EXIT_SUCCESS:
+                    continue
+                time.sleep(poll_seconds)
+                continue
+            next_retry_at = min(
+                (
+                    record.next_retry_at
+                    for record in self._repository.list_runs()
+                    if record.state is RunState.RETRYABLE_FAILED
+                    and record.next_retry_at is not None
+                ),
+                default=None,
+            )
+            if next_retry_at is None:
                 return last
-            if last.exit_code == EXIT_SUCCESS:
-                return last
-            time.sleep(poll_seconds)
+            wait_seconds = max(
+                0.01,
+                min(
+                    poll_seconds,
+                    (next_retry_at - now).total_seconds(),
+                ),
+            )
+            time.sleep(wait_seconds)
         return last
 
 

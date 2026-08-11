@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from time import time_ns
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi.concurrency import run_in_threadpool
 
 from ml_model.retraining.dashboard_contracts import build_run_id
 from web_app.application.label_review_use_case import ReviewerContext
@@ -279,7 +280,8 @@ async def deploy_retraining_run(
 ):
     actor = _administrator(request)
     try:
-        result = control.deploy(
+        result = await run_in_threadpool(
+            control.deploy,
             run_id=run_id,
             expected_candidate_version=payload.expected_candidate_version,
             actor_id=actor.reviewer_id,
@@ -303,7 +305,8 @@ async def rollback_retraining_run(
 ):
     actor = _administrator(request)
     try:
-        result = control.rollback(
+        result = await run_in_threadpool(
+            control.rollback,
             run_id=run_id,
             previous_staging_version=payload.previous_staging_version,
             reason=payload.reason,

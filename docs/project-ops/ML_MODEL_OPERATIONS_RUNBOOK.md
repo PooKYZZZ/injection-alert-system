@@ -52,11 +52,16 @@ ignored environment/configuration files where overridden.
    serving manifest, allowlisted files, preprocessing version, label map, and
    CPU load/prediction smoke before copying to local staging.
 7. A successful deployment records the prior staging version and archive
-   identity, atomically replaces the staging directory, reloads the model, and
-   records `deployed`. A load failure restores and verifies the previous model
-   and records `rolled_back`.
+   identity, validates a private candidate copy, and keeps the previous
+   staging directory in place until the active pointer names the candidate.
+   It then archives the predecessor, reloads the model, and records `deployed`.
+   A load failure restores and verifies the previous model and records
+   `rolled_back`.
 8. Rollback is a separate administrator action bound to the deployment record
-   and the requested previous staging version.
+   and the requested previous staging version. If the process exits while the
+   run is `deploying`, the same action reconciles a still-active predecessor
+   back to `approved`, or completes a physically finished rollback to
+   `rolled_back`; an ambiguous pointer or digest remains `RECOVERY_REQUIRED`.
 
 ## States and evidence
 
@@ -71,6 +76,7 @@ Run state is durable in `run.json`; audit events are append-only in
 | deployment start/success | `DEPLOY_STARTED`, `DEPLOY_SUCCEEDED` |
 | load failure with known-good restore | `DEPLOY_ROLLED_BACK`, run `rolled_back` |
 | rollback start/success | `ROLLBACK_STARTED`, `ROLLBACK_SUCCEEDED` |
+| interrupted deployment recovery | `DEPLOYMENT_RECONCILED` or `ROLLBACK_RECONCILED` |
 
 Deployment requires native or verified passing evaluation evidence and a
 passing comparison whose provenance matches the run's active and candidate
@@ -95,8 +101,10 @@ allowlist, manifest, digest, and reload validation.
 
 Local staging contains the currently active controlled-local artifact. Previous
 artifacts are moved to the configured archive root with a run/time-qualified
-name. `staging/deployment.json` binds the candidate, previous version, hashes,
-preprocessing version, and operation status.
+name after the active pointer has switched. `staging/deployment.json` binds the
+candidate, previous version, hashes, preprocessing version, and operation
+status. This ordering keeps either the old or new pointer target present across
+an ordinary process interruption.
 
 Preserve run manifests, events, evaluation/comparison evidence, and deployment
 records for the capstone review period. Keep the previous staged artifact until
@@ -133,8 +141,10 @@ installation is not part of this repository proof and is **NOT_RUN** here.
 | `SCHEDULE_SKIPPED_CONCURRENT_RUN` | Another queued/active/review run exists | Inspect that run; wait for its decision |
 | `NOT_ENOUGH_EVIDENCE` | Required evaluation/support is missing | Do not approve or deploy; complete evaluation |
 | `DEPLOY_GATE_FAILED` | Comparison policy failed | Inspect per-gate evidence; hold/reject |
+| `DEPLOYMENT_RECOVERY_REQUIRED` | Pointer/digest state is ambiguous after an interrupted deployment | Stop automated actions; inspect the run plan and staging/archive digests manually |
 | integrity/metadata failure | Candidate or deployment artifact changed | Preserve the failure evidence and reject the candidate |
 | load verification failure | Candidate could not load or smoke-test | Confirm the run is `rolled_back`; keep the prior model |
+| `ROLLBACK_RECOVERY_REQUIRED` | Rollback state cannot prove which artifact is active | Do not delete files; inspect the pointer and both artifact digests manually |
 | rollback failure | Previous artifact could not be verified | Do not delete files; inspect staging/archive integrity manually |
 | scheduler request failure | FastAPI/auth/service unavailable | Check service and server-side configuration; rerun once |
 

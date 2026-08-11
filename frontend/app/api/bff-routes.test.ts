@@ -13,6 +13,9 @@ const getAlertsMock = vi.fn()
 const getAlertDetailMock = vi.fn()
 const getStatsMock = vi.fn()
 const getMlHealthMock = vi.fn()
+const getRetrainingRunsMock = vi.fn()
+const getRetrainingRunMock = vi.fn()
+const exportRetrainingSamplesMock = vi.fn()
 const updateAlertTriageMock = vi.fn()
 const updateAlertActionMock = vi.fn()
 const submitAlertLabelReviewMock = vi.fn()
@@ -29,6 +32,9 @@ vi.mock('@/lib/bff-client', () => ({
   getAlertDetail: getAlertDetailMock,
   getStats: getStatsMock,
   getMlHealth: getMlHealthMock,
+  getRetrainingRuns: getRetrainingRunsMock,
+  getRetrainingRun: getRetrainingRunMock,
+  exportRetrainingSamples: exportRetrainingSamplesMock,
   updateAlertTriage: updateAlertTriageMock,
   updateAlertAction: updateAlertActionMock,
   submitAlertLabelReview: submitAlertLabelReviewMock,
@@ -154,6 +160,55 @@ describe('BFF route handlers', () => {
     expect(body).toEqual({
       error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
     })
+  })
+
+  it('retraining run reads pass the authenticated actor to the BFF client', async () => {
+    setCurrentAccount(ROLES.ANALYST)
+    authMock.mockResolvedValue(session(ROLES.ANALYST))
+    getRetrainingRunsMock.mockResolvedValue({ ok: true, data: { runs: [] } })
+    getRetrainingRunMock.mockResolvedValue({ ok: true, data: { run_id: 'run-1' } })
+
+    const { GET: getRuns } = await import('./ml-model/runs/route')
+    const listResponse = await getRuns()
+    expect(listResponse.status).toBe(200)
+    expect(getRetrainingRunsMock).toHaveBeenCalledWith({
+      id: accountId,
+      role: ROLES.ANALYST,
+    })
+
+    const { GET: getRun } = await import('./ml-model/runs/[runId]/route')
+    const detailResponse = await getRun({} as never, {
+      params: Promise.resolve({ runId: 'retrain-20260811T120000Z-000000000001' }),
+    })
+    expect(detailResponse.status).toBe(200)
+    expect(getRetrainingRunMock).toHaveBeenCalledWith(
+      'retrain-20260811T120000Z-000000000001',
+      { id: accountId, role: ROLES.ANALYST }
+    )
+  })
+
+  it('retraining export rejects malformed JSON instead of treating it as an empty request', async () => {
+    authMock.mockResolvedValue(session())
+    process.env.AUTH_APP_ORIGIN = 'http://localhost:3000'
+
+    const { POST } = await import('./ml-model/export/route')
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/ml-model/export', {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3000',
+          'content-type': 'application/json',
+        },
+        body: '{',
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body).toEqual({
+      error: { code: 'INVALID_REQUEST', message: 'Request body must be valid JSON.' },
+    })
+    expect(exportRetrainingSamplesMock).not.toHaveBeenCalled()
   })
 
   it('alerts route returns centralized client errors unchanged', async () => {

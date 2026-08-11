@@ -29,6 +29,7 @@ _SCHEDULE_ACTIVE_STATES = frozenset(
         RunState.PENDING_APPROVAL,
         RunState.APPROVED,
         RunState.DEPLOYING,
+        RunState.RECOVERY_REQUIRED,
         RunState.RETRYABLE_FAILED,
     }
 )

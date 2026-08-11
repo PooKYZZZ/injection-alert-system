@@ -16,6 +16,7 @@ from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping
 
 CANONICAL_LABELS = (
@@ -24,6 +25,7 @@ CANONICAL_LABELS = (
     "Other Attacks",
     "SQL Injection",
 )
+METRIC_VALUE_TOLERANCE = 1e-9
 DEFAULT_RETRAINING_RESULTS_ROOT = Path("ml_model/results/dashboard_retraining")
 DATASET_MANIFEST_VERSION = "dashboard-dataset.v1"
 RUN_ID_PATTERN = re.compile(r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$")
@@ -70,6 +72,7 @@ class RunState(_ValueEnum):
     RETRYABLE_FAILED = "RETRYABLE_FAILED"
     FAILED = "failed"
     ROLLED_BACK = "rolled_back"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
     SKIPPED_NO_APPROVED_DATA = "SKIPPED_NO_APPROVED_DATA"
 
 
@@ -224,6 +227,7 @@ class MetricDefinition(SerializableContract):
     evidence_status: EvidenceStatus
     metric_kind: MetricKind
     confidence_interval: ConfidenceInterval | None = None
+    evaluation_digest: str | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -233,17 +237,49 @@ class MetricDefinition(SerializableContract):
             raise
         object.__setattr__(self, "evidence_status", evidence_status)
         object.__setattr__(self, "metric_kind", metric_kind)
-        if not self.name.strip():
+        if not isinstance(self.name, str) or not self.name.strip():
             raise ContractValidationError("metric name is required")
-        if self.denominator is not None and self.denominator < 0:
-            raise ContractValidationError("metric denominator cannot be negative")
-        if self.support_count is not None and self.support_count < 0:
-            raise ContractValidationError("metric support cannot be negative")
-        if self.numerator is not None and self.numerator < 0:
-            raise ContractValidationError("metric numerator cannot be negative")
+        for value, field_name in (
+            (self.numerator, "metric numerator"),
+            (self.denominator, "metric denominator"),
+            (self.support_count, "metric support"),
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int)
+            ):
+                raise ContractValidationError(f"{field_name} must be an integer")
+            if value is not None and value < 0:
+                raise ContractValidationError(f"{field_name} cannot be negative")
+        if (
+            self.numerator is not None
+            and self.denominator is not None
+            and self.numerator > self.denominator
+        ):
+            raise ContractValidationError(
+                "metric numerator cannot exceed its denominator"
+            )
+        if (
+            not isinstance(self.evaluation_split, str)
+            or not self.evaluation_split.strip()
+        ):
+            raise ContractValidationError("metric evaluation split is required")
+        if self.evaluation_digest is not None:
+            _require_digest(self.evaluation_digest, "evaluation digest")
         if self.value is not None:
-            if not math.isfinite(self.value) or not 0.0 <= self.value <= 1.0:
+            if not isinstance(self.value, (int, float)) or isinstance(
+                self.value, bool
+            ) or not math.isfinite(self.value) or not 0.0 <= self.value <= 1.0:
                 raise ContractValidationError("metric value must be a finite fraction")
+            if self.numerator is not None and self.denominator is not None:
+                if self.denominator == 0 or not math.isclose(
+                    self.value,
+                    self.numerator / self.denominator,
+                    rel_tol=METRIC_VALUE_TOLERANCE,
+                    abs_tol=METRIC_VALUE_TOLERANCE,
+                ):
+                    raise ContractValidationError(
+                        "metric value does not match numerator and denominator"
+                    )
         if evidence_status in {
             EvidenceStatus.VERIFIED,
             EvidenceStatus.NATIVE,
@@ -252,6 +288,10 @@ class MetricDefinition(SerializableContract):
             if self.value is None or not self.denominator or not self.support_count:
                 raise ContractValidationError(
                     "passing metric evidence requires a value and positive support"
+                )
+            if self.evaluation_digest is None:
+                raise ContractValidationError(
+                    "passing metric evidence requires an evaluation digest"
                 )
         if self.denominator is None and self.numerator is not None:
             raise ContractValidationError("metric numerator requires a denominator")
@@ -283,13 +323,11 @@ class MetricDefinition(SerializableContract):
             raise ContractValidationError(
                 "PROXY evidence cannot be presented as ground truth"
             )
-        if metric_kind is MetricKind.GROUND_TRUTH and self.ground_truth_source in {
-            "false_positive",
-            "triage_status",
-            "prediction_and_action_telemetry",
-        }:
+        if metric_kind is MetricKind.GROUND_TRUTH and self.ground_truth_source != (
+            "verified_label"
+        ):
             raise ContractValidationError(
-                "ground-truth metrics must identify verified-label evidence"
+                "ground-truth metrics must identify verified_label evidence"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -435,8 +473,20 @@ class DatasetManifest(SerializableContract):
             raise ContractValidationError(
                 "dataset class counts contain an unknown label"
             )
-        if any(count < 0 for count in self.class_counts.values()):
+        if any(
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or count < 0
+            for count in self.class_counts.values()
+        ):
             raise ContractValidationError("dataset class counts cannot be negative")
+        if any(
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or count < 0
+            for count in self.rejected_counts.values()
+        ):
+            raise ContractValidationError("dataset rejection counts cannot be negative")
         if sum(self.class_counts.values()) != self.row_count:
             raise ContractValidationError("dataset class counts must equal row_count")
         for checksum_name, checksum in self.file_checksums.items():
@@ -485,6 +535,29 @@ class RunManifest(SerializableContract):
         ):
             if not getattr(self, field_name).strip():
                 raise ContractValidationError(f"{field_name} is required")
+        if self.candidate_model_version is not None and not isinstance(
+            self.candidate_model_version, str
+        ):
+            raise ContractValidationError("candidate_model_version has invalid type")
+        if self.candidate_model_version is not None and not (
+            self.candidate_model_version.strip()
+        ):
+            raise ContractValidationError("candidate_model_version cannot be blank")
+        if self.state in {
+            RunState.PENDING_APPROVAL,
+            RunState.APPROVED,
+            RunState.DEPLOYING,
+            RunState.DEPLOYED,
+            RunState.ROLLED_BACK,
+            RunState.RECOVERY_REQUIRED,
+        } and (
+            not self.candidate_model_version
+            or not self.candidate_model_digest
+            or not self.evaluation_digest
+        ):
+            raise ContractValidationError(
+                "reviewed run states require candidate and evaluation binding"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -525,6 +598,28 @@ class ComparisonResponse(SerializableContract):
     def __post_init__(self) -> None:
         object.__setattr__(
             self, "overall_status", GateStatus.parse(self.overall_status)
+        )
+        object.__setattr__(
+            self, "active_metrics", MappingProxyType(dict(self.active_metrics))
+        )
+        object.__setattr__(
+            self, "candidate_metrics", MappingProxyType(dict(self.candidate_metrics))
+        )
+        object.__setattr__(
+            self, "metric_comparisons", MappingProxyType(dict(self.metric_comparisons))
+        )
+        object.__setattr__(
+            self,
+            "per_class_metrics",
+            MappingProxyType(
+                {
+                    label: MappingProxyType(dict(metrics))
+                    for label, metrics in self.per_class_metrics.items()
+                }
+            ),
+        )
+        object.__setattr__(
+            self, "gate_results", MappingProxyType(dict(self.gate_results))
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -617,6 +712,12 @@ class Decision(SerializableContract):
         )
         if missing:
             raise ContractValidationError(f"missing decision fields: {missing}")
+        if not isinstance(payload.get("reviewer_id"), str):
+            raise ContractValidationError("decision payload fields have invalid types")
+        if "reason" in payload and payload["reason"] is not None and not isinstance(
+            payload["reason"], str
+        ):
+            raise ContractValidationError("decision payload fields have invalid types")
         try:
             return cls(
                 decision=payload["decision"],
