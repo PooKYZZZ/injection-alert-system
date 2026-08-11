@@ -34,6 +34,8 @@ class RetrainingProcessRunner:
         *,
         python_executable: Path | str | None = None,
         project_root: Path | str | None = None,
+        smoke: bool = True,
+        timeout_seconds: int = 3600,
         extra_safe_environment: Mapping[str, str] | None = None,
     ) -> None:
         self.python_executable = Path(python_executable or sys.executable).expanduser()
@@ -46,20 +48,28 @@ class RetrainingProcessRunner:
         )
         if not self.project_root.is_dir():
             raise ValueError("worker project root does not exist")
+        if timeout_seconds <= 0:
+            raise ValueError("worker timeout must be positive")
+        self._smoke = bool(smoke)
+        self._timeout_seconds = int(timeout_seconds)
         self._extra_safe_environment = dict(extra_safe_environment or {})
         if any(key not in _SAFE_ENV_KEYS for key in self._extra_safe_environment):
             raise ValueError("worker environment contains an unallowlisted key")
 
     def build_command(self, root: Path | str) -> list[str]:
         configured_root = Path(root).expanduser().resolve()
-        return [
+        command = [
             str(self.python_executable),
             "-m",
             WORKER_MODULE,
             "--root",
             str(configured_root),
-            "--once",
+            "--timeout-seconds",
+            str(self._timeout_seconds),
         ]
+        if self._smoke:
+            command.append("--smoke")
+        return command
 
     def _safe_environment(self) -> dict[str, str]:
         environment = {

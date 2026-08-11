@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import {
   useDecisionRetrainingMutation,
@@ -12,8 +12,12 @@ import {
   useRollbackRetrainingMutation,
   useStartRetrainingMutation,
 } from '@/features/ml-model/queries'
-import type { RetrainingRunDetail } from '@/features/ml-model/types'
 import type { RetrainingDecision } from '@/features/ml-model/contract'
+import { isRetrainingRunActive } from '@/features/ml-model/contract'
+import type {
+  RetrainingExportResult,
+  RetrainingRunStart,
+} from '@/features/ml-model/types'
 import { MLModelComparisonPanel } from './MLModelComparisonPanel'
 import { MLModelDecisionPanel } from './MLModelDecisionPanel'
 import { MLModelOverviewSection } from './MLModelOverviewSection'
@@ -24,15 +28,6 @@ interface Props {
   role?: unknown
 }
 
-const ACTIVE_RUN_STATES = new Set([
-  'queued',
-  'exporting',
-  'dataset_validated',
-  'training',
-  'evaluating',
-  'deploying',
-])
-
 function errorMessage(error: unknown): string | null {
   if (!(error instanceof Error) || !error.message) return null
   const message = error.message.slice(0, 240)
@@ -40,6 +35,43 @@ function errorMessage(error: unknown): string | null {
     return 'The retraining operation failed safely. Review the run state and manifest.'
   }
   return message
+}
+
+function displayState(state: RetrainingRunStart['state']): string {
+  return state.replaceAll('_', ' ')
+}
+
+function startNotice(result: RetrainingRunStart | undefined): string {
+  if (!result) {
+    return 'Retraining request was accepted. Review the run record for its current state.'
+  }
+  if (result.created) {
+    return result.state === 'queued'
+      ? 'Retraining request submitted. The worker will progress outside the request lifecycle.'
+      : `Retraining request reached ${displayState(result.state)} at ${result.stage}.`
+  }
+  if (result.state === 'RETRYABLE_FAILED') {
+    return 'A matching run already exists and remains retryable. No duplicate run was created.'
+  }
+  if (
+    result.state === 'NOT_ENOUGH_EVIDENCE' ||
+    result.state === 'SKIPPED_NO_APPROVED_DATA' ||
+    result.state === 'failed'
+  ) {
+    return `A matching run already ended in ${displayState(result.state)}. No duplicate run was created.`
+  }
+  return `A matching run is already ${displayState(result.state)}. No duplicate run was created.`
+}
+
+function exportNotice(result: RetrainingExportResult | undefined): string {
+  if (!result) return 'Approved sample export completed. Review its manifest and status.'
+  if (result.status === 'QUARANTINED_FOR_REVIEW') {
+    return `Approved sample export was quarantined for review (${result.exported_count} exported, ${result.rejected_count} rejected). No training run was started.`
+  }
+  if (result.status === 'EMPTY') {
+    return 'No eligible approved samples were exported. Existing approved samples remain reusable.'
+  }
+  return `Approved sample export is ready (${result.exported_count} samples, ${result.rejected_count} rejected).`
 }
 
 export function MLModelWorkspace({ role }: Props) {
@@ -60,29 +92,15 @@ export function MLModelWorkspace({ role }: Props) {
     selectedRunId && runs.some((run) => run.run_id === selectedRunId)
       ? selectedRunId
       : runs[0]?.run_id ?? null
-  const selectedListRun = runs.find((run) => run.run_id === selectedRunIdForView) ?? null
 
   const detailQuery = useMLModelRun(selectedRunIdForView ?? '')
-  const selectedDetail = useMemo<RetrainingRunDetail | null>(() => {
-    if (!selectedRunIdForView) return null
-    if (detailQuery.data?.run_id === selectedRunIdForView) return detailQuery.data
-    if (!selectedListRun) return null
-
-    return {
-      ...selectedListRun,
-      events: [],
-      heartbeat_age_seconds: null,
-      evidence_status: 'NOT_RUN',
-      retry_available: false,
-    }
-  }, [detailQuery.data, selectedListRun, selectedRunIdForView])
+  const selectedDetail =
+    detailQuery.data?.run_id === selectedRunIdForView ? detailQuery.data : null
 
   const canRun = roleHasPermission(role, PERMISSIONS.ML_MODEL_RUN)
   const canDecide = roleHasPermission(role, PERMISSIONS.ML_MODEL_APPROVE)
   const canDeploy = roleHasPermission(role, PERMISSIONS.ML_MODEL_DEPLOY)
-  const runInProgress = Boolean(
-    summary?.run_in_progress || runs.some((run) => ACTIVE_RUN_STATES.has(run.state))
-  )
+  const runInProgress = Boolean(summary?.run_in_progress || runs.some((run) => isRetrainingRunActive(run.state)))
   const mutationsBusy =
     startMutation.isPending ||
     exportMutation.isPending ||
@@ -127,16 +145,18 @@ export function MLModelWorkspace({ role }: Props) {
 
   const handleRequest = () => {
     setNotice(null)
-    void startMutation.mutateAsync({ trigger: 'manual' }).then(() => {
-      setNotice('Retraining request submitted. The worker will progress outside the request lifecycle.')
-    }).catch(() => undefined)
+    void startMutation
+      .mutateAsync({ trigger: 'manual' })
+      .then((result) => setNotice(startNotice(result)))
+      .catch(() => undefined)
   }
 
   const handleExport = () => {
     setNotice(null)
-    void exportMutation.mutateAsync().then(() => {
-      setNotice('Approved sample export completed with its manifest and review summary.')
-    }).catch(() => undefined)
+    void exportMutation
+      .mutateAsync()
+      .then((result) => setNotice(exportNotice(result)))
+      .catch(() => undefined)
   }
 
   const handleDecision = async (decision: RetrainingDecision, reason: string | null) => {
@@ -186,10 +206,23 @@ export function MLModelWorkspace({ role }: Props) {
         onSelect={setSelectedRunId}
       />
 
+      {selectedRunIdForView && !selectedDetail && (
+        <div
+          className={styles.noSelection}
+          role={detailQuery.isPending ? 'status' : 'alert'}
+          aria-label={detailQuery.isPending ? 'Loading selected run evidence' : 'Selected run evidence unavailable'}
+        >
+          {detailQuery.isPending
+            ? 'Loading selected run evidence…'
+            : 'Selected run evidence is unavailable. No candidate controls are shown.'}
+        </div>
+      )}
+
       {selectedDetail && (
         <div className={styles.detailGrid}>
           <MLModelComparisonPanel run={selectedDetail} />
           <MLModelDecisionPanel
+            key={selectedDetail.run_id}
             run={selectedDetail}
             canDecide={canDecide}
             canDeploy={canDeploy}

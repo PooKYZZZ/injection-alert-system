@@ -23,9 +23,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
     let rawBody: unknown = {}
     try {
-      rawBody = await request.json()
+      const body = await request.text()
+      if (body.trim()) rawBody = JSON.parse(body)
     } catch {
-      // An empty body is equivalent to the empty export request contract.
+      return NextResponse.json(
+        { error: { code: 'INVALID_REQUEST', message: 'Request body must be valid JSON.' } },
+        { status: 400 }
+      )
     }
     const parsed = RetrainingExportRequestSchema.safeParse(rawBody)
     if (!parsed.success) {

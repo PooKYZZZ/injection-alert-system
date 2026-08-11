@@ -105,7 +105,7 @@ export function MLModelRunsTable({ runs, selectedRunId, onSelect }: Props) {
                     <td>
                       <span className={styles.statusBadge}>{formatState(run.state)}</span>
                     </td>
-                    <td>{run.attempt + 1}</td>
+                    <td>{Math.max(1, run.attempt)}</td>
                     <td>{formatDate(run.heartbeat_at)}</td>
                     <td>{formatDate(run.created_at)}</td>
                   </tr>

@@ -80,6 +80,25 @@ async def test_review_persists_metadata_and_latest_query(repository):
 
 
 @pytest.mark.asyncio
+async def test_sqlite_review_timestamps_are_normalized_to_utc(repository):
+    alert_id = await _insert_alert(repository._session)
+
+    await repository.create_review_revision(
+        traffic_log_id=alert_id,
+        verified_label="SQL Injection",
+        approval_state="approved_for_training",
+        reviewer_id="analyst-1",
+        reviewer_role="ANALYST",
+        reviewed_at=datetime(2026, 8, 11, 4, 0, 0, tzinfo=timezone.utc),
+    )
+
+    candidate = (await repository.list_latest_retraining_candidates(limit=10))[0]
+
+    assert candidate.reviewed_at.tzinfo is not None
+    assert candidate.reviewed_at.utcoffset() == timezone.utc.utcoffset(candidate.reviewed_at)
+
+
+@pytest.mark.asyncio
 async def test_unknown_alert_is_rejected_without_review(repository):
     assert await repository.create_review_revision(
         traffic_log_id=999,

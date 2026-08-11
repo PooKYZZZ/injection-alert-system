@@ -9,9 +9,19 @@ import { RetrainingRunRequestSchema } from '@/features/ml-model/schemas'
 
 export async function GET(): Promise<Response> {
   try {
-    const authorization = await requirePermission(await auth(), PERMISSIONS.ML_MODEL_READ)
+    const session = await auth()
+    const authorization = await requirePermission(session, PERMISSIONS.ML_MODEL_READ)
     if (!authorization.ok) return authorization.response
-    const result = await getRetrainingRuns()
+    if (typeof session?.user?.id !== 'string' || typeof session?.user?.role !== 'string') {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Requester context is unavailable.' } },
+        { status: 403 }
+      )
+    }
+    const result = await getRetrainingRuns({
+      id: session.user.id,
+      role: session.user.role,
+    })
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
     return NextResponse.json(result.data)
   } catch {

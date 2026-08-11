@@ -1,9 +1,11 @@
 from pathlib import Path
+import json
 
 import pytest
 
 from web_app.config import Settings
 from web_app.services.model_service import ModelService
+from ml_model.retraining.content_digest import compute_content_digest
 
 
 def _make_settings(model_registry_path: Path, app_env: str) -> Settings:
@@ -95,6 +97,63 @@ def test_development_broad_path_resolves_latest_run(
     assert service.model_version == latest_run.name
     assert service.model_input_version == "model-input-v2-redacted"
     assert latest_run.name in caplog.text
+
+
+def test_active_model_pointer_pins_restart_to_verified_content(tmp_path, monkeypatch):
+    staging_dir = tmp_path / "staging"
+    active_run = _make_run_dir(staging_dir, "distilbert_active_v1")
+    (staging_dir / "active_model.json").write_text(
+        json.dumps(
+            {
+                "artifact_version": "staging-pointer.v1",
+                "model_version": active_run.name,
+                "artifact_digest": compute_content_digest(active_run),
+                "directory": active_run.name,
+                "preprocessing_version": "model-input-v2-redacted",
+            }
+        ),
+        encoding="utf-8",
+    )
+    replacement = _make_run_dir(staging_dir, "distilbert_zzzz")
+
+    monkeypatch.setattr(
+        ModelService,
+        "_load_run_artifacts",
+        lambda self, run_dir: (object(), object(), 0.596868),
+    )
+
+    service = ModelService(_make_settings(tmp_path, "development"))
+
+    assert service.artifact_path == active_run.resolve()
+    assert service.artifact_path != replacement.resolve()
+
+
+def test_active_model_pointer_fails_closed_when_bytes_change(tmp_path, monkeypatch):
+    staging_dir = tmp_path / "staging"
+    active_run = _make_run_dir(staging_dir, "distilbert_active_v1")
+    digest = compute_content_digest(active_run)
+    (staging_dir / "active_model.json").write_text(
+        json.dumps(
+            {
+                "artifact_version": "staging-pointer.v1",
+                "model_version": active_run.name,
+                "artifact_digest": digest,
+                "directory": active_run.name,
+                "preprocessing_version": "model-input-v2-redacted",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (active_run / "best_distilbert_ckpt.pt").write_bytes(b"changed")
+
+    monkeypatch.setattr(
+        ModelService,
+        "_load_run_artifacts",
+        lambda self, run_dir: (object(), object(), 0.596868),
+    )
+
+    with pytest.raises(RuntimeError, match="pointer digest"):
+        ModelService(_make_settings(tmp_path, "development"))
 
 
 def test_explicit_run_directory_does_not_drift(

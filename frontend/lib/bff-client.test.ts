@@ -47,7 +47,10 @@ describe('bff-client', () => {
       { trigger: 'manual', filesystem_path: 'C:/outside' },
       { id: 'analyst-1', role: 'ANALYST' }
     )
-    const invalidRun = await getRetrainingRun('../outside')
+    const invalidRun = await getRetrainingRun('../outside', {
+      id: 'analyst-1',
+      role: 'ANALYST',
+    })
 
     expect(summary.ok).toBe(true)
     expect(fetchMock).toHaveBeenCalledWith(
@@ -70,6 +73,91 @@ describe('bff-client', () => {
       error: { code: 'INVALID_RUN_ID', message: 'Retraining run ID is invalid.' },
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates the authenticated actor for retraining run reads', async () => {
+    const run = {
+      run_id: 'retrain-20260811T120000Z-000000000001',
+      state: 'queued',
+      stage: 'queued',
+      attempt: 0,
+      retry_count: 0,
+      max_retries: 2,
+      created_at: '2026-08-11T12:00:00.000Z',
+      updated_at: '2026-08-11T12:00:00.000Z',
+      heartbeat_at: null,
+      trigger: 'manual',
+      requested_by: 'analyst-1',
+      requested_timezone: 'Asia/Manila',
+      input_fingerprint: 'a'.repeat(64),
+      source_review_revisions: [],
+      source_dataset_version: 'v3_907k_cleaned',
+      source_dataset_digest: 'b'.repeat(64),
+      pipeline_fingerprint: 'c'.repeat(64),
+      active_model_version: 'active-v1',
+      active_model_digest: 'd'.repeat(64),
+      approved_sample_count: 0,
+      operator_note: null,
+      worker_id: null,
+      next_retry_at: null,
+      dataset_version: null,
+      dataset_digest: null,
+      candidate_model_version: null,
+      candidate_model_digest: null,
+      evaluation_digest: null,
+      error_code: null,
+      error_message: null,
+      generation: 1,
+    }
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ runs: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ...run,
+            events: [],
+            heartbeat_age_seconds: null,
+            evidence_status: 'NOT_RUN',
+            retry_available: false,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+    const { getRetrainingRuns, getRetrainingRun } = await loadClient()
+    const actor = { id: 'analyst-1', role: 'ANALYST' }
+    expect((await getRetrainingRuns(actor)).ok).toBe(true)
+    expect((await getRetrainingRun(run.run_id, actor)).ok).toBe(true)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:8000/api/retraining/runs',
+      expect.objectContaining({
+        headers: {
+          Authorization: 'Bearer test-secret',
+          'Content-Type': 'application/json',
+          'X-Reviewer-Id': 'analyst-1',
+          'X-Reviewer-Role': 'ANALYST',
+        },
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `http://localhost:8000/api/retraining/runs/${run.run_id}`,
+      expect.objectContaining({
+        headers: {
+          Authorization: 'Bearer test-secret',
+          'Content-Type': 'application/json',
+          'X-Reviewer-Id': 'analyst-1',
+          'X-Reviewer-Role': 'ANALYST',
+        },
+      })
+    )
   })
 
   afterEach(() => {

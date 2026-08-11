@@ -27,6 +27,8 @@ function safeStateHeading(state: RetrainingRunDetail['state']): string {
       return 'Worker failed'
     case 'RETRYABLE_FAILED':
       return 'Retryable worker failure'
+    case 'RECOVERY_REQUIRED':
+      return 'Deployment recovery required'
     case 'NOT_ENOUGH_EVIDENCE':
       return 'Not enough evidence'
     case 'SKIPPED_NO_APPROVED_DATA':
@@ -43,6 +45,8 @@ function safeNextAction(state: RetrainingRunDetail['state']): string {
     case 'failed':
     case 'RETRYABLE_FAILED':
       return 'Keep the active model and inspect the manifest before retrying.'
+    case 'RECOVERY_REQUIRED':
+      return 'Reconcile the durable staging pointer and explicitly roll back to the known-good version.'
     case 'NOT_ENOUGH_EVIDENCE':
       return 'Collect sufficient native evaluation evidence before making a candidate decision.'
     case 'SKIPPED_NO_APPROVED_DATA':
@@ -71,7 +75,13 @@ export function MLModelDecisionPanel({
 }: Props) {
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string | null>(null)
-  const hasCandidateEvidence = Boolean(run.candidate_model_version && run.evaluation_digest)
+
+  const hasCandidateEvidence = Boolean(
+    run.candidate_model_version &&
+      run.candidate_model_digest &&
+      run.evaluation_digest &&
+      (run.evidence_status === 'NATIVE' || run.evidence_status === 'VERIFIED')
+  )
 
   const submitDecision = async (decision: RetrainingDecision) => {
     const trimmedReason = reason.trim()
@@ -89,7 +99,7 @@ export function MLModelDecisionPanel({
       if (!window.confirm('Approve this candidate for explicit local staging only?')) return
     }
 
-    await onDecision(decision, decision === 'approve' ? null : trimmedReason)
+    await onDecision(decision, trimmedReason || null)
   }
 
   if (isDecisionState(run.state)) {
@@ -256,6 +266,42 @@ export function MLModelDecisionPanel({
           </button>
         ) : (
           <p className={styles.sectionDescription}>Local staging rollback requires administrator permission.</p>
+        )}
+        {actionError && <p className={styles.formError} role="alert">{actionError}</p>}
+      </section>
+    )
+  }
+
+  if (run.state === 'RECOVERY_REQUIRED') {
+    return (
+      <section className={styles.decisionSection} aria-labelledby="ml-model-decision-heading">
+        <div className={styles.sectionHeaderCompact}>
+          <div>
+            <p className={styles.eyebrow}>Safe recovery boundary</p>
+            <h2 id="ml-model-decision-heading" className={styles.sectionTitle}>
+              Deployment state needs reconciliation
+            </h2>
+          </div>
+          <span className={styles.statusBadge}>RECOVERY REQUIRED</span>
+        </div>
+        <p className={styles.sectionDescription}>
+          The filesystem or loaded model changed while audit state was being recorded. The active model is not assumed from the run record.
+        </p>
+        {canDeploy ? (
+          <button
+            type="button"
+            className={styles.dangerButton}
+            onClick={() => {
+              if (window.confirm('Roll back local staging to the recorded known-good version?')) {
+                void onRollback('Reconcile the recoverable local staging state.').catch(() => undefined)
+              }
+            }}
+            disabled={actionsDisabled || rollbackPending}
+          >
+            Reconcile with rollback
+          </button>
+        ) : (
+          <p className={styles.sectionDescription}>Recovery requires administrator permission.</p>
         )}
         {actionError && <p className={styles.formError} role="alert">{actionError}</p>}
       </section>

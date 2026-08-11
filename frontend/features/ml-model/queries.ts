@@ -19,11 +19,11 @@ import {
   RetrainingSummarySchema,
 } from './schemas'
 import type {
-  RetrainingRun,
   RetrainingRunDetail,
   RetrainingRunList,
   RetrainingSummary,
 } from './types'
+import { isRetrainingRunActive } from './contract'
 import type { RetrainingDecision } from './contract'
 
 export const mlModelKeys = {
@@ -86,17 +86,8 @@ async function postJson<T>(
   return schema.parse(payload)
 }
 
-const ACTIVE_RUN_STATES: RetrainingRun['state'][] = [
-  'queued',
-  'exporting',
-  'dataset_validated',
-  'training',
-  'evaluating',
-  'deploying',
-]
-
 function hasActiveRun(data: RetrainingRunList | undefined): boolean {
-  return data?.runs.some((run) => ACTIVE_RUN_STATES.includes(run.state)) ?? false
+  return data?.runs.some((run) => isRetrainingRunActive(run.state)) ?? false
 }
 
 export function mlModelSummaryOptions() {
@@ -125,7 +116,7 @@ export function mlModelRunOptions(runId: string) {
     enabled: runId.length > 0,
     staleTime: 5_000,
     refetchInterval: (query) =>
-      query.state.data && ACTIVE_RUN_STATES.includes(query.state.data.state) ? 3_000 : false,
+      query.state.data && isRetrainingRunActive(query.state.data.state) ? 3_000 : false,
   })
 }
 

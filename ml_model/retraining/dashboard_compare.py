@@ -41,6 +41,7 @@ def _unavailable_metric(
     support_count: int,
     evidence_status: EvidenceStatus,
     evaluation_split: str,
+    evaluation_digest: str,
 ) -> MetricDefinition:
     return MetricDefinition(
         name=name,
@@ -54,6 +55,7 @@ def _unavailable_metric(
         support_count=support_count,
         evidence_status=evidence_status,
         metric_kind=MetricKind.GROUND_TRUTH,
+        evaluation_digest=evaluation_digest,
     )
 
 
@@ -67,6 +69,7 @@ def _rate_metric(
     evaluation_split: str,
     minimum_support: int,
     observed_rows: int,
+    evaluation_digest: str,
 ) -> MetricDefinition:
     status = _support_status(denominator, minimum_support, observed_rows)
     if status is not EvidenceStatus.VERIFIED:
@@ -78,6 +81,7 @@ def _rate_metric(
             support_count=denominator,
             evidence_status=status,
             evaluation_split=evaluation_split,
+            evaluation_digest=evaluation_digest,
         )
     return MetricDefinition(
         name=name,
@@ -91,6 +95,7 @@ def _rate_metric(
         support_count=denominator,
         evidence_status=status,
         metric_kind=MetricKind.GROUND_TRUTH,
+        evaluation_digest=evaluation_digest,
     )
 
 
@@ -140,6 +145,7 @@ def _f1_metric(
     evaluation_split: str,
     minimum_support: int,
     observed_rows: int,
+    evaluation_digest: str,
 ) -> MetricDefinition:
     status = _support_status(support, minimum_support, observed_rows)
     numerator_definition = f"F1 numerator for {name}"
@@ -153,6 +159,7 @@ def _f1_metric(
             support_count=support,
             evidence_status=status,
             evaluation_split=evaluation_split,
+            evaluation_digest=evaluation_digest,
         )
     f1_denominator = 2 * true_positive + false_positive + false_negative
     value = (2 * true_positive / f1_denominator) if f1_denominator else 0.0
@@ -168,6 +175,7 @@ def _f1_metric(
         support_count=support,
         evidence_status=status,
         metric_kind=MetricKind.GROUND_TRUTH,
+        evaluation_digest=evaluation_digest,
     )
 
 
@@ -176,6 +184,7 @@ def calculate_ground_truth_metrics(
     predictions: Sequence[str],
     *,
     evaluation_split: str = "evaluation",
+    evaluation_digest: str,
     min_normal_support: int = 1,
     min_attack_support: int = 1,
     min_class_support: int = 1,
@@ -216,6 +225,7 @@ def calculate_ground_truth_metrics(
             evaluation_split=evaluation_split,
             minimum_support=min_normal_support,
             observed_rows=len(labels),
+            evaluation_digest=evaluation_digest,
         ),
         "normal_recall": _rate_metric(
             name="normal_recall",
@@ -226,6 +236,7 @@ def calculate_ground_truth_metrics(
             evaluation_split=evaluation_split,
             minimum_support=min_normal_support,
             observed_rows=len(labels),
+            evaluation_digest=evaluation_digest,
         ),
         "attack_escape_rate": _rate_metric(
             name="attack_escape_rate",
@@ -236,6 +247,7 @@ def calculate_ground_truth_metrics(
             evaluation_split=evaluation_split,
             minimum_support=min_attack_support,
             observed_rows=len(labels),
+            evaluation_digest=evaluation_digest,
         ),
         "attack_recall": _rate_metric(
             name="attack_recall",
@@ -246,6 +258,7 @@ def calculate_ground_truth_metrics(
             evaluation_split=evaluation_split,
             minimum_support=min_attack_support,
             observed_rows=len(labels),
+            evaluation_digest=evaluation_digest,
         ),
     }
 
@@ -274,6 +287,7 @@ def calculate_ground_truth_metrics(
             evaluation_split=evaluation_split,
             minimum_support=min_class_support,
             observed_rows=len(labels),
+            evaluation_digest=evaluation_digest,
         )
         class_metrics[class_metric.name] = class_metric
         recall_metric = _rate_metric(
@@ -285,6 +299,7 @@ def calculate_ground_truth_metrics(
             evaluation_split=evaluation_split,
             minimum_support=min_class_support,
             observed_rows=len(labels),
+            evaluation_digest=evaluation_digest,
         )
         class_metrics[recall_metric.name] = recall_metric
         if class_metric.value is not None:
@@ -297,17 +312,16 @@ def calculate_ground_truth_metrics(
         metrics["macro_f1"] = MetricDefinition(
             name="macro_f1",
             value=macro_f1,
-            numerator=round(macro_f1 * 1_000_000),
-            denominator=1_000_000,
+            numerator=None,
+            denominator=total_support,
             numerator_definition="mean of the four canonical per-class F1 values",
-            denominator_definition=(
-                "one million fixed-point units for deterministic serialization"
-            ),
+            denominator_definition="all rows in the evaluation split",
             ground_truth_source="verified_label",
             evaluation_split=evaluation_split,
             support_count=total_support,
             evidence_status=EvidenceStatus.VERIFIED,
             metric_kind=MetricKind.GROUND_TRUTH,
+            evaluation_digest=evaluation_digest,
         )
     else:
         metrics["macro_f1"] = _unavailable_metric(
@@ -322,6 +336,7 @@ def calculate_ground_truth_metrics(
                 else EvidenceStatus.NOT_ENOUGH_EVIDENCE
             ),
             evaluation_split=evaluation_split,
+            evaluation_digest=evaluation_digest,
         )
     return metrics
 
@@ -381,8 +396,24 @@ def _available_metric(metric: MetricDefinition | None) -> bool:
         and metric.value is not None
         and metric.denominator
         and metric.support_count
+        and metric.evaluation_digest
         and metric.evidence_status in {EvidenceStatus.VERIFIED, EvidenceStatus.NATIVE}
         and metric.metric_kind is not MetricKind.PROXY
+    )
+
+
+def _critical_metric_names() -> tuple[str, ...]:
+    return (
+        "normal_false_positive_rate",
+        "normal_recall",
+        "attack_escape_rate",
+        "attack_recall",
+        "macro_f1",
+        *(
+            f"per_class.{label}.recall"
+            for label in CANONICAL_LABELS
+            if label != "Normal"
+        ),
     )
 
 
@@ -412,6 +443,7 @@ def compare_candidate_metrics(
     comparisons = _build_metric_comparisons(active_metrics, candidate_metrics)
     per_class_metrics = _split_per_class(comparisons)
     gates: dict[str, GateResult] = {}
+    critical_names = _critical_metric_names()
 
     binding_ok = (
         provenance.active_model_digest == active_model.digest
@@ -425,13 +457,40 @@ def compare_candidate_metrics(
         else "evaluation was produced against a different active or candidate digest",
     )
 
-    critical_names = (
-        "normal_false_positive_rate",
-        "normal_recall",
-        "attack_escape_rate",
-        "attack_recall",
-        "macro_f1",
-    )
+    mismatched_evidence: list[str] = []
+    missing_evidence_binding: list[str] = []
+    for name in critical_names:
+        for metrics in (active_metrics, candidate_metrics):
+            metric = metrics.get(name)
+            if metric is None or metric.evaluation_digest is None:
+                missing_evidence_binding.append(name)
+            elif (
+                metric.evaluation_digest != provenance.evaluation_digest
+                or metric.evaluation_split != provenance.evaluation_split
+            ):
+                mismatched_evidence.append(name)
+    if mismatched_evidence:
+        gates["evaluation_binding"] = _gate(
+            "evaluation_binding",
+            GateStatus.FAIL,
+            "metric evidence was produced from a different evaluation digest or split",
+            tuple(sorted(set(mismatched_evidence))),
+        )
+    elif missing_evidence_binding:
+        gates["evaluation_binding"] = _gate(
+            "evaluation_binding",
+            GateStatus.NOT_ENOUGH_EVIDENCE,
+            "critical metric evidence is not bound to the reviewed evaluation split",
+            tuple(sorted(set(missing_evidence_binding))),
+        )
+    else:
+        gates["evaluation_binding"] = _gate(
+            "evaluation_binding",
+            GateStatus.PASS,
+            "critical metrics are bound to the reviewed evaluation digest and split",
+            critical_names,
+        )
+
     unavailable = tuple(
         name
         for name in critical_names
@@ -453,7 +512,28 @@ def compare_candidate_metrics(
             critical_names,
         )
 
-    if unavailable:
+    security_names = (
+        "normal_false_positive_rate",
+        "normal_recall",
+        "attack_escape_rate",
+        "attack_recall",
+    )
+    unavailable_security = tuple(
+        name
+        for name in security_names
+        if not _available_metric(active_metrics.get(name))
+        or not _available_metric(candidate_metrics.get(name))
+    )
+    unavailable_per_class = tuple(
+        name
+        for name in critical_names
+        if name.startswith("per_class.")
+        and (
+            not _available_metric(active_metrics.get(name))
+            or not _available_metric(candidate_metrics.get(name))
+        )
+    )
+    if unavailable_security:
         gates["security_regression"] = _gate(
             "security_regression",
             GateStatus.NOT_ENOUGH_EVIDENCE,
@@ -461,7 +541,7 @@ def compare_candidate_metrics(
                 "security regression cannot be evaluated without sufficient "
                 "ground-truth support"
             ),
-            critical_names[:4],
+            unavailable_security,
         )
     else:
         security_failures: list[str] = []
@@ -495,18 +575,22 @@ def compare_candidate_metrics(
                 and comparison.delta < -policy.supported_attack_recall_drop
             ):
                 security_failures.append(f"{name} regressed beyond tolerance")
+        security_status = (
+            GateStatus.FAIL
+            if security_failures
+            else GateStatus.NOT_ENOUGH_EVIDENCE
+            if unavailable_per_class
+            else GateStatus.PASS
+        )
         gates["security_regression"] = _gate(
             "security_regression",
-            GateStatus.FAIL if security_failures else GateStatus.PASS,
+            security_status,
             "; ".join(security_failures)
             if security_failures
+            else "per-class security recall evidence is incomplete"
+            if unavailable_per_class
             else "no configured security-critical regression exceeded tolerance",
-            (
-                "normal_false_positive_rate",
-                "normal_recall",
-                "attack_escape_rate",
-                "attack_recall",
-            ),
+            security_names + unavailable_per_class,
         )
 
     active_macro = active_metrics.get("macro_f1")

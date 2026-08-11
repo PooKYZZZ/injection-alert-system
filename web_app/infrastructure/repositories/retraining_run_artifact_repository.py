@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import time
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
@@ -26,6 +28,9 @@ WORKER_LOCK_FILENAME = ".worker.lock.json"
 MAX_EVENT_COUNT = 256
 MAX_ARTIFACT_BYTES = 25 * 1024 * 1024
 SAFE_CODE = re.compile(r"^[A-Z0-9_]{1,64}$")
+RUN_RESERVATION_WAIT_SECONDS = 5.0
+RUN_RESERVATION_OWNER_FILENAME = "owner.json"
+RUN_RESERVATION_STALE_SECONDS = 30.0
 
 _RUN_TRANSITIONS: dict[RunState, frozenset[RunState]] = {
     RunState.QUEUED: frozenset(
@@ -70,17 +75,37 @@ _RUN_TRANSITIONS: dict[RunState, frozenset[RunState]] = {
             RunState.FAILED,
         }
     ),
-    RunState.APPROVED: frozenset({RunState.DEPLOYING, RunState.FAILED}),
+    RunState.APPROVED: frozenset(
+        {RunState.DEPLOYING, RunState.FAILED, RunState.RECOVERY_REQUIRED}
+    ),
     RunState.DEPLOYING: frozenset(
-        {RunState.DEPLOYED, RunState.ROLLED_BACK, RunState.FAILED}
+        {
+            RunState.APPROVED,
+            RunState.DEPLOYED,
+            RunState.ROLLED_BACK,
+            RunState.FAILED,
+            RunState.RECOVERY_REQUIRED,
+        }
     ),
     RunState.RETRYABLE_FAILED: frozenset({RunState.QUEUED, RunState.FAILED}),
     RunState.NOT_ENOUGH_EVIDENCE: frozenset(),
     RunState.QUARANTINED_FOR_REVIEW: frozenset(),
     RunState.HELD: frozenset(),
     RunState.REJECTED: frozenset(),
-    RunState.DEPLOYED: frozenset({RunState.DEPLOYING, RunState.ROLLED_BACK}),
+    RunState.DEPLOYED: frozenset(
+        {RunState.DEPLOYING, RunState.ROLLED_BACK, RunState.RECOVERY_REQUIRED}
+    ),
     RunState.ROLLED_BACK: frozenset(),
+    RunState.RECOVERY_REQUIRED: frozenset(
+        {
+            RunState.APPROVED,
+            RunState.DEPLOYING,
+            RunState.DEPLOYED,
+            RunState.ROLLED_BACK,
+            RunState.FAILED,
+            RunState.RECOVERY_REQUIRED,
+        }
+    ),
     RunState.SKIPPED_NO_APPROVED_DATA: frozenset(),
     RunState.FAILED: frozenset(),
 }
@@ -296,6 +321,67 @@ def _validate_digest(value: str, field_name: str) -> None:
         raise ArtifactRepositoryError(f"{field_name} must be a SHA-256 digest")
 
 
+def _reservation_owner_is_live(pid: object) -> bool:
+    """Check a reservation owner conservatively when process state is unknown."""
+
+    try:
+        process_id = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if process_id <= 0:
+        return False
+
+    if os.name == "nt":
+        # Windows does not provide the POSIX signal-0 probe. Querying the
+        # process exit code avoids sending a termination signal to the owner.
+        import ctypes
+        from ctypes import wintypes
+
+        process_query_limited_information = 0x1000
+        still_active = 259
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = (
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.DWORD,
+        )
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.DWORD),
+        )
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(
+            process_query_limited_information, False, process_id
+        )
+        if not handle:
+            # A protected process can reject the query even while it is live;
+            # only known invalid/not-found errors prove that the owner exited.
+            return ctypes.get_last_error() not in {6, 87, 1168}
+        exit_code = wintypes.DWORD()
+        try:
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return True
+            return exit_code.value == still_active
+        finally:
+            kernel32.CloseHandle(handle)
+
+    try:
+        os.kill(process_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        # Unknown inspection failures must not be treated as proof that the
+        # owner exited; preserving the reservation is safer than reclaiming a
+        # potentially live creator.
+        return True
+    return True
+
+
 def _validate_record(record: RetrainingRunRecord) -> None:
     if not re.fullmatch(r"retrain-\d{8}T\d{6}Z-[0-9a-f]{12}", record.run_id):
         raise ArtifactRepositoryError("run id is invalid")
@@ -320,6 +406,36 @@ def _validate_record(record: RetrainingRunRecord) -> None:
         raise ArtifactRepositoryError("run retry settings are invalid")
     if record.operator_note is not None and len(record.operator_note) > 500:
         raise ArtifactRepositoryError("operator note is too long")
+    if record.dataset_version is not None and not record.dataset_version.strip():
+        raise ArtifactRepositoryError("dataset version is invalid")
+    for value, name in (
+        (record.dataset_digest, "dataset_digest"),
+        (record.candidate_model_digest, "candidate_model_digest"),
+        (record.evaluation_digest, "evaluation_digest"),
+    ):
+        if value is not None:
+            _validate_digest(value, name)
+    if record.candidate_model_version is not None and not (
+        record.candidate_model_version.strip()
+    ):
+        raise ArtifactRepositoryError("candidate model version is invalid")
+    if record.state in {
+        RunState.PENDING_APPROVAL,
+        RunState.APPROVED,
+        RunState.DEPLOYING,
+        RunState.DEPLOYED,
+        RunState.ROLLED_BACK,
+        RunState.RECOVERY_REQUIRED,
+    } and (
+        not record.dataset_version
+        or not record.dataset_digest
+        or not record.candidate_model_version
+        or not record.candidate_model_digest
+        or not record.evaluation_digest
+    ):
+        raise ArtifactRepositoryError(
+            "reviewed run state requires dataset, candidate, and evaluation bindings"
+        )
 
 
 class RetrainingRunArtifactRepository:
@@ -381,6 +497,69 @@ class RetrainingRunArtifactRepository:
         self._update_queue()
         return record
 
+    def _reservation_is_stale(self, reservation: Path) -> bool:
+        owner_path = reservation / RUN_RESERVATION_OWNER_FILENAME
+        if owner_path.exists():
+            try:
+                owner = self._read_json(owner_path)
+            except ArtifactRepositoryError:
+                # Do not remove an active reservation whose metadata is present
+                # but unreadable; an operator can inspect the corrupt marker.
+                return False
+            try:
+                owner_created_at = float(owner["created_at"])
+                owner_pid = owner["pid"]
+            except (KeyError, TypeError, ValueError):
+                return False
+            if time.time() - owner_created_at < RUN_RESERVATION_STALE_SECONDS:
+                return False
+            return not _reservation_owner_is_live(owner_pid)
+
+        try:
+            reservation_age = time.time() - reservation.stat().st_mtime
+        except OSError:
+            return False
+        # A process can terminate after mkdir and before owner metadata is
+        # published. An old empty reservation is therefore recoverable.
+        return reservation_age >= RUN_RESERVATION_STALE_SECONDS
+
+    def _recover_stale_reservation(self, reservation: Path) -> bool:
+        if not self._reservation_is_stale(reservation):
+            return False
+        quarantine = reservation.with_name(
+            f".{reservation.name}.stale.{uuid.uuid4().hex}"
+        )
+        try:
+            reservation.rename(quarantine)
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+        try:
+            shutil.rmtree(quarantine)
+        except OSError:
+            # The reservation no longer blocks its fingerprint. Keep the
+            # quarantined marker for manual inspection if cleanup is denied.
+            return True
+        return True
+
+    def _release_reservation(self, reservation: Path) -> None:
+        """Remove our marker after concurrent readers release it on Windows."""
+
+        deadline = time.monotonic() + RUN_RESERVATION_WAIT_SECONDS
+        owner_path = reservation / RUN_RESERVATION_OWNER_FILENAME
+        while True:
+            try:
+                owner_path.unlink(missing_ok=True)
+                reservation.rmdir()
+                return
+            except FileNotFoundError:
+                return
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.01)
+
     def _update_queue(self) -> None:
         queue_path = self.root / QUEUE_FILENAME
         generation = 0
@@ -439,23 +618,77 @@ class RetrainingRunArtifactRepository:
         existing = self.find_by_input_fingerprint(record.input_fingerprint)
         if existing is not None:
             return existing
-        run_dir = self._run_dir(record.run_id)
-        try:
-            run_dir.mkdir(parents=True, exist_ok=False)
-        except FileExistsError:
-            return self.load_run(record.run_id)
-        self._atomic_json(run_dir / RUN_FILENAME, record.to_dict())
-        self._atomic_json(
-            run_dir / ARTIFACT_MANIFEST_FILENAME,
-            {
-                "manifest_version": "retraining-artifacts.v1",
-                "generation": 1,
-                "artifacts": {},
-            },
+        reservation = self.root / (
+            f".run-fingerprint.{record.input_fingerprint}.reservation"
         )
-        self._atomic_write(run_dir / EVENTS_FILENAME, b"")
-        self._update_queue()
-        return record
+        owns_reservation = False
+        run_dir: Path | None = None
+        try:
+            while True:
+                try:
+                    reservation.mkdir(exist_ok=False)
+                    owns_reservation = True
+                    self._atomic_json(
+                        reservation / RUN_RESERVATION_OWNER_FILENAME,
+                        {
+                            "pid": os.getpid(),
+                            "created_at": time.time(),
+                        },
+                    )
+                    break
+                except FileExistsError:
+                    deadline = time.monotonic() + RUN_RESERVATION_WAIT_SECONDS
+                    recovered = False
+                    while time.monotonic() < deadline:
+                        existing = self.find_by_input_fingerprint(
+                            record.input_fingerprint
+                        )
+                        if existing is not None:
+                            return existing
+                        if self._recover_stale_reservation(reservation):
+                            recovered = True
+                            break
+                        time.sleep(0.01)
+                    if recovered:
+                        continue
+                    raise ArtifactRepositoryError(
+                        "another run with the same input fingerprint is being created"
+                    )
+            existing = self.find_by_input_fingerprint(record.input_fingerprint)
+            if existing is not None:
+                return existing
+            run_dir = self._run_dir(record.run_id)
+            try:
+                run_dir.mkdir(parents=True, exist_ok=False)
+            except FileExistsError as exc:
+                if (run_dir / RUN_FILENAME).is_file():
+                    return self.load_run(record.run_id)
+                raise ArtifactRepositoryError(
+                    "run directory exists without a run manifest"
+                ) from exc
+            self._atomic_json(
+                run_dir / ARTIFACT_MANIFEST_FILENAME,
+                {
+                    "manifest_version": "retraining-artifacts.v1",
+                    "generation": 1,
+                    "artifacts": {},
+                },
+            )
+            self._atomic_write(run_dir / EVENTS_FILENAME, b"")
+            # run.json is the publication marker: readers only see a complete
+            # run after its supporting manifest and event stream exist.
+            self._atomic_json(run_dir / RUN_FILENAME, record.to_dict())
+            self._update_queue()
+            return record
+        except BaseException:
+            if run_dir is not None and run_dir.exists() and not (
+                run_dir / RUN_FILENAME
+            ).is_file():
+                shutil.rmtree(run_dir, ignore_errors=True)
+            raise
+        finally:
+            if owns_reservation:
+                self._release_reservation(reservation)
 
     def load_run(self, run_id: str) -> RetrainingRunRecord:
         path = self._run_dir(run_id) / RUN_FILENAME
@@ -466,8 +699,8 @@ class RetrainingRunArtifactRepository:
     def _assert_worker(
         self, record: RetrainingRunRecord, worker_id: str | None
     ) -> None:
-        if record.worker_id is not None and record.worker_id != worker_id:
-            raise ArtifactRepositoryError("run is owned by another worker")
+        if worker_id is not None and record.worker_id != worker_id:
+            raise ArtifactRepositoryError("run ownership does not match worker")
 
     def transition(
         self,
@@ -672,11 +905,52 @@ class RetrainingRunArtifactRepository:
         content = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
         if len(content) > MAX_ARTIFACT_BYTES:
             raise ArtifactIntegrityError("artifact exceeds the configured size limit")
-        self._atomic_write(path, content)
         digest = _sha256_bytes(content)
         manifest_path = self._run_dir(run_id) / ARTIFACT_MANIFEST_FILENAME
         manifest = self._read_json(manifest_path)
         artifacts = dict(manifest.get("artifacts", {}))
+        existing = artifacts.get(relative_path)
+        if path.is_file():
+            if (
+                isinstance(existing, Mapping)
+                and existing.get("sha256") == digest
+                and path.read_bytes() == content
+            ):
+                return {
+                    "sha256": digest,
+                    "size": len(content),
+                    "stage": str(existing.get("stage", stage))[:64],
+                }
+            if existing is None:
+                try:
+                    published_content = path.read_bytes()
+                except OSError as exc:
+                    raise ArtifactIntegrityError(
+                        "untracked published artifact cannot be read for recovery"
+                    ) from exc
+                if published_content != content:
+                    raise ArtifactIntegrityError(
+                        "untracked published artifact does not match the requested content"
+                    )
+                artifacts[relative_path] = {
+                    "sha256": digest,
+                    "size": len(content),
+                    "stage": str(stage)[:64],
+                }
+                manifest["generation"] = int(manifest.get("generation", 0)) + 1
+                manifest["artifacts"] = dict(sorted(artifacts.items()))
+                self._atomic_json(manifest_path, manifest)
+                return dict(artifacts[relative_path])
+            raise ArtifactIntegrityError(
+                "published artifacts are immutable within a run"
+            )
+        if existing is not None:
+            raise ArtifactIntegrityError(
+                "artifact manifest is inconsistent with the published file"
+            )
+        if path.exists():
+            raise ArtifactIntegrityError("published artifact path is not a file")
+        self._atomic_write(path, content)
         artifacts[relative_path] = {
             "sha256": digest,
             "size": len(content),
@@ -693,7 +967,13 @@ class RetrainingRunArtifactRepository:
             not relative_path
             or candidate.is_absolute()
             or any(part in {"", ".", ".."} for part in candidate.parts)
-            or candidate.name in {RUN_FILENAME, EVENTS_FILENAME, QUEUE_FILENAME}
+            or candidate.name
+            in {
+                RUN_FILENAME,
+                EVENTS_FILENAME,
+                QUEUE_FILENAME,
+                ARTIFACT_MANIFEST_FILENAME,
+            }
         ):
             raise ArtifactRepositoryError("artifact path is invalid")
         path = (self._run_dir(run_id) / candidate).resolve()
@@ -886,7 +1166,30 @@ class RetrainingRunArtifactRepository:
                     owner = self._read_json(lock_path)
                     heartbeat = _parse_time(owner.get("heartbeat_at"))
                 except ArtifactRepositoryError, ValueError, OSError:
-                    heartbeat = timestamp
+                    try:
+                        lock_age = time.time() - lock_path.stat().st_mtime
+                    except FileNotFoundError:
+                        continue
+                    except OSError as exc:
+                        raise WorkerLockBusy(
+                            "worker lock is unreadable and cannot be inspected"
+                        ) from exc
+                    if lock_age < stale_after_seconds:
+                        raise WorkerLockBusy(
+                            "worker lock is still being published or is unreadable"
+                        )
+                    corrupt_path = self.root / (
+                        f".worker.lock.corrupt.{uuid.uuid4().hex}.json"
+                    )
+                    try:
+                        os.replace(lock_path, corrupt_path)
+                    except FileNotFoundError:
+                        continue
+                    except OSError as exc:
+                        raise WorkerLockBusy(
+                            "worker lock is malformed and cannot be quarantined"
+                        ) from exc
+                    continue
                 if (timestamp - heartbeat).total_seconds() <= stale_after_seconds:
                     raise WorkerLockBusy(
                         "another worker owns the local retraining lock"

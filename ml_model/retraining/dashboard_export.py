@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
+import uuid
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -104,14 +107,6 @@ class DashboardExportResult:
     export_path: Path
     manifest_path: Path
     summary: RetrainingReviewSummary
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _iso_timestamp(value: datetime) -> str:
@@ -379,14 +374,15 @@ def export_dashboard_reviews(
     created_timestamp = created_at or datetime.now(timezone.utc)
     if created_timestamp.tzinfo is None:
         raise ValueError("created_at must be timezone-aware")
-    run_dir = get_run_artifact_directory(output_root, run_id) / "export"
-    run_dir.mkdir(parents=True, exist_ok=True)
-    export_path = run_dir / "approved_samples.jsonl"
-    export_path.write_text(
-        "".join(canonical_json(sample) + "\n" for sample in emitted_samples),
-        encoding="utf-8",
-    )
-    export_checksum = _sha256_file(export_path)
+    run_root = get_run_artifact_directory(output_root, run_id)
+    run_root.mkdir(parents=True, exist_ok=True)
+    run_dir = run_root / "export"
+    temporary_run_dir = run_root / f".export.{uuid.uuid4().hex}.tmp"
+    temporary_run_dir.mkdir(exist_ok=False)
+    export_content = "".join(
+        canonical_json(sample) + "\n" for sample in emitted_samples
+    ).encode("utf-8")
+    export_checksum = hashlib.sha256(export_content).hexdigest()
     rejection_counts = Counter(rejection.code for rejection in rejections)
     class_counts = Counter(sample.verified_label for sample in emitted_samples)
     base_summary = review_summary or RetrainingReviewSummary(
@@ -471,10 +467,22 @@ def export_dashboard_reviews(
     manifest["manifest_sha256"] = hashlib.sha256(
         canonical_json(manifest).encode("utf-8")
     ).hexdigest()
+    temporary_export_path = temporary_run_dir / "approved_samples.jsonl"
+    temporary_manifest_path = temporary_run_dir / "export_manifest.json"
+    try:
+        temporary_export_path.write_bytes(export_content)
+        temporary_manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        os.replace(temporary_run_dir, run_dir)
+    except BaseException as exc:
+        if temporary_run_dir.exists():
+            shutil.rmtree(temporary_run_dir)
+        if isinstance(exc, OSError) and run_dir.exists():
+            raise FileExistsError(f"export already exists: {run_dir}") from exc
+        raise
+    export_path = run_dir / "approved_samples.jsonl"
     manifest_path = run_dir / "export_manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
     return DashboardExportResult(
         status=status,
         samples=emitted_samples,

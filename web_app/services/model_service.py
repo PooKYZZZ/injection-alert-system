@@ -1,11 +1,12 @@
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
 from ml_model.confidence_tiers import (
-    ConfidenceThresholds,
     DEFAULT_CONFIDENCE_THRESHOLDS,
+    ConfidenceThresholds,
     classify_confidence,
 )
 from ml_model.models.mock_model import MockInjectionClassifier
@@ -19,6 +20,8 @@ from web_app.config import Settings
 logger = logging.getLogger(__name__)
 
 TEMPERATURE = 0.596868
+ACTIVE_MODEL_POINTER_FILENAME = "active_model.json"
+_DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 class ModelService:
@@ -38,6 +41,7 @@ class ModelService:
         self.tokenizer: Any = None
         self.temperature = float(TEMPERATURE)
         self.model_version = ""
+        self.artifact_path: Path | None = None
         self.model_input_version = MODEL_INPUT_VERSION
         self._mock_classifier: MockInjectionClassifier | None = None
         self._total_processed = 0
@@ -71,6 +75,7 @@ class ModelService:
         self.model = model
         self.tokenizer = tokenizer
         self.temperature = float(loaded_temperature or TEMPERATURE)
+        self.artifact_path = run_dir.resolve()
         self.model_version = self._derive_model_version(run_dir)
         self._eval_metadata = self._load_eval_metadata(run_dir)
 
@@ -87,6 +92,7 @@ class ModelService:
         instance.tokenizer = None
         instance.temperature = float(TEMPERATURE)
         instance.model_version = cls.MOCK_MODEL_VERSION
+        instance.artifact_path = None
         instance.model_input_version = MODEL_INPUT_VERSION
         instance._mock_classifier = MockInjectionClassifier()
         instance._total_processed = 0
@@ -165,6 +171,10 @@ class ModelService:
         if (registry_path / "staging").is_dir():
             staging_dir = registry_path / "staging"
 
+        active_run = cls._resolve_active_pointer(staging_dir)
+        if active_run is not None:
+            return active_run, False
+
         if not (settings.is_development or settings.is_testing):
             raise RuntimeError(
                 "MODEL_REGISTRY_PATH must point to an explicit model run directory "
@@ -173,6 +183,67 @@ class ModelService:
 
         run_dir = cls._discover_latest_run(staging_dir)
         return run_dir, True
+
+    @classmethod
+    def _resolve_active_pointer(cls, staging_dir: Path) -> Path | None:
+        pointer_path = staging_dir / ACTIVE_MODEL_POINTER_FILENAME
+        if not pointer_path.is_file():
+            return None
+        try:
+            payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError("active model pointer is unreadable") from exc
+        if (
+            not isinstance(payload, dict)
+            or payload.get("artifact_version") != "staging-pointer.v1"
+        ):
+            raise RuntimeError("active model pointer is invalid")
+        version = payload.get("model_version")
+        directory = payload.get("directory")
+        digest = payload.get("artifact_digest")
+        preprocessing_version = payload.get("preprocessing_version")
+        if (
+            not isinstance(version, str)
+            or not version.strip()
+            or not isinstance(directory, str)
+            or Path(directory).name != directory
+            or directory in {"", ".", ".."}
+            or not isinstance(digest, str)
+            or _DIGEST_PATTERN.fullmatch(digest) is None
+            or not isinstance(preprocessing_version, str)
+        ):
+            raise RuntimeError("active model pointer is invalid")
+        try:
+            validate_supported_model_input_version(
+                preprocessing_version, context="active model pointer"
+            )
+        except ValueError as exc:
+            raise RuntimeError("active model pointer preprocessing is invalid") from exc
+        root = staging_dir.resolve()
+        run_dir = (staging_dir / directory).resolve()
+        if run_dir.parent != root or not cls._is_artifact_directory(run_dir):
+            raise RuntimeError("active model pointer target is invalid")
+        try:
+            from ml_model.retraining.content_digest import compute_content_digest
+
+            actual_digest = compute_content_digest(run_dir)
+        except ValueError as exc:
+            raise RuntimeError(
+                "active model pointer target cannot be verified"
+            ) from exc
+        if actual_digest != digest:
+            raise RuntimeError("active model pointer digest does not match artifact")
+        manifest_path = run_dir / cls.PACKAGED_MANIFEST_NAME
+        if manifest_path.is_file():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise RuntimeError("active model manifest is unreadable") from exc
+            if isinstance(manifest, dict) and manifest.get("model_version") != version:
+                raise RuntimeError(
+                    "active model pointer version does not match artifact"
+                )
+        return run_dir
 
     @classmethod
     def _discover_latest_run(cls, staging_dir: Path) -> Path:
