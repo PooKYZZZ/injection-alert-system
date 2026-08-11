@@ -12,7 +12,12 @@ from typing import Any, Mapping
 
 import torch
 
-from ml_model.export.package_serving_artifact import package_serving_artifact
+from ml_model.export.package_serving_artifact import (
+    TrainingSummarySnapshot,
+    load_training_summary,
+    package_serving_artifact,
+    stage_training_summary_for_packaging,
+)
 from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
     validate_supported_model_input_version,
@@ -358,6 +363,7 @@ def run_packager(
     run_dir_name: str,
     notes: str | None,
     calibration_eval_run_dir: Path,
+    training_summary_snapshot: TrainingSummarySnapshot,
     repo_root: Path | None = None,
 ) -> Path:
     return package_serving_artifact(
@@ -369,6 +375,7 @@ def run_packager(
         notes=notes,
         calibration_eval_run_dir=calibration_eval_run_dir,
         repo_root=repo_root,
+        training_summary_snapshot=training_summary_snapshot,
     )
 
 
@@ -641,7 +648,8 @@ def promote_final_training_run(
     )
     config_metadata = {**config_metadata, "architecture": architecture}
     validate_native_promotion_metadata(config_metadata)
-    summary_metrics = load_json(source_paths["summary_metrics.json"])
+    summary_snapshot = load_training_summary(source_paths["summary_metrics.json"])
+    summary_metrics = summary_snapshot.metrics
     per_class_metrics = load_json(source_paths["per_class_metrics.json"])
     calibration_payload = load_json(source_paths["calibration.json"])
 
@@ -701,6 +709,10 @@ def promote_final_training_run(
             normalize_for_packager=True,
             architecture=architecture,
         )
+        stage_training_summary_for_packaging(
+            candidate_run=fresh_active_dir,
+            summary_snapshot=summary_snapshot,
+        )
         write_json(fresh_active_dir / "config_used.json", config_used)
         write_json(fresh_active_dir / "eval_report.json", eval_report)
         write_text(fresh_active_dir / "git_hash.txt", f"{repo_commit}\n")
@@ -723,6 +735,7 @@ def promote_final_training_run(
             notes=notes,
             calibration_eval_run_dir=eval_run_dir,
             repo_root=Path(repo_root),
+            training_summary_snapshot=summary_snapshot,
         )
 
         validation_gates = {

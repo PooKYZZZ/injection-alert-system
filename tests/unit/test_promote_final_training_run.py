@@ -12,8 +12,10 @@ from transformers import (
 from ml_model.export.package_serving_artifact import (
     CalibrationProvenance,
     PackagingError,
+    TrainingSummarySnapshot,
     build_manifest,
     resolve_calibration_provenance,
+    sha256_file,
 )
 from ml_model.export.promote_final_training_run import (
     PromotionError,
@@ -101,6 +103,8 @@ def make_minimal_final_training_fixture(source_dir: Path) -> Path:
                 "test_accuracy": 0.99,
                 "test_macro_f1": 0.98,
                 "test_weighted_f1": 0.991,
+                "normal_false_positive_rate": 0.001,
+                "attack_escape_rate": 0.002,
             }
         ),
         encoding="utf-8",
@@ -934,6 +938,11 @@ def test_run_packager_invokes_existing_package_serving_artifact(
         run_dir_name="distilbert_v3_907k_cleaned_20260312_133755",
         notes=None,
         calibration_eval_run_dir=calibration_eval_run_dir,
+        training_summary_snapshot=TrainingSummarySnapshot(
+            raw_bytes=b"{}",
+            metrics={},
+            source_sha256="a" * 64,
+        ),
         repo_root=tmp_path,
     )
 
@@ -942,6 +951,7 @@ def test_run_packager_invokes_existing_package_serving_artifact(
     assert calls[0]["strict"] is True
     assert calls[0]["calibration_eval_run_dir"] == calibration_eval_run_dir
     assert calls[0]["repo_root"] == tmp_path
+    assert isinstance(calls[0]["training_summary_snapshot"], TrainingSummarySnapshot)
 
 
 def test_restore_archive_reinstates_old_active_run_after_failure(tmp_path: Path):
@@ -973,11 +983,48 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
         "ml_model.export.promote_final_training_run.validate_local_reload",
         lambda *args, **kwargs: None,
     )
+    source_summary_path = source_dir / "summary_metrics.json"
+    original_source_summary = source_summary_path.read_bytes()
+    original_build_eval_report = build_eval_report
+
+    def mutate_source_after_snapshot(*, summary_metrics, per_class_metrics):
+        assert summary_metrics["test_macro_f1"] == 0.98
+        changed_summary = json.loads(original_source_summary)
+        changed_summary["test_macro_f1"] = 0.01
+        source_summary_path.write_text(json.dumps(changed_summary), encoding="utf-8")
+        return original_build_eval_report(
+            summary_metrics=summary_metrics,
+            per_class_metrics=per_class_metrics,
+        )
+
+    monkeypatch.setattr(
+        "ml_model.export.promote_final_training_run.build_eval_report",
+        mutate_source_after_snapshot,
+    )
     packager_calls: list[dict[str, object]] = []
 
     def fake_run_packager(**kwargs):
         packager_calls.append(kwargs)
         eval_run_dir = Path(kwargs["calibration_eval_run_dir"])
+        staged_summary_path = active_run_dir / "summary_metrics.json"
+        assert staged_summary_path.is_file()
+        assert json.loads(staged_summary_path.read_text(encoding="utf-8"))[
+            "test_macro_f1"
+        ] == 0.98
+        summary_snapshot = kwargs["training_summary_snapshot"]
+        assert summary_snapshot.raw_bytes == original_source_summary
+        assert summary_snapshot.metrics["test_macro_f1"] == 0.98
+        checkpoint_path = active_run_dir / "best_distilbert_ckpt.pt"
+        assert checkpoint_path.is_file()
+        (active_run_dir / "serving_manifest.json").write_text(
+            json.dumps(
+                {
+                    "checkpoint_file": checkpoint_path.name,
+                    "checkpoint_sha256": sha256_file(checkpoint_path),
+                }
+            ),
+            encoding="utf-8",
+        )
         provisional_summary = json.loads(
             (eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
         )["promotion_summary"]["distilbert"]
@@ -1002,6 +1049,9 @@ def test_promote_final_training_run_executes_archive_convert_package_and_verify(
     assert (result.active_run_dir / "provenance.json").exists()
     assert (result.active_run_dir / "MODEL_CARD.md").exists()
     assert packager_calls[0]["calibration_eval_run_dir"] == result.eval_run_dir
+    assert "0.98" in (result.active_run_dir / "MODEL_CARD.md").read_text(
+        encoding="utf-8"
+    )
     final_summary = json.loads(
         (result.eval_run_dir / "promotion_summary.json").read_text(encoding="utf-8")
     )["promotion_summary"]["distilbert"]

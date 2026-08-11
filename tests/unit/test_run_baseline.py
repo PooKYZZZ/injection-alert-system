@@ -4,7 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from ml_model.evaluation.golden_controls import load_golden_controls
+from ml_model.retraining.integrity import canonical_summary_metrics_sha256
 from ml_model.retraining.run_baseline import (
     _load_verified_summary_metrics,
     _missing_baseline_metrics,
@@ -88,18 +91,23 @@ def test_summary_metrics_must_match_checkpoint_and_serving_manifest(tmp_path: Pa
         "checkpoint_file": checkpoint.name,
         "checkpoint_sha256": checkpoint_hash,
     }
+    summary_payload = {
+        "test_accuracy": 0.99,
+        "test_macro_f1": 0.98,
+        "test_weighted_f1": 0.991,
+        "normal_false_positive_rate": 0.001,
+        "attack_escape_rate": 0.002,
+        "checkpoint_sha256": checkpoint_hash,
+        "source_summary_sha256": "a" * 64,
+    }
+    manifest["summary_metrics_sha256"] = canonical_summary_metrics_sha256(
+        summary_payload
+    )
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    summary_payload["artifact_manifest_sha256"] = manifest_hash
     summary_path = artifact / "summary_metrics.json"
-    summary_path.write_text(
-        json.dumps(
-            {
-                "checkpoint_sha256": checkpoint_hash,
-                "artifact_manifest_sha256": manifest_hash,
-            }
-        ),
-        encoding="utf-8",
-    )
+    summary_path.write_text(json.dumps(summary_payload), encoding="utf-8")
 
     verified = _load_verified_summary_metrics(artifact, manifest_path, manifest)
     assert verified["checkpoint_sha256"] == checkpoint_hash
@@ -116,9 +124,47 @@ def test_summary_metrics_must_match_checkpoint_and_serving_manifest(tmp_path: Pa
     try:
         _load_verified_summary_metrics(artifact, manifest_path, manifest)
     except ValueError as exc:
-        assert "checkpoint hash" in str(exc)
+        assert "content hash" in str(exc)
     else:
         raise AssertionError("unlinked summary metrics should be rejected")
+
+
+@pytest.mark.parametrize("invalid_value", [True, "0.98", None, {}, []])
+def test_verified_summary_rejects_non_json_numeric_metric_types(
+    tmp_path: Path, invalid_value: object
+):
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    checkpoint = artifact / "checkpoint.pt"
+    checkpoint.write_bytes(b"checkpoint")
+    checkpoint_hash = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    manifest_path = artifact / "serving_manifest.json"
+    manifest = {
+        "checkpoint_file": checkpoint.name,
+        "checkpoint_sha256": checkpoint_hash,
+    }
+    summary_payload = {
+        "test_accuracy": 0.99,
+        "test_macro_f1": invalid_value,
+        "test_weighted_f1": 0.991,
+        "normal_false_positive_rate": 0.001,
+        "attack_escape_rate": 0.002,
+        "checkpoint_sha256": checkpoint_hash,
+        "source_summary_sha256": "a" * 64,
+    }
+    manifest["summary_metrics_sha256"] = canonical_summary_metrics_sha256(
+        summary_payload
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    summary_payload["artifact_manifest_sha256"] = hashlib.sha256(
+        manifest_path.read_bytes()
+    ).hexdigest()
+    (artifact / "summary_metrics.json").write_text(
+        json.dumps(summary_payload), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="must be a JSON number"):
+        _load_verified_summary_metrics(artifact, manifest_path, manifest)
 
 
 def test_baseline_with_unloadable_artifact_remains_requires_laptop(tmp_path: Path):

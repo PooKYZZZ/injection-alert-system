@@ -58,6 +58,13 @@ reload plus logits output. Use the real CPU smoke and the offline packaging
 test as the bounded validation path; do not turn legacy notebooks into a
 second implementation or edit the active staged artifact during validation.
 
+`package_serving_artifact()` is also the authoritative final provenance
+boundary. It carries one captured `summary_metrics.json` snapshot through the
+export, writes `summary_metrics_sha256` into `serving_manifest.json`, publishes
+the final summary links, and verifies the result before returning. Promotion
+and simulation callers pass the captured snapshot; they do not perform a
+separate post-packaging binding step.
+
 If a downstream step fails after archive, the script restores the archived run back to the active path.
 
 ## Architectural Role

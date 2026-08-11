@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -16,6 +17,11 @@ from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTok
 from ml_model.preprocessing.model_input import (
     MODEL_INPUT_HASH_POLICY,
     validate_supported_model_input_version,
+)
+from ml_model.retraining.integrity import (
+    canonical_summary_metrics_sha256,
+    validate_training_summary_payload,
+    verify_summary_metrics_provenance,
 )
 from ml_model.training.run_contract import require_contract_hash
 
@@ -68,6 +74,15 @@ class PackagingError(RuntimeError):
     """Raised when packaging provenance or validation is unsafe."""
 
 
+@dataclass(frozen=True)
+class TrainingSummarySnapshot:
+    """One immutable source-summary read carried through packaging."""
+
+    raw_bytes: bytes
+    metrics: dict[str, Any]
+    source_sha256: str
+
+
 class CalibrationProvenance:
     """Exact-run calibration mapping resolved through evaluation metadata."""
 
@@ -104,6 +119,120 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def load_training_summary(path: Path) -> TrainingSummarySnapshot:
+    """Load the exact training summary required by artifact packaging."""
+
+    summary_path = Path(path)
+    if not summary_path.is_file():
+        raise PackagingError(f"Training summary is missing: {summary_path}")
+
+    try:
+        raw_bytes = summary_path.read_bytes()
+        payload = json.loads(raw_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PackagingError(
+            f"Training summary is malformed: {summary_path}"
+        ) from exc
+
+    try:
+        normalized = validate_training_summary_payload(payload)
+    except ValueError as exc:
+        raise PackagingError(str(exc)) from exc
+    return TrainingSummarySnapshot(
+        raw_bytes=raw_bytes,
+        metrics=normalized,
+        source_sha256=hashlib.sha256(raw_bytes).hexdigest(),
+    )
+
+
+def stage_training_summary_for_packaging(
+    *,
+    candidate_run: Path,
+    source_summary_path: Path | None = None,
+    summary_snapshot: TrainingSummarySnapshot | None = None,
+) -> TrainingSummarySnapshot:
+    """Copy a validated training summary into a fresh candidate run."""
+
+    if summary_snapshot is None:
+        if source_summary_path is None:
+            raise PackagingError(
+                "Either source_summary_path or summary_snapshot is required"
+            )
+        summary_snapshot = load_training_summary(source_summary_path)
+    summary_path = Path(candidate_run) / "summary_metrics.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_bytes(summary_snapshot.raw_bytes)
+    return summary_snapshot
+
+
+def finalize_summary_provenance(
+    *,
+    packaged_run: Path,
+    summary_snapshot: TrainingSummarySnapshot,
+) -> Path:
+    """Publish one final manifest and summary with non-cyclic provenance links."""
+
+    packaged_dir = Path(packaged_run)
+    manifest_path = packaged_dir / MANIFEST_NAME
+    if not manifest_path.is_file():
+        raise PackagingError(
+            f"Packaged serving manifest is missing: {manifest_path}"
+        )
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PackagingError(
+            f"Packaged serving manifest is malformed: {manifest_path}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise PackagingError("serving_manifest.json must contain an object")
+
+    checkpoint_name = manifest.get("checkpoint_file")
+    if not isinstance(checkpoint_name, str) or not checkpoint_name:
+        raise PackagingError(
+            "Serving manifest does not define checkpoint_file"
+        )
+    checkpoint_path = packaged_dir / checkpoint_name
+    if not checkpoint_path.is_file():
+        raise PackagingError(f"Packaged checkpoint is missing: {checkpoint_path}")
+
+    checkpoint_hash = sha256_file(checkpoint_path)
+    if manifest.get("checkpoint_sha256") != checkpoint_hash:
+        raise PackagingError(
+            "Serving manifest checkpoint hash does not match packaged checkpoint"
+        )
+
+    summary_payload = {
+        **summary_snapshot.metrics,
+        "checkpoint_sha256": checkpoint_hash,
+        "source_summary_sha256": summary_snapshot.source_sha256,
+    }
+    manifest["summary_metrics_sha256"] = canonical_summary_metrics_sha256(
+        summary_payload
+    )
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    verified_summary = {
+        **summary_payload,
+        "artifact_manifest_sha256": sha256_file(manifest_path),
+    }
+    summary_path = packaged_dir / "summary_metrics.json"
+    summary_path.write_text(
+        json.dumps(verified_summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        verify_summary_metrics_provenance(
+            artifact_dir=packaged_dir,
+            manifest_path=manifest_path,
+        )
+    except ValueError as exc:
+        raise PackagingError(str(exc)) from exc
+    return summary_path
 
 
 def utc_now_iso() -> str:
@@ -547,6 +676,7 @@ def package_serving_artifact(
     repo_root: Path | None = None,
     confidence_thresholds: Mapping[str, float] | None = None,
     response_actions: Mapping[str, str] | None = None,
+    training_summary_snapshot: TrainingSummarySnapshot | None = None,
 ) -> Path:
     if model_key not in NATIVE_MODEL_KEYS:
         raise PackagingError(
@@ -575,6 +705,20 @@ def package_serving_artifact(
         strict=strict,
     )
     ensure_required_run_files(run_dir)
+    summary_path = run_dir / "summary_metrics.json"
+    if training_summary_snapshot is None:
+        training_summary_snapshot = load_training_summary(summary_path)
+    else:
+        try:
+            staged_summary_bytes = summary_path.read_bytes()
+        except OSError as exc:
+            raise PackagingError(
+                f"Training summary is missing: {summary_path}"
+            ) from exc
+        if staged_summary_bytes != training_summary_snapshot.raw_bytes:
+            raise PackagingError(
+                "Staged training summary does not match the captured source snapshot"
+            )
 
     config_used_path = run_dir / "config_used.json"
     eval_report_path = run_dir / "eval_report.json"
@@ -680,6 +824,10 @@ def package_serving_artifact(
 
     manifest["local_reload_verified"] = True
     write_manifest(run_dir, manifest)
+    finalize_summary_provenance(
+        packaged_run=run_dir,
+        summary_snapshot=training_summary_snapshot,
+    )
 
     print("Run directory contents:")
     for path in sorted(run_dir.iterdir(), key=lambda item: item.name):
