@@ -448,8 +448,10 @@ class RetrainingControlUseCase:
     def _rollback_is_in_progress(self, run_id: str) -> bool:
         try:
             events = self._artifact_repository.read_events(run_id)
-        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
-            return False
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError) as exc:
+            raise ArtifactRepositoryError(
+                "rollback event stream is unavailable during recovery"
+            ) from exc
         for event in reversed(events):
             code = event.get("code")
             if code == "ROLLBACK_STARTED":

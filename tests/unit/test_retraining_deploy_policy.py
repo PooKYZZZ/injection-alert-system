@@ -461,6 +461,67 @@ def test_unclean_deploy_before_activation_is_reconciled_after_restart(
     assert not (staging_root / "candidate-v1").exists()
 
 
+def test_unreadable_recovery_events_fail_closed_after_interrupted_deploy(
+    tmp_path: Path,
+):
+    control, repository, staging_root, archive_root, _, _, adapter = _make_control(
+        tmp_path
+    )
+    active_digest = repository.load_run(RUN_ID).active_model_digest
+    adapter._write_active_pointer(
+        model_version="active-v1",
+        artifact_digest=active_digest,
+        directory=staging_root / "active-v1",
+        preprocessing_version="model-input-v2-redacted",
+    )
+
+    def terminate_before_activation(_plan):
+        raise SystemExit("simulated process termination")
+
+    adapter.deploy = terminate_before_activation
+    with pytest.raises(SystemExit):
+        control.deploy(
+            run_id=RUN_ID,
+            expected_candidate_version="candidate-v1",
+            actor_id="admin-1",
+            actor_role="ADMIN",
+        )
+
+    restarted_adapter = LocalStagingAdapter(
+        staging_root=staging_root,
+        archive_root=archive_root,
+        load_validator=lambda _path, expected: expected,
+        reload_callback=lambda _path, expected: expected,
+        clock=lambda: NOW,
+    )
+    restarted = RetrainingControlUseCase(
+        NoopDependency(),
+        repository,
+        NoopDependency(),
+        NoopDependency(),
+        active_model_version="active-v1",
+        active_model_digest=active_digest,
+        active_model_input_version="model-input-v2-redacted",
+        staging_adapter=restarted_adapter,
+        clock=lambda: NOW,
+    )
+
+    def unreadable_events(_run_id):
+        raise ArtifactRepositoryError("simulated event stream failure")
+
+    repository.read_events = unreadable_events
+    with pytest.raises(RetrainingControlError, match="recovery"):
+        restarted.rollback(
+            run_id=RUN_ID,
+            previous_staging_version="active-v1",
+            reason="Recover after an interrupted deployment.",
+            actor_id="admin-1",
+            actor_role="ADMIN",
+        )
+
+    assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
+
+
 def test_unclean_deploy_after_activation_can_rollback_after_restart(
     tmp_path: Path,
 ):
