@@ -160,3 +160,14 @@ def test_block3c_merged_model_is_local_and_explicitly_test_only():
         mount["source"] == "pr7-block3c-state" and mount["target"] == "/pr7-state"
         for mount in services["pr7-block3-waf"]["volumes"]
     )
+
+
+def test_demo_target_modsecurity_disables_the_image_healthcheck():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+    )
+
+    assert config["services"]["demo-target-modsecurity"]["healthcheck"] == {
+        "disable": True
+    }
