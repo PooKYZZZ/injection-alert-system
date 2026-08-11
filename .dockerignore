@@ -41,7 +41,6 @@ tmp/
 frontend/
 ml_model/notebooks/
 ml_model/training/
-ml_model/retraining/
 ml_model/export/
 ml_model/results/
 ml_model/logs/
