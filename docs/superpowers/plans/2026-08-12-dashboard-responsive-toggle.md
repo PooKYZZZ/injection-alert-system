@@ -276,3 +276,4 @@ npx vitest run --pool=threads components/dashboard/RecentAlertsTable.test.tsx co
 - `REVISED` — PR1/PR2/PR3 remain separate commit-level slices inside one hosted PR because of their direct dependency chain.
 - `BLOCKED` — `npm run build` compiled and typechecked but page-data collection requires `AUTH_SECRET` or `NEXTAUTH_SECRET`, which is not present in the isolated worktree; no credential was copied or exposed.
 - `NOT_RUN` — authenticated browser viewport and production dashboard interaction checks were not run because the isolated worktree lacks the required auth runtime secret/session setup.
+- `BLOCKED` — branch push succeeded, but both `gh pr create` (GraphQL) and the REST pull-request endpoint returned `401 Bad credentials`; no hosted PR or merge was claimed.
