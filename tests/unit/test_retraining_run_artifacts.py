@@ -1,13 +1,15 @@
 import json
+import os
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from ml_model.retraining.dashboard_contracts import RunState
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
-    ArtifactRepositoryError,
     ArtifactIntegrityError,
+    ArtifactRepositoryError,
     InvalidRunTransition,
     RetrainingRunArtifactRepository,
     RetrainingRunRecord,
@@ -73,7 +75,9 @@ def test_queue_is_atomic_versioned_and_rejects_path_traversal(tmp_path):
         repository.load_run("../outside")
 
 
-def test_reviewed_run_states_require_dataset_candidate_and_evaluation_bindings(tmp_path):
+def test_reviewed_run_states_require_dataset_candidate_and_evaluation_bindings(
+    tmp_path,
+):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
 
     with pytest.raises(ArtifactRepositoryError, match="state requires"):
@@ -122,6 +126,74 @@ def test_fingerprint_reservation_makes_concurrent_run_creation_idempotent(tmp_pa
     assert len(records) == 2
     assert len({record.run_id for record in records}) == 1
     assert len(repository.list_runs()) == 1
+
+
+def test_orphaned_fingerprint_reservation_is_recovered(tmp_path, monkeypatch):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = artifact_repository.RetrainingRunArtifactRepository(
+        tmp_path / "runs", clock=lambda: NOW
+    )
+    reservation = repository.root / (
+        f".run-fingerprint.{_record().input_fingerprint}.reservation"
+    )
+    reservation.mkdir()
+    (reservation / artifact_repository.RUN_RESERVATION_OWNER_FILENAME).write_text(
+        json.dumps(
+            {
+                "pid": 4_000_000,
+                "created_at": time.time()
+                - artifact_repository.RUN_RESERVATION_STALE_SECONDS
+                - 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        artifact_repository, "_reservation_owner_is_live", lambda _pid: False
+    )
+
+    created = repository.create_or_get_run(_record())
+
+    assert created.run_id == RUN_ID
+    assert len(repository.list_runs()) == 1
+    assert not reservation.exists()
+
+
+def test_live_fingerprint_reservation_is_not_recovered(tmp_path, monkeypatch):
+    from web_app.infrastructure.repositories import (
+        retraining_run_artifact_repository as artifact_repository,
+    )
+
+    repository = artifact_repository.RetrainingRunArtifactRepository(
+        tmp_path / "runs", clock=lambda: NOW
+    )
+    reservation = repository.root / (
+        f".run-fingerprint.{_record().input_fingerprint}.reservation"
+    )
+    reservation.mkdir()
+    (reservation / artifact_repository.RUN_RESERVATION_OWNER_FILENAME).write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "created_at": time.time()
+                - artifact_repository.RUN_RESERVATION_STALE_SECONDS
+                - 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(artifact_repository, "RUN_RESERVATION_WAIT_SECONDS", 0.02)
+    monkeypatch.setattr(
+        artifact_repository, "_reservation_owner_is_live", lambda _pid: True
+    )
+
+    with pytest.raises(ArtifactRepositoryError, match="same input fingerprint"):
+        repository.create_or_get_run(_record())
+
+    assert reservation.exists()
 
 
 def test_run_manifest_is_published_after_supporting_artifacts(tmp_path, monkeypatch):
