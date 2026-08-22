@@ -26,13 +26,13 @@ from web_app.presentation.schemas.retraining_schemas import (
     RetrainingEvidenceSummaryResponse,
     RetrainingExportRequest,
     RetrainingExportResponse,
+    RetrainingRetryRequest,
     RetrainingRollbackRequest,
     RetrainingRunDetailResponse,
     RetrainingRunListResponse,
     RetrainingRunRequest,
     RetrainingRunResponse,
     RetrainingRunStartResponse,
-    RetrainingRetryRequest,
     RetrainingSummaryResponse,
 )
 
@@ -209,8 +209,9 @@ async def list_retraining_runs(
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunListResponse:
     _actor(request)
+    records = await run_in_threadpool(control.list_runs)
     return RetrainingRunListResponse(
-        runs=[_run_response(record) for record in control.list_runs()]
+        runs=[_run_response(record) for record in records]
     )
 
 
@@ -225,7 +226,7 @@ async def get_retraining_run(
 ) -> RetrainingRunDetailResponse:
     _actor(request)
     try:
-        detail = control.get_run_detail(run_id)
+        detail = await run_in_threadpool(control.get_run_detail, run_id)
     except RetrainingControlError as exc:
         _raise_control_error(exc)
     events = [
@@ -281,7 +282,8 @@ async def decide_retraining_run(
 ) -> RetrainingDecisionResponse:
     actor = _administrator(request)
     try:
-        result = control.decide(
+        result = await run_in_threadpool(
+            control.decide,
             run_id=run_id,
             decision=payload.decision,
             reason=payload.reason,

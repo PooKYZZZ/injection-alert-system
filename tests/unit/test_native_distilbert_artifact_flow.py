@@ -420,9 +420,21 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     assert result == run_dir.resolve()
     assert manifest["run_contract_sha256"] == contract_hash
     assert manifest["run_dir_name"] == run_dir.name
+    assert manifest["run_dir_path"] == run_dir.name
     assert manifest["config_used_file"] == "config_used.json"
+    assert (
+        manifest["temperature_source_file"]
+        == "eval_results_distilbert_calibrated.json"
+    )
+    assert manifest["promotion_summary_file"] == "promotion_summary.json"
+    assert manifest["calibration_eval_run_dir"] == eval_run_dir.name
 
-    candidate_root = tmp_path / "runs" / "retrain-20260811T120000Z-000000000001" / "candidate_model"
+    candidate_root = (
+        tmp_path
+        / "runs"
+        / "retrain-20260811T120000Z-000000000001"
+        / "candidate_model"
+    )
     candidate_root.parent.mkdir(parents=True)
     shutil.copytree(result, candidate_root)
     adapter = LocalStagingAdapter(

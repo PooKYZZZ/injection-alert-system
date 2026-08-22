@@ -202,9 +202,13 @@ describe('ML Model retraining BFF routes', () => {
     )
 
     expect(response.status).toBe(202)
-    expect(retryRetrainingRunMock).toHaveBeenCalledWith(runId, {
-      id: accountId,
-      role: ROLES.ADMIN,
-    })
+    expect(retryRetrainingRunMock).toHaveBeenCalledWith(
+      runId,
+      {},
+      {
+        id: accountId,
+        role: ROLES.ADMIN,
+      }
+    )
   })
 })

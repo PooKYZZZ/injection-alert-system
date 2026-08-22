@@ -835,11 +835,11 @@ export async function getRetrainingRun(
 
 export async function retryRetrainingRun(
   runId: string,
+  payload: z.infer<typeof RetrainingRetryRequestSchema>,
   actor: RetrainingActor
 ): Promise<BffResult<RetrainingRun>> {
   const parsedId = parseRetrainingRunId(runId)
   if (!parsedId.ok) return parsedId
-  const payload = RetrainingRetryRequestSchema.parse({})
   return fetchRetrainingUpstream(
     `/api/retraining/runs/${encodeURIComponent(parsedId.data)}/retry`,
     RetrainingRunSchema,

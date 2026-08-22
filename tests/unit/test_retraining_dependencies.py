@@ -5,7 +5,6 @@ import pytest
 from fastapi import HTTPException
 
 from ml_model.retraining.content_digest import compute_content_digest
-from web_app.presentation.dependencies import retraining as retraining_dependencies
 from web_app.presentation.dependencies.retraining import (
     _active_model_identity,
     _content_digest,
@@ -22,7 +21,9 @@ def test_retraining_identity_uses_model_bytes_not_version_strings(tmp_path: Path
         model_input_version="model-input-v2-redacted",
         artifact_path=artifact,
     )
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(model_service=service)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(model_service=service))
+    )
 
     version, preprocessing, digest = _active_model_identity(request)
 
@@ -40,7 +41,9 @@ def test_retraining_identity_fails_closed_without_a_loaded_artifact():
         model_input_version="model-input-v2-redacted",
         artifact_path=None,
     )
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(model_service=service)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(model_service=service))
+    )
 
     with pytest.raises(HTTPException) as raised:
         _active_model_identity(request)
@@ -48,34 +51,27 @@ def test_retraining_identity_fails_closed_without_a_loaded_artifact():
     assert getattr(raised.value, "status_code", None) == 503
 
 
-def test_stable_content_identity_is_cached_by_immutable_identity(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_retraining_identity_recomputes_model_digest_after_artifact_changes(
+    tmp_path: Path,
 ):
     artifact = tmp_path / "model"
     artifact.mkdir()
-    (artifact / "weights.bin").write_bytes(b"stable bytes")
-    calls = 0
-    original_digest = retraining_dependencies.compute_artifact_digest
-
-    def counted_digest(path):
-        nonlocal calls
-        calls += 1
-        return original_digest(path)
-
-    retraining_dependencies._cached_content_digest.cache_clear()
-    monkeypatch.setattr(
-        retraining_dependencies, "compute_artifact_digest", counted_digest
+    weights = artifact / "weights.bin"
+    weights.write_bytes(b"first model bytes")
+    service = SimpleNamespace(
+        model_version="active-v1",
+        model_input_version="model-input-v2-redacted",
+        artifact_path=artifact,
+    )
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(model_service=service))
     )
 
-    first = retraining_dependencies._cached_content_digest(
-        str(artifact), "model:active-v1"
-    )
-    second = retraining_dependencies._cached_content_digest(
-        str(artifact), "model:active-v1"
-    )
+    first = _active_model_identity(request)
+    weights.write_bytes(b"second model bytes")
+    second = _active_model_identity(request)
 
-    assert first == second
-    assert calls == 1
+    assert first[2] != second[2]
 
 
 def test_retraining_source_dataset_is_selected_by_worker_mode():

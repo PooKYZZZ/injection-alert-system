@@ -25,6 +25,9 @@ from web_app.infrastructure.repositories.retraining_run_artifact_repository impo
     RetrainingRunArtifactRepository,
     WorkerLockBusy,
 )
+from web_app.infrastructure.retraining_process_runner import (
+    build_restricted_worker_environment,
+)
 from web_app.infrastructure.retraining_worker_supervisor import (
     RetrainingWorkerSupervisor,
 )
@@ -159,6 +162,7 @@ class DashboardWorker:
             creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         process = subprocess.Popen(
             command,
+            env=build_restricted_worker_environment(),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

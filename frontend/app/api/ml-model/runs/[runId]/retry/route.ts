@@ -48,10 +48,14 @@ export async function POST(
         { status: 400 }
       )
     }
-    const result = await retryRetrainingRun(runId, {
-      id: session.user.id,
-      role: session.user.role,
-    })
+    const result = await retryRetrainingRun(
+      runId,
+      parsed.data,
+      {
+        id: session.user.id,
+        role: session.user.role,
+      }
+    )
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
     return NextResponse.json(result.data, { status: 202 })
   } catch {

@@ -383,6 +383,40 @@ def test_retry_offloads_synchronous_control_work(client, monkeypatch):
     }
 
 
+def test_sync_control_reads_and_decisions_are_offloaded(client, monkeypatch):
+    test_client, control = client
+    offloaded_calls = []
+
+    async def fake_run_in_threadpool(function, *args, **kwargs):
+        offloaded_calls.append((function.__name__, args, kwargs))
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr(
+        retraining_router_module,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    list_response = test_client.get("/api/retraining/runs", headers=_headers())
+    detail_response = test_client.get(
+        f"/api/retraining/runs/{RUN_ID}", headers=_headers()
+    )
+    decision_response = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/decision",
+        headers=_headers(role="ADMIN"),
+        json={"decision": "hold", "reason": "need more evidence"},
+    )
+
+    assert list_response.status_code == 200
+    assert detail_response.status_code == 200
+    assert decision_response.status_code == 200
+    assert [name for name, _, _ in offloaded_calls] == [
+        "list_runs",
+        "get_run_detail",
+        "decide",
+    ]
+
+
 def test_only_administrators_can_decide_candidate_state(client):
     test_client, control = client
 

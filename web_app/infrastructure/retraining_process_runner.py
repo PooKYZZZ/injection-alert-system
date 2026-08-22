@@ -12,7 +12,7 @@ from typing import Mapping
 
 WORKER_MODULE = "ml_model.retraining.dashboard_worker"
 _SAFE_ENV_KEYS = frozenset(
-    {"PATH", "PYTHONPATH", "IAS_PROJECT_ROOT", "PYTHONNOUSERSITE"}
+    {"PATH", "PYTHONPATH", "IAS_PROJECT_ROOT", "PYTHONNOUSERSITE", "SYSTEMROOT"}
 )
 
 
@@ -24,6 +24,29 @@ class WorkerProcessHandle:
 
 class RetrainingProcessError(RuntimeError):
     """Raised when the detached worker cannot be started safely."""
+
+
+def build_restricted_worker_environment(
+    *,
+    project_root: Path | str | None = None,
+    extra_safe_environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return the allowlisted environment used by every retraining child."""
+
+    extra = dict(extra_safe_environment or {})
+    if any(key not in _SAFE_ENV_KEYS for key in extra):
+        raise ValueError("worker environment contains an unallowlisted key")
+
+    environment = {
+        key: value for key, value in os.environ.items() if key in _SAFE_ENV_KEYS
+    }
+    environment["PYTHONNOUSERSITE"] = "1"
+    if project_root is not None:
+        environment["IAS_PROJECT_ROOT"] = str(
+            Path(project_root).expanduser().resolve()
+        )
+    environment.update(extra)
+    return environment
 
 
 class RetrainingProcessRunner:
@@ -53,8 +76,9 @@ class RetrainingProcessRunner:
         self._smoke = bool(smoke)
         self._timeout_seconds = int(timeout_seconds)
         self._extra_safe_environment = dict(extra_safe_environment or {})
-        if any(key not in _SAFE_ENV_KEYS for key in self._extra_safe_environment):
-            raise ValueError("worker environment contains an unallowlisted key")
+        build_restricted_worker_environment(
+            extra_safe_environment=self._extra_safe_environment
+        )
 
     def build_command(self, root: Path | str) -> list[str]:
         configured_root = Path(root).expanduser().resolve()
@@ -74,13 +98,10 @@ class RetrainingProcessRunner:
         return command
 
     def _safe_environment(self) -> dict[str, str]:
-        environment = {
-            key: value for key, value in os.environ.items() if key in _SAFE_ENV_KEYS
-        }
-        environment["PYTHONNOUSERSITE"] = "1"
-        environment["IAS_PROJECT_ROOT"] = str(self.project_root)
-        environment.update(self._extra_safe_environment)
-        return environment
+        return build_restricted_worker_environment(
+            project_root=self.project_root,
+            extra_safe_environment=self._extra_safe_environment,
+        )
 
     def start_worker(self, root: Path | str) -> WorkerProcessHandle:
         arguments = self.build_command(root)
@@ -112,6 +133,7 @@ class RetrainingProcessRunner:
 
 
 __all__ = [
+    "build_restricted_worker_environment",
     "RetrainingProcessError",
     "RetrainingProcessRunner",
     "WorkerProcessHandle",

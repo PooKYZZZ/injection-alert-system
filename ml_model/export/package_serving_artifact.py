@@ -533,7 +533,9 @@ def build_manifest(
         ).get("dataset_file_manifest_sha256"),
         "base_model": base_model,
         "run_dir_name": manifest_run_dir_name or run_dir.name,
-        "run_dir_path": str(run_dir.resolve()),
+        "run_dir_path": (
+            run_dir.name if portable_artifact_paths else str(run_dir.resolve())
+        ),
         "checkpoint_file": checkpoint_path.name,
         "checkpoint_sha256": sha256_file(checkpoint_path),
         "config_used_file": (
@@ -543,7 +545,11 @@ def build_manifest(
         ),
         "config_used_sha256": sha256_file(config_used_path),
         "temperature": round(float(calibration.temperature), 6),
-        "temperature_source_file": str(calibration.result_path),
+        "temperature_source_file": (
+            calibration.result_path.name
+            if portable_artifact_paths
+            else str(calibration.result_path)
+        ),
         "label_names": label_names,
         "num_labels": len(label_names),
         "confidence_thresholds": dict(confidence_thresholds or config_metadata.get(
@@ -564,8 +570,16 @@ def build_manifest(
             "ml_model/notebooks/legacy/evaluate.ipynb",
             "ml_model/notebooks/legacy/package_serving_artifact.ipynb",
         ],
-        "promotion_summary_file": str(calibration.promotion_summary_path),
-        "calibration_eval_run_dir": str(calibration.eval_run_dir),
+        "promotion_summary_file": (
+            calibration.promotion_summary_path.name
+            if portable_artifact_paths
+            else str(calibration.promotion_summary_path)
+        ),
+        "calibration_eval_run_dir": (
+            calibration.eval_run_dir.name
+            if portable_artifact_paths
+            else str(calibration.eval_run_dir)
+        ),
     }
 
 
@@ -585,6 +599,7 @@ def validate_packaged_artifact(
     temperature_source_file: Path,
     sample_text: str,
     expected_run_dir_name: str | None = None,
+    portable_artifact_paths: bool = False,
 ) -> None:
     for name in REQUIRED_CONFIG_FILES:
         if not (run_dir / name).exists():
@@ -658,8 +673,14 @@ def validate_packaged_artifact(
         raise PackagingError(
             "Serving manifest run_dir_name does not match selected run."
         )
-    if manifest_payload.get("temperature_source_file") != str(
-        temperature_source_file.resolve()
+    expected_temperature_source_file = (
+        temperature_source_file.name
+        if portable_artifact_paths
+        else str(temperature_source_file.resolve())
+    )
+    if (
+        manifest_payload.get("temperature_source_file")
+        != expected_temperature_source_file
     ):
         raise PackagingError(
             "Serving manifest temperature_source_file does not match exact "
@@ -860,6 +881,7 @@ def package_serving_artifact(
         temperature_source_file=calibration.result_path,
         sample_text=sample_text,
         expected_run_dir_name=manifest_run_dir_name,
+        portable_artifact_paths=run_dir_path is not None,
     )
 
     manifest["local_reload_verified"] = True

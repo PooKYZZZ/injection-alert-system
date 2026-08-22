@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from math import isfinite
@@ -145,7 +146,7 @@ class RetrainingControlUseCase:
 
     async def get_summary(self) -> RetrainingSummarySnapshot:
         review_summary = await self._review_repository.get_retraining_review_summary()
-        runs = self._artifact_repository.list_runs()
+        runs = await asyncio.to_thread(self._artifact_repository.list_runs)
         latest = runs[-1] if runs else None
         latest_dataset_version = next(
             (
@@ -177,7 +178,9 @@ class RetrainingControlUseCase:
                 "FORBIDDEN", "Operator permission is required.", status_code=403
             )
         if not actor_id.strip() or len(actor_id) > 128:
-            raise RetrainingControlError("INVALID_ACTOR", "Reviewer identity is invalid.")
+            raise RetrainingControlError(
+                "INVALID_ACTOR", "Reviewer identity is invalid."
+            )
         try:
             current = self._artifact_repository.load_run(run_id)
             if current.state is not RunState.RETRYABLE_FAILED:
@@ -272,7 +275,9 @@ class RetrainingControlUseCase:
         }
         evaluation_status = str(evaluation.get("status", "NOT_RUN"))
         comparison_status = str(
-            comparison.get("overall_status", comparison.get("comparison_status", "NOT_RUN"))
+            comparison.get(
+                "overall_status", comparison.get("comparison_status", "NOT_RUN")
+            )
         )
         if evaluation_status not in allowed_statuses:
             evaluation_status = "NOT_RUN"
@@ -308,27 +313,43 @@ class RetrainingControlUseCase:
 
             active = raw.get("active")
             candidate = raw.get("candidate")
-            active_value = numeric(active.get("value")) if isinstance(active, Mapping) else None
+            active_value = (
+                numeric(active.get("value")) if isinstance(active, Mapping) else None
+            )
             candidate_value = (
                 numeric(candidate.get("value"))
                 if isinstance(candidate, Mapping)
                 else None
             )
-            support_raw = candidate.get("support_count") if isinstance(candidate, Mapping) else None
+            support_raw = (
+                candidate.get("support_count")
+                if isinstance(candidate, Mapping)
+                else None
+            )
             support_count = (
                 int(support_raw)
                 if isinstance(support_raw, int) and not isinstance(support_raw, bool)
                 and support_raw >= 0
                 else None
             )
-            evidence_raw = candidate.get("evidence_status") if isinstance(candidate, Mapping) else None
-            evidence_value = evidence_raw if isinstance(evidence_raw, str) and evidence_raw in {
-                "VERIFIED",
-                "NATIVE",
-                "CONTROLLED_SMOKE",
-                "NOT_RUN",
-                "NOT_ENOUGH_EVIDENCE",
-            } else "NOT_RUN"
+            evidence_raw = (
+                candidate.get("evidence_status")
+                if isinstance(candidate, Mapping)
+                else None
+            )
+            evidence_value = (
+                evidence_raw
+                if isinstance(evidence_raw, str)
+                and evidence_raw
+                in {
+                    "VERIFIED",
+                    "NATIVE",
+                    "CONTROLLED_SMOKE",
+                    "NOT_RUN",
+                    "NOT_ENOUGH_EVIDENCE",
+                }
+                else "NOT_RUN"
+            )
             metric_views.append(
                 RetrainingMetricEvidence(
                     name=name,
@@ -934,7 +955,11 @@ class RetrainingControlUseCase:
                 ) from exc
             try:
                 current = self._artifact_repository.load_run(run_id)
-            except (ArtifactRepositoryError, FileNotFoundError, ValueError) as record_exc:
+            except (
+                ArtifactRepositoryError,
+                FileNotFoundError,
+                ValueError,
+            ) as record_exc:
                 self._mark_recovery_required(
                     run_id,
                     stage="deploy_recovery_required",
@@ -954,7 +979,9 @@ class RetrainingControlUseCase:
                         RunState.APPROVED,
                         stage="deployment_audit_failed_before_activation",
                         error_code="DEPLOYMENT_RECORD_FAILED",
-                        error_message="Local deployment audit state could not be recorded.",
+                        error_message=(
+                            "Local deployment audit state could not be recorded."
+                        ),
                     )
                 except ArtifactRepositoryError as restore_exc:
                     self._mark_recovery_required(
