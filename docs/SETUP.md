@@ -609,7 +609,37 @@ Do not use `localhost:8000` for Docker proof unless backend port 8000 is explici
 
 ### Final realistic demo-target stack
 
-For normal developer startup, the demo-target profile is not required. For the final realistic WAF demonstration, start this repo with the demo-target profile:
+For normal developer startup, the demo-target profile is not required. For the final realistic WAF demonstration, first create or update a sibling checkout of the target branch:
+
+```powershell
+git clone --branch stable/portal-pre-waf --single-branch https://github.com/PooKYZZZ/injection-alert-system.git ..\injection-alert-system-portal-pre-waf
+```
+
+If that sibling checkout already exists, update it without changing its branch:
+
+```powershell
+git -C ..\injection-alert-system-portal-pre-waf fetch origin --prune
+git -C ..\injection-alert-system-portal-pre-waf switch stable/portal-pre-waf
+git -C ..\injection-alert-system-portal-pre-waf pull --ff-only origin stable/portal-pre-waf
+```
+
+Initialize the portal's local SQLite database once. Run the Prisma CLI from
+the portal checkout with `file:./dev.db`; Prisma resolves that CLI URL relative
+to `prisma/schema.prisma`, creating the mounted `prisma/dev.db` file:
+
+```powershell
+Push-Location ..\injection-alert-system-portal-pre-waf
+npm ci
+$env:DATABASE_URL = "file:./dev.db"
+npm run db:push
+npm run db:seed
+Pop-Location
+```
+
+The Compose container uses `DATABASE_URL=file:./prisma/dev.db`, which resolves
+to `/app/prisma/dev.db` inside the production portal container.
+
+Then start this repo with the demo-target profile:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.demo-target.collection.yml --profile demo-target up -d --build
@@ -619,7 +649,7 @@ The collection overlay changes only the local ModSecurity audit engine from
 `RelevantOnly` to `On`, so benign requests are persisted for thesis data
 collection. The base and hosted Compose paths remain `RelevantOnly` by default.
 
-By default, the profile builds the protected demo website from the sibling path `../../land-records-portal`, which resolves to `G:\AI\land-records-portal` from this repo layout. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` before running Compose.
+By default, the profile builds the protected demo website from `../injection-alert-system-portal-pre-waf`, the sibling checkout of the `stable/portal-pre-waf` branch. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` in the ignored root `.env` or in the PowerShell session before running Compose.
 
 Expected path:
 
@@ -634,7 +664,7 @@ localhost:8089
 -> dashboard/backend lookup
 ```
 
-The land-records-portal source stays separate from this repository. This repo's Compose override references it as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
+The portal source stays separate from this repository checkout. This repo's Compose override references the `stable/portal-pre-waf` checkout as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
 
 Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 

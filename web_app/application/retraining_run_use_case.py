@@ -14,6 +14,10 @@ from ml_model.retraining.dashboard_contracts import (
     build_run_id,
     canonical_json,
 )
+from web_app.domain.interfaces import (
+    RetrainingReviewCandidate,
+    RetrainingReviewSummary,
+)
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
     RetrainingRunArtifactRepository,
     RetrainingRunRecord,
@@ -46,6 +50,11 @@ class RetrainingInputSnapshot:
     active_model_version: str
     active_model_digest: str
     approved_sample_count: int
+    # The review projection is captured with the snapshot so preparation and
+    # fingerprinting consume one database read. It is never serialized into
+    # the browser contract or run record.
+    review_candidates: tuple[RetrainingReviewCandidate, ...] = ()
+    review_summary: RetrainingReviewSummary | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -74,6 +83,14 @@ class WorkerSupervisor(Protocol):
     def ensure_worker_available(self) -> Any: ...
 
 
+class RunPreparer(Protocol):
+    def __call__(
+        self,
+        run_id: str,
+        snapshot: RetrainingInputSnapshot,
+    ) -> str | Awaitable[str]: ...
+
+
 @dataclass(frozen=True, slots=True)
 class RetrainingStartResult:
     run: RetrainingRunRecord
@@ -89,6 +106,7 @@ class RetrainingRunUseCase:
         *,
         snapshot_provider: SnapshotProvider,
         worker_supervisor: WorkerSupervisor,
+        run_preparer: RunPreparer | None = None,
         clock: Callable[[], datetime] | None = None,
         max_retries: int = 2,
     ) -> None:
@@ -97,6 +115,7 @@ class RetrainingRunUseCase:
         self._repository = repository
         self._snapshot_provider = snapshot_provider
         self._worker_supervisor = worker_supervisor
+        self._run_preparer = run_preparer
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._max_retries = max_retries
 
@@ -152,6 +171,19 @@ class RetrainingRunUseCase:
         }
         return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
+    async def _prepare_run(
+        self, run_id: str, snapshot: RetrainingInputSnapshot
+    ) -> str:
+        if self._run_preparer is None:
+            return "READY"
+        result = self._run_preparer(run_id, snapshot)
+        if inspect.isawaitable(result):
+            result = await result
+        status = str(result).strip().upper()
+        if status not in {"READY", "EMPTY", "QUARANTINED_FOR_REVIEW"}:
+            raise ValueError("run preparer returned an invalid status")
+        return status
+
     async def start_run(
         self,
         *,
@@ -173,7 +205,10 @@ class RetrainingRunUseCase:
         fingerprint = self._input_fingerprint(snapshot)
         existing = self._repository.find_by_input_fingerprint(fingerprint)
         if existing is not None:
-            if existing.state in {RunState.QUEUED, RunState.RETRYABLE_FAILED}:
+            if existing.state in {RunState.QUEUED, RunState.RETRYABLE_FAILED} and (
+                self._run_preparer is None
+                or self._repository.is_run_prepared(existing.run_id)
+            ):
                 self._ensure_worker_safely(existing.run_id)
             if trigger == "scheduled":
                 self._repository.append_event(
@@ -243,8 +278,12 @@ class RetrainingRunUseCase:
             approved_sample_count=snapshot.approved_sample_count,
             operator_note=operator_note,
         )
-        created = self._repository.create_or_get_run(record)
-        if created.run_id != record.run_id:
+        created, was_created = self._repository.create_or_get_run_with_status(
+            record,
+            prepared=self._run_preparer is None
+            or initial_state is not RunState.QUEUED,
+        )
+        if not was_created:
             return RetrainingStartResult(run=created, created=False)
         if initial_state is RunState.SKIPPED_NO_APPROVED_DATA:
             self._repository.append_event(
@@ -266,6 +305,56 @@ class RetrainingRunUseCase:
                 scheduled_at=scheduled_at,
                 exit_code=0,
             )
+            try:
+                preparation_status = await self._prepare_run(created.run_id, snapshot)
+                if preparation_status == "READY":
+                    self._repository.mark_run_prepared(created.run_id)
+            except Exception as exc:
+                failed = self._repository.fail_run(
+                    created.run_id,
+                    error_code="RUN_PREPARATION_FAILED",
+                    error_message="run preparation failed",
+                    retryable=False,
+                )
+                self._repository.append_event(
+                    created.run_id,
+                    stage="preflight",
+                    outcome="FAILED",
+                    code="RUN_PREPARATION_FAILED",
+                    message=type(exc).__name__,
+                )
+                return RetrainingStartResult(run=failed, created=True)
+            if preparation_status == "EMPTY":
+                skipped = self._repository.transition(
+                    created.run_id,
+                    RunState.SKIPPED_NO_APPROVED_DATA,
+                    stage="preflight",
+                )
+                self._repository.append_event(
+                    created.run_id,
+                    stage="preflight",
+                    outcome="SKIPPED",
+                    code="NO_APPROVED_DATA",
+                    message="validated export contained no approved samples",
+                    scheduled_at=scheduled_at,
+                    exit_code=0,
+                )
+                return RetrainingStartResult(run=skipped, created=True)
+            if preparation_status == "QUARANTINED_FOR_REVIEW":
+                quarantined = self._repository.transition(
+                    created.run_id,
+                    RunState.QUARANTINED_FOR_REVIEW,
+                    stage="preflight",
+                )
+                self._repository.append_event(
+                    created.run_id,
+                    stage="preflight",
+                    outcome="QUARANTINED",
+                    code="EXPORT_QUARANTINED",
+                    message="approved export requires manual review",
+                    scheduled_at=scheduled_at,
+                )
+                return RetrainingStartResult(run=quarantined, created=True)
             self._ensure_worker_safely(created.run_id)
         return RetrainingStartResult(run=created, created=True)
 

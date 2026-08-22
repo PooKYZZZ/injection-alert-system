@@ -575,9 +575,6 @@ def build_config_used(
         "tokenizer_id": config_metadata.get(
             "tokenizer_id", config_metadata.get("model_id")
         ),
-        "tokenizer_revision": config_metadata.get(
-            "tokenizer_revision", config_metadata.get("model_revision")
-        ),
         "architecture": config_metadata.get("architecture"),
         "architecture_family": config_metadata.get("architecture_family"),
         "head_type": config_metadata.get("head_type"),

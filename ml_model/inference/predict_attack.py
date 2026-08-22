@@ -43,7 +43,9 @@ def _discover_latest_run(staging_dir: Path, model_key: str) -> Path:
 
 
 def _resolve_run_dir(staging_dir: Path, model_key: str) -> Path:
-    if staging_dir.name.startswith(model_key + "_"):
+    if staging_dir.name.startswith(model_key + "_") or (
+        staging_dir.is_dir() and (staging_dir / MANIFEST_NAME).is_file()
+    ):
         return staging_dir
     return _discover_latest_run(staging_dir, model_key)
 

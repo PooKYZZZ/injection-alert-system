@@ -10,6 +10,7 @@ import {
   RetrainingDeployRequestSchema,
   RetrainingExportRequestSchema,
   RetrainingExportResultSchema,
+  RetrainingRetryRequestSchema,
   RetrainingRollbackRequestSchema,
   RetrainingRunDetailSchema,
   RetrainingRunListSchema,
@@ -150,6 +151,19 @@ export function useExportRetrainingMutation() {
         '/api/ml-model/export',
         RetrainingExportRequestSchema.parse({}),
         RetrainingExportResultSchema,
+      ),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRetryRetrainingMutation() {
+  const invalidate = useRetrainingInvalidation()
+  return useMutation({
+    mutationFn: (runId: string) =>
+      postJson(
+        `/api/ml-model/runs/${encodeURIComponent(runId)}/retry`,
+        RetrainingRetryRequestSchema.parse({}),
+        RetrainingRunSchema,
       ),
     onSuccess: invalidate,
   })

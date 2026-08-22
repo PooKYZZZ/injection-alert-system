@@ -317,6 +317,12 @@ def test_similarity_canonicalizes_query_order_blank_repeated_and_encoded_values(
     )
 
 
+def test_similarity_is_total_for_malformed_url_targets():
+    malformed = "GET /[invalid-ipv6]?query=value"
+
+    assert canonicalize_similarity_text(malformed) == "get /[invalid-ipv6]?query=value"
+
+
 def test_golden_overlap_uses_canonical_query_order(tmp_path: Path):
     controls = load_golden_controls(
         _write_locked_golden(

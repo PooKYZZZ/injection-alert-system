@@ -2,10 +2,16 @@ FROM python@sha256:a7fb1e634c4a578f9e0bd6327f11a3cde11b7a9395f48e24360c0988bcc5c
 
 WORKDIR /app
 
-COPY requirements.txt .
+ARG INSTALL_TRAINING_REQUIREMENTS=false
+
+COPY requirements.txt requirements.train.txt ./
+COPY pyproject.toml ./
 RUN python -m pip install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cpu \
     -r requirements.txt
+RUN if [ "$INSTALL_TRAINING_REQUIREMENTS" = "true" ]; then \
+      python -m pip install --no-cache-dir -r requirements.train.txt; \
+    fi
 
 COPY alembic.ini ./
 COPY migrations ./migrations

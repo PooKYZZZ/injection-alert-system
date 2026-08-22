@@ -25,6 +25,9 @@ from web_app.infrastructure.repositories.retraining_run_artifact_repository impo
     RetrainingRunArtifactRepository,
     WorkerLockBusy,
 )
+from web_app.infrastructure.retraining_process_runner import (
+    build_restricted_worker_environment,
+)
 from web_app.infrastructure.retraining_worker_supervisor import (
     RetrainingWorkerSupervisor,
 )
@@ -159,6 +162,7 @@ class DashboardWorker:
             creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         process = subprocess.Popen(
             command,
+            env=build_restricted_worker_environment(),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -186,6 +190,11 @@ class DashboardWorker:
                     )
                     break
                 except subprocess.TimeoutExpired:
+                    # The pipeline child may be in native training for most of
+                    # the worker timeout. Refresh the durable run heartbeat as
+                    # well as the host lock so a healthy long run is not
+                    # recovered as stale while the child is still alive.
+                    self._heartbeat(run.run_id)
                     self._refresh_lock(lock)
             if return_code == 20:
                 raise PipelineFailure(

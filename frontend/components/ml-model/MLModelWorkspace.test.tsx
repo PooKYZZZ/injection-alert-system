@@ -15,6 +15,7 @@ import {
   useMLModelRuns,
   useMLModelSummary,
   useRollbackRetrainingMutation,
+  useRetryRetrainingMutation,
   useStartRetrainingMutation,
 } from '@/features/ml-model/queries'
 import { MLModelWorkspace } from './MLModelWorkspace'
@@ -27,6 +28,7 @@ vi.mock('@/features/ml-model/queries', () => ({
   useMLModelRuns: vi.fn(),
   useMLModelSummary: vi.fn(),
   useRollbackRetrainingMutation: vi.fn(),
+  useRetryRetrainingMutation: vi.fn(),
   useStartRetrainingMutation: vi.fn(),
 }))
 
@@ -38,6 +40,7 @@ const mockedUseExport = vi.mocked(useExportRetrainingMutation)
 const mockedUseDecision = vi.mocked(useDecisionRetrainingMutation)
 const mockedUseDeploy = vi.mocked(useDeployRetrainingMutation)
 const mockedUseRollback = vi.mocked(useRollbackRetrainingMutation)
+const mockedUseRetry = vi.mocked(useRetryRetrainingMutation)
 
 const digest = (letter: string) => letter.repeat(64)
 
@@ -96,6 +99,13 @@ function detail(overrides: Partial<RetrainingRunDetail> = {}): RetrainingRunDeta
     heartbeat_age_seconds: null,
     evidence_status: 'NOT_RUN',
     retry_available: false,
+    evidence_summary: {
+      preprocessing_version: null,
+      evaluation_split: null,
+      evaluation_status: 'NOT_RUN',
+      comparison_status: 'NOT_RUN',
+      metrics: [],
+    },
     ...overrides,
   }
 }
@@ -146,6 +156,7 @@ function setHarness({
   mockedUseDecision.mockReturnValue((mutations.decision ?? mutation()) as never)
   mockedUseDeploy.mockReturnValue((mutations.deploy ?? mutation()) as never)
   mockedUseRollback.mockReturnValue((mutations.rollback ?? mutation()) as never)
+  mockedUseRetry.mockReturnValue((mutations.retry ?? mutation()) as never)
 }
 
 beforeEach(() => {
@@ -270,6 +281,13 @@ describe('MLModelWorkspace', () => {
         candidate_model_digest: digest('e'),
         evaluation_digest: digest('f'),
         evidence_status: 'NATIVE',
+        evidence_summary: {
+          preprocessing_version: 'http-preprocessor-v1',
+          evaluation_split: 'frozen_test',
+          evaluation_status: 'PASS',
+          comparison_status: 'PASS',
+          metrics: [],
+        },
       }),
       mutations: { decision },
     })
@@ -307,6 +325,13 @@ describe('MLModelWorkspace', () => {
         candidate_model_digest: digest('e'),
         evaluation_digest: digest('f'),
         evidence_status: 'NATIVE',
+        evidence_summary: {
+          preprocessing_version: 'http-preprocessor-v1',
+          evaluation_split: 'frozen_test',
+          evaluation_status: 'PASS',
+          comparison_status: 'PASS',
+          metrics: [],
+        },
       }),
       mutations: { decision },
     })
@@ -325,6 +350,28 @@ describe('MLModelWorkspace', () => {
       })
     })
     confirm.mockRestore()
+  })
+
+  it('does not offer approval when native comparison evidence fails a gate', () => {
+    setHarness({
+      selectedRun: detail({
+        state: 'pending_approval',
+        candidate_model_version: 'candidate-v1',
+        candidate_model_digest: digest('e'),
+        evaluation_digest: digest('f'),
+        evidence_status: 'NATIVE',
+        evidence_summary: {
+          preprocessing_version: 'http-preprocessor-v1',
+          evaluation_split: 'frozen_test',
+          evaluation_status: 'PASS',
+          comparison_status: 'FAIL',
+          metrics: [],
+        },
+      }),
+    })
+    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+
+    expect(screen.getByRole('button', { name: 'Approve candidate' })).toBeDisabled()
   })
 
   it('keeps viewer read-only and exposes safe quarantine/failure next actions', () => {

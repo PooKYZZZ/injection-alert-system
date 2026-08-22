@@ -396,6 +396,34 @@ def test_build_config_used_preserves_native_architecture_metadata():
     assert payload["run_contract_sha256"] == contract_sha256(contract)
 
 
+def test_build_config_used_omits_redundant_tokenizer_revision():
+    contract = make_training_contract()
+    payload = build_config_used(
+        config_metadata={
+            "model_key": "distilbert",
+            "model_id": "distilbert-base-uncased",
+            "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+            "tokenizer_id": "distilbert-base-uncased",
+            "tokenizer_revision": "test-tokenizer-revision",
+            "architecture": "distilbert_sequence_classification",
+            "architecture_family": "huggingface_sequence_classifier",
+            "head_type": "hf_sequence_classification_head",
+            "model_class": "DistilBertForSequenceClassification",
+            "dataset_version": "v3_907k_cleaned",
+            "preprocessing_version": "http-preprocessor-v1",
+            "model_input_hash_policy": "sha256(model_input_text)",
+            "run_contract": contract,
+            "run_contract_sha256": contract_sha256(contract),
+            "max_seq_len": 128,
+            "seed": 42,
+        },
+        model_version="distilbert_native",
+    )
+
+    assert payload["tokenizer_id"] == payload["model_id"]
+    assert "tokenizer_revision" not in payload
+
+
 @pytest.mark.parametrize("contract_hash", [None, "not-a-hash", "A" * 64])
 def test_build_config_used_rejects_missing_or_malformed_contract_hash(
     contract_hash: str | None,

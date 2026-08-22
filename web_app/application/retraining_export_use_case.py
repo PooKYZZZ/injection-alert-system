@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from collections.abc import Sequence
 
 from ml_model.preprocessing.model_input import MODEL_INPUT_VERSION
 from ml_model.retraining.dashboard_contracts import DEFAULT_RETRAINING_RESULTS_ROOT
@@ -13,6 +14,10 @@ from ml_model.retraining.dashboard_export import (
     export_dashboard_reviews,
 )
 from web_app.domain.interfaces import ITrafficLabelReviewRepository
+from web_app.domain.interfaces import (
+    RetrainingReviewCandidate,
+    RetrainingReviewSummary,
+)
 
 
 class RetrainingExportUseCase:
@@ -53,16 +58,25 @@ class RetrainingExportUseCase:
         self._limits = replace(configured_limits, **overrides)
 
     async def execute(
-        self, *, run_id: str, limit: int = 10_000
+        self,
+        *,
+        run_id: str,
+        limit: int = 10_000,
+        candidates: Sequence[RetrainingReviewCandidate] | None = None,
+        review_summary: RetrainingReviewSummary | None = None,
     ) -> DashboardExportResult:
         if not 1 <= int(limit) <= 10_000:
             raise ValueError("retraining export limit must be between 1 and 10000")
-        summary = await self._repository.get_retraining_review_summary()
-        candidates = await self._repository.list_latest_retraining_candidates(
-            limit=int(limit)
-        )
+        summary = review_summary
+        selected_candidates = candidates
+        if summary is None:
+            summary = await self._repository.get_retraining_review_summary()
+        if selected_candidates is None:
+            selected_candidates = await self._repository.list_latest_retraining_candidates(
+                limit=int(limit)
+            )
         return export_dashboard_reviews(
-            candidates,
+            selected_candidates,
             run_id=run_id,
             output_root=self._output_root,
             source_dataset_version=self._source_dataset_version,

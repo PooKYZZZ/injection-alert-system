@@ -51,7 +51,7 @@ The verified realistic protected demo website WAF path is:
 Client/test request
 -> http://localhost:8089
 -> demo-target-modsecurity / OWASP CRS
--> demo-target-app built from the separate land-records-portal repo
+-> demo-portal built from a separate stable/portal-pre-waf checkout
 -> logs/modsecurity/demo-target/modsec_audit.jsonl
 -> demo-target-bridge
 -> FastAPI internal WAF ingest

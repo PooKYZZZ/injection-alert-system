@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     retraining_worker_poll_seconds: float = Field(default=5.0, gt=0, le=60)
     retraining_worker_timeout_seconds: int = Field(default=3600, ge=30, le=86400)
     retraining_max_retries: int = Field(default=2, ge=0, le=5)
+    retraining_worker_mode: Literal["smoke", "native"] = "smoke"
     notification_payload_encryption_key: str | None = None
     email_provider: Literal["fake", "resend"] = "fake"
     resend_api_key: str | None = None

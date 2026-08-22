@@ -66,6 +66,24 @@ export interface RetrainingRunDetail extends RetrainingRun {
   heartbeat_age_seconds: number | null
   evidence_status: RetrainingEvidenceStatus
   retry_available: boolean
+  evidence_summary: RetrainingEvidenceSummary
+}
+
+export interface RetrainingMetricEvidence {
+  name: string
+  active_value: number | null
+  candidate_value: number | null
+  delta: number | null
+  support_count: number | null
+  evidence_status: RetrainingEvidenceStatus
+}
+
+export interface RetrainingEvidenceSummary {
+  preprocessing_version: string | null
+  evaluation_split: string | null
+  evaluation_status: 'PASS' | 'FAIL' | 'NOT_RUN' | 'NOT_ENOUGH_EVIDENCE'
+  comparison_status: 'PASS' | 'FAIL' | 'NOT_RUN' | 'NOT_ENOUGH_EVIDENCE'
+  metrics: RetrainingMetricEvidence[]
 }
 
 export interface RetrainingRunStart {

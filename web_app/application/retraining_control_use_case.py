@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from math import isfinite
 from typing import Any, Callable, Mapping
 
 from ml_model.retraining.dashboard_contracts import EvidenceStatus, RunState
@@ -61,12 +63,53 @@ class RetrainingSummarySnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class RetrainingMetricEvidence:
+    name: str
+    active_value: float | None = None
+    candidate_value: float | None = None
+    delta: float | None = None
+    support_count: int | None = None
+    evidence_status: str = "NOT_RUN"
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "active_value": self.active_value,
+            "candidate_value": self.candidate_value,
+            "delta": self.delta,
+            "support_count": self.support_count,
+            "evidence_status": self.evidence_status,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RetrainingEvidenceSummary:
+    preprocessing_version: str | None = None
+    evaluation_split: str | None = None
+    evaluation_status: str = "NOT_RUN"
+    comparison_status: str = "NOT_RUN"
+    metrics: tuple[RetrainingMetricEvidence, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "preprocessing_version": self.preprocessing_version,
+            "evaluation_split": self.evaluation_split,
+            "evaluation_status": self.evaluation_status,
+            "comparison_status": self.comparison_status,
+            "metrics": [metric.to_dict() for metric in self.metrics],
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class RetrainingRunDetail:
     record: RetrainingRunRecord
     events: tuple[dict[str, Any], ...]
     evidence_status: str
     heartbeat_age_seconds: int | None
     retry_available: bool
+    evidence_summary: RetrainingEvidenceSummary = field(
+        default_factory=RetrainingEvidenceSummary
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +146,7 @@ class RetrainingControlUseCase:
 
     async def get_summary(self) -> RetrainingSummarySnapshot:
         review_summary = await self._review_repository.get_retraining_review_summary()
-        runs = self._artifact_repository.list_runs()
+        runs = await asyncio.to_thread(self._artifact_repository.list_runs)
         latest = runs[-1] if runs else None
         latest_dataset_version = next(
             (
@@ -126,6 +169,45 @@ class RetrainingControlUseCase:
 
     async def start_run(self, **kwargs: Any) -> RetrainingStartResult:
         return await self._run_use_case.start_run(**kwargs)
+
+    def retry_run(
+        self, *, run_id: str, actor_id: str, actor_role: str
+    ) -> RetrainingRunRecord:
+        if actor_role not in {"ANALYST", "ADMIN"}:
+            raise RetrainingControlError(
+                "FORBIDDEN", "Operator permission is required.", status_code=403
+            )
+        if not actor_id.strip() or len(actor_id) > 128:
+            raise RetrainingControlError(
+                "INVALID_ACTOR", "Reviewer identity is invalid."
+            )
+        try:
+            current = self._artifact_repository.load_run(run_id)
+            if current.state is not RunState.RETRYABLE_FAILED:
+                raise RetrainingControlError(
+                    "RUN_NOT_RETRYABLE", "The run is not available for retry."
+                )
+            if current.retry_count >= current.max_retries:
+                raise RetrainingControlError(
+                    "RETRY_BUDGET_EXHAUSTED", "The run retry budget is exhausted."
+                )
+            updated = self._run_use_case.retry_run(run_id)
+        except RetrainingControlError:
+            raise
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError) as exc:
+            raise RetrainingControlError(
+                "RUN_NOT_FOUND", "The retraining run was not found.", status_code=404
+            ) from exc
+        self._artifact_repository.append_event(
+            run_id,
+            stage="retry",
+            outcome="INFO",
+            code="RUN_RETRY_REQUESTED",
+            message="operator requested a bounded retry",
+            actor_id=actor_id,
+            actor_role=actor_role,
+        )
+        return updated
 
     async def export_samples(self, *, export_id: str) -> DashboardExportResult:
         return await self._export_use_case.execute(run_id=export_id)
@@ -150,6 +232,7 @@ class RetrainingControlUseCase:
             if record.state is RunState.NOT_ENOUGH_EVIDENCE
             else "NOT_RUN"
         )
+        evidence_summary = RetrainingEvidenceSummary()
         try:
             evaluation = self._artifact_repository.read_json_artifact(
                 record.run_id, "stages/evaluation.json"
@@ -157,6 +240,10 @@ class RetrainingControlUseCase:
             evidence_status = EvidenceStatus.parse(
                 evaluation.get("evidence_status")
             ).value
+            comparison = self._artifact_repository.read_json_artifact(
+                record.run_id, "stages/comparison.json"
+            )
+            evidence_summary = self._build_evidence_summary(evaluation, comparison)
         except (
             ArtifactRepositoryError,
             FileNotFoundError,
@@ -173,6 +260,120 @@ class RetrainingControlUseCase:
                 record.state is RunState.RETRYABLE_FAILED
                 and record.retry_count < record.max_retries
             ),
+            evidence_summary=evidence_summary,
+        )
+
+    @staticmethod
+    def _build_evidence_summary(
+        evaluation: Mapping[str, Any], comparison: Mapping[str, Any]
+    ) -> RetrainingEvidenceSummary:
+        allowed_statuses = {
+            "PASS",
+            "FAIL",
+            "NOT_RUN",
+            "NOT_ENOUGH_EVIDENCE",
+        }
+        evaluation_status = str(evaluation.get("status", "NOT_RUN"))
+        comparison_status = str(
+            comparison.get(
+                "overall_status", comparison.get("comparison_status", "NOT_RUN")
+            )
+        )
+        if evaluation_status not in allowed_statuses:
+            evaluation_status = "NOT_RUN"
+        if comparison_status not in allowed_statuses:
+            comparison_status = "NOT_RUN"
+        metric_names = (
+            "normal_false_positive_rate",
+            "normal_recall",
+            "attack_escape_rate",
+            "attack_recall",
+            "macro_f1",
+            "per_class.Code Injection.f1",
+            "per_class.Normal.f1",
+            "per_class.Other Attacks.f1",
+            "per_class.SQL Injection.f1",
+        )
+        comparisons = comparison.get("metric_comparisons", {})
+        metric_views: list[RetrainingMetricEvidence] = []
+        for name in metric_names:
+            raw = comparisons.get(name) if isinstance(comparisons, Mapping) else None
+            if not isinstance(raw, Mapping):
+                metric_views.append(RetrainingMetricEvidence(name=name))
+                continue
+
+            def numeric(value: object) -> float | None:
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None
+                try:
+                    normalized = float(value)
+                except (OverflowError, ValueError):
+                    return None
+                return normalized if isfinite(normalized) else None
+
+            active = raw.get("active")
+            candidate = raw.get("candidate")
+            active_value = (
+                numeric(active.get("value")) if isinstance(active, Mapping) else None
+            )
+            candidate_value = (
+                numeric(candidate.get("value"))
+                if isinstance(candidate, Mapping)
+                else None
+            )
+            support_raw = (
+                candidate.get("support_count")
+                if isinstance(candidate, Mapping)
+                else None
+            )
+            support_count = (
+                int(support_raw)
+                if isinstance(support_raw, int) and not isinstance(support_raw, bool)
+                and support_raw >= 0
+                else None
+            )
+            evidence_raw = (
+                candidate.get("evidence_status")
+                if isinstance(candidate, Mapping)
+                else None
+            )
+            evidence_value = (
+                evidence_raw
+                if isinstance(evidence_raw, str)
+                and evidence_raw
+                in {
+                    "VERIFIED",
+                    "NATIVE",
+                    "CONTROLLED_SMOKE",
+                    "NOT_RUN",
+                    "NOT_ENOUGH_EVIDENCE",
+                }
+                else "NOT_RUN"
+            )
+            metric_views.append(
+                RetrainingMetricEvidence(
+                    name=name,
+                    active_value=active_value,
+                    candidate_value=candidate_value,
+                    delta=numeric(raw.get("delta")),
+                    support_count=support_count,
+                    evidence_status=evidence_value,
+                )
+            )
+        return RetrainingEvidenceSummary(
+            preprocessing_version=(
+                str(evaluation["preprocessing_version"])
+                if isinstance(evaluation.get("preprocessing_version"), str)
+                else None
+            ),
+            evaluation_split=(
+                str(evaluation["evaluation_split"])
+                if isinstance(evaluation.get("evaluation_split"), str)
+                else None
+            ),
+            evaluation_status=evaluation_status,
+            comparison_status=comparison_status,
+            metrics=tuple(metric_views),
         )
 
     def decide(
@@ -754,7 +955,11 @@ class RetrainingControlUseCase:
                 ) from exc
             try:
                 current = self._artifact_repository.load_run(run_id)
-            except (ArtifactRepositoryError, FileNotFoundError, ValueError) as record_exc:
+            except (
+                ArtifactRepositoryError,
+                FileNotFoundError,
+                ValueError,
+            ) as record_exc:
                 self._mark_recovery_required(
                     run_id,
                     stage="deploy_recovery_required",
@@ -774,7 +979,9 @@ class RetrainingControlUseCase:
                         RunState.APPROVED,
                         stage="deployment_audit_failed_before_activation",
                         error_code="DEPLOYMENT_RECORD_FAILED",
-                        error_message="Local deployment audit state could not be recorded.",
+                        error_message=(
+                            "Local deployment audit state could not be recorded."
+                        ),
                     )
                 except ArtifactRepositoryError as restore_exc:
                     self._mark_recovery_required(

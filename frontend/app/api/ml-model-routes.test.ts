@@ -17,6 +17,7 @@ const getRetrainingRunMock = vi.fn()
 const decideRetrainingRunMock = vi.fn()
 const deployRetrainingRunMock = vi.fn()
 const rollbackRetrainingRunMock = vi.fn()
+const retryRetrainingRunMock = vi.fn()
 const getAccountForSessionFreshnessMock = vi.fn()
 
 const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
@@ -33,6 +34,7 @@ vi.mock('@/lib/bff-client', () => ({
   decideRetrainingRun: decideRetrainingRunMock,
   deployRetrainingRun: deployRetrainingRunMock,
   rollbackRetrainingRun: rollbackRetrainingRunMock,
+  retryRetrainingRun: retryRetrainingRunMock,
 }))
 
 vi.mock('@/lib/server/db/auth-accounts', () => ({
@@ -88,6 +90,7 @@ describe('ML Model retraining BFF routes', () => {
       'ml-model/runs/[runId]/decision/route.ts',
       'ml-model/runs/[runId]/deploy/route.ts',
       'ml-model/runs/[runId]/rollback/route.ts',
+      'ml-model/runs/[runId]/retry/route.ts',
     ]
 
     for (const routeFile of routeFiles) {
@@ -177,5 +180,35 @@ describe('ML Model retraining BFF routes', () => {
 
     expect(response.status).toBe(400)
     expect(deployRetrainingRunMock).not.toHaveBeenCalled()
+  })
+
+  it('propagates an operator retry without accepting training options', async () => {
+    retryRetrainingRunMock.mockResolvedValue({
+      ok: true,
+      data: { run_id: runId, state: 'queued' },
+    })
+    const { POST } = await import('./ml-model/runs/[runId]/retry/route')
+
+    const response = await POST(
+      new NextRequest(`http://localhost:3000/api/ml-model/runs/${runId}/retry`, {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3000',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ runId }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(retryRetrainingRunMock).toHaveBeenCalledWith(
+      runId,
+      {},
+      {
+        id: accountId,
+        role: ROLES.ADMIN,
+      }
+    )
   })
 })

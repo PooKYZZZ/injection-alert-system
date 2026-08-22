@@ -23,7 +23,10 @@ services:
         condition: service_healthy
 
   backend:
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_TRAINING_REQUIREMENTS: ${INSTALL_TRAINING_REQUIREMENTS:-false}
     command:
       [
         "sh",

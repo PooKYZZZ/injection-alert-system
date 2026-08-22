@@ -1,39 +1,39 @@
 {
-  "Code Injection": {
-    "precision": 0.9500567536889898,
-    "recall": 1.0,
-    "f1-score": 0.9743888242142026,
-    "support": 837.0
-  },
-  "Normal": {
-    "precision": 0.9899674620390455,
-    "recall": 0.9980863860032805,
-    "f1-score": 0.9940103457664035,
-    "support": 3658.0
-  },
-  "Other Attacks": {
-    "precision": 0.9897469819745328,
-    "recall": 0.9917149958574979,
-    "f1-score": 0.9907300115874855,
-    "support": 6035.0
-  },
-  "SQL Injection": {
-    "precision": 0.9997750028124649,
-    "recall": 0.9901949860724234,
-    "f1-score": 0.994961934617107,
-    "support": 8975.0
-  },
-  "accuracy": 0.9925660087157139,
+  "accuracy": 0.9971117166212534,
   "macro avg": {
-    "precision": 0.9823865501287582,
-    "recall": 0.9949990919833005,
-    "f1-score": 0.9885227790462996,
-    "support": 19505.0
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1-score": 0.9970610449471339,
+    "support": 0.0
   },
   "weighted avg": {
-    "precision": 0.9926994188892433,
-    "recall": 0.9925660087157139,
-    "f1-score": 0.9925912470545912,
-    "support": 19505.0
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1-score": 0.9971135017621083,
+    "support": 0.0
+  },
+  "Code Injection": {
+    "precision": 0.9970193740685543,
+    "recall": 1.0,
+    "f1-score": 0.9985074626865672,
+    "support": 669.0
+  },
+  "Normal": {
+    "precision": 0.9917853231106243,
+    "recall": 0.9983461962513782,
+    "f1-score": 0.9950549450549451,
+    "support": 3628.0
+  },
+  "Other Attacks": {
+    "precision": 0.9968955441928415,
+    "recall": 0.9956228342148459,
+    "f1-score": 0.996258782735651,
+    "support": 5483.0
+  },
+  "SQL Injection": {
+    "precision": 0.999532218453982,
+    "recall": 0.997316219369895,
+    "f1-score": 0.998422989311372,
+    "support": 8570.0
   }
 }

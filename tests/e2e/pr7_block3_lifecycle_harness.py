@@ -37,7 +37,7 @@ MODEL_RUN_DIR = ROOT / (
 PORTAL_PATH = Path(
     os.environ.get(
         "DEMO_PORTAL_CONTEXT",
-        str(ROOT.parent.parent / "land-records-portal"),
+        str(ROOT.parent.parent / "injection-alert-system-portal-pre-waf"),
     )
 ).resolve()
 

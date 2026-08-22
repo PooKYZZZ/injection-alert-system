@@ -10,6 +10,22 @@ import pytest
 ROOT = Path(__file__).parents[2]
 
 
+def test_backend_runtime_code_is_not_excluded_from_the_image():
+    dockerignore = {
+        line.strip()
+        for line in (ROOT / ".dockerignore").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    assert "ml_model/retraining/" not in dockerignore
+    assert "ml_model/results/" in dockerignore
+
+
+def test_backend_compose_exposes_the_opt_in_training_dependency_build_arg():
+    compose = (ROOT / "docker-compose.yml").read_text()
+
+    assert "INSTALL_TRAINING_REQUIREMENTS: ${INSTALL_TRAINING_REQUIREMENTS:-false}" in compose
+
+
 def _merged_compose(*files: str) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker is required for merged Compose contract tests")

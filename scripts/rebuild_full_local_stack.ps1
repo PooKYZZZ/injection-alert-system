@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch]$Reset,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$Collection
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,11 +10,20 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
+    $composeFiles = @(
+        "-f", "docker-compose.yml",
+        "-f", "docker-compose.demo-target.yml"
+    )
+    if ($Collection) {
+        $composeFiles += @(
+            "-f", "docker-compose.demo-target.collection.yml"
+        )
+    }
+
     $composeArgs = @(
         "compose",
-        "-p", "injection-alert-system",
-        "-f", "docker-compose.yml",
-        "-f", "docker-compose.demo-target.yml",
+        "-p", "injection-alert-system"
+    ) + $composeFiles + @(
         "--profile", "technical-waf",
         "--profile", "demo-target"
     )
@@ -26,7 +36,8 @@ try {
         }
     }
 
-    Write-Host "Building and starting backend, frontend, technical WAF, bridge, and demo target..."
+    $collectionDescription = if ($Collection) { " with collection audit logging" } else { "" }
+    Write-Host "Building and starting backend, frontend, technical WAF, bridge, and demo target$collectionDescription..."
     $upArgs = $composeArgs + @("up", "-d", "--force-recreate")
     if (-not $NoBuild) {
         $upArgs += "--build"

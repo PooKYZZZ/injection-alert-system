@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import ml_model.retraining.dashboard_worker as dashboard_worker_module
 from ml_model.retraining.dashboard_contracts import RunState
 from ml_model.retraining.dashboard_pipeline import (
     PipelineFailure,
@@ -17,7 +18,6 @@ from ml_model.retraining.dashboard_worker import (
     EXIT_TERMINAL_FAILURE,
     DashboardWorker,
 )
-import ml_model.retraining.dashboard_worker as dashboard_worker_module
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
     ArtifactIntegrityError,
     RetrainingRunArtifactRepository,
@@ -265,7 +265,9 @@ def test_worker_until_idle_drains_all_runnable_runs(tmp_path):
     assert repository.load_run(second_id).state is RunState.NOT_ENOUGH_EVIDENCE
 
 
-def test_isolated_pipeline_timeout_terminates_child_before_retrying(tmp_path, monkeypatch):
+def test_isolated_pipeline_timeout_terminates_child_before_retrying(
+    tmp_path, monkeypatch
+):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     repository.create_or_get_run(_record())
 
@@ -366,6 +368,8 @@ def test_isolated_pipeline_lock_loss_terminates_child(tmp_path, monkeypatch):
 def test_isolated_success_requires_a_published_terminal_state(tmp_path, monkeypatch):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     repository.create_or_get_run(_record())
+    captured = {}
+    monkeypatch.setenv("API_SECRET_KEY", "test-secret")
 
     class ExitedProcess:
         pid = 4322
@@ -374,11 +378,11 @@ def test_isolated_success_requires_a_published_terminal_state(tmp_path, monkeypa
             del timeout
             return 0
 
-    monkeypatch.setattr(
-        dashboard_worker_module.subprocess,
-        "Popen",
-        lambda *args, **kwargs: ExitedProcess(),
-    )
+    def fake_popen(*args, **kwargs):
+        captured["kwargs"] = kwargs
+        return ExitedProcess()
+
+    monkeypatch.setattr(dashboard_worker_module.subprocess, "Popen", fake_popen)
 
     result = DashboardWorker(
         repository,
@@ -389,12 +393,15 @@ def test_isolated_success_requires_a_published_terminal_state(tmp_path, monkeypa
 
     assert result.exit_code == EXIT_TERMINAL_FAILURE
     assert repository.load_run(RUN_ID).error_code == "PIPELINE_STATE_INCOMPLETE"
+    assert "API_SECRET_KEY" not in captured["kwargs"]["env"]
+    assert captured["kwargs"]["env"]["PYTHONNOUSERSITE"] == "1"
 
 
 def test_process_runner_uses_explicit_argument_list_and_restricted_environment(
     tmp_path, monkeypatch
 ):
     captured = {}
+    monkeypatch.setenv("SYSTEMROOT", "C:\\Windows")
 
     class FakeProcess:
         pid = 1234
@@ -424,9 +431,21 @@ def test_process_runner_uses_explicit_argument_list_and_restricted_environment(
     ]
     assert "--once" not in captured["arguments"]
     assert "--smoke" in captured["arguments"]
-    assert captured["arguments"][captured["arguments"].index("--timeout-seconds") + 1] == "42"
+    assert (
+        captured["arguments"][
+            captured["arguments"].index("--max-runtime-seconds") + 1
+        ]
+        == "42"
+    )
+    assert (
+        captured["arguments"][
+            captured["arguments"].index("--timeout-seconds") + 1
+        ]
+        == "42"
+    )
     assert captured["kwargs"]["shell"] is False
     assert "API_SECRET_KEY" not in captured["kwargs"]["env"]
+    assert captured["kwargs"]["env"]["SYSTEMROOT"] == "C:\\Windows"
 
 
 def test_supervisor_starts_once_and_replaces_dead_worker_marker(tmp_path):

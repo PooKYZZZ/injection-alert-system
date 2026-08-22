@@ -40,8 +40,10 @@ tmp/
 .cache/
 frontend/
 ml_model/notebooks/
-ml_model/training/
-ml_model/export/
+# The laptop override installs and executes the maintained native training and
+# packaging entrypoints. Keep those source modules in the backend image.
+# ml_model/retraining/ contains runtime dashboard worker code and must be
+# available to the backend image. Keep generated run output excluded below.
 ml_model/results/
 ml_model/logs/
 ml_model/checkpoints/

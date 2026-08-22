@@ -68,6 +68,7 @@ export function MLModelRunsTable({ runs, selectedRunId, onSelect }: Props) {
                 <th scope="col">Rejected</th>
                 <th scope="col">Quarantined</th>
                 <th scope="col">Candidate</th>
+                <th scope="col">Stage</th>
                 <th scope="col">Status</th>
                 <th scope="col">Attempt</th>
                 <th scope="col">Heartbeat</th>
@@ -102,6 +103,7 @@ export function MLModelRunsTable({ runs, selectedRunId, onSelect }: Props) {
                       </span>
                     </td>
                     <td className={styles.monoCell}>{run.candidate_model_version ?? '—'}</td>
+                    <td>{run.stage.replaceAll('_', ' ')}</td>
                     <td>
                       <span className={styles.statusBadge}>{formatState(run.state)}</span>
                     </td>
