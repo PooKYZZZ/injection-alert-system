@@ -34,7 +34,7 @@ services:
 
   demo-portal:
     build:
-      context: ${DEMO_PORTAL_CONTEXT:-../../land-records-portal}
+      context: ${DEMO_PORTAL_CONTEXT:-../injection-alert-system-portal-pre-waf}
       dockerfile: Dockerfile
     profiles:
       - pr7-block3
@@ -45,10 +45,10 @@ services:
       APP_ENV: testing
       HOSTNAME: 0.0.0.0
       PORT: 3010
-      DATABASE_URL: file:./dev.db
+      DATABASE_URL: file:./prisma/dev.db
       ENFORCEMENT_MODE: off
     volumes:
-      - ${DEMO_PORTAL_CONTEXT:-../../land-records-portal}/prisma:/app/prisma
+      - ${DEMO_PORTAL_CONTEXT:-../injection-alert-system-portal-pre-waf}/prisma:/app/prisma
     healthcheck:
       test:
         [

@@ -7,15 +7,18 @@ import styles from './MLModelWorkspace.module.css'
 
 interface Props {
   run: RetrainingRunDetail
+  canRun: boolean
   canDecide: boolean
   canDeploy: boolean
   actionsDisabled: boolean
   decisionPending: boolean
   deployPending: boolean
   rollbackPending: boolean
+  retryPending: boolean
   onDecision: (decision: RetrainingDecision, reason: string | null) => Promise<void>
   onDeploy: () => Promise<void>
   onRollback: (reason: string) => Promise<void>
+  onRetry: () => Promise<void>
   actionError?: string | null
 }
 
@@ -62,15 +65,18 @@ function isDecisionState(state: RetrainingRunDetail['state']): boolean {
 
 export function MLModelDecisionPanel({
   run,
+  canRun,
   canDecide,
   canDeploy,
   actionsDisabled,
   decisionPending,
   deployPending,
   rollbackPending,
+  retryPending,
   onDecision,
   onDeploy,
   onRollback,
+  onRetry,
   actionError,
 }: Props) {
   const [reason, setReason] = useState('')
@@ -82,6 +88,11 @@ export function MLModelDecisionPanel({
       run.evaluation_digest &&
       (run.evidence_status === 'NATIVE' || run.evidence_status === 'VERIFIED')
   )
+  const approvalEvidenceReady = Boolean(
+    hasCandidateEvidence &&
+      run.evidence_summary.evaluation_status === 'PASS' &&
+      run.evidence_summary.comparison_status === 'PASS'
+  )
 
   const submitDecision = async (decision: RetrainingDecision) => {
     const trimmedReason = reason.trim()
@@ -92,8 +103,8 @@ export function MLModelDecisionPanel({
     setReasonError(null)
 
     if (decision === 'approve') {
-      if (!hasCandidateEvidence) {
-        setReasonError('Approval is unavailable until candidate and evaluation evidence exist.')
+      if (!approvalEvidenceReady) {
+        setReasonError('Approval is unavailable until all evidence gates pass.')
         return
       }
       if (!window.confirm('Approve this candidate for explicit local staging only?')) return
@@ -156,7 +167,7 @@ export function MLModelDecisionPanel({
             type="button"
             className={styles.primaryButton}
             onClick={() => void submitDecision('approve').catch(() => undefined)}
-            disabled={actionsDisabled || decisionPending || !hasCandidateEvidence}
+            disabled={actionsDisabled || decisionPending || !approvalEvidenceReady}
           >
             Approve candidate
           </button>
@@ -322,6 +333,16 @@ export function MLModelDecisionPanel({
         </div>
         <p className={styles.sectionDescription}>{safeNextAction(run.state)}</p>
         <p className={styles.evidenceNotice}>The active model was not changed by this run.</p>
+        {run.retry_available && canRun && (
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() => void onRetry().catch(() => undefined)}
+            disabled={actionsDisabled || retryPending}
+          >
+            {retryPending ? 'Retrying…' : 'Retry run'}
+          </button>
+        )}
       </section>
     )
   }

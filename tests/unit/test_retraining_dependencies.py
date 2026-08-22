@@ -9,6 +9,7 @@ from web_app.presentation.dependencies import retraining as retraining_dependenc
 from web_app.presentation.dependencies.retraining import (
     _active_model_identity,
     _content_digest,
+    _source_dataset_version_for_mode,
 )
 
 
@@ -75,3 +76,11 @@ def test_stable_content_identity_is_cached_by_immutable_identity(
 
     assert first == second
     assert calls == 1
+
+
+def test_retraining_source_dataset_is_selected_by_worker_mode():
+    assert _source_dataset_version_for_mode("smoke") == "v3_907k_cleaned"
+    assert (
+        _source_dataset_version_for_mode("native")
+        == "v3_907k_cleaned_model_input_v2"
+    )

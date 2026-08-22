@@ -24,6 +24,8 @@ QUEUE_FILENAME = "queue.json"
 RUN_FILENAME = "run.json"
 EVENTS_FILENAME = "events.jsonl"
 ARTIFACT_MANIFEST_FILENAME = "artifact_manifest.json"
+RUN_PREPARED_FILENAME = ".prepared"
+RUN_PREPARING_FILENAME = ".preparing"
 WORKER_LOCK_FILENAME = ".worker.lock.json"
 MAX_EVENT_COUNT = 256
 MAX_ARTIFACT_BYTES = 25 * 1024 * 1024
@@ -614,10 +616,17 @@ class RetrainingRunArtifactRepository:
         )
 
     def create_or_get_run(self, record: RetrainingRunRecord) -> RetrainingRunRecord:
+        return self.create_or_get_run_with_status(record)[0]
+
+    def create_or_get_run_with_status(
+        self, record: RetrainingRunRecord, *, prepared: bool = True
+    ) -> tuple[RetrainingRunRecord, bool]:
+        """Create one fingerprint-owned run and report whether this caller won."""
+
         _validate_record(record)
         existing = self.find_by_input_fingerprint(record.input_fingerprint)
         if existing is not None:
-            return existing
+            return existing, False
         reservation = self.root / (
             f".run-fingerprint.{record.input_fingerprint}.reservation"
         )
@@ -644,7 +653,7 @@ class RetrainingRunArtifactRepository:
                             record.input_fingerprint
                         )
                         if existing is not None:
-                            return existing
+                            return existing, False
                         if self._recover_stale_reservation(reservation):
                             recovered = True
                             break
@@ -656,13 +665,13 @@ class RetrainingRunArtifactRepository:
                     )
             existing = self.find_by_input_fingerprint(record.input_fingerprint)
             if existing is not None:
-                return existing
+                return existing, False
             run_dir = self._run_dir(record.run_id)
             try:
                 run_dir.mkdir(parents=True, exist_ok=False)
             except FileExistsError as exc:
                 if (run_dir / RUN_FILENAME).is_file():
-                    return self.load_run(record.run_id)
+                    return self.load_run(record.run_id), False
                 raise ArtifactRepositoryError(
                     "run directory exists without a run manifest"
                 ) from exc
@@ -675,11 +684,19 @@ class RetrainingRunArtifactRepository:
                 },
             )
             self._atomic_write(run_dir / EVENTS_FILENAME, b"")
+            if prepared:
+                self._atomic_write(
+                    run_dir / RUN_PREPARED_FILENAME, b"prepared\n"
+                )
+            else:
+                self._atomic_write(
+                    run_dir / RUN_PREPARING_FILENAME, b"preparing\n"
+                )
             # run.json is the publication marker: readers only see a complete
             # run after its supporting manifest and event stream exist.
             self._atomic_json(run_dir / RUN_FILENAME, record.to_dict())
             self._update_queue()
-            return record
+            return record, True
         except BaseException:
             if run_dir is not None and run_dir.exists() and not (
                 run_dir / RUN_FILENAME
@@ -689,6 +706,32 @@ class RetrainingRunArtifactRepository:
         finally:
             if owns_reservation:
                 self._release_reservation(reservation)
+
+    def is_run_prepared(self, run_id: str) -> bool:
+        run_dir = self._run_dir(run_id)
+        return (run_dir / RUN_FILENAME).is_file() and not (
+            run_dir / RUN_PREPARING_FILENAME
+        ).exists()
+
+    def _has_atomically_published_preparation(self, run_id: str) -> bool:
+        run_dir = self._run_dir(run_id)
+        return all(
+            (run_dir / relative_path).is_file()
+            for relative_path in (
+                "export/export_manifest.json",
+                "export/approved_samples.jsonl",
+            )
+        )
+
+    def mark_run_prepared(self, run_id: str) -> None:
+        record = self.load_run(run_id)
+        if record.state is not RunState.QUEUED:
+            raise ArtifactRepositoryError(
+                "only queued runs can be marked prepared"
+            )
+        run_dir = self._run_dir(run_id)
+        self._atomic_write(run_dir / RUN_PREPARED_FILENAME, b"prepared\n")
+        (run_dir / RUN_PREPARING_FILENAME).unlink(missing_ok=True)
 
     def load_run(self, run_id: str) -> RetrainingRunRecord:
         path = self._run_dir(run_id) / RUN_FILENAME
@@ -738,6 +781,14 @@ class RetrainingRunArtifactRepository:
     ) -> RetrainingRunRecord | None:
         current_time = (now or self._now()).astimezone(timezone.utc)
         for record in self.list_runs():
+            if not self.is_run_prepared(record.run_id):
+                # The API publishes the export directory atomically before it
+                # clears .preparing. Recover that durable handoff after an API
+                # restart without allowing an incomplete export to be claimed.
+                if self._has_atomically_published_preparation(record.run_id):
+                    self.mark_run_prepared(record.run_id)
+                else:
+                    continue
             if record.state is RunState.RETRYABLE_FAILED:
                 if record.next_retry_at and record.next_retry_at > current_time:
                     continue

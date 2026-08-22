@@ -47,6 +47,12 @@ class RetrainingExportRequest(StrictSchema):
     pass
 
 
+class RetrainingRetryRequest(StrictSchema):
+    """The retry endpoint has no client-selectable training options."""
+
+    pass
+
+
 class RetrainingDecisionRequest(StrictSchema):
     decision: Literal["approve", "hold", "reject"]
     reason: str | None = Field(default=None, max_length=500)
@@ -160,6 +166,29 @@ class RetrainingEventResponse(StrictSchema):
     actor_role: str | None = Field(default=None, max_length=32)
 
 
+class RetrainingMetricEvidenceResponse(StrictSchema):
+    name: str = Field(..., max_length=96)
+    active_value: float | None = None
+    candidate_value: float | None = None
+    delta: float | None = None
+    support_count: int | None = Field(default=None, ge=0)
+    evidence_status: Literal[
+        "VERIFIED",
+        "NATIVE",
+        "CONTROLLED_SMOKE",
+        "NOT_RUN",
+        "NOT_ENOUGH_EVIDENCE",
+    ]
+
+
+class RetrainingEvidenceSummaryResponse(StrictSchema):
+    preprocessing_version: str | None = Field(default=None, max_length=96)
+    evaluation_split: str | None = Field(default=None, max_length=96)
+    evaluation_status: Literal["PASS", "FAIL", "NOT_RUN", "NOT_ENOUGH_EVIDENCE"]
+    comparison_status: Literal["PASS", "FAIL", "NOT_RUN", "NOT_ENOUGH_EVIDENCE"]
+    metrics: list[RetrainingMetricEvidenceResponse]
+
+
 class RetrainingRunDetailResponse(RetrainingRunResponse):
     events: list[RetrainingEventResponse]
     heartbeat_age_seconds: int | None = Field(default=None, ge=0)
@@ -167,6 +196,13 @@ class RetrainingRunDetailResponse(RetrainingRunResponse):
         "VERIFIED", "NATIVE", "CONTROLLED_SMOKE", "NOT_RUN", "NOT_ENOUGH_EVIDENCE"
     ]
     retry_available: bool
+    evidence_summary: RetrainingEvidenceSummaryResponse = Field(
+        default_factory=lambda: RetrainingEvidenceSummaryResponse(
+            evaluation_status="NOT_RUN",
+            comparison_status="NOT_RUN",
+            metrics=[],
+        )
+    )
 
 
 class RetrainingSummaryResponse(StrictSchema):
@@ -205,11 +241,14 @@ __all__ = [
     "RetrainingDecisionResponse",
     "RetrainingDeployRequest",
     "RetrainingEventResponse",
+    "RetrainingEvidenceSummaryResponse",
     "RetrainingExportRequest",
     "RetrainingExportResponse",
     "RetrainingOperationResponse",
     "RetrainingRollbackRequest",
+    "RetrainingRetryRequest",
     "RetrainingRunDetailResponse",
+    "RetrainingMetricEvidenceResponse",
     "RetrainingRunListResponse",
     "RetrainingRunRequest",
     "RetrainingRunResponse",

@@ -424,6 +424,7 @@ def test_process_runner_uses_explicit_argument_list_and_restricted_environment(
     ]
     assert "--once" not in captured["arguments"]
     assert "--smoke" in captured["arguments"]
+    assert captured["arguments"][captured["arguments"].index("--max-runtime-seconds") + 1] == "42"
     assert captured["arguments"][captured["arguments"].index("--timeout-seconds") + 1] == "42"
     assert captured["kwargs"]["shell"] is False
     assert "API_SECRET_KEY" not in captured["kwargs"]["env"]

@@ -64,6 +64,8 @@ class RetrainingProcessRunner:
             WORKER_MODULE,
             "--root",
             str(configured_root),
+            "--max-runtime-seconds",
+            str(self._timeout_seconds),
             "--timeout-seconds",
             str(self._timeout_seconds),
         ]

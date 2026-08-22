@@ -37,6 +37,8 @@ export const RetrainingRunRequestSchema = z
 
 export const RetrainingExportRequestSchema = z.object({}).strict()
 
+export const RetrainingRetryRequestSchema = z.object({}).strict()
+
 export const RetrainingDecisionRequestSchema = z
   .object({
     decision: z.enum(RETRAINING_DECISION_VALUES),
@@ -136,6 +138,33 @@ export const RetrainingRunDetailSchema = RetrainingRunSchema.extend({
   heartbeat_age_seconds: z.number().int().nonnegative().nullable(),
   evidence_status: z.enum(RETRAINING_EVIDENCE_STATUS_VALUES),
   retry_available: z.boolean(),
+  evidence_summary: z
+    .object({
+      preprocessing_version: z.string().max(96).nullable(),
+      evaluation_split: z.string().max(96).nullable(),
+      evaluation_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE']),
+      comparison_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE']),
+      metrics: z.array(
+        z
+          .object({
+            name: z.string().max(96),
+            active_value: z.number().finite().nullable(),
+            candidate_value: z.number().finite().nullable(),
+            delta: z.number().finite().nullable(),
+            support_count: z.number().int().nonnegative().nullable(),
+            evidence_status: z.enum(RETRAINING_EVIDENCE_STATUS_VALUES),
+          })
+          .strict()
+      ),
+    })
+    .strict()
+    .default({
+      preprocessing_version: null,
+      evaluation_split: null,
+      evaluation_status: 'NOT_RUN',
+      comparison_status: 'NOT_RUN',
+      metrics: [],
+    }),
 }).strict()
 
 export const RetrainingExportResultSchema = z

@@ -5,6 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import web_app.presentation.api.retraining_router as retraining_router_module
 from ml_model.retraining.dashboard_contracts import RunState
 from web_app.application.retraining_run_use_case import RetrainingStartResult
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
@@ -51,6 +52,7 @@ class FakeControlPlane:
     def __init__(self) -> None:
         self.start_calls: list[dict[str, object]] = []
         self.decision_calls: list[dict[str, object]] = []
+        self.retry_calls: list[dict[str, object]] = []
         self.start_count = 0
 
     async def get_summary(self):
@@ -76,6 +78,10 @@ class FakeControlPlane:
 
     def list_runs(self):
         return [_record()]
+
+    def retry_run(self, **kwargs):
+        self.retry_calls.append(kwargs)
+        return _record(RunState.QUEUED)
 
     def get_run_detail(self, _run_id):
         from web_app.application.retraining_control_use_case import (
@@ -308,6 +314,73 @@ def test_summary_and_run_detail_are_safe_contracts(client):
     assert detail.json()["evidence_status"] == "NOT_RUN"
     assert "model_input_text" not in detail.text
     assert "http_request" not in detail.text
+
+
+def test_retry_is_operator_only_and_has_no_client_training_options(client):
+    test_client, control = client
+
+    forbidden = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/retry",
+        headers=_headers(role="VIEWER"),
+        json={},
+    )
+    assert forbidden.status_code == 403
+    assert control.retry_calls == []
+
+    response = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/retry",
+        headers=_headers(role="ANALYST"),
+        json={},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["state"] == "queued"
+    assert control.retry_calls == [
+        {
+            "run_id": RUN_ID,
+            "actor_id": "analyst-1",
+            "actor_role": "ANALYST",
+        }
+    ]
+
+    invalid = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/retry",
+        headers=_headers(role="ANALYST"),
+        json={"training_flags": ["--epochs", "100"]},
+    )
+    assert invalid.status_code == 422
+
+
+def test_retry_offloads_synchronous_control_work(client, monkeypatch):
+    test_client, control = client
+    offloaded_calls = []
+
+    async def fake_run_in_threadpool(function, *args, **kwargs):
+        offloaded_calls.append((function, args, kwargs))
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr(
+        retraining_router_module,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    response = test_client.post(
+        f"/api/retraining/runs/{RUN_ID}/retry",
+        headers=_headers(role="ANALYST"),
+        json={},
+    )
+
+    assert response.status_code == 202
+    assert offloaded_calls
+    function, args, kwargs = offloaded_calls[0]
+    assert function == control.retry_run
+    assert args == ()
+    assert kwargs == {
+        "run_id": RUN_ID,
+        "actor_id": "analyst-1",
+        "actor_role": "ANALYST",
+    }
 
 
 def test_only_administrators_can_decide_candidate_state(client):

@@ -10,6 +10,7 @@ import {
   useMLModelRuns,
   useMLModelSummary,
   useRollbackRetrainingMutation,
+  useRetryRetrainingMutation,
   useStartRetrainingMutation,
 } from '@/features/ml-model/queries'
 import type { RetrainingDecision } from '@/features/ml-model/contract'
@@ -85,6 +86,7 @@ export function MLModelWorkspace({ role }: Props) {
   const decisionMutation = useDecisionRetrainingMutation()
   const deployMutation = useDeployRetrainingMutation()
   const rollbackMutation = useRollbackRetrainingMutation()
+  const retryMutation = useRetryRetrainingMutation()
 
   const summary = summaryQuery.data
   const runs = runsQuery.data?.runs ?? []
@@ -106,14 +108,16 @@ export function MLModelWorkspace({ role }: Props) {
     exportMutation.isPending ||
     decisionMutation.isPending ||
     deployMutation.isPending ||
-    rollbackMutation.isPending
+    rollbackMutation.isPending ||
+    retryMutation.isPending
 
   const actionError =
     errorMessage(startMutation.error) ??
     errorMessage(exportMutation.error) ??
     errorMessage(decisionMutation.error) ??
     errorMessage(deployMutation.error) ??
-    errorMessage(rollbackMutation.error)
+    errorMessage(rollbackMutation.error) ??
+    errorMessage(retryMutation.error)
 
   if (summaryQuery.isPending || runsQuery.isPending) {
     return (
@@ -187,6 +191,13 @@ export function MLModelWorkspace({ role }: Props) {
     setNotice('Local staging rollback requested explicitly.')
   }
 
+  const handleRetry = async () => {
+    if (!selectedDetail) return
+    setNotice(null)
+    await retryMutation.mutateAsync(selectedDetail.run_id)
+    setNotice('Retry requested within the run budget. The worker will resume from the durable artifacts.')
+  }
+
   return (
     <div className={styles.page}>
       <MLModelOverviewSection
@@ -224,15 +235,18 @@ export function MLModelWorkspace({ role }: Props) {
           <MLModelDecisionPanel
             key={selectedDetail.run_id}
             run={selectedDetail}
+            canRun={canRun}
             canDecide={canDecide}
             canDeploy={canDeploy}
             actionsDisabled={mutationsBusy}
             decisionPending={decisionMutation.isPending}
             deployPending={deployMutation.isPending}
             rollbackPending={rollbackMutation.isPending}
+            retryPending={retryMutation.isPending}
             onDecision={handleDecision}
             onDeploy={handleDeploy}
             onRollback={handleRollback}
+            onRetry={handleRetry}
             actionError={actionError}
           />
         </div>

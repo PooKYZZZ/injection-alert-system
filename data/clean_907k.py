@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from datasketch import MinHash, MinHashLSH
 import hashlib
 import json
 import os
@@ -25,15 +26,6 @@ from ml_model.preprocessing.model_input import (  # noqa: E402
     build_model_input_text,
     canonicalize_text as shared_canonicalize_text,
 )
-
-try:
-    from datasketch import MinHash, MinHashLSH
-    HAS_DATASKETCH = True
-except ImportError:
-    HAS_DATASKETCH = False
-    print("Warning: 'datasketch' not found. Near-duplicate detection will be skipped.")
-    print("Run 'pip install datasketch' or 'uv pip install datasketch' to enable.")
-
 # --- CONFIGURATION ---
 RAW_DATA_PATH = REPO_ROOT / 'data' / 'raw' / 'data_capec_multilabel.csv'
 DATASET_VERSION = 'v3_907k_cleaned_model_input_v2'
@@ -332,9 +324,9 @@ def clean_pipeline():
     # ---------------------------------------------------------
     print("Stage 7: Near-duplicate cluster construction...")
 
-    lsh = None  # Will hold LSH index if datasketch is available
+    lsh = None  # Will hold the MinHash LSH index for cross-split checks.
     lsh_key_to_hash = {}  # Maps LSH key -> payload_hash for cross-split test
-    if HAS_DATASKETCH and len(df) > 0:
+    if len(df) > 0:
         lsh = MinHashLSH(threshold=MINHASH_THRESHOLD, num_perm=MINHASH_NUM_PERM)
         minhashes = {}
 
@@ -457,10 +449,17 @@ def clean_pipeline():
               f"removed {rows_capped:,} rows, largest cluster now {largest_after}")
 
     else:
-        # Fallback: each payload is its own cluster
-        print("         datasketch not available — assigning unique clusters.")
-        df['cluster_id'] = range(len(df))
-        audit_log["statistics"]["near_duplicate_clusters"] = "Skipped (datasketch not installed)"
+        df["cluster_id"] = pd.Series(index=df.index, dtype="int64")
+        audit_log["statistics"]["near_duplicate_clusters"] = {
+            "total_clusters": 0,
+            "singleton_clusters": 0,
+            "non_singleton_clusters": 0,
+            "largest_cluster_size": 0,
+            "payloads_in_non_singleton_clusters": 0,
+            "shingle_size": SHINGLE_SIZE,
+            "threshold": MINHASH_THRESHOLD,
+            "num_perm": MINHASH_NUM_PERM,
+        }
 
     # ---------------------------------------------------------
     # STAGE 8: Transformer Input Field & Metadata Removal
@@ -658,7 +657,7 @@ def clean_pipeline():
     # The LSH was keyed by original df indices before sort/reset.
     # lsh_key_to_hash maps those keys back to payload_hash so we can
     # identify which split each LSH hit belongs to.
-    if HAS_DATASKETCH and lsh is not None and len(val_df) > 0:
+    if lsh is not None and len(val_df) > 0:
         train_hash_set = set(train_df['payload_hash'])
         sample_n = min(5000, len(val_df))
         val_sample = val_df.sample(n=sample_n, random_state=RANDOM_SEED)
@@ -723,6 +722,20 @@ def clean_pipeline():
         audit_log["files"]["quarantine_parquet"] = {
             "path": str(quarantine_file.name), "sha256": calculate_sha256(quarantine_file)
         }
+
+    checksum_files = [train_file, val_file, test_file]
+    if len(df_quarantine) > 0:
+        checksum_files.append(quarantine_file)
+    checksums_path = OUTPUT_DIR / "checksums.txt"
+    checksums_path.write_text(
+        "# SHA256 checksums — canonical parquet splits\n"
+        "# Algorithm: SHA256\n"
+        + "".join(
+            f"{calculate_sha256(path)}  {path.name}\n"
+            for path in checksum_files
+        ),
+        encoding="utf-8",
+    )
 
     # ---------------------------------------------------------
     # STAGE 12: Reproducibility Metadata Logging

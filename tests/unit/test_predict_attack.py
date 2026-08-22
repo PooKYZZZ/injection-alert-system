@@ -99,6 +99,39 @@ def test_load_model_prefers_local_run_directory(
     assert fake_model.in_eval is True
 
 
+def test_load_model_accepts_a_direct_packaged_candidate_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    candidate_dir = tmp_path / "candidate_model"
+    candidate_dir.mkdir()
+    (candidate_dir / "config.json").write_text("{}", encoding="utf-8")
+    (candidate_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
+    _write_manifest(candidate_dir, temperature=0.91)
+
+    fake_model = _FakeModel()
+    fake_tokenizer = object()
+    monkeypatch.setattr(
+        predict_module.AutoModelForSequenceClassification,
+        "from_pretrained",
+        lambda path, local_files_only=False: fake_model,
+    )
+    monkeypatch.setattr(
+        predict_module.AutoTokenizer,
+        "from_pretrained",
+        lambda path, local_files_only=False: fake_tokenizer,
+    )
+
+    model, tokenizer, temperature = predict_module.load_model(
+        "distilbert",
+        staging_dir=candidate_dir,
+    )
+
+    assert model is fake_model
+    assert tokenizer is fake_tokenizer
+    assert temperature == 0.91
+
+
 def test_load_model_uses_packaged_manifest_temperature(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

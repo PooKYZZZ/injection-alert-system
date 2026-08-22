@@ -99,6 +99,50 @@ def test_run_detail_reports_published_evidence_status(tmp_path):
     assert detail.evidence_status == "NATIVE"
 
 
+def test_run_detail_redacts_non_numeric_evidence_values(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    run_id = "retrain-20260811T120000Z-000000000006"
+    repository.create_or_get_run(_record(run_id))
+    repository.publish_json_artifact(
+        run_id,
+        "stages/evaluation.json",
+        {
+            "evidence_status": "NATIVE",
+            "status": "PASS",
+            "preprocessing_version": "http-preprocessor-v1",
+            "evaluation_split": "frozen_test",
+        },
+        stage="evaluation",
+    )
+    repository.publish_json_artifact(
+        run_id,
+        "stages/comparison.json",
+        {
+            "overall_status": "PASS",
+            "metric_comparisons": {
+                "macro_f1": {
+                    "active": {"value": True},
+                    "candidate": {"value": 10**1000, "support_count": True},
+                    "delta": "not-a-number",
+                }
+            },
+        },
+        stage="evidence_comparison",
+    )
+
+    detail = _control(repository).get_run_detail(run_id)
+
+    macro_f1 = next(
+        metric
+        for metric in detail.evidence_summary.metrics
+        if metric.name == "macro_f1"
+    )
+    assert macro_f1.active_value is None
+    assert macro_f1.candidate_value is None
+    assert macro_f1.delta is None
+    assert macro_f1.support_count is None
+
+
 def test_hold_requires_reason_and_records_administrator_event(tmp_path):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     run_id = "retrain-20260811T120000Z-000000000001"

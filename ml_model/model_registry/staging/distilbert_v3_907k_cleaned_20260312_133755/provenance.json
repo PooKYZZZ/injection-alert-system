@@ -1,0 +1,31 @@
+{
+  "model_name": "distilbert-injection-detector",
+  "promoted_version": "distilbert_v3_907k_cleaned_20260312_133755",
+  "generated_at_utc": "2026-08-12T04:39:34Z",
+  "checkpoint_identity": {
+    "checkpoint_path": "C:\\Users\\Froi\\Documents\\new project folder\\injection-alert-system\\ml_model\\results\\training_runs\\laptop_v2_cuda_1seed_4epoch_bs64\\distilbert\\loss_weighted_ce\\seed_0042\\checkpoint\\best_distilbert_weighted_ce_seed0042.pt",
+    "checkpoint_sha256": "da28956cd90b6de33005dc7991eeeeb128f61cb7c559e3656cafdce1e99fc0fd"
+  },
+  "dataset_version": "v3_907k_cleaned_model_input_v2",
+  "repo_commit": "bb2be4afb7a0d84df8c05a8b4217e6d55e97b297",
+  "calibration_temperature": 1.3604408502578735,
+  "label_names": [
+    "Code Injection",
+    "Normal",
+    "Other Attacks",
+    "SQL Injection"
+  ],
+  "previous_version_archived_to": "ml_model\\model_registry\\archive\\distilbert_v3_907k_cleaned_20260312_133755_pre_laptop_20260812",
+  "validation_gates_passed": {
+    "source_validation_passed": true,
+    "artifact_packaging_pipeline_passed": true,
+    "local_reload_validated": true,
+    "quality_gates_passed": false
+  },
+  "artifact_packaging_ready": true,
+  "quality_gates_passed": false,
+  "source_validation_passed": true,
+  "checkpoint_hash_recorded": true,
+  "labels_validated": true,
+  "ready_for_promotion": false
+}

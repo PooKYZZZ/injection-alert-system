@@ -76,6 +76,42 @@ def test_queue_is_atomic_versioned_and_rejects_path_traversal(tmp_path):
         repository.load_run("../outside")
 
 
+def test_unprepared_run_is_not_claimable_until_preparation_is_published(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+
+    created, was_created = repository.create_or_get_run_with_status(
+        _record(), prepared=False
+    )
+
+    assert was_created is True
+    assert repository.is_run_prepared(created.run_id) is False
+    assert repository.claim_next(worker_id="worker-a", now=NOW) is None
+
+    repository.mark_run_prepared(created.run_id)
+    claimed = repository.claim_next(worker_id="worker-a", now=NOW)
+    assert claimed is not None
+    assert claimed.state is RunState.EXPORTING
+
+
+def test_atomically_published_export_recovers_an_unprepared_run(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+
+    created, was_created = repository.create_or_get_run_with_status(
+        _record(), prepared=False
+    )
+    export_dir = tmp_path / "runs" / created.run_id / "export"
+    export_dir.mkdir()
+    (export_dir / "approved_samples.jsonl").write_text("", encoding="utf-8")
+    (export_dir / "export_manifest.json").write_text("{}\n", encoding="utf-8")
+
+    claimed = repository.claim_next(worker_id="worker-a", now=NOW)
+
+    assert was_created is True
+    assert claimed is not None
+    assert claimed.state is RunState.EXPORTING
+    assert repository.is_run_prepared(created.run_id) is True
+
+
 def test_reviewed_run_states_require_dataset_candidate_and_evaluation_bindings(
     tmp_path,
 ):

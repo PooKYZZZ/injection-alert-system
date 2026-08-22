@@ -23,6 +23,7 @@ from web_app.presentation.schemas.retraining_schemas import (
     RetrainingDecisionResponse,
     RetrainingDeployRequest,
     RetrainingEventResponse,
+    RetrainingEvidenceSummaryResponse,
     RetrainingExportRequest,
     RetrainingExportResponse,
     RetrainingRollbackRequest,
@@ -31,6 +32,7 @@ from web_app.presentation.schemas.retraining_schemas import (
     RetrainingRunRequest,
     RetrainingRunResponse,
     RetrainingRunStartResponse,
+    RetrainingRetryRequest,
     RetrainingSummaryResponse,
 )
 
@@ -237,7 +239,34 @@ async def get_retraining_run(
         heartbeat_age_seconds=detail.heartbeat_age_seconds,
         evidence_status=detail.evidence_status,
         retry_available=detail.retry_available,
+        evidence_summary=RetrainingEvidenceSummaryResponse.model_validate(
+            detail.evidence_summary.to_dict()
+        ),
     )
+
+
+@router.post(
+    "/runs/{run_id}/retry",
+    response_model=RetrainingRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retry_retraining_run(
+    request: Request,
+    _payload: RetrainingRetryRequest | None = None,
+    run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
+    control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
+) -> RetrainingRunResponse:
+    actor = _operator(request)
+    try:
+        record = await run_in_threadpool(
+            control.retry_run,
+            run_id=run_id,
+            actor_id=actor.reviewer_id,
+            actor_role=actor.reviewer_role,
+        )
+    except RetrainingControlError as exc:
+        _raise_control_error(exc)
+    return _run_response(record)
 
 
 @router.post(

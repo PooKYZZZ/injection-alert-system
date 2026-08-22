@@ -1,19 +1,94 @@
 {
   "model_key": "distilbert",
   "model_id": "distilbert-base-uncased",
-  "dataset_version": "v3_907k_cleaned",
-  "per_device_train_batch_size": 64,
-  "gradient_accumulation_steps": 2,
-  "num_train_epochs": 5,
-  "early_stop_patience": 3,
-  "learning_rate": 3e-05,
-  "weight_decay": 0.01,
-  "max_grad_norm": 1.0,
-  "lr_schedule": "cosine",
-  "warmup_ratio": 0.04,
-  "bf16": true,
+  "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "tokenizer_id": "distilbert-base-uncased",
+  "architecture": "distilbert_sequence_classification",
+  "architecture_family": "huggingface_sequence_classifier",
+  "head_type": "hf_sequence_classification_head",
+  "model_class": "DistilBertForSequenceClassification",
+  "dataset_version": "v3_907k_cleaned_model_input_v2",
+  "preprocessing_version": "model-input-v2-redacted",
+  "model_input_hash_policy": "sha256(model_input_text)",
   "max_seq_len": 128,
-  "log_every_steps": 200,
-  "ci_weight_scale": 0.6,
-  "focal_gamma": 2.0
+  "seed": 42,
+  "model_version": "distilbert_v3_907k_cleaned_20260312_133755",
+  "label_names": [
+    "Code Injection",
+    "Normal",
+    "Other Attacks",
+    "SQL Injection"
+  ],
+  "run_contract_sha256": "dbcb9de46d34e4619ac88b5c2178f38a3662730beaf9c24ceb10a78bc2d79967",
+  "run_contract": {
+    "contract_version": "training-run-contract.v2",
+    "dataset_version": "v3_907k_cleaned_model_input_v2",
+    "preprocessing_version": "model-input-v2-redacted",
+    "model_keys": [
+      "distilbert"
+    ],
+    "model_contracts": {
+      "distilbert": {
+        "model_id": "distilbert-base-uncased",
+        "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+        "architecture": "distilbert_sequence_classification"
+      }
+    },
+    "training_settings_by_model": {
+      "distilbert": {
+        "learning_rate": 3e-05,
+        "per_device_train_batch_size": 64,
+        "eval_batch_size": 128,
+        "gradient_accumulation_steps": 2,
+        "weight_decay": 0.01,
+        "warmup_ratio": 0.04,
+        "max_seq_len": 128,
+        "num_train_epochs": 4,
+        "focal_gamma": 2.0,
+        "experiment_phase": "controlled_backbone_benchmark"
+      }
+    },
+    "seed_list": [
+      42
+    ],
+    "loss_keys": [
+      "weighted_ce"
+    ],
+    "max_seq_len": 128,
+    "batch_size": 64,
+    "eval_batch_size": 128,
+    "epochs": 4,
+    "learning_rate": 3e-05,
+    "gradient_accumulation_steps": 2,
+    "dataset_file_manifest_sha256": "995eda40981d4193bcc6bdfb6b28864b3757b0a085d22397ba043b990f66a004",
+    "label_names": [
+      "Code Injection",
+      "Normal",
+      "Other Attacks",
+      "SQL Injection"
+    ],
+    "class_mapping": {
+      "Code Injection": 0,
+      "Normal": 1,
+      "Other Attacks": 2,
+      "SQL Injection": 3
+    },
+    "loss_contracts": {
+      "weighted_ce": {
+        "focal_gamma": 2.0
+      }
+    },
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.04,
+    "sample_limits": {
+      "train": null,
+      "validation": null,
+      "test": null
+    },
+    "precision": "fp16",
+    "training_implementation_version": "training-implementation.v2",
+    "model_id": "distilbert-base-uncased",
+    "model_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+    "architecture": "distilbert_sequence_classification"
+  }
 }

@@ -15,6 +15,7 @@ import {
   RetrainingDeployRequestSchema,
   RetrainingExportRequestSchema,
   RetrainingExportResultSchema,
+  RetrainingRetryRequestSchema,
   RetrainingRollbackRequestSchema,
   RetrainingRunDetailSchema,
   RetrainingRunListSchema,
@@ -829,6 +830,20 @@ export async function getRetrainingRun(
     `/api/retraining/runs/${encodeURIComponent(parsed.data)}`,
     RetrainingRunDetailSchema,
     { method: 'GET', actor }
+  )
+}
+
+export async function retryRetrainingRun(
+  runId: string,
+  actor: RetrainingActor
+): Promise<BffResult<RetrainingRun>> {
+  const parsedId = parseRetrainingRunId(runId)
+  if (!parsedId.ok) return parsedId
+  const payload = RetrainingRetryRequestSchema.parse({})
+  return fetchRetrainingUpstream(
+    `/api/retraining/runs/${encodeURIComponent(parsedId.data)}/retry`,
+    RetrainingRunSchema,
+    { method: 'POST', body: payload, actor }
   )
 }
 

@@ -32,6 +32,18 @@ class StaticSnapshotProvider:
         return self.snapshot
 
 
+@dataclass
+class RecordingPreparer:
+    status: str = "READY"
+    calls: list[tuple[str, object]] | None = None
+
+    async def __call__(self, run_id, snapshot):
+        if self.calls is None:
+            self.calls = []
+        self.calls.append((run_id, snapshot))
+        return self.status
+
+
 def _snapshot(*, approved_sample_count: int = 2, active_digest: str = "d" * 64):
     return RetrainingInputSnapshot(
         source_review_revisions=("2:1", "1:2"),
@@ -69,6 +81,50 @@ async def test_start_is_idempotent_for_same_snapshot_and_does_not_duplicate_work
     assert first.run.run_id == second.run.run_id
     assert first.run.input_fingerprint == second.run.input_fingerprint
     assert supervisor.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_new_run_prepares_the_captured_snapshot_before_starting_worker(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    supervisor = FakeSupervisor()
+    preparer = RecordingPreparer()
+    snapshot = _snapshot()
+    use_case = RetrainingRunUseCase(
+        repository,
+        snapshot_provider=StaticSnapshotProvider(snapshot),
+        worker_supervisor=supervisor,
+        run_preparer=preparer,
+        clock=lambda: NOW,
+    )
+
+    result = await use_case.start_run(
+        trigger="manual", requested_by="analyst-1", requested_timezone="UTC"
+    )
+
+    assert result.run.state is RunState.QUEUED
+    assert repository.is_run_prepared(result.run.run_id) is True
+    assert preparer.calls == [(result.run.run_id, snapshot)]
+    assert supervisor.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_empty_prepared_export_is_skipped_without_starting_worker(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    supervisor = FakeSupervisor()
+    use_case = RetrainingRunUseCase(
+        repository,
+        snapshot_provider=StaticSnapshotProvider(_snapshot()),
+        worker_supervisor=supervisor,
+        run_preparer=RecordingPreparer(status="EMPTY"),
+        clock=lambda: NOW,
+    )
+
+    result = await use_case.start_run(
+        trigger="manual", requested_by="analyst-1", requested_timezone="UTC"
+    )
+
+    assert result.run.state is RunState.SKIPPED_NO_APPROVED_DATA
+    assert supervisor.calls == 0
 
 
 @pytest.mark.asyncio

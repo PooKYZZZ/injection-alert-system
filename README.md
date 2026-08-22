@@ -25,7 +25,7 @@ This repository is active in its current app-plus-BFF form and now has a verifie
 - Supabase is the active hosted database boundary for the app runtime
 - Docker Compose and local container smoke paths exist
 - Verified WAF proof path: `localhost:8088` -> ModSecurity/OWASP CRS -> JSON audit log -> bridge -> FastAPI internal WAF ingest
-- Verified realistic demo-target path: `localhost:8089` -> demo-target ModSecurity/OWASP CRS -> `demo-target-app` built from the separate land-records portal repo -> demo-target audit log -> demo-target-bridge -> FastAPI internal WAF ingest
+- Verified realistic demo-target path: `localhost:8089` -> demo-target ModSecurity/OWASP CRS -> `demo-portal` built from a separate checkout of this repository's `stable/portal-pre-waf` branch -> demo-target audit log -> demo-target-bridge -> FastAPI internal WAF ingest
 - Verified SQLi proof: `/api/health?id=17%27%20OR%2017%3D17--` through `localhost:8088` returned HTTP 403
 - Verified backend lookup result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, rules `942100` and `949110`, with `source_ip`, `request_path`, and URL-encoded `query_string` present
 - In Compose, the backend is internal-only (`8000/tcp`). Do not use `localhost:8000` for WAF proof unless port 8000 is explicitly published.
@@ -56,7 +56,7 @@ The broader capstone goal is:
 
 Current naming note: LOW, MEDIUM, HIGH, and CRITICAL are model confidence tiers. The preferred filter/query name is `confidence_tier`, the persisted backend field remains `confidence_level`, legacy `severity` URLs are kept for compatibility, `CRITICAL >=90%` is implemented as a confidence threshold, no retraining/recalibration/model artifact change was required, and historical rows are not retroactively reclassified. Persisted-alert dashboard grouping and confidence styling use the backend-emitted `confidence_level`; enforcement-policy counts exclude `Normal` predictions, which remain `ALLOWED` at every valid tier; confidence-tier badges always display the canonical tier rather than substituting prediction terminology.
 
-In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the technical WAF proof path is `localhost:8088`; the realistic final demo WAF path is `localhost:8089`, with the separate land-records portal built as the `demo-target-app` service from the sibling portal repo.
+In the current repo, the application code, model-loading path, tests, dashboard shell, Supabase-backed runtime path, Docker smoke setup, and local WAF ingest proof are present. The dashboard browser path remains `Browser -> Next.js -> FastAPI`; the technical WAF proof path is `localhost:8088`; the realistic final demo WAF path is `localhost:8089`, with the separate `stable/portal-pre-waf` checkout built as the `demo-portal` service.
 
 ## Current Repository Scope
 
@@ -212,7 +212,7 @@ Important constraints:
 - The frontend is published on `http://localhost:3000`
 - The backend is internal to the Compose network and is not published to the host
 - The opt-in technical WAF profile publishes its proof path on `http://localhost:8088`
-- The realistic demo-target WAF path is published on `http://localhost:8089` when the `demo-target` profile is enabled; the profile also starts `demo-target-app` from the separate land-records portal repo
+- The realistic demo-target WAF path is published on `http://localhost:8089` when the `demo-target` profile is enabled; the profile also starts `demo-portal` from the separate `stable/portal-pre-waf` checkout
 - The active browser path remains `Browser -> Next.js -> FastAPI`
 - Backend transaction lookup proof should use `docker compose exec`, not `localhost:8000`
 

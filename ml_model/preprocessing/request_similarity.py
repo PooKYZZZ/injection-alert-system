@@ -20,7 +20,13 @@ def canonicalize_similarity_text(value: str) -> str:
     if len(parts) != 2:
         return normalized
     method, target = parts
-    parsed = urlsplit(target)
+    try:
+        parsed = urlsplit(target)
+    except ValueError:
+        # Comparison canonicalization must remain total for already-frozen
+        # model-input text. Malformed targets are compared in their normalized
+        # form; this does not alter serving text or weaken dataset validation.
+        return normalized
     if not parsed.query:
         return normalized
     query_pairs = parse_qsl(parsed.query, keep_blank_values=True)

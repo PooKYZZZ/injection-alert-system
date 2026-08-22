@@ -103,11 +103,44 @@ def test_dataset_metadata_validation_accepts_shared_contract(tmp_path: Path):
     assert metadata["preprocessing_version"] == MODEL_INPUT_VERSION
 
 
+def test_dashboard_snapshot_can_retain_legacy_source_contract(tmp_path: Path):
+    metadata_path = tmp_path / "metadata_preprocessing.json"
+    metadata_path.write_text(
+        "{"
+        '"dataset_version":"dashboard-retrain-20260812-abc123",'
+        '"source_dataset_version":"v3_907k_cleaned",'
+        '"preprocessing_version":"http-preprocessor-v1",'
+        '"text_column":"combined_payload",'
+        '"model_input_hash_policy":"sha256(model_input_text)"'
+        "}",
+        encoding="utf-8",
+    )
+
+    metadata = validate_dataset_preprocessing(
+        tmp_path,
+        expected_dataset_version="dashboard-retrain-20260812-abc123",
+        expected_preprocessing_version=LEGACY_MODEL_INPUT_VERSION,
+    )
+
+    assert metadata["source_dataset_version"] == "v3_907k_cleaned"
+    assert metadata["preprocessing_version"] == LEGACY_MODEL_INPUT_VERSION
+
+
 def test_dataset_cleaner_builds_shared_text_before_identity_operations():
     source = Path("data/clean_907k.py").read_text(encoding="utf-8")
     assert "from ml_model.preprocessing.model_input" in source
     assert source.index("df[MODEL_INPUT_TEXT_COLUMN]") < source.index("drop_duplicates")
+    assert 'checksums_path = OUTPUT_DIR / "checksums.txt"' in source
     assert "web_app" not in getsource(build_model_input_text)
+
+
+def test_dataset_cleaner_requires_reproducible_near_duplicate_dependency():
+    source = Path("data/clean_907k.py").read_text(encoding="utf-8")
+    training_requirements = Path("requirements.train.txt").read_text(encoding="utf-8")
+
+    assert "datasketch==2.0.0" in training_requirements
+    assert "HAS_DATASKETCH" not in source
+    assert "near-duplicate detection will be skipped" not in source
 
 
 def test_missing_dataset_fails_before_training_work(tmp_path: Path):

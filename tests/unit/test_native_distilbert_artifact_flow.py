@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -25,6 +26,10 @@ from ml_model.export.package_serving_artifact import (
 from ml_model.export.promote_final_training_run import extract_state_dict_checkpoint
 from ml_model.retraining.run_baseline import _load_verified_summary_metrics
 from ml_model.training.run_contract import build_training_run_contract, contract_sha256
+from web_app.infrastructure.retraining_staging_adapter import (
+    LocalStagingAdapter,
+    compute_artifact_digest,
+)
 
 REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 LABEL_NAMES = ["Code Injection", "Normal", "Other Attacks", "SQL Injection"]
@@ -404,6 +409,7 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     result = package_module.package_serving_artifact(
         model_key="distilbert",
         run_dir_name=run_dir.name,
+        run_dir_path=run_dir,
         strict=True,
         repo_root=repo_root,
     )
@@ -413,6 +419,26 @@ def test_offline_packaging_runs_real_function_and_strict_reload(
     )
     assert result == run_dir.resolve()
     assert manifest["run_contract_sha256"] == contract_hash
+    assert manifest["run_dir_name"] == run_dir.name
+    assert manifest["config_used_file"] == "config_used.json"
+
+    candidate_root = tmp_path / "runs" / "retrain-20260811T120000Z-000000000001" / "candidate_model"
+    candidate_root.parent.mkdir(parents=True)
+    shutil.copytree(result, candidate_root)
+    adapter = LocalStagingAdapter(
+        staging_root=tmp_path / "staging",
+        archive_root=tmp_path / "archive",
+        load_validator=lambda _path, expected: expected,
+        reload_callback=lambda _path, expected: expected,
+    )
+    preflight = adapter.preflight_candidate(
+        artifact_root=tmp_path / "runs",
+        run_id="retrain-20260811T120000Z-000000000001",
+        expected_model_version=run_dir.name,
+        expected_model_digest=compute_artifact_digest(candidate_root),
+        expected_preprocessing_version="http-preprocessor-v1",
+    )
+    assert preflight.candidate_path == candidate_root
     assert manifest["local_reload_verified"] is True
     assert any(path.name == "model.safetensors" for path in result.iterdir())
 

@@ -23,7 +23,7 @@ flowchart LR
     ModSec --> Bridge["WAF audit bridge"]
     Bridge --> FastAPI
     DemoWAF["localhost:8089 realistic final demo WAF path"] --> DemoModSec["demo-target-modsecurity"]
-    DemoModSec --> DemoTarget["demo-portal (built from separate land-records-portal repo)"]
+    DemoModSec --> DemoTarget["demo-portal (stable/portal-pre-waf checkout)"]
     DemoModSec --> DemoBridge["demo-target-bridge"]
     DemoBridge --> FastAPI
 ```
@@ -260,7 +260,7 @@ kept for compatibility; new exporter code must use `model_input_hash` and
 - A local `docker-compose.yml`
 - Backend and frontend Dockerfiles
 - A verified historical local Compose ModSecurity + OWASP CRS proof path through `localhost:8088`; the pair now requires the `technical-waf` profile
-- A demo-target WAF profile through `localhost:8089`; the profile is optional for normal developer startup, but required for the final realistic WAF demonstration. It builds `demo-portal` from the separate land-records portal repo path, runs it as an internal Compose service on port `3010`, and does not publish portal port `3010` to the host by default.
+- A demo-target WAF profile through `localhost:8089`; the profile is optional for normal developer startup, but required for the final realistic WAF demonstration. It builds `demo-portal` from a separate checkout of this repository's `stable/portal-pre-waf` branch, runs it as an internal Compose service on port `3010`, and does not publish portal port `3010` to the host by default.
 - Internal WAF event ingest route and JSONL bridge tooling
 
 ## Known architectural gaps

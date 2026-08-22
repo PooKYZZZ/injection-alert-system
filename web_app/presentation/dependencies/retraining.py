@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from ml_model.preprocessing.model_input import MODEL_INPUT_VERSION
 from ml_model.retraining.dashboard_contracts import (
     DATASET_MANIFEST_VERSION,
     canonical_json,
+    get_run_artifact_directory,
 )
 from ml_model.retraining.dashboard_export import EXPORTER_VERSION
 from web_app.application.retraining_control_use_case import RetrainingControlUseCase
@@ -40,6 +42,15 @@ from web_app.infrastructure.retraining_worker_supervisor import (
 )
 
 RETRAINING_SOURCE_DATASET_VERSION = "v3_907k_cleaned"
+RETRAINING_NATIVE_SOURCE_DATASET_VERSION = "v3_907k_cleaned_model_input_v2"
+
+
+def _source_dataset_version_for_mode(worker_mode: str) -> str:
+    if worker_mode == "smoke":
+        return RETRAINING_SOURCE_DATASET_VERSION
+    if worker_mode == "native":
+        return RETRAINING_NATIVE_SOURCE_DATASET_VERSION
+    raise ValueError("unsupported retraining worker mode")
 
 
 def get_retraining_settings() -> Settings:
@@ -100,6 +111,9 @@ def get_retraining_control_use_case(
             status_code=503,
             detail="Local retraining control is disabled.",
         )
+    source_dataset_version = _source_dataset_version_for_mode(
+        settings.retraining_worker_mode
+    )
 
     review_repository = TrafficLabelReviewRepository(db)
     artifact_repository = RetrainingRunArtifactRepository(
@@ -109,8 +123,8 @@ def get_retraining_control_use_case(
         request
     )
     source_dataset_digest = _cached_content_digest(
-        str(Path.cwd() / "data" / "processed" / RETRAINING_SOURCE_DATASET_VERSION),
-        f"dataset:{RETRAINING_SOURCE_DATASET_VERSION}:{DATASET_MANIFEST_VERSION}:{model_input_version}",
+        str(Path.cwd() / "data" / "processed" / source_dataset_version),
+        f"dataset:{source_dataset_version}:{DATASET_MANIFEST_VERSION}:{model_input_version}",
     )
     pipeline_fingerprint = _identity_digest(
         {
@@ -131,17 +145,47 @@ def get_retraining_control_use_case(
                 for candidate in candidates
                 if candidate.approval_state == "approved_for_training"
             ),
-            source_dataset_version=RETRAINING_SOURCE_DATASET_VERSION,
+            source_dataset_version=source_dataset_version,
             source_dataset_digest=source_dataset_digest,
             pipeline_fingerprint=pipeline_fingerprint,
             active_model_version=model_version,
             active_model_digest=active_model_digest,
             approved_sample_count=summary.approved,
+            review_candidates=tuple(candidates),
+            review_summary=summary,
         )
+
+    export_use_case = RetrainingExportUseCase(
+        review_repository,
+        output_root=artifact_repository.root,
+        source_dataset_version=source_dataset_version,
+        expected_preprocessing_version=model_input_version,
+    )
+
+    async def prepare_run(run_id: str, snapshot: RetrainingInputSnapshot) -> str:
+        run_directory = get_run_artifact_directory(artifact_repository.root, run_id)
+        export_path = run_directory / "export" / "export_manifest.json"
+        samples_path = run_directory / "export" / "approved_samples.jsonl"
+        if export_path.exists() or samples_path.exists():
+            if not export_path.is_file() or not samples_path.is_file():
+                raise ValueError("retraining export is incomplete")
+            payload = json.loads(export_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict) or payload.get("run_id") != run_id:
+                raise ValueError("retraining export identity is invalid")
+            status = payload.get("status")
+            if status not in {"READY", "EMPTY", "QUARANTINED_FOR_REVIEW"}:
+                raise ValueError("retraining export status is invalid")
+            return str(status)
+        result = await export_use_case.execute(
+            run_id=run_id,
+            candidates=snapshot.review_candidates,
+            review_summary=snapshot.review_summary,
+        )
+        return result.status
 
     process_runner = RetrainingProcessRunner(
         project_root=Path.cwd(),
-        smoke=True,
+        smoke=settings.retraining_worker_mode == "smoke",
         timeout_seconds=settings.retraining_worker_timeout_seconds,
     )
     supervisor = RetrainingWorkerSupervisor(
@@ -153,13 +197,8 @@ def get_retraining_control_use_case(
         artifact_repository,
         snapshot_provider=snapshot_provider,
         worker_supervisor=supervisor,
+        run_preparer=prepare_run,
         max_retries=settings.retraining_max_retries,
-    )
-    export_use_case = RetrainingExportUseCase(
-        review_repository,
-        output_root=artifact_repository.root,
-        source_dataset_version=RETRAINING_SOURCE_DATASET_VERSION,
-        expected_preprocessing_version=model_input_version,
     )
 
     def load_staging_model(path: Path, expected_version: str):

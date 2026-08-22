@@ -1,0 +1,19 @@
+{
+  "timestamp": "20260812_043931",
+  "dataset_version": "v3_907k_cleaned_model_input_v2",
+  "promotion_summary": {
+    "distilbert": {
+      "artifact_packaging_ready": true,
+      "quality_gates_passed": false,
+      "ready_for_promotion": false,
+      "gates": {
+        "artifact_packaging_pipeline_passed": true,
+        "local_reload_validated": true,
+        "quality_gates_passed": false
+      },
+      "temperature": 1.3604408502578735,
+      "git_hash": "bb2be4afb7a0d84df8c05a8b4217e6d55e97b297",
+      "run_dir": "distilbert_v3_907k_cleaned_20260312_133755"
+    }
+  }
+}

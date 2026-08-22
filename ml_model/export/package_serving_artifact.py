@@ -462,6 +462,8 @@ def build_manifest(
     actual_model: Any | None = None,
     confidence_thresholds: Mapping[str, float] | None = None,
     response_actions: Mapping[str, str] | None = None,
+    manifest_run_dir_name: str | None = None,
+    portable_artifact_paths: bool = False,
 ) -> dict[str, Any]:
     config_metadata = json.loads(config_used_path.read_text(encoding="utf-8"))
     preprocessing_version = validate_supported_model_input_version(
@@ -530,11 +532,15 @@ def build_manifest(
             "run_contract", {}
         ).get("dataset_file_manifest_sha256"),
         "base_model": base_model,
-        "run_dir_name": run_dir.name,
+        "run_dir_name": manifest_run_dir_name or run_dir.name,
         "run_dir_path": str(run_dir.resolve()),
         "checkpoint_file": checkpoint_path.name,
         "checkpoint_sha256": sha256_file(checkpoint_path),
-        "config_used_file": str(config_used_path.resolve()),
+        "config_used_file": (
+            config_used_path.name
+            if portable_artifact_paths
+            else str(config_used_path.resolve())
+        ),
         "config_used_sha256": sha256_file(config_used_path),
         "temperature": round(float(calibration.temperature), 6),
         "temperature_source_file": str(calibration.result_path),
@@ -578,6 +584,7 @@ def validate_packaged_artifact(
     manifest_path: Path,
     temperature_source_file: Path,
     sample_text: str,
+    expected_run_dir_name: str | None = None,
 ) -> None:
     for name in REQUIRED_CONFIG_FILES:
         if not (run_dir / name).exists():
@@ -645,7 +652,9 @@ def validate_packaged_artifact(
     pred_idx = int(torch.argmax(torch.tensor(probs)).item())
 
     manifest_payload = load_json(manifest_path)
-    if manifest_payload.get("run_dir_name") != run_dir.name:
+    if manifest_payload.get("run_dir_name") != (
+        expected_run_dir_name or run_dir.name
+    ):
         raise PackagingError(
             "Serving manifest run_dir_name does not match selected run."
         )
@@ -672,6 +681,8 @@ def package_serving_artifact(
     sample_text: str = DEFAULT_SAMPLE_TEXT,
     notes: str | None = None,
     calibration_eval_run_dir: Path | None = None,
+    run_dir_path: Path | None = None,
+    evaluation_root: Path | None = None,
     model_registry_path: Path | None = None,
     repo_root: Path | None = None,
     confidence_thresholds: Mapping[str, float] | None = None,
@@ -695,15 +706,41 @@ def package_serving_artifact(
         else repo_root / "ml_model" / "model_registry"
     )
     staging_dir = model_registry / "staging"
-    eval_dir = model_registry / "eval"
-
-    run_dir = resolve_run_dir(
-        staging_dir,
-        model_key,
-        run_dir_name,
-        discover_latest=discover_latest,
-        strict=strict,
+    eval_dir = (
+        Path(evaluation_root).expanduser().resolve()
+        if evaluation_root is not None
+        else model_registry / "eval"
     )
+
+    if run_dir_path is not None:
+        if discover_latest:
+            raise PackagingError(
+                "Explicit run_dir_path cannot be combined with run discovery"
+            )
+        raw_run_dir = Path(run_dir_path).expanduser()
+        if raw_run_dir.is_symlink():
+            raise PackagingError("Explicit serving run directory is invalid")
+        run_dir = raw_run_dir.resolve()
+        if not run_dir.is_dir():
+            raise PackagingError("Explicit serving run directory is invalid")
+        manifest_run_dir_name = run_dir_name or run_dir.name
+        if (
+            Path(manifest_run_dir_name).name != manifest_run_dir_name
+            or not manifest_run_dir_name.startswith(model_key + "_")
+        ):
+            raise PackagingError(
+                f"Run directory identity '{manifest_run_dir_name}' does not match "
+                f"model key '{model_key}'"
+            )
+    else:
+        run_dir = resolve_run_dir(
+            staging_dir,
+            model_key,
+            run_dir_name,
+            discover_latest=discover_latest,
+            strict=strict,
+        )
+        manifest_run_dir_name = run_dir.name
     ensure_required_run_files(run_dir)
     summary_path = run_dir / "summary_metrics.json"
     if training_summary_snapshot is None:
@@ -733,7 +770,7 @@ def package_serving_artifact(
     calibration = resolve_calibration_provenance(
         eval_dir,
         model_key=model_key,
-        run_dir_name=run_dir.name,
+        run_dir_name=manifest_run_dir_name,
         calibration_eval_run_dir=calibration_eval_run_dir,
     )
 
@@ -806,6 +843,8 @@ def package_serving_artifact(
         actual_model=model,
         confidence_thresholds=confidence_thresholds,
         response_actions=response_actions,
+        manifest_run_dir_name=manifest_run_dir_name,
+        portable_artifact_paths=run_dir_path is not None,
     )
 
     model.save_pretrained(run_dir)
@@ -820,6 +859,7 @@ def package_serving_artifact(
         manifest_path=manifest_path,
         temperature_source_file=calibration.result_path,
         sample_text=sample_text,
+        expected_run_dir_name=manifest_run_dir_name,
     )
 
     manifest["local_reload_verified"] = True

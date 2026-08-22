@@ -93,6 +93,7 @@ describe('BFF route handlers', () => {
       'ml-model/runs/[runId]/decision/route.ts',
       'ml-model/runs/[runId]/deploy/route.ts',
       'ml-model/runs/[runId]/rollback/route.ts',
+      'ml-model/runs/[runId]/retry/route.ts',
     ]
 
     for (const routeFile of routeFiles) {

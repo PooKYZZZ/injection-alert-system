@@ -25,6 +25,7 @@ REPO_ROOT = resolve_project_root()
 DEFAULT_RUNS_DIR = default_training_output_dir(project_root=REPO_ROOT)
 
 _SPLIT_FILENAMES = ("train.parquet", "validation.parquet", "test.parquet")
+_LEGACY_SOURCE_DATASET_VERSION = "v3_907k_cleaned"
 
 
 def _sha256_file(path: Path) -> str:
@@ -141,9 +142,16 @@ def validate_dataset_preprocessing(
 
     metadata = load_dataset_metadata(data_dir)
     actual_dataset_version = metadata.get("dataset_version")
-    legacy_dataset = expected_dataset_version == "v3_907k_cleaned" and (
+    legacy_dataset = expected_dataset_version == _LEGACY_SOURCE_DATASET_VERSION and (
         actual_dataset_version in {None, "SRBH_clean_v3.1.0", "v3_907k_cleaned"}
     )
+    dashboard_snapshot = (
+        actual_dataset_version == expected_dataset_version
+        and isinstance(expected_dataset_version, str)
+        and expected_dataset_version.startswith("dashboard-")
+        and metadata.get("source_dataset_version") == _LEGACY_SOURCE_DATASET_VERSION
+    )
+    legacy_dataset = legacy_dataset or dashboard_snapshot
     if actual_dataset_version != expected_dataset_version and not legacy_dataset:
         raise ValueError(
             f"Dataset version mismatch: requested {expected_dataset_version!r}, "

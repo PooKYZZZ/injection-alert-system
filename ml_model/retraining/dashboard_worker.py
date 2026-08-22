@@ -186,6 +186,11 @@ class DashboardWorker:
                     )
                     break
                 except subprocess.TimeoutExpired:
+                    # The pipeline child may be in native training for most of
+                    # the worker timeout. Refresh the durable run heartbeat as
+                    # well as the host lock so a healthy long run is not
+                    # recovered as stale while the child is still alive.
+                    self._heartbeat(run.run_id)
                     self._refresh_lock(lock)
             if return_code == 20:
                 raise PipelineFailure(

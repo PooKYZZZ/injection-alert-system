@@ -35,7 +35,7 @@ checklist and handoff material.
 - `LIVING_CHECKLIST.md`
   - operational execution checklist and handoff material
 - `DEMO_TARGET_WAF_PROOF.md`
-  - verified local PD2 proof for the realistic `localhost:8089 -> demo-target-modsecurity -> demo-target-app` WAF path and `demo-target-bridge` ingest
+  - verified local PD2 proof for the realistic `localhost:8089 -> demo-target-modsecurity -> demo-portal` WAF path and `demo-target-bridge` ingest
 - `SMOKE_TEST_RUNBOOK.md`
   - canonical smoke commands for normal Docker checks, the `8088` technical WAF proof path, and the `8089` final realistic demo-target path
 - `../../reports/modsecurity-live-proof/e2e-proof.md`

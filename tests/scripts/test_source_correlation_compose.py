@@ -115,9 +115,16 @@ def test_demo_portal_receives_internal_shadow_check_wiring() -> None:
         "http://backend:8000/api/internal/enforcement/check"
     )
     assert portal["environment"]["ENFORCEMENT_MODE"] == "off"
+    assert portal["environment"]["DATABASE_URL"] == "file:./prisma/dev.db"
     assert "ENFORCEMENT_CHECK_API_KEY" in portal["environment"]
     assert "ENFORCEMENT_CHECK_TIMEOUT_MS" in portal["environment"]
     assert "ports" not in portal
+    assert "injection-alert-system-portal-pre-waf" in portal["build"]["context"]
+    assert any(
+        "injection-alert-system-portal-pre-waf" in mount["source"]
+        and mount["target"] == "/app/prisma"
+        for mount in portal["volumes"]
+    )
 
 
 def test_local_collection_overlay_captures_benign_events_without_changing_default():
