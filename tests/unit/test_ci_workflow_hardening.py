@@ -17,6 +17,22 @@ def test_all_external_actions_are_pinned_to_full_commit_shas() -> None:
     assert all(FULL_SHA_ACTION.search(line) for line in action_lines)
 
 
+def test_ci_uses_node24_action_runtime_releases() -> None:
+    source = "\n".join(
+        workflow.read_text(encoding="utf-8")
+        for workflow in WORKFLOWS
+    )
+
+    assert (
+        "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
+        " # v7.0.0"
+    ) in source
+    assert (
+        "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
+        " # v7.0.0"
+    ) in source
+
+
 def test_ci_jobs_have_bounded_timeouts() -> None:
     source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
 
