@@ -71,7 +71,7 @@ def test_local_compose_uses_an_explicit_postgres_database():
     services = config["services"]
     assert "postgres" in services
     assert services["backend"]["environment"]["DATABASE_URL"] == (
-        "postgresql+asyncpg://cybertrace:cybertrace-local-password@postgres:5432/"
+        "postgresql+asyncpg://cybertrace:review-local-postgres-password@postgres:5432/"
         "cybertrace"
     )
     assert services["backend"]["depends_on"]["postgres"]["condition"] == (
@@ -139,6 +139,7 @@ def _merged_compose(*files: str) -> dict:
     environment.update(
         {
             "PR7_BLOCK3B_POSTGRES_PASSWORD": "reviewdbpassword",
+            "LOCAL_POSTGRES_PASSWORD": "review-local-postgres-password",
             "WAF_INGEST_API_KEY": "review-ingest",
             "WAF_AUDIT_EVIDENCE_KEY": "review-audit",
             "WAF_STATE_SYNC_API_KEY": "review-sync",

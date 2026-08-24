@@ -222,6 +222,8 @@ dashboard checks, and triage persistence.
 - `.env` exists at the repo root with a valid local/disposable `DATABASE_URL`.
   Do not point this smoke stack at hosted Supabase unless an explicitly
   authorized operator procedure requires it.
+- `LOCAL_POSTGRES_PASSWORD` is set in the ignored root `.env`; the local
+  overlay refuses to start without it.
 - `frontend/.env.local` exists with valid values (see `docs/SETUP.md` for the template).
 
 ---

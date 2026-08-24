@@ -204,6 +204,10 @@ The local overlay supplies an isolated PostgreSQL service and takes precedence
 over any `DATABASE_URL` in the ignored root `.env`. Start the historical
 technical WAF proof pair explicitly with the same overlay:
 
+Set `LOCAL_POSTGRES_PASSWORD` in the ignored root `.env` first. The overlay
+requires that value and does not store a reusable database password in the
+repository.
+
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
 ```

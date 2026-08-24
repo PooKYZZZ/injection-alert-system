@@ -595,6 +595,9 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 The base backend startup checks the database target before running Alembic and
 refuses remote hosts. Hosted Supabase migrations are separate, explicit
 operator work and are never part of the normal local Compose command.
+Set `LOCAL_POSTGRES_PASSWORD` in the ignored root `.env` before using this
+overlay. Compose fails closed when it is empty; the tracked Compose files do
+not contain a reusable database password.
 
 Expected services:
 
