@@ -26,6 +26,7 @@ import type {
 } from './types'
 import { isRetrainingRunActive } from './contract'
 import type { RetrainingDecision } from './contract'
+import { getBrowserTimeZone } from '@/lib/time-zone'
 
 export const mlModelKeys = {
   all: ['ml-model'] as const,
@@ -69,7 +70,10 @@ async function postJson<T>(
 ): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requester-Timezone': getBrowserTimeZone(),
+    },
     body: JSON.stringify(body),
   })
 

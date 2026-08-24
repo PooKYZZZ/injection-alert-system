@@ -75,6 +75,55 @@ describe('bff-client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('forwards an explicitly supplied requester timezone instead of the server timezone', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          run_id: 'retrain-20260811T120000Z-000000000001',
+          state: 'queued',
+          stage: 'queued',
+          created: true,
+          attempt: 0,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { startRetrainingRun } = await loadClient()
+    const result = await startRetrainingRun(
+      { trigger: 'manual' },
+      { id: 'analyst-1', role: 'ANALYST' },
+      'America/New_York'
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/retraining/runs',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Requester-Timezone': 'America/New_York',
+        }),
+      })
+    )
+  })
+
+  it('rejects an invalid requester timezone before calling the backend', async () => {
+    const { startRetrainingRun } = await loadClient()
+
+    const result = await startRetrainingRun(
+      { trigger: 'manual' },
+      { id: 'analyst-1', role: 'ANALYST' },
+      'not/a-real-timezone'
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: { code: 'INVALID_REQUEST', message: 'Requester timezone is invalid.' },
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('propagates the authenticated actor for retraining run reads', async () => {
     const run = {
       run_id: 'retrain-20260811T120000Z-000000000001',

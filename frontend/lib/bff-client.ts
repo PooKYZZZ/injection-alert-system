@@ -737,6 +737,7 @@ async function fetchRetrainingUpstream<T>(
     method: 'POST' | 'GET'
     body?: unknown
     actor?: RetrainingActor
+    requesterTimeZone?: string
   }
 ): Promise<BffResult<T>> {
   const config = getUpstreamConfig()
@@ -754,9 +755,9 @@ async function fetchRetrainingUpstream<T>(
         Authorization: `Bearer ${config.data.apiKey}`,
         'Content-Type': 'application/json',
         ...actorHeaders(options.actor),
-        ...(options.method === 'POST'
+        ...(options.requesterTimeZone
           ? {
-              'X-Requester-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+              'X-Requester-Timezone': options.requesterTimeZone,
             }
           : {}),
       },
@@ -808,14 +809,20 @@ export async function exportRetrainingSamples(
 
 export async function startRetrainingRun(
   input: unknown,
-  actor: RetrainingActor
+  actor: RetrainingActor,
+  requesterTimeZone?: string
 ): Promise<BffResult<RetrainingRunStart>> {
   const parsed = RetrainingRunRequestSchema.safeParse(input)
   if (!parsed.success) return err(400, 'INVALID_REQUEST', 'Invalid retraining request.')
+  const normalizedTimeZone = requesterTimeZone?.trim() || 'UTC'
+  if (!isValidTimeZone(normalizedTimeZone)) {
+    return err(400, 'INVALID_REQUEST', 'Requester timezone is invalid.')
+  }
   return fetchRetrainingUpstream('/api/retraining/runs', RetrainingRunStartSchema, {
     method: 'POST',
     body: parsed.data,
     actor,
+    requesterTimeZone: normalizedTimeZone,
   })
 }
 

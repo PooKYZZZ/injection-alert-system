@@ -1,4 +1,5 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
+import { getBrowserTimeZone } from '@/lib/time-zone'
 import { DashboardStats } from './types'
 
 /*
@@ -16,10 +17,6 @@ import { DashboardStats } from './types'
 export const statsKeys = {
   all: ['stats'] as const,
   stats: (window?: string, timezone?: string) => ['stats', 'dashboard', { window, timezone }] as const,
-}
-
-function getBrowserTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
 export function statsOptions(window?: string, timezone = getBrowserTimeZone()) {
