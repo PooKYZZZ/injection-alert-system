@@ -117,8 +117,8 @@ type BackendTargetPath = {
 
 type BackendStatsPayload = {
   total_requests: number
-  counts_by_confidence_tier?: Record<string, number>
-  non_normal_counts_by_confidence_tier?: Record<string, number>
+  counts_by_confidence_tier?: Record<string, number> | null
+  non_normal_counts_by_confidence_tier?: Record<string, number> | null
   counts_by_label: {
     'SQL Injection': number
     'Code Injection': number
@@ -146,8 +146,8 @@ type BackendStatsPayload = {
 
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
-  counts_by_confidence_tier: z.record(z.string(), z.number()).optional(),
-  non_normal_counts_by_confidence_tier: z.record(z.string(), z.number()).optional(),
+  counts_by_confidence_tier: z.record(z.string(), z.number()).nullable().optional(),
+  non_normal_counts_by_confidence_tier: z.record(z.string(), z.number()).nullable().optional(),
   counts_by_label: z.object({
     'SQL Injection': z.number(),
     'Code Injection': z.number(),
@@ -471,8 +471,10 @@ type NormalizedBucket = DashboardStats['activity_buckets'][number] & {
 }
 
 function normalizeConfidenceBandCounts(
-  value: Record<string, number> | undefined
-): ConfidenceBandCounts {
+  value: Record<string, number> | null | undefined
+): ConfidenceBandCounts | null {
+  if (value == null) return null
+
   return {
     critical: value?.CRITICAL ?? value?.critical ?? 0,
     high: value?.HIGH ?? value?.high ?? 0,
@@ -487,7 +489,8 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
     (payload.counts_by_label['Code Injection'] ?? 0) +
     (payload.counts_by_label['Other Attacks'] ?? 0)
 
-  // Normalize new fields with safe defaults for staged rollout
+  // Keep optional aggregate fields unavailable until the backend supplies them.
+  // Missing data must not look like a valid all-zero window.
   const throttledCount = payload.throttled_count ?? 0
   const attackDistribution = payload.attack_distribution ?? {}
   const topSourceIps = (payload.top_source_ips ?? []).map((ip) => ({

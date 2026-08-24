@@ -32,8 +32,8 @@ export interface ConfidenceBandCounts {
 export interface DashboardStats {
   actionable_alerts: number
   total_requests: number
-  counts_by_confidence_tier: ConfidenceBandCounts
-  non_normal_counts_by_confidence_tier: ConfidenceBandCounts
+  counts_by_confidence_tier: ConfidenceBandCounts | null
+  non_normal_counts_by_confidence_tier: ConfidenceBandCounts | null
   avg_inference_latency_ms: number
   blocked_count: number
   allowed_count: number

@@ -31,20 +31,29 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
       ? deepLinkedAlert ?? null
       : null)
 
-  const handleTriageUpdated = useCallback((updatedAlert: Alert) => {
-    setManualSelectedAlert(updatedAlert)
-  }, [])
-
-  const handleActionUpdated = useCallback((updatedAlert: Alert) => {
-    setManualSelectedAlert(updatedAlert)
-  }, [])
-
-  const handleReviewUpdated = useCallback((review: LabelReview) => {
+  const mergeSelectedAlert = useCallback((alertId: string, patch: Partial<Alert>) => {
     setManualSelectedAlert((current) => {
       const baseAlert = current ?? selectedAlert
-      return baseAlert ? { ...baseAlert, label_review: review } : current
+      if (!baseAlert || baseAlert.alert_id !== alertId) return current
+      return { ...baseAlert, ...patch }
     })
   }, [selectedAlert])
+
+  const handleTriageUpdated = useCallback((updatedAlert: Alert) => {
+    mergeSelectedAlert(updatedAlert.alert_id, {
+      triage_status: updatedAlert.triage_status,
+    })
+  }, [mergeSelectedAlert])
+
+  const handleActionUpdated = useCallback((updatedAlert: Alert) => {
+    mergeSelectedAlert(updatedAlert.alert_id, {
+      action_taken: updatedAlert.action_taken,
+    })
+  }, [mergeSelectedAlert])
+
+  const handleReviewUpdated = useCallback((alertId: string, review: LabelReview) => {
+    mergeSelectedAlert(alertId, { label_review: review })
+  }, [mergeSelectedAlert])
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setSelectedIds(new Set(ids))

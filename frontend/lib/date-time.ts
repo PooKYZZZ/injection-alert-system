@@ -58,7 +58,7 @@ export function formatRelativeTime(
   if (days < 30) return `${prefix}${days}day${days === 1 ? '' : 's'}${suffix}`
 
   const months = Math.floor(days / 30)
-  if (months < 12) return `${prefix}${months}month${months === 1 ? '' : 's'}${suffix}`
+  if (days < 365) return `${prefix}${months}month${months === 1 ? '' : 's'}${suffix}`
 
   const years = Math.floor(days / 365)
   return `${prefix}${years}year${years === 1 ? '' : 's'}${suffix}`

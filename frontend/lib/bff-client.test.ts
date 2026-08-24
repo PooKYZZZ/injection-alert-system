@@ -709,6 +709,37 @@ describe('bff-client', () => {
     })
   })
 
+  it('preserves missing confidence aggregates as unavailable instead of zero counts', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 321,
+          counts_by_label: {
+            'SQL Injection': 2,
+            'Code Injection': 1,
+            'Other Attacks': 3,
+            Normal: 10,
+          },
+          avg_inference_latency_ms: 4.5,
+          blocked_count: 4,
+          allowed_count: 2,
+          avg_confidence: 0.82,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.counts_by_confidence_tier).toBeNull()
+      expect(result.data.non_normal_counts_by_confidence_tier).toBeNull()
+    }
+  })
+
   it('propagates window parameter when fetching stats', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

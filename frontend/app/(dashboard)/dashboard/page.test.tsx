@@ -46,13 +46,17 @@ vi.mock('@/components/dashboard/AttackTypePanel', () => ({
   ),
 }))
 vi.mock('@/components/dashboard/MLConfidenceBands', () => ({
-  MLConfidenceBands: ({ high, critical, medium, low }: { high: number; critical: number; medium: number; low: number }) => (
-    <div data-testid="confidence-bands">Confidence bands: {critical}/{high}/{medium}/{low}</div>
+  MLConfidenceBands: ({ high, critical, medium, low, unavailable }: { high: number; critical: number; medium: number; low: number; unavailable?: boolean }) => (
+    <div data-testid="confidence-bands">
+      {unavailable ? 'Confidence bands unavailable' : `Confidence bands: ${critical}/${high}/${medium}/${low}`}
+    </div>
   ),
 }))
 vi.mock('@/components/dashboard/MLEnforcementMap', () => ({
-  MLEnforcementMap: ({ nonNormalCounts }: { nonNormalCounts: { critical: number; high: number; medium: number; low: number } }) => (
-    <div data-testid="enforcement-map">Enforcement map: {nonNormalCounts.critical}/{nonNormalCounts.high}/{nonNormalCounts.medium}/{nonNormalCounts.low}</div>
+  MLEnforcementMap: ({ nonNormalCounts, unavailable }: { nonNormalCounts: { critical: number; high: number; medium: number; low: number }; unavailable?: boolean }) => (
+    <div data-testid="enforcement-map">
+      {unavailable ? 'Enforcement map unavailable' : `Enforcement map: ${nonNormalCounts.critical}/${nonNormalCounts.high}/${nonNormalCounts.medium}/${nonNormalCounts.low}`}
+    </div>
   ),
 }))
 vi.mock('@/components/dashboard/TopSourceIPs', () => ({
@@ -168,6 +172,24 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('1/2/3/4')
     expect(screen.getByTestId('enforcement-map')).toHaveTextContent('5/6/7/8')
+  })
+
+  it('does not present missing confidence aggregates as zero-count data', () => {
+    useDashboardStats.mockReturnValue({
+      data: {
+        ...stats,
+        counts_by_confidence_tier: null,
+        non_normal_counts_by_confidence_tier: null,
+      },
+      isPending: false,
+    })
+
+    render(<DashboardPage />)
+
+    expect(screen.getByTestId('confidence-bands')).toHaveTextContent('Confidence bands unavailable')
+    expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map unavailable')
+    expect(screen.queryByText('Confidence bands: 0/0/0/0')).not.toBeInTheDocument()
+    expect(screen.queryByText('Enforcement map: 0/0/0/0')).not.toBeInTheDocument()
   })
 
   it('surfaces dashboard query errors without removing the dashboard shell', () => {

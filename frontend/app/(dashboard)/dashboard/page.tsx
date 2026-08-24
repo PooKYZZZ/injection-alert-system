@@ -119,9 +119,9 @@ export default function DashboardPage() {
   // alerts query is intentionally only a small recent preview and must not be
   // used as the source for Dashboard totals.
   const attackCounts = stats?.attack_distribution ?? {}
-  const allConfidenceBands = stats?.counts_by_confidence_tier ?? emptyConfidenceBandCounts()
+  const allConfidenceBands = stats?.counts_by_confidence_tier ?? null
   const nonNormalEnforcementBands =
-    stats?.non_normal_counts_by_confidence_tier ?? emptyConfidenceBandCounts()
+    stats?.non_normal_counts_by_confidence_tier ?? null
 
   const summaryWindowTotal = stats?.total_requests ?? 0
 
@@ -384,11 +384,12 @@ export default function DashboardPage() {
                 ML confidence bands
               </div>
               <MLConfidenceBands
-                critical={allConfidenceBands.critical}
-                high={allConfidenceBands.high}
-                medium={allConfidenceBands.medium}
-                low={allConfidenceBands.low}
+                critical={allConfidenceBands?.critical ?? 0}
+                high={allConfidenceBands?.high ?? 0}
+                medium={allConfidenceBands?.medium ?? 0}
+                low={allConfidenceBands?.low ?? 0}
                 isPending={statsPending}
+                unavailable={allConfidenceBands == null}
               />
 
               <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
@@ -401,8 +402,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <MLEnforcementMap
-                  nonNormalCounts={nonNormalEnforcementBands}
+                  nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
                   isPending={statsPending}
+                  unavailable={nonNormalEnforcementBands == null}
                 />
               </div>
             </motion.div>

@@ -47,8 +47,8 @@ vi.mock('./AlertDrawer', () => ({
       label_review?: { verified_label: string } | null
     } | null
     onTriageUpdated?: (updatedAlert: { alert_id: string; triage_status: string }) => void
-    onActionUpdated?: (updatedAlert: { alert_id: string; action_taken: string }) => void
-    onReviewUpdated?: (review: { verified_label: string }) => void
+    onActionUpdated?: (updatedAlert: { alert_id: string; action_taken: string; triage_status?: string | null }) => void
+    onReviewUpdated?: (alertId: string, review: { verified_label: string }) => void
   }) => (
     <div data-testid="alert-drawer">
       {alert ? `drawer:${alert.alert_id}:${alert.label_review?.verified_label ?? 'none'}` : 'closed'}
@@ -59,7 +59,7 @@ vi.mock('./AlertDrawer', () => ({
           <button
             type="button"
             data-testid="apply-review"
-            onClick={() => onReviewUpdated?.({ verified_label: 'Normal' })}
+            onClick={() => onReviewUpdated?.(alert.alert_id, { verified_label: 'Normal' })}
           >
             apply review
           </button>
@@ -76,6 +76,13 @@ vi.mock('./AlertDrawer', () => ({
             onClick={() => onActionUpdated?.({ ...alert, action_taken: 'ALLOWED' })}
           >
             apply action
+          </button>
+          <button
+            type="button"
+            data-testid="apply-action-stale"
+            onClick={() => onActionUpdated?.({ ...alert, triage_status: 'new', action_taken: 'ALLOWED' })}
+          >
+            apply stale action
           </button>
         </>
       )}
@@ -120,6 +127,21 @@ describe('AlertsPageClient deep links', () => {
     screen.getByTestId('apply-triage').click()
 
     await waitFor(() => expect(screen.getByTestId('drawer-triage')).toHaveTextContent('in_review'))
+  })
+
+  it('merges concurrent triage and action updates instead of restoring a stale field', async () => {
+    render(<AlertsPageClient role="ADMIN" />)
+
+    await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591'))
+    screen.getByTestId('apply-triage').click()
+    await waitFor(() => expect(screen.getByTestId('drawer-triage')).toHaveTextContent('in_review'))
+
+    screen.getByTestId('apply-action-stale').click()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drawer-triage')).toHaveTextContent('in_review')
+      expect(screen.getByTestId('drawer-action')).toHaveTextContent('ALLOWED')
+    })
   })
 
   it('updates the selected drawer snapshot after a recorded outcome succeeds', async () => {

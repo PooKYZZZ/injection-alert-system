@@ -316,7 +316,7 @@ describe('AlertDrawer', () => {
     const [, options] = labelReviewMutateMock.mock.calls[0]
     options.onSuccess(review)
 
-    expect(onReviewUpdated).toHaveBeenCalledWith(review)
+    expect(onReviewUpdated).toHaveBeenCalledWith(alertFixture.alert_id, review)
   })
 
   it('makes the drawer content vertically scrollable', () => {

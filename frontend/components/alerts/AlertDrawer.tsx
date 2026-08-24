@@ -18,7 +18,7 @@ interface AlertDrawerProps {
   onClose: () => void
   onTriageUpdated?: (alert: Alert) => void
   onActionUpdated?: (alert: Alert) => void
-  onReviewUpdated?: (review: LabelReview) => void
+  onReviewUpdated?: (alertId: string, review: LabelReview) => void
 }
 
 function formatTriageLabel(status: TriageStatus | null | undefined): string {
@@ -114,7 +114,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
         approvalState,
         reviewNote: reviewNote || undefined,
       }, {
-        onSuccess: (review) => onReviewUpdated?.(review),
+        onSuccess: (review) => onReviewUpdated?.(alert.alert_id, review),
       })
     }
   }
