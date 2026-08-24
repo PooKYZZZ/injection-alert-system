@@ -26,6 +26,119 @@ def test_backend_compose_exposes_the_opt_in_training_dependency_build_arg():
     assert "INSTALL_TRAINING_REQUIREMENTS: ${INSTALL_TRAINING_REQUIREMENTS:-false}" in compose
 
 
+def test_backend_compose_guards_migrations_before_startup():
+    compose = (ROOT / "docker-compose.yml").read_text()
+
+    assert "python -m scripts.safe_local_migrate" in compose
+    assert "alembic upgrade head && uvicorn" not in compose
+
+
+def test_hosted_compose_starts_without_local_migration_guard():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.hosted-target.yml",
+    )
+
+    command = config["services"]["backend"]["command"]
+    assert command == [
+        "sh",
+        "-c",
+        "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+    ]
+    assert "safe_local_migrate" not in " ".join(command)
+
+
+def test_cloudflare_target_compose_starts_without_local_migration_guard():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+    )
+
+    command = config["services"]["backend"]["command"]
+    assert command == [
+        "sh",
+        "-c",
+        "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+    ]
+    assert "safe_local_migrate" not in " ".join(command)
+
+
+def test_local_compose_uses_an_explicit_postgres_database():
+    config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
+
+    services = config["services"]
+    assert "postgres" in services
+    assert services["backend"]["environment"]["DATABASE_URL"] == (
+        "postgresql+asyncpg://cybertrace:review-local-postgres-password@postgres:5432/"
+        "cybertrace"
+    )
+    assert services["backend"]["depends_on"]["postgres"]["condition"] == (
+        "service_healthy"
+    )
+    assert services["postgres"].get("ports", []) == []
+
+
+def test_full_local_stack_launcher_uses_the_local_database_overlay():
+    script = (ROOT / "scripts" / "rebuild_full_local_stack.ps1").read_text()
+
+    assert '"-f", "docker-compose.local.yml"' in script
+
+
+def test_application_services_wait_for_backend_readiness():
+    config = _merged_compose("docker-compose.yml")
+
+    services = config["services"]
+    assert services["frontend"]["depends_on"]["backend"]["condition"] == (
+        "service_healthy"
+    )
+    assert services["pr7-waf"]["depends_on"]["backend"]["condition"] == (
+        "service_healthy"
+    )
+
+
+def test_frontend_has_a_runtime_readiness_check():
+    config = _merged_compose("docker-compose.yml")
+
+    healthcheck = config["services"]["frontend"]["healthcheck"]
+    assert healthcheck["test"][0] == "CMD"
+    assert "http://127.0.0.1:3000/login" in " ".join(healthcheck["test"])
+
+
+def test_frontend_image_uses_standalone_non_root_runtime():
+    next_config = (ROOT / "frontend" / "next.config.ts").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "output: 'standalone'" in next_config
+    assert dockerfile.count("FROM node:24-alpine") >= 3
+    assert (
+        "COPY --from=builder --chown=node:node /app/.next/standalone ./" in dockerfile
+    )
+    assert "USER node" in dockerfile
+    assert 'CMD ["node", "server.js"]' in dockerfile
+
+
+def test_backend_image_runs_non_root_with_owned_runtime_directories():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "useradd --no-log-init" in dockerfile
+    assert "runtime" in dockerfile
+    assert "ml_model/results/dashboard_retraining" in dockerfile
+    assert "ml_model/model_registry/staging" in dockerfile
+    assert "ml_model/model_registry/archive" in dockerfile
+    assert "USER cybertrace" in dockerfile
+    assert "DATABASE_URL=sqlite+aiosqlite:///./runtime/injection_alerts.db" in env_example
+
+
+def test_default_sqlite_runtime_directory_exists_in_a_clean_checkout():
+    runtime_dir = ROOT / "runtime"
+
+    assert runtime_dir.is_dir()
+    assert (runtime_dir / ".gitkeep").is_file()
+
+
 def _merged_compose(*files: str) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker is required for merged Compose contract tests")
@@ -33,6 +146,7 @@ def _merged_compose(*files: str) -> dict:
     environment.update(
         {
             "PR7_BLOCK3B_POSTGRES_PASSWORD": "reviewdbpassword",
+            "LOCAL_POSTGRES_PASSWORD": "review-local-postgres-password",
             "WAF_INGEST_API_KEY": "review-ingest",
             "WAF_AUDIT_EVIDENCE_KEY": "review-audit",
             "WAF_STATE_SYNC_API_KEY": "review-sync",
@@ -41,6 +155,8 @@ def _merged_compose(*files: str) -> dict:
             "ENFORCEMENT_TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
             "ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME": "localhost",
             "CLOUDFLARE_TARGET_VERIFIED_PROOF": "true",
+            "APP_ENV": "staging",
+            "HOSTED_WAF_TRUSTED_PEER": "172.30.20.2/32",
             "CLOUDFLARED_TARGET_TOKEN_FILE": str(
                 ROOT / "docs/project-ops/PR7_Sections_3B_3C_Implementation_Design.md"
             ),
@@ -57,6 +173,8 @@ def _merged_compose(*files: str) -> dict:
             "target-cloudflare",
             "--profile",
             "pr7-block3",
+            "--profile",
+            "pr7-local-waf",
             "config",
             "--format",
             "json",

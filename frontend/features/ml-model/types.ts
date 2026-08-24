@@ -81,8 +81,8 @@ export interface RetrainingMetricEvidence {
 export interface RetrainingEvidenceSummary {
   preprocessing_version: string | null
   evaluation_split: string | null
-  evaluation_status: 'PASS' | 'FAIL' | 'NOT_RUN' | 'NOT_ENOUGH_EVIDENCE'
-  comparison_status: 'PASS' | 'FAIL' | 'NOT_RUN' | 'NOT_ENOUGH_EVIDENCE'
+  evaluation_status: 'PASS' | 'FAIL' | 'NOT_RUN' | 'NOT_ENOUGH_EVIDENCE' | 'INVALID'
+  comparison_status: 'PASS' | 'FAIL' | 'NOT_RUN' | 'NOT_ENOUGH_EVIDENCE' | 'INVALID'
   metrics: RetrainingMetricEvidence[]
 }
 

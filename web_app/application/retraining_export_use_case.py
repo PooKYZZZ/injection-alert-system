@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
-from collections.abc import Sequence
 
 from ml_model.preprocessing.model_input import MODEL_INPUT_VERSION
 from ml_model.retraining.dashboard_contracts import DEFAULT_RETRAINING_RESULTS_ROOT
@@ -13,8 +14,8 @@ from ml_model.retraining.dashboard_export import (
     ExportLimits,
     export_dashboard_reviews,
 )
-from web_app.domain.interfaces import ITrafficLabelReviewRepository
 from web_app.domain.interfaces import (
+    ITrafficLabelReviewRepository,
     RetrainingReviewCandidate,
     RetrainingReviewSummary,
 )
@@ -72,10 +73,13 @@ class RetrainingExportUseCase:
         if summary is None:
             summary = await self._repository.get_retraining_review_summary()
         if selected_candidates is None:
-            selected_candidates = await self._repository.list_latest_retraining_candidates(
-                limit=int(limit)
+            selected_candidates = (
+                await self._repository.list_latest_retraining_candidates(
+                    limit=int(limit)
+                )
             )
-        return export_dashboard_reviews(
+        return await asyncio.to_thread(
+            export_dashboard_reviews,
             selected_candidates,
             run_id=run_id,
             output_root=self._output_root,

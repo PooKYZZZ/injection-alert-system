@@ -130,6 +130,38 @@ describe('ML Model retraining BFF routes', () => {
     expect(startRetrainingRunMock).not.toHaveBeenCalled()
   })
 
+  it('forwards the requester browser timezone when starting a run', async () => {
+    startRetrainingRunMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        run_id: runId,
+        state: 'queued',
+        stage: 'queued',
+        created: true,
+        attempt: 0,
+      },
+    })
+    const { POST } = await import('./ml-model/runs/route')
+
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/ml-model/runs', {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3000',
+          'X-Requester-Timezone': 'America/New_York',
+        },
+        body: JSON.stringify({ trigger: 'manual' }),
+      })
+    )
+
+    expect(response.status).toBe(202)
+    expect(startRetrainingRunMock).toHaveBeenCalledWith(
+      { trigger: 'manual' },
+      { id: accountId, role: ROLES.ADMIN },
+      'America/New_York'
+    )
+  })
+
   it('requires administrator permission for decisions', async () => {
     authMock.mockResolvedValueOnce(session(ROLES.ANALYST))
     setCurrentAccount(ROLES.ANALYST)

@@ -19,6 +19,7 @@ class ThreatNotificationSettings(Protocol):
     threat_telegram_enabled: bool
     telegram_available: bool
     telegram_chat_id: str | None
+    notification_timezone: str
     dashboard_base_url: str
 
 
@@ -132,6 +133,7 @@ async def _enqueue_telegram_threat_safely(
         request_path=request_path,
         dashboard_base_url=settings.dashboard_base_url,
         recipient=settings.telegram_chat_id,
+        display_timezone=settings.notification_timezone,
     )
     try:
         created = await repository.enqueue(notification)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -10,6 +11,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ml_model.preprocessing.model_input import MODEL_INPUT_VERSION
+from ml_model.project_paths import PROJECT_ROOT, project_path
 from ml_model.retraining.dashboard_contracts import (
     DATASET_MANIFEST_VERSION,
     canonical_json,
@@ -89,6 +91,22 @@ def _active_model_identity(request: Request) -> tuple[str, str, str]:
     )
 
 
+def _existing_export_status(run_directory: Path, run_id: str) -> str | None:
+    export_path = run_directory / "export" / "export_manifest.json"
+    samples_path = run_directory / "export" / "approved_samples.jsonl"
+    if not export_path.exists() and not samples_path.exists():
+        return None
+    if not export_path.is_file() or not samples_path.is_file():
+        raise ValueError("retraining export is incomplete")
+    payload = json.loads(export_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("run_id") != run_id:
+        raise ValueError("retraining export identity is invalid")
+    status = payload.get("status")
+    if status not in {"READY", "EMPTY", "QUARANTINED_FOR_REVIEW"}:
+        raise ValueError("retraining export status is invalid")
+    return str(status)
+
+
 def get_retraining_control_use_case(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -105,13 +123,13 @@ def get_retraining_control_use_case(
 
     review_repository = TrafficLabelReviewRepository(db)
     artifact_repository = RetrainingRunArtifactRepository(
-        settings.retraining_output_root
+        project_path(settings.retraining_output_root)
     )
     model_version, model_input_version, active_model_digest = _active_model_identity(
         request
     )
     source_dataset_digest = _content_digest(
-        Path.cwd() / "data" / "processed" / source_dataset_version
+        project_path(Path("data") / "processed" / source_dataset_version)
     )
     pipeline_fingerprint = _identity_digest(
         {
@@ -151,18 +169,11 @@ def get_retraining_control_use_case(
 
     async def prepare_run(run_id: str, snapshot: RetrainingInputSnapshot) -> str:
         run_directory = get_run_artifact_directory(artifact_repository.root, run_id)
-        export_path = run_directory / "export" / "export_manifest.json"
-        samples_path = run_directory / "export" / "approved_samples.jsonl"
-        if export_path.exists() or samples_path.exists():
-            if not export_path.is_file() or not samples_path.is_file():
-                raise ValueError("retraining export is incomplete")
-            payload = json.loads(export_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict) or payload.get("run_id") != run_id:
-                raise ValueError("retraining export identity is invalid")
-            status = payload.get("status")
-            if status not in {"READY", "EMPTY", "QUARANTINED_FOR_REVIEW"}:
-                raise ValueError("retraining export status is invalid")
-            return str(status)
+        existing_status = await asyncio.to_thread(
+            _existing_export_status, run_directory, run_id
+        )
+        if existing_status is not None:
+            return existing_status
         result = await export_use_case.execute(
             run_id=run_id,
             candidates=snapshot.review_candidates,
@@ -171,7 +182,7 @@ def get_retraining_control_use_case(
         return result.status
 
     process_runner = RetrainingProcessRunner(
-        project_root=Path.cwd(),
+        project_root=PROJECT_ROOT,
         smoke=settings.retraining_worker_mode == "smoke",
         timeout_seconds=settings.retraining_worker_timeout_seconds,
     )
@@ -210,8 +221,8 @@ def get_retraining_control_use_case(
         return service
 
     staging_adapter = LocalStagingAdapter(
-        staging_root=Path.cwd() / settings.retraining_staging_root,
-        archive_root=Path.cwd() / settings.retraining_staging_archive_root,
+        staging_root=project_path(settings.retraining_staging_root),
+        archive_root=project_path(settings.retraining_staging_archive_root),
         load_validator=load_staging_model,
         reload_callback=reload_staging_model,
     )

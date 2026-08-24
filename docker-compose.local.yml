@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cybertrace
+      POSTGRES_USER: cybertrace
+      POSTGRES_PASSWORD: ${LOCAL_POSTGRES_PASSWORD:?Set LOCAL_POSTGRES_PASSWORD in the ignored root .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cybertrace -d cybertrace"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - cybertrace-local-postgres:/var/lib/postgresql/data
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cybertrace:${LOCAL_POSTGRES_PASSWORD:?Set LOCAL_POSTGRES_PASSWORD in the ignored root .env}@postgres:5432/cybertrace
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  cybertrace-local-postgres:

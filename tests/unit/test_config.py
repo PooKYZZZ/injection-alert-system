@@ -208,6 +208,7 @@ def test_notification_settings_are_safe_by_default():
     assert settings.telegram_chat_id is None
     assert settings.telegram_live_test_enabled is False
     assert settings.telegram_available is False
+    assert settings.notification_timezone == "Asia/Manila"
 
 
 def test_retraining_output_root_is_local_and_repository_relative():
@@ -282,6 +283,16 @@ def test_incomplete_telegram_configuration_degrades_without_failing_settings():
     )
 
     assert settings.telegram_available is False
+
+
+def test_notification_timezone_must_be_a_real_iana_timezone():
+    with pytest.raises(ValueError, match="NOTIFICATION_TIMEZONE"):
+        Settings(
+            env_file=False,
+            database_url="sqlite+aiosqlite:///test.db",
+            model_path="test_model.py",
+            notification_timezone="not/a-real-timezone",
+        )
 
 
 def test_required_worker_rejects_fake_provider():

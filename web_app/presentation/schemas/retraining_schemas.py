@@ -178,14 +178,19 @@ class RetrainingMetricEvidenceResponse(StrictSchema):
         "CONTROLLED_SMOKE",
         "NOT_RUN",
         "NOT_ENOUGH_EVIDENCE",
+        "INVALID",
     ]
 
 
 class RetrainingEvidenceSummaryResponse(StrictSchema):
     preprocessing_version: str | None = Field(default=None, max_length=96)
     evaluation_split: str | None = Field(default=None, max_length=96)
-    evaluation_status: Literal["PASS", "FAIL", "NOT_RUN", "NOT_ENOUGH_EVIDENCE"]
-    comparison_status: Literal["PASS", "FAIL", "NOT_RUN", "NOT_ENOUGH_EVIDENCE"]
+    evaluation_status: Literal[
+        "PASS", "FAIL", "NOT_RUN", "NOT_ENOUGH_EVIDENCE", "INVALID"
+    ]
+    comparison_status: Literal[
+        "PASS", "FAIL", "NOT_RUN", "NOT_ENOUGH_EVIDENCE", "INVALID"
+    ]
     metrics: list[RetrainingMetricEvidenceResponse]
 
 
@@ -193,7 +198,12 @@ class RetrainingRunDetailResponse(RetrainingRunResponse):
     events: list[RetrainingEventResponse]
     heartbeat_age_seconds: int | None = Field(default=None, ge=0)
     evidence_status: Literal[
-        "VERIFIED", "NATIVE", "CONTROLLED_SMOKE", "NOT_RUN", "NOT_ENOUGH_EVIDENCE"
+        "VERIFIED",
+        "NATIVE",
+        "CONTROLLED_SMOKE",
+        "NOT_RUN",
+        "NOT_ENOUGH_EVIDENCE",
+        "INVALID",
     ]
     retry_available: bool
     evidence_summary: RetrainingEvidenceSummaryResponse = Field(

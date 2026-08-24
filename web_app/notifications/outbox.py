@@ -130,7 +130,9 @@ RETURNING id
                         ),
                         "template_version": notification.template_version,
                         "dedupe_key": notification.dedupe_key,
-                        "provider_idempotency_key": notification.provider_idempotency_key,
+                        "provider_idempotency_key": (
+                            notification.provider_idempotency_key
+                        ),
                         "deliver_before": notification.deliver_before,
                     },
                 )
@@ -189,6 +191,7 @@ def build_telegram_threat_notification(
     request_path: str,
     dashboard_base_url: str,
     recipient: str,
+    display_timezone: str,
 ) -> PendingNotification:
     safe_path = request_path.split("?", 1)[0].split("#", 1)[0]
     if not safe_path.startswith("/"):
@@ -212,8 +215,9 @@ def build_telegram_threat_notification(
             "dashboard_url": (
                 f"{dashboard_base_url.rstrip('/')}/alerts?alert_id={alert_id}"
             ),
+            "display_timezone": display_timezone,
         },
-        template_version=1,
+        template_version=2,
         dedupe_key=key,
         provider_idempotency_key=key,
         deliver_before=datetime.now(timezone.utc) + timedelta(minutes=30),

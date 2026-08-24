@@ -12,6 +12,7 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DATABASE_URL: sqlite+aiosqlite:///./test.db
       MODEL_PATH: ./ml_model/model_registry
@@ -19,15 +20,32 @@ jobs:
       APP_ENV: testing
       LOG_LEVEL: WARNING
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Prepare non-secret Compose environment
         run: cp .env.example .env
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: pip install -r requirements.train.txt
+      - run: pip install ruff
+      - name: Lint the remediated backend boundaries
+        run: >-
+          ruff check
+          scripts/safe_local_migrate.py
+          ml_model/project_paths.py
+          web_app/application/retraining_control_use_case.py
+          web_app/application/retraining_export_use_case.py
+          web_app/config.py
+          web_app/infrastructure/retraining_process_runner.py
+          web_app/notifications/outbox.py
+          web_app/notifications/telegram.py
+          web_app/notifications/threats.py
+          web_app/presentation/app.py
+          web_app/presentation/api/retraining_router.py
+          web_app/presentation/dependencies/retraining.py
+          web_app/presentation/schemas/retraining_schemas.py
       - run: pytest -q
       - run: pip install pip-audit
       # Exception owner: backend dependency-maintenance. Review by 2026-09-30.
@@ -38,6 +56,7 @@ jobs:
       - run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-3447
   postgres:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -59,8 +78,8 @@ jobs:
       MODEL_PATH: ./ml_model/model_registry
       MODEL_REGISTRY_PATH: ./ml_model/model_registry
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
           cache: 'pip'
@@ -71,9 +90,10 @@ jobs:
       - run: pytest -q tests/migrations
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -96,13 +116,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -117,7 +137,7 @@ jobs:
         working-directory: frontend
       - name: Upload redacted authentication failure evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: auth-e2e-failure-${{ github.run_attempt }}
           path: |
@@ -132,18 +152,19 @@ jobs:
           docker network ls -q --filter "label=cybertrace.auth-e2e=true" | xargs -r docker network rm
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   pr7-waf-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build pinned PR7 WAF image
         run: docker build -f Dockerfile.pr7-waf -t cybertrace-pr7-waf-ci .
       - name: Start with unavailable backend
@@ -192,7 +213,11 @@ jobs:
             -v pr7-waf-ci-state:/pr7-state \
             cybertrace-pr7-waf-ci
           for attempt in $(seq 1 30); do
-            if docker exec cybertrace-pr7-waf-ci python3 -c "import json; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'"; then break; fi
+            if docker exec cybertrace-pr7-waf-ci python3 -c "import json, httpx; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'; assert httpx.get('http://127.0.0.1:8081/__pr7/ready', timeout=1, trust_env=False).status_code == 204"; then break; fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs cybertrace-pr7-waf-ci
+              exit 1
+            fi
             sleep 1
           done
           docker exec cybertrace-pr7-waf-ci python3 -c "import json, httpx; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'; assert httpx.get('http://127.0.0.1:8081/records/search', timeout=3, trust_env=False).status_code == 204"
@@ -201,7 +226,7 @@ jobs:
         run: docker logs cybertrace-pr7-waf-ci > pr7-waf-ci.log 2>&1 || true
       - name: Publish WAF failure log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pr7-waf-ci-failure-${{ github.run_attempt }}
           path: pr7-waf-ci.log
@@ -210,3 +235,35 @@ jobs:
       - name: Remove disposable WAF container
         if: always()
         run: docker rm -f cybertrace-pr7-waf-ci || true; docker volume rm pr7-waf-ci-state || true
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LOCAL_POSTGRES_PASSWORD: ci-container-only-password
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Prepare non-secret local container configuration
+        run: |
+          cp .env.example .env
+          cp frontend/.env.example frontend/.env.local
+          sed -i 's/^AUTH_SECRET=.*/AUTH_SECRET=ci-container-only-placeholder/' frontend/.env.local
+      - name: Validate Compose models
+        run: |
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+      - name: Build and start the local application stack
+        run: >-
+          docker compose -f docker-compose.yml -f docker-compose.local.yml
+          up -d --build --wait --wait-timeout 240 postgres backend frontend
+      - name: Verify non-root users and application readiness
+        run: |
+          test "$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T backend id -u)" != "0"
+          test "$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T frontend id -u)" != "0"
+          docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T backend python -c "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200"
+          curl --fail --silent --show-error http://127.0.0.1:3000/login > /dev/null
+      - name: Remove disposable local application stack
+        if: always()
+        run: >-
+          docker compose -f docker-compose.yml -f docker-compose.local.yml
+          down --volumes --remove-orphans

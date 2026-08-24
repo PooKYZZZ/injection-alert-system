@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
 from web_app.notifications.models import ProviderSendResult, TelegramMessage
 from web_app.notifications.providers import NotificationProviderError
 
-_FIELDS = {
+_V1_FIELDS = {
     "event_id",
     "timestamp",
     "attack_category",
@@ -17,10 +19,28 @@ _FIELDS = {
     "route_path",
     "dashboard_url",
 }
+_V2_FIELDS = _V1_FIELDS | {"display_timezone"}
 
 
 class TelegramPayloadError(ValueError):
     pass
+
+
+def _format_operator_timestamp(timestamp: str, display_timezone: str) -> str:
+    try:
+        instant = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if instant.tzinfo is None or instant.utcoffset() is None:
+            raise ValueError("timestamp is timezone-naive")
+        localized = instant.astimezone(ZoneInfo(display_timezone))
+    except (ValueError, ZoneInfoNotFoundError) as exc:
+        raise TelegramPayloadError("Telegram timestamp is invalid.") from exc
+
+    hour = localized.hour % 12 or 12
+    period = "AM" if localized.hour < 12 else "PM"
+    return (
+        f"{localized:%b} {localized.day}, {localized.year}, "
+        f"{hour}:{localized.minute:02d} {period} {display_timezone}"
+    )
 
 
 def render_telegram_threat(
@@ -28,10 +48,11 @@ def render_telegram_threat(
     payload: Mapping[str, object],
     template_version: int,
 ) -> TelegramMessage:
-    if template_version != 1 or set(payload) != _FIELDS:
+    expected_fields = {1: _V1_FIELDS, 2: _V2_FIELDS}.get(template_version)
+    if expected_fields is None or set(payload) != expected_fields:
         raise TelegramPayloadError("Telegram threat payload is invalid.")
     strings: dict[str, str] = {}
-    for field in _FIELDS - {"confidence"}:
+    for field in expected_fields - {"confidence"}:
         value = payload.get(field)
         if not isinstance(value, str) or not value or len(value) > 2_000:
             raise TelegramPayloadError("Telegram threat payload is invalid.")
@@ -49,19 +70,26 @@ def render_telegram_threat(
         raise TelegramPayloadError("Telegram route is invalid.")
     if not strings["dashboard_url"].startswith(("https://", "http://localhost")):
         raise TelegramPayloadError("Telegram dashboard URL is invalid.")
+    display_time = strings["timestamp"]
+    if template_version == 2:
+        display_time = _format_operator_timestamp(
+            strings["timestamp"], strings["display_timezone"]
+        )
     icon = "🚨" if strings["confidence_tier"] == "CRITICAL" else "⚠️"
     text = "\n".join(
         [
-            f"{icon} CYBERTRACE — {strings['confidence_tier']}-CONFIDENCE THREAT",
+            f"{icon} CYBERTRACE — {strings['confidence_tier']} SECURITY ALERT",
             "",
             f"Alert ID: {strings['event_id']}",
-            f"Time: {strings['timestamp']}",
             f"Attack: {strings['attack_category']}",
-            f"Confidence tier: {strings['confidence_tier']}",
-            f"Confidence: {float(confidence) * 100:.1f}%",
+            f"Time: {display_time}",
+            (
+                f"Confidence: {float(confidence) * 100:.1f}% "
+                f"({strings['confidence_tier']})"
+            ),
             f"Request: {strings['request_method']} {strings['route_path']}",
             "",
-            "Review:",
+            "Review alert:",
             strings["dashboard_url"],
         ]
     )

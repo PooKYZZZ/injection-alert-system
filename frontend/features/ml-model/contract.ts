@@ -51,6 +51,7 @@ export const RETRAINING_EVIDENCE_STATUS_VALUES = [
   'CONTROLLED_SMOKE',
   'NOT_RUN',
   'NOT_ENOUGH_EVIDENCE',
+  'INVALID',
 ] as const
 export type RetrainingEvidenceStatus =
   (typeof RETRAINING_EVIDENCE_STATUS_VALUES)[number]

@@ -5,9 +5,8 @@ import { rollbackRetrainingRun } from '@/lib/bff-client'
 import { requirePermission } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import { requireTrustedOrigin } from '@/lib/server/db/account-route-response'
+import { invalidRetrainingRunIdResponse } from '@/lib/server/retraining-route'
 import { RetrainingRollbackRequestSchema } from '@/features/ml-model/schemas'
-
-const RUN_ID_PATTERN = /^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/
 
 export async function POST(
   request: NextRequest,
@@ -20,12 +19,8 @@ export async function POST(
     const originError = requireTrustedOrigin(request)
     if (originError) return originError
     const { runId } = await params
-    if (!RUN_ID_PATTERN.test(runId)) {
-      return NextResponse.json(
-        { error: { code: 'INVALID_RUN_ID', message: 'Retraining run ID is invalid.' } },
-        { status: 400 }
-      )
-    }
+    const runIdError = invalidRetrainingRunIdResponse(runId)
+    if (runIdError) return runIdError
     if (typeof session?.user?.id !== 'string' || typeof session?.user?.role !== 'string') {
       return NextResponse.json(
         { error: { code: 'FORBIDDEN', message: 'Reviewer context is unavailable.' } },

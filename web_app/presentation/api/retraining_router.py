@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from time import time_ns
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.concurrency import run_in_threadpool
@@ -40,6 +41,9 @@ router = APIRouter(
     prefix="/retraining",
     dependencies=[Depends(verify_internal_token)],
 )
+RetrainingRunId = Annotated[
+    str, Path(pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$")
+]
 
 
 def _actor(request: Request) -> ReviewerContext:
@@ -221,7 +225,7 @@ async def list_retraining_runs(
 )
 async def get_retraining_run(
     request: Request,
-    run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
+    run_id: RetrainingRunId,
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunDetailResponse:
     _actor(request)
@@ -253,8 +257,8 @@ async def get_retraining_run(
 )
 async def retry_retraining_run(
     request: Request,
+    run_id: RetrainingRunId,
     _payload: RetrainingRetryRequest | None = None,
-    run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunResponse:
     actor = _operator(request)
@@ -277,7 +281,7 @@ async def retry_retraining_run(
 async def decide_retraining_run(
     request: Request,
     payload: RetrainingDecisionRequest,
-    run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
+    run_id: RetrainingRunId,
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingDecisionResponse:
     actor = _administrator(request)
@@ -306,7 +310,7 @@ async def decide_retraining_run(
 async def deploy_retraining_run(
     request: Request,
     payload: RetrainingDeployRequest,
-    run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
+    run_id: RetrainingRunId,
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ):
     actor = _administrator(request)
@@ -331,7 +335,7 @@ async def deploy_retraining_run(
 async def rollback_retraining_run(
     request: Request,
     payload: RetrainingRollbackRequest,
-    run_id: str = Path(..., pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$"),
+    run_id: RetrainingRunId,
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ):
     actor = _administrator(request)

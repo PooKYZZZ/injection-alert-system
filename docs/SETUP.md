@@ -264,11 +264,15 @@ must see the review read-only and receive `403` if it attempts the BFF route.
 The browser calls `frontend/app/api/alerts/[id]/label-review/route.ts`; that
 route derives reviewer id/role from the server session and proxies to the
 internal FastAPI route. Do not put reviewer identity or email in the JSON body.
-This is a local workflow check, not proof of a scheduled exporter, retraining
-run, production model promotion, or hosted readiness. New inference rows
+This label-review check alone is not proof of a completed export, native
+retraining run, installed schedule, model-quality improvement, production
+promotion, or hosted readiness. New inference rows
 persist the exact sanitized model-input text and hash used for prediction;
 historical rows without that provenance are not eligible for approved
-training. The reviewed-sample exporter remains unimplemented.
+training. The controlled-local Model Operations workflow can export eligible
+latest reviews into immutable run-local artifacts; see
+`docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md` for its separate execution
+and evidence requirements.
 
 ### Start the backend
 
@@ -387,6 +391,7 @@ THREAT_TELEGRAM_ENABLED=false
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 TELEGRAM_LIVE_TEST_ENABLED=false
+NOTIFICATION_TIMEZONE=Asia/Manila
 ```
 
 Disabled or incomplete configuration does not stop the backend and does not
@@ -396,7 +401,9 @@ worker uses Telegram Bot API `sendMessage` through HTTPX with bounded retries;
 retried because Telegram provides no general idempotency key. The database
 prevents duplicate jobs, but the project does not claim exactly-once external
 delivery. Telegram messages intentionally omit source IP, query/body content,
-headers, cookies, and credentials.
+headers, cookies, and credentials. Alert timestamps remain canonical in the
+outbox payload and are converted to `NOTIFICATION_TIMEZONE` only when the
+operator-facing Telegram message is rendered.
 
 ### Manual PR 3 auth cutover and rollback
 
@@ -576,20 +583,33 @@ Those files are mounted into the containers via `docker-compose.yml`.
 
 ### Start the stack
 
+Use the local overlay for ordinary Docker development. It provides a private
+PostgreSQL container and overrides any `DATABASE_URL` present in the ignored
+root `.env`:
+
 ```powershell
-docker compose --profile technical-waf up --build -d
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 ```
+
+The base backend startup checks the database target before running Alembic and
+refuses remote hosts. Hosted Supabase migrations are separate, explicit
+operator work and are never part of the normal local Compose command.
+Set `LOCAL_POSTGRES_PASSWORD` in the ignored root `.env` before using this
+overlay. Compose fails closed when it is empty; the tracked Compose files do
+not contain a reusable database password.
 
 Expected services:
 
 - `frontend`
 - `backend`
+- `postgres`
 - `modsecurity`
 - `bridge`
 
-Without `--profile technical-waf`, normal Compose starts only `frontend` and
-`backend`; the historical `8088` WAF pair is now explicitly opt-in.
+Without `--profile technical-waf`, the local overlay starts `frontend`,
+`backend`, and `postgres`; the historical `8088` WAF pair is explicitly
+opt-in.
 
 ### Current Docker network truth
 
@@ -603,7 +623,7 @@ This means:
 
 - Browser path today: `Browser -> frontend -> backend`
 - WAF proof path today: `localhost:8088 -> modsecurity -> backend`
-- Backend transaction lookup proof: `docker compose exec backend ...`
+- Backend transaction lookup proof: `docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend ...`
 
 Do not use `localhost:8000` for Docker proof unless backend port 8000 is explicitly published.
 
@@ -642,7 +662,7 @@ to `/app/prisma/dev.db` inside the production portal container.
 Then start this repo with the demo-target profile:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.demo-target.collection.yml --profile demo-target up -d --build
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml -f docker-compose.demo-target.collection.yml --profile demo-target up -d --build
 ```
 
 The collection overlay changes only the local ModSecurity audit engine from
@@ -699,8 +719,8 @@ proved. Current hosted identity verification status is Partial; mode remains
 The backend image does not include `curl`, so use Python from inside the container:
 
 ```powershell
-docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
-docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 ```
 
 ### Verified WAF proof flow
@@ -726,7 +746,7 @@ Backend transaction lookup is Docker-internal:
 ```powershell
 $txid = "<paste transaction.unique_id>"
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
-docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 Verified result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`.
@@ -759,7 +779,8 @@ Invoke-WebRequest -UseBasicParsing https://target.cybertracesystems.com | Select
 Expected result: the application domain is publicly reachable and the target
 domain is challenged by Cloudflare Access for identities without access. The
 frontend runtime flags are injected at container start, not at image build
-time. After changing them, run `docker compose up -d --force-recreate frontend`
+time. After changing them, run
+`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --force-recreate frontend`
 and verify the value inside the recreated container.
 
 ### Demo data
@@ -771,7 +792,7 @@ stale seeder commands.
 ### Stop the stack
 
 ```powershell
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ```
 
 ## 6. Troubleshooting

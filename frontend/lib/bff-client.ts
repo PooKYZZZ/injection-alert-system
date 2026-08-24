@@ -17,6 +17,7 @@ import {
   RetrainingExportResultSchema,
   RetrainingRetryRequestSchema,
   RetrainingRollbackRequestSchema,
+  RetrainingRunIdSchema,
   RetrainingRunDetailSchema,
   RetrainingRunListSchema,
   RetrainingRunRequestSchema,
@@ -227,6 +228,16 @@ function err<T>(status: number, code: string, message: string, retryAfter?: stri
   return { ok: false, status, error: { code, message }, retryAfter }
 }
 
+const UPSTREAM_REQUEST_TIMEOUT_MS = 30_000
+
+function upstreamRequestSignal(): AbortSignal {
+  return AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS)
+}
+
+function upstreamTransportFailure<T>(): BffResult<T> {
+  return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+}
+
 function isValidTimeZone(timeZone: string): boolean {
   try {
     Intl.DateTimeFormat(undefined, { timeZone })
@@ -300,7 +311,7 @@ export async function openAlertStream(
   }
 
   if (!response.ok) {
-    cancelResponseBody(response)
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(
         500,
@@ -321,16 +332,16 @@ export async function openAlertStream(
     ?.trim()
     .toLowerCase()
   if (mediaType !== 'text/event-stream') {
-    cancelResponseBody(response)
+    await cancelResponseBody(response)
     return err(502, 'UPSTREAM_ERROR', 'Upstream response was not an event stream.')
   }
 
   return ok(response)
 }
 
-function cancelResponseBody(response: Response): void {
+async function cancelResponseBody(response: Response): Promise<void> {
   try {
-    void response.body?.cancel().catch(() => undefined)
+    await response.body?.cancel()
   } catch {
     // A rejected upstream response must not replace the generic BFF error.
   }
@@ -343,7 +354,9 @@ function normalizeWithSchema<T>(
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
     if (process.env.NODE_ENV === 'development') {
-      console.error('[BFF] Upstream schema mismatch:', parsed.error, payload)
+      console.error('[BFF] Upstream schema mismatch', {
+        issueCount: parsed.error.issues.length,
+      })
     }
 
     return err(
@@ -650,21 +663,18 @@ async function fetchUpstream<T>(
         Authorization: `Bearer ${config.data.apiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: upstreamRequestSignal(),
     })
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
-    // Attempt to log upstream error body for easier debugging in development
-    let upstreamBody: string | undefined
-    try {
-      upstreamBody = await response.text()
-    } catch {
-      upstreamBody = undefined
-    }
+    await cancelResponseBody(response)
     if (process.env.NODE_ENV === 'development') {
-      console.error('[BFF] Upstream returned non-OK status', response.status, path, upstreamBody)
+      console.error('[BFF] Upstream returned non-OK status', {
+        status: response.status,
+      })
     }
 
     // Route handlers enforce auth before calling BFF client, so upstream 401/403
@@ -707,7 +717,7 @@ async function fetchUpstream<T>(
 export type RetrainingActor = { id: string; role: string }
 
 function parseRetrainingRunId(runId: string): BffResult<string> {
-  if (!/^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/.test(runId)) {
+  if (!RetrainingRunIdSchema.safeParse(runId).success) {
     return err(400, 'INVALID_RUN_ID', 'Retraining run ID is invalid.')
   }
   return ok(runId)
@@ -729,6 +739,7 @@ async function fetchRetrainingUpstream<T>(
     method: 'POST' | 'GET'
     body?: unknown
     actor?: RetrainingActor
+    requesterTimeZone?: string
   }
 ): Promise<BffResult<T>> {
   const config = getUpstreamConfig()
@@ -746,20 +757,21 @@ async function fetchRetrainingUpstream<T>(
         Authorization: `Bearer ${config.data.apiKey}`,
         'Content-Type': 'application/json',
         ...actorHeaders(options.actor),
-        ...(options.method === 'POST'
+        ...(options.requesterTimeZone
           ? {
-              'X-Requester-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+              'X-Requester-Timezone': options.requesterTimeZone,
             }
           : {}),
       },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-      signal: AbortSignal.timeout(30_000),
+      signal: upstreamRequestSignal(),
     })
   } catch {
-    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
     }
@@ -800,14 +812,20 @@ export async function exportRetrainingSamples(
 
 export async function startRetrainingRun(
   input: unknown,
-  actor: RetrainingActor
+  actor: RetrainingActor,
+  requesterTimeZone?: string
 ): Promise<BffResult<RetrainingRunStart>> {
   const parsed = RetrainingRunRequestSchema.safeParse(input)
   if (!parsed.success) return err(400, 'INVALID_REQUEST', 'Invalid retraining request.')
+  const normalizedTimeZone = requesterTimeZone?.trim() || 'UTC'
+  if (!isValidTimeZone(normalizedTimeZone)) {
+    return err(400, 'INVALID_REQUEST', 'Requester timezone is invalid.')
+  }
   return fetchRetrainingUpstream('/api/retraining/runs', RetrainingRunStartSchema, {
     method: 'POST',
     body: parsed.data,
     actor,
+    requesterTimeZone: normalizedTimeZone,
   })
 }
 
@@ -936,10 +954,6 @@ export async function getAlerts(
 
   const path = query.size > 0 ? `/api/alerts?${query.toString()}` : '/api/alerts'
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[BFF] upstream path ->', path)
-  }
-
   const upstream = await fetchUpstream(path, BackendPaginatedAlertsSchema)
   if (!upstream.ok) {
     return upstream
@@ -1006,14 +1020,15 @@ export async function submitAlertLabelReview(
           'X-Reviewer-Role': reviewer.role,
         },
         body: JSON.stringify(review),
-        signal: AbortSignal.timeout(30_000),
+        signal: upstreamRequestSignal(),
       }
     )
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
     }
@@ -1102,14 +1117,15 @@ export async function updateAlertTriage(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ triage_status: status }),
-        signal: AbortSignal.timeout(30_000),
+        signal: upstreamRequestSignal(),
       }
     )
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(
         500,
@@ -1182,26 +1198,19 @@ export async function updateAlertAction(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ action_taken: action }),
-        signal: AbortSignal.timeout(30_000),
+        signal: upstreamRequestSignal(),
       }
     )
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
-  }
-
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[BFF] updateAlertAction upstream path ->', `${config.data.baseUrl}/api/alerts/${parsedId.data}/action`)
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (process.env.NODE_ENV === 'development') {
-      let upstreamBody: string | undefined
-      try {
-        upstreamBody = await response.text()
-      } catch {
-        upstreamBody = undefined
-      }
-      console.error('[BFF] updateAlertAction upstream non-OK', response.status, upstreamBody)
+      console.error('[BFF] updateAlertAction upstream non-OK', {
+        status: response.status,
+      })
     }
     if (response.status === 401 || response.status === 403) {
       return err(

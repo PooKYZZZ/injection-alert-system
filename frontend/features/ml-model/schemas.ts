@@ -8,7 +8,7 @@ import {
 
 const isoDate = z.string().datetime({ offset: true })
 const digest = z.string().regex(/^[0-9a-f]{64}$/)
-const runId = z.string().regex(/^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/)
+export const RetrainingRunIdSchema = z.string().regex(/^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/)
 const modelVersion = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/)
 const safeOperatorText = z
   .string()
@@ -72,7 +72,7 @@ export const RetrainingSummarySchema = z
 
 export const RetrainingRunSchema = z
   .object({
-    run_id: runId,
+    run_id: RetrainingRunIdSchema,
     state: z.enum(RETRAINING_RUN_STATE_VALUES),
     stage: z.string().max(64),
     attempt: z.number().int().nonnegative(),
@@ -108,7 +108,7 @@ export const RetrainingRunSchema = z
 
 export const RetrainingRunStartSchema = z
   .object({
-    run_id: runId,
+    run_id: RetrainingRunIdSchema,
     state: z.enum(RETRAINING_RUN_STATE_VALUES),
     stage: z.string().max(64),
     created: z.boolean(),
@@ -142,8 +142,8 @@ export const RetrainingRunDetailSchema = RetrainingRunSchema.extend({
     .object({
       preprocessing_version: z.string().max(96).nullable(),
       evaluation_split: z.string().max(96).nullable(),
-      evaluation_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE']),
-      comparison_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE']),
+      evaluation_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE', 'INVALID']),
+      comparison_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE', 'INVALID']),
       metrics: z.array(
         z
           .object({
@@ -169,7 +169,7 @@ export const RetrainingRunDetailSchema = RetrainingRunSchema.extend({
 
 export const RetrainingExportResultSchema = z
   .object({
-    export_id: runId,
+    export_id: RetrainingRunIdSchema,
     status: z.enum(['READY', 'EMPTY', 'QUARANTINED_FOR_REVIEW']),
     approved_count: z.number().int().nonnegative(),
     exported_count: z.number().int().nonnegative(),

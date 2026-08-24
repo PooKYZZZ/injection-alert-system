@@ -61,10 +61,14 @@ export async function POST(request: NextRequest): Promise<Response> {
         { status: 400 }
       )
     }
-    const result = await startRetrainingRun(parsed.data, {
-      id: session.user.id,
-      role: session.user.role,
-    })
+    const result = await startRetrainingRun(
+      parsed.data,
+      {
+        id: session.user.id,
+        role: session.user.role,
+      },
+      request.headers.get('X-Requester-Timezone') ?? undefined
+    )
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
     return NextResponse.json(result.data, { status: 202 })
   } catch {

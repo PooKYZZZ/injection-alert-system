@@ -211,22 +211,25 @@ retention boundary.
 Closes the feedback loop:
   Analyst corrections → reviewed-sample export → data/staging/ → retrain → validate → ml_model/model_registry/
 
-Planned safe flow:
+Implemented controlled-local flow:
 
 ```text
 Analyst corrections -> labeled export -> dataset validation -> dry-run or real training
 -> evaluation report -> candidate artifact -> manual approval -> promotion -> rollback if needed
 ```
 
-Existing promotion/rollback tooling lives under `ml_model/export/`; it is not the same thing as a complete retraining pipeline.
+The dashboard pipeline reuses the packaging and validation tooling under
+`ml_model/export/`. Its deploy and rollback actions affect only explicit local
+staging; they do not write the production registry or prove hosted operation.
 
 ## Verified label review input
 
 The web application now records immutable, per-alert review revisions in
 `traffic_label_reviews`. The canonical verified-label classes are `SQL
 Injection`, `Code Injection`, `Other Attacks`, and `Normal`; this vocabulary is
-separate from triage transport status and confidence tier. A future exporter
-must select only the latest review with `approval_state=approved_for_training`.
+separate from triage transport status and confidence tier. The dashboard
+exporter selects only the latest review with
+`approval_state=approved_for_training`.
 Reviews marked `excluded_from_training` must remain excluded, and superseded
 history must not be exported as a second sample.
 
@@ -254,11 +257,13 @@ verifies the current loader/preprocessing contract, and records checksums,
 lineage, class/source/temporal coverage, and a deterministic
 `dashboard-<run-id>-<content-hash>` dataset version. A held or rejected later
 review does not consume an earlier approved row; the next export simply uses
-the latest eligible review projection again. The worker, API, UI, training,
-promotion, and scheduling stages remain separate later tasks.
+the latest eligible review projection again. The worker, API, UI, native
+adapter, evidence gate, explicit local staging action, and bounded scheduling
+wrapper are implemented as separate boundaries of the controlled-local flow.
 
-This workflow does not provide a scheduler, daily production retraining
-operation, blind promotion, automatic rollback, or production model-registry
-mutation. Any training and promotion remains an explicit, manually reviewed
-operation. See `docs/project-ops/LAPTOP_TRAINING_HANDOFF.md` for the exact
-operator sequence.
+This workflow does not install an operating-system scheduler, provide daily
+production retraining, blindly promote candidates, automatically roll back
+production, or mutate the production model registry. The scheduling wrapper
+makes one bounded request; training mode is server-configured, and approval
+plus local staging deployment remain explicit administrator actions. See
+`docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md` for the operator sequence.

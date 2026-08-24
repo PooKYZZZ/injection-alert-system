@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from ml_model.preprocessing.model_input import MODEL_INPUT_VERSION
+from ml_model.project_paths import PROJECT_ROOT
 from ml_model.retraining.dashboard_contracts import (
     CANONICAL_LABELS,
     ComparisonResponse,
@@ -830,7 +831,9 @@ class NativeDashboardPipeline:
         project_root: Path | str | None = None,
         profile_path: Path | str | None = None,
     ) -> None:
-        configured_root = project_root or os.environ.get("IAS_PROJECT_ROOT") or Path.cwd()
+        configured_root = (
+            project_root or os.environ.get("IAS_PROJECT_ROOT") or PROJECT_ROOT
+        )
         self._project_root = Path(configured_root).expanduser().resolve()
         self._profile_path = Path(profile_path or NATIVE_PROFILE_PATH).expanduser().resolve()
 

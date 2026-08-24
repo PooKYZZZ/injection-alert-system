@@ -1,5 +1,14 @@
 services:
   backend:
+    # Hosted migrations are an explicit operator step. The base command is
+    # intentionally guarded for local development and must not reject the
+    # hosted Supabase URL before the application starts.
+    command:
+      [
+        "sh",
+        "-c",
+        "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+      ]
     environment:
       APP_ENV: ${APP_ENV:?APP_ENV must be explicitly set for hosted deployment}
 

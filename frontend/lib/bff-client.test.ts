@@ -75,6 +75,55 @@ describe('bff-client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('forwards an explicitly supplied requester timezone instead of the server timezone', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          run_id: 'retrain-20260811T120000Z-000000000001',
+          state: 'queued',
+          stage: 'queued',
+          created: true,
+          attempt: 0,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { startRetrainingRun } = await loadClient()
+    const result = await startRetrainingRun(
+      { trigger: 'manual' },
+      { id: 'analyst-1', role: 'ANALYST' },
+      'America/New_York'
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/retraining/runs',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Requester-Timezone': 'America/New_York',
+        }),
+      })
+    )
+  })
+
+  it('rejects an invalid requester timezone before calling the backend', async () => {
+    const { startRetrainingRun } = await loadClient()
+
+    const result = await startRetrainingRun(
+      { trigger: 'manual' },
+      { id: 'analyst-1', role: 'ANALYST' },
+      'not/a-real-timezone'
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: { code: 'INVALID_REQUEST', message: 'Requester timezone is invalid.' },
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('propagates the authenticated actor for retraining run reads', async () => {
     const run = {
       run_id: 'retrain-20260811T120000Z-000000000001',
@@ -1080,6 +1129,132 @@ describe('bff-client', () => {
         message: 'Upstream service failed.',
       },
     })
+  })
+
+  it('cancels non-OK upstream response bodies across BFF request paths', async () => {
+    const bodies = Array.from({ length: 5 }, () => {
+      const cancel = vi.fn()
+      const body = new ReadableStream({ cancel })
+      return { response: new Response(body, { status: 503 }), cancel }
+    })
+    const responses = bodies.map(({ response }) => response)
+    fetchMock.mockImplementation(async () => responses.shift()!)
+
+    const {
+      getStats,
+      getRetrainingSummary,
+      submitAlertLabelReview,
+      updateAlertAction,
+      updateAlertTriage,
+    } = await loadClient()
+    const results = [
+      await getStats(),
+      await getRetrainingSummary(),
+      await submitAlertLabelReview(
+        '7',
+        { verified_label: 'Normal', approval_state: 'excluded_from_training' },
+        { id: 'analyst-1', role: 'ANALYST' }
+      ),
+      await updateAlertTriage('7', 'in_review'),
+      await updateAlertAction('7', 'BLOCKED'),
+    ]
+
+    expect(results.every((result) => !result.ok && result.status === 503)).toBe(true)
+    for (const { cancel } of bodies) {
+      expect(cancel).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('bounds ordinary BFF reads and maps transport failure to the upstream contract', async () => {
+    fetchMock.mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'))
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/stats',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream service failed.',
+      },
+    })
+  })
+
+  it('maps mutation transport failures consistently and bounds every request', async () => {
+    fetchMock.mockRejectedValue(new TypeError('connection failed'))
+
+    const { submitAlertLabelReview, updateAlertAction, updateAlertTriage } =
+      await loadClient()
+    const results = [
+      await submitAlertLabelReview(
+        '7',
+        { verified_label: 'Normal', approval_state: 'excluded_from_training' },
+        { id: 'analyst-1', role: 'ANALYST' }
+      ),
+      await updateAlertTriage('7', 'in_review'),
+      await updateAlertAction('7', 'BLOCKED'),
+    ]
+
+    expect(results).toEqual(
+      Array.from({ length: 3 }, () => ({
+        ok: false,
+        status: 502,
+        error: {
+          code: 'UPSTREAM_ERROR',
+          message: 'Upstream service failed.',
+        },
+      }))
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    for (const [, options] of fetchMock.mock.calls) {
+      expect(options).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    }
+  })
+
+  it('does not log upstream response data when schema validation fails', async () => {
+    process.env = { ...process.env, NODE_ENV: 'development' }
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sensitiveValue = 'raw-sensitive-upstream-value'
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ unexpected: sensitiveValue }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain(sensitiveValue)
+  })
+
+  it('does not log alert query values or upstream error bodies', async () => {
+    process.env = { ...process.env, NODE_ENV: 'development' }
+    const info = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sensitiveQuery = 'operator-search-secret'
+    const sensitiveBody = 'backend-diagnostic-secret'
+    fetchMock.mockResolvedValueOnce(new Response(sensitiveBody, { status: 500 }))
+
+    const { getAlerts } = await loadClient()
+    await getAlerts(new URLSearchParams({ search: sensitiveQuery }))
+
+    const output = JSON.stringify([...info.mock.calls, ...error.mock.calls])
+    expect(output).not.toContain(sensitiveQuery)
+    expect(output).not.toContain(sensitiveBody)
   })
 
   it('returns BFF_MISCONFIGURED before constructing fetch when env is missing', async () => {

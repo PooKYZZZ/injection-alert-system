@@ -1,10 +1,12 @@
 from dataclasses import replace
 from datetime import datetime, timezone
 from hashlib import sha256
+from threading import get_ident
 
 import pytest
 
 from ml_model.preprocessing.model_input import MODEL_INPUT_VERSION
+from web_app.application import retraining_export_use_case as export_module
 from web_app.application.retraining_export_use_case import (
     RetrainingExportUseCase,
 )
@@ -68,6 +70,34 @@ class FakeReviewRepository:
             ),
             unreviewed=0,
         )
+
+
+@pytest.mark.asyncio
+async def test_export_moves_filesystem_work_off_the_event_loop(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    caller_thread = get_ident()
+    worker_threads: list[int] = []
+    real_export = export_module.export_dashboard_reviews
+
+    def capture_export(*args, **kwargs):
+        worker_threads.append(get_ident())
+        return real_export(*args, **kwargs)
+
+    monkeypatch.setattr(export_module, "export_dashboard_reviews", capture_export)
+    candidate = _candidate(1)
+    use_case = RetrainingExportUseCase(
+        FakeReviewRepository([candidate]), output_root=tmp_path
+    )
+
+    result = await use_case.execute(
+        run_id=RUN_ID,
+        candidates=[candidate],
+        review_summary=RetrainingReviewSummary(approved=1, excluded=0, unreviewed=0),
+    )
+
+    assert result.status == "READY"
+    assert worker_threads and worker_threads[0] != caller_thread
 
 
 @pytest.mark.asyncio

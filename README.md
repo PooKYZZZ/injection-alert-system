@@ -196,15 +196,20 @@ Before starting the frontend, create `frontend/.env.local` using the current var
 The repo also supports a local Docker smoke path:
 
 ```powershell
-docker compose up --build -d
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 ```
 
-That default command starts only `backend` and `frontend`. Start the historical
-technical WAF proof pair explicitly with:
+The local overlay supplies an isolated PostgreSQL service and takes precedence
+over any `DATABASE_URL` in the ignored root `.env`. Start the historical
+technical WAF proof pair explicitly with the same overlay:
+
+Set `LOCAL_POSTGRES_PASSWORD` in the ignored root `.env` first. The overlay
+requires that value and does not store a reusable database password in the
+repository.
 
 ```powershell
-docker compose --profile technical-waf up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
 ```
 
 Important constraints:
@@ -214,7 +219,7 @@ Important constraints:
 - The opt-in technical WAF profile publishes its proof path on `http://localhost:8088`
 - The realistic demo-target WAF path is published on `http://localhost:8089` when the `demo-target` profile is enabled; the profile also starts `demo-portal` from the separate `stable/portal-pre-waf` checkout
 - The active browser path remains `Browser -> Next.js -> FastAPI`
-- Backend transaction lookup proof should use `docker compose exec`, not `localhost:8000`
+- Backend transaction lookup proof should use `docker compose ... exec`, not `localhost:8000`
 
 For the current container workflow, use [docs/SETUP.md](docs/SETUP.md) and [docs/project-ops/SMOKE_TEST_RUNBOOK.md](docs/project-ops/SMOKE_TEST_RUNBOOK.md).
 

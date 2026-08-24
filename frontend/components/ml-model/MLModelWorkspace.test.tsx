@@ -197,6 +197,27 @@ describe('MLModelWorkspace', () => {
     expect(screen.getByText(/ground-truth evidence uses verified_label/i)).toBeInTheDocument()
   })
 
+  it('warns the operator when published evidence is invalid', () => {
+    setHarness({
+      selectedRun: detail({
+        state: 'pending_approval',
+        evidence_status: 'INVALID',
+        evaluation_digest: digest('f'),
+        evidence_summary: {
+          preprocessing_version: null,
+          evaluation_split: null,
+          evaluation_status: 'INVALID',
+          comparison_status: 'INVALID',
+          metrics: [],
+        },
+      }),
+    })
+
+    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+
+    expect(screen.getByText(/published evaluation evidence is missing, unreadable/i)).toBeInTheDocument()
+  })
+
   it('does not invent detail evidence or controls while the selected run detail is unavailable', () => {
     setHarness({
       selectedRun: null as never,
