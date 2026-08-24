@@ -99,12 +99,15 @@ def test_frontend_image_uses_standalone_non_root_runtime():
 
 def test_backend_image_runs_non_root_with_owned_runtime_directories():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
 
     assert "useradd --no-log-init" in dockerfile
+    assert "runtime" in dockerfile
     assert "ml_model/results/dashboard_retraining" in dockerfile
     assert "ml_model/model_registry/staging" in dockerfile
     assert "ml_model/model_registry/archive" in dockerfile
     assert "USER cybertrace" in dockerfile
+    assert "DATABASE_URL=sqlite+aiosqlite:///./runtime/injection_alerts.db" in env_example
 
 
 def _merged_compose(*files: str) -> dict:

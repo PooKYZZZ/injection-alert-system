@@ -26,10 +26,12 @@ RUN groupadd --gid 10001 cybertrace \
     && useradd --no-log-init --uid 10001 --gid cybertrace --create-home \
       --home-dir /home/cybertrace --shell /usr/sbin/nologin cybertrace \
     && mkdir -p \
+      runtime \
       ml_model/results/dashboard_retraining \
       ml_model/model_registry/archive \
       ml_model/model_registry/staging \
     && chown -R cybertrace:cybertrace \
+      runtime \
       ml_model/results/dashboard_retraining \
       ml_model/model_registry/archive \
       ml_model/model_registry/staging
