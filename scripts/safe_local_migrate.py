@@ -42,7 +42,9 @@ def require_local_database(database_url: str) -> None:
     if backend == "sqlite":
         return
     if backend == "postgresql" and url.host and _is_loopback_host(url.host):
-        return
+        query_hosts = url.normalized_query.get("host", ())
+        if all(_is_loopback_host(host) for host in query_hosts):
+            return
     raise UnsafeDatabaseTarget(
         "Normal Compose startup permits migrations only against a local database. "
         "Run hosted database migrations through an explicit operator workflow."

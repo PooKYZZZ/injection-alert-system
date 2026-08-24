@@ -36,6 +36,33 @@ def test_local_database_targets_are_allowed_before_upgrade(database_url: str) ->
 @pytest.mark.parametrize(
     "database_url",
     [
+        "postgresql+asyncpg://cybertrace:local@localhost:5432/cybertrace?host=localhost",
+        "postgresql+asyncpg://cybertrace:local@localhost:5432/cybertrace?host=localhost&host=127.0.0.1",
+    ],
+)
+def test_local_postgresql_query_hosts_are_allowed(database_url: str) -> None:
+    module = safe_migrate_module()
+
+    module.require_local_database(database_url)
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "postgresql+asyncpg://cybertrace:local@localhost:5432/cybertrace?host=db.example.com",
+        "postgresql+asyncpg://cybertrace:local@localhost:5432/cybertrace?host=localhost&host=db.example.com",
+    ],
+)
+def test_remote_postgresql_query_hosts_are_rejected(database_url: str) -> None:
+    module = safe_migrate_module()
+
+    with pytest.raises(module.UnsafeDatabaseTarget, match="local database"):
+        module.require_local_database(database_url)
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
         "postgresql+asyncpg://postgres:secret@db.example.supabase.co:5432/postgres",
         "postgresql://postgres:secret@10.20.30.40:5432/postgres",
         "mysql://user:secret@localhost/example",
