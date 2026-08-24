@@ -132,6 +132,13 @@ def test_backend_image_runs_non_root_with_owned_runtime_directories():
     assert "DATABASE_URL=sqlite+aiosqlite:///./runtime/injection_alerts.db" in env_example
 
 
+def test_default_sqlite_runtime_directory_exists_in_a_clean_checkout():
+    runtime_dir = ROOT / "runtime"
+
+    assert runtime_dir.is_dir()
+    assert (runtime_dir / ".gitkeep").is_file()
+
+
 def _merged_compose(*files: str) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker is required for merged Compose contract tests")
