@@ -140,6 +140,7 @@ installation is not part of this repository proof and is **NOT_RUN** here.
 | `SKIPPED_NO_APPROVED_DATA` | No eligible approved review snapshot | Review labels; do not force a run |
 | `SCHEDULE_SKIPPED_CONCURRENT_RUN` | Another queued/active/review run exists | Inspect that run; wait for its decision |
 | `NOT_ENOUGH_EVIDENCE` | Required evaluation/support is missing | Do not approve or deploy; complete evaluation |
+| `INVALID` evidence | Published evaluation evidence is missing, unreadable, or fails integrity validation | Preserve the run artifacts; do not approve or deploy; investigate the failed artifact boundary |
 | `DEPLOY_GATE_FAILED` | Comparison policy failed | Inspect per-gate evidence; hold/reject |
 | `DEPLOYMENT_RECOVERY_REQUIRED` | Pointer/digest state is ambiguous after an interrupted deployment | Stop automated actions; inspect the run plan and staging/archive digests manually |
 | integrity/metadata failure | Candidate or deployment artifact changed | Preserve the failure evidence and reject the candidate |

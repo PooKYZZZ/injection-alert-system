@@ -286,16 +286,20 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `action_taken` remains the existing alert metadata (`BLOCKED`, `THROTTLED`, or `ALLOWED`). PR4 `recommended_action` is a versioned, expiring future intent; `actual_decision` is always `ALLOW` and is not proof of live block/throttle enforcement.
 - Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
-- Verified label reviews are an implemented local append-only workflow, not a
-  completed retraining pipeline. Reviews are revisioned and alert responses
-  project the latest revision; only `approved_for_training` is eligible for a
-  future exporter. No scheduler, automatic promotion/rollback, or web-app
-  write to `ml_model/model_registry/production/` exists.
+- Verified label reviews and the controlled-local retraining lifecycle are
+  implemented. Reviews are revisioned, alert responses project the latest
+  revision, and the run-local exporter selects only `approved_for_training`.
+  The dashboard can request smoke or server-configured native runs, inspect
+  evidence, record an administrator decision, and explicitly deploy or roll
+  back local staging. The bounded scheduling wrapper only requests a run; no
+  installed scheduler, automatic approval/promotion, hosted deployment, or
+  web-app write to `ml_model/model_registry/production/` is claimed.
 - New inference rows persist the exact sanitized model-input text together with
   `model_input_hash` and `preprocessing_version`; WAF query strings and
   sanitized bodies are included in that canonical input. Historical rows with
   missing text/provenance remain readable but are not eligible for approved
-  training. A reviewed-sample exporter is still not implemented, so do not
-  claim automated or source-equivalent training data yet.
+  training. The exporter rejects those ineligible rows and writes bounded,
+  immutable run-local artifacts; this is controlled-local capability, not
+  proof of daily native training or source-equivalent hosted operation.
 - Frontend policy displays keep prediction, confidence tier, and `action_taken` separate: confidence tier alone does not imply an action, and `CRITICAL` is never an `action_taken` value.
 - Bridge follow-mode retry handling belongs to the local WAF ingest proof path, not to production audit-log rotation or retention.

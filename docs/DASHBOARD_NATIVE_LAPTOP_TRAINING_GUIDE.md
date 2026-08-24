@@ -1,5 +1,12 @@
 # Dashboard-Triggered Native Laptop Training Implementation Guide
 
+> **Current status:** The controlled-local implementation described here is
+> present in the repository. This remains a design and validation guide; its
+> unchecked planning boxes are not a current implementation-status tracker.
+> Native laptop model-quality execution, an installed daily task, hosted
+> promotion, and production-registry writes remain separate evidence and are
+> not established by this document.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this guide task-by-task. The repository forbids subagents, so execute inline with review checkpoints. Use TDD for behavior changes and keep each checkbox tied to observable evidence.
 
 **Goal:** Connect the existing Model Operations dashboard to a controlled native training run on the laptop without weakening the repository's evidence, provenance, security, approval, deployment, or accessibility boundaries.
@@ -62,15 +69,15 @@ Never convert a smoke result, file existence, or local-only check into a claim o
 
 The repository already has most of the control plane needed for a safe local workflow:
 
-- [ml_model/retraining/dashboard_contracts.py](../../../ml_model/retraining/dashboard_contracts.py) defines typed run states, evidence statuses, artifact allowlists, and binding requirements.
-- [ml_model/retraining/dashboard_worker.py](../../../ml_model/retraining/dashboard_worker.py) claims durable runs, holds a worker lock, refreshes heartbeats, enforces timeouts, isolates the pipeline subprocess, and maps failures to bounded states.
-- [web_app/infrastructure/retraining_process_runner.py](../../../web_app/infrastructure/retraining_process_runner.py) launches only the allowlisted worker module with an explicit argument list, shell=False, restricted environment, and detached process handling.
-- [web_app/presentation/dependencies/retraining.py](../../../web_app/presentation/dependencies/retraining.py) wires the application control plane to the local artifact repository and selects smoke or native execution from the server-only `RETRAINING_WORKER_MODE` setting; smoke remains the default.
-- [frontend/features/ml-model/queries.ts](../../../frontend/features/ml-model/queries.ts) polls active run state and stops polling terminal runs.
-- [frontend/components/ml-model/MLModelWorkspace.tsx](../../../frontend/components/ml-model/MLModelWorkspace.tsx) renders run state, evidence, decisions, and explicit staging actions through the BFF.
-- [docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md](../../project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md) documents the local review, approval, staging, rollback, and recovery boundary.
-- [ml_model/training/train.py](../../../ml_model/training/train.py) and the existing training configurations provide the canonical script-first native training path.
-- [requirements.train.txt](../../../requirements.train.txt) contains training-only dependencies, but the default runtime image does not install them. Compose exposes the existing `INSTALL_TRAINING_REQUIREMENTS` build argument, which remains `false` unless a native image is intentionally built.
+- [ml_model/retraining/dashboard_contracts.py](../ml_model/retraining/dashboard_contracts.py) defines typed run states, evidence statuses, artifact allowlists, and binding requirements.
+- [ml_model/retraining/dashboard_worker.py](../ml_model/retraining/dashboard_worker.py) claims durable runs, holds a worker lock, refreshes heartbeats, enforces timeouts, isolates the pipeline subprocess, and maps failures to bounded states.
+- [web_app/infrastructure/retraining_process_runner.py](../web_app/infrastructure/retraining_process_runner.py) launches only the allowlisted worker module with an explicit argument list, shell=False, restricted environment, and detached process handling.
+- [web_app/presentation/dependencies/retraining.py](../web_app/presentation/dependencies/retraining.py) wires the application control plane to the local artifact repository and selects smoke or native execution from the server-only `RETRAINING_WORKER_MODE` setting; smoke remains the default.
+- [frontend/features/ml-model/queries.ts](../frontend/features/ml-model/queries.ts) polls active run state and stops polling terminal runs.
+- [frontend/components/ml-model/MLModelWorkspace.tsx](../frontend/components/ml-model/MLModelWorkspace.tsx) renders run state, evidence, decisions, and explicit staging actions through the BFF.
+- [docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md](project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md) documents the local review, approval, staging, rollback, and recovery boundary.
+- [ml_model/training/train.py](../ml_model/training/train.py) and the existing training configurations provide the canonical script-first native training path.
+- [requirements.train.txt](../requirements.train.txt) contains training-only dependencies, but the default runtime image does not install them. Compose exposes the existing `INSTALL_TRAINING_REQUIREMENTS` build argument, which remains `false` unless a native image is intentionally built.
 
 ### What the current dashboard does
 

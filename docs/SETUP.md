@@ -264,11 +264,15 @@ must see the review read-only and receive `403` if it attempts the BFF route.
 The browser calls `frontend/app/api/alerts/[id]/label-review/route.ts`; that
 route derives reviewer id/role from the server session and proxies to the
 internal FastAPI route. Do not put reviewer identity or email in the JSON body.
-This is a local workflow check, not proof of a scheduled exporter, retraining
-run, production model promotion, or hosted readiness. New inference rows
+This label-review check alone is not proof of a completed export, native
+retraining run, installed schedule, model-quality improvement, production
+promotion, or hosted readiness. New inference rows
 persist the exact sanitized model-input text and hash used for prediction;
 historical rows without that provenance are not eligible for approved
-training. The reviewed-sample exporter remains unimplemented.
+training. The controlled-local Model Operations workflow can export eligible
+latest reviews into immutable run-local artifacts; see
+`docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md` for its separate execution
+and evidence requirements.
 
 ### Start the backend
 
