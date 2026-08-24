@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AlertDrawer } from './AlertDrawer'
 
 const labelReviewMutateMock = vi.fn()
+const triageMutateMock = vi.fn()
+const actionMutateMock = vi.fn()
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -29,12 +31,12 @@ vi.mock('@radix-ui/react-dialog', () => ({
 
 vi.mock('@/features/alerts/queries', () => ({
   useTriageMutation: () => ({
-    mutate: vi.fn(),
+    mutate: triageMutateMock,
     isPending: false,
     isError: false,
   }),
   useActionMutation: () => ({
-    mutate: vi.fn(),
+    mutate: actionMutateMock,
     isPending: false,
     isError: false,
   }),
@@ -48,6 +50,8 @@ vi.mock('@/features/alerts/queries', () => ({
 afterEach(() => {
   cleanup()
   labelReviewMutateMock.mockReset()
+  triageMutateMock.mockReset()
+  actionMutateMock.mockReset()
 })
 
 const alertFixture = {
@@ -67,12 +71,33 @@ const alertFixture = {
 }
 
 describe('AlertDrawer', () => {
+  it('keeps opening read-only and offers an explicit Start Review action for new alerts', () => {
+    render(
+      <AlertDrawer
+        role="ANALYST"
+        alert={{ ...alertFixture, triage_status: 'new' }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Start Review' })).toBeInTheDocument()
+    expect(triageMutateMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Review' }))
+
+    expect(triageMutateMock).toHaveBeenCalledWith(
+      { id: 'drawer-review', status: 'in_review' },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    )
+  })
+
   it('removes placeholder header text, styles captured request as evidence, and keeps unselected interventions actionable', () => {
     render(
       <AlertDrawer
         role="ADMIN"
         alert={{
           alert_id: 'drawer-1',
+          transaction_id: 'tx-drawer-1',
           timestamp: '2026-04-03T10:00:00.000Z',
           source_ip: '10.0.0.9',
           request_path: '/admin/login',
@@ -85,6 +110,11 @@ describe('AlertDrawer', () => {
           triage_status: 'in_review',
           crs_score: 11,
           crs_rule_ids: ['942100'],
+          ingest_source: 'modsec_audit_bridge',
+          source_provenance: 'DIRECT_REMOTE_ADDR',
+          source_verification_status: 'VERIFIED',
+          matched_rule_messages: ['SQL Injection Attack Detected'],
+          matched_rule_tags: ['attack-sqli'],
         }}
         onClose={vi.fn()}
       />
@@ -94,6 +124,11 @@ describe('AlertDrawer', () => {
     expect(screen.queryByText('dashboard.local')).not.toBeInTheDocument()
     expect(screen.getByText('Alert ID').nextElementSibling).toHaveTextContent('drawer-1')
     expect(screen.getByText('Host').nextElementSibling).toHaveTextContent('—')
+    expect(screen.getByText('Transaction ID').nextElementSibling).toHaveTextContent('tx-drawer-1')
+    expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
+    expect(screen.getByText('SQL Injection Attack Detected')).toBeInTheDocument()
+    expect(screen.getByText('attack-sqli')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
 
     const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured Request' })
     const evidenceShell = capturedRequestHeading.nextElementSibling
@@ -134,6 +169,50 @@ describe('AlertDrawer', () => {
     )
 
     expect(screen.getByText('95% (Critical confidence)')).toBeInTheDocument()
+  })
+
+  it('forwards a changed recorded outcome so the open drawer stays current', () => {
+    const onActionUpdated = vi.fn()
+    const updatedAlert = { ...alertFixture, action_taken: 'BLOCKED' as const }
+
+    render(
+      <AlertDrawer
+        role="ADMIN"
+        alert={alertFixture}
+        onClose={vi.fn()}
+        onActionUpdated={onActionUpdated}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Blocked/i }))
+
+    expect(actionMutateMock).toHaveBeenCalledWith(
+      { id: alertFixture.alert_id, action: 'BLOCKED' },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    )
+
+    const [, options] = actionMutateMock.mock.calls[0]
+    options.onSuccess(updatedAlert)
+
+    expect(onActionUpdated).toHaveBeenCalledWith(updatedAlert)
+  })
+
+  it('explains when no correlated CRS evidence is available', () => {
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          transaction_id: null,
+          crs_score: null,
+          crs_rule_ids: null,
+          matched_rule_messages: null,
+          matched_rule_tags: null,
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('No correlated CRS evidence available')).toBeInTheDocument()
   })
 
   it.each([

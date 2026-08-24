@@ -31,6 +31,14 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
       ? deepLinkedAlert ?? null
       : null)
 
+  const handleTriageUpdated = useCallback((updatedAlert: Alert) => {
+    setManualSelectedAlert(updatedAlert)
+  }, [])
+
+  const handleActionUpdated = useCallback((updatedAlert: Alert) => {
+    setManualSelectedAlert(updatedAlert)
+  }, [])
+
   const handleReviewUpdated = useCallback((review: LabelReview) => {
     setManualSelectedAlert((current) => {
       const baseAlert = current ?? selectedAlert
@@ -93,6 +101,8 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
         role={role}
         alert={selectedAlert}
         onClose={handleDrawerClose}
+        onTriageUpdated={handleTriageUpdated}
+        onActionUpdated={handleActionUpdated}
         onReviewUpdated={handleReviewUpdated}
       />
     </div>

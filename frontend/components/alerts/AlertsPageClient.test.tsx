@@ -36,21 +36,48 @@ vi.mock('./BulkActionBar', () => ({ BulkActionBar: () => <div data-testid="bulk-
 vi.mock('./AlertDrawer', () => ({
   AlertDrawer: ({
     alert,
+    onTriageUpdated,
+    onActionUpdated,
     onReviewUpdated,
   }: {
-    alert: { alert_id: string; label_review?: { verified_label: string } | null } | null
+    alert: {
+      alert_id: string
+      action_taken?: string | null
+      triage_status?: string | null
+      label_review?: { verified_label: string } | null
+    } | null
+    onTriageUpdated?: (updatedAlert: { alert_id: string; triage_status: string }) => void
+    onActionUpdated?: (updatedAlert: { alert_id: string; action_taken: string }) => void
     onReviewUpdated?: (review: { verified_label: string }) => void
   }) => (
     <div data-testid="alert-drawer">
       {alert ? `drawer:${alert.alert_id}:${alert.label_review?.verified_label ?? 'none'}` : 'closed'}
+      {alert && <span data-testid="drawer-triage">{alert.triage_status ?? 'new'}</span>}
+      {alert && <span data-testid="drawer-action">{alert.action_taken ?? 'none'}</span>}
       {alert && (
-        <button
-          type="button"
-          data-testid="apply-review"
-          onClick={() => onReviewUpdated?.({ verified_label: 'Normal' })}
-        >
-          apply review
-        </button>
+        <>
+          <button
+            type="button"
+            data-testid="apply-review"
+            onClick={() => onReviewUpdated?.({ verified_label: 'Normal' })}
+          >
+            apply review
+          </button>
+          <button
+            type="button"
+            data-testid="apply-triage"
+            onClick={() => onTriageUpdated?.({ ...alert, triage_status: 'in_review' })}
+          >
+            apply triage
+          </button>
+          <button
+            type="button"
+            data-testid="apply-action"
+            onClick={() => onActionUpdated?.({ ...alert, action_taken: 'ALLOWED' })}
+          >
+            apply action
+          </button>
+        </>
       )}
     </div>
   ),
@@ -83,6 +110,25 @@ describe('AlertsPageClient deep links', () => {
     screen.getByTestId('apply-review').click()
 
     await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591:Normal'))
+  })
+
+  it('updates the selected drawer snapshot after an explicit triage action succeeds', async () => {
+    render(<AlertsPageClient role="ANALYST" />)
+
+    await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591'))
+    expect(screen.getByTestId('drawer-triage')).toHaveTextContent('new')
+    screen.getByTestId('apply-triage').click()
+
+    await waitFor(() => expect(screen.getByTestId('drawer-triage')).toHaveTextContent('in_review'))
+  })
+
+  it('updates the selected drawer snapshot after a recorded outcome succeeds', async () => {
+    render(<AlertsPageClient role="ADMIN" />)
+
+    await waitFor(() => expect(screen.getByTestId('alert-drawer')).toHaveTextContent('drawer:10591'))
+    screen.getByTestId('apply-action').click()
+
+    await waitFor(() => expect(screen.getByTestId('drawer-action')).toHaveTextContent('ALLOWED'))
   })
 
   it('shows a safe message and does not fetch malformed deep links', () => {

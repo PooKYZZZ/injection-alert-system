@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useSyncExternalStore, Suspense } from 'react'
+import { useMemo, useSyncExternalStore, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
-import { useAlertsFromFilters, useTriageMutation } from '@/features/alerts/queries'
+import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
-import { formatConfidenceLabel, parseApiTimestamp } from '@/lib/date-time'
+import { formatAlertDateTime, formatConfidenceLabel, formatRelativeTime } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -46,39 +46,6 @@ const ALERT_TABLE_COLUMNS = [
   { key: 'crs_score', label: 'CRS Score', sortable: false },
 ] as const
 
-function formatTimeOnly(timestamp: string): string {
-  const parsed = parseApiTimestamp(timestamp)
-  if (!parsed) return '—'
-  return parsed.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-function formatRelativeTime(timestamp: string): string {
-  const now = Date.now()
-  const parsed = parseApiTimestamp(timestamp)
-  if (!parsed) return '—'
-  const then = parsed.getTime()
-  const diff = Math.max(0, Math.floor((now - then) / 1000)) // seconds
-
-  const minutes = Math.floor(diff / 60)
-  if (minutes < 1) return `${Math.max(0, diff)}s ago`
-  if (minutes < 60) return `${minutes}min${minutes === 1 ? '' : 's'} ago`
-
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}hr${hours === 1 ? '' : 's'} ago`
-
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}day${days === 1 ? '' : 's'} ago`
-
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}month${months === 1 ? '' : 's'} ago`
-
-  const years = Math.floor(days / 365)
-  return `${years}year${years === 1 ? '' : 's'} ago`
-}
-
 function formatCrsScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
   return score.toFixed(2)
@@ -94,10 +61,6 @@ function formatRequestHeadline(alert: Alert): string {
 function formatPayloadEvidence(snippet: string | null | undefined): string {
   const normalized = snippet?.trim()
   return normalized && normalized.length > 0 ? normalized : 'No payload snippet'
-}
-
-function isNewTriageStatus(status: Alert['triage_status']): boolean {
-  return status === 'new' || status == null
 }
 
 function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
@@ -250,9 +213,7 @@ function AlertsTableContent({
 
   // Use full AlertFilters for the alerts page (not down-converted to DashboardFilters)
   const { data, isPending, isFetching, isError, refetch } = useAlertsFromFilters(params)
-  const { mutate: updateTriage } = useTriageMutation()
   const alerts = data?.items ?? []
-  const rowClickSequenceRef = useRef(0)
 
   const currentSort = (params.sort_by as SortColumn | undefined) ?? null
   const currentDir = params.sort_dir ?? 'desc'
@@ -286,24 +247,6 @@ function AlertsTableContent({
   }
 
   const handleRowClick = (alert: Alert) => {
-    rowClickSequenceRef.current += 1
-    const clickSequence = rowClickSequenceRef.current
-
-    if (canTriage && isNewTriageStatus(alert.triage_status)) {
-      onAlertClick(alert)
-      updateTriage(
-        { id: alert.alert_id, status: 'in_review' },
-        {
-          onSuccess: (updatedAlert) => {
-            if (rowClickSequenceRef.current === clickSequence) {
-              onAlertClick(updatedAlert)
-            }
-          },
-        }
-      )
-      return
-    }
-
     onAlertClick(alert)
   }
 
@@ -335,7 +278,14 @@ function AlertsTableContent({
 
   return (
     <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
-      <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
+      <p className="border-b border-surface-border px-3 py-2 text-[10px] text-[var(--color-text-secondary)] sm:hidden">
+        Swipe horizontally to view all alert fields.
+      </p>
+      <div
+        role="region"
+        aria-label="Scrollable security alerts table"
+        className="max-h-[500px] overflow-x-auto overflow-y-auto"
+      >
         <table className="w-full text-sm">
           <caption className="sr-only">Security alerts matching the current filters</caption>
           <thead className="sticky top-0 z-10 bg-surface-panel">
@@ -399,7 +349,7 @@ function AlertsTableContent({
                     <TriageBadge triage_status={alert.triage_status ?? null} />
                   </td>
                   <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-primary)]">
-                    <time dateTime={alert.timestamp}>{formatTimeOnly(alert.timestamp)}</time>
+                    <time dateTime={alert.timestamp}>{formatAlertDateTime(alert.timestamp)}</time>
                     <div className="text-xs text-[var(--color-text-muted)]">
                       {formatRelativeTime(alert.timestamp)}
                     </div>
@@ -435,10 +385,10 @@ function AlertsTableContent({
                   <td className="p-3 font-mono text-xs text-[var(--color-text-secondary)]">
                     {formatCrsScore(alert.crs_score)}
                   </td>
-                  <td className="p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <td className="p-3">
                     <button
                       type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] hover:bg-surface-border hover:text-[var(--color-text-primary)]"
+                      className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-surface-border hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
                       aria-label={`View details for alert ${alert.alert_id}`}
                     >
                       <svg
@@ -486,7 +436,9 @@ function AlertsTableContent({
       ) : (
         <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">
-            {data ? (
+            {data?.total === 0 ? (
+              'Showing 0 alerts'
+            ) : data ? (
               <>
                 Showing {(params.page - 1) * params.pageSize + 1}–
                 {Math.min(params.page * params.pageSize, data.total)} of {data.total} alerts
