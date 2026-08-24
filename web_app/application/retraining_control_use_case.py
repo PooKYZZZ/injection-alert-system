@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Callable, Mapping
 
-from ml_model.retraining.dashboard_contracts import EvidenceStatus, RunState
+from ml_model.retraining.dashboard_contracts import (
+    EvidenceStatus,
+    RunState,
+    get_run_artifact_directory,
+)
 from ml_model.retraining.dashboard_export import DashboardExportResult
 from web_app.application.retraining_export_use_case import RetrainingExportUseCase
 from web_app.application.retraining_run_use_case import (
@@ -37,6 +41,10 @@ RUNNING_STATES = frozenset(
         RunState.DEPLOYING,
         RunState.RECOVERY_REQUIRED,
     }
+)
+_EVIDENCE_ARTIFACT_PATHS = (
+    "stages/evaluation.json",
+    "stages/comparison.json",
 )
 
 
@@ -233,7 +241,9 @@ class RetrainingControlUseCase:
             else "NOT_RUN"
         )
         evidence_summary = RetrainingEvidenceSummary()
-        if record.evaluation_digest is not None:
+        if record.evaluation_digest is not None or self._evidence_artifacts_exist(
+            record.run_id
+        ):
             try:
                 evaluation = self._artifact_repository.read_json_artifact(
                     record.run_id, "stages/evaluation.json"
@@ -268,6 +278,22 @@ class RetrainingControlUseCase:
             evidence_summary=evidence_summary,
         )
 
+    def _evidence_artifacts_exist(self, run_id: str) -> bool:
+        run_dir = get_run_artifact_directory(self._artifact_repository.root, run_id)
+        if any(
+            (run_dir / relative_path).exists()
+            for relative_path in _EVIDENCE_ARTIFACT_PATHS
+        ):
+            return True
+        try:
+            manifest = self._artifact_repository.read_artifact_manifest(run_id)
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
+            return False
+        artifacts = manifest.get("artifacts")
+        return isinstance(artifacts, Mapping) and any(
+            relative_path in artifacts for relative_path in _EVIDENCE_ARTIFACT_PATHS
+        )
+
     @staticmethod
     def _build_evidence_summary(
         evaluation: Mapping[str, Any], comparison: Mapping[str, Any]
@@ -279,16 +305,29 @@ class RetrainingControlUseCase:
             "NOT_ENOUGH_EVIDENCE",
             "INVALID",
         }
-        evaluation_status = str(evaluation.get("status", "NOT_RUN"))
-        comparison_status = str(
-            comparison.get(
-                "overall_status", comparison.get("comparison_status", "NOT_RUN")
-            )
-        )
-        if evaluation_status not in allowed_statuses:
+        evaluation_status_raw = evaluation.get("status")
+        if evaluation_status_raw is None:
+            if not (
+                evaluation.get("evidence_status") == EvidenceStatus.NOT_RUN.value
+                and evaluation.get("gate_status") == "NOT_ENOUGH_EVIDENCE"
+            ):
+                raise ValueError("evaluation evidence status is missing")
             evaluation_status = "NOT_RUN"
+        elif not isinstance(evaluation_status_raw, str):
+            raise ValueError("evaluation evidence status is invalid")
+        else:
+            evaluation_status = evaluation_status_raw
+            if evaluation_status not in allowed_statuses:
+                raise ValueError("evaluation evidence status is invalid")
+
+        comparison_status_raw = comparison.get("overall_status")
+        if comparison_status_raw is None:
+            comparison_status_raw = comparison.get("comparison_status")
+        if not isinstance(comparison_status_raw, str):
+            raise ValueError("comparison evidence status is missing")
+        comparison_status = comparison_status_raw
         if comparison_status not in allowed_statuses:
-            comparison_status = "NOT_RUN"
+            raise ValueError("comparison evidence status is invalid")
         metric_names = (
             "normal_false_positive_rate",
             "normal_recall",
