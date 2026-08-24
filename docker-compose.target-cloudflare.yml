@@ -1,5 +1,13 @@
 services:
   backend:
+    # Hosted target startup uses an explicitly reviewed migration workflow.
+    # Do not run the local-only migration guard against the hosted database.
+    command:
+      [
+        "sh",
+        "-c",
+        "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+      ]
     environment:
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
       WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}

@@ -49,6 +49,22 @@ def test_hosted_compose_starts_without_local_migration_guard():
     assert "safe_local_migrate" not in " ".join(command)
 
 
+def test_cloudflare_target_compose_starts_without_local_migration_guard():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+    )
+
+    command = config["services"]["backend"]["command"]
+    assert command == [
+        "sh",
+        "-c",
+        "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+    ]
+    assert "safe_local_migrate" not in " ".join(command)
+
+
 def test_local_compose_uses_an_explicit_postgres_database():
     config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
 
