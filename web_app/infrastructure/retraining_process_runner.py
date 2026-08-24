@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
+from ml_model.project_paths import PROJECT_ROOT
+
 WORKER_MODULE = "ml_model.retraining.dashboard_worker"
 _SAFE_ENV_KEYS = frozenset(
     {"PATH", "PYTHONPATH", "IAS_PROJECT_ROOT", "PYTHONNOUSERSITE", "SYSTEMROOT"}
@@ -55,8 +57,8 @@ class RetrainingProcessRunner:
     def __init__(
         self,
         *,
+        project_root: Path | str = PROJECT_ROOT,
         python_executable: Path | str | None = None,
-        project_root: Path | str | None = None,
         smoke: bool = True,
         timeout_seconds: int = 3600,
         extra_safe_environment: Mapping[str, str] | None = None,
@@ -64,11 +66,7 @@ class RetrainingProcessRunner:
         self.python_executable = Path(python_executable or sys.executable).expanduser()
         if not self.python_executable.is_absolute():
             raise ValueError("worker Python executable must be absolute")
-        self.project_root = (
-            Path(project_root).expanduser().resolve()
-            if project_root is not None
-            else Path.cwd().resolve()
-        )
+        self.project_root = Path(project_root).expanduser().resolve()
         if not self.project_root.is_dir():
             raise ValueError("worker project root does not exist")
         if timeout_seconds <= 0:
