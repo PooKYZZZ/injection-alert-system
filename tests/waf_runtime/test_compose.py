@@ -33,6 +33,22 @@ def test_backend_compose_guards_migrations_before_startup():
     assert "alembic upgrade head && uvicorn" not in compose
 
 
+def test_hosted_compose_starts_without_local_migration_guard():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.hosted-target.yml",
+    )
+
+    command = config["services"]["backend"]["command"]
+    assert command == [
+        "sh",
+        "-c",
+        "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
+    ]
+    assert "safe_local_migrate" not in " ".join(command)
+
+
 def test_local_compose_uses_an_explicit_postgres_database():
     config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
 
@@ -106,6 +122,8 @@ def _merged_compose(*files: str) -> dict:
             "ENFORCEMENT_TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
             "ENFORCEMENT_TURNSTILE_EXPECTED_HOSTNAME": "localhost",
             "CLOUDFLARE_TARGET_VERIFIED_PROOF": "true",
+            "APP_ENV": "staging",
+            "HOSTED_WAF_TRUSTED_PEER": "172.30.20.2/32",
             "CLOUDFLARED_TARGET_TOKEN_FILE": str(
                 ROOT / "docs/project-ops/PR7_Sections_3B_3C_Implementation_Design.md"
             ),
