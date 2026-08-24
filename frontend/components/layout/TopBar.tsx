@@ -56,6 +56,7 @@ interface TopBarProps {
   showLiveStatus?: boolean
   searchPlaceholder?: string
   showNewIndicator?: boolean
+  searchPath?: string
 }
 
 function TopBarContent({
@@ -65,11 +66,13 @@ function TopBarContent({
   showLiveStatus = false,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
   showNewIndicator = false,
+  searchPath,
 }: TopBarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTargetPath = searchPath ?? pathname
 
   const rawConfidenceTier = searchParams?.get('confidence_tier') ?? searchParams?.get('severity')
   const currentConfidenceTier: ConfidenceTierFilter =
@@ -112,7 +115,7 @@ function TopBarContent({
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
     debounceRef.current = setTimeout(() => {
-      router.push(`${pathname}?${createQueryString('search', value || null)}`, {
+      router.push(`${searchTargetPath}?${createQueryString('search', value || null)}`, {
         scroll: false,
       })
     }, 300)
@@ -302,6 +305,7 @@ export function DashboardTopBar() {
           showConfidenceTierControls={false}
           showSearch={true}
           searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
+          searchPath="/alerts"
         />
     )
   }
