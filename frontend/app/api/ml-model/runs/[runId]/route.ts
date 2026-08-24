@@ -4,8 +4,7 @@ import { auth } from '@/auth'
 import { getRetrainingRun } from '@/lib/bff-client'
 import { requirePermission } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
-
-const RUN_ID_PATTERN = /^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/
+import { invalidRetrainingRunIdResponse } from '@/lib/server/retraining-route'
 
 export async function GET(
   _request: NextRequest,
@@ -22,12 +21,8 @@ export async function GET(
       )
     }
     const { runId } = await params
-    if (!RUN_ID_PATTERN.test(runId)) {
-      return NextResponse.json(
-        { error: { code: 'INVALID_RUN_ID', message: 'Retraining run ID is invalid.' } },
-        { status: 400 }
-      )
-    }
+    const runIdError = invalidRetrainingRunIdResponse(runId)
+    if (runIdError) return runIdError
     const result = await getRetrainingRun(runId, {
       id: session.user.id,
       role: session.user.role,

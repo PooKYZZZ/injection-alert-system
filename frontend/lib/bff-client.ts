@@ -17,6 +17,7 @@ import {
   RetrainingExportResultSchema,
   RetrainingRetryRequestSchema,
   RetrainingRollbackRequestSchema,
+  RetrainingRunIdSchema,
   RetrainingRunDetailSchema,
   RetrainingRunListSchema,
   RetrainingRunRequestSchema,
@@ -715,7 +716,7 @@ async function fetchUpstream<T>(
 export type RetrainingActor = { id: string; role: string }
 
 function parseRetrainingRunId(runId: string): BffResult<string> {
-  if (!/^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$/.test(runId)) {
+  if (!RetrainingRunIdSchema.safeParse(runId).success) {
     return err(400, 'INVALID_RUN_ID', 'Retraining run ID is invalid.')
   }
   return ok(runId)
