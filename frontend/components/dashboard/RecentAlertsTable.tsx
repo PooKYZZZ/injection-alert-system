@@ -6,22 +6,11 @@ import { ActionLabel } from '@/components/ui/ActionLabel'
 import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import type { Alert } from '@/features/alerts/types'
-import { parseApiTimestamp } from '@/lib/date-time'
+import { formatAlertDateTime } from '@/lib/date-time'
 
 interface RecentAlertsTableProps {
   alerts: Alert[]
   isPending?: boolean
-}
-
-function formatTimestamp(timestamp: string): string {
-  const parsed = parseApiTimestamp(timestamp)
-  if (!parsed) return '—'
-  return parsed.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }
 
 function formatCrsScore(score: number | null | undefined): string {
@@ -87,7 +76,9 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                   <td className="p-2">
                     <TriageBadge triage_status={alert.triage_status ?? null} />
                   </td>
-                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
+                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">
+                    <time dateTime={alert.timestamp}>{formatAlertDateTime(alert.timestamp)}</time>
+                  </td>
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</td>
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
                   <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>

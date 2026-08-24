@@ -49,4 +49,12 @@ describe('FilterBar', () => {
     expect(screen.getByLabelText('Time Window')).toHaveValue('ALL')
     expect(screen.getByLabelText('Action Taken')).toHaveValue('ALL')
   })
+
+  it('uses operator-friendly labels while keeping canonical filter values', () => {
+    render(<FilterBar />)
+
+    expect(screen.getByRole('option', { name: '6 hours' })).toHaveValue('6h')
+    expect(screen.getByRole('option', { name: 'In Review' })).toHaveValue('in_review')
+    expect(screen.getByRole('option', { name: 'Critical confidence' })).toHaveValue('CRITICAL')
+  })
 })

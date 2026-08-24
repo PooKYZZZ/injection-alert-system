@@ -19,6 +19,26 @@ const ACTION_CYCLE = ['ALL', ...ALERT_ACTION_TAKEN_VALUES] as const
 const TRIAGE_CYCLE = ['ALL', ...TRIAGE_STATUS_VALUES] as const
 const WINDOW_CYCLE = ['ALL', '1h', '6h', '24h', '7d'] as const
 
+const FILTER_OPTION_LABELS: Record<string, string> = {
+  ALL: 'All',
+  new: 'New',
+  in_review: 'In Review',
+  escalated: 'Escalated',
+  resolved: 'Resolved',
+  false_positive: 'False Positive',
+  '1h': '1 hour',
+  '6h': '6 hours',
+  '24h': '24 hours',
+  '7d': '7 days',
+  BLOCKED: 'Blocked',
+  THROTTLED: 'Throttled',
+  ALLOWED: 'Allowed',
+  LOW: 'Low confidence',
+  MEDIUM: 'Medium confidence',
+  HIGH: 'High confidence',
+  CRITICAL: 'Critical confidence',
+}
+
 type ConfidenceTierValue = (typeof CONFIDENCE_TIER_CYCLE)[number]
 type ActionValue = (typeof ACTION_CYCLE)[number]
 type TriageValue = (typeof TRIAGE_CYCLE)[number]
@@ -53,7 +73,7 @@ function FilterSelect<T extends string>({
       >
         {options.map((option) => (
           <option key={option} value={option} className="bg-surface-card text-[var(--color-text-primary)]">
-            {option}
+            {FILTER_OPTION_LABELS[option] ?? option}
           </option>
         ))}
       </select>

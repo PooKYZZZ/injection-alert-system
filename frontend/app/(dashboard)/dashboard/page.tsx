@@ -42,6 +42,12 @@ interface DashboardQueryErrorProps {
 }
 
 const TIME_WINDOWS: TimeWindow[] = ['1h', '6h', '24h', '7d']
+const TIME_WINDOW_LABELS: Record<TimeWindow, string> = {
+  '1h': '1 hour',
+  '6h': '6 hours',
+  '24h': '24 hours',
+  '7d': '7 days',
+}
 
 function parseTimeWindow(value: string | null): TimeWindow {
   return value && TIME_WINDOWS.includes(value as TimeWindow) ? (value as TimeWindow) : '6h'
@@ -137,7 +143,7 @@ export default function DashboardPage() {
   // Stat card values with honest fallback
   const statCards = [
     {
-      label: 'Non-Normal alerts',
+      label: 'Non-Normal predictions',
       value: stats?.high_alert_count ?? '—',
       valueColor: 'text-emerald-500',
       valueFlashColor: 'text-red-200',
@@ -185,20 +191,20 @@ export default function DashboardPage() {
     {
       label: 'Allowed',
       value: stats?.allowed_count ?? '—',
-      secondary: statsUnavailable ? 'Unavailable' : 'Normal or LOW-confidence traffic',
+      secondary: statsUnavailable ? 'Unavailable' : 'Normal or LOW-confidence requests',
       secondaryColor: 'text-emerald-400',
       previousValue: stats?.prev_allowed_count ?? null,
       deltaInverted: true,
       delay: 0.15,
     },
     {
-      label: 'Avg ML confidence',
+      label: 'Average model confidence',
       value: formatConfidencePercent(stats?.avg_confidence),
       secondary:
         statsUnavailable
           ? 'Unavailable'
           : stats?.avg_confidence != null
-            ? 'Model stable'
+            ? 'Average model certainty; not attack severity'
             : 'No traffic in window',
       secondaryColor: 'text-emerald-400',
       delay: 0.2,
@@ -254,13 +260,14 @@ export default function DashboardPage() {
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
             <span className="min-w-0 text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
-              Request activity — last {timeWindow}
+              Request activity — last {TIME_WINDOW_LABELS[timeWindow]}
             </span>
             <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
               {TIME_WINDOWS.map((win) => (
                 <button
                   key={win}
                   type="button"
+                  aria-label={TIME_WINDOW_LABELS[win]}
                   aria-pressed={timeWindow === win}
                   onClick={() => handleTimeWindowChange(win)}
                   className={cn(
@@ -271,7 +278,7 @@ export default function DashboardPage() {
                       : 'text-text-muted hover:bg-surface-inset hover:text-text-primary'
                   )}
                 >
-                  {win}
+                  {TIME_WINDOW_LABELS[win]}
                 </button>
               ))}
             </div>
@@ -286,10 +293,10 @@ export default function DashboardPage() {
                 ? 'Loading…'
                 : statsFetching || alertsFetching
                   ? 'Updating…'
-                  : `Showing ${timeWindow} window`}
+                  : `Showing last ${TIME_WINDOW_LABELS[timeWindow]}`}
             </span>
             <span className="hidden text-[10px] text-[var(--color-text-muted)] sm:inline">
-              Hover for details
+              Rolling window ending now
             </span>
           </div>
         </div>

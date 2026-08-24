@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { RecentAlertsTable } from './RecentAlertsTable'
 import type { Alert } from '@/features/alerts/types'
+import { formatAlertDateTime } from '@/lib/date-time'
 
 const sampleAlert: Alert = {
   alert_id: 'alert-1',
@@ -37,12 +38,7 @@ describe('RecentAlertsTable', () => {
       'href',
       '/alerts?alert_id=alert-1'
     )
-    const expectedTimestamp = new Date(sampleAlert.timestamp).toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
+    const expectedTimestamp = formatAlertDateTime(sampleAlert.timestamp)
     expect(screen.getByText(expectedTimestamp)).toBeInTheDocument()
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
 
@@ -54,12 +50,7 @@ describe('RecentAlertsTable', () => {
   it('treats a legacy timezone-naive timestamp as UTC in the dashboard preview', () => {
     render(<RecentAlertsTable alerts={[{ ...sampleAlert, timestamp: '2026-03-17T15:30:00' }]} />)
 
-    const expectedTimestamp = new Date('2026-03-17T15:30:00Z').toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
+    const expectedTimestamp = formatAlertDateTime('2026-03-17T15:30:00Z')
     expect(screen.getByText(expectedTimestamp)).toBeInTheDocument()
   })
 

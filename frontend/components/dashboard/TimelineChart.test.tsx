@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildUniqueDayTicks, buildYAxisMax, dedupeTooltipPayload, TimelineChart } from './TimelineChart'
 
@@ -276,6 +276,15 @@ describe('TimelineChart', () => {
     expect(getByText(/No events in this window/i)).toBeInTheDocument()
     expect(getByText(/Traffic was quiet during this period/i)).toBeInTheDocument()
     expect(container.querySelector('[data-testid="ComposedChart"]')).toBeNull()
+  })
+
+  it('provides an accessible text summary of each action series', () => {
+    render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+
+    expect(screen.getAllByRole('img', { name: /Request activity for the last 24h/ })[0]).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Blocked 53, Throttled 12, Allowed 23')
+    )
   })
 
   it('shows the pending skeleton while loading', () => {

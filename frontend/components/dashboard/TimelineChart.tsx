@@ -241,6 +241,19 @@ export function TimelineChart({
     return [30, 60]
   }, [yAxisMax])
 
+  const actionTotals = useMemo(
+    () =>
+      processedData.reduce(
+        (totals, point) => ({
+          blocked: totals.blocked + (point.blocked ?? 0),
+          throttled: totals.throttled + (point.throttled ?? 0),
+          allowed: totals.allowed + (point.allowed ?? 0),
+        }),
+        { blocked: 0, throttled: 0, allowed: 0 }
+      ),
+    [processedData]
+  )
+
   if (isPending) {
     return (
       <div className="h-[140px] w-full">
@@ -258,10 +271,8 @@ export function TimelineChart({
     timeWindow === '7d'
       ? { top: 5, right: 5, left: 8, bottom: 0 }
       : { top: 5, right: 5, left: 8, bottom: 0 }
-  const chartTotal = processedData.reduce(
-    (sum, point) => sum + (point.allowed ?? 0) + (point.blocked ?? 0) + (point.throttled ?? 0),
-    0
-  )
+  const chartTotal = actionTotals.blocked + actionTotals.throttled + actionTotals.allowed
+  const actionSummary = `Blocked ${actionTotals.blocked}, Throttled ${actionTotals.throttled}, Allowed ${actionTotals.allowed}`
 
   return (
     <div
@@ -270,7 +281,7 @@ export function TimelineChart({
       aria-label={
         isEmpty
           ? `Request activity for the last ${timeWindow}. No events in this window.`
-          : `Request activity for the last ${timeWindow}. ${chartTotal} total events.`
+          : `Request activity for the last ${timeWindow}. ${chartTotal} total events. ${actionSummary}.`
       }
     >
       {!isEmpty ? (

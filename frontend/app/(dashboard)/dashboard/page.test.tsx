@@ -111,13 +111,21 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByText('Not ground-truth FPR')).toBeInTheDocument()
   })
 
+  it('distinguishes model confidence from attack severity and names the window semantics', () => {
+    render(<DashboardPage />)
+
+    expect(screen.getByText('Average model confidence')).toBeInTheDocument()
+    expect(screen.getByText('Average model certainty; not attack severity')).toBeInTheDocument()
+    expect(screen.getByText('Rolling window ending now')).toBeInTheDocument()
+  })
+
   it('exposes the time-window control as an accessible pressed-button group', async () => {
     const user = userEvent.setup()
     render(<DashboardPage />)
 
     const group = screen.getByRole('group', { name: 'Timeline window' })
-    const sixHourButton = screen.getByRole('button', { name: '6h' })
-    const dayButton = screen.getByRole('button', { name: '24h' })
+    const sixHourButton = screen.getByRole('button', { name: '6 hours' })
+    const dayButton = screen.getByRole('button', { name: '24 hours' })
 
     expect(group).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Activity series' })).toBeInTheDocument()
@@ -137,7 +145,7 @@ describe('DashboardPage metric definitions', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByRole('button', { name: '7d' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true')
     expect(useDashboardStats).toHaveBeenCalledWith('7d')
   })
 
@@ -175,7 +183,7 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Dashboard metrics are unavailable')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.getByText('Non-Normal alerts')).toBeInTheDocument()
+    expect(screen.getByText('Non-Normal predictions')).toBeInTheDocument()
     expect(screen.getByText('Timeline unavailable')).toBeInTheDocument()
     expect(screen.queryByTestId('timeline-chart')).not.toBeInTheDocument()
     expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
@@ -209,7 +217,7 @@ describe('DashboardPage metric definitions', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByText('Non-Normal alerts')).toBeInTheDocument()
+    expect(screen.getByText('Non-Normal predictions')).toBeInTheDocument()
     expect(screen.getByTestId('timeline-chart')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/showing the last successful data/i)
   })
