@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useActionMutation, useLabelReviewMutation } from './queries'
+import { alertListOptions, useActionMutation, useLabelReviewMutation } from './queries'
 
 const fetchMock = vi.fn<typeof fetch>()
 const showSignInToastMock = vi.fn()
@@ -93,6 +93,31 @@ describe('useActionMutation', () => {
 
     expect(openSpy).not.toHaveBeenCalled()
     expect(invalidateQueriesSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('alertListOptions', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('passes TanStack Query cancellation to the alerts request', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    const options = alertListOptions({ confidenceTier: 'ALL', timeRange: '6h', search: '' })
+    const signal = new AbortController().signal
+
+    if (typeof options.queryFn !== 'function') throw new Error('alerts query function missing')
+    await options.queryFn({ queryKey: options.queryKey, signal } as never)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/alerts?confidence_tier=ALL&timeRange=6h&search=',
+      { signal }
+    )
   })
 })
 

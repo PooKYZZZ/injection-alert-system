@@ -15,8 +15,7 @@ import { ErrorState } from '@/components/ui/StateViews'
 import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
-import type { AlertPrediction } from '@/features/alerts/contract'
-import { countAlertsByConfidenceTier } from '@/features/alerts/confidenceBands'
+import { emptyConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
 
 // Lazy-load TimelineChart to avoid SSR hydration issues and reduce initial bundle
@@ -48,7 +47,7 @@ function DashboardQueryError({ message, onRetry }: DashboardQueryErrorProps) {
 }
 
 export default function DashboardPage() {
-  // Time window selector state (display-only until backend supports it)
+  // The selected window is part of both the stats and recent-preview query keys.
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('6h')
 
   const dashboardFilters = useMemo<DashboardFilters>(
@@ -64,6 +63,7 @@ export default function DashboardPage() {
   const {
     data: stats,
     isPending: statsPending,
+    isFetching: statsFetching,
     error: statsError,
     refetch: refetchStats,
   } = useDashboardStats(timeWindow)
@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const {
     data: alertsData,
     isPending: alertsPending,
+    isFetching: alertsFetching,
     error: alertsError,
     refetch: refetchAlerts,
   } = useAlerts(dashboardFilters)
@@ -79,43 +80,35 @@ export default function DashboardPage() {
   const statsUnavailable = statsError != null && stats == null
   const alertsUnavailable = alertsError != null && alertsData == null
 
-  // Calculate attack type distribution from alerts
-  const attackCounts = useMemo(() => {
-    const counts: Partial<Record<AlertPrediction, number>> = {}
-    for (const alert of alerts) {
-      const prediction = alert.prediction
-      counts[prediction] = (counts[prediction] ?? 0) + 1
-    }
-    return counts
-  }, [alerts])
+  // These distributions come from the complete-window stats aggregate. The
+  // alerts query is intentionally only a small recent preview and must not be
+  // used as the source for Dashboard totals.
+  const attackCounts = stats?.attack_distribution ?? {}
+  const allConfidenceBands = stats?.counts_by_confidence_tier ?? emptyConfidenceBandCounts()
+  const nonNormalEnforcementBands =
+    stats?.non_normal_counts_by_confidence_tier ?? emptyConfidenceBandCounts()
 
-  const allConfidenceBands = useMemo(
-    () => countAlertsByConfidenceTier(alerts),
-    [alerts]
-  )
-  const nonNormalEnforcementBands = useMemo(
-    () => countAlertsByConfidenceTier(alerts, { nonNormalOnly: true }),
-    [alerts]
-  )
-
-  const summaryWindowTotal =
-    (stats?.blocked_count ?? 0) +
-    (stats?.throttled_count ?? 0) +
-    (stats?.allowed_count ?? 0)
+  const summaryWindowTotal = stats?.total_requests ?? 0
 
   const bucketWindowTotal =
+    stats?.activity_buckets.reduce(
+      (sum, bucket) => sum + bucket.total_count,
+      0
+    ) ?? 0
+
+  const bucketActionTotal =
     stats?.activity_buckets.reduce(
       (sum, bucket) => sum + bucket.blocked_count + bucket.throttled_count + bucket.allowed_count,
       0
     ) ?? 0
 
-  const hasTimelineEvents = bucketWindowTotal > 0
+  const hasTimelineEvents = bucketActionTotal > 0
   const hasWindowDataMismatch = stats != null && summaryWindowTotal !== bucketWindowTotal
 
   // Stat card values with honest fallback
   const statCards = [
     {
-      label: 'High-confidence alerts',
+      label: 'Non-Normal alerts',
       value: stats?.high_alert_count ?? '—',
       valueColor: 'text-emerald-500',
       valueFlashColor: 'text-red-200',
@@ -232,7 +225,7 @@ export default function DashboardPage() {
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
             <span className="min-w-0 text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
-              Attack events — last {timeWindow}
+              Request activity — last {timeWindow}
             </span>
             <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
               {(['1h', '6h', '24h', '7d'] as TimeWindow[]).map((win) => (
@@ -254,8 +247,38 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          {/* Time window filter applied to stats query */}
-          <span className="hidden shrink-0 text-[10px] text-[var(--color-text-muted)] sm:inline">Hover for details</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span
+              role="status"
+              aria-live="polite"
+              className="text-[10px] text-[var(--color-text-muted)]"
+            >
+              {statsPending || alertsPending
+                ? 'Loading…'
+                : statsFetching || alertsFetching
+                  ? 'Updating…'
+                  : `Showing ${timeWindow} window`}
+            </span>
+            <span className="hidden text-[10px] text-[var(--color-text-muted)] sm:inline">
+              Hover for details
+            </span>
+          </div>
+        </div>
+        <div
+          role="list"
+          aria-label="Activity series"
+          className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--color-text-secondary)]"
+        >
+          {[
+            ['Blocked', 'bg-severity-high-accent'],
+            ['Throttled', 'bg-severity-blocked-accent'],
+            ['Allowed', 'bg-severity-safe-accent'],
+          ].map(([label, colorClass]) => (
+            <span key={label} role="listitem" className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', colorClass)} />
+              {label}
+            </span>
+          ))}
         </div>
         {statsUnavailable ? (
           <div className="flex h-[140px] items-center justify-center">
@@ -299,7 +322,7 @@ export default function DashboardPage() {
 
       {/* Distribution Grid */}
       <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {!alertsUnavailable ? (
+        {!statsUnavailable ? (
           <>
             {/* Attack Type Panel */}
             <motion.div
@@ -309,9 +332,9 @@ export default function DashboardPage() {
               className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
             >
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-                Attack type dist.
+                Attack type distribution
               </div>
-              <AttackTypePanel countsByLabel={attackCounts} isPending={alertsPending} />
+              <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
             </motion.div>
 
             {/* ML Confidence Bands + Enforcement Map */}
@@ -329,7 +352,7 @@ export default function DashboardPage() {
                 high={allConfidenceBands.high}
                 medium={allConfidenceBands.medium}
                 low={allConfidenceBands.low}
-                isPending={alertsPending}
+                isPending={statsPending}
               />
 
               <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
@@ -343,7 +366,7 @@ export default function DashboardPage() {
                 </div>
                 <MLEnforcementMap
                   nonNormalCounts={nonNormalEnforcementBands}
-                  isPending={alertsPending}
+                  isPending={statsPending}
                 />
               </div>
             </motion.div>

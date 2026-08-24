@@ -210,6 +210,19 @@ describe('TimelineChart', () => {
     }
   )
 
+  it('starts with a valid responsive-container dimension while ResizeObserver measures the parent', () => {
+    const { container } = render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+    const responsiveContainer = container.querySelector('[data-testid="ResponsiveContainer"]')
+    const props = JSON.parse(responsiveContainer?.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+
+    expect(props).toMatchObject({
+      width: '100%',
+      height: '100%',
+      minHeight: 140,
+      initialDimension: { width: 0, height: 140 },
+    })
+  })
+
   it('extends the y-axis above 60 when the series data exceeds the baseline', () => {
     const tallBuckets = [
       {
@@ -258,10 +271,11 @@ describe('TimelineChart', () => {
   })
 
   it('shows the empty state when there are no events', () => {
-    const { getByText } = render(<TimelineChart buckets={[]} />)
+    const { container, getByText } = render(<TimelineChart buckets={[]} />)
 
     expect(getByText(/No events in this window/i)).toBeInTheDocument()
     expect(getByText(/Traffic was quiet during this period/i)).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="ComposedChart"]')).toBeNull()
   })
 
   it('shows the pending skeleton while loading', () => {

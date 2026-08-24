@@ -22,12 +22,12 @@ export const statsKeys = {
 export function statsOptions(window?: string, timezone = getBrowserTimeZone()) {
   return queryOptions<DashboardStats>({
     queryKey: statsKeys.stats(window, timezone),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams()
       if (window) params.set('window', window)
       if (timezone) params.set('timezone', timezone)
       const url = params.size > 0 ? `/api/stats?${params.toString()}` : '/api/stats'
-      const r = await fetch(url)
+      const r = await fetch(url, { signal })
       if (!r.ok) throw new Error(`/api/stats responded with ${r.status}`)
       return r.json()
     },

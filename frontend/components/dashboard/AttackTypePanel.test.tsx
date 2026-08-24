@@ -13,7 +13,9 @@ vi.mock('recharts', () => ({
     </div>
   ),
   PieChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ResponsiveContainer: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    <div data-testid="responsive-container" data-props={JSON.stringify(props)}>{children}</div>
+  ),
   Tooltip: ({ contentStyle }: { contentStyle?: React.CSSProperties }) => (
     <div data-testid="pie-tooltip-style" data-background={String(contentStyle?.backgroundColor ?? '')} />
   ),
@@ -50,5 +52,11 @@ describe('AttackTypePanel', () => {
       'data-background',
       'var(--color-surface-card)'
     )
+    expect(JSON.parse(screen.getByTestId('responsive-container').getAttribute('data-props') ?? '{}')).toMatchObject({
+      width: '100%',
+      height: '100%',
+      minHeight: 196,
+      initialDimension: { width: 0, height: 196 },
+    })
   })
 })

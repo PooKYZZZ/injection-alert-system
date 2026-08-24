@@ -127,7 +127,12 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
             aria-label="Attack type distribution pie chart"
             className="flex h-[196px] min-h-[160px] w-full min-w-0 max-w-[260px] self-center"
           >
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minHeight={196}
+              initialDimension={{ width: 0, height: 196 }}
+            >
               <PieChart accessibilityLayer>
                 <Pie
                   data={entries}

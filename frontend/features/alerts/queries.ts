@@ -39,9 +39,9 @@ export class AlertDetailError extends Error {
 export function alertListOptions(filters: DashboardFilters) {
   return queryOptions<PaginatedAlerts>({
     queryKey: alertKeys.list(toQueryString(filters)),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const url = `/api/alerts?${toQueryString(filters)}`
-      const r = await fetch(url)
+      const r = await fetch(url, { signal })
       if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },
@@ -52,10 +52,10 @@ export function alertListOptions(filters: DashboardFilters) {
 export function alertDetailOptions(id: string | null) {
   return queryOptions<Alert>({
     queryKey: alertKeys.detail(id ?? ''),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!id) throw new Error('Alert ID is required')
       const url = `/api/alerts/${id}`
-      const r = await fetch(url)
+      const r = await fetch(url, { signal })
       if (!r.ok) throw new AlertDetailError(r.status)
       return r.json()
     },
@@ -74,9 +74,9 @@ export const useAlerts = (
 export function alertListOptionsFromFilters(filters: AlertFilters) {
   return queryOptions<PaginatedAlerts>({
     queryKey: alertKeys.list(toAlertQueryString(filters)),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const url = `/api/alerts?${toAlertQueryString(filters)}`
-      const r = await fetch(url)
+      const r = await fetch(url, { signal })
       if (!r.ok) throw new Error(`${url} responded with ${r.status}`)
       return r.json()
     },

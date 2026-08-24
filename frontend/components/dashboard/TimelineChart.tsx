@@ -258,10 +258,28 @@ export function TimelineChart({
     timeWindow === '7d'
       ? { top: 5, right: 5, left: 8, bottom: 0 }
       : { top: 5, right: 5, left: 8, bottom: 0 }
+  const chartTotal = processedData.reduce(
+    (sum, point) => sum + (point.allowed ?? 0) + (point.blocked ?? 0) + (point.throttled ?? 0),
+    0
+  )
 
   return (
-    <div className="relative h-[140px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div
+      className="relative h-[140px] w-full"
+      role="img"
+      aria-label={
+        isEmpty
+          ? `Request activity for the last ${timeWindow}. No events in this window.`
+          : `Request activity for the last ${timeWindow}. ${chartTotal} total events.`
+      }
+    >
+      {!isEmpty ? (
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minHeight={140}
+          initialDimension={{ width: 0, height: 140 }}
+        >
         <ComposedChart data={processedData} margin={chartMargin}>
           <defs>
             <linearGradient id="gradBlocked" x1="0" y1="0" x2="0" y2="1">
@@ -416,7 +434,8 @@ export function TimelineChart({
             </>
           ) : null}
         </ComposedChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      ) : null}
       {hasWindowDataMismatch ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
           <p className="text-[11px] text-[var(--color-text-secondary)]">Data sync in progress</p>

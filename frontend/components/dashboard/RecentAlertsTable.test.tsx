@@ -33,6 +33,17 @@ describe('RecentAlertsTable', () => {
     expect(viewAllLink).toHaveAttribute('href', '/alerts')
     expect(viewAllLink).toHaveClass('text-[var(--color-accent-analytic)]')
     expect(screen.getByText('SQL Injection')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View details for alert-1' })).toHaveAttribute(
+      'href',
+      '/alerts?alert_id=alert-1'
+    )
+    const expectedTimestamp = new Date(sampleAlert.timestamp).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    expect(screen.getByText(expectedTimestamp)).toBeInTheDocument()
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
 
     const tableCard = container.firstElementChild
@@ -49,7 +60,7 @@ describe('RecentAlertsTable', () => {
     expect(screen.getByRole('table', { name: 'Recent alerts' })).toBeInTheDocument()
     expect(screen.getByText('No recent alerts in this window.')).toBeInTheDocument()
     expect(container.querySelector('[data-testid="recent-alerts-scroll"]')).not.toBeNull()
-    expect(screen.getAllByRole('columnheader')).toHaveLength(8)
+    expect(screen.getAllByRole('columnheader')).toHaveLength(9)
     expect(screen.getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col')
   })
 })

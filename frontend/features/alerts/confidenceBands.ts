@@ -1,11 +1,7 @@
 import type { AlertConfidenceTier, AlertPrediction } from './contract'
+import type { ConfidenceBandCounts } from '@/features/stats/types'
 
-export type ConfidenceBandCounts = {
-  critical: number
-  high: number
-  medium: number
-  low: number
-}
+export type { ConfidenceBandCounts } from '@/features/stats/types'
 
 type CountableAlert = {
   prediction: AlertPrediction
