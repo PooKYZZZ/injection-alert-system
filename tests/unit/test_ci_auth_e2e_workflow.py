@@ -18,7 +18,10 @@ def test_ci_retains_safe_failure_evidence_and_always_cleans_resources() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
     job = source.split("  auth-e2e:", 1)[1].split("  secret-scan:", 1)[0]
 
-    assert "actions/upload-artifact@v4" in job
+    assert (
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+        " # v4.6.2"
+    ) in job
     assert "if: failure()" in job
     assert "frontend/playwright-report/auth" in job
     assert "frontend/test-results/auth" in job
