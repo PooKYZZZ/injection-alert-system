@@ -741,7 +741,12 @@ recovery codes, or database credentials in evidence.
 
 ---
 
-## Step 10 — Verify Triage Update Persists to Supabase
+## Step 10 — Verify Triage Update Persists in the Local Database
+
+The commands in this section use the isolated PostgreSQL service from
+`docker-compose.local.yml`. They do not write to hosted Supabase. Use the
+separate hosted authentication and migration procedure below only when an
+authorized operator is intentionally testing the hosted environment.
 
 ### 9a. Find an alert to triage
 
