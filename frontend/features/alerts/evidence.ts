@@ -34,7 +34,7 @@ export function describeEvidenceRelationship(
     return {
       kind: 'ml_only',
       label: 'ML assessment only',
-      description: 'No correlated CRS evidence is available for this alert.',
+      description: 'The alert has model data but no WAF fields linked to it.',
     }
   }
 
