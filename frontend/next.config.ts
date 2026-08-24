@@ -20,6 +20,7 @@ export function buildContentSecurityPolicy(
 }
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   allowedDevOrigins: ['127.0.0.1'],
   outputFileTracingRoot: process.cwd(),
   turbopack: {

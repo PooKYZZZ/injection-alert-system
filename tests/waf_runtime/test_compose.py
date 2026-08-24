@@ -68,6 +68,29 @@ def test_frontend_has_a_runtime_readiness_check():
     assert "http://127.0.0.1:3000/login" in " ".join(healthcheck["test"])
 
 
+def test_frontend_image_uses_standalone_non_root_runtime():
+    next_config = (ROOT / "frontend" / "next.config.ts").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "output: 'standalone'" in next_config
+    assert dockerfile.count("FROM node:24-alpine") >= 3
+    assert (
+        "COPY --from=builder --chown=node:node /app/.next/standalone ./" in dockerfile
+    )
+    assert "USER node" in dockerfile
+    assert 'CMD ["node", "server.js"]' in dockerfile
+
+
+def test_backend_image_runs_non_root_with_owned_runtime_directories():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "useradd --no-log-init" in dockerfile
+    assert "ml_model/results/dashboard_retraining" in dockerfile
+    assert "ml_model/model_registry/staging" in dockerfile
+    assert "ml_model/model_registry/archive" in dockerfile
+    assert "USER cybertrace" in dockerfile
+
+
 def _merged_compose(*files: str) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker is required for merged Compose contract tests")
