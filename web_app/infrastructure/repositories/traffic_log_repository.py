@@ -720,7 +720,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
         row = result.one()
         avg_confidence = (
-            round(float(row.avg_confidence), 3)
+            round(float(row.avg_confidence), 6)
             if row.confidence_count and row.confidence_count > 0
             else None
         )
@@ -758,7 +758,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         result = await s.execute(query)
         row = result.one()
         if row.confidence_count and row.confidence_count > 0:
-            return round(float(row.avg_confidence), 3)
+            return round(float(row.avg_confidence), 6)
         return None
 
     async def _get_counts_by_label(

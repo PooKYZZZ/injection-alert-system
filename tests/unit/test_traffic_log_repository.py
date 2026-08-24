@@ -55,6 +55,31 @@ async def test_get_stats_summary_returns_zero_safe_defaults(
 
 
 @pytest.mark.asyncio
+async def test_get_stats_summary_preserves_high_confidence_precision(
+    repository: TrafficLogRepository,
+):
+    for index, confidence in enumerate((0.9998, 0.9999), start=1):
+        await repository.save(
+            TrafficLogEntity(
+                transaction_id=f"txn-confidence-precision-{index}",
+                source_ip="198.51.100.200",
+                request_path=f"/confidence/{index}",
+                request_method="GET",
+                http_request=f"GET /confidence/{index}",
+                prediction="SQL Injection",
+                confidence=confidence,
+                confidence_level="CRITICAL",
+                inference_latency_ms=1.0,
+                action_taken="BLOCKED",
+            )
+        )
+
+    summary = await repository.get_stats_summary()
+
+    assert summary.avg_confidence == 0.99985
+
+
+@pytest.mark.asyncio
 async def test_get_alert_list_returns_filtered_total_and_stable_order(
     repository: TrafficLogRepository,
 ):
