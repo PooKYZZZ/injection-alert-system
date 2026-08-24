@@ -6,6 +6,7 @@ import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { ConfidenceTierFilter } from '@/lib/searchParams'
 import { useTheme } from '@/app/providers'
 import { cn } from '@/lib/utils'
+import { getCurrentSearchParams } from '@/lib/searchParams'
 
 const CONFIDENCE_TIER_OPTIONS: { value: ConfidenceTierFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
@@ -55,6 +56,7 @@ interface TopBarProps {
   showLiveStatus?: boolean
   searchPlaceholder?: string
   showNewIndicator?: boolean
+  searchPath?: string
 }
 
 function TopBarContent({
@@ -64,11 +66,13 @@ function TopBarContent({
   showLiveStatus = false,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
   showNewIndicator = false,
+  searchPath,
 }: TopBarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTargetPath = searchPath ?? pathname
 
   const rawConfidenceTier = searchParams?.get('confidence_tier') ?? searchParams?.get('severity')
   const currentConfidenceTier: ConfidenceTierFilter =
@@ -78,7 +82,7 @@ function TopBarContent({
 
   const createQueryString = useCallback(
     (name: string, value: string | null) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? '')
+      const params = getCurrentSearchParams(searchParams ?? undefined)
       if (value === null || value === '') {
         params.delete(name)
       } else {
@@ -96,7 +100,7 @@ function TopBarContent({
   }, [])
 
   const setConfidenceTier = (confidenceTier: ConfidenceTierFilter) => {
-    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    const params = getCurrentSearchParams(searchParams ?? undefined)
     if (confidenceTier === 'ALL') {
       params.delete('confidence_tier')
     } else {
@@ -111,7 +115,7 @@ function TopBarContent({
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
     debounceRef.current = setTimeout(() => {
-      router.push(`${pathname}?${createQueryString('search', value || null)}`, {
+      router.push(`${searchTargetPath}?${createQueryString('search', value || null)}`, {
         scroll: false,
       })
     }, 300)
@@ -242,9 +246,10 @@ function ThemeToggleButton() {
       onClick={toggleTheme}
       aria-label={ariaLabel}
       title={ariaLabel}
-      className="inline-flex h-9 items-center rounded-md border border-border-light bg-surface-inset px-3 text-xs font-medium text-text-primary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
+      className="inline-flex h-9 shrink-0 items-center rounded-md border border-border-light bg-surface-inset px-2 text-xs font-medium text-text-primary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel sm:px-3"
     >
-      {buttonLabel}
+      <span aria-hidden="true" className="text-sm leading-none sm:hidden">◐</span>
+      <span className="hidden sm:inline">{buttonLabel}</span>
     </button>
   )
 }
@@ -299,8 +304,8 @@ export function DashboardTopBar() {
           title="Dashboard"
           showConfidenceTierControls={false}
           showSearch={true}
-          showLiveStatus={true}
           searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
+          searchPath="/alerts"
         />
     )
   }

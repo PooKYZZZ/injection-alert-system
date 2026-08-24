@@ -16,6 +16,16 @@ ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
 
 
+def _serialize_utc_timestamp(value: Optional[datetime]) -> Optional[str]:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
+
+
 class PredictionRequest(BaseModel):
     """Request schema for prediction endpoint."""
 
@@ -129,6 +139,10 @@ class LabelReviewResponse(BaseModel):
     review_note: Optional[str] = None
     created_at: Optional[datetime] = None
 
+    @field_serializer("reviewed_at", "created_at", when_used="json")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_timestamp(value)
+
 
 class AlertResponse(BaseModel):
     """Response schema for alerts endpoint."""
@@ -146,6 +160,10 @@ class AlertResponse(BaseModel):
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     label_review: Optional[LabelReviewResponse] = None
+
+    @field_serializer("timestamp", "labeled_at", when_used="json")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_timestamp(value)
 
 
 class ActivityBucketSchema(BaseModel):
@@ -206,6 +224,14 @@ class TargetPathSummarySchema(BaseModel):
 class StatsResponse(BaseModel):
     total_requests: int = Field(default=0, ge=0)
     counts_by_label: dict[str, int] = Field(default_factory=dict)
+    counts_by_confidence_tier: dict[str, int] = Field(
+        default_factory=dict,
+        description="Complete-window counts grouped by confidence tier",
+    )
+    non_normal_counts_by_confidence_tier: dict[str, int] = Field(
+        default_factory=dict,
+        description="Complete-window non-Normal counts grouped by confidence tier",
+    )
     avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
     blocked_count: int = Field(default=0, ge=0)
     allowed_count: int = Field(default=0, ge=0)
@@ -292,6 +318,7 @@ class AlertDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    transaction_id: Optional[str] = None
     timestamp: datetime
     source_ip: Optional[str] = None
     request_path: Optional[str] = None
@@ -303,21 +330,20 @@ class AlertDetailResponse(BaseModel):
     action_taken: Optional[ActionTaken] = None
     crs_score: Optional[int] = None
     crs_rule_ids: Optional[list[str]] = None
+    ingest_source: Optional[str] = None
+    source_provenance: Optional[str] = None
+    source_verification_status: Optional[str] = None
+    matched_rule_messages: Optional[list[str]] = None
+    matched_rule_tags: Optional[list[str]] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     triage_status: Optional[TriageStatus] = None
     label_review: Optional[LabelReviewResponse] = None
 
-    @field_serializer("labeled_at", when_used="json")
-    def serialize_labeled_at(self, value: Optional[datetime]) -> Optional[str]:
-        if value is None:
-            return None
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        else:
-            value = value.astimezone(timezone.utc)
-        return value.isoformat().replace("+00:00", "Z")
+    @field_serializer("timestamp", "labeled_at", when_used="json")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_timestamp(value)
 
 
 class AlertListResponse(BaseModel):

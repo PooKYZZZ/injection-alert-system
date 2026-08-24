@@ -249,6 +249,7 @@ def test_triage_ingest_response_accepts_critical_confidence_level():
 def test_alert_detail_response_supports_optional_crs_and_review_fields():
     alert = AlertDetailResponse(
         id=1,
+        transaction_id="txn-123",
         timestamp="2026-03-15T10:00:00Z",
         source_ip="203.0.113.10",
         request_path="/login",
@@ -260,11 +261,22 @@ def test_alert_detail_response_supports_optional_crs_and_review_fields():
         action_taken="BLOCKED",
         crs_score=9,
         crs_rule_ids=["942100", "942110"],
+        ingest_source="modsec_audit_bridge",
+        source_provenance="DIRECT_REMOTE_ADDR",
+        source_verification_status="VERIFIED",
+        matched_rule_messages=["SQL Injection Attack Detected"],
+        matched_rule_tags=["attack-sqli", "paranoia-level/1"],
         analyst_label="Normal",
         labeled_at="2026-03-15T10:05:00Z",
         labeled_by="analyst@example.com",
     )
     assert alert.crs_rule_ids == ["942100", "942110"]
+    assert alert.transaction_id == "txn-123"
+    assert alert.ingest_source == "modsec_audit_bridge"
+    assert alert.source_provenance == "DIRECT_REMOTE_ADDR"
+    assert alert.source_verification_status == "VERIFIED"
+    assert alert.matched_rule_messages == ["SQL Injection Attack Detected"]
+    assert alert.matched_rule_tags == ["attack-sqli", "paranoia-level/1"]
     assert alert.analyst_label == "Normal"
     assert alert.labeled_by == "analyst@example.com"
 
@@ -281,6 +293,32 @@ def test_alert_detail_response_serializes_labeled_at_as_utc_rfc3339():
     )
 
     assert alert.model_dump(mode="json")["labeled_at"] == "2026-03-15T10:05:00Z"
+
+
+def test_alert_detail_response_serializes_naive_timestamp_as_utc_rfc3339():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp=datetime(2026, 3, 15, 10, 0),
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+    )
+
+    assert alert.model_dump(mode="json")["timestamp"] == "2026-03-15T10:00:00Z"
+
+
+def test_alert_detail_response_converts_aware_timestamp_to_utc_rfc3339():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp=datetime(2026, 3, 15, 18, 0, tzinfo=timezone(timedelta(hours=8))),
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+    )
+
+    assert alert.model_dump(mode="json")["timestamp"] == "2026-03-15T10:00:00Z"
 
 
 def test_alert_detail_response_converts_aware_labeled_at_to_utc_rfc3339():

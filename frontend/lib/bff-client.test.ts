@@ -275,6 +275,7 @@ describe('bff-client', () => {
         items: [
           {
             alert_id: '7',
+            transaction_id: null,
             timestamp: '2026-03-15T00:00:00Z',
             source_ip: '203.0.113.10',
             request_path: '/login',
@@ -287,6 +288,8 @@ describe('bff-client', () => {
             crs_score: 9,
             crs_rule_ids: ['942100', '942110'],
             ingest_source: 'modsec_audit_bridge',
+            source_provenance: null,
+            source_verification_status: null,
             matched_rule_messages: ['SQL Injection Attack Detected via libinjection'],
             matched_rule_tags: ['attack-sqli', 'paranoia-level/1'],
             analyst_label: 'SQL Injection',
@@ -365,6 +368,42 @@ describe('bff-client', () => {
     }
 
     expect(result.data.items[0]?.confidence_level).toBe('CRITICAL')
+  })
+
+  it('rejects alert timestamps without an explicit timezone', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 9,
+              timestamp: '2026-03-15T00:00:00',
+              payload_snippet: 'payload',
+              prediction: 'Normal',
+              confidence: 0.12,
+              confidence_level: 'LOW',
+              action_taken: 'ALLOWED',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
   })
 
   it('rejects unsupported confidence tiers from FastAPI alert payloads', async () => {
@@ -473,6 +512,7 @@ describe('bff-client', () => {
         items: [
           {
             alert_id: '8',
+            transaction_id: null,
             timestamp: '2026-03-15T00:00:00Z',
             source_ip: null,
             request_path: null,
@@ -482,9 +522,11 @@ describe('bff-client', () => {
             confidence: 0.12,
             confidence_level: 'LOW',
             action_taken: null,
-            crs_score: undefined,
+              crs_score: null,
             crs_rule_ids: null,
             ingest_source: null,
+            source_provenance: null,
+            source_verification_status: null,
             matched_rule_messages: null,
             matched_rule_tags: null,
             analyst_label: null,
@@ -621,6 +663,8 @@ describe('bff-client', () => {
           blocked_count: 4,
           allowed_count: 2,
           avg_confidence: 0.82,
+          counts_by_confidence_tier: { CRITICAL: 1, HIGH: 2, MEDIUM: 3, LOW: 4 },
+          non_normal_counts_by_confidence_tier: { CRITICAL: 5, HIGH: 6, MEDIUM: 7, LOW: 8 },
           prev_high_alert_count: 123,
           activity_buckets: [
             { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
@@ -644,6 +688,8 @@ describe('bff-client', () => {
         allowed_count: 2,
         throttled_count: 0,
         avg_confidence: 0.82,
+        counts_by_confidence_tier: { critical: 1, high: 2, medium: 3, low: 4 },
+        non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8 },
         false_positive_rate: 0,
         false_positive_count: 0,
         high_alert_count: 6,
@@ -661,6 +707,37 @@ describe('bff-client', () => {
         top_targeted_paths: [],
       },
     })
+  })
+
+  it('preserves missing confidence aggregates as unavailable instead of zero counts', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          total_requests: 321,
+          counts_by_label: {
+            'SQL Injection': 2,
+            'Code Injection': 1,
+            'Other Attacks': 3,
+            Normal: 10,
+          },
+          avg_inference_latency_ms: 4.5,
+          blocked_count: 4,
+          allowed_count: 2,
+          avg_confidence: 0.82,
+          activity_buckets: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.counts_by_confidence_tier).toBeNull()
+      expect(result.data.non_normal_counts_by_confidence_tier).toBeNull()
+    }
   })
 
   it('propagates window parameter when fetching stats', async () => {
@@ -909,12 +986,12 @@ describe('bff-client', () => {
     const { getStats } = await loadClient()
     const result = await getStats('24h')
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       status: 502,
       error: {
         code: 'UPSTREAM_ERROR',
-        message: 'Upstream response contained invalid bucket timestamp at index 0: not-a-timestamp',
+        message: 'Upstream response did not match expected shape.',
       },
     })
   })

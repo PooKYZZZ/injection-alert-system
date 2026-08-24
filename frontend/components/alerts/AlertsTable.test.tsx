@@ -77,6 +77,21 @@ describe('AlertsTable', () => {
     })
   })
 
+  it('does not render an impossible range when the result set is empty', async () => {
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Showing 0 alerts')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Showing 1–0 of 0 alerts')).not.toBeInTheDocument()
+  })
+
   it('normalizes ReadonlyURLSearchParams before requesting alerts', async () => {
     const searchParams = new URLSearchParams()
     searchParams.set('severity', 'HIGH')
@@ -128,6 +143,31 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
+  it('explains how to reach the horizontally scrollable fields on mobile', async () => {
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('Swipe horizontally to view all alert fields.')).toBeInTheDocument()
+  })
+
+  it('does not expose triage sorting when the API does not support it', async () => {
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    await screen.findByText('Triage')
+    expect(screen.queryByRole('button', { name: 'Triage' })).not.toBeInTheDocument()
+  })
+
   it('renders CRITICAL confidence tiers in the confidence column', async () => {
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),
@@ -162,13 +202,13 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('95% (CRITICAL)')).toBeInTheDocument()
+    expect(await screen.findByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
   it.each([
-    [0.8, 'MEDIUM', '80% (MEDIUM)', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95% (MEDIUM)', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70% (CRITICAL)', 'text-severity-high-text'],
+    [0.8, 'MEDIUM', '80% (Medium confidence)', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95% (Medium confidence)', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70% (Critical confidence)', 'text-severity-high-text'],
   ] as const)(
     'styles confidence %s from canonical tier %s',
     async (confidence, confidenceLevel, expectedText, expectedClass) => {
@@ -209,7 +249,7 @@ describe('AlertsTable', () => {
     }
   )
 
-  it('shows in-review only after the triage mutation succeeds', async () => {
+  it('opens a new alert without changing its triage status', async () => {
     const onAlertClick = vi.fn()
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),
@@ -248,30 +288,16 @@ describe('AlertsTable', () => {
     const rowLabel = await screen.findByLabelText('Select alert 42')
     rowLabel.closest('tr')?.click()
 
-    expect(mockTriageMutate).toHaveBeenCalledWith(
-      { id: '42', status: 'in_review' },
-      expect.objectContaining({ onSuccess: expect.any(Function) })
-    )
+    expect(mockTriageMutate).not.toHaveBeenCalled()
     expect(onAlertClick).toHaveBeenCalledWith(
       expect.objectContaining({
         alert_id: '42',
         triage_status: 'new',
       })
     )
-    const mutationOptions = mockTriageMutate.mock.calls[0][1]
-    mutationOptions.onSuccess({
-      ...mockedUseAlertsFromFilters.mock.results[0].value.data.items[0],
-      triage_status: 'in_review',
-    })
-    expect(onAlertClick).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        alert_id: '42',
-        triage_status: 'in_review',
-      })
-    )
   })
 
-  it('keeps the original drawer state when the triage mutation fails', async () => {
+  it('opens an alert with no triage status without changing it', async () => {
     const onAlertClick = vi.fn()
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),
@@ -310,20 +336,16 @@ describe('AlertsTable', () => {
     const rowLabel = await screen.findByLabelText('Select alert 77')
     rowLabel.closest('tr')?.click()
 
-    expect(mockTriageMutate).toHaveBeenCalledWith(
-      { id: '77', status: 'in_review' },
-      expect.objectContaining({ onSuccess: expect.any(Function) })
-    )
+    expect(mockTriageMutate).not.toHaveBeenCalled()
     expect(onAlertClick).toHaveBeenCalledWith(
       expect.objectContaining({
         alert_id: '77',
         triage_status: null,
       })
     )
-    expect(onAlertClick).toHaveBeenCalledTimes(1)
   })
 
-  it('does not reopen an earlier alert when its triage response arrives late', async () => {
+  it('opens a second alert without creating an implicit triage race', async () => {
     const onAlertClick = vi.fn()
     const firstAlert = {
       alert_id: 'first',
@@ -366,9 +388,6 @@ describe('AlertsTable', () => {
 
     ;(await screen.findByLabelText('Select alert first')).closest('tr')?.click()
     screen.getByLabelText('Select alert second').closest('tr')?.click()
-
-    const firstMutationOptions = mockTriageMutate.mock.calls[0][1]
-    firstMutationOptions.onSuccess({ ...firstAlert, triage_status: 'in_review' })
 
     expect(onAlertClick).toHaveBeenCalledTimes(2)
     expect(onAlertClick).toHaveBeenLastCalledWith(
@@ -422,7 +441,7 @@ describe('AlertsTable', () => {
     [undefined, false],
     ['OWNER', false],
   ] as const)(
-    'shows row triage affordances for role %s: %s',
+    'shows selection affordances without implicit row triage for role %s: %s',
     async (role, canTriage) => {
       const onAlertClick = vi.fn()
       mockedUseAlertsFromFilters.mockReturnValue({
@@ -462,6 +481,8 @@ describe('AlertsTable', () => {
       const detailsButton = await screen.findByRole('button', {
         name: 'View details for alert role-check',
       })
+      expect(detailsButton).toHaveClass('focus-visible:opacity-100')
+      expect(detailsButton.closest('td')).not.toHaveClass('opacity-0')
       const selectionControl = screen.queryByRole('checkbox', {
         name: 'Select alert role-check',
       })
@@ -470,7 +491,7 @@ describe('AlertsTable', () => {
       detailsButton.closest('tr')?.click()
 
       expect(onAlertClick).toHaveBeenCalled()
-      expect(mockTriageMutate).toHaveBeenCalledTimes(canTriage ? 1 : 0)
+      expect(mockTriageMutate).not.toHaveBeenCalled()
     }
   )
 })

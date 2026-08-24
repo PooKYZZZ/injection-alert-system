@@ -45,6 +45,8 @@ const MOCK_ACTIVITY_BUCKETS: ActivityBucket[] = (() => {
 export const MOCK_STATS: DashboardStats = {
   actionable_alerts: 145,
   total_requests: 8400000,
+  counts_by_confidence_tier: { critical: 12, high: 38, medium: 46, low: 49 },
+  non_normal_counts_by_confidence_tier: { critical: 12, high: 38, medium: 46, low: 49 },
   avg_inference_latency_ms: 3.4,
   blocked_count: 89,
   allowed_count: 23,

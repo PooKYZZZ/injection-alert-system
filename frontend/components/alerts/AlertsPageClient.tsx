@@ -9,6 +9,7 @@ import { AlertDrawer } from '@/components/alerts/AlertDrawer'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { useAlert } from '@/features/alerts/queries'
 import { parseAlertDeepLink, removeAlertDeepLink } from '@/features/alerts/deepLink'
+import { getCurrentSearchParams } from '@/lib/searchParams'
 
 export function AlertsPageClient({ role }: { role?: unknown }) {
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
@@ -30,12 +31,29 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
       ? deepLinkedAlert ?? null
       : null)
 
-  const handleReviewUpdated = useCallback((review: LabelReview) => {
+  const mergeSelectedAlert = useCallback((alertId: string, patch: Partial<Alert>) => {
     setManualSelectedAlert((current) => {
       const baseAlert = current ?? selectedAlert
-      return baseAlert ? { ...baseAlert, label_review: review } : current
+      if (!baseAlert || baseAlert.alert_id !== alertId) return current
+      return { ...baseAlert, ...patch }
     })
   }, [selectedAlert])
+
+  const handleTriageUpdated = useCallback((updatedAlert: Alert) => {
+    mergeSelectedAlert(updatedAlert.alert_id, {
+      triage_status: updatedAlert.triage_status,
+    })
+  }, [mergeSelectedAlert])
+
+  const handleActionUpdated = useCallback((updatedAlert: Alert) => {
+    mergeSelectedAlert(updatedAlert.alert_id, {
+      action_taken: updatedAlert.action_taken,
+    })
+  }, [mergeSelectedAlert])
+
+  const handleReviewUpdated = useCallback((alertId: string, review: LabelReview) => {
+    mergeSelectedAlert(alertId, { label_review: review })
+  }, [mergeSelectedAlert])
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setSelectedIds(new Set(ids))
@@ -45,7 +63,7 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
     setDismissedDeepLinkId(alert.alert_id)
     setManualSelectedAlert(alert)
     if (deepLink.kind === 'valid') {
-      router.replace(removeAlertDeepLink(`${pathname}?${searchParams.toString()}`), { scroll: false })
+      router.replace(removeAlertDeepLink(`${pathname}?${getCurrentSearchParams(searchParams).toString()}`), { scroll: false })
     }
   }, [deepLink.kind, pathname, router, searchParams])
 
@@ -57,7 +75,7 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
     if (deepLinkId) setDismissedDeepLinkId(deepLinkId)
     setManualSelectedAlert(null)
     if (deepLinkId) {
-      router.replace(removeAlertDeepLink(`${pathname}?${searchParams.toString()}`), { scroll: false })
+      router.replace(removeAlertDeepLink(`${pathname}?${getCurrentSearchParams(searchParams).toString()}`), { scroll: false })
     }
   }, [deepLinkId, pathname, router, searchParams])
 
@@ -92,6 +110,8 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
         role={role}
         alert={selectedAlert}
         onClose={handleDrawerClose}
+        onTriageUpdated={handleTriageUpdated}
+        onActionUpdated={handleActionUpdated}
         onReviewUpdated={handleReviewUpdated}
       />
     </div>

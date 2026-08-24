@@ -55,6 +55,31 @@ async def test_get_stats_summary_returns_zero_safe_defaults(
 
 
 @pytest.mark.asyncio
+async def test_get_stats_summary_preserves_high_confidence_precision(
+    repository: TrafficLogRepository,
+):
+    for index, confidence in enumerate((0.9998, 0.9999), start=1):
+        await repository.save(
+            TrafficLogEntity(
+                transaction_id=f"txn-confidence-precision-{index}",
+                source_ip="198.51.100.200",
+                request_path=f"/confidence/{index}",
+                request_method="GET",
+                http_request=f"GET /confidence/{index}",
+                prediction="SQL Injection",
+                confidence=confidence,
+                confidence_level="CRITICAL",
+                inference_latency_ms=1.0,
+                action_taken="BLOCKED",
+            )
+        )
+
+    summary = await repository.get_stats_summary()
+
+    assert summary.avg_confidence == 0.99985
+
+
+@pytest.mark.asyncio
 async def test_get_alert_list_returns_filtered_total_and_stable_order(
     repository: TrafficLogRepository,
 ):
@@ -99,6 +124,53 @@ async def test_get_alert_list_returns_filtered_total_and_stable_order(
     assert page.page_size == 1
     assert [item.id for item in page.items] == [saved_newer.id]
     assert saved_older.id != saved_newer.id
+
+
+@pytest.mark.asyncio
+async def test_get_alert_list_time_range_excludes_future_records(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-current",
+            timestamp=now - timedelta(minutes=5),
+            source_ip="198.51.100.10",
+            request_path="/current",
+            request_method="GET",
+            http_request="GET /current",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="CRITICAL",
+            inference_latency_ms=1.0,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-future",
+            timestamp=now + timedelta(minutes=5),
+            source_ip="198.51.100.11",
+            request_path="/future",
+            request_method="GET",
+            http_request="GET /future",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="CRITICAL",
+            inference_latency_ms=1.0,
+            action_taken="BLOCKED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=20,
+        time_range="1h",
+    )
+
+    assert page.total == 1
+    assert [item.request_path for item in page.items] == ["/current"]
 
 
 @pytest.mark.asyncio
@@ -874,6 +946,18 @@ async def test_windowed_summary_filters_are_strictly_bounded(
     assert summary.allowed_count == sum(bucket.allowed_count for bucket in buckets)
     assert summary.false_positive_count == 1
     assert summary.false_positive_rate == round((1 / 3) * 100, 2)
+    assert summary.counts_by_confidence_tier == {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 1,
+        "LOW": 0,
+    }
+    assert summary.non_normal_counts_by_confidence_tier == {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 1,
+        "LOW": 0,
+    }
     assert summary.counts_by_label["SQL Injection"] == 1
     assert summary.counts_by_label["Code Injection"] == 1
     assert summary.counts_by_label["Other Attacks"] == 1
@@ -895,6 +979,103 @@ async def test_windowed_summary_filters_are_strictly_bounded(
         "/api/search": 1,
         "/api/public": 1,
     }
+
+
+@pytest.mark.asyncio
+async def test_all_rolling_windows_are_nested_and_parity_holds_at_fixed_reference_time(
+    repository: TrafficLogRepository,
+):
+    reference_time = datetime(2026, 3, 22, 12, 0, 0, tzinfo=timezone.utc)
+    records = [
+        ("inside-1h", reference_time - timedelta(minutes=30), "BLOCKED", "SQL Injection"),
+        ("at-1h-start", reference_time - timedelta(hours=1), "THROTTLED", "Code Injection"),
+        ("just-outside-1h", reference_time - timedelta(hours=1, seconds=1), "ALLOWED", "Normal"),
+        ("at-6h-start", reference_time - timedelta(hours=6), "BLOCKED", "SQL Injection"),
+        ("just-outside-6h", reference_time - timedelta(hours=6, seconds=1), "THROTTLED", "Code Injection"),
+        ("at-24h-start", reference_time - timedelta(days=1), "ALLOWED", "Normal"),
+        ("just-outside-24h", reference_time - timedelta(days=1, seconds=1), "BLOCKED", "Other Attacks"),
+        ("at-7d-start", reference_time - timedelta(days=7), "THROTTLED", "Code Injection"),
+        ("just-outside-7d", reference_time - timedelta(days=7, seconds=1), "BLOCKED", "SQL Injection"),
+        ("at-end-exclusive", reference_time, "BLOCKED", "SQL Injection"),
+        ("future", reference_time + timedelta(minutes=1), "BLOCKED", "SQL Injection"),
+    ]
+
+    for transaction_id, timestamp, action, prediction in records:
+        await repository.save(
+            TrafficLogEntity(
+                transaction_id=transaction_id,
+                timestamp=timestamp,
+                source_ip="198.51.100.70",
+                request_path=f"/{transaction_id}",
+                request_method="GET",
+                http_request=f"GET /{transaction_id}",
+                prediction=prediction,
+                confidence=0.9,
+                confidence_level="HIGH",
+                inference_latency_ms=1.0,
+                action_taken=action,
+            )
+        )
+
+    window_order = ("1h", "6h", "24h", "7d")
+    expected_ids = {
+        "1h": {"inside-1h", "at-1h-start"},
+        "6h": {"inside-1h", "at-1h-start", "just-outside-1h", "at-6h-start"},
+        "24h": {
+            "inside-1h",
+            "at-1h-start",
+            "just-outside-1h",
+            "at-6h-start",
+            "just-outside-6h",
+            "at-24h-start",
+        },
+        "7d": {
+            "inside-1h",
+            "at-1h-start",
+            "just-outside-1h",
+            "at-6h-start",
+            "just-outside-6h",
+            "at-24h-start",
+            "just-outside-24h",
+            "at-7d-start",
+        },
+    }
+    observed_ids: dict[str, set[str]] = {}
+
+    for window in window_order:
+        summary = await repository.get_stats_summary(
+            window=window,
+            reference_time=reference_time,
+        )
+        buckets = await repository.get_activity_buckets(
+            window=window,
+            buckets=24,
+            reference_time=reference_time,
+        )
+        page = await repository.get_alert_list(
+            page=1,
+            page_size=100,
+            time_range=window,
+            reference_time=reference_time,
+        )
+
+        ids = {item.transaction_id for item in page.items}
+        observed_ids[window] = ids
+        assert ids == expected_ids[window]
+        assert page.total == summary.total_requests == len(expected_ids[window])
+        assert summary.total_requests == sum(bucket.total_count for bucket in buckets)
+        assert summary.blocked_count == sum(bucket.blocked_count for bucket in buckets)
+        assert summary.throttled_count == sum(bucket.throttled_count for bucket in buckets)
+        assert summary.allowed_count == sum(bucket.allowed_count for bucket in buckets)
+        assert sum(summary.counts_by_label.values()) == summary.total_requests
+        assert sum(summary.counts_by_confidence_tier.values()) == summary.total_requests
+        assert sum(summary.non_normal_counts_by_confidence_tier.values()) == sum(
+            count
+            for label, count in summary.counts_by_label.items()
+            if label != "Normal"
+        )
+
+    assert observed_ids["1h"] < observed_ids["6h"] < observed_ids["24h"] < observed_ids["7d"]
 
 
 @pytest.mark.asyncio
@@ -1108,7 +1289,7 @@ async def test_get_stats_summary_reuses_cache_for_same_minute_reference_time(
     )
 
     assert first == second
-    assert call_count == 6
+    assert call_count == 7
 
 
 def test_stats_cache_purges_expired_entries_when_setting_new_values():

@@ -27,4 +27,16 @@ describe('ConfidenceBar', () => {
       expect(screen.getByText(expectedText)).toHaveClass(expectedClass)
     }
   )
+
+  it('preserves useful precision for very high confidence values', () => {
+    render(
+      <ConfidenceBar
+        confidence={0.999999}
+        confidenceTier="CRITICAL"
+        prediction="SQL Injection"
+      />
+    )
+
+    expect(screen.getByText('99.9999%')).toBeInTheDocument()
+  })
 })

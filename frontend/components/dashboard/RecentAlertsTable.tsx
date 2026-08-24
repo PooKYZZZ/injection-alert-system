@@ -6,19 +6,11 @@ import { ActionLabel } from '@/components/ui/ActionLabel'
 import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import type { Alert } from '@/features/alerts/types'
+import { formatAlertDateTime } from '@/lib/date-time'
 
 interface RecentAlertsTableProps {
   alerts: Alert[]
   isPending?: boolean
-}
-
-function formatTimestamp(timestamp: string): string {
-  const parsed = new Date(timestamp)
-  if (Number.isNaN(parsed.getTime())) return '—'
-  return parsed.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 }
 
 function formatCrsScore(score: number | null | undefined): string {
@@ -60,7 +52,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
         tabIndex={0}
         className="min-w-0 overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
       >
-        <table aria-labelledby="recent-alerts-title" className="min-w-[720px] w-full border-collapse text-[11px]">
+        <table aria-labelledby="recent-alerts-title" className="min-w-[780px] w-full border-collapse text-[11px]">
           <thead>
             <tr className="text-[var(--color-text-muted)] uppercase tracking-wider text-[11px]">
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Triage</th>
@@ -71,6 +63,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Confidence</th>
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Action Taken</th>
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">CRS Score</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">View</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
@@ -83,7 +76,9 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                   <td className="p-2">
                     <TriageBadge triage_status={alert.triage_status ?? null} />
                   </td>
-                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatTimestamp(alert.timestamp)}</td>
+                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">
+                    <time dateTime={alert.timestamp}>{formatAlertDateTime(alert.timestamp)}</time>
+                  </td>
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.source_ip ?? '—'}</td>
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
                   <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
@@ -94,11 +89,20 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                     <ActionLabel action={alert.action_taken} bordered={false} />
                   </td>
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</td>
+                  <td className="p-2">
+                    <Link
+                      href={`/alerts?alert_id=${encodeURIComponent(alert.alert_id)}`}
+                      aria-label={`View details for ${alert.alert_id}`}
+                      className="text-[var(--color-accent-analytic)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85"
+                    >
+                      View
+                    </Link>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-2 py-8 text-center text-xs text-text-muted">
+                <td colSpan={9} className="px-2 py-8 text-center text-xs text-text-muted">
                   No recent alerts in this window.
                 </td>
               </tr>

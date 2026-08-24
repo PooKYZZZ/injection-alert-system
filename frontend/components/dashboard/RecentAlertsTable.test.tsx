@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { RecentAlertsTable } from './RecentAlertsTable'
 import type { Alert } from '@/features/alerts/types'
+import { formatAlertDateTime } from '@/lib/date-time'
 
 const sampleAlert: Alert = {
   alert_id: 'alert-1',
@@ -33,11 +34,24 @@ describe('RecentAlertsTable', () => {
     expect(viewAllLink).toHaveAttribute('href', '/alerts')
     expect(viewAllLink).toHaveClass('text-[var(--color-accent-analytic)]')
     expect(screen.getByText('SQL Injection')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View details for alert-1' })).toHaveAttribute(
+      'href',
+      '/alerts?alert_id=alert-1'
+    )
+    const expectedTimestamp = formatAlertDateTime(sampleAlert.timestamp)
+    expect(screen.getByText(expectedTimestamp)).toBeInTheDocument()
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
 
     const tableCard = container.firstElementChild
     expect(tableCard).not.toBeNull()
     expect(tableCard).toHaveClass('bg-surface-card')
+  })
+
+  it('treats a legacy timezone-naive timestamp as UTC in the dashboard preview', () => {
+    render(<RecentAlertsTable alerts={[{ ...sampleAlert, timestamp: '2026-03-17T15:30:00' }]} />)
+
+    const expectedTimestamp = formatAlertDateTime('2026-03-17T15:30:00Z')
+    expect(screen.getByText(expectedTimestamp)).toBeInTheDocument()
   })
 
   it('keeps the empty table state understandable and horizontally contained', () => {
@@ -49,7 +63,7 @@ describe('RecentAlertsTable', () => {
     expect(screen.getByRole('table', { name: 'Recent alerts' })).toBeInTheDocument()
     expect(screen.getByText('No recent alerts in this window.')).toBeInTheDocument()
     expect(container.querySelector('[data-testid="recent-alerts-scroll"]')).not.toBeNull()
-    expect(screen.getAllByRole('columnheader')).toHaveLength(8)
+    expect(screen.getAllByRole('columnheader')).toHaveLength(9)
     expect(screen.getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col')
   })
 })

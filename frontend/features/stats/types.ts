@@ -22,9 +22,18 @@ export interface TargetPathSummary {
   hits: number
 }
 
+export interface ConfidenceBandCounts {
+  critical: number
+  high: number
+  medium: number
+  low: number
+}
+
 export interface DashboardStats {
   actionable_alerts: number
   total_requests: number
+  counts_by_confidence_tier: ConfidenceBandCounts | null
+  non_normal_counts_by_confidence_tier: ConfidenceBandCounts | null
   avg_inference_latency_ms: number
   blocked_count: number
   allowed_count: number

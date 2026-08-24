@@ -50,6 +50,9 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
     }))
 
   const total = entries.reduce((sum, { count }) => sum + count, 0)
+  const accessibleSummary = entries
+    .map(({ label, count }) => `${label}: ${count} (${Math.round((count / total) * 100)}%)`)
+    .join('; ')
 
   if (entries.length === 0) {
     return <EmptyState message="No attack data" subtext="Distribution unavailable" />
@@ -124,10 +127,15 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
         <>
           <div
             role="img"
-            aria-label="Attack type distribution pie chart"
+            aria-label={`Attack type distribution pie chart. ${accessibleSummary}.`}
             className="flex h-[196px] min-h-[160px] w-full min-w-0 max-w-[260px] self-center"
           >
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minHeight={196}
+              initialDimension={{ width: 0, height: 196 }}
+            >
               <PieChart accessibilityLayer>
                 <Pie
                   data={entries}

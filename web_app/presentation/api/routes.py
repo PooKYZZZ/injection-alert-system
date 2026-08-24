@@ -600,6 +600,8 @@ async def get_stats(
     return StatsResponse(
         total_requests=summary.total_requests,
         counts_by_label=summary.counts_by_label,
+        counts_by_confidence_tier=summary.counts_by_confidence_tier,
+        non_normal_counts_by_confidence_tier=summary.non_normal_counts_by_confidence_tier,
         avg_inference_latency_ms=summary.avg_inference_latency_ms,
         blocked_count=summary.blocked_count,
         allowed_count=summary.allowed_count,
@@ -703,6 +705,7 @@ async def get_alerts(
     repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Get list of traffic alerts with full filtering support."""
+    reference_time = datetime.now(timezone.utc)
     alert_page = await repository.get_alert_list(
         page=query.page,
         page_size=query.page_size,
@@ -717,6 +720,7 @@ async def get_alerts(
         source_ip=query.source_ip,
         sort_by=query.sort_by,
         sort_dir=query.sort_dir,
+        reference_time=reference_time,
     )
     return AlertListResponse(
         items=[

@@ -135,6 +135,8 @@ class TargetPathSummary:
 class TrafficStatsSummary:
     total_requests: int = 0
     counts_by_label: dict[str, int] = field(default_factory=dict)
+    counts_by_confidence_tier: dict[str, int] = field(default_factory=dict)
+    non_normal_counts_by_confidence_tier: dict[str, int] = field(default_factory=dict)
     avg_inference_latency_ms: float = 0.0
     blocked_count: int = 0
     allowed_count: int = 0
@@ -408,8 +410,13 @@ class ITrafficLogRepository(ABC):
         source_ip: Optional[str] = None,
         sort_by: Optional[str] = "timestamp",
         sort_dir: Optional[str] = "desc",
+        reference_time: Optional[datetime] = None,
     ) -> TrafficLogPage:
-        """Return a filtered, paginated alert list."""
+        """Return a filtered, paginated alert list.
+
+        ``reference_time`` is an optional UTC instant used by deterministic
+        callers to evaluate rolling windows. Live callers may omit it.
+        """
         ...
 
     @abstractmethod

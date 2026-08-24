@@ -8,7 +8,7 @@ import {
 } from '@/features/alerts/contract'
 import type { Alert, LabelReview, PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
-import type { DashboardStats } from '@/features/stats/types'
+import type { ConfidenceBandCounts, DashboardStats } from '@/features/stats/types'
 import {
   RetrainingDecisionRequestSchema,
   RetrainingDecisionResultSchema,
@@ -49,22 +49,25 @@ export type BffResult<T> =
 
 const BackendAlertSchema = z.object({
   id: z.number(),
-  timestamp: z.string(),
+  transaction_id: z.string().nullable().optional(),
+  timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable().optional(),
   request_path: z.string().nullable().optional(),
   request_method: z.string().nullable().optional(),
   payload_snippet: z.string(),
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
-  confidence: z.number(),
+  confidence: z.number().min(0).max(1),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
+  source_provenance: z.string().nullable().optional(),
+  source_verification_status: z.string().nullable().optional(),
   matched_rule_messages: z.array(z.string()).nullable().optional(),
   matched_rule_tags: z.array(z.string()).nullable().optional(),
   analyst_label: z.string().nullable().optional(),
-  labeled_at: z.string().nullable().optional(),
+  labeled_at: z.string().datetime({ offset: true }).nullable().optional(),
   labeled_by: z.string().nullable().optional(),
   triage_status: z.enum([
     'new', 'in_review', 'escalated', 'resolved', 'false_positive'
@@ -85,8 +88,8 @@ const BackendActivityBucketSchema = z.object({
   blocked_count: z.number(),
   allowed_count: z.number(),
   throttled_count: z.number(),
-  timestamp_start: z.string(),
-  timestamp_end: z.string().nullable().optional(),
+  timestamp_start: z.string().datetime({ offset: true }),
+  timestamp_end: z.string().datetime({ offset: true }).nullable().optional(),
   bucket_width_seconds: z.number().nullable().optional(),
 })
 
@@ -114,6 +117,8 @@ type BackendTargetPath = {
 
 type BackendStatsPayload = {
   total_requests: number
+  counts_by_confidence_tier?: Record<string, number> | null
+  non_normal_counts_by_confidence_tier?: Record<string, number> | null
   counts_by_label: {
     'SQL Injection': number
     'Code Injection': number
@@ -141,6 +146,8 @@ type BackendStatsPayload = {
 
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
+  counts_by_confidence_tier: z.record(z.string(), z.number()).nullable().optional(),
+  non_normal_counts_by_confidence_tier: z.record(z.string(), z.number()).nullable().optional(),
   counts_by_label: z.object({
     'SQL Injection': z.number(),
     'Code Injection': z.number(),
@@ -151,7 +158,7 @@ const BackendStatsSchema = z.object({
   blocked_count: z.number(),
   allowed_count: z.number(),
   throttled_count: z.number().optional(),
-  avg_confidence: z.number().nullable(),
+  avg_confidence: z.number().min(0).max(1).nullable(),
   false_positive_rate: z.number().optional(),
   false_positive_count: z.number().optional(),
   high_alert_count: z.number().optional(),
@@ -403,6 +410,7 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
 
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
+    transaction_id: alert.transaction_id ?? null,
     timestamp: alert.timestamp,
     source_ip: alert.source_ip ?? null,
     request_path: alert.request_path ?? null,
@@ -412,9 +420,11 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
     action_taken: alert.action_taken ?? null,
-    crs_score: alert.crs_score ?? undefined,
+    crs_score: alert.crs_score ?? null,
     crs_rule_ids: alert.crs_rule_ids ?? null,
     ingest_source: alert.ingest_source ?? null,
+    source_provenance: alert.source_provenance ?? null,
+    source_verification_status: alert.source_verification_status ?? null,
     matched_rule_messages: alert.matched_rule_messages ?? null,
     matched_rule_tags: alert.matched_rule_tags ?? null,
     analyst_label: alert.analyst_label ?? null,
@@ -460,13 +470,27 @@ type NormalizedBucket = DashboardStats['activity_buckets'][number] & {
   _originalIndex: number
 }
 
+function normalizeConfidenceBandCounts(
+  value: Record<string, number> | null | undefined
+): ConfidenceBandCounts | null {
+  if (value == null) return null
+
+  return {
+    critical: value?.CRITICAL ?? value?.critical ?? 0,
+    high: value?.HIGH ?? value?.high ?? 0,
+    medium: value?.MEDIUM ?? value?.medium ?? 0,
+    low: value?.LOW ?? value?.low ?? 0,
+  }
+}
+
 function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats> {
   const actionableAlerts =
     (payload.counts_by_label['SQL Injection'] ?? 0) +
     (payload.counts_by_label['Code Injection'] ?? 0) +
     (payload.counts_by_label['Other Attacks'] ?? 0)
 
-  // Normalize new fields with safe defaults for staged rollout
+  // Keep optional aggregate fields unavailable until the backend supplies them.
+  // Missing data must not look like a valid all-zero window.
   const throttledCount = payload.throttled_count ?? 0
   const attackDistribution = payload.attack_distribution ?? {}
   const topSourceIps = (payload.top_source_ips ?? []).map((ip) => ({
@@ -530,6 +554,12 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
   return ok({
     actionable_alerts: actionableAlerts,
     total_requests: payload.total_requests,
+    counts_by_confidence_tier: normalizeConfidenceBandCounts(
+      payload.counts_by_confidence_tier
+    ),
+    non_normal_counts_by_confidence_tier: normalizeConfidenceBandCounts(
+      payload.non_normal_counts_by_confidence_tier
+    ),
     avg_inference_latency_ms: payload.avg_inference_latency_ms,
     blocked_count: payload.blocked_count,
     allowed_count: payload.allowed_count,
