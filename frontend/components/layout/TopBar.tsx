@@ -242,9 +242,10 @@ function ThemeToggleButton() {
       onClick={toggleTheme}
       aria-label={ariaLabel}
       title={ariaLabel}
-      className="inline-flex h-9 items-center rounded-md border border-border-light bg-surface-inset px-3 text-xs font-medium text-text-primary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
+      className="inline-flex h-9 shrink-0 items-center rounded-md border border-border-light bg-surface-inset px-2 text-xs font-medium text-text-primary transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel sm:px-3"
     >
-      {buttonLabel}
+      <span aria-hidden="true" className="text-sm leading-none sm:hidden">◐</span>
+      <span className="hidden sm:inline">{buttonLabel}</span>
     </button>
   )
 }
@@ -299,7 +300,6 @@ export function DashboardTopBar() {
           title="Dashboard"
           showConfidenceTierControls={false}
           showSearch={true}
-          showLiveStatus={true}
           searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
         />
     )

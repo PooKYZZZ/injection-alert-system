@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { TopBar } from './TopBar'
+import { DashboardTopBar, TopBar } from './TopBar'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
@@ -28,6 +28,18 @@ describe('TopBar', () => {
     expect(screen.getByRole('banner')).toHaveClass('min-w-0')
     expect(screen.getByRole('textbox')).toHaveClass('w-full', 'max-w-64', 'min-w-0')
     expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search path, attack type...')
+  })
+
+  it('uses a compact theme control label that cannot overlap search on narrow screens', () => {
+    render(<TopBar title="Dashboard" showSearch />)
+
+    expect(screen.getByText('Theme')).toHaveClass('hidden', 'sm:inline')
+  })
+
+  it('does not show the snapshot status pill on the dashboard', () => {
+    render(<DashboardTopBar />)
+
+    expect(screen.queryByText('Snapshot')).not.toBeInTheDocument()
   })
 
   it('wraps alert counts into a narrow layout without clipping them', () => {
