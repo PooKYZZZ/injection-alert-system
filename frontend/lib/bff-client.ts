@@ -311,7 +311,7 @@ export async function openAlertStream(
   }
 
   if (!response.ok) {
-    cancelResponseBody(response)
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(
         500,
@@ -332,16 +332,16 @@ export async function openAlertStream(
     ?.trim()
     .toLowerCase()
   if (mediaType !== 'text/event-stream') {
-    cancelResponseBody(response)
+    await cancelResponseBody(response)
     return err(502, 'UPSTREAM_ERROR', 'Upstream response was not an event stream.')
   }
 
   return ok(response)
 }
 
-function cancelResponseBody(response: Response): void {
+async function cancelResponseBody(response: Response): Promise<void> {
   try {
-    void response.body?.cancel().catch(() => undefined)
+    await response.body?.cancel()
   } catch {
     // A rejected upstream response must not replace the generic BFF error.
   }
@@ -670,6 +670,7 @@ async function fetchUpstream<T>(
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (process.env.NODE_ENV === 'development') {
       console.error('[BFF] Upstream returned non-OK status', {
         status: response.status,
@@ -770,6 +771,7 @@ async function fetchRetrainingUpstream<T>(
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
     }
@@ -1026,6 +1028,7 @@ export async function submitAlertLabelReview(
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
     }
@@ -1122,6 +1125,7 @@ export async function updateAlertTriage(
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (response.status === 401 || response.status === 403) {
       return err(
         500,
@@ -1202,6 +1206,7 @@ export async function updateAlertAction(
   }
 
   if (!response.ok) {
+    await cancelResponseBody(response)
     if (process.env.NODE_ENV === 'development') {
       console.error('[BFF] updateAlertAction upstream non-OK', {
         status: response.status,

@@ -1131,6 +1131,40 @@ describe('bff-client', () => {
     })
   })
 
+  it('cancels non-OK upstream response bodies across BFF request paths', async () => {
+    const bodies = Array.from({ length: 5 }, () => {
+      const cancel = vi.fn()
+      const body = new ReadableStream({ cancel })
+      return { response: new Response(body, { status: 503 }), cancel }
+    })
+    const responses = bodies.map(({ response }) => response)
+    fetchMock.mockImplementation(async () => responses.shift()!)
+
+    const {
+      getStats,
+      getRetrainingSummary,
+      submitAlertLabelReview,
+      updateAlertAction,
+      updateAlertTriage,
+    } = await loadClient()
+    const results = [
+      await getStats(),
+      await getRetrainingSummary(),
+      await submitAlertLabelReview(
+        '7',
+        { verified_label: 'Normal', approval_state: 'excluded_from_training' },
+        { id: 'analyst-1', role: 'ANALYST' }
+      ),
+      await updateAlertTriage('7', 'in_review'),
+      await updateAlertAction('7', 'BLOCKED'),
+    ]
+
+    expect(results.every((result) => !result.ok && result.status === 503)).toBe(true)
+    for (const { cancel } of bodies) {
+      expect(cancel).toHaveBeenCalledTimes(1)
+    }
+  })
+
   it('bounds ordinary BFF reads and maps transport failure to the upstream contract', async () => {
     fetchMock.mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'))
 
