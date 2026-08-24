@@ -154,6 +154,25 @@ def test_run_detail_preserves_not_run_for_published_smoke_evidence(tmp_path):
     assert detail.evidence_summary.comparison_status == "NOT_RUN"
 
 
+def test_run_detail_reports_invalid_when_artifact_manifest_is_unreadable(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    run_id = "retrain-20260811T120000Z-000000000021"
+    repository.create_or_get_run(
+        replace(
+            _record(run_id, state=RunState.TRAINING),
+            evaluation_digest=None,
+        )
+    )
+    manifest_path = tmp_path / "runs" / run_id / "artifact_manifest.json"
+    manifest_path.write_text("{", encoding="utf-8")
+
+    detail = _control(repository).get_run_detail(run_id)
+
+    assert detail.evidence_status == "INVALID"
+    assert detail.evidence_summary.evaluation_status == "INVALID"
+    assert detail.evidence_summary.comparison_status == "INVALID"
+
+
 def test_run_detail_reports_invalid_when_published_evidence_is_missing(tmp_path):
     repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
     run_id = "retrain-20260811T120000Z-000000000016"

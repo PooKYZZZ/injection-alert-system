@@ -241,9 +241,14 @@ class RetrainingControlUseCase:
             else "NOT_RUN"
         )
         evidence_summary = RetrainingEvidenceSummary()
-        if record.evaluation_digest is not None or self._evidence_artifacts_exist(
-            record.run_id
-        ):
+        try:
+            evidence_published = self._evidence_artifacts_exist(record.run_id)
+        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
+            # An unreadable artifact manifest is itself a broken evidence
+            # boundary. Treat it as published-but-invalid instead of hiding
+            # the integrity failure as "not evaluated".
+            evidence_published = True
+        if record.evaluation_digest is not None or evidence_published:
             try:
                 evaluation = self._artifact_repository.read_json_artifact(
                     record.run_id, "stages/evaluation.json"
@@ -280,17 +285,25 @@ class RetrainingControlUseCase:
 
     def _evidence_artifacts_exist(self, run_id: str) -> bool:
         run_dir = get_run_artifact_directory(self._artifact_repository.root, run_id)
-        if any(
-            (run_dir / relative_path).exists()
-            for relative_path in _EVIDENCE_ARTIFACT_PATHS
-        ):
+        for relative_path in _EVIDENCE_ARTIFACT_PATHS:
+            path = run_dir / relative_path
+            try:
+                path.stat()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise ArtifactRepositoryError(
+                    "retraining evidence path is unreadable"
+                ) from exc
+            if not path.is_file():
+                raise ArtifactRepositoryError("retraining evidence path is invalid")
             return True
-        try:
-            manifest = self._artifact_repository.read_artifact_manifest(run_id)
-        except (ArtifactRepositoryError, FileNotFoundError, ValueError):
-            return False
+
+        manifest = self._artifact_repository.read_artifact_manifest(run_id)
         artifacts = manifest.get("artifacts")
-        return isinstance(artifacts, Mapping) and any(
+        if not isinstance(artifacts, Mapping):
+            raise ArtifactRepositoryError("retraining artifact manifest is invalid")
+        return any(
             relative_path in artifacts for relative_path in _EVIDENCE_ARTIFACT_PATHS
         )
 
