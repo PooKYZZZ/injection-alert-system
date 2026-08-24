@@ -12,6 +12,7 @@ Push-Location $repoRoot
 try {
     $composeFiles = @(
         "-f", "docker-compose.yml",
+        "-f", "docker-compose.local.yml",
         "-f", "docker-compose.demo-target.yml"
     )
     if ($Collection) {

@@ -209,7 +209,7 @@ branch or an explicit `DEMO_PORTAL_CONTEXT`.
 
 Docker-internal backend transaction lookup is automated only when
 `--require-backend-lookup` is supplied. The script passes the transaction ID,
-not the secret, into `docker compose exec`; the container reads its own
+not the secret, into `docker compose ... exec`; the container reads its own
 `API_SECRET_KEY`. Manual sections remain useful for container inspection,
 dashboard checks, and triage persistence.
 
@@ -231,12 +231,14 @@ dashboard checks, and triage persistence.
 From the repo root:
 
 ```powershell
-docker compose --profile technical-waf up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
 ```
 
 **What this does:** Builds the backend, frontend, technical ModSecurity WAF,
-and WAF bridge, then starts them in detached mode. Without
-`--profile technical-waf`, normal Compose starts only backend and frontend.
+and WAF bridge, then starts them in detached mode. The local overlay also
+starts an isolated PostgreSQL service and overrides any database URL from the
+ignored root `.env`. Without `--profile technical-waf`, the local stack starts
+backend, frontend, and postgres.
 
 Wait approximately 30–60 seconds for all containers to initialize.
 
@@ -245,7 +247,7 @@ Wait approximately 30–60 seconds for all containers to initialize.
 ## Step 2 — Confirm All Containers Are Running
 
 ```powershell
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 ```
 
 **Expected output:** Four services listed, all with status `Up` (or `running`):
@@ -256,14 +258,15 @@ docker compose ps
 | `backend`     | Up             |
 | `frontend`    | Up             |
 | `bridge`      | Up             |
+| `postgres`    | Up             |
 
 If any container shows `Exit` or is missing, inspect its logs:
 
 ```powershell
-docker compose logs <service-name>
+docker compose -f docker-compose.yml -f docker-compose.local.yml logs <service-name>
 ```
 
-For example: `docker compose logs backend`
+For example: `docker compose -f docker-compose.yml -f docker-compose.local.yml logs backend`
 
 ---
 
@@ -272,7 +275,7 @@ For example: `docker compose logs backend`
 The backend image does not include `curl`, so use Python inside the container:
 
 ```powershell
-docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
 ```
 
 **Expected response (HTTP 200):**
@@ -284,7 +287,7 @@ docker compose exec backend python -c "import urllib.request; print(urllib.reque
 Also verify the API health endpoint:
 
 ```powershell
-docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 ```
 
 **Expected response (HTTP 200):**
@@ -293,7 +296,7 @@ docker compose exec backend python -c "import urllib.request; print(urllib.reque
 {"status": "ok"}
 ```
 
-> **Note:** The backend is not published to the host in the current compose file. Use `docker compose exec backend ...` for direct backend checks from the host machine.
+> **Note:** The backend is not published to the host in the current compose file. Use `docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend ...` for direct backend checks from the host machine.
 
 ---
 
@@ -328,13 +331,13 @@ $latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
 $latest = $latestRaw | ConvertFrom-Json
 $txid = $latest.transaction.unique_id
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
-docker compose logs --tail=100 bridge
+ docker compose -f docker-compose.yml -f docker-compose.local.yml logs --tail=100 bridge
 ```
 
 Use Docker-internal backend lookup. Do not use `localhost:8000` unless backend port 8000 is explicitly published:
 
 ```powershell
-docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 Expected lookup fields:
@@ -356,7 +359,7 @@ Use this section for the final realistic WAF demonstration. The portal source st
 Start the compose stack with the demo-target profile:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
 ```
 
 Confirm expected containers:
@@ -415,7 +418,7 @@ Expected:
 Inspect the demo-target bridge logs:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge | Select-String -Pattern "posted|status=200|transaction_id|rule_ids|records/search|SMOKE|949110"
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge | Select-String -Pattern "posted|status=200|transaction_id|rule_ids|records/search|SMOKE|949110"
 ```
 
 Expected: `demo-target-bridge` posted the fresh transaction with `status=200`.
@@ -423,7 +426,7 @@ Expected: `demo-target-bridge` posted the fresh transaction with `status=200`.
 Run the Docker-internal backend lookup:
 
 ```powershell
-docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 Expected lookup fields:
@@ -570,7 +573,7 @@ $txid = $event.transaction.unique_id
 Correlate the same `$txid` in the bridge without exposing its payload:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml `
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml `
   --profile demo-target logs --no-color --tail=200 demo-target-bridge |
   Select-String -Pattern $txid
 ```
@@ -578,7 +581,7 @@ docker compose -f docker-compose.yml -f docker-compose.demo-target.yml `
 Use the internal lookup with `API_SECRET_KEY` kept inside the backend container:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml `
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml `
   --profile demo-target exec -e TXID=$txid backend python -c "import os,urllib.request; txid=os.environ['TXID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}',headers={'Authorization':'Bearer '+os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
@@ -664,7 +667,7 @@ If the login button appears unresponsive or the dashboard remains on skeletons, 
 - [ ] Top targeted paths panel renders.
 - [ ] Recent alerts table renders at the bottom.
 
-If stat cards show `—`, the backend may not be responding. Check `docker compose logs backend`.
+If stat cards show `—`, the backend may not be responding. Check `docker compose -f docker-compose.yml -f docker-compose.local.yml logs backend`.
 
 ---
 
@@ -749,7 +752,7 @@ Go to `http://localhost:3000/alerts` and note the ID of any alert row (e.g., cli
 Use PowerShell to send a triage update directly inside the backend container. Replace `<ALERT_ID>` with the actual alert ID:
 
 ```powershell
-docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 > **Note:** The browser path still goes through the Next.js BFF. This direct backend call is only for smoke verification because the backend is internal to the compose network.
@@ -759,7 +762,7 @@ docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, u
 Query the same alert to confirm the triage status changed:
 
 ```powershell
-docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 **What to check:**
@@ -778,13 +781,13 @@ Refresh `http://localhost:3000/alerts` and confirm the updated alert reflects th
 When finished:
 
 ```powershell
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ```
 
 To also remove volumes (clears local data):
 
 ```powershell
-docker compose down -v
+docker compose -f docker-compose.yml -f docker-compose.local.yml down -v
 ```
 
 ---
@@ -793,14 +796,14 @@ docker compose down -v
 
 ```powershell
 # 1. Start stack
-docker compose --profile technical-waf up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
 
 # 2. Confirm containers
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 
 # 3. Backend health
-docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
-docker compose exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 
 # 4. WAF proof path
 Invoke-WebRequest -UseBasicParsing "http://localhost:8088/healthz"
@@ -810,10 +813,10 @@ $latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
 $latest = $latestRaw | ConvertFrom-Json
 $txid = $latest.transaction.unique_id
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
-docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 
 # 5. Final realistic demo-target smoke; Compose starts demo-portal from the separate portal repo
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
 curl.exe -s -o NUL -w "8089 home status: %{http_code}`n" http://localhost:8089/
 $marker = "SMOKE$(Get-Date -Format HHmmss)"
 $url = "http://localhost:8089/records/search?query=%27%20UNION%20SELECT%20null,null,null--%20$marker"
@@ -821,8 +824,8 @@ curl.exe -s -o NUL -w "demo SQLi status: %{http_code}`n" $url
 $raw = Get-Content .\logs\modsecurity\demo-target\modsec_audit.jsonl -Tail 1
 $evt = $raw | ConvertFrom-Json
 $txid = $evt.transaction.unique_id
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge
-docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/?id=1%27%20OR%20%271%27%3D%271"
 
 # 6. Open browser to http://localhost:3000/login and log in
@@ -833,13 +836,13 @@ curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/
 #    - http://localhost:3000/ml-health
 
 # 9. Triage update (replace <ALERT_ID>)
-docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 
 # 10. Verify persistence
-docker compose exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 
 # 11. Stop stack
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ```
 
 ---
@@ -849,7 +852,7 @@ docker compose down
 ### Container exits immediately
 
 ```powershell
-docker compose logs <service-name>
+docker compose -f docker-compose.yml -f docker-compose.local.yml logs <service-name>
 ```
 
 Common causes:

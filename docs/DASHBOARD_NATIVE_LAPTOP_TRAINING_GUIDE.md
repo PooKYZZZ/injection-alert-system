@@ -801,10 +801,10 @@ Do not test CSS class strings when a rendered semantic behavior can be tested in
 Use the actual laptop runtime, not only the host virtual environment:
 
 ~~~
-docker compose config
-docker compose build backend frontend
-docker compose ps
-docker compose exec backend python -c "import torch, transformers; print(torch.__version__); print(transformers.__version__)"
+docker compose -f docker-compose.yml -f docker-compose.local.yml config
+docker compose -f docker-compose.yml -f docker-compose.local.yml build backend frontend
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import torch, transformers; print(torch.__version__); print(transformers.__version__)"
 ~~~
 
 Then perform the dashboard run and record:

@@ -47,13 +47,13 @@ The `demo-target-bridge` service watches that separate log and posts events to t
 Use the demo-target compose profile from this repo:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
 ```
 
 For normal CyberTrace developer startup without the realistic demo target, the default stack remains:
 
 ```powershell
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 ## Expected Services
@@ -63,6 +63,7 @@ Expected services when running the demo-target profile:
 ```text
 frontend
 backend
+postgres
 modsecurity
 bridge
 demo-target-modsecurity

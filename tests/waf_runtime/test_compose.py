@@ -80,6 +80,12 @@ def test_local_compose_uses_an_explicit_postgres_database():
     assert services["postgres"].get("ports", []) == []
 
 
+def test_full_local_stack_launcher_uses_the_local_database_overlay():
+    script = (ROOT / "scripts" / "rebuild_full_local_stack.ps1").read_text()
+
+    assert '"-f", "docker-compose.local.yml"' in script
+
+
 def test_application_services_wait_for_backend_readiness():
     config = _merged_compose("docker-compose.yml")
 
