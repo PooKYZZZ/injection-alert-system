@@ -48,6 +48,26 @@ def test_local_compose_uses_an_explicit_postgres_database():
     assert services["postgres"].get("ports", []) == []
 
 
+def test_application_services_wait_for_backend_readiness():
+    config = _merged_compose("docker-compose.yml")
+
+    services = config["services"]
+    assert services["frontend"]["depends_on"]["backend"]["condition"] == (
+        "service_healthy"
+    )
+    assert services["pr7-waf"]["depends_on"]["backend"]["condition"] == (
+        "service_healthy"
+    )
+
+
+def test_frontend_has_a_runtime_readiness_check():
+    config = _merged_compose("docker-compose.yml")
+
+    healthcheck = config["services"]["frontend"]["healthcheck"]
+    assert healthcheck["test"][0] == "CMD"
+    assert "http://127.0.0.1:3000/login" in " ".join(healthcheck["test"])
+
+
 def _merged_compose(*files: str) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker is required for merged Compose contract tests")
@@ -79,6 +99,8 @@ def _merged_compose(*files: str) -> dict:
             "target-cloudflare",
             "--profile",
             "pr7-block3",
+            "--profile",
+            "pr7-local-waf",
             "config",
             "--format",
             "json",

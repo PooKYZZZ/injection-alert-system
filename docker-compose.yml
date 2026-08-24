@@ -82,7 +82,20 @@ services:
     environment:
       FASTAPI_BASE_URL: http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   bridge:
     build:
@@ -141,7 +154,7 @@ services:
       - pr7-audit:/var/log/modsecurity
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   pr7-state:
