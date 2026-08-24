@@ -1133,6 +1133,47 @@ describe('bff-client', () => {
     }
   })
 
+  it('does not log upstream response data when schema validation fails', async () => {
+    process.env = { ...process.env, NODE_ENV: 'development' }
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sensitiveValue = 'raw-sensitive-upstream-value'
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ unexpected: sensitiveValue }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain(sensitiveValue)
+  })
+
+  it('does not log alert query values or upstream error bodies', async () => {
+    process.env = { ...process.env, NODE_ENV: 'development' }
+    const info = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const sensitiveQuery = 'operator-search-secret'
+    const sensitiveBody = 'backend-diagnostic-secret'
+    fetchMock.mockResolvedValueOnce(new Response(sensitiveBody, { status: 500 }))
+
+    const { getAlerts } = await loadClient()
+    await getAlerts(new URLSearchParams({ search: sensitiveQuery }))
+
+    const output = JSON.stringify([...info.mock.calls, ...error.mock.calls])
+    expect(output).not.toContain(sensitiveQuery)
+    expect(output).not.toContain(sensitiveBody)
+  })
+
   it('returns BFF_MISCONFIGURED before constructing fetch when env is missing', async () => {
     delete process.env.FASTAPI_BASE_URL
 

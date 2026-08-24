@@ -353,7 +353,9 @@ function normalizeWithSchema<T>(
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
     if (process.env.NODE_ENV === 'development') {
-      console.error('[BFF] Upstream schema mismatch:', parsed.error, payload)
+      console.error('[BFF] Upstream schema mismatch', {
+        issueCount: parsed.error.issues.length,
+      })
     }
 
     return err(
@@ -667,15 +669,10 @@ async function fetchUpstream<T>(
   }
 
   if (!response.ok) {
-    // Attempt to log upstream error body for easier debugging in development
-    let upstreamBody: string | undefined
-    try {
-      upstreamBody = await response.text()
-    } catch {
-      upstreamBody = undefined
-    }
     if (process.env.NODE_ENV === 'development') {
-      console.error('[BFF] Upstream returned non-OK status', response.status, path, upstreamBody)
+      console.error('[BFF] Upstream returned non-OK status', {
+        status: response.status,
+      })
     }
 
     // Route handlers enforce auth before calling BFF client, so upstream 401/403
@@ -947,10 +944,6 @@ export async function getAlerts(
 
   const path = query.size > 0 ? `/api/alerts?${query.toString()}` : '/api/alerts'
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[BFF] upstream path ->', path)
-  }
-
   const upstream = await fetchUpstream(path, BackendPaginatedAlertsSchema)
   if (!upstream.ok) {
     return upstream
@@ -1200,19 +1193,11 @@ export async function updateAlertAction(
     return upstreamTransportFailure()
   }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[BFF] updateAlertAction upstream path ->', `${config.data.baseUrl}/api/alerts/${parsedId.data}/action`)
-  }
-
   if (!response.ok) {
     if (process.env.NODE_ENV === 'development') {
-      let upstreamBody: string | undefined
-      try {
-        upstreamBody = await response.text()
-      } catch {
-        upstreamBody = undefined
-      }
-      console.error('[BFF] updateAlertAction upstream non-OK', response.status, upstreamBody)
+      console.error('[BFF] updateAlertAction upstream non-OK', {
+        status: response.status,
+      })
     }
     if (response.status === 401 || response.status === 403) {
       return err(
