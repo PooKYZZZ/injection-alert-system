@@ -49,6 +49,7 @@ export type BffResult<T> =
 
 const BackendAlertSchema = z.object({
   id: z.number(),
+  transaction_id: z.string().nullable().optional(),
   timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable().optional(),
   request_path: z.string().nullable().optional(),
@@ -61,6 +62,8 @@ const BackendAlertSchema = z.object({
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
+  source_provenance: z.string().nullable().optional(),
+  source_verification_status: z.string().nullable().optional(),
   matched_rule_messages: z.array(z.string()).nullable().optional(),
   matched_rule_tags: z.array(z.string()).nullable().optional(),
   analyst_label: z.string().nullable().optional(),
@@ -407,6 +410,7 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
 
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
+    transaction_id: alert.transaction_id ?? null,
     timestamp: alert.timestamp,
     source_ip: alert.source_ip ?? null,
     request_path: alert.request_path ?? null,
@@ -416,9 +420,11 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
     action_taken: alert.action_taken ?? null,
-    crs_score: alert.crs_score ?? undefined,
+    crs_score: alert.crs_score ?? null,
     crs_rule_ids: alert.crs_rule_ids ?? null,
     ingest_source: alert.ingest_source ?? null,
+    source_provenance: alert.source_provenance ?? null,
+    source_verification_status: alert.source_verification_status ?? null,
     matched_rule_messages: alert.matched_rule_messages ?? null,
     matched_rule_tags: alert.matched_rule_tags ?? null,
     analyst_label: alert.analyst_label ?? null,

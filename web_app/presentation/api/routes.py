@@ -705,6 +705,7 @@ async def get_alerts(
     repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Get list of traffic alerts with full filtering support."""
+    reference_time = datetime.now(timezone.utc)
     alert_page = await repository.get_alert_list(
         page=query.page,
         page_size=query.page_size,
@@ -719,6 +720,7 @@ async def get_alerts(
         source_ip=query.source_ip,
         sort_by=query.sort_by,
         sort_dir=query.sort_dir,
+        reference_time=reference_time,
     )
     return AlertListResponse(
         items=[

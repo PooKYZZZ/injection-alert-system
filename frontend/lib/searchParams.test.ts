@@ -238,4 +238,23 @@ describe('toAlertQueryString', () => {
     expect(result).toContain('confidence_tier=CRITICAL')
     expect(result).toContain('severity=CRITICAL')
   })
+
+  it('uses a canonical key order for equivalent alert query keys', () => {
+    const first = normalizeAlertSearchParams({
+      window: '7d',
+      page: '2',
+      search: 'sql',
+      confidence_level: ['HIGH', 'LOW'],
+      sort_dir: 'asc',
+    })
+    const second = normalizeAlertSearchParams({
+      sort_dir: 'asc',
+      confidence_level: ['HIGH', 'LOW'],
+      search: 'sql',
+      page: '2',
+      window: '7d',
+    })
+
+    expect(toAlertQueryString(first)).toBe(toAlertQueryString(second))
+  })
 })

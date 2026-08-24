@@ -75,6 +75,7 @@ export type AlertFilters = z.infer<typeof AlertFiltersSchema>
 
 export const AlertSchema = z.object({
   alert_id: z.string(),
+  transaction_id: z.string().nullable().optional(),
   timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable(),
   request_path: z.string().nullable(),
@@ -86,9 +87,11 @@ export const AlertSchema = z.object({
   confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable(),
   triage_status: TriageStatusSchema.nullable().optional(),
-  crs_score: z.number().optional(),
+  crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
+  source_provenance: z.string().nullable().optional(),
+  source_verification_status: z.string().nullable().optional(),
   matched_rule_messages: z.array(z.string()).nullable().optional(),
   matched_rule_tags: z.array(z.string()).nullable().optional(),
   analyst_label: z.string().nullable().optional(),

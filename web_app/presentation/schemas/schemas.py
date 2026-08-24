@@ -318,6 +318,7 @@ class AlertDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    transaction_id: Optional[str] = None
     timestamp: datetime
     source_ip: Optional[str] = None
     request_path: Optional[str] = None
@@ -329,6 +330,11 @@ class AlertDetailResponse(BaseModel):
     action_taken: Optional[ActionTaken] = None
     crs_score: Optional[int] = None
     crs_rule_ids: Optional[list[str]] = None
+    ingest_source: Optional[str] = None
+    source_provenance: Optional[str] = None
+    source_verification_status: Optional[str] = None
+    matched_rule_messages: Optional[list[str]] = None
+    matched_rule_tags: Optional[list[str]] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None

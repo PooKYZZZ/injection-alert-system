@@ -34,6 +34,7 @@ export interface SourceIntel {
 
 export interface Alert {
   alert_id: string
+  transaction_id?: string | null
   timestamp: string
   source_ip: string | null
   request_path: string | null
@@ -45,9 +46,11 @@ export interface Alert {
   confidence_level: AlertConfidenceTier
   action_taken: AlertAction | null
   triage_status?: TriageStatus | null
-  crs_score?: number
+  crs_score?: number | null
   crs_rule_ids?: string[] | null
   ingest_source?: string | null
+  source_provenance?: string | null
+  source_verification_status?: string | null
   matched_rule_messages?: string[] | null
   matched_rule_tags?: string[] | null
   analyst_label?: string | null

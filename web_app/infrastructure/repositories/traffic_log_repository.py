@@ -1344,8 +1344,14 @@ class TrafficLogRepository(ITrafficLogRepository):
         source_ip: Optional[str] = None,
         sort_by: Optional[str] = "timestamp",
         sort_dir: Optional[str] = "desc",
+        reference_time: Optional[datetime] = None,
     ) -> TrafficLogPage:
-        """Return a filtered, paginated alert list with deterministic ordering."""
+        """Return a filtered, paginated alert list with deterministic ordering.
+
+        ``reference_time`` is normalized to UTC and makes rolling-window
+        evaluation reproducible for tests or a caller that already captured
+        the request's reference instant.
+        """
         page = max(page, 1)
         page_size = max(1, min(page_size, 100))
         offset = (page - 1) * page_size
@@ -1366,8 +1372,10 @@ class TrafficLogRepository(ITrafficLogRepository):
             )
 
         if time_range in TIME_RANGE_DELTAS:
-            range_end = datetime.now(timezone.utc)
-            cutoff = range_end - TIME_RANGE_DELTAS[time_range]
+            cutoff, range_end, _ = self._resolve_window_bounds(
+                time_range,
+                reference_time,
+            )
             stmt = stmt.where(
                 TrafficLog.timestamp >= cutoff,
                 TrafficLog.timestamp < range_end,

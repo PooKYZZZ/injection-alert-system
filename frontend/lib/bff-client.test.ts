@@ -275,6 +275,7 @@ describe('bff-client', () => {
         items: [
           {
             alert_id: '7',
+            transaction_id: null,
             timestamp: '2026-03-15T00:00:00Z',
             source_ip: '203.0.113.10',
             request_path: '/login',
@@ -287,6 +288,8 @@ describe('bff-client', () => {
             crs_score: 9,
             crs_rule_ids: ['942100', '942110'],
             ingest_source: 'modsec_audit_bridge',
+            source_provenance: null,
+            source_verification_status: null,
             matched_rule_messages: ['SQL Injection Attack Detected via libinjection'],
             matched_rule_tags: ['attack-sqli', 'paranoia-level/1'],
             analyst_label: 'SQL Injection',
@@ -509,6 +512,7 @@ describe('bff-client', () => {
         items: [
           {
             alert_id: '8',
+            transaction_id: null,
             timestamp: '2026-03-15T00:00:00Z',
             source_ip: null,
             request_path: null,
@@ -518,9 +522,11 @@ describe('bff-client', () => {
             confidence: 0.12,
             confidence_level: 'LOW',
             action_taken: null,
-            crs_score: undefined,
+              crs_score: null,
             crs_rule_ids: null,
             ingest_source: null,
+            source_provenance: null,
+            source_verification_status: null,
             matched_rule_messages: null,
             matched_rule_tags: null,
             analyst_label: null,

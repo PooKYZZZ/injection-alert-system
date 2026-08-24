@@ -410,8 +410,13 @@ class ITrafficLogRepository(ABC):
         source_ip: Optional[str] = None,
         sort_by: Optional[str] = "timestamp",
         sort_dir: Optional[str] = "desc",
+        reference_time: Optional[datetime] = None,
     ) -> TrafficLogPage:
-        """Return a filtered, paginated alert list."""
+        """Return a filtered, paginated alert list.
+
+        ``reference_time`` is an optional UTC instant used by deterministic
+        callers to evaluate rolling windows. Live callers may omit it.
+        """
         ...
 
     @abstractmethod
