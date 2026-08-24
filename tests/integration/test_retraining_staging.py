@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from ml_model.preprocessing.model_input import MODEL_INPUT_HASH_POLICY
+from web_app.infrastructure import retraining_staging_adapter as staging_module
 from web_app.infrastructure.retraining_staging_adapter import (
     LocalStagingAdapter,
     StagingDeploymentError,
@@ -52,7 +53,9 @@ def _write_artifact(root: Path, version: str) -> Path:
     return artifact
 
 
-def test_controlled_local_reload_and_rollback_updates_loaded_model_version(tmp_path):
+def test_controlled_local_reload_and_rollback_updates_loaded_model_version(
+    tmp_path, monkeypatch
+):
     staging_root = tmp_path / "model_registry" / "staging"
     archive_root = tmp_path / "model_registry" / "archive"
     run_root = tmp_path / "runs"
@@ -79,6 +82,14 @@ def test_controlled_local_reload_and_rollback_updates_loaded_model_version(tmp_p
         load_validator=validate_load,
         reload_callback=reload_model,
     )
+    original_copytree = staging_module.shutil.copytree
+    copied_destinations: list[Path] = []
+
+    def record_copytree(source, destination, *args, **kwargs):
+        copied_destinations.append(Path(destination))
+        return original_copytree(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(staging_module.shutil, "copytree", record_copytree)
     candidate_digest = compute_artifact_digest(candidate_root)
     plan = adapter.prepare_deployment(
         artifact_root=run_root,
@@ -92,6 +103,8 @@ def test_controlled_local_reload_and_rollback_updates_loaded_model_version(tmp_p
 
     deployed = adapter.deploy(plan)
     assert deployed.status == "DEPLOYED"
+    assert copied_destinations
+    assert copied_destinations[0].parent == staging_root
     assert app_state.model_version == "candidate-v1"
     assert not active.exists()
     pointer = json.loads((staging_root / "active_model.json").read_text())

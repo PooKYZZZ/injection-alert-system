@@ -705,9 +705,8 @@ class LocalStagingAdapter:
     def deploy(self, plan: StagingDeploymentPlan) -> StagingDeploymentRecord:
         self.staging_root.mkdir(parents=True, exist_ok=True)
         self.archive_root.mkdir(parents=True, exist_ok=True)
-        temporary_path = (
-            self.staging_root.parent
-            / f".{plan.target_path.name}.{uuid.uuid4().hex}.tmp"
+        temporary_path = self.staging_root / (
+            f".{plan.target_path.name}.{uuid.uuid4().hex}.tmp"
         )
         archive_path = self._archive_target(plan.archive_name)
         if archive_path.exists():
