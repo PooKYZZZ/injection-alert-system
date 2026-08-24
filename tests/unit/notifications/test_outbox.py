@@ -116,7 +116,8 @@ def test_build_threat_notification_excludes_query_and_raw_request_data() -> None
     assert notification.channel == "email"
 
 
-def test_build_telegram_threat_notification_is_channel_specific_and_short_lived() -> None:
+def test_build_telegram_threat_notification_is_channel_specific_and_short_lived(
+) -> None:
     assert hasattr(outbox, "build_telegram_threat_notification")
     notification = outbox.build_telegram_threat_notification(
         alert_id=42,
@@ -128,6 +129,7 @@ def test_build_telegram_threat_notification_is_channel_specific_and_short_lived(
         request_path="/records/search?secret=raw#fragment",
         dashboard_base_url="https://dashboard.example.test",
         recipient="-100123",
+        display_timezone="Asia/Manila",
     )
 
     assert notification.channel == "telegram"
@@ -141,7 +143,9 @@ def test_build_telegram_threat_notification_is_channel_specific_and_short_lived(
         "request_method": "POST",
         "route_path": "/records/search",
         "dashboard_url": "https://dashboard.example.test/alerts?alert_id=42",
+        "display_timezone": "Asia/Manila",
     }
+    assert notification.template_version == 2
     assert notification.dedupe_key == "threat/42/telegram"
     assert notification.provider_idempotency_key == "threat/42/telegram"
     assert notification.deliver_before is not None
@@ -162,6 +166,7 @@ async def test_repository_enqueues_notification_channel() -> None:
         request_path="/records/search",
         dashboard_base_url="https://dashboard.example.test",
         recipient="-100123",
+        display_timezone="Asia/Manila",
     )
 
     assert await repository.enqueue(notification) is True

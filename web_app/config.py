@@ -3,6 +3,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -100,6 +101,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_live_test_enabled: bool = False
+    notification_timezone: str = "Asia/Manila"
     dashboard_base_url: str = "http://localhost:3000"
     max_seq_len: int = 128
     # dev-time default — source from artifact metadata in production
@@ -334,6 +336,12 @@ class Settings(BaseSettings):
             or len(self.retraining_schedule_timezone) > 64
         ):
             raise ValueError("RETRAINING_SCHEDULE_TIMEZONE is invalid")
+        try:
+            ZoneInfo(self.notification_timezone)
+        except (ValueError, ZoneInfoNotFoundError) as exc:
+            raise ValueError(
+                "NOTIFICATION_TIMEZONE must be a valid IANA timezone"
+            ) from exc
         if self.retraining_enabled and (self.is_production or self.is_staging):
             raise ValueError(
                 "dashboard retraining is restricted to controlled local environments"

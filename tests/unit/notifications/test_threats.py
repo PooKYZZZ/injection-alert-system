@@ -15,6 +15,7 @@ class ThreatSettings:
     threat_telegram_enabled: bool = True
     telegram_available: bool = True
     telegram_chat_id: str | None = "-100123"
+    notification_timezone: str = "Asia/Manila"
     dashboard_base_url: str = "https://dashboard.example.test"
 
 
@@ -94,6 +95,9 @@ async def test_high_confidence_tiers_enqueue_email_and_telegram(
         "email",
         "telegram",
     ]
+    assert repository.notifications[1].safe_payload["display_timezone"] == (
+        "Asia/Manila"
+    )
 
 
 @pytest.mark.asyncio

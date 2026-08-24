@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import importlib
 import importlib.util
+import json
 
 import httpx
 import pytest
@@ -25,6 +25,7 @@ def payload() -> dict[str, object]:
         "request_method": "POST",
         "route_path": "/records/search",
         "dashboard_url": "https://app.example.test/alerts/1849",
+        "display_timezone": "Asia/Manila",
     }
 
 
@@ -32,13 +33,52 @@ def test_renderer_uses_plain_text_and_confidence_tier_wording() -> None:
     telegram = telegram_module()
     assert hasattr(telegram, "render_telegram_threat")
 
-    message = telegram.render_telegram_threat("-100123", payload(), 1)
+    message = telegram.render_telegram_threat("-100123", payload(), 2)
 
-    assert "CRITICAL-CONFIDENCE THREAT" in message.text
-    assert "Confidence tier: CRITICAL" in message.text
-    assert "Confidence: 96.1%" in message.text
+    assert "CRITICAL SECURITY ALERT" in message.text
+    assert "Confidence: 96.1% (CRITICAL)" in message.text
     assert "Request: POST /records/search" in message.text
+    assert "Time: Jul 20, 2026, 4:45 PM Asia/Manila" in message.text
+    assert "Review alert:" in message.text
     assert "source" not in message.text.lower()
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    [
+        "2026-08-12T05:34:22+00:00",
+        "2026-08-12T13:34:22+08:00",
+    ],
+)
+def test_renderer_preserves_the_instant_when_localizing_timestamp(
+    timestamp: str,
+) -> None:
+    telegram = telegram_module()
+    alert_payload = payload() | {"timestamp": timestamp}
+
+    message = telegram.render_telegram_threat("-100123", alert_payload, 2)
+
+    assert "Time: Aug 12, 2026, 1:34 PM Asia/Manila" in message.text
+
+
+@pytest.mark.parametrize("timestamp", ["not-a-timestamp", "2026-08-12T05:34:22"])
+def test_renderer_rejects_malformed_or_timezone_naive_timestamp(timestamp: str) -> None:
+    telegram = telegram_module()
+
+    with pytest.raises(telegram.TelegramPayloadError):
+        telegram.render_telegram_threat(
+            "-100123", payload() | {"timestamp": timestamp}, 2
+        )
+
+
+def test_renderer_keeps_pending_version_one_messages_deliverable() -> None:
+    telegram = telegram_module()
+    legacy_payload = payload()
+    del legacy_payload["display_timezone"]
+
+    message = telegram.render_telegram_threat("-100123", legacy_payload, 1)
+
+    assert "Time: 2026-07-20T08:45:31Z" in message.text
 
 
 @pytest.mark.asyncio

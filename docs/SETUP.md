@@ -387,6 +387,7 @@ THREAT_TELEGRAM_ENABLED=false
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 TELEGRAM_LIVE_TEST_ENABLED=false
+NOTIFICATION_TIMEZONE=Asia/Manila
 ```
 
 Disabled or incomplete configuration does not stop the backend and does not
@@ -396,7 +397,9 @@ worker uses Telegram Bot API `sendMessage` through HTTPX with bounded retries;
 retried because Telegram provides no general idempotency key. The database
 prevents duplicate jobs, but the project does not claim exactly-once external
 delivery. Telegram messages intentionally omit source IP, query/body content,
-headers, cookies, and credentials.
+headers, cookies, and credentials. Alert timestamps remain canonical in the
+outbox payload and are converted to `NOTIFICATION_TIMEZONE` only when the
+operator-facing Telegram message is rendered.
 
 ### Manual PR 3 auth cutover and rollback
 
