@@ -576,20 +576,30 @@ Those files are mounted into the containers via `docker-compose.yml`.
 
 ### Start the stack
 
+Use the local overlay for ordinary Docker development. It provides a private
+PostgreSQL container and overrides any `DATABASE_URL` present in the ignored
+root `.env`:
+
 ```powershell
-docker compose --profile technical-waf up --build -d
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 ```
+
+The base backend startup checks the database target before running Alembic and
+refuses remote hosts. Hosted Supabase migrations are separate, explicit
+operator work and are never part of the normal local Compose command.
 
 Expected services:
 
 - `frontend`
 - `backend`
+- `postgres`
 - `modsecurity`
 - `bridge`
 
-Without `--profile technical-waf`, normal Compose starts only `frontend` and
-`backend`; the historical `8088` WAF pair is now explicitly opt-in.
+Without `--profile technical-waf`, the local overlay starts `frontend`,
+`backend`, and `postgres`; the historical `8088` WAF pair is explicitly
+opt-in.
 
 ### Current Docker network truth
 
@@ -771,7 +781,7 @@ stale seeder commands.
 ### Stop the stack
 
 ```powershell
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ```
 
 ## 6. Troubleshooting

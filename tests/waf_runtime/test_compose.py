@@ -26,6 +26,28 @@ def test_backend_compose_exposes_the_opt_in_training_dependency_build_arg():
     assert "INSTALL_TRAINING_REQUIREMENTS: ${INSTALL_TRAINING_REQUIREMENTS:-false}" in compose
 
 
+def test_backend_compose_guards_migrations_before_startup():
+    compose = (ROOT / "docker-compose.yml").read_text()
+
+    assert "python -m scripts.safe_local_migrate" in compose
+    assert "alembic upgrade head && uvicorn" not in compose
+
+
+def test_local_compose_uses_an_explicit_postgres_database():
+    config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
+
+    services = config["services"]
+    assert "postgres" in services
+    assert services["backend"]["environment"]["DATABASE_URL"] == (
+        "postgresql+asyncpg://cybertrace:cybertrace-local-password@postgres:5432/"
+        "cybertrace"
+    )
+    assert services["backend"]["depends_on"]["postgres"]["condition"] == (
+        "service_healthy"
+    )
+    assert services["postgres"].get("ports", []) == []
+
+
 def _merged_compose(*files: str) -> dict:
     if shutil.which("docker") is None:
         pytest.skip("Docker is required for merged Compose contract tests")
