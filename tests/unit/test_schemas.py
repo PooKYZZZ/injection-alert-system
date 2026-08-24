@@ -283,6 +283,32 @@ def test_alert_detail_response_serializes_labeled_at_as_utc_rfc3339():
     assert alert.model_dump(mode="json")["labeled_at"] == "2026-03-15T10:05:00Z"
 
 
+def test_alert_detail_response_serializes_naive_timestamp_as_utc_rfc3339():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp=datetime(2026, 3, 15, 10, 0),
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+    )
+
+    assert alert.model_dump(mode="json")["timestamp"] == "2026-03-15T10:00:00Z"
+
+
+def test_alert_detail_response_converts_aware_timestamp_to_utc_rfc3339():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp=datetime(2026, 3, 15, 18, 0, tzinfo=timezone(timedelta(hours=8))),
+        payload_snippet="payload",
+        prediction="SQL Injection",
+        confidence=0.92,
+        confidence_level="HIGH",
+    )
+
+    assert alert.model_dump(mode="json")["timestamp"] == "2026-03-15T10:00:00Z"
+
+
 def test_alert_detail_response_converts_aware_labeled_at_to_utc_rfc3339():
     alert = AlertDetailResponse(
         id=1,

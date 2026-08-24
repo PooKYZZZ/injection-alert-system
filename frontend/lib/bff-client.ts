@@ -49,13 +49,13 @@ export type BffResult<T> =
 
 const BackendAlertSchema = z.object({
   id: z.number(),
-  timestamp: z.string(),
+  timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable().optional(),
   request_path: z.string().nullable().optional(),
   request_method: z.string().nullable().optional(),
   payload_snippet: z.string(),
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
-  confidence: z.number(),
+  confidence: z.number().min(0).max(1),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
   crs_score: z.number().nullable().optional(),
@@ -64,7 +64,7 @@ const BackendAlertSchema = z.object({
   matched_rule_messages: z.array(z.string()).nullable().optional(),
   matched_rule_tags: z.array(z.string()).nullable().optional(),
   analyst_label: z.string().nullable().optional(),
-  labeled_at: z.string().nullable().optional(),
+  labeled_at: z.string().datetime({ offset: true }).nullable().optional(),
   labeled_by: z.string().nullable().optional(),
   triage_status: z.enum([
     'new', 'in_review', 'escalated', 'resolved', 'false_positive'
@@ -85,8 +85,8 @@ const BackendActivityBucketSchema = z.object({
   blocked_count: z.number(),
   allowed_count: z.number(),
   throttled_count: z.number(),
-  timestamp_start: z.string(),
-  timestamp_end: z.string().nullable().optional(),
+  timestamp_start: z.string().datetime({ offset: true }),
+  timestamp_end: z.string().datetime({ offset: true }).nullable().optional(),
   bucket_width_seconds: z.number().nullable().optional(),
 })
 
@@ -155,7 +155,7 @@ const BackendStatsSchema = z.object({
   blocked_count: z.number(),
   allowed_count: z.number(),
   throttled_count: z.number().optional(),
-  avg_confidence: z.number().nullable(),
+  avg_confidence: z.number().min(0).max(1).nullable(),
   false_positive_rate: z.number().optional(),
   false_positive_count: z.number().optional(),
   high_alert_count: z.number().optional(),

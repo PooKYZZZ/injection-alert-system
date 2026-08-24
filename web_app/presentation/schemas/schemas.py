@@ -16,6 +16,16 @@ ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
 
 
+def _serialize_utc_timestamp(value: Optional[datetime]) -> Optional[str]:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
+
+
 class PredictionRequest(BaseModel):
     """Request schema for prediction endpoint."""
 
@@ -129,6 +139,10 @@ class LabelReviewResponse(BaseModel):
     review_note: Optional[str] = None
     created_at: Optional[datetime] = None
 
+    @field_serializer("reviewed_at", "created_at", when_used="json")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_timestamp(value)
+
 
 class AlertResponse(BaseModel):
     """Response schema for alerts endpoint."""
@@ -146,6 +160,10 @@ class AlertResponse(BaseModel):
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
     label_review: Optional[LabelReviewResponse] = None
+
+    @field_serializer("timestamp", "labeled_at", when_used="json")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_timestamp(value)
 
 
 class ActivityBucketSchema(BaseModel):
@@ -317,15 +335,9 @@ class AlertDetailResponse(BaseModel):
     triage_status: Optional[TriageStatus] = None
     label_review: Optional[LabelReviewResponse] = None
 
-    @field_serializer("labeled_at", when_used="json")
-    def serialize_labeled_at(self, value: Optional[datetime]) -> Optional[str]:
-        if value is None:
-            return None
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        else:
-            value = value.astimezone(timezone.utc)
-        return value.isoformat().replace("+00:00", "Z")
+    @field_serializer("timestamp", "labeled_at", when_used="json")
+    def serialize_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_timestamp(value)
 
 
 class AlertListResponse(BaseModel):

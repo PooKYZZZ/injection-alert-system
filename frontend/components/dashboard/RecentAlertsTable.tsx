@@ -6,6 +6,7 @@ import { ActionLabel } from '@/components/ui/ActionLabel'
 import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import type { Alert } from '@/features/alerts/types'
+import { parseApiTimestamp } from '@/lib/date-time'
 
 interface RecentAlertsTableProps {
   alerts: Alert[]
@@ -13,8 +14,8 @@ interface RecentAlertsTableProps {
 }
 
 function formatTimestamp(timestamp: string): string {
-  const parsed = new Date(timestamp)
-  if (Number.isNaN(parsed.getTime())) return '—'
+  const parsed = parseApiTimestamp(timestamp)
+  if (!parsed) return '—'
   return parsed.toLocaleString([], {
     month: 'short',
     day: 'numeric',

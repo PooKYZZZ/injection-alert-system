@@ -367,6 +367,42 @@ describe('bff-client', () => {
     expect(result.data.items[0]?.confidence_level).toBe('CRITICAL')
   })
 
+  it('rejects alert timestamps without an explicit timezone', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 9,
+              timestamp: '2026-03-15T00:00:00',
+              payload_snippet: 'payload',
+              prediction: 'Normal',
+              confidence: 0.12,
+              confidence_level: 'LOW',
+              action_taken: 'ALLOWED',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response did not match expected shape.',
+      },
+    })
+  })
+
   it('rejects unsupported confidence tiers from FastAPI alert payloads', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
@@ -913,12 +949,12 @@ describe('bff-client', () => {
     const { getStats } = await loadClient()
     const result = await getStats('24h')
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       status: 502,
       error: {
         code: 'UPSTREAM_ERROR',
-        message: 'Upstream response contained invalid bucket timestamp at index 0: not-a-timestamp',
+        message: 'Upstream response did not match expected shape.',
       },
     })
   })

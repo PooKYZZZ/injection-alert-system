@@ -29,7 +29,7 @@ export const LabelReviewSchema = z.object({
   approval_state: LabelReviewApprovalStateSchema,
   reviewer_id: z.string(),
   reviewer_role: z.string(),
-  reviewed_at: z.string(),
+  reviewed_at: z.string().datetime({ offset: true }),
   model_version: z.string().nullable().optional(),
   prediction_confidence: z.number().nullable().optional(),
   prediction_confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES).nullable().optional(),
@@ -40,7 +40,7 @@ export const LabelReviewSchema = z.object({
   source_provenance: z.string().nullable().optional(),
   input_hash: z.string().nullable().optional(),
   review_note: z.string().nullable().optional(),
-  created_at: z.string().nullable().optional(),
+  created_at: z.string().datetime({ offset: true }).nullable().optional(),
 })
 
 export const ShapFeatureSchema = z.object({
@@ -75,14 +75,14 @@ export type AlertFilters = z.infer<typeof AlertFiltersSchema>
 
 export const AlertSchema = z.object({
   alert_id: z.string(),
-  timestamp: z.string(),
+  timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable(),
   request_path: z.string().nullable(),
   request_method: z.string().nullable(),
   user_agent: z.string().optional(),
   payload_snippet: z.string(),
   prediction: z.enum(ALERT_PREDICTION_VALUES),
-  confidence: z.number(),
+  confidence: z.number().min(0).max(1),
   confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable(),
   triage_status: TriageStatusSchema.nullable().optional(),
@@ -92,7 +92,7 @@ export const AlertSchema = z.object({
   matched_rule_messages: z.array(z.string()).nullable().optional(),
   matched_rule_tags: z.array(z.string()).nullable().optional(),
   analyst_label: z.string().nullable().optional(),
-  labeled_at: z.string().nullable().optional(),
+  labeled_at: z.string().datetime({ offset: true }).nullable().optional(),
   labeled_by: z.string().nullable().optional(),
   label_review: LabelReviewSchema.nullable().optional(),
   shap_values: z.array(ShapFeatureSchema).optional(),

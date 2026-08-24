@@ -51,6 +51,18 @@ describe('RecentAlertsTable', () => {
     expect(tableCard).toHaveClass('bg-surface-card')
   })
 
+  it('treats a legacy timezone-naive timestamp as UTC in the dashboard preview', () => {
+    render(<RecentAlertsTable alerts={[{ ...sampleAlert, timestamp: '2026-03-17T15:30:00' }]} />)
+
+    const expectedTimestamp = new Date('2026-03-17T15:30:00Z').toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    expect(screen.getByText(expectedTimestamp)).toBeInTheDocument()
+  })
+
   it('keeps the empty table state understandable and horizontally contained', () => {
     const { container } = render(<RecentAlertsTable alerts={[]} />)
 

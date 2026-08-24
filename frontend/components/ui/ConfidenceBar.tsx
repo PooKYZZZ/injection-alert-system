@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import type { AlertConfidenceTier, AlertPrediction } from '@/features/alerts/contract'
+import { formatConfidencePercent } from '@/lib/date-time'
 
 interface ConfidenceBarProps {
   confidence: number
@@ -34,13 +35,14 @@ export function ConfidenceBar({
   confidenceTier,
   prediction: _prediction,
 }: ConfidenceBarProps) {
-  const value = Math.round(confidence * 100)
+  const normalizedConfidence = Math.min(Math.max(confidence, 0), 1)
+  const value = normalizedConfidence * 100
   const colors = getConfidenceColors(confidence, confidenceTier)
 
   return (
     <div className="flex items-center gap-2">
       <span className={cn('min-w-[32px] font-medium', colors.text)}>
-        {value}%
+        {formatConfidencePercent(confidence)}
       </span>
       <div className="h-1 w-12 overflow-hidden rounded-full bg-surface-inset">
         <div

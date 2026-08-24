@@ -2,6 +2,7 @@
 import { useMemo, useEffect } from 'react'
 import { Alert } from '@/features/alerts/types'
 import type { ActivityBucket } from '@/features/stats/types'
+import { parseApiTimestamp } from '@/lib/date-time'
 
 interface Props {
   alerts?: Alert[]
@@ -63,7 +64,17 @@ export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSo
       return { allPoints: flat, blockedPoints: flat }
     }
 
-    const times = alerts.map(a => new Date(a.timestamp).getTime())
+    const times = alerts
+      .map((alert) => parseApiTimestamp(alert.timestamp)?.getTime() ?? Number.NaN)
+      .filter(Number.isFinite)
+    if (times.length === 0) {
+      const flat = Array.from({ length: BUCKETS }, (_, i) => {
+        const x = PAD_X + (i / (BUCKETS - 1)) * (VB_W - PAD_X * 2)
+        return `${x.toFixed(1)},${(VB_H / 2).toFixed(1)}`
+      }).join(' ')
+      return { allPoints: flat, blockedPoints: flat }
+    }
+
     const min = Math.min(...times)
     const max = Math.max(...times)
     const range = max - min || 1
@@ -72,8 +83,10 @@ export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSo
     const blockedBuckets = new Array(BUCKETS).fill(0)
 
     alerts.forEach(a => {
+      const timestampMs = parseApiTimestamp(a.timestamp)?.getTime()
+      if (timestampMs == null || Number.isNaN(timestampMs)) return
       const idx = Math.min(
-        Math.floor(((new Date(a.timestamp).getTime() - min) / range) * BUCKETS),
+        Math.floor(((timestampMs - min) / range) * BUCKETS),
         BUCKETS - 1
       )
       allBuckets[idx]++
@@ -178,5 +191,4 @@ export function HeroActivityStrip({ alerts, activityBuckets, isPending, onDataSo
 }
 
 export default HeroActivityStrip
-
 
