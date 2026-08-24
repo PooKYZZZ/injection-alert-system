@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { TRIAGE_STATUS_VALUES } from '@/features/alerts/schemas'
@@ -22,6 +22,14 @@ type ConfidenceTierValue = (typeof CONFIDENCE_TIER_CYCLE)[number]
 type ActionValue = (typeof ACTION_CYCLE)[number]
 type TriageValue = (typeof TRIAGE_CYCLE)[number]
 type WindowValue = (typeof WINDOW_CYCLE)[number]
+
+function asFilterValue<T extends string>(
+  value: string | null,
+  options: readonly T[],
+  fallback: T
+): T {
+  return value != null && options.includes(value as T) ? (value as T) : fallback
+}
 
 function FilterSelect<T extends string>({
   label,
@@ -57,13 +65,14 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
-
-  const currentConfidenceTier =
-    searchParams.get('confidence_tier') ?? searchParams.get('severity') ?? 'ALL'
-  const currentAction = searchParams.get('action') ?? 'ALL'
-  const currentTriage = searchParams.get('triage_status') ?? 'ALL'
-  const currentWindow = searchParams.get('window') ?? 'ALL'
+  const currentConfidenceTier = asFilterValue(
+    searchParams.get('confidence_tier') ?? searchParams.get('severity'),
+    CONFIDENCE_TIER_CYCLE,
+    'ALL'
+  )
+  const currentAction = asFilterValue(searchParams.get('action'), ACTION_CYCLE, 'ALL')
+  const currentTriage = asFilterValue(searchParams.get('triage_status'), TRIAGE_CYCLE, 'ALL')
+  const currentWindow = asFilterValue(searchParams.get('window'), WINDOW_CYCLE, 'ALL')
   const activeFilterCount = [
     currentConfidenceTier !== 'ALL',
     currentAction !== 'ALL',
@@ -74,16 +83,11 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
   const hasActiveFilters = activeFilterCount > 0
 
   const replaceWithParams = useCallback((mutator: (params: URLSearchParams) => void) => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-    debounceRef.current = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString())
-      mutator(params)
-      params.set('page', '1')
-      const query = params.toString()
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
-    }, 150)
+    const params = new URLSearchParams(searchParams.toString())
+    mutator(params)
+    params.set('page', '1')
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
   }, [router, pathname, searchParams])
 
   function handleConfidenceTierChange(next: ConfidenceTierValue) {
@@ -127,8 +131,6 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
       }
     })
   }
-
-  
 
   function handleClearAll() {
     replaceWithParams((params) => {
@@ -187,6 +189,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           )}
           {hasActiveFilters && (
             <button
+              type="button"
               onClick={handleClearAll}
               className="text-[11px] text-action-accent hover:text-action-accent"
             >
@@ -203,4 +206,3 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     </motion.div>
   )
 }
-

@@ -133,7 +133,7 @@ describe('AlertDrawer', () => {
       />
     )
 
-    expect(screen.getByText('95% (CRITICAL)')).toBeInTheDocument()
+    expect(screen.getByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
   it.each([

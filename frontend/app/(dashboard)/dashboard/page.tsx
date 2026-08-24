@@ -1,7 +1,8 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -17,6 +18,7 @@ import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
 import { emptyConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
+import { formatConfidencePercent } from '@/lib/date-time'
 
 // Lazy-load TimelineChart to avoid SSR hydration issues and reduce initial bundle
 const TimelineChart = dynamic(
@@ -38,6 +40,12 @@ interface DashboardQueryErrorProps {
   onRetry: () => void
 }
 
+const TIME_WINDOWS: TimeWindow[] = ['1h', '6h', '24h', '7d']
+
+function parseTimeWindow(value: string | null): TimeWindow {
+  return value && TIME_WINDOWS.includes(value as TimeWindow) ? (value as TimeWindow) : '6h'
+}
+
 function DashboardQueryError({ message, onRetry }: DashboardQueryErrorProps) {
   return (
     <div className="min-w-0 rounded-lg border border-severity-high-border bg-severity-high-bg/30 p-3">
@@ -47,8 +55,28 @@ function DashboardQueryError({ message, onRetry }: DashboardQueryErrorProps) {
 }
 
 export default function DashboardPage() {
-  // The selected window is part of both the stats and recent-preview query keys.
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>('6h')
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const urlTimeWindow = parseTimeWindow(
+    searchParams.get('window') ?? searchParams.get('timeRange')
+  )
+
+  // Keep the URL canonical while updating the control immediately on click.
+  // The URL remains the source of truth after navigation or reload.
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>(urlTimeWindow)
+  useEffect(() => {
+    setTimeWindow(urlTimeWindow)
+  }, [urlTimeWindow])
+
+  const handleTimeWindowChange = useCallback((next: TimeWindow) => {
+    setTimeWindow(next)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('window', next)
+    params.delete('timeRange')
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }, [pathname, router, searchParams])
 
   const dashboardFilters = useMemo<DashboardFilters>(
     () => ({
@@ -156,7 +184,7 @@ export default function DashboardPage() {
     {
       label: 'Allowed',
       value: stats?.allowed_count ?? '—',
-      secondary: statsUnavailable ? 'Unavailable' : 'Benign / LOW conf',
+      secondary: statsUnavailable ? 'Unavailable' : 'Normal or LOW-confidence traffic',
       secondaryColor: 'text-emerald-400',
       previousValue: stats?.prev_allowed_count ?? null,
       deltaInverted: true,
@@ -164,7 +192,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Avg ML confidence',
-      value: stats?.avg_confidence != null ? `${Math.round(stats.avg_confidence * 100)}%` : '—',
+      value: formatConfidencePercent(stats?.avg_confidence),
       secondary:
         statsUnavailable
           ? 'Unavailable'
@@ -228,12 +256,12 @@ export default function DashboardPage() {
               Request activity — last {timeWindow}
             </span>
             <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
-              {(['1h', '6h', '24h', '7d'] as TimeWindow[]).map((win) => (
+              {TIME_WINDOWS.map((win) => (
                 <button
                   key={win}
                   type="button"
                   aria-pressed={timeWindow === win}
-                  onClick={() => setTimeWindow(win)}
+                  onClick={() => handleTimeWindowChange(win)}
                   className={cn(
                     'rounded px-3 py-1 text-xs font-medium transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg-panel)]',

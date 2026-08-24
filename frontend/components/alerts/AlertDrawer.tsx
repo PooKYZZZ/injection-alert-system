@@ -8,6 +8,7 @@ import { ALERT_DISPLAY_ACTION_ALIASES, VERIFIED_LABEL_VALUES } from '@/features/
 import type { AlertAction, VerifiedLabel } from '@/features/alerts/contract'
 import { useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
+import { formatConfidenceLabel, parseApiTimestamp } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
 interface AlertDrawerProps {
@@ -19,8 +20,8 @@ interface AlertDrawerProps {
 
 function formatAlertTimestamp(timestamp: string | null | undefined): string {
   if (!timestamp) return '—'
-  const parsed = new Date(timestamp)
-  if (Number.isNaN(parsed.getTime())) return timestamp
+  const parsed = parseApiTimestamp(timestamp)
+  if (!parsed) return timestamp
   return parsed.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -115,7 +116,9 @@ function AlertDrawerContent({ role, alert, onClose, onReviewUpdated }: AlertDraw
 
   const triageLabel = formatTriageLabel(displayStatus)
   const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
-  const confidenceLabel = alert ? `${Math.round(alert.confidence * 100)}% (${alert.confidence_level})` : '—'
+  const confidenceLabel = alert
+    ? formatConfidenceLabel(alert.confidence, alert.confidence_level)
+    : '—'
   const crsRuleIds = alert?.crs_rule_ids?.length ? alert.crs_rule_ids.join(', ') : '—'
 
   return (
@@ -136,7 +139,7 @@ function AlertDrawerContent({ role, alert, onClose, onReviewUpdated }: AlertDraw
             {/* Drawer panel */}
             <Dialog.Content asChild>
               <motion.div
-                className="fixed top-0 right-0 z-30 flex h-full w-[420px] flex-col border-l border-surface-border bg-surface-card shadow-2xl"
+                className="fixed top-0 right-0 z-30 flex h-full w-full max-w-[420px] flex-col border-l border-surface-border bg-surface-card shadow-2xl"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}

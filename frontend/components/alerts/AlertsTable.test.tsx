@@ -128,6 +128,19 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
+  it('does not expose triage sorting when the API does not support it', async () => {
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    await screen.findByText('Triage')
+    expect(screen.queryByRole('button', { name: 'Triage' })).not.toBeInTheDocument()
+  })
+
   it('renders CRITICAL confidence tiers in the confidence column', async () => {
     mockedUseAlertsFromFilters.mockReturnValue({
       ...buildQueryResult(),
@@ -162,13 +175,13 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('95% (CRITICAL)')).toBeInTheDocument()
+    expect(await screen.findByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
   it.each([
-    [0.8, 'MEDIUM', '80% (MEDIUM)', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95% (MEDIUM)', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70% (CRITICAL)', 'text-severity-high-text'],
+    [0.8, 'MEDIUM', '80% (Medium confidence)', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95% (Medium confidence)', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70% (Critical confidence)', 'text-severity-high-text'],
   ] as const)(
     'styles confidence %s from canonical tier %s',
     async (confidence, confidenceLevel, expectedText, expectedClass) => {

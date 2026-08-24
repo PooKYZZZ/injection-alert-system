@@ -10,8 +10,18 @@ const { useDashboardStats, useAlerts } = vi.hoisted(() => ({
   useAlerts: vi.fn(),
 }))
 
+const { mockReplace, mockSearchParams } = vi.hoisted(() => ({
+  mockReplace: vi.fn(),
+  mockSearchParams: new URLSearchParams(),
+}))
+
 vi.mock('@/features/stats/queries', () => ({ useDashboardStats }))
 vi.mock('@/features/alerts/queries', () => ({ useAlerts }))
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/dashboard',
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => mockSearchParams,
+}))
 vi.mock('next/dynamic', () => ({
   default: () => () => <div data-testid="timeline-chart" />,
 }))
@@ -87,6 +97,9 @@ describe('DashboardPage metric definitions', () => {
   })
 
   beforeEach(() => {
+    mockReplace.mockReset()
+    mockSearchParams.delete('window')
+    mockSearchParams.delete('timeRange')
     useDashboardStats.mockReturnValue({ data: stats, isPending: false })
     useAlerts.mockReturnValue({ data: { items: [] }, isPending: false })
   })
@@ -116,6 +129,16 @@ describe('DashboardPage metric definitions', () => {
 
     expect(sixHourButton).toHaveAttribute('aria-pressed', 'false')
     expect(dayButton).toHaveAttribute('aria-pressed', 'true')
+    expect(mockReplace).toHaveBeenCalledWith('/dashboard?window=24h', { scroll: false })
+  })
+
+  it('restores a valid timeframe from the URL', () => {
+    mockSearchParams.set('window', '7d')
+
+    render(<DashboardPage />)
+
+    expect(screen.getByRole('button', { name: '7d' })).toHaveAttribute('aria-pressed', 'true')
+    expect(useDashboardStats).toHaveBeenCalledWith('7d')
   })
 
   it('uses window-wide stats for distributions instead of the paginated alert preview', () => {

@@ -7,6 +7,7 @@ import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { normalizeAlertSearchParams } from '@/lib/searchParams'
+import { formatConfidenceLabel, parseApiTimestamp } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -35,7 +36,7 @@ function searchParamsToRecord(
 }
 
 const ALERT_TABLE_COLUMNS = [
-  { key: 'triage', label: 'Triage', sortable: true },
+  { key: 'triage', label: 'Triage', sortable: false },
   { key: 'timestamp', label: 'Timestamp', sortable: true },
   { key: 'source_ip', label: 'Source IP', sortable: false },
   { key: 'target_path', label: 'Request', sortable: false },
@@ -46,8 +47,8 @@ const ALERT_TABLE_COLUMNS = [
 ] as const
 
 function formatTimeOnly(timestamp: string): string {
-  const parsed = new Date(timestamp)
-  if (Number.isNaN(parsed.getTime())) return '—'
+  const parsed = parseApiTimestamp(timestamp)
+  if (!parsed) return '—'
   return parsed.toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
@@ -56,8 +57,9 @@ function formatTimeOnly(timestamp: string): string {
 
 function formatRelativeTime(timestamp: string): string {
   const now = Date.now()
-  const then = new Date(timestamp).getTime()
-  if (Number.isNaN(then)) return '—'
+  const parsed = parseApiTimestamp(timestamp)
+  if (!parsed) return '—'
+  const then = parsed.getTime()
   const diff = Math.max(0, Math.floor((now - then) / 1000)) // seconds
 
   const minutes = Math.floor(diff / 60)
@@ -92,10 +94,6 @@ function formatRequestHeadline(alert: Alert): string {
 function formatPayloadEvidence(snippet: string | null | undefined): string {
   const normalized = snippet?.trim()
   return normalized && normalized.length > 0 ? normalized : 'No payload snippet'
-}
-
-function formatConfidence(confidence: number, level: string): string {
-  return `${Math.round(confidence * 100)}% (${level})`
 }
 
 function isNewTriageStatus(status: Alert['triage_status']): boolean {
@@ -200,7 +198,7 @@ function SortHeader({
 }) {
   if (!column.sortable) {
     return (
-      <th className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+      <th scope="col" className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
         {column.label}
       </th>
     )
@@ -210,10 +208,11 @@ function SortHeader({
   const isAsc = isActive && sortDir === 'asc'
 
   return (
-    <th className="p-3 text-left">
+    <th scope="col" className="p-3 text-left">
       <button
         type="button"
         onClick={() => onSort(column.key as SortColumn)}
+        aria-label={`${column.label}, ${isActive ? (isAsc ? 'ascending' : 'descending') : 'not sorted'}`}
         className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
       >
         {column.label}
@@ -250,7 +249,7 @@ function AlertsTableContent({
   )
 
   // Use full AlertFilters for the alerts page (not down-converted to DashboardFilters)
-  const { data, isPending, isError, refetch } = useAlertsFromFilters(params)
+  const { data, isPending, isFetching, isError, refetch } = useAlertsFromFilters(params)
   const { mutate: updateTriage } = useTriageMutation()
   const alerts = data?.items ?? []
   const rowClickSequenceRef = useRef(0)
@@ -337,9 +336,10 @@ function AlertsTableContent({
     <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
       <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
         <table className="w-full text-sm">
+          <caption className="sr-only">Security alerts matching the current filters</caption>
           <thead className="sticky top-0 z-10 bg-surface-panel">
             <tr className="border-b border-surface-border">
-              <th className="w-10 p-3">
+              <th scope="col" className="w-10 p-3">
                 {canTriage && (
                   <input
                     type="checkbox"
@@ -360,7 +360,7 @@ function AlertsTableContent({
                   onSort={handleSort}
                 />
               ))}
-              <th className="w-12 p-3" />
+              <th scope="col" className="w-12 p-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-text-ghost)]">
@@ -398,7 +398,7 @@ function AlertsTableContent({
                     <TriageBadge triage_status={alert.triage_status ?? null} />
                   </td>
                   <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-primary)]">
-                    <div>{formatTimeOnly(alert.timestamp)}</div>
+                    <time dateTime={alert.timestamp}>{formatTimeOnly(alert.timestamp)}</time>
                     <div className="text-xs text-[var(--color-text-muted)]">
                       {formatRelativeTime(alert.timestamp)}
                     </div>
@@ -425,7 +425,7 @@ function AlertsTableContent({
                   <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
                     <span className={`font-mono text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
-                      {formatConfidence(alert.confidence, alert.confidence_level)}
+                      {formatConfidenceLabel(alert.confidence, alert.confidence_level)}
                     </span>
                   </td>
                   <td className="p-3">
@@ -495,6 +495,11 @@ function AlertsTableContent({
             )}
           </p>
           <div className="flex items-center gap-2">
+            {isFetching && !isPending ? (
+              <span role="status" aria-live="polite" className="text-[10px] text-[var(--color-text-muted)]">
+                Updating…
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={() => {
@@ -539,20 +544,22 @@ export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick
         <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
             <table className="w-full text-sm">
+              <caption className="sr-only">Security alerts matching the current filters</caption>
               <thead className="sticky top-0 z-10 bg-surface-panel">
                 <tr className="border-b border-surface-border">
-                  <th className="w-10 p-3">
+                  <th scope="col" className="w-10 p-3">
                     <div className="h-4 w-4 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
                   </th>
                   {ALERT_TABLE_COLUMNS.map((column) => (
                     <th
                       key={column.key}
+                      scope="col"
                       className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]"
                     >
                       {column.label}
                     </th>
                   ))}
-                  <th className="w-12 p-3" />
+                  <th scope="col" className="w-12 p-3" />
                 </tr>
               </thead>
               <tbody>
