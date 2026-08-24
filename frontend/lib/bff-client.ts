@@ -227,6 +227,16 @@ function err<T>(status: number, code: string, message: string, retryAfter?: stri
   return { ok: false, status, error: { code, message }, retryAfter }
 }
 
+const UPSTREAM_REQUEST_TIMEOUT_MS = 30_000
+
+function upstreamRequestSignal(): AbortSignal {
+  return AbortSignal.timeout(UPSTREAM_REQUEST_TIMEOUT_MS)
+}
+
+function upstreamTransportFailure<T>(): BffResult<T> {
+  return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+}
+
 function isValidTimeZone(timeZone: string): boolean {
   try {
     Intl.DateTimeFormat(undefined, { timeZone })
@@ -650,9 +660,10 @@ async function fetchUpstream<T>(
         Authorization: `Bearer ${config.data.apiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: upstreamRequestSignal(),
     })
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
@@ -753,10 +764,10 @@ async function fetchRetrainingUpstream<T>(
           : {}),
       },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-      signal: AbortSignal.timeout(30_000),
+      signal: upstreamRequestSignal(),
     })
   } catch {
-    return err(502, 'UPSTREAM_ERROR', 'Upstream service failed.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
@@ -1006,11 +1017,11 @@ export async function submitAlertLabelReview(
           'X-Reviewer-Role': reviewer.role,
         },
         body: JSON.stringify(review),
-        signal: AbortSignal.timeout(30_000),
+        signal: upstreamRequestSignal(),
       }
     )
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
@@ -1102,11 +1113,11 @@ export async function updateAlertTriage(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ triage_status: status }),
-        signal: AbortSignal.timeout(30_000),
+        signal: upstreamRequestSignal(),
       }
     )
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (!response.ok) {
@@ -1182,11 +1193,11 @@ export async function updateAlertAction(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ action_taken: action }),
-        signal: AbortSignal.timeout(30_000),
+        signal: upstreamRequestSignal(),
       }
     )
   } catch {
-    return err(500, 'INTERNAL_ERROR', 'An unexpected error occurred.')
+    return upstreamTransportFailure()
   }
 
   if (process.env.NODE_ENV === 'development') {

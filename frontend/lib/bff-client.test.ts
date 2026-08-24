@@ -1082,6 +1082,57 @@ describe('bff-client', () => {
     })
   })
 
+  it('bounds ordinary BFF reads and maps transport failure to the upstream contract', async () => {
+    fetchMock.mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'))
+
+    const { getStats } = await loadClient()
+    const result = await getStats()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/stats',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream service failed.',
+      },
+    })
+  })
+
+  it('maps mutation transport failures consistently and bounds every request', async () => {
+    fetchMock.mockRejectedValue(new TypeError('connection failed'))
+
+    const { submitAlertLabelReview, updateAlertAction, updateAlertTriage } =
+      await loadClient()
+    const results = [
+      await submitAlertLabelReview(
+        '7',
+        { verified_label: 'Normal', approval_state: 'excluded_from_training' },
+        { id: 'analyst-1', role: 'ANALYST' }
+      ),
+      await updateAlertTriage('7', 'in_review'),
+      await updateAlertAction('7', 'BLOCKED'),
+    ]
+
+    expect(results).toEqual(
+      Array.from({ length: 3 }, () => ({
+        ok: false,
+        status: 502,
+        error: {
+          code: 'UPSTREAM_ERROR',
+          message: 'Upstream service failed.',
+        },
+      }))
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    for (const [, options] of fetchMock.mock.calls) {
+      expect(options).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    }
+  })
+
   it('returns BFF_MISCONFIGURED before constructing fetch when env is missing', async () => {
     delete process.env.FASTAPI_BASE_URL
 
