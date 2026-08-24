@@ -213,7 +213,11 @@ jobs:
             -v pr7-waf-ci-state:/pr7-state \
             cybertrace-pr7-waf-ci
           for attempt in $(seq 1 30); do
-            if docker exec cybertrace-pr7-waf-ci python3 -c "import json; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'"; then break; fi
+            if docker exec cybertrace-pr7-waf-ci python3 -c "import json, httpx; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'; assert httpx.get('http://127.0.0.1:8081/__pr7/ready', timeout=1, trust_env=False).status_code == 204"; then break; fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs cybertrace-pr7-waf-ci
+              exit 1
+            fi
             sleep 1
           done
           docker exec cybertrace-pr7-waf-ci python3 -c "import json, httpx; assert json.load(open('/pr7-state/selected.json'))['selected_kind'] == 'mode_empty'; assert httpx.get('http://127.0.0.1:8081/records/search', timeout=3, trust_env=False).status_code == 204"

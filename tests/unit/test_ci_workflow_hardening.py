@@ -49,6 +49,17 @@ def test_ci_validates_and_smokes_the_local_compose_stack() -> None:
     assert "down --volumes" in job
 
 
+def test_pr7_off_mode_waits_for_nginx_readiness_before_probing() -> None:
+    source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    job = source.split("  pr7-waf-runtime:", 1)[1].split(
+        "  container-smoke:", 1
+    )[0]
+
+    assert "PR7_WAF_MODE=off" in job
+    assert "http://127.0.0.1:8081/__pr7/ready" in job
+    assert "status_code == 204" in job
+
+
 def test_ci_lints_only_the_remediated_backend_boundaries() -> None:
     source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     backend_job = source.split("  backend:", 1)[1].split("  postgres:", 1)[0]
