@@ -135,6 +135,8 @@ class TargetPathSummary:
 class TrafficStatsSummary:
     total_requests: int = 0
     counts_by_label: dict[str, int] = field(default_factory=dict)
+    counts_by_confidence_tier: dict[str, int] = field(default_factory=dict)
+    non_normal_counts_by_confidence_tier: dict[str, int] = field(default_factory=dict)
     avg_inference_latency_ms: float = 0.0
     blocked_count: int = 0
     allowed_count: int = 0

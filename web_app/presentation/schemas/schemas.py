@@ -206,6 +206,14 @@ class TargetPathSummarySchema(BaseModel):
 class StatsResponse(BaseModel):
     total_requests: int = Field(default=0, ge=0)
     counts_by_label: dict[str, int] = Field(default_factory=dict)
+    counts_by_confidence_tier: dict[str, int] = Field(
+        default_factory=dict,
+        description="Complete-window counts grouped by confidence tier",
+    )
+    non_normal_counts_by_confidence_tier: dict[str, int] = Field(
+        default_factory=dict,
+        description="Complete-window non-Normal counts grouped by confidence tier",
+    )
     avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
     blocked_count: int = Field(default=0, ge=0)
     allowed_count: int = Field(default=0, ge=0)

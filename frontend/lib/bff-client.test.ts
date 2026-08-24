@@ -621,6 +621,8 @@ describe('bff-client', () => {
           blocked_count: 4,
           allowed_count: 2,
           avg_confidence: 0.82,
+          counts_by_confidence_tier: { CRITICAL: 1, HIGH: 2, MEDIUM: 3, LOW: 4 },
+          non_normal_counts_by_confidence_tier: { CRITICAL: 5, HIGH: 6, MEDIUM: 7, LOW: 8 },
           prev_high_alert_count: 123,
           activity_buckets: [
             { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
@@ -644,6 +646,8 @@ describe('bff-client', () => {
         allowed_count: 2,
         throttled_count: 0,
         avg_confidence: 0.82,
+        counts_by_confidence_tier: { critical: 1, high: 2, medium: 3, low: 4 },
+        non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8 },
         false_positive_rate: 0,
         false_positive_count: 0,
         high_alert_count: 6,

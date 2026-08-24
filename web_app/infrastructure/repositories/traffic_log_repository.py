@@ -48,6 +48,8 @@ CANONICAL_PREDICTION_LABELS = (
     "Normal",
 )
 
+CONFIDENCE_TIER_VALUES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+
 _STATS_CACHE_TTL_SECONDS = 10
 
 
@@ -786,6 +788,48 @@ class TrafficLogRepository(ITrafficLogRepository):
             counts_by_label[prediction] = int(count)
         return counts_by_label
 
+    async def _get_confidence_band_counts(
+        self,
+        window_start: Optional[datetime],
+        window_end: Optional[datetime],
+        session: Optional[AsyncSession] = None,
+    ) -> tuple[dict[str, int], dict[str, int]]:
+        """Return complete-window confidence counts, including non-Normal counts.
+
+        The Dashboard's confidence widgets must use the same unpaginated
+        aggregate as the statistic cards.  Keeping this query here avoids
+        deriving those widgets from the Alerts page preview, which is limited
+        to the first page of rows.
+        """
+        s = session or self._session
+        filters = [self._completed_or_legacy_clause()]
+        if window_start is not None:
+            filters.append(TrafficLog.timestamp >= window_start)
+        if window_end is not None:
+            filters.append(TrafficLog.timestamp < window_end)
+
+        counts = {tier: 0 for tier in CONFIDENCE_TIER_VALUES}
+        non_normal_counts = {tier: 0 for tier in CONFIDENCE_TIER_VALUES}
+        result = await s.execute(
+            select(
+                TrafficLog.confidence_level,
+                TrafficLog.prediction,
+                func.count(TrafficLog.id).label("confidence_count"),
+            )
+            .where(*filters)
+            .where(TrafficLog.confidence_level.in_(CONFIDENCE_TIER_VALUES))
+            .group_by(TrafficLog.confidence_level, TrafficLog.prediction)
+        )
+        for confidence_level, prediction, count in result.all():
+            if confidence_level not in counts:
+                continue
+            count_value = int(count)
+            counts[confidence_level] += count_value
+            if prediction != "Normal":
+                non_normal_counts[confidence_level] += count_value
+
+        return counts, non_normal_counts
+
     async def _get_top_source_ips(
         self,
         window_start: Optional[datetime],
@@ -930,6 +974,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             (
                 current_metrics,
                 counts_by_label,
+                confidence_band_counts,
                 top_source_ips,
                 top_targeted_paths,
                 previous_metrics,
@@ -942,6 +987,11 @@ class TrafficLogRepository(ITrafficLogRepository):
                 ),
                 self._with_own_session(
                     lambda s: self._get_counts_by_label(
+                        window_start, window_end, session=s
+                    )
+                ),
+                self._with_own_session(
+                    lambda s: self._get_confidence_band_counts(
                         window_start, window_end, session=s
                     )
                 ),
@@ -974,6 +1024,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             (
                 current_metrics,
                 counts_by_label,
+                confidence_band_counts,
                 top_source_ips,
                 top_targeted_paths,
             ) = await asyncio.gather(
@@ -982,6 +1033,9 @@ class TrafficLogRepository(ITrafficLogRepository):
                 ),
                 self._with_own_session(
                     lambda s: self._get_counts_by_label(None, None, session=s)
+                ),
+                self._with_own_session(
+                    lambda s: self._get_confidence_band_counts(None, None, session=s)
                 ),
                 self._with_own_session(
                     lambda s: self._get_top_source_ips(None, None, session=s)
@@ -1011,6 +1065,9 @@ class TrafficLogRepository(ITrafficLogRepository):
             for k, v in counts_by_label.items()
             if k in ("SQL Injection", "Code Injection", "Other Attacks")
         }
+        counts_by_confidence_tier, non_normal_counts_by_confidence_tier = (
+            confidence_band_counts
+        )
 
         high_alert_count = sum(
             count for label, count in counts_by_label.items() if label != "Normal"
@@ -1028,6 +1085,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         result = TrafficStatsSummary(
             total_requests=total_requests,
             counts_by_label=counts_by_label,
+            counts_by_confidence_tier=counts_by_confidence_tier,
+            non_normal_counts_by_confidence_tier=non_normal_counts_by_confidence_tier,
             avg_inference_latency_ms=round(
                 float(summary_row.avg_inference_latency_ms or 0.0),
                 3,
@@ -1307,8 +1366,12 @@ class TrafficLogRepository(ITrafficLogRepository):
             )
 
         if time_range in TIME_RANGE_DELTAS:
-            cutoff = datetime.now(timezone.utc) - TIME_RANGE_DELTAS[time_range]
-            stmt = stmt.where(TrafficLog.timestamp >= cutoff)
+            range_end = datetime.now(timezone.utc)
+            cutoff = range_end - TIME_RANGE_DELTAS[time_range]
+            stmt = stmt.where(
+                TrafficLog.timestamp >= cutoff,
+                TrafficLog.timestamp < range_end,
+            )
 
         if search:
             search_value = f"%{search.strip()}%"

@@ -102,6 +102,53 @@ async def test_get_alert_list_returns_filtered_total_and_stable_order(
 
 
 @pytest.mark.asyncio
+async def test_get_alert_list_time_range_excludes_future_records(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-current",
+            timestamp=now - timedelta(minutes=5),
+            source_ip="198.51.100.10",
+            request_path="/current",
+            request_method="GET",
+            http_request="GET /current",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="CRITICAL",
+            inference_latency_ms=1.0,
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-window-future",
+            timestamp=now + timedelta(minutes=5),
+            source_ip="198.51.100.11",
+            request_path="/future",
+            request_method="GET",
+            http_request="GET /future",
+            prediction="SQL Injection",
+            confidence=0.95,
+            confidence_level="CRITICAL",
+            inference_latency_ms=1.0,
+            action_taken="BLOCKED",
+        )
+    )
+
+    page = await repository.get_alert_list(
+        page=1,
+        page_size=20,
+        time_range="1h",
+    )
+
+    assert page.total == 1
+    assert [item.request_path for item in page.items] == ["/current"]
+
+
+@pytest.mark.asyncio
 async def test_get_alert_list_filters_by_preferred_confidence_tier(
     repository: TrafficLogRepository,
 ):
@@ -874,6 +921,18 @@ async def test_windowed_summary_filters_are_strictly_bounded(
     assert summary.allowed_count == sum(bucket.allowed_count for bucket in buckets)
     assert summary.false_positive_count == 1
     assert summary.false_positive_rate == round((1 / 3) * 100, 2)
+    assert summary.counts_by_confidence_tier == {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 1,
+        "LOW": 0,
+    }
+    assert summary.non_normal_counts_by_confidence_tier == {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 1,
+        "LOW": 0,
+    }
     assert summary.counts_by_label["SQL Injection"] == 1
     assert summary.counts_by_label["Code Injection"] == 1
     assert summary.counts_by_label["Other Attacks"] == 1
@@ -1108,7 +1167,7 @@ async def test_get_stats_summary_reuses_cache_for_same_minute_reference_time(
     )
 
     assert first == second
-    assert call_count == 6
+    assert call_count == 7
 
 
 def test_stats_cache_purges_expired_entries_when_setting_new_values():

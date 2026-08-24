@@ -8,7 +8,7 @@ import {
 } from '@/features/alerts/contract'
 import type { Alert, LabelReview, PaginatedAlerts } from '@/features/alerts/types'
 import type { MLHealthData } from '@/features/ml-health/types'
-import type { DashboardStats } from '@/features/stats/types'
+import type { ConfidenceBandCounts, DashboardStats } from '@/features/stats/types'
 import {
   RetrainingDecisionRequestSchema,
   RetrainingDecisionResultSchema,
@@ -114,6 +114,8 @@ type BackendTargetPath = {
 
 type BackendStatsPayload = {
   total_requests: number
+  counts_by_confidence_tier?: Record<string, number>
+  non_normal_counts_by_confidence_tier?: Record<string, number>
   counts_by_label: {
     'SQL Injection': number
     'Code Injection': number
@@ -141,6 +143,8 @@ type BackendStatsPayload = {
 
 const BackendStatsSchema = z.object({
   total_requests: z.number(),
+  counts_by_confidence_tier: z.record(z.string(), z.number()).optional(),
+  non_normal_counts_by_confidence_tier: z.record(z.string(), z.number()).optional(),
   counts_by_label: z.object({
     'SQL Injection': z.number(),
     'Code Injection': z.number(),
@@ -460,6 +464,17 @@ type NormalizedBucket = DashboardStats['activity_buckets'][number] & {
   _originalIndex: number
 }
 
+function normalizeConfidenceBandCounts(
+  value: Record<string, number> | undefined
+): ConfidenceBandCounts {
+  return {
+    critical: value?.CRITICAL ?? value?.critical ?? 0,
+    high: value?.HIGH ?? value?.high ?? 0,
+    medium: value?.MEDIUM ?? value?.medium ?? 0,
+    low: value?.LOW ?? value?.low ?? 0,
+  }
+}
+
 function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats> {
   const actionableAlerts =
     (payload.counts_by_label['SQL Injection'] ?? 0) +
@@ -530,6 +545,12 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
   return ok({
     actionable_alerts: actionableAlerts,
     total_requests: payload.total_requests,
+    counts_by_confidence_tier: normalizeConfidenceBandCounts(
+      payload.counts_by_confidence_tier
+    ),
+    non_normal_counts_by_confidence_tier: normalizeConfidenceBandCounts(
+      payload.non_normal_counts_by_confidence_tier
+    ),
     avg_inference_latency_ms: payload.avg_inference_latency_ms,
     blocked_count: payload.blocked_count,
     allowed_count: payload.allowed_count,

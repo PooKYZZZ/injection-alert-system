@@ -89,6 +89,8 @@ const mockActivityBuckets = [
 const mockStats: DashboardStats = {
   actionable_alerts: 500,
   total_requests: 1000000,
+  counts_by_confidence_tier: { critical: 10, high: 20, medium: 30, low: 40 },
+  non_normal_counts_by_confidence_tier: { critical: 10, high: 20, medium: 30, low: 40 },
   avg_inference_latency_ms: 5.2,
   blocked_count: 320,
   allowed_count: 85,
