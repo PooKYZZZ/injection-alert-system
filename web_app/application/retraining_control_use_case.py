@@ -233,24 +233,29 @@ class RetrainingControlUseCase:
             else "NOT_RUN"
         )
         evidence_summary = RetrainingEvidenceSummary()
-        try:
-            evaluation = self._artifact_repository.read_json_artifact(
-                record.run_id, "stages/evaluation.json"
-            )
-            evidence_status = EvidenceStatus.parse(
-                evaluation.get("evidence_status")
-            ).value
-            comparison = self._artifact_repository.read_json_artifact(
-                record.run_id, "stages/comparison.json"
-            )
-            evidence_summary = self._build_evidence_summary(evaluation, comparison)
-        except (
-            ArtifactRepositoryError,
-            FileNotFoundError,
-            TypeError,
-            ValueError,
-        ):
-            pass
+        if record.evaluation_digest is not None:
+            try:
+                evaluation = self._artifact_repository.read_json_artifact(
+                    record.run_id, "stages/evaluation.json"
+                )
+                evidence_status = EvidenceStatus.parse(
+                    evaluation.get("evidence_status")
+                ).value
+                comparison = self._artifact_repository.read_json_artifact(
+                    record.run_id, "stages/comparison.json"
+                )
+                evidence_summary = self._build_evidence_summary(evaluation, comparison)
+            except (
+                ArtifactRepositoryError,
+                FileNotFoundError,
+                TypeError,
+                ValueError,
+            ):
+                evidence_status = EvidenceStatus.INVALID.value
+                evidence_summary = RetrainingEvidenceSummary(
+                    evaluation_status="INVALID",
+                    comparison_status="INVALID",
+                )
         return RetrainingRunDetail(
             record=record,
             events=events,
@@ -272,6 +277,7 @@ class RetrainingControlUseCase:
             "FAIL",
             "NOT_RUN",
             "NOT_ENOUGH_EVIDENCE",
+            "INVALID",
         }
         evaluation_status = str(evaluation.get("status", "NOT_RUN"))
         comparison_status = str(
@@ -347,6 +353,7 @@ class RetrainingControlUseCase:
                     "CONTROLLED_SMOKE",
                     "NOT_RUN",
                     "NOT_ENOUGH_EVIDENCE",
+                    "INVALID",
                 }
                 else "NOT_RUN"
             )

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
@@ -92,11 +93,72 @@ def test_run_detail_reports_published_evidence_status(tmp_path):
         {"evidence_status": "NATIVE", "status": "PASS"},
         stage="evaluation",
     )
+    repository.publish_json_artifact(
+        run_id,
+        "stages/comparison.json",
+        {"overall_status": "PASS"},
+        stage="evidence_comparison",
+    )
     repository.update_run_metadata(run_id, evaluation_digest=evaluation["sha256"])
 
     detail = _control(repository).get_run_detail(run_id)
 
     assert detail.evidence_status == "NATIVE"
+
+
+def test_run_detail_reports_not_run_before_evaluation_is_published(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    run_id = "retrain-20260811T120000Z-000000000015"
+    repository.create_or_get_run(
+        replace(
+            _record(run_id, state=RunState.TRAINING),
+            evaluation_digest=None,
+        )
+    )
+
+    detail = _control(repository).get_run_detail(run_id)
+
+    assert detail.evidence_status == "NOT_RUN"
+    assert detail.evidence_summary.evaluation_status == "NOT_RUN"
+    assert detail.evidence_summary.comparison_status == "NOT_RUN"
+
+
+def test_run_detail_reports_invalid_when_published_evidence_is_missing(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    run_id = "retrain-20260811T120000Z-000000000016"
+    repository.create_or_get_run(_record(run_id))
+
+    detail = _control(repository).get_run_detail(run_id)
+
+    assert detail.evidence_status == "INVALID"
+    assert detail.evidence_summary.evaluation_status == "INVALID"
+    assert detail.evidence_summary.comparison_status == "INVALID"
+
+
+def test_run_detail_reports_invalid_when_published_evidence_is_corrupted(tmp_path):
+    repository = RetrainingRunArtifactRepository(tmp_path / "runs", clock=lambda: NOW)
+    run_id = "retrain-20260811T120000Z-000000000017"
+    repository.create_or_get_run(_record(run_id))
+    repository.publish_json_artifact(
+        run_id,
+        "stages/evaluation.json",
+        {"evidence_status": "NATIVE", "status": "PASS"},
+        stage="evaluation",
+    )
+    repository.publish_json_artifact(
+        run_id,
+        "stages/comparison.json",
+        {"overall_status": "PASS"},
+        stage="evidence_comparison",
+    )
+    evaluation_path = tmp_path / "runs" / run_id / "stages" / "evaluation.json"
+    evaluation_path.write_text("{}", encoding="utf-8")
+
+    detail = _control(repository).get_run_detail(run_id)
+
+    assert detail.evidence_status == "INVALID"
+    assert detail.evidence_summary.evaluation_status == "INVALID"
+    assert detail.evidence_summary.comparison_status == "INVALID"
 
 
 def test_run_detail_redacts_non_numeric_evidence_values(tmp_path):

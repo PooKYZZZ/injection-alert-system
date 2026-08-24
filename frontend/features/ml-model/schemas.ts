@@ -142,8 +142,8 @@ export const RetrainingRunDetailSchema = RetrainingRunSchema.extend({
     .object({
       preprocessing_version: z.string().max(96).nullable(),
       evaluation_split: z.string().max(96).nullable(),
-      evaluation_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE']),
-      comparison_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE']),
+      evaluation_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE', 'INVALID']),
+      comparison_status: z.enum(['PASS', 'FAIL', 'NOT_RUN', 'NOT_ENOUGH_EVIDENCE', 'INVALID']),
       metrics: z.array(
         z
           .object({

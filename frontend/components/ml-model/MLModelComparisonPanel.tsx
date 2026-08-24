@@ -168,6 +168,8 @@ export function MLModelComparisonPanel({ run }: Props) {
       <div className={styles.evidenceNotice}>
         {run.evidence_status === 'CONTROLLED_SMOKE'
           ? 'Smoke mode exercises queue and artifact ordering only; it does not claim native training quality.'
+          : status === 'INVALID'
+            ? 'Published evaluation evidence is missing, unreadable, or failed its integrity check. This run cannot be approved.'
           : status === 'NOT_ENOUGH_EVIDENCE' || status === 'NOT_RUN'
             ? 'This run does not have enough eligible native evaluation evidence for a comparison or approval gate.'
             : 'Native evidence is bound to this run. The active model remains unchanged; approval and deployment are separate explicit actions.'}
