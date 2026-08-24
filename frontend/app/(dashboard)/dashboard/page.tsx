@@ -19,6 +19,7 @@ import type { DashboardFilters } from '@/lib/searchParams'
 import { emptyConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
 import { formatConfidencePercent } from '@/lib/date-time'
+import { getCurrentSearchParams } from '@/lib/searchParams'
 
 // Lazy-load TimelineChart to avoid SSR hydration issues and reduce initial bundle
 const TimelineChart = dynamic(
@@ -71,7 +72,7 @@ export default function DashboardPage() {
 
   const handleTimeWindowChange = useCallback((next: TimeWindow) => {
     setTimeWindow(next)
-    const params = new URLSearchParams(searchParams.toString())
+    const params = getCurrentSearchParams(searchParams)
     params.set('window', next)
     params.delete('timeRange')
     const query = params.toString()

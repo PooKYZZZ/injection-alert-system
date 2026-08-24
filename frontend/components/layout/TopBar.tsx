@@ -6,6 +6,7 @@ import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import type { ConfidenceTierFilter } from '@/lib/searchParams'
 import { useTheme } from '@/app/providers'
 import { cn } from '@/lib/utils'
+import { getCurrentSearchParams } from '@/lib/searchParams'
 
 const CONFIDENCE_TIER_OPTIONS: { value: ConfidenceTierFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
@@ -78,7 +79,7 @@ function TopBarContent({
 
   const createQueryString = useCallback(
     (name: string, value: string | null) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? '')
+      const params = getCurrentSearchParams(searchParams ?? undefined)
       if (value === null || value === '') {
         params.delete(name)
       } else {
@@ -96,7 +97,7 @@ function TopBarContent({
   }, [])
 
   const setConfidenceTier = (confidenceTier: ConfidenceTierFilter) => {
-    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    const params = getCurrentSearchParams(searchParams ?? undefined)
     if (confidenceTier === 'ALL') {
       params.delete('confidence_tier')
     } else {

@@ -9,6 +9,7 @@ import { AlertDrawer } from '@/components/alerts/AlertDrawer'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { useAlert } from '@/features/alerts/queries'
 import { parseAlertDeepLink, removeAlertDeepLink } from '@/features/alerts/deepLink'
+import { getCurrentSearchParams } from '@/lib/searchParams'
 
 export function AlertsPageClient({ role }: { role?: unknown }) {
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
@@ -45,7 +46,7 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
     setDismissedDeepLinkId(alert.alert_id)
     setManualSelectedAlert(alert)
     if (deepLink.kind === 'valid') {
-      router.replace(removeAlertDeepLink(`${pathname}?${searchParams.toString()}`), { scroll: false })
+      router.replace(removeAlertDeepLink(`${pathname}?${getCurrentSearchParams(searchParams).toString()}`), { scroll: false })
     }
   }, [deepLink.kind, pathname, router, searchParams])
 
@@ -57,7 +58,7 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
     if (deepLinkId) setDismissedDeepLinkId(deepLinkId)
     setManualSelectedAlert(null)
     if (deepLinkId) {
-      router.replace(removeAlertDeepLink(`${pathname}?${searchParams.toString()}`), { scroll: false })
+      router.replace(removeAlertDeepLink(`${pathname}?${getCurrentSearchParams(searchParams).toString()}`), { scroll: false })
     }
   }, [deepLinkId, pathname, router, searchParams])
 

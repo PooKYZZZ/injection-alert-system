@@ -82,6 +82,19 @@ export const DEFAULT_ALERT_FILTERS: AlertFilters = {
   sort_dir: 'desc',
 }
 
+/**
+ * Read the query string at event time so rapid URL updates do not rebuild a
+ * later filter change from React's previous render.
+ */
+export function getCurrentSearchParams(
+  fallback?: Pick<URLSearchParams, 'toString'>
+): URLSearchParams {
+  if (typeof window !== 'undefined') {
+    return new URLSearchParams(window.location.search)
+  }
+  return new URLSearchParams(fallback?.toString() ?? '')
+}
+
 export function normalizeAlertSearchParams(
   params: Record<string, string | string[] | undefined>
 ): AlertFilters {

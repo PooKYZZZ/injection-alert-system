@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeAlertSearchParams, DEFAULT_ALERT_FILTERS, toAlertQueryString } from './searchParams'
+import {
+  normalizeAlertSearchParams,
+  DEFAULT_ALERT_FILTERS,
+  getCurrentSearchParams,
+  toAlertQueryString,
+} from './searchParams'
+
+describe('getCurrentSearchParams', () => {
+  it('reads the browser URL at event time', () => {
+    window.history.replaceState({}, '', '/alerts?window=7d&page=2')
+
+    expect(getCurrentSearchParams(new URLSearchParams('window=1h')).toString()).toBe(
+      'window=7d&page=2'
+    )
+  })
+})
 
 describe('normalizeAlertSearchParams', () => {
   it('returns default filters for empty params', () => {

@@ -6,7 +6,7 @@ import { useAlertsFromFilters, useTriageMutation } from '@/features/alerts/queri
 import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
-import { normalizeAlertSearchParams } from '@/lib/searchParams'
+import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
 import { formatConfidenceLabel, parseApiTimestamp } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
@@ -261,7 +261,7 @@ function AlertsTableContent({
   const handleSort = (column: SortColumn) => {
     const newDir = currentSort === column && currentDir === 'desc' ? 'asc' : 'desc'
 
-    const newParams = new URLSearchParams(searchParams.toString())
+    const newParams = getCurrentSearchParams(searchParams)
     newParams.set('sort_by', column)
     newParams.set('sort_dir', newDir)
     newParams.set('page', '1')
@@ -309,9 +309,10 @@ function AlertsTableContent({
 
   const handleClearFilters = () => {
     const paramsToKeep = ['page']
+    const currentParams = getCurrentSearchParams(searchParams)
     const newParams = new URLSearchParams()
     for (const key of paramsToKeep) {
-      const value = searchParams.get(key)
+      const value = currentParams.get(key)
       if (value) newParams.set(key, value)
     }
     newParams.set('page', '1')
@@ -504,7 +505,7 @@ function AlertsTableContent({
               type="button"
               onClick={() => {
                 const newPage = Math.max(1, (params.page ?? 1) - 1)
-                const newParams = new URLSearchParams(searchParams.toString())
+                const newParams = getCurrentSearchParams(searchParams)
                 newParams.set('page', String(newPage))
                 router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
               }}
@@ -521,7 +522,7 @@ function AlertsTableContent({
               type="button"
               onClick={() => {
                 const newPage = (params.page ?? 1) + 1
-                const newParams = new URLSearchParams(searchParams.toString())
+                const newParams = getCurrentSearchParams(searchParams)
                 newParams.set('page', String(newPage))
                 router.replace(`${pathname}?${newParams.toString()}`, { scroll: false })
               }}

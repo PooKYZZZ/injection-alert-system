@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { TRIAGE_STATUS_VALUES } from '@/features/alerts/schemas'
+import { getCurrentSearchParams } from '@/lib/searchParams'
 import {
   ALERT_CONFIDENCE_TIER_VALUES,
   ALERT_ACTION_TAKEN_VALUES,
@@ -83,7 +84,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
   const hasActiveFilters = activeFilterCount > 0
 
   const replaceWithParams = useCallback((mutator: (params: URLSearchParams) => void) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = getCurrentSearchParams(searchParams)
     mutator(params)
     params.set('page', '1')
     const query = params.toString()
