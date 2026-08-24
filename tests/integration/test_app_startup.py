@@ -134,16 +134,18 @@ async def _count_traffic_logs(session_factory) -> int:
         return int(result.scalar_one())
 
 
-def test_startup_fails_fast_when_artifact_missing_in_production(
+@pytest.mark.parametrize("app_env", ["production", "staging"])
+def test_startup_fails_fast_when_artifact_missing_in_production_like_environment(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    app_env: str,
 ):
     missing_path = tmp_path / "missing-run"
 
     monkeypatch.setattr(
         app_module,
         "get_settings",
-        lambda: _make_settings(missing_path, "production"),
+        lambda: _make_settings(missing_path, app_env),
     )
     monkeypatch.setattr(app_module, "init_db", _fake_init_db)
 
@@ -171,6 +173,33 @@ def test_startup_uses_mock_service_when_artifact_missing_in_testing(
         app_module,
         "get_settings",
         lambda: _make_settings(missing_path, "testing"),
+    )
+    monkeypatch.setattr(app_module, "init_db", _fake_init_db)
+    monkeypatch.setattr(app_module, "ModelService", FakeModelService)
+
+    app = app_module.create_app()
+    with TestClient(app):
+        assert app.state.model_service is mock_service
+
+
+def test_startup_uses_mock_service_when_model_loading_fails_in_development(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mock_service = object()
+
+    class FakeModelService:
+        def __init__(self, settings):
+            raise RuntimeError("packaged model artifacts are unavailable")
+
+        @classmethod
+        def create_mock(cls):
+            return mock_service
+
+    monkeypatch.setattr(
+        app_module,
+        "get_settings",
+        lambda: _make_settings(tmp_path / "incomplete-run", "development"),
     )
     monkeypatch.setattr(app_module, "init_db", _fake_init_db)
     monkeypatch.setattr(app_module, "ModelService", FakeModelService)

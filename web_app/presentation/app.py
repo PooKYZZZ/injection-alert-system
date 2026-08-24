@@ -27,8 +27,8 @@ from web_app.infrastructure.database import database as db_module
 from web_app.infrastructure.database import init_db
 from web_app.notifications.outbox import PostgresNotificationOutboxRepository
 from web_app.notifications.service import NotificationWorkerService
-from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.retraining_router import router as retraining_router
+from web_app.presentation.api.routes import router as api_router
 from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.api.waf_enforcement_router import (
     router as waf_enforcement_router,
@@ -60,13 +60,21 @@ async def lifespan(app: FastAPI):
     try:
         model_service = ModelService(settings)
         logger.info("Model loaded successfully from %s", settings.model_registry_path)
-    except RuntimeError:
-        # Re-raise RuntimeError to fail fast in production mode
-        raise
+    except RuntimeError as exc:
+        if settings.is_production or settings.is_staging:
+            raise
+        logger.warning(
+            "Model load failed — %s. "
+            "Starting in mock mode. Predictions will be simulated. "
+            "To use the real model, set MODEL_REGISTRY_PATH correctly in .env "
+            "and ensure model files are present at that path.",
+            exc,
+        )
+        model_service = ModelService.create_mock()
     except FileNotFoundError as exc:
-        # In production, convert FileNotFoundError to RuntimeError for consistent error contract
+        # Convert missing artifacts to the production-like startup error contract.
         # In testing/development, fall back to mock mode
-        if settings.is_production:
+        if settings.is_production or settings.is_staging:
             raise RuntimeError(str(exc)) from exc
         logger.warning(
             "Model load failed — %s. "
@@ -77,7 +85,7 @@ async def lifespan(app: FastAPI):
         )
         model_service = ModelService.create_mock()
     except Exception as exc:
-        if settings.is_production:
+        if settings.is_production or settings.is_staging:
             # In production, fail fast on any model load error
             raise
         logger.warning(
@@ -105,7 +113,10 @@ async def lifespan(app: FastAPI):
             "Notification worker failed to start: %s",
             exc.__class__.__name__,
         )
-        if settings.notification_worker_enabled and settings.notification_worker_required:
+        if (
+            settings.notification_worker_enabled
+            and settings.notification_worker_required
+        ):
             raise RuntimeError("required notification worker failed to start") from exc
     app.state.notification_worker = notification_worker
     app.state.notification_worker_error = notification_worker_error

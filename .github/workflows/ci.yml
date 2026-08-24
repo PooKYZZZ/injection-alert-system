@@ -42,6 +42,7 @@ jobs:
           web_app/notifications/outbox.py
           web_app/notifications/telegram.py
           web_app/notifications/threats.py
+          web_app/presentation/app.py
           web_app/presentation/api/retraining_router.py
           web_app/presentation/dependencies/retraining.py
           web_app/presentation/schemas/retraining_schemas.py
