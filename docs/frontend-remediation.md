@@ -463,3 +463,41 @@ The following records are the current implementation state for the screenshot-cr
 ## Completion state
 
 The reopened screenshot-critique implementation is complete for the local branch scope. All meaningful in-scope P0/P1/P2 findings are resolved or explicitly deferred with a concrete contract/environment reason. The final browser review covered the required pages at desktop and narrow widths, preserved truthful backend/security behavior, and did not fabricate unsupported ML, MFA, or administrative states. Remaining work is limited to the two explicit boundary deferrals, P3 taste, unsupported live-state harness coverage, or unrelated enterprise/architecture expansion.
+
+## Reopened screenshot review pass (primary critique)
+
+**Status:** In progress. This section reopens the prior completion claim against the new screenshot critique. The first pasted review, `C:\Users\froi\.codex\attachments\0fb75f24-cabc-4412-8cb9-c46994594267\pasted-text.txt`, is the governing source. The supporting review, `C:\Users\froi\.codex\attachments\66147f2d-f0d9-4144-a329-6a30ed636a89\pasted-text.txt`, is used to corroborate findings and expose regressions, but cannot lower the primary review's priority.
+
+### Execution contract
+
+Re-inspect the actual rendered branch, trace each issue to its shared or local owner, research the relevant accessibility/design-system/security pattern, write a focused failing behavioral test where behavior changes, implement the smallest structural fix, validate with tests and the real browser, critique the rendered result again, and commit the coherent finding group. Preserve existing BFF/data/security contracts and represent missing telemetry or unavailable controls honestly. Do not use decorative UI, fabricated data, raw backend field names, or generic account/error copy to fill visual space.
+
+### Reopened prioritized backlog
+
+| ID | Priority | Scope | Acceptance contract |
+| --- | --- | --- | --- |
+| SHELL-011 | P1 | Shared utility bar, page headers, widths, typography, status/color semantics | Every dashboard route has one populated global utility bar and one page-level heading; page widths follow task density; status domains and semantic colors are distinguishable; no redundant title/count chrome. |
+| DASH-013 | P1 | Dashboard zero-traffic composition | Empty traffic is neutral, compact, and useful; time range is stated once; empty charts have no decorative legend/placeholder; lower analytics do not dominate a no-data view; policy detail is not duplicated. |
+| ALERT-014 | P1 | Alert table formatting and drawer hierarchy | Relative timestamps are readable; confidence/CRS precision is intentional; workflow and enforcement statuses are distinct; drawer is wider, sentence-case, evidence-first, and progressively discloses training/system mutations. |
+| MLH-014 | P1 | ML Health Overview and Diagnostics | Serving health is visually primary; monitoring/evaluation absence is concise and truthful; runtime/evidence tables get required width; diagnostics tabs are compact and interpreted; no duplicate model/status/source-field language. |
+| UMG-011 | P1 | User lifecycle and account drawer | Active/Pending setup/Disabled is explicit; account entry is an obvious control; list density is task-oriented; self-account restrictions are neutral inline guidance; mutation sections remain progressive. |
+| AUTH-012 | P1 | Auth shell, Sign In, Forgot Password | Auth pages use one compact CyberTrace composition; form width and hierarchy are consistent; recovery copy is direct and enumeration-safe; no premature validation or oversized framing. |
+| MFA-006 | P1 | MFA proportions and safe recovery path | Step 2 placement, input/control sizing, disabled/focus/error semantics are coherent; retry preserves recoverable input; terminal states remain terminal; a safe restart/recovery path is visible without weakening the challenge. |
+| RESP-004 | P2 | Intermediate and narrow layouts | 1024/768 tabs and tables remain usable; narrow alert/account drawers are anchored within the viewport; dense evidence and tables reflow instead of being squeezed into competing columns. |
+| DOC-006 | P2 | Evidence and implementation record | Research, decisions, validation, focused commits, remaining P0/P1/P2 findings, and exact browser evidence are recorded without presenting historical claims as current proof. |
+| UMG-004 | P1 | Last-enabled-admin invariant | Preserve as an explicit deferral until an approved database-function change is authorized; UI self-protection must not be described as complete backend enforcement. |
+| MFA-003 | P1 | Full live challenge lifecycle harness | Preserve as an explicit deferral if no safe controlled challenge exists for wrong-code, expired, locked/exhausted, refresh/back-forward, abandoned, and service-failure transitions; do not consume real attempts. |
+
+### Research log for this pass
+
+- WAI-ARIA Tabs recommends one active panel at a time with native tab/list/panel semantics and predictable keyboard movement; this supports compact Diagnostics navigation rather than four oversized cards. [W3C APG Tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)
+- WAI-ARIA Dialog recommends a contained focus path, Escape handling, an accessible name, and a visible close/cancel path; this informs the account and alert drawer composition. [W3C APG Dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)
+- Carbon's empty-state guidance says an empty state replaces the ordinary content element and should not retain meaningless table headers or repeated placeholders; this informs dashboard, monitoring, drift, and calibration absence states. [Carbon empty states](https://carbondesignsystem.com/patterns/empty-states-pattern/)
+- Grafana's dashboard guidance supports showing or hiding panels based on query results so zero-data views do not reserve a large dashboard area for panels with no operational value. [Grafana dashboards](https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/create-dashboard/)
+- GOV.UK's Summary List guidance supports compact key/value facts for small record summaries, while its error-message guidance requires explaining what went wrong and how to recover while associating the message with the relevant field. [Summary list](https://design-system.service.gov.uk/components/summary-list/), [Error message](https://design-system.service.gov.uk/components/error-message/)
+- Primer's state-label and color guidance supports consistent semantic status labeling, 4.5:1 contrast, 320px reflow, and functional color roles instead of assigning the same accent to navigation, focus, warning, and enforcement. [State label accessibility](https://primer.style/product/components/state-label/accessibility/), [Color usage](https://primer.style/product/getting-started/foundations/color-usage/)
+- OWASP and NIST guidance support generic account-recovery responses, clear but non-enumerating authentication errors, and recovery/expiry behavior consistent with the assurance level of the authenticator. [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), [OWASP MFA Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html), [NIST SP 800-63B](https://pages.nist.gov/800-63-4/sp800-63b.html)
+
+### Pass tracking
+
+The implementation will append a dated entry for each focused group below with the before/problem, research principle, changed files/components, browser-visible result, tests, commit, and any remaining uncertainty. Historical entries above remain historical; they are not reused as proof that the reopened screenshot findings are resolved.
