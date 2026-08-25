@@ -13,9 +13,11 @@ describe('MfaVerifyForm', () => {
     render(<MfaVerifyForm />)
 
     expect(screen.getByRole('main')).toBeInTheDocument()
-    expect(screen.getByText('CYBERTRACE')).toBeInTheDocument()
-    expect(screen.getByText('Second factor required')).toBeInTheDocument()
-    expect(screen.getByText('Step 2 of 2')).toBeInTheDocument()
+    expect(screen.getByText('CyberTrace')).toBeInTheDocument()
+    expect(screen.getByText('Second factor')).toBeInTheDocument()
+    expect(screen.getByText('2 of 2')).toBeInTheDocument()
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(screen.queryByText(/quiet checkpoint|protected workspace|challenge is bound/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/backup code|recovery/i)).not.toBeInTheDocument()
   })
 

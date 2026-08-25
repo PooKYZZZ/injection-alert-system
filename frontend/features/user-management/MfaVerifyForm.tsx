@@ -68,17 +68,13 @@ export function MfaVerifyForm() {
 
   return (
     <main className={styles.shell} aria-labelledby="mfa-verify-heading">
-      <div className={styles.frame}>
-        <aside className={styles.context} aria-label="Sign-in context">
-          <div>
-            <p className={styles.wordmark}>CYBERTRACE</p>
-            <p className={styles.contextTitle}>A quiet checkpoint for a protected workspace.</p>
-            <p className={styles.contextCopy}>Your password was accepted. Confirm the current authenticator code to complete this sign-in.</p>
-          </div>
-          <p className={styles.contextFoot}>Challenge is bound to this sign-in session</p>
-        </aside>
+      <section className={styles.frame}>
+        <header className={styles.header}>
+          <span className={styles.wordmark}>CyberTrace</span>
+          <span className={styles.step}>2 of 2</span>
+        </header>
 
-        <section className={styles.formRegion}>
+        <div className={styles.formRegion}>
           {terminalError ? (
             <div className={styles.terminal} role="alert" aria-labelledby="mfa-verify-heading">
               <p className={styles.eyebrow}>Sign-in challenge ended</p>
@@ -88,16 +84,13 @@ export function MfaVerifyForm() {
             </div>
           ) : (
             <>
-              <div className={styles.progress}>
-                <p className={styles.eyebrow}>Second factor required</p>
-                <span className={styles.step}>Step 2 of 2</span>
-              </div>
+              <p className={styles.eyebrow}>Second factor</p>
               <h1 id="mfa-verify-heading" className={styles.heading}>Verify your authenticator</h1>
-              <p className={styles.description}>Enter the current six-digit code from your authenticator app to finish signing in.</p>
+              <p className={styles.description}>Enter the 6-digit code from your authenticator app.</p>
 
-              <form aria-labelledby="mfa-verify-heading" onSubmit={submit} className={styles.form}>
+              <form aria-labelledby="mfa-verify-heading" aria-busy={busy || undefined} onSubmit={submit} className={styles.form}>
                 <label htmlFor="mfa-code" className={styles.label}>Authenticator code</label>
-                <p id="mfa-code-help" className={styles.help}>The code is accepted as one value. Paste or type all six digits.</p>
+                <p id="mfa-code-help" className={styles.help}>Six digits. Paste or type the code as one value.</p>
                 <input
                   ref={inputRef}
                   id="mfa-code"
@@ -124,8 +117,8 @@ export function MfaVerifyForm() {
               </form>
             </>
           )}
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   )
 }
