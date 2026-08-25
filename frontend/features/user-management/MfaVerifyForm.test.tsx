@@ -25,7 +25,7 @@ describe('MfaVerifyForm', () => {
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
     expect(screen.getByText(/Step 2 of 2 · Sign-in verification/)).toBeInTheDocument()
     expect(screen.queryByText('Second factor')).not.toBeInTheDocument()
-    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'CyberTrace security operations' })).toBeInTheDocument()
     expect(screen.queryByText(/quiet checkpoint|protected workspace|challenge is bound/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Use a backup code or email recovery' })).toHaveAttribute('href', '/mfa/recover')
   })

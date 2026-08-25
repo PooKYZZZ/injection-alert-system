@@ -43,6 +43,8 @@ describe('LoginPage', () => {
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(screen.getByRole('form', { name: 'Sign in' })).toBeInTheDocument()
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
+    expect(screen.getByText('Secure workspace')).toBeInTheDocument()
+    expect(screen.getByText('Use your CyberTrace credentials to continue.')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: 'background' })).not.toBeInTheDocument()
     expect(screen.queryByText(/advanced WAF|real-time attack monitoring/i)).not.toBeInTheDocument()
     expect(screen.queryByText('Password required')).not.toBeInTheDocument()

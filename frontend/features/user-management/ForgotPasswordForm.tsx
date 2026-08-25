@@ -2,7 +2,19 @@
 
 import { useState, type FormEvent } from 'react'
 
-import { authFieldClass, authHeadingClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import {
+  authDescriptionClass,
+  authEyebrowClass,
+  authFieldClass,
+  authFieldGroupClass,
+  authFieldLabelClass,
+  authFooterClass,
+  authFormClass,
+  authHeadingClass,
+  authLinkClass,
+  authPageClass,
+  authPrimaryButtonClass,
+} from '@/components/auth/authStyles'
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -30,14 +42,15 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <section className="w-full max-w-[400px] space-y-6" aria-labelledby="forgot-password-heading">
-      <div>
+    <section className={authPageClass} aria-labelledby="forgot-password-heading">
+      <div className="space-y-3">
+        <p className={authEyebrowClass}>Account recovery</p>
         <h1 id="forgot-password-heading" className={authHeadingClass}>Forgot password</h1>
-        <p className="mt-2 text-sm leading-6 text-text-secondary">Enter the email address associated with your account. If it matches an account, we’ll send a reset link.</p>
+        <p className={authDescriptionClass}>Enter your email address and we’ll send a reset link if the account is eligible.</p>
       </div>
-      <form aria-busy={pending || undefined} aria-describedby={error ? 'forgot-password-error' : undefined} aria-labelledby="forgot-password-heading" onSubmit={submit} className="grid gap-4">
-        <div className="grid gap-1.5">
-          <label htmlFor="forgot-password-email" className="text-sm font-medium text-text-secondary">Email address</label>
+      <form aria-busy={pending || undefined} aria-describedby={error ? 'forgot-password-error' : undefined} aria-labelledby="forgot-password-heading" onSubmit={submit} className={authFormClass}>
+        <div className={authFieldGroupClass}>
+          <label htmlFor="forgot-password-email" className={authFieldLabelClass}>Email address</label>
           <input
             id="forgot-password-email"
             autoComplete="email"
@@ -50,16 +63,18 @@ export function ForgotPasswordForm() {
               setEmail(event.target.value)
               if (error) setError(null)
             }}
-            className={authFieldClass}
+            className={`${authFieldClass}${error ? ' border-status-danger focus:border-status-danger focus-visible:ring-status-danger/35' : ''}`}
           />
+          {error ? <p id="forgot-password-error" role="alert" className="mt-2 text-sm leading-5 text-status-danger">{error}</p> : null}
         </div>
-        <button type="submit" disabled={pending} className={authPrimaryButtonClass}>
+        <button type="submit" disabled={pending} className={authPrimaryButtonClass + ' mt-2'}>
           {pending ? 'Sending…' : 'Send reset link'}
         </button>
       </form>
-      {error ? <p id="forgot-password-error" role="alert" className="text-sm leading-5 text-status-danger">{error}</p> : null}
-      {sent ? <p role="status" className="text-sm leading-5 text-status-success">If the account is eligible, a reset link has been sent.</p> : null}
-      <a href="/login" className={'inline-flex ' + authLinkClass}>Return to sign in</a>
+      {sent ? <p role="status" className="mt-4 text-sm leading-5 text-status-success">If the account is eligible, a reset link has been sent.</p> : null}
+      <div className={authFooterClass}>
+        <a href="/login" className={'inline-flex ' + authLinkClass}>Return to sign in</a>
+      </div>
     </section>
   )
 }

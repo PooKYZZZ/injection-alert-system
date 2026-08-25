@@ -13,7 +13,8 @@ describe('password recovery forms', () => {
   it('uses generic forgot-password copy', () => {
     render(<ForgotPasswordForm />)
     expect(screen.getByRole('heading', { name: /forgot password/i })).toBeInTheDocument()
-    expect(screen.getByText(/if it matches an account/i)).toBeInTheDocument()
+    expect(screen.getByText('Account recovery')).toBeInTheDocument()
+    expect(screen.getByText(/if the account is eligible/i)).toBeInTheDocument()
   })
 
   it('does not auto-login after reset', () => {
