@@ -230,8 +230,8 @@ export default function DashboardPage() {
       transition={{ duration: 0.3 }}
       className="min-w-0 flex flex-col gap-3 p-3 sm:p-4"
     >
-      {/* Stats Row */}
-      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Summary metrics */}
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3 xl:grid-cols-6 xl:divide-x xl:divide-y-0">
         {statCards.map((card) => (
             <StatCard
               key={card.label}
@@ -255,11 +255,11 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3 sm:p-4"
+        className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-3 sm:p-4"
       >
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
-            <span className="min-w-0 text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+            <span className="min-w-0 text-sm font-semibold text-[var(--color-text-primary)]">
               Request activity — last {TIME_WINDOW_LABELS[timeWindow]}
             </span>
             <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
@@ -357,7 +357,7 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Distribution Grid */}
-      <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-surface-panel md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
         {!statsUnavailable ? (
           <>
             {/* Attack Type Panel */}
@@ -365,9 +365,9 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+              className="min-w-0 flex flex-col gap-2 p-3.5 sm:p-4"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+              <div className="mb-3 text-xs font-semibold text-text-primary">
                 Attack type distribution
               </div>
               <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
@@ -378,9 +378,9 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+              className="min-w-0 flex flex-col gap-2 p-3.5 sm:p-4"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+              <div className="mb-3 text-xs font-semibold text-text-primary">
                 ML confidence bands
               </div>
               <MLConfidenceBands
@@ -392,15 +392,8 @@ export default function DashboardPage() {
                 unavailable={allConfidenceBands == null}
               />
 
-              <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
-                    ML Enforcement Map
-                  </span>
-                  <div className="h-1 w-8 bg-violet-500/30 rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-500 w-2/3" />
-                  </div>
-                </div>
+              <div className="mt-4 min-w-0 border-t border-border-light pt-3 flex flex-col gap-2">
+                <div className="text-xs font-medium text-text-secondary">Response policy</div>
                 <MLEnforcementMap
                   nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
                   isPending={statsPending}
@@ -418,9 +411,9 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+              className="min-w-0 flex flex-col gap-2 p-3.5 sm:p-4"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+              <div className="mb-3 text-xs font-semibold text-text-primary">
                 Top source IPs
               </div>
               <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
@@ -431,9 +424,9 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
+              className="min-w-0 flex flex-col gap-2 p-3.5 sm:p-4"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
+              <div className="mb-3 text-xs font-semibold text-text-primary">
                 Top targeted paths
               </div>
               <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />

@@ -4,14 +4,16 @@ import { describe, expect, it } from 'vitest'
 import { StatCard } from './StatCard'
 
 describe('StatCard', () => {
-  it('uses set1 card surface token for dashboard stat chrome', () => {
+  it('uses quiet metric chrome inside the shared summary strip', () => {
     render(<StatCard label="Total requests" value={4200} />)
 
     const labelEl = screen.getByText('Total requests')
     const card = labelEl.closest('div')?.parentElement
 
     expect(card).not.toBeNull()
-    expect(card).toHaveClass('bg-surface-card')
+    expect(card).toHaveClass('p-3')
+    expect(card).not.toHaveClass('rounded-xl')
+    expect(card).not.toHaveClass('border')
   })
 
   it('uses semantic danger colors for an unfavorable delta', () => {
