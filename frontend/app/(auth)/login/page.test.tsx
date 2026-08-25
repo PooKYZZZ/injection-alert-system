@@ -31,6 +31,12 @@ describe('LoginPage', () => {
   it('renders identifier and password fields without a role selector', () => {
     render(<LoginPage />)
 
+    expect(screen.getByRole('main')).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'Sign in' })).toBeInTheDocument()
+    expect(screen.getByText('CyberTrace')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'background' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/advanced WAF|real-time attack monitoring/i)).not.toBeInTheDocument()
+
     const identifierInput = screen.getByLabelText('Email or username')
     const passwordInput = screen.getByLabelText('Password')
     expect(identifierInput).toHaveAttribute('id', 'identifier')

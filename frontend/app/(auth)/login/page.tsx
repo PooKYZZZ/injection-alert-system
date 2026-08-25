@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import Image from 'next/image'
+import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, UserRoundKey } from 'lucide-react'
+
 import { loginAction } from './actions'
+
+const fieldClass =
+  'min-h-11 w-full rounded-md border border-border-light bg-surface-inset px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent-action focus-visible:ring-2 focus-visible:ring-accent-action/35'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,7 +15,8 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
-  const handleSubmit = async () => {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setErrorMessage(null)
     setPending(true)
 
@@ -37,133 +40,74 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative">
+    <main className="grid min-h-screen place-items-center bg-surface-page px-4 py-6 text-text-primary" aria-labelledby="login-heading">
+      <section className="w-full max-w-[520px] overflow-hidden rounded-xl border border-border-light bg-surface-panel shadow-2xl">
+        <header className="flex items-center justify-between gap-4 border-b border-border-light px-5 py-4">
+          <span className="text-sm font-semibold tracking-tight text-accent-action">CyberTrace</span>
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Sign in</span>
+        </header>
 
-      {/* BACKGROUND */}
-      <div className="fixed inset-0 -z-10">
-        <Image
-          src="/w5.png"
-          alt="background"
-          fill
-          sizes="100vw"
-          priority
-          className="object-cover blur-sm"
-        />
-      </div>
+        <div className="px-6 py-8 sm:px-10 sm:py-10">
+          <h1 id="login-heading" className="text-2xl font-semibold tracking-tight text-text-primary">Sign in</h1>
+          <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">Use your CyberTrace credentials to continue.</p>
 
-      {/* CARD */}
-      <div className="relative w-full max-w-4xl h-[500px] rounded-xl overflow-hidden shadow-xl border border-white/10 flex">
-
-        {/* LEFT PANEL */}
-        <div className="hidden lg:flex w-1/2 relative overflow-hidden">
-
-          <div className="absolute inset-0 bg-[#202020]" />
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-
-          {/* center context */}
-          <div className="relative z-10 flex h-full w-full items-center justify-center text-white">
-            <div className="flex flex-col items-center text-center max-w-sm gap-4">
-
-              {/* LOGO */}
-              <Image
-                src="/logo.png"
-                alt="CyberTrace Logo"
-                width={100}
-                height={100}
-                className="object-contain"
-                priority
-              />
-
-              <h1 className="text-4xl font-bold font-orbitron">
-                CyberTrace
-              </h1>
-
-              <p className="text-sm text-gray-300">
-                Advanced WAF + Machine Learning security dashboard.
-              </p>
-
-              <div className="flex flex-col gap-2 text-sm text-gray-400 text-left mt-6">
-                <div>• Real-time attack monitoring</div>
-                <div>• ML-powered attack classification</div>
-                <div>• SOC workflow integration</div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT PANEL */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center bg-black/20 backdrop-blur-lg px-8">
-
-          <div className="w-full max-w-sm">
-
-            {/* ICON */}
-            <div className="mb-6 flex justify-center">
-              <UserRoundKey size={64} className="text-white" />
-            </div>
-
-            <h2 className="text-xl font-semibold text-white mb-2 text-center">
-              Sign in
-            </h2>
-
-            <p className="text-sm text-gray-400 mb-6 text-center">
-              Enter your account credentials to continue
+          {errorMessage ? (
+            <p id="login-error" className="mt-5 rounded-md border border-status-danger/35 bg-status-danger/5 px-3 py-2 text-sm leading-5 text-status-danger" role="alert">
+              {errorMessage}
             </p>
+          ) : null}
 
-            {errorMessage && (
-              <div className="mb-4 flex items-center gap-2 text-red-400 text-sm">
-                <Lock size={14} />
-                {errorMessage}
-              </div>
-            )}
+          <form
+            aria-busy={pending || undefined}
+            aria-describedby={errorMessage ? 'login-error' : undefined}
+            aria-labelledby="login-heading"
+            className="mt-7 grid gap-4"
+            onSubmit={handleSubmit}
+          >
+            <div className="grid gap-1.5">
+              <label htmlFor="identifier" className="text-xs font-medium text-text-secondary">Email or username</label>
+              <input
+                id="identifier"
+                type="text"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
+                className={fieldClass}
+              />
+            </div>
 
-            <label htmlFor="identifier" className="sr-only">
-              Email or username
-            </label>
-            <input
-              id="identifier"
-              type="text"
-              autoComplete="username"
-              placeholder="Email or username"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-[#262626] text-white border border-gray-800 focus:border-white-500 focus:ring-2 focus:ring-white-500/30 outline-none mb-4"
-            />
-
-            <label htmlFor="password" className="sr-only">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !pending && handleSubmit()}
-              className="w-full px-4 py-3 rounded-lg bg-[#262626] text-white border border-gray-800 focus:border-white-500 focus:ring-2 focus:ring-white-500/30 outline-none mb-4"
-            />
+            <div className="grid gap-1.5">
+              <label htmlFor="password" className="text-xs font-medium text-text-secondary">Password</label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={fieldClass}
+              />
+            </div>
 
             <button
-              onClick={handleSubmit}
+              type="submit"
               disabled={pending}
-              className="w-full py-3 rounded-lg bg-gradient-to-r from-green-500 to-green-500 text-white font-medium hover:opacity-90 transition"
+              className="mt-2 min-h-11 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {pending ? 'Signing in...' : 'Sign in'}
+              {pending ? 'Signing in…' : 'Sign in'}
             </button>
+          </form>
 
-            <a href="/forgot-password" className="mt-4 block text-center text-xs text-gray-400 underline">
+          <div className="mt-6 border-t border-border-light pt-5 text-center">
+            <a href="/forgot-password" className="text-sm text-text-secondary underline decoration-border-light underline-offset-4 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60">
               Forgot password?
             </a>
-
-            <p className="mt-5 text-xs text-center text-gray-400">
-              Restricted access — authorized personnel only
-            </p>
-
           </div>
         </div>
-
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }
