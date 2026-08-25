@@ -423,6 +423,12 @@
   overflow-x: auto;
 }
 
+.tableHint {
+  margin: 0 0 8px;
+  color: var(--mlh-text-muted);
+  font-size: 10px;
+}
+
 .riskTable,
 .activityTable,
 .compTable {

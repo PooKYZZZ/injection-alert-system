@@ -55,6 +55,7 @@ export function MLHealthWorkspace() {
           <div className={styles.viewToggle}>
             <button
               type="button"
+              aria-pressed={view === 'overview'}
               className={`${styles.viewToggleButton} ${view === 'overview' ? styles.viewToggleButtonActive : ''}`}
               onClick={() => setView('overview')}
             >
@@ -62,6 +63,7 @@ export function MLHealthWorkspace() {
             </button>
             <button
               type="button"
+              aria-pressed={view === 'diagnostics'}
               className={`${styles.viewToggleButton} ${view === 'diagnostics' ? styles.viewToggleButtonActive : ''}`}
               onClick={() => setView('diagnostics')}
             >

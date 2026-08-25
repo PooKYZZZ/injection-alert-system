@@ -20,7 +20,7 @@ function PerformanceTab({ health, viewModel }: Props) {
           <span className={styles.panelTitle}>Performance Snapshot</span>
         </div>
         <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
+          <table className={styles.compTable} aria-label="Performance snapshot">
             <thead>
               <tr>
                 <th>Metric</th>
@@ -65,7 +65,7 @@ function DriftTab({ viewModel }: Props) {
           <span className={styles.panelTitle}>Drift Snapshot</span>
         </div>
         <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
+          <table className={styles.compTable} aria-label="Drift snapshot">
             <thead>
               <tr>
                 <th>Metric</th>
@@ -95,7 +95,7 @@ function DriftTab({ viewModel }: Props) {
         </div>
         <div className={styles.tableScroll}>
           {viewModel.classMetrics.length > 0 ? (
-            <table className={styles.compTable}>
+            <table className={styles.compTable} aria-label="Per-class F1 reported evaluation">
               <thead>
                 <tr>
                   <th>Class</th>
@@ -136,7 +136,7 @@ function CalibrationTab({ viewModel }: Props) {
           <span className={styles.panelTitle}>Calibration Snapshot</span>
         </div>
         <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
+          <table className={styles.compTable} aria-label="Calibration snapshot">
             <thead>
               <tr>
                 <th>Metric</th>
@@ -166,7 +166,7 @@ function CalibrationTab({ viewModel }: Props) {
         </div>
         <div className={styles.tableScroll}>
           {viewModel.calibrationBins.length > 0 ? (
-            <table className={styles.compTable}>
+            <table className={styles.compTable} aria-label="Calibration bins reported evaluation">
               <thead>
                 <tr>
                   <th>Bin</th>
@@ -207,7 +207,7 @@ function PolicyTab({ viewModel }: Props) {
           <span className={styles.panelTitle}>Policy decision bands</span>
         </div>
         <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
+          <table className={styles.compTable} aria-label="Policy decision bands">
             <thead>
               <tr>
                 <th>Band</th>
@@ -286,6 +286,7 @@ export function MLHealthDiagnosticsSection({ health, viewModel }: Props) {
           <button
             key={item.key}
             className={`${styles.tab} ${tab === item.key ? styles.tabActive : ''}`}
+            aria-pressed={tab === item.key}
             onClick={() => setTab(item.key)}
             type="button"
           >
@@ -293,6 +294,8 @@ export function MLHealthDiagnosticsSection({ health, viewModel }: Props) {
           </button>
         ))}
       </div>
+
+      <p className={styles.tableHint}>Scroll horizontally to view all columns on narrow screens.</p>
 
       {tab === 'performance' ? <PerformanceTab health={health} viewModel={viewModel} /> : null}
       {tab === 'drift' ? <DriftTab health={health} viewModel={viewModel} /> : null}
