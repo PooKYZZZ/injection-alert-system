@@ -67,7 +67,7 @@ describe('describeEvidenceRelationship', () => {
     ).toEqual({
       kind: 'unmapped',
       label: 'WAF and ML evidence available',
-      description: 'Evidence requires analyst correlation because the stored categories are not matched automatically.',
+      description: 'Both evidence sources are present, but their stored categories are not mapped automatically.',
     })
   })
 

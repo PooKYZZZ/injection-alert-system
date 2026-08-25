@@ -143,7 +143,7 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
-  it('keeps mobile table guidance in the accessible table region instead of adding a redundant banner', async () => {
+  it('explains how to reach the horizontally scrollable fields on mobile', async () => {
     render(
       <AlertsTable
         selectedIds={[]}
@@ -152,8 +152,7 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByRole('region', { name: 'Scrollable security alerts table' })).toBeInTheDocument()
-    expect(screen.queryByText('Swipe horizontally to view all alert fields.')).not.toBeInTheDocument()
+    expect(await screen.findByText('Swipe horizontally to view all alert fields.')).toBeInTheDocument()
   })
 
   it('does not expose triage sorting when the API does not support it', async () => {
@@ -203,17 +202,16 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('95%')).toBeInTheDocument()
-    expect(await screen.findByText('Critical')).toBeInTheDocument()
+    expect(await screen.findByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
   it.each([
-    [0.8, 'MEDIUM', '80%', 'Medium', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95%', 'Medium', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70%', 'Critical', 'text-severity-high-text'],
+    [0.8, 'MEDIUM', '80% (Medium confidence)', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95% (Medium confidence)', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70% (Critical confidence)', 'text-severity-high-text'],
   ] as const)(
     'styles confidence %s from canonical tier %s',
-    async (confidence, confidenceLevel, expectedText, expectedTier, expectedClass) => {
+    async (confidence, confidenceLevel, expectedText, expectedClass) => {
       mockedUseAlertsFromFilters.mockReturnValue({
         ...buildQueryResult(),
         data: {
@@ -247,8 +245,7 @@ describe('AlertsTable', () => {
         />
       )
 
-      expect(await screen.findByText(expectedText)).toBeInTheDocument()
-      expect(await screen.findByText(expectedTier)).toHaveClass(expectedClass)
+      expect(await screen.findByText(expectedText)).toHaveClass(expectedClass)
     }
   )
 

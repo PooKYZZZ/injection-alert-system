@@ -46,9 +46,9 @@ describe('API date and confidence formatting', () => {
     const now = Date.parse('2026-08-24T14:06:47Z')
     const timestamp = new Date(now - days * 24 * 60 * 60 * 1000).toISOString()
 
-    expect(formatRelativeTime(timestamp, now)).toBe('12 months ago')
+    expect(formatRelativeTime(timestamp, now)).toBe('12months ago')
     expect(formatRelativeTime(new Date(now + days * 24 * 60 * 60 * 1000).toISOString(), now)).toBe(
-      'in 12 months'
+      'in 12months'
     )
   })
 
@@ -56,7 +56,7 @@ describe('API date and confidence formatting', () => {
     const now = Date.parse('2026-08-24T14:06:47Z')
     const timestamp = new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString()
 
-    expect(formatRelativeTime(timestamp, now)).toBe('1 year ago')
+    expect(formatRelativeTime(timestamp, now)).toBe('1year ago')
   })
 
   it('keeps source precision available while offering compact operator display', () => {

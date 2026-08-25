@@ -7,7 +7,7 @@ import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
-import { formatAlertDateTime, formatCompactConfidencePercent, formatConfidenceTierLabel, formatRelativeTime } from '@/lib/date-time'
+import { formatAlertDateTime, formatConfidenceLabel, formatRelativeTime } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -48,7 +48,7 @@ const ALERT_TABLE_COLUMNS = [
 
 function formatCrsScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
-  return Number(score.toFixed(1)).toString()
+  return score.toFixed(2)
 }
 
 function formatRequestHeadline(alert: Alert): string {
@@ -161,7 +161,7 @@ function SortHeader({
 }) {
   if (!column.sortable) {
     return (
-      <th scope="col" className="p-3 text-left text-xs font-semibold text-[var(--color-text-secondary)]">
+      <th scope="col" className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
         {column.label}
       </th>
     )
@@ -176,7 +176,7 @@ function SortHeader({
         type="button"
         onClick={() => onSort(column.key as SortColumn)}
         aria-label={`${column.label}, ${isActive ? (isAsc ? 'ascending' : 'descending') : 'not sorted'}`}
-        className="flex items-center gap-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
       >
         {column.label}
         {isActive ? (
@@ -278,6 +278,9 @@ function AlertsTableContent({
 
   return (
     <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
+      <p className="border-b border-surface-border px-3 py-2 text-[10px] text-[var(--color-text-secondary)] sm:hidden">
+        Swipe horizontally to view all alert fields.
+      </p>
       <div
         role="region"
         aria-label="Scrollable security alerts table"
@@ -372,14 +375,9 @@ function AlertsTableContent({
                   </td>
                   <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-xs text-text-primary">
-                        {formatCompactConfidencePercent(alert.confidence)}
-                      </span>
-                      <span className={`text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
-                        {formatConfidenceTierLabel(alert.confidence_level)}
-                      </span>
-                    </div>
+                    <span className={`font-mono text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
+                      {formatConfidenceLabel(alert.confidence, alert.confidence_level)}
+                    </span>
                   </td>
                   <td className="p-3">
                     <ActionLabel action={alert.action_taken} bordered={false} />
@@ -509,7 +507,7 @@ export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick
                     <th
                       key={column.key}
                       scope="col"
-                      className="p-3 text-left text-xs font-semibold text-[var(--color-text-secondary)]"
+                      className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]"
                     >
                       {column.label}
                     </th>

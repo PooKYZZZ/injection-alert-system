@@ -68,19 +68,19 @@ export function formatRelativeTime(
   if (absoluteSeconds < 60) return `${prefix}${absoluteSeconds}s${suffix}`
 
   const minutes = Math.floor(absoluteSeconds / 60)
-  if (minutes < 60) return `${prefix}${minutes} min${minutes === 1 ? '' : 's'}${suffix}`
+  if (minutes < 60) return `${prefix}${minutes}min${minutes === 1 ? '' : 's'}${suffix}`
 
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${prefix}${hours} hr${hours === 1 ? '' : 's'}${suffix}`
+  if (hours < 24) return `${prefix}${hours}hr${hours === 1 ? '' : 's'}${suffix}`
 
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${prefix}${days} day${days === 1 ? '' : 's'}${suffix}`
+  if (days < 30) return `${prefix}${days}day${days === 1 ? '' : 's'}${suffix}`
 
   const months = Math.floor(days / 30)
-  if (days < 365) return `${prefix}${months} month${months === 1 ? '' : 's'}${suffix}`
+  if (days < 365) return `${prefix}${months}month${months === 1 ? '' : 's'}${suffix}`
 
   const years = Math.floor(days / 365)
-  return `${prefix}${years} year${years === 1 ? '' : 's'}${suffix}`
+  return `${prefix}${years}year${years === 1 ? '' : 's'}${suffix}`
 }
 
 export function formatConfidencePercent(confidence: number | null | undefined): string {
