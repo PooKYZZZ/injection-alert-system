@@ -36,13 +36,13 @@ describe('MLHealthDiagnosticsSection', () => {
     expect(screen.getByRole('table', { name: 'Serving metrics' })).toBeInTheDocument()
     expect(screen.queryByText(/scroll horizontally to view all columns/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/source field/i)).not.toBeInTheDocument()
-    expect(screen.getByText('No serving traffic in this snapshot.')).toBeInTheDocument()
+    expect(screen.getByText('No serving traffic in this snapshot. Latency is not available without traffic.')).toBeInTheDocument()
 
     fireEvent.click(monitoring)
 
     expect(performance).toHaveAttribute('aria-selected', 'false')
     expect(monitoring).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText('Drift result unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Drift result not reported')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Drift monitoring' })).not.toBeInTheDocument()
     expect(screen.queryByText('Drift coverage', { selector: 'small' })).not.toBeInTheDocument()
   })
@@ -73,5 +73,31 @@ describe('MLHealthDiagnosticsSection', () => {
 
     expect(policy).toHaveAttribute('aria-selected', 'true')
     expect(document.activeElement).toBe(policy)
+  })
+
+  it('puts evaluation provenance before reported scores and labels their scope', () => {
+    const evaluationHealth = {
+      ...health,
+      ece: 0.04,
+      per_class_f1: {
+        'SQL Injection': 0.998,
+        Normal: 0.995,
+      },
+    }
+    render(
+      <MLHealthDiagnosticsSection
+        health={evaluationHealth}
+        viewModel={buildMLHealthViewModel(evaluationHealth)}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Evaluation' }))
+
+    const provenance = screen.getByRole('region', { name: 'Evaluation provenance' })
+    const scores = screen.getByRole('table', { name: 'Per-class F1 scores' })
+    expect(provenance).toHaveTextContent(/run identity and timestamp were not provided/i)
+    expect(provenance.compareDocumentPosition(scores) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'F1 score (0–1)' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Current prediction distribution' })).toBeInTheDocument()
   })
 })

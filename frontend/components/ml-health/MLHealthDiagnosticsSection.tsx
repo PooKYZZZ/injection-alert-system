@@ -4,14 +4,14 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 import type { MLHealthData } from '@/features/ml-health/types'
 
-import type { MLHealthViewModel, PolicyBandAction } from './MLHealthWorkspaceViewModel'
+import type { DiagnosticTab, MLHealthViewModel, PolicyBandAction } from './MLHealthWorkspaceViewModel'
 import styles from './MLHealthWorkspace.module.css'
-
-type DiagnosticsTab = 'performance' | 'monitoring' | 'evaluation' | 'policy'
 
 type Props = {
   health: MLHealthData
   viewModel: MLHealthViewModel
+  activeTab?: DiagnosticTab
+  onActiveTabChange?: (tab: DiagnosticTab) => void
 }
 
 type ViewProps = Pick<Props, 'viewModel'>
@@ -67,7 +67,7 @@ function PerformanceTab({ viewModel }: ViewProps) {
         <p className={styles.panelNote}>
           {viewModel.hasTraffic
             ? 'Latency is measured only when the snapshot includes traffic.'
-            : 'No serving traffic in this snapshot.'}
+            : 'No serving traffic in this snapshot. Latency is not available without traffic.'}
         </p>
       </section>
     </div>
@@ -76,7 +76,7 @@ function PerformanceTab({ viewModel }: ViewProps) {
 
 function MonitoringTab({ viewModel }: ViewProps) {
   const hasMonitoringEvidence =
-    viewModel.driftScoreDisplay !== 'Unavailable' || viewModel.driftStatusDisplay !== 'Unavailable'
+    viewModel.driftScoreDisplay !== 'Not reported' || viewModel.driftStatusDisplay !== 'Not reported'
 
   return (
     <div className={styles.diagnosticStack}>
@@ -101,7 +101,7 @@ function MonitoringTab({ viewModel }: ViewProps) {
             </tbody>
           </DiagnosticsTable>
         ) : (
-          <EmptyEvidence heading="Drift result unavailable">
+          <EmptyEvidence heading="Drift result not reported">
             This snapshot does not include a drift result. No threshold or trend is inferred here.
           </EmptyEvidence>
         )}
@@ -121,10 +121,15 @@ function EvaluationTab({ viewModel }: ViewProps) {
           </div>
         </div>
 
+        <div className={styles.provenanceNotice} role="region" aria-label="Evaluation provenance">
+          <strong>Provenance</strong>
+          <span>{viewModel.evaluationProvenanceDisplay}</span>
+        </div>
+
         {viewModel.classMetrics.length > 0 ? (
-          <DiagnosticsTable label="Per-class F1 reported evaluation">
+          <DiagnosticsTable label="Per-class F1 scores">
             <thead>
-              <tr><th scope="col">Class</th><th scope="col">F1 score</th></tr>
+              <tr><th scope="col">Class</th><th scope="col">F1 score (0–1)</th></tr>
             </thead>
             <tbody>
               {viewModel.classMetrics.map((row) => (
@@ -140,9 +145,10 @@ function EvaluationTab({ viewModel }: ViewProps) {
             The current snapshot does not include class-level evaluation results.
           </EmptyEvidence>
         )}
+        {viewModel.classMetrics.length > 0 ? <p className={styles.panelNote}>Higher values indicate a better precision/recall balance. No acceptance threshold is configured here.</p> : null}
 
         <div className={styles.evidenceBlock}>
-          <h3>Prediction distribution</h3>
+          <h3>Current prediction distribution</h3>
           {viewModel.distributionRows.length > 0 ? (
             <DiagnosticsTable label="Prediction distribution snapshot">
               <thead>
@@ -157,9 +163,9 @@ function EvaluationTab({ viewModel }: ViewProps) {
                 {viewModel.distributionRows.map((row) => (
                   <tr key={row.label}>
                     <td>{row.label}</td>
-                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.baselineDisplay ?? 'Unavailable'}</td> : null}
+                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.baselineDisplay ?? 'Not reported'}</td> : null}
                     <td className={styles.mono}>{row.currentDisplay}</td>
-                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.deltaDisplay ?? 'Unavailable'}</td> : null}
+                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.deltaDisplay ?? 'Not reported'}</td> : null}
                   </tr>
                 ))}
               </tbody>
@@ -173,9 +179,9 @@ function EvaluationTab({ viewModel }: ViewProps) {
         </div>
 
         <div className={styles.evidenceBlock}>
-          <h3>Calibration</h3>
+          <h3>Calibration evidence</h3>
           <div className={styles.inlineMetric}>
-            <span>Expected calibration error</span>
+            <span>Expected calibration error (ECE)</span>
             <strong className={styles.mono}>{viewModel.eceDisplay}</strong>
           </div>
           {viewModel.calibrationBins.length > 0 ? (
@@ -206,7 +212,6 @@ function EvaluationTab({ viewModel }: ViewProps) {
           )}
         </div>
 
-        <p className={styles.panelNote}>{viewModel.evaluationProvenanceDisplay}</p>
       </section>
     </div>
   )
@@ -242,16 +247,17 @@ function PolicyTab({ viewModel }: ViewProps) {
   )
 }
 
-export function MLHealthDiagnosticsSection({ viewModel }: Props) {
-  const [tab, setTab] = useState<DiagnosticsTab>('performance')
-  const tabRefs = useRef<Record<DiagnosticsTab, HTMLButtonElement | null>>({
+export function MLHealthDiagnosticsSection({ viewModel, activeTab, onActiveTabChange }: Props) {
+  const [internalTab, setInternalTab] = useState<DiagnosticTab>('performance')
+  const tab = activeTab ?? internalTab
+  const tabRefs = useRef<Record<DiagnosticTab, HTMLButtonElement | null>>({
     performance: null,
     monitoring: null,
     evaluation: null,
     policy: null,
   })
 
-  const tabs: Array<{ key: DiagnosticsTab; label: string }> = [
+  const tabs: Array<{ key: DiagnosticTab; label: string }> = [
     { key: 'performance', label: 'Performance' },
     { key: 'monitoring', label: 'Monitoring' },
     { key: 'evaluation', label: 'Evaluation' },
@@ -268,7 +274,8 @@ export function MLHealthDiagnosticsSection({ viewModel }: Props) {
 
     event.preventDefault()
     const nextTab = tabs[nextIndex]
-    setTab(nextTab.key)
+    onActiveTabChange?.(nextTab.key)
+    if (!activeTab) setInternalTab(nextTab.key)
     tabRefs.current[nextTab.key]?.focus()
   }
 
@@ -293,7 +300,10 @@ export function MLHealthDiagnosticsSection({ viewModel }: Props) {
             tabIndex={tab === item.key ? 0 : -1}
             aria-label={item.label}
             className={`${styles.diagnosticTab} ${tab === item.key ? styles.diagnosticTabActive : ''}`}
-            onClick={() => setTab(item.key)}
+            onClick={() => {
+              onActiveTabChange?.(item.key)
+              if (!activeTab) setInternalTab(item.key)
+            }}
             onKeyDown={(event) => handleDiagnosticTabKeyDown(event, index)}
             ref={(element) => { tabRefs.current[item.key] = element }}
           >

@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardTopBar, TopBar } from './TopBar'
 
 const mockPush = vi.fn()
+let pathname = '/dashboard'
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => pathname,
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: mockPush }),
 }))
@@ -23,6 +24,7 @@ describe('TopBar', () => {
   afterEach(() => {
     cleanup()
     mockPush.mockReset()
+    pathname = '/dashboard'
     vi.useRealTimers()
   })
 
@@ -31,7 +33,7 @@ describe('TopBar', () => {
 
     expect(screen.getByRole('banner')).toHaveClass('min-h-14')
     expect(screen.getByRole('textbox')).toHaveClass('w-full', 'min-w-0')
-    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search alerts, paths, or attack types')
+    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search alerts')
   })
 
   it('uses a compact theme control label that cannot overlap search on narrow screens', () => {
@@ -40,12 +42,28 @@ describe('TopBar', () => {
     expect(screen.getByText('Theme')).toHaveClass('hidden', 'sm:inline')
   })
 
-  it('uses one neutral utility context instead of repeating the page title', () => {
+  it('uses the active section as utility context without repeating a protected-workspace tagline', () => {
     render(<DashboardTopBar />)
 
     expect(screen.queryByText('Snapshot')).not.toBeInTheDocument()
-    expect(screen.getByText('Security operations')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('Protected workspace')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('removes alert search from account administration while retaining section context', () => {
+    pathname = '/user-management'
+    render(<DashboardTopBar />)
+
+    expect(screen.getByText('User Management')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('preserves product acronyms in route-derived section labels', () => {
+    pathname = '/ml-health'
+    render(<DashboardTopBar />)
+
+    expect(screen.getByText('ML Health')).toBeInTheDocument()
   })
 
   it('routes Dashboard searches to the Alerts page', () => {

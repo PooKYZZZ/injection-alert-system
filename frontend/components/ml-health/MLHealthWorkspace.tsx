@@ -10,7 +10,7 @@ import { useMLHealth } from '@/features/ml-health/queries'
 
 import { MLHealthDiagnosticsSection } from './MLHealthDiagnosticsSection'
 import { MLHealthOverviewSection } from './MLHealthOverviewSection'
-import { buildMLHealthViewModel } from './MLHealthWorkspaceViewModel'
+import { buildMLHealthViewModel, type DiagnosticTab } from './MLHealthWorkspaceViewModel'
 import styles from './MLHealthWorkspace.module.css'
 
 type WorkspaceView = 'overview' | 'diagnostics'
@@ -31,6 +31,7 @@ const tabs: Array<{ key: WorkspaceView; label: string; description: string }> = 
 export function MLHealthWorkspace() {
   const { data: health, isPending, isFetching, isError, refetch } = useMLHealth()
   const [view, setView] = useState<WorkspaceView>('overview')
+  const [diagnosticTab, setDiagnosticTab] = useState<DiagnosticTab>('performance')
   const tabRefs = useRef<Record<WorkspaceView, HTMLButtonElement | null>>({
     overview: null,
     diagnostics: null,
@@ -70,6 +71,11 @@ export function MLHealthWorkspace() {
     tabRefs.current[nextTab.key]?.focus()
   }
 
+  function openDiagnostics(tab: DiagnosticTab) {
+    setDiagnosticTab(tab)
+    setView('diagnostics')
+  }
+
   return (
     <div className={styles.page}>
       <PageHeader
@@ -80,12 +86,12 @@ export function MLHealthWorkspace() {
         <div className={styles.pageActions}>
           <div className={styles.modelIdentity}>
             <div>
-              <span className={styles.metaLabel}>Model</span>
+              <span className={styles.metaLabel}>Active model</span>
               <code title={health.model_version}>{health.model_version}</code>
             </div>
           </div>
           <p className={styles.snapshotMeta} aria-label="ML health snapshot freshness">
-            Snapshot · {viewModel.sourceFreshnessDisplay} · Retrieved {viewModel.retrievedAtDisplay}
+            {viewModel.sourceFreshnessDisplay} · Retrieved {viewModel.retrievedAtDisplay}
           </p>
           <Link href="/ml-model" className={styles.secondaryLink}>Open Model Operations</Link>
           <button
@@ -132,9 +138,14 @@ export function MLHealthWorkspace() {
       >
         <p className={styles.srOnly}>{activeTab.description}</p>
         {view === 'overview' ? (
-          <MLHealthOverviewSection health={health} viewModel={viewModel} />
+          <MLHealthOverviewSection health={health} viewModel={viewModel} onNavigateToDiagnostics={openDiagnostics} />
         ) : (
-          <MLHealthDiagnosticsSection health={health} viewModel={viewModel} />
+          <MLHealthDiagnosticsSection
+            health={health}
+            viewModel={viewModel}
+            activeTab={diagnosticTab}
+            onActiveTabChange={setDiagnosticTab}
+          />
         )}
       </div>
     </div>

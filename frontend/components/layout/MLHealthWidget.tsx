@@ -20,7 +20,7 @@ function MLHealthContent() {
     isError || !data
       ? 'Unavailable'
       : data.status === 'HEALTHY'
-        ? 'Stable'
+        ? 'Healthy'
         : data.status === 'DEGRADED'
           ? 'Degraded'
           : 'Down'

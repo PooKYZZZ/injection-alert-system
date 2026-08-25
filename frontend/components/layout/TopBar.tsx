@@ -6,12 +6,12 @@ import { useTheme } from '@/app/providers'
 import { cn } from '@/lib/utils'
 import { getCurrentSearchParams } from '@/lib/searchParams'
 
-const DEFAULT_SEARCH_PLACEHOLDER = 'Search alerts, paths, or attack types'
+const DEFAULT_SEARCH_PLACEHOLDER = 'Search alerts'
 
 interface TopBarProps {
-  /** Kept for callers that still provide a route title; page headers own titles now. */
+  /** The active dashboard section shown as lightweight utility context. */
   title?: string
-  /** Deprecated compatibility prop. Titles are intentionally not repeated in the utility bar. */
+  /** Deprecated compatibility prop retained for existing callers. */
   showTitle?: boolean
   /** Deprecated compatibility prop. Confidence filtering belongs to the Alerts controls. */
   showConfidenceTierControls?: boolean
@@ -25,6 +25,7 @@ interface TopBarProps {
 }
 
 function TopBarContent({
+  title,
   showSearch = true,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
   searchPath = '/alerts',
@@ -64,17 +65,16 @@ function TopBarContent({
   }
 
   return (
-    <header className="z-10 flex min-h-14 flex-shrink-0 items-center justify-between gap-4 border-b border-border-light bg-surface-panel px-4 shadow-subtle sm:px-6 lg:px-8">
+    <header className="z-10 flex min-h-14 flex-shrink-0 items-center justify-between gap-3 border-b border-border-light bg-surface-panel pl-16 pr-4 shadow-subtle sm:gap-4 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="truncate text-sm font-semibold tracking-tight text-text-primary">
-          Security operations
+        <span className="max-w-[10rem] truncate text-sm font-semibold tracking-tight text-text-primary sm:max-w-none">
+          {title ?? 'Security operations'}
         </span>
-        <span className="hidden text-xs text-text-muted md:inline">Protected workspace</span>
       </div>
 
       <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
         {showSearch ? (
-          <div className="relative min-w-0 w-[min(46vw,18rem)] sm:w-72">
+          <div className="relative min-w-0 w-[min(42vw,18rem)] sm:w-72">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
               <svg
                 width="14"
@@ -151,20 +151,23 @@ export function TopBar(props: TopBarProps) {
 
 export function DashboardTopBar() {
   const pathname = usePathname()
+  const routeSegment = pathname.split('/').filter(Boolean).at(-1) ?? 'dashboard'
+  const routeTitles: Record<string, string> = {
+    dashboard: 'Dashboard',
+    'ml-health': 'ML Health',
+    'ml-model': 'Model Operations',
+    mfa: 'MFA',
+  }
 
-  const fallbackTitle =
-    pathname
-      .split('/')
-      .filter(Boolean)
-      .at(-1)
-      ?.split('-')
-      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-      .join(' ') ?? 'Dashboard'
+  const fallbackTitle = routeTitles[routeSegment] ?? routeSegment
+    .split('-')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ')
 
   return (
     <TopBar
       title={fallbackTitle}
-      showSearch
+      showSearch={pathname === '/dashboard' || pathname.startsWith('/alerts')}
       searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
       searchPath="/alerts"
     />

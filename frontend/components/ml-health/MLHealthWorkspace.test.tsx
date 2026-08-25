@@ -40,11 +40,14 @@ describe('MLHealthWorkspace', () => {
   it('leads with the serving answer and exposes the selected top-level view', () => {
     render(<MLHealthWorkspace />)
 
-    expect(screen.getByRole('heading', { name: /serving is healthy/i })).toBeInTheDocument()
-    expect(screen.getByText('Model')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Serving' })).toBeInTheDocument()
+    expect(screen.getByText('Healthy')).toBeInTheDocument()
+    expect(screen.getByText('Active model')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Monitoring coverage' })).toBeInTheDocument()
+    expect(screen.getByText('Incomplete')).toBeInTheDocument()
     expect(screen.queryByText('Inference endpoint')).not.toBeInTheDocument()
     expect(screen.getByLabelText('ML health snapshot freshness')).toHaveTextContent('Source timestamp unavailable')
+    expect(screen.getByLabelText('ML health snapshot freshness')).not.toHaveTextContent('Snapshot ·')
     expect(screen.getByRole('link', { name: 'Open Model Operations' })).toHaveAttribute('href', '/ml-model')
 
     const overview = screen.getByRole('tab', { name: 'Overview' })
@@ -58,6 +61,16 @@ describe('MLHealthWorkspace', () => {
 
     expect(overview).toHaveAttribute('aria-selected', 'false')
     expect(diagnostics).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('uses overview evidence links to open the owning diagnostic category', () => {
+    render(<MLHealthWorkspace />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Model evaluation diagnostics' }))
+
+    expect(screen.getByRole('tab', { name: 'Diagnostics' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Evaluation' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'Model evaluation' })).toBeInTheDocument()
   })
 
   it('supports keyboard navigation across top-level views', () => {
@@ -86,7 +99,7 @@ describe('MLHealthWorkspace', () => {
 
     render(<MLHealthWorkspace />)
 
-    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Not reported').length).toBeGreaterThan(0)
     expect(screen.getByText(/No drift result was included/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /refresh ml health/i }))
@@ -105,6 +118,6 @@ describe('MLHealthWorkspace', () => {
     render(<MLHealthWorkspace />)
 
     expect(screen.getByRole('button', { name: /refreshing ml health/i })).toBeDisabled()
-    expect(screen.getAllByRole('heading', { name: /serving is healthy/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('heading', { name: 'Serving' }).length).toBeGreaterThan(0)
   })
 })

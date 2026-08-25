@@ -67,20 +67,22 @@ describe('MLHealthWorkspace.view-model', () => {
       calibration_bins: [],
     })
 
-    expect(viewModel.driftScoreDisplay).toBe('Unavailable')
-    expect(viewModel.eceDisplay).toBe('Unavailable')
-    expect(viewModel.calibrationSummary).toBe('Expected calibration error is unavailable in this snapshot.')
+    expect(viewModel.driftScoreDisplay).toBe('Not reported')
+    expect(viewModel.eceDisplay).toBe('Not reported')
+    expect(viewModel.calibrationSummary).toBe('Expected calibration error was not reported in this snapshot.')
+    expect(viewModel.monitoringStatusLabel).toBe('Incomplete')
+    expect(viewModel.monitoringUnavailableCount).toBe(1)
   })
 
   it('does not turn reported evaluation metrics into invented health judgments', () => {
     const viewModel = buildMLHealthViewModel(baseHealth)
 
     expect(viewModel.calibrationSummary).toBe(
-      'Expected calibration error is available; no acceptance threshold is provided.'
+      'Expected calibration error was reported; no acceptance threshold was provided.'
     )
     expect(viewModel.classMetrics).toEqual([
-      { label: 'XSS', f1Display: '0.840' },
       { label: 'SQL Injection', f1Display: '0.900' },
+      { label: 'XSS', f1Display: '0.840' },
     ])
   })
 
@@ -91,8 +93,10 @@ describe('MLHealthWorkspace.view-model', () => {
       traffic_processed: 0,
     })
 
-    expect(viewModel.latencyDisplay).toBe('Unavailable')
+    expect(viewModel.latencyDisplay).toBe('Not available')
+    expect(viewModel.latencyTrendDisplay).toBe('No previous latency available')
     expect(viewModel.hasTraffic).toBe(false)
+    expect(viewModel.servingStatusDetail).toMatch(/no serving traffic/i)
   })
 
   it('explains when prediction counts have no reported baseline', () => {
@@ -104,9 +108,9 @@ describe('MLHealthWorkspace.view-model', () => {
       },
     })
 
-    expect(viewModel.evaluationEvidenceSummary).toBe('Evaluation evidence is available in this snapshot.')
+    expect(viewModel.evaluationEvidenceSummary).toBe('Reported evaluation metrics are included in this snapshot.')
     expect(viewModel.distributionSummary).toBe(
-      'Current prediction counts are available; no reference baseline was supplied, so change is not calculated.'
+      'Current prediction counts are available; no reference baseline was supplied, so comparison is unavailable.'
     )
     expect(viewModel.distributionHasBaseline).toBe(false)
     expect(viewModel.distributionRows).toEqual([
@@ -123,7 +127,7 @@ describe('MLHealthWorkspace.view-model', () => {
     expect(viewModel.retrievedAtDisplay).toBe('Aug 25, 2026, 6:30 AM UTC')
     expect(viewModel.sourceFreshnessDisplay).toBe('Source timestamp unavailable')
     expect(viewModel.evaluationProvenanceDisplay).toBe(
-      'Evaluation run identity and timestamp are unavailable.'
+      'Evaluation run identity and timestamp were not provided.'
     )
   })
 
@@ -137,8 +141,8 @@ describe('MLHealthWorkspace.view-model', () => {
       prediction_distribution: undefined,
     })
 
-    expect(viewModel.evaluationEvidenceSummary).toBe('No evaluation evidence was reported for this snapshot.')
-    expect(viewModel.evaluationProvenanceDisplay).toBe('Evaluation provenance is unavailable.')
+    expect(viewModel.evaluationEvidenceSummary).toBe('No evaluation metrics were reported in this snapshot.')
+    expect(viewModel.evaluationProvenanceDisplay).toBe('No evaluation provenance was provided.')
   })
 
   it('marks policy ranges as not configured when thresholds are missing', () => {
