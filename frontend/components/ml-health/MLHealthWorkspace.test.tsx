@@ -41,10 +41,10 @@ describe('MLHealthWorkspace', () => {
     render(<MLHealthWorkspace />)
 
     expect(screen.getByRole('heading', { name: /serving is healthy/i })).toBeInTheDocument()
-    expect(screen.getByText('Active model')).toBeInTheDocument()
+    expect(screen.getByText('Model')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Monitoring coverage' })).toBeInTheDocument()
     expect(screen.queryByText('Inference endpoint')).not.toBeInTheDocument()
-    expect(screen.getByText('Monitoring timestamp not reported')).toBeInTheDocument()
+    expect(screen.getByLabelText('ML health snapshot freshness')).toHaveTextContent('Source timestamp unavailable')
     expect(screen.getByRole('link', { name: 'Open Model Operations' })).toHaveAttribute('href', '/ml-model')
 
     const overview = screen.getByRole('tab', { name: 'Overview' })
@@ -86,8 +86,8 @@ describe('MLHealthWorkspace', () => {
 
     render(<MLHealthWorkspace />)
 
-    expect(screen.getAllByText('Not reported').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/monitoring data is not reported/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
+    expect(screen.getByText(/No drift result was included/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /refresh ml health/i }))
     expect(refetch).toHaveBeenCalledTimes(1)

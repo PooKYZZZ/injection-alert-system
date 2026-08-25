@@ -30,24 +30,24 @@ function monitoringLabel(status: MLHealthData['drift_status']): string {
   if (status === 'NORMAL') return 'Normal'
   if (status === 'WARNING') return 'Warning'
   if (status === 'CRITICAL') return 'Critical'
-  return 'Not reported'
+  return 'Unavailable'
 }
 
 function monitoringDetail(status: MLHealthData['drift_status']): string {
   if (status === 'NORMAL') return 'The latest snapshot reports no drift warning.'
   if (status === 'WARNING') return 'The latest snapshot contains a drift signal to review.'
   if (status === 'CRITICAL') return 'The latest snapshot contains a critical drift signal.'
-  return 'Drift monitoring data is not reported in this snapshot.'
+  return 'No drift result was included in this snapshot.'
 }
 
 function calibrationLabel(ece: number | null | undefined): string {
-  return ece == null ? 'Not reported' : 'Reported'
+  return ece == null ? 'Unavailable' : 'Available'
 }
 
 function calibrationDetail(ece: number | null | undefined): string {
   return ece == null
-    ? 'Calibration data is not reported in this snapshot.'
-    : 'An ECE value is present; no acceptance threshold is supplied by the endpoint.'
+    ? 'No calibration result was included in this snapshot.'
+    : 'An expected calibration error value is available; no acceptance threshold is provided.'
 }
 
 function SignalRow({
@@ -67,7 +67,7 @@ function SignalRow({
         <span className={styles.signalMarker} aria-hidden="true" />
         <strong>{label}</strong>
       </div>
-      <span className={styles.signalRowValue}>{value}</span>
+      <span className={`${styles.signalRowValue} ${value === 'Unavailable' ? styles.unavailableValue : ''}`}>{value}</span>
       <span className={styles.signalRowDetail}>{detail}</span>
     </div>
   )
@@ -117,7 +117,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
           <div>
             <h2 id="monitoring-coverage-heading">Monitoring coverage</h2>
           </div>
-          <p className={styles.sectionDescription}>Drift and calibration are shown only when the snapshot includes a result.</p>
+          <p className={styles.sectionDescription}>Results included in the current snapshot.</p>
         </div>
         <div className={styles.signalList}>
           <SignalRow
@@ -140,7 +140,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
           <div>
             <h2 id="serving-snapshot-heading">Runtime snapshot</h2>
           </div>
-          <p className={styles.sectionDescription}>Traffic and latency included in this health response.</p>
+          <p className={styles.sectionDescription}>Traffic and latency from this snapshot.</p>
         </div>
         <dl className={styles.metricList}>
           <div className={styles.metricRow}>
@@ -150,12 +150,12 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
           </div>
           <div className={styles.metricRow}>
             <dt>Inference latency</dt>
-            <dd>{viewModel.latencyDisplay}</dd>
+            <dd className={viewModel.latencyDisplay === 'Unavailable' ? styles.unavailableValue : ''}>{viewModel.latencyDisplay}</dd>
             <p>Measured only when traffic is reported</p>
           </div>
           <div className={styles.metricRow}>
             <dt>Latency comparison</dt>
-            <dd>{viewModel.latencyTrendDisplay}</dd>
+            <dd className={viewModel.latencyTrendDisplay === 'No baseline supplied' ? styles.unavailableValue : ''}>{viewModel.latencyTrendDisplay}</dd>
             <p>Change from the previous result, when supplied</p>
           </div>
         </dl>
@@ -173,7 +173,6 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
           <details className={styles.disclosure}>
             <summary>
               <span className={styles.summaryTitle}>
-                <span className={styles.summaryKicker}>Evaluation</span>
                 <strong>Model quality evidence</strong>
               </span>
               <span className={styles.summaryValue}>{viewModel.classMetrics.length > 0 ? `${viewModel.classMetrics.length} classes` : 'No per-class metrics'}</span>
@@ -191,7 +190,6 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
           <details className={styles.disclosure}>
             <summary>
               <span className={styles.summaryTitle}>
-                <span className={styles.summaryKicker}>Response policy</span>
                 <strong>Confidence policy</strong>
               </span>
               <span className={styles.summaryValue}>4 bands</span>

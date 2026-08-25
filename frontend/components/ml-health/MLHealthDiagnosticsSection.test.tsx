@@ -36,13 +36,15 @@ describe('MLHealthDiagnosticsSection', () => {
     expect(screen.getByRole('table', { name: 'Serving metrics' })).toBeInTheDocument()
     expect(screen.queryByText(/scroll horizontally to view all columns/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/source field/i)).not.toBeInTheDocument()
+    expect(screen.getByText('No serving traffic in this snapshot.')).toBeInTheDocument()
 
     fireEvent.click(monitoring)
 
     expect(performance).toHaveAttribute('aria-selected', 'false')
     expect(monitoring).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText('Drift not reported')).toBeInTheDocument()
+    expect(screen.getByText('Drift result unavailable')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Drift monitoring' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Drift coverage', { selector: 'small' })).not.toBeInTheDocument()
   })
 
   it('supports roving focus and automatic activation for diagnostic tabs', () => {

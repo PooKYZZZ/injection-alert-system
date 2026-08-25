@@ -17,9 +17,9 @@ export type ClassMetricView = {
 
 export type DistributionRowView = {
   label: string
-  baselineDisplay: string
+  baselineDisplay: string | null
   currentDisplay: string
-  deltaDisplay: string
+  deltaDisplay: string | null
 }
 
 export type MLHealthViewModel = {
@@ -31,6 +31,7 @@ export type MLHealthViewModel = {
   granularityLabel: string
   retrievedAtDisplay: string
   sourceFreshnessDisplay: string
+  hasTraffic: boolean
   trafficProcessedDisplay: string
   latencyDisplay: string
   latencyTrendDisplay: string
@@ -50,6 +51,7 @@ export type MLHealthViewModel = {
   }
   policyBands: PolicyBandView[]
   classMetrics: ClassMetricView[]
+  distributionHasBaseline: boolean
   distributionRows: DistributionRowView[]
   calibrationBins: CalibrationBin[]
 }
@@ -78,11 +80,11 @@ function buildStatusHeadline(health: MLHealthData): string {
   const tone = deriveHealthTone(health)
 
   if (tone === 'healthy' && countUnavailableMonitoringSignals(health) > 0) {
-    return 'Serving is healthy; monitoring coverage is incomplete'
+    return 'Serving is healthy; telemetry is incomplete'
   }
 
   if (tone === 'healthy') {
-    return 'Serving is healthy and monitoring is reporting normally'
+    return 'Serving is healthy'
   }
 
   if (tone === 'warning') {
@@ -115,7 +117,7 @@ function buildStatusSubline(health: MLHealthData): string {
 
   const unavailableCount = countUnavailableMonitoringSignals(health)
   if (unavailableCount > 0) {
-    return `The latest snapshot reports serving health, but ${unavailableCount} monitoring signal${unavailableCount === 1 ? ' is' : 's are'} not reported.`
+    return `The latest snapshot includes serving health, but ${unavailableCount} monitoring signal${unavailableCount === 1 ? ' is' : 's are'} unavailable.`
   }
 
   return 'The latest snapshot reports healthy serving and no monitoring warnings.'
@@ -144,10 +146,10 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
 
   if (low == null || high == null || critical == null || low >= high || high >= critical) {
     return [
-      { label: 'Low confidence non-Normal', action: 'allow', rangeLabel: 'Not configured' },
-      { label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: 'Not configured' },
-      { label: 'High confidence non-Normal', action: 'block', rangeLabel: 'Not configured' },
-      { label: 'Critical confidence non-Normal', action: 'block', rangeLabel: 'Not configured' },
+      { label: 'Low', action: 'allow', rangeLabel: 'Not configured' },
+      { label: 'Medium', action: 'throttle', rangeLabel: 'Not configured' },
+      { label: 'High', action: 'block', rangeLabel: 'Not configured' },
+      { label: 'Critical', action: 'block', rangeLabel: 'Not configured' },
     ]
   }
 
@@ -156,10 +158,10 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
   const criticalPct = Math.round(critical * 100)
 
   return [
-    { label: 'Low confidence non-Normal', action: 'allow', rangeLabel: `<${lowPct}%` },
-    { label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: `${lowPct}%–<${highPct}%` },
-    { label: 'High confidence non-Normal', action: 'block', rangeLabel: `${highPct}%–<${criticalPct}%` },
-    { label: 'Critical confidence non-Normal', action: 'block', rangeLabel: `≥${criticalPct}%` },
+    { label: 'Low', action: 'allow', rangeLabel: `< ${lowPct}%` },
+    { label: 'Medium', action: 'throttle', rangeLabel: `${lowPct}% – ≤ ${highPct}%` },
+    { label: 'High', action: 'block', rangeLabel: `> ${highPct}% – < ${criticalPct}%` },
+    { label: 'Critical', action: 'block', rangeLabel: `≥ ${criticalPct}%` },
   ]
 }
 
@@ -195,8 +197,19 @@ function buildDistributionRows(health: MLHealthData): DistributionRowView[] {
     labels.add(label)
   }
 
+  const preferredOrder = ['Normal', 'SQL Injection', 'Code Injection', 'Other Attacks']
+
   return [...labels]
-    .sort((a, b) => a.localeCompare(b))
+    .sort((a, b) => {
+      const aIndex = preferredOrder.indexOf(a)
+      const bIndex = preferredOrder.indexOf(b)
+      if (aIndex !== -1 || bIndex !== -1) {
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
+      }
+      return a.localeCompare(b)
+    })
     .map((label) => {
       const baseline = distribution.baseline[label] ?? null
       const current = distribution.current[label] ?? null
@@ -204,9 +217,9 @@ function buildDistributionRows(health: MLHealthData): DistributionRowView[] {
 
       return {
         label,
-        baselineDisplay: formatNullableCount(baseline),
+        baselineDisplay: baseline == null ? null : formatNullableCount(baseline),
         currentDisplay: formatNullableCount(current),
-        deltaDisplay: delta == null ? 'Not reported' : `${delta > 0 ? '+' : ''}${delta}`,
+        deltaDisplay: delta == null ? null : `${delta > 0 ? '+' : ''}${delta}`,
       }
     })
 }
@@ -224,32 +237,34 @@ function buildEvaluationEvidenceSummary(health: MLHealthData): string {
   const hasEvidence = hasReportedEvaluationEvidence(health)
 
   return hasEvidence
-    ? 'Reported evaluation fields are supplied by the active model health response and are separate from current traffic quality.'
-    : 'Evaluation metrics are not reported by the active model health response; the endpoint does not distinguish unevaluated data from unavailable data.'
+    ? 'Evaluation evidence is available in this snapshot.'
+    : 'No evaluation evidence was reported for this snapshot.'
 }
 
 function buildDistributionSummary(health: MLHealthData): string {
   const distribution = health.prediction_distribution
   if (!distribution) {
-    return 'Prediction counts are not reported in this snapshot.'
+    return 'Prediction counts are unavailable for this snapshot.'
   }
 
   return Object.keys(distribution.baseline).length > 0
-    ? 'Current prediction counts are reported against a supplied reference baseline.'
-    : 'Current prediction counts are reported; no reference baseline was supplied.'
+    ? 'Current prediction counts can be compared with the supplied baseline.'
+    : 'Current prediction counts are available; no reference baseline was supplied, so change is not calculated.'
 }
 
 function buildCalibrationSummary(ece: number | null | undefined): string {
   if (ece == null) {
-    return 'Expected calibration error not reported in this snapshot.'
+    return 'Expected calibration error is unavailable in this snapshot.'
   }
 
-  return 'Reported in evaluation evidence; no acceptance threshold is supplied by the endpoint.'
+  return 'Expected calibration error is available; no acceptance threshold is provided.'
 }
 
 export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel {
   const driftScore = health.drift_score
   const ece = health.ece
+  const hasTraffic = health.traffic_processed > 0
+  const distributionHasBaseline = Object.keys(health.prediction_distribution?.baseline ?? {}).length > 0
 
   return {
     tone: deriveHealthTone(health),
@@ -259,20 +274,20 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
     windowLabel: 'Reported window',
     granularityLabel: 'Snapshot-based',
     retrievedAtDisplay: formatStableDateTime(health.retrieved_at, 'Not available'),
-    sourceFreshnessDisplay: 'Monitoring timestamp not reported',
+    sourceFreshnessDisplay: 'Source timestamp unavailable',
+    hasTraffic,
     trafficProcessedDisplay: formatCount(health.traffic_processed),
-    latencyDisplay:
-      health.traffic_processed > 0 ? `${health.latency_ms.toFixed(1)}ms` : 'Not measured',
+    latencyDisplay: hasTraffic ? `${health.latency_ms.toFixed(1)}ms` : 'Unavailable',
     latencyTrendDisplay:
-      health.latency_trend == null ? 'No comparison reported' : `${health.latency_trend > 0 ? '+' : ''}${health.latency_trend.toFixed(1)}ms`,
+      health.latency_trend == null ? 'No baseline supplied' : `${health.latency_trend > 0 ? '+' : ''}${health.latency_trend.toFixed(1)}ms`,
     evaluationEvidenceSummary: buildEvaluationEvidenceSummary(health),
     evaluationProvenanceDisplay: hasReportedEvaluationEvidence(health)
-      ? 'Evaluation run identity and timestamp are not supplied by the endpoint.'
-      : 'Evaluation status is not reported by the endpoint.',
+      ? 'Evaluation run identity and timestamp are unavailable.'
+      : 'Evaluation provenance is unavailable.',
     distributionSummary: buildDistributionSummary(health),
-    driftScoreDisplay: driftScore == null ? 'Not reported' : driftScore.toFixed(3),
-    driftStatusDisplay: health.drift_status ?? 'Not reported',
-    eceDisplay: ece == null ? 'Not reported' : ece.toFixed(3),
+    driftScoreDisplay: driftScore == null ? 'Unavailable' : driftScore.toFixed(3),
+    driftStatusDisplay: health.drift_status ?? 'Unavailable',
+    eceDisplay: ece == null ? 'Unavailable' : ece.toFixed(3),
     calibrationSummary: buildCalibrationSummary(ece),
     normalPolicyException: 'Normal predictions remain allowed for all valid confidence tiers.',
     thresholdLabels: {
@@ -283,6 +298,7 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
     },
     policyBands: buildPolicyBands(health),
     classMetrics: buildClassMetrics(health),
+    distributionHasBaseline,
     distributionRows: buildDistributionRows(health),
     calibrationBins: health.calibration_bins ?? [],
   }

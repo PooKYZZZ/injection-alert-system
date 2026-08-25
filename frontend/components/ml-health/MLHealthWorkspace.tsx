@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { RefreshCw } from 'lucide-react'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { ErrorState, LoadingSkeleton } from '@/components/ui/StateViews'
 import { useMLHealth } from '@/features/ml-health/queries'
 
@@ -71,21 +72,21 @@ export function MLHealthWorkspace() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.pageHeader}>
-        <div className={styles.pageHeading}>
-          <h1>ML Health</h1>
-          <p className={styles.pageDescription}>
-            A current snapshot of serving availability, monitoring coverage, and reported evaluation evidence.
-          </p>
-        </div>
-
+      <PageHeader
+        title="ML Health"
+        description="A current snapshot of serving availability, monitoring coverage, and reported evaluation evidence."
+        className={styles.pageHeader}
+      >
         <div className={styles.pageActions}>
           <div className={styles.modelIdentity}>
             <div>
-              <span className={styles.metaLabel}>Active model</span>
-              <code>{health.model_version}</code>
+              <span className={styles.metaLabel}>Model</span>
+              <code title={health.model_version}>{health.model_version}</code>
             </div>
           </div>
+          <p className={styles.snapshotMeta} aria-label="ML health snapshot freshness">
+            Snapshot · {viewModel.sourceFreshnessDisplay} · Retrieved {viewModel.retrievedAtDisplay}
+          </p>
           <Link href="/ml-model" className={styles.secondaryLink}>Open Model Operations</Link>
           <button
             type="button"
@@ -98,35 +99,27 @@ export function MLHealthWorkspace() {
             {isFetching ? 'Refreshing…' : 'Refresh snapshot'}
           </button>
         </div>
-      </header>
+      </PageHeader>
 
       <section className={styles.viewBar} aria-label="ML health view controls">
-        <div className={styles.viewBarMain}>
-          <span className={styles.viewLabel}>View</span>
-          <div className={styles.tabList} role="tablist" aria-label="ML health views">
-            {tabs.map((tab, index) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                id={`ml-health-tab-${tab.key}`}
-                aria-controls={`ml-health-panel-${tab.key}`}
-                aria-selected={view === tab.key}
-                tabIndex={view === tab.key ? 0 : -1}
-                className={`${styles.tabButton} ${view === tab.key ? styles.tabButtonActive : ''}`}
-                onClick={() => setView(tab.key)}
-                onKeyDown={(event) => handleViewTabKeyDown(event, index)}
-                ref={(element) => { tabRefs.current[tab.key] = element }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.snapshotMeta}>
-          <span>Snapshot-based</span>
-          <span>{viewModel.sourceFreshnessDisplay}</span>
-          <span>Retrieved {viewModel.retrievedAtDisplay}</span>
+        <div className={styles.tabList} role="tablist" aria-label="ML health views">
+          {tabs.map((tab, index) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              id={`ml-health-tab-${tab.key}`}
+              aria-controls={`ml-health-panel-${tab.key}`}
+              aria-selected={view === tab.key}
+              tabIndex={view === tab.key ? 0 : -1}
+              className={`${styles.tabButton} ${view === tab.key ? styles.tabButtonActive : ''}`}
+              onClick={() => setView(tab.key)}
+              onKeyDown={(event) => handleViewTabKeyDown(event, index)}
+              ref={(element) => { tabRefs.current[tab.key] = element }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </section>
 

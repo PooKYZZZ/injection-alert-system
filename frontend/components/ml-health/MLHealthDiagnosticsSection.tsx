@@ -64,7 +64,11 @@ function PerformanceTab({ viewModel }: ViewProps) {
             <tr><td>Latency comparison</td><td className={styles.mono}>{viewModel.latencyTrendDisplay}</td></tr>
           </tbody>
         </DiagnosticsTable>
-        <p className={styles.panelNote}>Latency is measured only when the snapshot includes traffic.</p>
+        <p className={styles.panelNote}>
+          {viewModel.hasTraffic
+            ? 'Latency is measured only when the snapshot includes traffic.'
+            : 'No serving traffic in this snapshot.'}
+        </p>
       </section>
     </div>
   )
@@ -72,7 +76,7 @@ function PerformanceTab({ viewModel }: ViewProps) {
 
 function MonitoringTab({ viewModel }: ViewProps) {
   const hasMonitoringEvidence =
-    viewModel.driftScoreDisplay !== 'Not reported' || viewModel.driftStatusDisplay !== 'Not reported'
+    viewModel.driftScoreDisplay !== 'Unavailable' || viewModel.driftStatusDisplay !== 'Unavailable'
 
   return (
     <div className={styles.diagnosticStack}>
@@ -97,7 +101,7 @@ function MonitoringTab({ viewModel }: ViewProps) {
             </tbody>
           </DiagnosticsTable>
         ) : (
-          <EmptyEvidence heading="Drift not reported">
+          <EmptyEvidence heading="Drift result unavailable">
             This snapshot does not include a drift result. No threshold or trend is inferred here.
           </EmptyEvidence>
         )}
@@ -132,7 +136,7 @@ function EvaluationTab({ viewModel }: ViewProps) {
             </tbody>
           </DiagnosticsTable>
         ) : (
-          <EmptyEvidence heading="Per-class metrics not reported">
+          <EmptyEvidence heading="Per-class evaluation unavailable">
             The current snapshot does not include class-level evaluation results.
           </EmptyEvidence>
         )}
@@ -144,27 +148,28 @@ function EvaluationTab({ viewModel }: ViewProps) {
               <thead>
                 <tr>
                   <th scope="col">Class</th>
-                  <th scope="col">Baseline</th>
+                  {viewModel.distributionHasBaseline ? <th scope="col">Baseline</th> : null}
                   <th scope="col">Current</th>
-                  <th scope="col">Change</th>
+                  {viewModel.distributionHasBaseline ? <th scope="col">Change</th> : null}
                 </tr>
               </thead>
               <tbody>
                 {viewModel.distributionRows.map((row) => (
                   <tr key={row.label}>
                     <td>{row.label}</td>
-                    <td className={styles.mono}>{row.baselineDisplay}</td>
+                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.baselineDisplay ?? 'Unavailable'}</td> : null}
                     <td className={styles.mono}>{row.currentDisplay}</td>
-                    <td className={styles.mono}>{row.deltaDisplay}</td>
+                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.deltaDisplay ?? 'Unavailable'}</td> : null}
                   </tr>
                 ))}
               </tbody>
             </DiagnosticsTable>
           ) : (
-            <EmptyEvidence heading="Prediction distribution not reported">
+            <EmptyEvidence heading="Prediction distribution unavailable">
               {viewModel.distributionSummary}
             </EmptyEvidence>
           )}
+          {viewModel.distributionRows.length > 0 ? <p className={styles.panelNote}>{viewModel.distributionSummary}</p> : null}
         </div>
 
         <div className={styles.evidenceBlock}>
@@ -246,14 +251,12 @@ export function MLHealthDiagnosticsSection({ viewModel }: Props) {
     policy: null,
   })
 
-  const tabs: Array<{ key: DiagnosticsTab; label: string; description: string }> = [
-    { key: 'performance', label: 'Performance', description: 'Serving metrics' },
-    { key: 'monitoring', label: 'Monitoring', description: 'Drift coverage' },
-    { key: 'evaluation', label: 'Evaluation', description: 'Quality evidence' },
-    { key: 'policy', label: 'Policy', description: 'Automatic response' },
+  const tabs: Array<{ key: DiagnosticsTab; label: string }> = [
+    { key: 'performance', label: 'Performance' },
+    { key: 'monitoring', label: 'Monitoring' },
+    { key: 'evaluation', label: 'Evaluation' },
+    { key: 'policy', label: 'Policy' },
   ]
-
-  const activeTab = tabs.find((item) => item.key === tab) ?? tabs[0]
 
   function handleDiagnosticTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | null = null
@@ -276,10 +279,6 @@ export function MLHealthDiagnosticsSection({ viewModel }: Props) {
           <h2 id="diagnostics-heading">Diagnostics</h2>
           <p className={styles.sectionDescription}>Review evidence supplied by the current health snapshot.</p>
         </div>
-        <div className={styles.diagnosticIdentity}>
-          <span className={styles.metaLabel}>Model</span>
-          <code>{viewModel.displayName}</code>
-        </div>
       </section>
 
       <div className={styles.diagnosticTabs} role="tablist" aria-label="Diagnostic categories">
@@ -298,8 +297,7 @@ export function MLHealthDiagnosticsSection({ viewModel }: Props) {
             onKeyDown={(event) => handleDiagnosticTabKeyDown(event, index)}
             ref={(element) => { tabRefs.current[item.key] = element }}
           >
-            <span>{item.label}</span>
-            <small>{item.description}</small>
+            {item.label}
           </button>
         ))}
       </div>
@@ -311,7 +309,6 @@ export function MLHealthDiagnosticsSection({ viewModel }: Props) {
         {tab === 'policy' ? <PolicyTab viewModel={viewModel} /> : null}
       </div>
 
-      <p className={styles.srOnly}>{activeTab.description}</p>
     </div>
   )
 }
