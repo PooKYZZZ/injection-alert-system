@@ -167,11 +167,11 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-3"
+      className="flex flex-col gap-3 border-b border-surface-border pb-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="pt-2 text-[11px] font-medium text-[var(--color-text-secondary)]">Filters:</span>
+          <span className="pt-2 text-xs font-semibold text-[var(--color-text-primary)]">Filters</span>
           <FilterSelect
             label="Triage"
             value={currentTriage as TriageValue}

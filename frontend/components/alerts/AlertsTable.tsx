@@ -161,7 +161,7 @@ function SortHeader({
 }) {
   if (!column.sortable) {
     return (
-      <th scope="col" className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+      <th scope="col" className="p-3 text-left text-xs font-semibold text-[var(--color-text-secondary)]">
         {column.label}
       </th>
     )
@@ -176,7 +176,7 @@ function SortHeader({
         type="button"
         onClick={() => onSort(column.key as SortColumn)}
         aria-label={`${column.label}, ${isActive ? (isAsc ? 'ascending' : 'descending') : 'not sorted'}`}
-        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+        className="flex items-center gap-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
       >
         {column.label}
         {isActive ? (
@@ -278,9 +278,6 @@ function AlertsTableContent({
 
   return (
     <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
-      <p className="border-b border-surface-border px-3 py-2 text-[10px] text-[var(--color-text-secondary)] sm:hidden">
-        Swipe horizontally to view all alert fields.
-      </p>
       <div
         role="region"
         aria-label="Scrollable security alerts table"
@@ -507,7 +504,7 @@ export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick
                     <th
                       key={column.key}
                       scope="col"
-                      className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]"
+                      className="p-3 text-left text-xs font-semibold text-[var(--color-text-secondary)]"
                     >
                       {column.label}
                     </th>

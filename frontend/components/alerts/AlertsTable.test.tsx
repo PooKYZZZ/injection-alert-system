@@ -143,7 +143,7 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
-  it('explains how to reach the horizontally scrollable fields on mobile', async () => {
+  it('keeps mobile table guidance in the accessible table region instead of adding a redundant banner', async () => {
     render(
       <AlertsTable
         selectedIds={[]}
@@ -152,7 +152,8 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('Swipe horizontally to view all alert fields.')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Scrollable security alerts table' })).toBeInTheDocument()
+    expect(screen.queryByText('Swipe horizontally to view all alert fields.')).not.toBeInTheDocument()
   })
 
   it('does not expose triage sorting when the API does not support it', async () => {
