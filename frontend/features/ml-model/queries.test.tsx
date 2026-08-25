@@ -54,15 +54,19 @@ describe('ML model queries', () => {
     )
     const options = mlModelSummaryOptions()
 
-    const rejection = options.queryFn?.({
+    expect(options.queryFn).toBeDefined()
+    const rejection = Promise.resolve(options.queryFn!({
       queryKey: options.queryKey,
       signal: new AbortController().signal,
-    } as never)
+    } as never) as Promise<unknown>)
 
-    await expect(rejection).rejects.toMatchObject({ status: 503 })
-    await expect(rejection).rejects.toBeInstanceOf(RetrainingQueryError)
     const error = await rejection.catch((reason: unknown) => reason)
-    expect(options.retry?.(error, 0)).toBe(false)
+    expect(error).toMatchObject({ status: 503 })
+    expect(error).toBeInstanceOf(RetrainingQueryError)
+    expect(typeof options.retry).toBe('function')
+    if (typeof options.retry === 'function') {
+      expect(options.retry(0, error as Error)).toBe(false)
+    }
   })
 
   it('sends the browser timezone when requesting a retraining run', async () => {
