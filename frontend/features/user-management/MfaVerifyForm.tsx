@@ -68,50 +68,50 @@ export function MfaVerifyForm() {
 
   return (
     <section className={styles.formRegion} aria-labelledby="mfa-verify-heading">
-          <div className={styles.stepRow}><span className={styles.step}>Step 2 of 2</span></div>
-          {terminalError ? (
-            <div className={styles.terminal} role="alert" aria-labelledby="mfa-verify-heading">
-              <h1 id="mfa-verify-heading" className={styles.heading}>Start sign-in again</h1>
-              <p className={styles.description}>{terminalError.message}</p>
-              <a href="/login" className={styles.terminalAction}>Return to sign in</a>
-            </div>
-          ) : (
-            <>
-              <h1 id="mfa-verify-heading" className={styles.heading}>Verify your authenticator</h1>
-              <p className={styles.description}>Enter the 6-digit code from your authenticator app.</p>
+      <div className={styles.stepRow}><span className={styles.step}>Step 2 of 2 · Sign-in verification</span></div>
+      {terminalError ? (
+        <div className={styles.terminal} role="alert" aria-labelledby="mfa-verify-heading">
+          <h1 id="mfa-verify-heading" className={styles.heading}>Start sign-in again</h1>
+          <p className={styles.description}>{terminalError.message}</p>
+          <a href="/login" className={styles.terminalAction}>Return to sign in</a>
+        </div>
+      ) : (
+        <>
+          <h1 id="mfa-verify-heading" className={styles.heading}>Verify your authenticator</h1>
+          <p className={styles.description}>Enter the 6-digit code from your authenticator app.</p>
 
-              <form aria-labelledby="mfa-verify-heading" aria-busy={busy || undefined} onSubmit={submit} className={styles.form}>
-                <label htmlFor="mfa-code" className={styles.label}>Authenticator code</label>
-                <p id="mfa-code-help" className={styles.help}>Six digits. Paste or type the code as one value.</p>
-                <input
-                  ref={inputRef}
-                  id="mfa-code"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  autoFocus
-                  required
-                  pattern={'\\d{6}'}
-                  maxLength={6}
-                  value={code}
-                  aria-describedby={error ? 'mfa-code-help mfa-code-error' : 'mfa-code-help'}
-                  aria-invalid={error ? 'true' : undefined}
-                  onChange={(event) => {
-                    setCode(event.target.value.replace(/\D/g, ''))
-                    if (error) setError(null)
-                  }}
-                  className={styles.codeInput}
-                />
-                <button type="submit" disabled={busy || code.length !== 6} className={styles.submit}>
-                  {busy ? 'Verifying…' : 'Continue'}
-                </button>
-                {error && <p id="mfa-code-error" role="alert" className={styles.error}>{error}</p>}
-              </form>
-              <div className={styles.secondaryActions}>
-                <a href="/mfa/recover" className={styles.secondaryLink}>Use a recovery method</a>
-              </div>
-            </>
-          )}
+          <form aria-labelledby="mfa-verify-heading" aria-busy={busy || undefined} onSubmit={submit} className={styles.form}>
+            <label htmlFor="mfa-code" className={styles.label}>Authenticator code</label>
+            <p id="mfa-code-help" className={styles.help}>Six digits. Paste or type the code as one value.</p>
+            <input
+              ref={inputRef}
+              id="mfa-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              pattern={'\\d{6}'}
+              maxLength={6}
+              value={code}
+              aria-describedby={error ? 'mfa-code-help mfa-code-error' : 'mfa-code-help'}
+              aria-invalid={error ? 'true' : undefined}
+              onChange={(event) => {
+                setCode(event.target.value.replace(/\D/g, ''))
+                if (error) setError(null)
+              }}
+              className={styles.codeInput}
+            />
+            <button type="submit" disabled={busy || code.length !== 6} className={styles.submit}>
+              {busy ? 'Verifying…' : 'Continue'}
+            </button>
+            {error && <p id="mfa-code-error" role="alert" className={styles.error}>{error}</p>}
+          </form>
+          <div className={styles.secondaryActions}>
+            <a href="/mfa/recover" className={styles.secondaryLink}>Use a backup code or email recovery</a>
+          </div>
+        </>
+      )}
     </section>
   )
 }

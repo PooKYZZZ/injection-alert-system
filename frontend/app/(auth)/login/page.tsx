@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { authFieldClass, authHeadingClass, authLinkClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
@@ -89,7 +89,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={pending}
-              className="mt-2 min-h-11 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel disabled:cursor-not-allowed disabled:opacity-50"
+              className={authPrimaryButtonClass + ' mt-2'}
             >
               {pending ? 'Signing in…' : 'Sign in'}
             </button>

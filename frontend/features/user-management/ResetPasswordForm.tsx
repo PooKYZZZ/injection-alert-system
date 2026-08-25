@@ -50,7 +50,21 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <form aria-busy={pending || undefined} aria-describedby={error ? 'reset-password-error' : undefined} aria-labelledby="reset-password-heading" onSubmit={submit} className="grid gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="reset-password-value" className="text-sm font-medium text-text-secondary">New password</label>
-          <input id="reset-password-value" required minLength={15} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className={authFieldClass} />
+          <input
+            id="reset-password-value"
+            required
+            minLength={15}
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? 'reset-password-error' : undefined}
+            onChange={(event) => {
+              setPassword(event.target.value)
+              if (error) setError(null)
+            }}
+            className={authFieldClass}
+          />
         </div>
         <button type="submit" disabled={pending || !token} className={authPrimaryButtonClass}>
           {pending ? 'Resetting…' : 'Reset password'}

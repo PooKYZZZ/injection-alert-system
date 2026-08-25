@@ -23,11 +23,11 @@ describe('MfaVerifyForm', () => {
 
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
-    expect(screen.getByText('Step 2 of 2')).toBeInTheDocument()
+    expect(screen.getByText(/Step 2 of 2 · Sign-in verification/)).toBeInTheDocument()
     expect(screen.queryByText('Second factor')).not.toBeInTheDocument()
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
     expect(screen.queryByText(/quiet checkpoint|protected workspace|challenge is bound/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Use a recovery method' })).toHaveAttribute('href', '/mfa/recover')
+    expect(screen.getByRole('link', { name: 'Use a backup code or email recovery' })).toHaveAttribute('href', '/mfa/recover')
   })
 
   it('requires a six-digit authenticator code', () => {

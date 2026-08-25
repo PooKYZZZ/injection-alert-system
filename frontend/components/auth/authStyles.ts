@@ -5,7 +5,10 @@ export const authHeadingClass =
   'text-[28px] font-semibold leading-tight tracking-[-0.02em] text-text-primary'
 
 export const authPrimaryButtonClass =
-  'min-h-11 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel disabled:cursor-not-allowed disabled:border disabled:border-border-light disabled:bg-surface-inset disabled:text-text-muted disabled:opacity-100'
+  'min-h-11 w-full rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel disabled:cursor-not-allowed disabled:border disabled:border-border-light disabled:bg-surface-inset disabled:text-text-muted disabled:opacity-100'
+
+export const authSecondaryButtonClass =
+  'inline-flex min-h-11 w-full items-center justify-center rounded-md border border-border-light px-4 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel disabled:cursor-not-allowed disabled:opacity-50'
 
 export const authLinkClass =
   'text-sm text-text-secondary underline decoration-border-light underline-offset-4 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60'

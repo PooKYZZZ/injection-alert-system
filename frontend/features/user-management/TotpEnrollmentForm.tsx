@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import Image from 'next/image'
 import QRCode from 'qrcode'
 
@@ -13,6 +12,8 @@ type Enrollment = {
   provisioning_uri: string
   expires_at: string
 }
+
+const totpErrorId = 'totp-error'
 
 export function TotpEnrollmentForm() {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
@@ -57,7 +58,8 @@ export function TotpEnrollmentForm() {
     }
   }
 
-  async function verify() {
+  async function verify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (!enrollment) return
     setBusy(true)
     setError(null)
@@ -139,14 +141,41 @@ export function TotpEnrollmentForm() {
               <code className="mt-2 block break-all text-xs text-text-secondary" data-qr-value={enrollment.provisioning_uri}>{enrollment.provisioning_uri}</code>
             </details>
           </div>
-          <label className="block text-sm text-text-secondary" htmlFor="totp-code">Enter the six-digit code</label>
-          <input id="totp-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className={'max-w-xs font-mono ' + authFieldClass} />
-          <button type="button" onClick={verify} disabled={busy || code.length !== 6} className={authPrimaryButtonClass}>
-            {busy ? 'Verifying…' : 'Verify authenticator'}
-          </button>
+          <form
+            aria-label="Verify authenticator"
+            aria-busy={busy || undefined}
+            aria-describedby={error ? totpErrorId : 'totp-code-help'}
+            onSubmit={verify}
+            className="grid gap-3"
+          >
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium text-text-secondary" htmlFor="totp-code">Enter the six-digit code</label>
+              <p id="totp-code-help" className="text-xs leading-5 text-text-muted">Paste or type the code shown in your authenticator app.</p>
+              <input
+                id="totp-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                pattern={'\\d{6}'}
+                maxLength={6}
+                value={code}
+                aria-describedby={error ? 'totp-code-help totp-error' : 'totp-code-help'}
+                aria-invalid={error ? 'true' : undefined}
+                onChange={(event) => {
+                  setCode(event.target.value.replace(/\D/g, ''))
+                  if (error) setError(null)
+                }}
+                className={'font-mono ' + authFieldClass}
+              />
+            </div>
+            <button type="submit" disabled={busy || code.length !== 6} className={authPrimaryButtonClass}>
+              {busy ? 'Verifying…' : 'Verify authenticator'}
+            </button>
+          </form>
         </>
       )}
-      {error && <p role="alert" className="text-sm text-status-danger">{error}</p>}
+      {error && <p id={totpErrorId} role="alert" className="text-sm text-status-danger">{error}</p>}
     </section>
   )
 }

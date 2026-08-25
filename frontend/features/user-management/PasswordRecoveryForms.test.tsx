@@ -48,6 +48,8 @@ describe('password recovery forms', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to send/i)
     expect(input).toHaveValue('analyst@example.test')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAttribute('aria-describedby', 'forgot-password-error')
   })
 
   it('treats a non-OK recovery response as a recoverable error', async () => {
@@ -59,5 +61,18 @@ describe('password recovery forms', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to send/i)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('associates reset-link errors with the password control', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 410 }))
+    render(<ResetPasswordForm token={'a'.repeat(43)} />)
+
+    const input = screen.getByLabelText('New password')
+    fireEvent.change(input, { target: { value: 'a'.repeat(15) } })
+    fireEvent.submit(screen.getByRole('form', { name: /set a new password/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid or expired/i)
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAttribute('aria-describedby', 'reset-password-error')
   })
 })

@@ -38,7 +38,20 @@ export function ForgotPasswordForm() {
       <form aria-busy={pending || undefined} aria-describedby={error ? 'forgot-password-error' : undefined} aria-labelledby="forgot-password-heading" onSubmit={submit} className="grid gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="forgot-password-email" className="text-sm font-medium text-text-secondary">Email address</label>
-          <input id="forgot-password-email" autoComplete="email" required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={authFieldClass} />
+          <input
+            id="forgot-password-email"
+            autoComplete="email"
+            required
+            type="email"
+            value={email}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? 'forgot-password-error' : undefined}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              if (error) setError(null)
+            }}
+            className={authFieldClass}
+          />
         </div>
         <button type="submit" disabled={pending} className={authPrimaryButtonClass}>
           {pending ? 'Sending…' : 'Send reset link'}

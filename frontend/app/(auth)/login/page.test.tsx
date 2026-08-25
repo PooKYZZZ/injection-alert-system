@@ -54,6 +54,7 @@ describe('LoginPage', () => {
     expect(passwordInput).toBeInTheDocument()
     expect(passwordInput).toHaveAttribute('id', 'password')
     expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('w-full')
   })
 
   it('shows the generic invalid-login message without account-existence leakage', async () => {
