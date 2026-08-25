@@ -34,6 +34,25 @@ export function formatAlertDateTime(
   })
 }
 
+export function formatStableDateTime(
+  value: string | null | undefined,
+  fallback = 'Unknown timestamp'
+): string {
+  const parsed = parseApiTimestamp(value)
+  if (!parsed) return fallback
+
+  return parsed.toLocaleString('en-US', {
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 export function formatRelativeTime(
   value: string | null | undefined,
   nowMs = Date.now()
@@ -71,12 +90,23 @@ export function formatConfidencePercent(confidence: number | null | undefined): 
   return `${percentage.toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
 }
 
+export function formatCompactConfidencePercent(confidence: number | null | undefined): string {
+  if (confidence == null || !Number.isFinite(confidence)) return '—'
+
+  const percentage = Math.min(Math.max(confidence, 0), 1) * 100
+  const roundedToTenth = Math.round(percentage * 10) / 10
+  const display = roundedToTenth >= 100 ? percentage.toFixed(2) : roundedToTenth.toFixed(1)
+  return `${display.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
+}
+
+export function formatConfidenceTierLabel(confidenceTier: AlertConfidenceTier | string): string {
+  if (!confidenceTier) return 'Unknown'
+  return `${confidenceTier.charAt(0)}${confidenceTier.slice(1).toLowerCase()}`
+}
+
 export function formatConfidenceLabel(
   confidence: number | null | undefined,
   confidenceTier: AlertConfidenceTier | string
 ): string {
-  const tierLabel = confidenceTier
-    ? `${confidenceTier.charAt(0)}${confidenceTier.slice(1).toLowerCase()} confidence`
-    : 'Unknown confidence'
-  return `${formatConfidencePercent(confidence)} (${tierLabel})`
+  return `${formatConfidencePercent(confidence)} (${formatConfidenceTierLabel(confidenceTier)} confidence)`
 }

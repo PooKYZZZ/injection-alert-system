@@ -22,7 +22,7 @@ import { getSupabaseServerClient } from './client'
 import { preflightPasswordToken } from './password-token-preflight'
 
 const ACCOUNT_FIELDS =
-  'id,email,pending_email,name,role,mfa_required,email_verified_at,disabled_at,created_at,auth_mfa_factors(status)'
+  'id,email,pending_email,name,role,mfa_required,password_set_at,email_verified_at,disabled_at,created_at,auth_mfa_factors(status)'
 const UUID = z.string().uuid()
 
 const managedAccountRow = z.object({
@@ -32,6 +32,7 @@ const managedAccountRow = z.object({
   name: z.string().min(1),
   role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
   mfa_required: z.boolean(),
+  password_set_at: z.string().nullable(),
   email_verified_at: z.string().nullable(),
   disabled_at: z.string().nullable(),
   created_at: z.string().min(1),
@@ -110,6 +111,7 @@ function mapAccount(value: unknown): SafeManagedAccount {
       : activeFactor
         ? 'active'
         : 'enrollment_required',
+    setup_status: row.password_set_at === null ? 'pending' : 'complete',
     created_at: row.created_at,
   }
 }

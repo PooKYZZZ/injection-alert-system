@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '@/lib/utils'
-import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
+import { LoadingSkeleton } from '@/components/ui/StateViews'
 import { type AlertPrediction } from '@/features/alerts/contract'
 
 interface AttackTypePanelProps {
@@ -55,7 +55,7 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
     .join('; ')
 
   if (entries.length === 0) {
-    return <EmptyState message="No attack data" subtext="Distribution unavailable" />
+    return <p className="text-sm leading-6 text-text-secondary">No attack data was reported in this window.</p>
   }
 
   return (

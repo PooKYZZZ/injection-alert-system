@@ -31,6 +31,8 @@ export interface QueueHealth {
 
 export interface MLHealthData {
   model_version: string
+  /** Timestamp added by the Next.js BFF when it retrieves this snapshot. */
+  retrieved_at?: string
   status: 'HEALTHY' | 'DEGRADED' | 'DOWN'
   latency_ms: number
   latency_trend: number | null

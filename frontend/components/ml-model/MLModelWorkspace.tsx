@@ -38,6 +38,15 @@ function errorMessage(error: unknown): string | null {
   return message
 }
 
+function isCapabilityUnavailable(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as { status?: unknown }).status === 503
+  )
+}
+
 function displayState(state: RetrainingRunStart['state']): string {
   return state.replaceAll('_', ' ')
 }
@@ -129,20 +138,42 @@ export function MLModelWorkspace({ role }: Props) {
   }
 
   if (summaryQuery.isError || runsQuery.isError || !summary) {
+    const capabilityUnavailable =
+      isCapabilityUnavailable(summaryQuery.error) || isCapabilityUnavailable(runsQuery.error)
+
     return (
-      <div className={styles.loadingWrap} role="alert">
-        <strong>Failed to load Model Operations</strong>
-        <span>Run state is unavailable. Retry the workspace when the control plane is reachable.</span>
-        <button
-          type="button"
-          className={styles.secondaryButton}
-          onClick={() => {
-            void summaryQuery.refetch()
-            void runsQuery.refetch()
-          }}
-        >
-          Retry
-        </button>
+      <div className={styles.page}>
+        <section className={styles.unavailableState} role="alert" aria-labelledby="model-operations-state-title">
+          <span className={styles.unavailableMarker} aria-hidden="true" />
+          <div className={styles.unavailableCopy}>
+            <p className={styles.stateLabel}>Model lifecycle</p>
+            <h1 id="model-operations-state-title">
+              {capabilityUnavailable ? 'Model Operations unavailable' : 'Failed to load Model Operations'}
+            </h1>
+            <p>
+              {capabilityUnavailable
+                ? 'Local retraining controls are disabled or unavailable. No run state was loaded.'
+                : 'Run state is unavailable. Retry the workspace when the control plane is reachable.'}
+            </p>
+          </div>
+          <div className={styles.stateActions}>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => {
+                void summaryQuery.refetch()
+                void runsQuery.refetch()
+              }}
+            >
+              {capabilityUnavailable ? 'Retry Model Operations' : 'Retry'}
+            </button>
+            {capabilityUnavailable ? (
+              <a className={styles.stateLink} href="/ml-health">
+                Review ML Health
+              </a>
+            ) : null}
+          </div>
+        </section>
       </div>
     )
   }

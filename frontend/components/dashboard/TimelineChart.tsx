@@ -256,8 +256,8 @@ export function TimelineChart({
 
   if (isPending) {
     return (
-      <div className="h-[140px] w-full">
-        <LoadingSkeleton rows={4} />
+      <div className="h-[96px] w-full">
+        <LoadingSkeleton rows={3} />
       </div>
     )
   }
@@ -273,10 +273,11 @@ export function TimelineChart({
       : { top: 5, right: 5, left: 8, bottom: 0 }
   const chartTotal = actionTotals.blocked + actionTotals.throttled + actionTotals.allowed
   const actionSummary = `Blocked ${actionTotals.blocked}, Throttled ${actionTotals.throttled}, Allowed ${actionTotals.allowed}`
+  const chartHeight = isEmpty ? 'h-[96px]' : 'h-[140px]'
 
   return (
     <div
-      className="relative h-[140px] w-full"
+      className={`relative ${chartHeight} w-full`}
       role="img"
       aria-label={
         isEmpty
@@ -453,9 +454,8 @@ export function TimelineChart({
           <p className="text-[10px] text-[var(--color-text-muted)]">{consistencyWarning}</p>
         </div>
       ) : isEmpty ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <p className="text-[11px] text-[var(--color-text-secondary)]">No events in this window</p>
-          <p className="text-[10px] text-[var(--color-text-muted)]">Traffic was quiet during this period</p>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <p className="text-sm text-text-secondary">No events in this window</p>
         </div>
       ) : null}
     </div>

@@ -16,5 +16,5 @@ export default async function UserManagementPage() {
     PERMISSIONS.ACCOUNTS_READ
   )
   if (!authorization.ok) notFound()
-  return <UserManagementWorkspace initialAccounts={await listManagedAccounts()} />
+  return <UserManagementWorkspace initialAccounts={await listManagedAccounts()} currentAccountId={session!.user.id} />
 }

@@ -52,7 +52,7 @@ describe('MLHealthWidget', () => {
     render(<MLHealthWidget />, { wrapper: Wrapper })
 
     expect(screen.getByText('distilbert-v1')).toBeInTheDocument()
-    expect(screen.getByText('Stable')).toBeInTheDocument()
+    expect(screen.getByText('Healthy')).toBeInTheDocument()
   })
 
   it('renders unavailable message when ml health data is missing', () => {

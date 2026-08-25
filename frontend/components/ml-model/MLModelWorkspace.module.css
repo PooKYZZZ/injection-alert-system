@@ -36,6 +36,80 @@
   margin-top: 8px;
 }
 
+.unavailableState {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  min-height: 220px;
+  box-sizing: border-box;
+  border: 1px solid var(--mlm-border);
+  border-radius: 8px;
+  background: var(--mlm-surface);
+  padding: 30px 32px;
+}
+
+.unavailableMarker {
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--mlm-warning);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--mlm-warning) 14%, transparent);
+}
+
+.unavailableCopy {
+  min-width: 0;
+}
+
+.stateLabel {
+  margin: 0 0 7px;
+  color: var(--mlm-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.unavailableCopy h1 {
+  margin: 0;
+  color: var(--mlm-text);
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.unavailableCopy p:last-child {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--mlm-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.stateActions {
+  display: flex;
+  min-width: 180px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+}
+
+.stateLink {
+  color: var(--mlm-accent);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.stateLink:hover {
+  text-decoration: underline;
+}
+
+.stateLink:focus-visible {
+  outline: 2px solid var(--mlm-accent);
+  outline-offset: 3px;
+}
+
 .overviewSection,
 .runsSection,
 .comparisonSection,
@@ -92,6 +166,12 @@
   font-size: 11px;
   line-height: 1.5;
   text-align: right;
+}
+
+.tableHint {
+  margin: 0 0 8px;
+  color: var(--mlm-muted);
+  font-size: 10px;
 }
 
 .actionCluster {
@@ -542,6 +622,23 @@
 }
 
 @media (max-width: 720px) {
+  .unavailableState {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    min-height: 0;
+    padding: 22px 18px;
+  }
+
+  .stateActions {
+    grid-column: 2;
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .stateActions .secondaryButton {
+    width: 100%;
+  }
+
   .overviewSection,
   .runsSection,
   .comparisonSection,

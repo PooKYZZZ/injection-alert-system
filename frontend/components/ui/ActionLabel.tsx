@@ -44,5 +44,3 @@ export function ActionLabel({ action, bordered = true }: ActionLabelProps) {
     </span>
   )
 }
-
-

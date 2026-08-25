@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardTopBar, TopBar } from './TopBar'
 
 const mockPush = vi.fn()
+let pathname = '/dashboard'
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => pathname,
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: mockPush }),
 }))
@@ -23,15 +24,16 @@ describe('TopBar', () => {
   afterEach(() => {
     cleanup()
     mockPush.mockReset()
+    pathname = '/dashboard'
     vi.useRealTimers()
   })
 
   it('allows the title and search control to shrink within the shell', () => {
     render(<TopBar title="Dashboard" showSearch showLiveStatus />)
 
-    expect(screen.getByRole('banner')).toHaveClass('min-w-0')
-    expect(screen.getByRole('textbox')).toHaveClass('w-full', 'max-w-64', 'min-w-0')
-    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search path, attack type...')
+    expect(screen.getByRole('banner')).toHaveClass('min-h-14')
+    expect(screen.getByRole('textbox')).toHaveClass('w-full', 'min-w-0')
+    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search alerts')
   })
 
   it('uses a compact theme control label that cannot overlap search on narrow screens', () => {
@@ -40,10 +42,28 @@ describe('TopBar', () => {
     expect(screen.getByText('Theme')).toHaveClass('hidden', 'sm:inline')
   })
 
-  it('does not show the snapshot status pill on the dashboard', () => {
+  it('uses the active section as utility context without repeating a protected-workspace tagline', () => {
     render(<DashboardTopBar />)
 
     expect(screen.queryByText('Snapshot')).not.toBeInTheDocument()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
+    expect(screen.queryByText('Protected workspace')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('removes alert search from account administration while retaining section context', () => {
+    pathname = '/user-management'
+    render(<DashboardTopBar />)
+
+    expect(screen.getByText('User Management')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('preserves product acronyms in route-derived section labels', () => {
+    pathname = '/ml-health'
+    render(<DashboardTopBar />)
+
+    expect(screen.getByText('ML Health')).toBeInTheDocument()
   })
 
   it('routes Dashboard searches to the Alerts page', () => {
@@ -60,7 +80,7 @@ describe('TopBar', () => {
     })
   })
 
-  it('wraps alert counts into a narrow layout without clipping them', () => {
+  it('removes static alert counts from the global utility bar', () => {
     render(
       <TopBar
         title="Alerts"
@@ -71,8 +91,8 @@ describe('TopBar', () => {
     )
 
     const header = screen.getByRole('banner')
-    expect(header).toHaveClass('min-h-16', 'flex-wrap')
-    expect(screen.getByText('NEW:')).toBeVisible()
-    expect(screen.getByText('IN REVIEW:')).toBeVisible()
+    expect(header).toHaveClass('min-h-14')
+    expect(screen.queryByText('NEW:')).not.toBeInTheDocument()
+    expect(screen.queryByText('IN REVIEW:')).not.toBeInTheDocument()
   })
 })

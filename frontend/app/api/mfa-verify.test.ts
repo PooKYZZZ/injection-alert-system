@@ -76,4 +76,26 @@ describe('MFA verification route', () => {
     expect(response.status).toBe(403)
     expect(json).not.toHaveBeenCalled()
   })
+
+  it('clears a terminal expired challenge and exposes a restartable response', async () => {
+    harness.verify.mockRejectedValue(Object.assign(new Error('EXPIRED'), { code: 'EXPIRED' }))
+    const { POST } = await import('./auth/mfa/verify/route')
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { origin: 'http://localhost' },
+        body: JSON.stringify({ code: '123456' }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'MFA_CHALLENGE_EXPIRED',
+        message: 'This sign-in challenge has expired. Start sign-in again.',
+      },
+    })
+    expect(harness.clearCookie).toHaveBeenCalled()
+  })
 })

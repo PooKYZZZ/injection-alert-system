@@ -122,6 +122,7 @@ function setHarness({
   isError = false,
   detailPending = false,
   detailError = false,
+  queryError = null,
   mutations = {},
 }: {
   runs?: RetrainingRun[]
@@ -131,18 +132,21 @@ function setHarness({
   isError?: boolean
   detailPending?: boolean
   detailError?: boolean
+  queryError?: unknown
   mutations?: Record<string, ReturnType<typeof mutation>>
 } = {}) {
   mockedUseSummary.mockReturnValue({
     data: summaryData,
     isPending,
     isError,
+    error: queryError,
     refetch: vi.fn(),
   } as never)
   mockedUseRuns.mockReturnValue({
     data: { runs },
     isPending,
     isError,
+    error: queryError,
     refetch: vi.fn(),
   } as never)
   mockedUseRun.mockReturnValue({
@@ -184,6 +188,21 @@ describe('MLModelWorkspace', () => {
     expect(screen.getByRole('button', { name: 'Request retraining' })).toBeInTheDocument()
   })
 
+  it('explains when local Model Operations are deliberately unavailable', () => {
+    setHarness({
+      isError: true,
+      summaryData: undefined as never,
+      queryError: Object.assign(new Error('Local retraining control is disabled.'), { status: 503 }),
+    })
+
+    render(<MLModelWorkspace role={ROLES.VIEWER} />)
+
+    expect(screen.getByRole('heading', { name: 'Model Operations unavailable' })).toBeInTheDocument()
+    expect(screen.getByText(/local retraining controls are disabled or unavailable/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry Model Operations' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review ML Health' })).toHaveAttribute('href', '/ml-health')
+  })
+
   it('shows the overview, queued stage, and unavailable evidence without inventing metrics', () => {
     render(<MLModelWorkspace role={ROLES.ANALYST} />)
 
@@ -195,6 +214,7 @@ describe('MLModelWorkspace', () => {
     expect(screen.getAllByText('True Normal false-positive rate').length).toBeGreaterThan(0)
     expect(screen.getAllByText('NOT_RUN').length).toBeGreaterThan(0)
     expect(screen.getByText(/ground-truth evidence uses verified_label/i)).toBeInTheDocument()
+    expect(screen.getByText(/scroll horizontally to view all columns on narrow screens/i)).toBeInTheDocument()
   })
 
   it('warns the operator when published evidence is invalid', () => {

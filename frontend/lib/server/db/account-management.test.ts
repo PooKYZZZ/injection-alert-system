@@ -56,6 +56,7 @@ describe('account management database boundary', () => {
         name: 'SOC Admin',
         role: 'ADMIN',
         mfa_required: true,
+        password_set_at: '2026-07-10T00:00:00Z',
         email_verified_at: '2026-07-10T00:00:00Z',
         disabled_at: null,
         created_at: '2026-07-01T00:00:00Z',
@@ -76,6 +77,7 @@ describe('account management database boundary', () => {
         enabled: true,
         email_verified: true,
         mfa_status: 'active',
+        setup_status: 'complete',
         created_at: '2026-07-01T00:00:00Z',
       },
     ])

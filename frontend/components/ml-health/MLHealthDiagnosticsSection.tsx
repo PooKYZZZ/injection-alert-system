@@ -1,303 +1,324 @@
 'use client'
 
-import { useState } from 'react'
-import type { MLHealthData } from '@/features/ml-health/types'
-import type { MLHealthViewModel } from './MLHealthWorkspaceViewModel'
-import styles from './MLHealthWorkspace.module.css'
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
-type DiagnosticsTab = 'performance' | 'drift' | 'calibration' | 'policy'
+import type { MLHealthData } from '@/features/ml-health/types'
+
+import type { DiagnosticTab, MLHealthViewModel, PolicyBandAction } from './MLHealthWorkspaceViewModel'
+import styles from './MLHealthWorkspace.module.css'
 
 type Props = {
   health: MLHealthData
   viewModel: MLHealthViewModel
+  activeTab?: DiagnosticTab
+  onActiveTabChange?: (tab: DiagnosticTab) => void
 }
 
-function PerformanceTab({ health, viewModel }: Props) {
+type ViewProps = Pick<Props, 'viewModel'>
+
+function policyClass(action: PolicyBandAction): string {
+  if (action === 'allow') return styles.policyAllow
+  if (action === 'throttle') return styles.policyThrottle
+  return styles.policyBlock
+}
+
+function DiagnosticsTable({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={styles.diagnosticsStack}>
-      <div className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Performance Snapshot</span>
-        </div>
-        <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Latency</td>
-                <td>{viewModel.latencyDisplay}</td>
-                <td>health.latency_ms</td>
-              </tr>
-              <tr>
-                <td>Latency trend</td>
-                <td>{viewModel.latencyTrendDisplay}</td>
-                <td>health.latency_trend</td>
-              </tr>
-              <tr>
-                <td>Traffic processed</td>
-                <td>{viewModel.trafficProcessedDisplay}</td>
-                <td>health.traffic_processed</td>
-              </tr>
-              <tr>
-                <td>Serving status</td>
-                <td>{health.status}</td>
-                <td>health.status</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div className={styles.tableScroll}>
+      <table className={styles.compTable} aria-label={label}>
+        {children}
+      </table>
     </div>
   )
 }
 
-function DriftTab({ viewModel }: Props) {
+function EmptyEvidence({ heading, children }: { heading: string; children: ReactNode }) {
   return (
-    <div className={styles.diagnosticsStack}>
-      <div className={styles.panel}>
+    <div className={styles.emptyEvidenceState}>
+      <strong>{heading}</strong>
+      <p>{children}</p>
+    </div>
+  )
+}
+
+function PerformanceTab({ viewModel }: ViewProps) {
+  return (
+    <div className={styles.diagnosticStack}>
+      <section className={styles.diagnosticPanel} aria-labelledby="performance-heading">
         <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Drift Snapshot</span>
+          <div>
+            <h2 id="performance-heading">Serving metrics</h2>
+            <p className={styles.panelDescription}>Traffic and latency reported by this health snapshot.</p>
+          </div>
         </div>
-        <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
+        <DiagnosticsTable label="Serving metrics">
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Requests in snapshot</td><td className={styles.mono}>{viewModel.trafficProcessedDisplay}</td></tr>
+            <tr><td>Inference latency</td><td className={styles.mono}>{viewModel.latencyDisplay}</td></tr>
+            <tr><td>Latency comparison</td><td className={styles.mono}>{viewModel.latencyTrendDisplay}</td></tr>
+          </tbody>
+        </DiagnosticsTable>
+        <p className={styles.panelNote}>
+          {viewModel.hasTraffic
+            ? 'Latency is measured only when the snapshot includes traffic.'
+            : 'No serving traffic in this snapshot. Latency is not available without traffic.'}
+        </p>
+      </section>
+    </div>
+  )
+}
+
+function MonitoringTab({ viewModel }: ViewProps) {
+  const hasMonitoringEvidence =
+    viewModel.driftScoreDisplay !== 'Not reported' || viewModel.driftStatusDisplay !== 'Not reported'
+
+  return (
+    <div className={styles.diagnosticStack}>
+      <section className={styles.diagnosticPanel} aria-labelledby="monitoring-heading">
+        <div className={styles.panelHeader}>
+          <div>
+            <h2 id="monitoring-heading">Drift monitoring</h2>
+            <p className={styles.panelDescription}>Only results included in the current snapshot are shown.</p>
+          </div>
+        </div>
+        {hasMonitoringEvidence ? (
+          <DiagnosticsTable label="Drift monitoring">
             <thead>
               <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Source</th>
+                <th scope="col">Signal</th>
+                <th scope="col">Value</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Drift score</td>
-                <td>{viewModel.driftScoreDisplay}</td>
-                <td>health.drift_score</td>
-              </tr>
-              <tr>
-                <td>Drift status</td>
-                <td>{viewModel.driftStatusDisplay}</td>
-                <td>health.drift_status</td>
-              </tr>
+              <tr><td>Drift score</td><td className={styles.mono}>{viewModel.driftScoreDisplay}</td></tr>
+              <tr><td>Drift status</td><td>{viewModel.driftStatusDisplay}</td></tr>
             </tbody>
-          </table>
-        </div>
-      </div>
+          </DiagnosticsTable>
+        ) : (
+          <EmptyEvidence heading="Drift result not reported">
+            This snapshot does not include a drift result. No threshold or trend is inferred here.
+          </EmptyEvidence>
+        )}
+      </section>
+    </div>
+  )
+}
 
-      <div className={styles.panel}>
+function EvaluationTab({ viewModel }: ViewProps) {
+  return (
+    <div className={styles.diagnosticStack}>
+      <section className={styles.diagnosticPanel} aria-labelledby="evaluation-heading">
         <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Per-class F1 (reported)</span>
+          <div>
+            <h2 id="evaluation-heading">Model evaluation</h2>
+            <p className={styles.panelDescription}>{viewModel.evaluationEvidenceSummary}</p>
+          </div>
         </div>
-        <div className={styles.tableScroll}>
-          {viewModel.classMetrics.length > 0 ? (
-            <table className={styles.compTable}>
+
+        <div className={styles.provenanceNotice} role="region" aria-label="Evaluation provenance">
+          <strong>Provenance</strong>
+          <span>{viewModel.evaluationProvenanceDisplay}</span>
+        </div>
+
+        {viewModel.classMetrics.length > 0 ? (
+          <DiagnosticsTable label="Per-class F1 scores">
+            <thead>
+              <tr><th scope="col">Class</th><th scope="col">F1 score (0–1)</th></tr>
+            </thead>
+            <tbody>
+              {viewModel.classMetrics.map((row) => (
+                <tr key={row.label}>
+                  <td>{row.label}</td>
+                  <td className={styles.mono}>{row.f1Display}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DiagnosticsTable>
+        ) : (
+          <EmptyEvidence heading="Per-class evaluation unavailable">
+            The current snapshot does not include class-level evaluation results.
+          </EmptyEvidence>
+        )}
+        {viewModel.classMetrics.length > 0 ? <p className={styles.panelNote}>Higher values indicate a better precision/recall balance. No acceptance threshold is configured here.</p> : null}
+
+        <div className={styles.evidenceBlock}>
+          <h3>Current prediction distribution</h3>
+          {viewModel.distributionRows.length > 0 ? (
+            <DiagnosticsTable label="Prediction distribution snapshot">
               <thead>
                 <tr>
-                  <th>Class</th>
-                  <th>F1 score</th>
-                  <th>State</th>
+                  <th scope="col">Class</th>
+                  {viewModel.distributionHasBaseline ? <th scope="col">Baseline</th> : null}
+                  <th scope="col">Current</th>
+                  {viewModel.distributionHasBaseline ? <th scope="col">Change</th> : null}
                 </tr>
               </thead>
               <tbody>
-                {viewModel.classMetrics.map((row) => (
+                {viewModel.distributionRows.map((row) => (
                   <tr key={row.label}>
                     <td>{row.label}</td>
-                    <td>{row.f1Display}</td>
-                    <td>
-                      <span className={row.isElevated ? styles.policyThrottle : styles.policyAllow}>
-                        {row.isElevated ? 'review' : 'stable'}
-                      </span>
-                    </td>
+                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.baselineDisplay ?? 'Not reported'}</td> : null}
+                    <td className={styles.mono}>{row.currentDisplay}</td>
+                    {viewModel.distributionHasBaseline ? <td className={styles.mono}>{row.deltaDisplay ?? 'Not reported'}</td> : null}
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DiagnosticsTable>
           ) : (
-            <div className={styles.panelBody}>
-              <span className={styles.muted}>Per-class metrics are not reported in this snapshot.</span>
-            </div>
+            <EmptyEvidence heading="Prediction distribution unavailable">
+              {viewModel.distributionSummary}
+            </EmptyEvidence>
           )}
+          {viewModel.distributionRows.length > 0 ? <p className={styles.panelNote}>{viewModel.distributionSummary}</p> : null}
         </div>
-      </div>
-    </div>
-  )
-}
 
-function CalibrationTab({ viewModel }: Props) {
-  return (
-    <div className={styles.diagnosticsStack}>
-      <div className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Calibration Snapshot</span>
-        </div>
-        <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Expected calibration error</td>
-                <td>{viewModel.eceDisplay}</td>
-                <td>health.ece</td>
-              </tr>
-              <tr>
-                <td>Assessment</td>
-                <td>{viewModel.calibrationSummary}</td>
-                <td>derived</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Calibration bins (reported)</span>
-        </div>
-        <div className={styles.tableScroll}>
+        <div className={styles.evidenceBlock}>
+          <h3>Calibration evidence</h3>
+          <div className={styles.inlineMetric}>
+            <span>Expected calibration error (ECE)</span>
+            <strong className={styles.mono}>{viewModel.eceDisplay}</strong>
+          </div>
           {viewModel.calibrationBins.length > 0 ? (
-            <table className={styles.compTable}>
+            <DiagnosticsTable label="Calibration bins reported evaluation">
               <thead>
                 <tr>
-                  <th>Bin</th>
-                  <th>Center</th>
-                  <th>Confidence</th>
-                  <th>Accuracy</th>
-                  <th>Count</th>
+                  <th scope="col">Bin</th>
+                  <th scope="col">Center</th>
+                  <th scope="col">Confidence</th>
+                  <th scope="col">Accuracy</th>
+                  <th scope="col">Count</th>
                 </tr>
               </thead>
               <tbody>
                 {viewModel.calibrationBins.map((bin) => (
                   <tr key={bin.bin_idx}>
                     <td>{bin.bin_idx}</td>
-                    <td>{bin.bin_center.toFixed(3)}</td>
-                    <td>{bin.confidence.toFixed(3)}</td>
-                    <td>{bin.accuracy.toFixed(3)}</td>
-                    <td>{bin.count}</td>
+                    <td className={styles.mono}>{bin.bin_center.toFixed(3)}</td>
+                    <td className={styles.mono}>{bin.confidence.toFixed(3)}</td>
+                    <td className={styles.mono}>{bin.accuracy.toFixed(3)}</td>
+                    <td className={styles.mono}>{bin.count}</td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DiagnosticsTable>
           ) : (
-            <div className={styles.panelBody}>
-              <span className={styles.muted}>Calibration bins are not reported in this snapshot.</span>
-            </div>
+            <p className={styles.panelNote}>{viewModel.calibrationSummary}</p>
           )}
         </div>
-      </div>
+
+      </section>
     </div>
   )
 }
 
-function PolicyTab({ viewModel }: Props) {
+function PolicyTab({ viewModel }: ViewProps) {
   return (
-    <div className={styles.diagnosticsStack}>
-      <div className={styles.panel}>
+    <div className={styles.diagnosticStack}>
+      <section className={styles.diagnosticPanel} aria-labelledby="policy-heading">
         <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Policy decision bands</span>
+          <div>
+            <h2 id="policy-heading">Confidence policy</h2>
+            <p className={styles.panelDescription}>Automatic response bands for non-Normal predictions.</p>
+          </div>
         </div>
-        <div className={styles.tableScroll}>
-          <table className={styles.compTable}>
-            <thead>
-              <tr>
-                <th>Band</th>
-                <th>Confidence range</th>
-                <th>Action</th>
+        <DiagnosticsTable label="Confidence policy">
+          <thead>
+            <tr><th scope="col">Confidence band</th><th scope="col">Range</th><th scope="col">Action</th></tr>
+          </thead>
+          <tbody>
+            {viewModel.policyBands.map((band) => (
+              <tr key={band.label}>
+                <td>{band.label}</td>
+                <td className={styles.mono}>{band.rangeLabel}</td>
+                <td><span className={policyClass(band.action)}>{band.action}</span></td>
               </tr>
-            </thead>
-            <tbody>
-              {viewModel.policyBands.map((band) => (
-                <tr key={band.label}>
-                  <td>{band.label}</td>
-                  <td>{band.rangeLabel}</td>
-                  <td>
-                    <span
-                      className={
-                        band.action === 'allow'
-                          ? styles.policyAllow
-                          : band.action === 'throttle'
-                            ? styles.policyThrottle
-                            : styles.policyBlock
-                      }
-                    >
-                      {band.action}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className={styles.panelBody}>
-          <p className={styles.policyFootnote}>Threshold-based policy bands from configured confidence thresholds.</p>
-          <p className={styles.policyFootnote}>Low: {viewModel.thresholdLabels.low} · Medium: {viewModel.thresholdLabels.medium} · High: {viewModel.thresholdLabels.high} · Critical: {viewModel.thresholdLabels.critical}</p>
-        </div>
-      </div>
+            ))}
+          </tbody>
+        </DiagnosticsTable>
+        <p className={styles.panelNote}>{viewModel.normalPolicyException}</p>
+      </section>
     </div>
   )
 }
 
-export function MLHealthDiagnosticsSection({ health, viewModel }: Props) {
-  const [tab, setTab] = useState<DiagnosticsTab>('performance')
+export function MLHealthDiagnosticsSection({ viewModel, activeTab, onActiveTabChange }: Props) {
+  const [internalTab, setInternalTab] = useState<DiagnosticTab>('performance')
+  const tab = activeTab ?? internalTab
+  const tabRefs = useRef<Record<DiagnosticTab, HTMLButtonElement | null>>({
+    performance: null,
+    monitoring: null,
+    evaluation: null,
+    policy: null,
+  })
 
-  const tabs: Array<{ key: DiagnosticsTab; label: string }> = [
+  const tabs: Array<{ key: DiagnosticTab; label: string }> = [
     { key: 'performance', label: 'Performance' },
-    { key: 'drift', label: 'Drift' },
-    { key: 'calibration', label: 'Calibration' },
+    { key: 'monitoring', label: 'Monitoring' },
+    { key: 'evaluation', label: 'Evaluation' },
     { key: 'policy', label: 'Policy' },
   ]
 
-  return (
-    <div>
-      <div className={styles.diagSummary}>
-        <div className={styles.diagSummaryItem}>
-          <span className={styles.diagSummaryLabel}>Model</span>
-          <span className={`${styles.diagSummaryValue} ${styles.diagMono}`}>{viewModel.displayName}</span>
-        </div>
-        <div className={styles.diagDivider} />
-        <div className={styles.diagSummaryItem}>
-          <span className={styles.diagSummaryLabel}>Serving status</span>
-          <span className={styles.diagSummaryValue}>{health.status}</span>
-        </div>
-        <div className={styles.diagDivider} />
-        <div className={styles.diagSummaryItem}>
-          <span className={styles.diagSummaryLabel}>Drift score</span>
-          <span className={styles.diagSummaryValue}>{viewModel.driftScoreDisplay}</span>
-        </div>
-        <div className={styles.diagDivider} />
-        <div className={styles.diagSummaryItem}>
-          <span className={styles.diagSummaryLabel}>ECE</span>
-          <span className={styles.diagSummaryValue}>{viewModel.eceDisplay}</span>
-        </div>
-      </div>
+  function handleDiagnosticTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length
+    if (event.key === 'Home') nextIndex = 0
+    if (event.key === 'End') nextIndex = tabs.length - 1
+    if (nextIndex == null) return
 
-      <div className={styles.tabs}>
-        {tabs.map((item) => (
+    event.preventDefault()
+    const nextTab = tabs[nextIndex]
+    onActiveTabChange?.(nextTab.key)
+    if (!activeTab) setInternalTab(nextTab.key)
+    tabRefs.current[nextTab.key]?.focus()
+  }
+
+  return (
+    <div className={styles.diagnostics}>
+      <section className={styles.diagnosticsHeader} aria-labelledby="diagnostics-heading">
+        <div>
+          <h2 id="diagnostics-heading">Diagnostics</h2>
+          <p className={styles.sectionDescription}>Review evidence supplied by the current health snapshot.</p>
+        </div>
+      </section>
+
+      <div className={styles.diagnosticTabs} role="tablist" aria-label="Diagnostic categories">
+        {tabs.map((item, index) => (
           <button
             key={item.key}
-            className={`${styles.tab} ${tab === item.key ? styles.tabActive : ''}`}
-            onClick={() => setTab(item.key)}
             type="button"
+            role="tab"
+            id={`ml-diagnostic-tab-${item.key}`}
+            aria-controls={`ml-diagnostic-panel-${item.key}`}
+            aria-selected={tab === item.key}
+            tabIndex={tab === item.key ? 0 : -1}
+            aria-label={item.label}
+            className={`${styles.diagnosticTab} ${tab === item.key ? styles.diagnosticTabActive : ''}`}
+            onClick={() => {
+              onActiveTabChange?.(item.key)
+              if (!activeTab) setInternalTab(item.key)
+            }}
+            onKeyDown={(event) => handleDiagnosticTabKeyDown(event, index)}
+            ref={(element) => { tabRefs.current[item.key] = element }}
           >
             {item.label}
           </button>
         ))}
       </div>
 
-      {tab === 'performance' ? <PerformanceTab health={health} viewModel={viewModel} /> : null}
-      {tab === 'drift' ? <DriftTab health={health} viewModel={viewModel} /> : null}
-      {tab === 'calibration' ? <CalibrationTab health={health} viewModel={viewModel} /> : null}
-      {tab === 'policy' ? <PolicyTab health={health} viewModel={viewModel} /> : null}
+      <div id={`ml-diagnostic-panel-${tab}`} role="tabpanel" aria-labelledby={`ml-diagnostic-tab-${tab}`} tabIndex={0}>
+        {tab === 'performance' ? <PerformanceTab viewModel={viewModel} /> : null}
+        {tab === 'monitoring' ? <MonitoringTab viewModel={viewModel} /> : null}
+        {tab === 'evaluation' ? <EvaluationTab viewModel={viewModel} /> : null}
+        {tab === 'policy' ? <PolicyTab viewModel={viewModel} /> : null}
+      </div>
+
     </div>
   )
 }

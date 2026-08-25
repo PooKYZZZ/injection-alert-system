@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from 'react'
 
+import { authFieldClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+
 export function SetupPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -45,7 +47,7 @@ export function SetupPasswordForm({ token }: { token: string }) {
         <input
           aria-label="New password"
           autoComplete="new-password"
-          className="h-11 rounded-md border border-border-light bg-surface-inset px-3 text-text-primary outline-none focus:border-accent-action"
+          className={authFieldClass}
           minLength={15}
           maxLength={256}
           type="password"
@@ -59,7 +61,7 @@ export function SetupPasswordForm({ token }: { token: string }) {
         <input
           aria-label="Confirm password"
           autoComplete="new-password"
-          className="h-11 rounded-md border border-border-light bg-surface-inset px-3 text-text-primary outline-none focus:border-accent-action"
+          className={authFieldClass}
           minLength={15}
           maxLength={256}
           type="password"
@@ -71,7 +73,7 @@ export function SetupPasswordForm({ token }: { token: string }) {
       <p className="text-xs leading-5 text-text-muted">
         Use at least 15 characters. Spaces and password-manager paste are supported.
       </p>
-      <button className="h-11 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell disabled:opacity-50" disabled={pending || !token} type="submit">
+      <button className={authPrimaryButtonClass} disabled={pending || !token} type="submit">
         {pending ? 'Setting password…' : 'Set password'}
       </button>
       {message ? <p role="status" className="text-sm leading-5 text-text-secondary">{message}</p> : null}

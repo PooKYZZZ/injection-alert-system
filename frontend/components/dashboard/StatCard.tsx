@@ -71,11 +71,11 @@ export function StatCard({
       transition={{ duration: 0.3, ease: 'easeOut', delay }}
       onClick={onClick}
       className={cn(
-        'min-w-0 flex flex-col gap-1 rounded-xl border border-surface-border bg-surface-card p-4 transition-all',
-        onClick && 'cursor-pointer hover:border-accent-action hover:bg-surface-inset'
+        'min-w-0 flex flex-col gap-1 p-3 transition-colors sm:p-4',
+        onClick && 'cursor-pointer hover:bg-surface-inset'
       )}
     >
-      <div className="break-words text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+      <div className="break-words text-[11px] font-medium text-[var(--color-text-secondary)]">
         {label}
       </div>
       <div

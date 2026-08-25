@@ -30,5 +30,3 @@ export function TriageBadge({ triage_status }: TriageBadgeProps) {
     </span>
   )
 }
-
-

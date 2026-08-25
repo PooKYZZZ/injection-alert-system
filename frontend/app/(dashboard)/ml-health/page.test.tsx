@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MLHealthPage from './page'
 import { useMLHealth } from '@/features/ml-health/queries'
@@ -39,6 +39,8 @@ vi.mock('recharts', () => {
 })
 
 const mockedUseMLHealth = vi.mocked(useMLHealth)
+
+afterEach(cleanup)
 
 beforeEach(() => {
   mockedUseMLHealth.mockReturnValue({
@@ -84,14 +86,16 @@ describe('MLHealthPage', () => {
     expect(screen.queryByPlaceholderText('Search metrics...')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Non-Normal Policy Bands')).toBeInTheDocument()
-    expect(screen.getByText('Non-Normal action')).toBeInTheDocument()
-    expect(
-      screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')
-    ).toBeInTheDocument()
-    expect(screen.getByText('Prediction Distribution Snapshot')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Fallback')).not.toBeInTheDocument()
+    expect(screen.getByText('Monitoring coverage')).toBeInTheDocument()
+    expect(screen.getByText('Calibration evidence')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Confidence policy diagnostics' }))
+    expect(screen.getByRole('tab', { name: 'Diagnostics' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Policy' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
+    expect(screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')).toBeInTheDocument()
     expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
   })
@@ -99,18 +103,18 @@ describe('MLHealthPage', () => {
   it('switches into diagnostics and shows policy details with explicit derived labeling', () => {
     render(<MLHealthPage />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Diagnostics' })[0])
+    fireEvent.click(screen.getAllByRole('tab', { name: 'Diagnostics' })[0])
 
-    expect(screen.getByRole('button', { name: 'Performance' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Drift' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Calibration' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Policy' })).toBeInTheDocument()
-    expect(screen.getByText('Performance Snapshot')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Performance' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Monitoring' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Evaluation' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Policy' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Serving metrics' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Policy' }))
 
-    expect(screen.getByText('Policy decision bands')).toBeInTheDocument()
-    expect(screen.getAllByText('Threshold-based policy bands from configured confidence thresholds.').length).toBeGreaterThan(0)
+    expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
+    expect(screen.getAllByText('Automatic response bands for non-Normal predictions.').length).toBeGreaterThan(0)
   })
 
   it('renders loading and error states from the workspace component', () => {

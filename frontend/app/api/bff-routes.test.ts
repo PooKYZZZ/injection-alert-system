@@ -163,6 +163,22 @@ describe('BFF route handlers', () => {
     })
   })
 
+  it('exposes BFF retrieval time without inventing source monitoring freshness', async () => {
+    authMock.mockResolvedValueOnce(session())
+    getMlHealthMock.mockResolvedValueOnce({
+      ok: true,
+      data: { status: 'HEALTHY', model_version: 'active-v1' },
+    })
+
+    const { GET } = await import('./ml-health/route')
+    const response = await GET()
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toMatchObject({ status: 'HEALTHY', model_version: 'active-v1' })
+    expect(body.retrieved_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+  })
+
   it('retraining run reads pass the authenticated actor to the BFF client', async () => {
     setCurrentAccount(ROLES.ANALYST)
     authMock.mockResolvedValue(session(ROLES.ANALYST))

@@ -15,12 +15,21 @@ vi.mock('next/navigation', () => ({
 
 import LoginPage from './page'
 import { loginAction } from './actions'
+import { AuthShell } from '@/components/auth/AuthShell'
 
 vi.mock('./actions', () => ({
   loginAction: vi.fn(),
 }))
 
 const mockedLoginAction = vi.mocked(loginAction)
+
+function renderLogin() {
+  return render(
+    <AuthShell>
+      <LoginPage />
+    </AuthShell>
+  )
+}
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -29,7 +38,17 @@ afterEach(() => {
 
 describe('LoginPage', () => {
   it('renders identifier and password fields without a role selector', () => {
-    render(<LoginPage />)
+    renderLogin()
+
+    expect(screen.getByRole('main')).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'Sign in' })).toBeInTheDocument()
+    expect(screen.getByText('CyberTrace')).toBeInTheDocument()
+    expect(screen.getByText('Secure workspace')).toBeInTheDocument()
+    expect(screen.getByText('Use your CyberTrace credentials to continue.')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'background' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/advanced WAF|real-time attack monitoring/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Password required')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password')
 
     const identifierInput = screen.getByLabelText('Email or username')
     const passwordInput = screen.getByLabelText('Password')
@@ -37,13 +56,14 @@ describe('LoginPage', () => {
     expect(passwordInput).toBeInTheDocument()
     expect(passwordInput).toHaveAttribute('id', 'password')
     expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('w-full')
   })
 
   it('shows the generic invalid-login message without account-existence leakage', async () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: false, code: 'INVALID_CREDENTIALS' })
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'unknown@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
@@ -59,7 +79,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: false, code: 'SERVER_ERROR' })
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
@@ -72,7 +92,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockRejectedValue(new Error('Unexpected failure'))
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
@@ -90,7 +110,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: true })
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')

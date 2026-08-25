@@ -32,7 +32,7 @@ vi.mock('motion/react', () => ({
 
 vi.mock('@/components/dashboard/StatCard', () => ({
   StatCard: ({ label, value, secondary }: { label: string; value: string | number; secondary?: string }) => (
-    <div>
+    <div data-testid="stat-card">
       <span>{label}</span>
       <span>{value}</span>
       {secondary ? <span>{secondary}</span> : null}
@@ -108,19 +108,29 @@ describe('DashboardPage metric definitions', () => {
     useAlerts.mockReturnValue({ data: { items: [] }, isPending: false })
   })
 
-  it('labels the traffic false-positive field as an operational proxy', () => {
+  it('labels the traffic false-positive KPI as an operational proxy', () => {
     render(<DashboardPage />)
 
     expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
     expect(screen.getByText('Not ground-truth FPR')).toBeInTheDocument()
+    expect(screen.queryByText('Allowed non-Normal rate')).not.toBeInTheDocument()
+  })
+
+  it('keeps the complete KPI set and enforcement panel visible', () => {
+    render(<DashboardPage />)
+
+    expect(screen.getAllByTestId('stat-card')).toHaveLength(6)
+    expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
+    expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
+    expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map: 5/6/7/8')
   })
 
   it('distinguishes model confidence from attack severity and names the window semantics', () => {
     render(<DashboardPage />)
 
-    expect(screen.getByText('Average model confidence')).toBeInTheDocument()
+    expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
     expect(screen.getByText('Average model certainty; not attack severity')).toBeInTheDocument()
-    expect(screen.getByText('Rolling window ending now')).toBeInTheDocument()
+    expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
   })
 
   it('exposes the time-window control as an accessible pressed-button group', async () => {
@@ -132,7 +142,7 @@ describe('DashboardPage metric definitions', () => {
     const dayButton = screen.getByRole('button', { name: '24 hours' })
 
     expect(group).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: 'Activity series' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Activity series' })).not.toBeInTheDocument()
     expect(sixHourButton).toHaveAttribute('aria-pressed', 'true')
     expect(sixHourButton).toHaveClass('focus-visible:outline-none')
     expect(dayButton).toHaveClass('text-text-muted', 'hover:bg-surface-inset', 'hover:text-text-primary')
@@ -171,7 +181,7 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('1/2/3/4')
-    expect(screen.getByTestId('enforcement-map')).toHaveTextContent('5/6/7/8')
+    expect(screen.getByText('Review ML Health')).toBeInTheDocument()
   })
 
   it('does not present missing confidence aggregates as zero-count data', () => {
@@ -187,9 +197,33 @@ describe('DashboardPage metric definitions', () => {
     render(<DashboardPage />)
 
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('Confidence bands unavailable')
-    expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map unavailable')
     expect(screen.queryByText('Confidence bands: 0/0/0/0')).not.toBeInTheDocument()
-    expect(screen.queryByText('Enforcement map: 0/0/0/0')).not.toBeInTheDocument()
+  })
+
+  it('collapses lower analytics into one neutral empty state when the window has no activity', () => {
+    useDashboardStats.mockReturnValue({
+      data: {
+        ...stats,
+        total_requests: 0,
+        blocked_count: 0,
+        allowed_count: 0,
+        throttled_count: 0,
+        high_alert_count: 0,
+        attack_distribution: {},
+        counts_by_confidence_tier: { critical: 0, high: 0, medium: 0, low: 0 },
+        top_source_ips: [],
+        top_targeted_paths: [],
+      },
+      isPending: false,
+    })
+
+    render(<DashboardPage />)
+
+    expect(screen.getByRole('heading', { name: 'Window detail' })).toBeInTheDocument()
+    expect(screen.getByText(/No traffic was reported in this window/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('attack-type-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('confidence-bands')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
   })
 
   it('surfaces dashboard query errors without removing the dashboard shell', () => {
@@ -225,7 +259,6 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Alert data is unavailable')
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('1/2/3/4')
-    expect(screen.getByTestId('enforcement-map')).toHaveTextContent('5/6/7/8')
     expect(screen.queryByTestId('recent-alerts-table')).not.toBeInTheDocument()
   })
 

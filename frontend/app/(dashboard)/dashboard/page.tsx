@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,7 @@ import { MLEnforcementMap } from '@/components/dashboard/MLEnforcementMap'
 import { TopSourceIPs } from '@/components/dashboard/TopSourceIPs'
 import { TopTargetedPaths } from '@/components/dashboard/TopTargetedPaths'
 import { RecentAlertsTable } from '@/components/dashboard/RecentAlertsTable'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { ErrorState } from '@/components/ui/StateViews'
 import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
@@ -120,8 +122,7 @@ export default function DashboardPage() {
   // used as the source for Dashboard totals.
   const attackCounts = stats?.attack_distribution ?? {}
   const allConfidenceBands = stats?.counts_by_confidence_tier ?? null
-  const nonNormalEnforcementBands =
-    stats?.non_normal_counts_by_confidence_tier ?? null
+  const nonNormalEnforcementBands = stats?.non_normal_counts_by_confidence_tier ?? null
 
   const summaryWindowTotal = stats?.total_requests ?? 0
 
@@ -139,13 +140,19 @@ export default function DashboardPage() {
 
   const hasTimelineEvents = bucketActionTotal > 0
   const hasWindowDataMismatch = stats != null && summaryWindowTotal !== bucketWindowTotal
+  const hasDistributionData =
+    summaryWindowTotal > 0 ||
+    Object.keys(attackCounts).length > 0 ||
+    Object.values(allConfidenceBands ?? {}).some((count) => count > 0) ||
+    (stats?.top_source_ips.length ?? 0) > 0 ||
+    (stats?.top_targeted_paths.length ?? 0) > 0
 
   // Stat card values with honest fallback
   const statCards = [
     {
       label: 'Non-Normal predictions',
       value: stats?.high_alert_count ?? '—',
-      valueColor: 'text-emerald-500',
+      valueColor: 'text-text-primary',
       valueFlashColor: 'text-red-200',
       secondary:
         statsUnavailable
@@ -155,7 +162,7 @@ export default function DashboardPage() {
               ? 'No threats in this window'
               : 'No threats detected'
             : undefined,
-      secondaryColor: 'text-red-400',
+      secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_high_alert_count ?? null,
       hideDeltaWhenValueZero: true,
       delay: 0,
@@ -218,7 +225,7 @@ export default function DashboardPage() {
           : stats?.false_positive_rate == null
             ? 'No telemetry in window'
             : 'Not ground-truth FPR',
-      secondaryColor: 'text-[var(--color-text-secondary)]',
+      secondaryColor: 'text-text-secondary',
       delay: 0.25,
     },
   ]
@@ -228,22 +235,27 @@ export default function DashboardPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="min-w-0 flex flex-col gap-3 p-3 sm:p-4"
+      className="min-w-0 flex flex-col gap-6"
     >
-      {/* Stats Row */}
-      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <PageHeader
+        title="Dashboard"
+        description="Review request activity, detection volume, and enforcement outcomes for the selected window."
+      />
+
+      {/* Summary metrics */}
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3 lg:divide-x lg:divide-y-0 xl:grid-cols-6">
         {statCards.map((card) => (
-            <StatCard
-              key={card.label}
-              label={card.label}
-              value={card.value}
-              valueColor={card.valueColor}
-              valueFlashColor={card.valueFlashColor}
-              secondary={card.secondary ?? undefined}
-              secondaryColor={card.secondaryColor}
-              previousValue={card.previousValue}
-              deltaInverted={card.deltaInverted}
-              progressBar={card.progressBar}
+          <StatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            valueColor={card.valueColor}
+            valueFlashColor={card.valueFlashColor}
+            secondary={card.secondary ?? undefined}
+            secondaryColor={card.secondaryColor}
+            previousValue={card.previousValue}
+            deltaInverted={card.deltaInverted}
+            progressBar={card.progressBar}
             hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
             delay={card.delay}
           />
@@ -255,13 +267,11 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3 sm:p-4"
+        className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-3 sm:p-4"
       >
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
-            <span className="min-w-0 text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
-              Request activity — last {TIME_WINDOW_LABELS[timeWindow]}
-            </span>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <h2 className="min-w-0 text-base font-semibold text-text-primary">Request activity</h2>
             <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
               {TIME_WINDOWS.map((win) => (
                 <button
@@ -271,7 +281,7 @@ export default function DashboardPage() {
                   aria-pressed={timeWindow === win}
                   onClick={() => handleTimeWindowChange(win)}
                   className={cn(
-                    'rounded px-3 py-1 text-xs font-medium transition-colors',
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg-panel)]',
                     timeWindow === win
                       ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
@@ -287,35 +297,37 @@ export default function DashboardPage() {
             <span
               role="status"
               aria-live="polite"
-              className="text-[10px] text-[var(--color-text-muted)]"
+              className="text-xs text-text-muted"
             >
               {statsPending || alertsPending
                 ? 'Loading…'
                 : statsFetching || alertsFetching
                   ? 'Updating…'
-                  : `Showing last ${TIME_WINDOW_LABELS[timeWindow]}`}
+                  : null}
             </span>
-            <span className="hidden text-[10px] text-[var(--color-text-muted)] sm:inline">
-              Rolling window ending now
+            <span className="hidden text-xs text-text-muted sm:inline">
+              Rolling window · ending now
             </span>
           </div>
         </div>
-        <div
-          role="list"
-          aria-label="Activity series"
-          className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--color-text-secondary)]"
-        >
-          {[
-            ['Blocked', 'bg-severity-high-accent'],
-            ['Throttled', 'bg-severity-blocked-accent'],
-            ['Allowed', 'bg-severity-safe-accent'],
-          ].map(([label, colorClass]) => (
-            <span key={label} role="listitem" className="inline-flex items-center gap-1.5">
-              <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', colorClass)} />
-              {label}
-            </span>
-          ))}
-        </div>
+        {hasTimelineEvents && !statsUnavailable ? (
+          <div
+            role="list"
+            aria-label="Activity series"
+            className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary"
+          >
+            {[
+              ['Blocked', 'bg-severity-high-accent'],
+              ['Throttled', 'bg-severity-blocked-accent'],
+              ['Allowed', 'bg-severity-safe-accent'],
+            ].map(([label, colorClass]) => (
+              <span key={label} role="listitem" className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', colorClass)} />
+                {label}
+              </span>
+            ))}
+          </div>
+        ) : null}
         {statsUnavailable ? (
           <div className="flex h-[140px] items-center justify-center">
             <p className="text-[11px] text-[var(--color-text-secondary)]">Timeline unavailable</p>
@@ -356,91 +368,82 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {/* Distribution Grid */}
-      <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {!statsUnavailable ? (
-          <>
-            {/* Attack Type Panel */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-            >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-                Attack type distribution
-              </div>
-              <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
-            </motion.div>
+      {/* Window detail */}
+      {!statsUnavailable && hasDistributionData ? (
+        <div className="grid min-w-0 grid-cols-1 divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-surface-panel md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
+            className="min-w-0 flex flex-col gap-2 p-4"
+          >
+            <h2 className="mb-2 text-sm font-semibold text-text-primary">Attack type distribution</h2>
+            <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
+          </motion.div>
 
-            {/* ML Confidence Bands + Enforcement Map */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-            >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-                ML confidence bands
-              </div>
-              <MLConfidenceBands
-                critical={allConfidenceBands?.critical ?? 0}
-                high={allConfidenceBands?.high ?? 0}
-                medium={allConfidenceBands?.medium ?? 0}
-                low={allConfidenceBands?.low ?? 0}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
+            className="min-w-0 flex flex-col gap-2 p-4"
+          >
+            <h2 className="mb-2 text-sm font-semibold text-text-primary">Model confidence</h2>
+            <MLConfidenceBands
+              critical={allConfidenceBands?.critical ?? 0}
+              high={allConfidenceBands?.high ?? 0}
+              medium={allConfidenceBands?.medium ?? 0}
+              low={allConfidenceBands?.low ?? 0}
+              isPending={statsPending}
+              unavailable={allConfidenceBands == null}
+            />
+            <div className="mt-4 min-w-0 border-t border-border-light pt-3 flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-text-secondary">ML Enforcement Map</h3>
+              <MLEnforcementMap
+                nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
                 isPending={statsPending}
-                unavailable={allConfidenceBands == null}
+                unavailable={nonNormalEnforcementBands == null}
               />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-text-muted">
+              Enforcement thresholds are maintained with the active model.
+              <Link href="/ml-health" className="ml-1 text-text-secondary underline decoration-border-light underline-offset-2 hover:text-text-primary">
+                Review ML Health
+              </Link>
+            </p>
+          </motion.div>
 
-              <div className="mt-4 min-w-0 border-t border-[var(--color-text-ghost)] pt-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">
-                    ML Enforcement Map
-                  </span>
-                  <div className="h-1 w-8 bg-violet-500/30 rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-500 w-2/3" />
-                  </div>
-                </div>
-                <MLEnforcementMap
-                  nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
-                  isPending={statsPending}
-                  unavailable={nonNormalEnforcementBands == null}
-                />
-              </div>
-            </motion.div>
-          </>
-        ) : null}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
+            className="min-w-0 flex flex-col gap-2 p-4"
+          >
+            <h2 className="mb-2 text-sm font-semibold text-text-primary">Top source IPs</h2>
+            <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
+          </motion.div>
 
-        {!statsUnavailable ? (
-          <>
-            {/* Top Source IPs */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-            >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-                Top source IPs
-              </div>
-              <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
-            </motion.div>
-
-            {/* Top Targeted Paths */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
-              className="min-w-0 rounded-lg border border-[var(--color-text-ghost)] bg-[var(--color-bg-panel)] p-3.5 flex flex-col gap-2"
-            >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)] mb-3">
-                Top targeted paths
-              </div>
-              <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
-            </motion.div>
-          </>
-        ) : null}
-      </div>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
+            className="min-w-0 flex flex-col gap-2 p-4"
+          >
+            <h2 className="mb-2 text-sm font-semibold text-text-primary">Top targeted paths</h2>
+            <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
+          </motion.div>
+        </div>
+      ) : !statsUnavailable && statsPending ? (
+        <section className="rounded-lg border border-border-light bg-surface-panel p-4" aria-label="Window detail loading">
+          <p className="text-sm text-text-secondary">Loading window detail…</p>
+        </section>
+      ) : !statsUnavailable ? (
+        <section className="rounded-lg border border-border-light bg-surface-panel px-4 py-5" aria-label="Window detail">
+          <h2 className="text-sm font-semibold text-text-primary">Window detail</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
+            No traffic was reported in this window. Detailed distributions will appear when activity is available.
+          </p>
+        </section>
+      ) : null}
 
       {alertsError ? (
         <DashboardQueryError

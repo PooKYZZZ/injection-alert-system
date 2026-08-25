@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   formatAlertDateTime,
   formatConfidenceLabel,
+  formatCompactConfidencePercent,
   formatConfidencePercent,
   formatRelativeTime,
+  formatStableDateTime,
   parseApiTimestamp,
 } from './date-time'
 
@@ -25,6 +27,13 @@ describe('API date and confidence formatting', () => {
     expect(
       formatAlertDateTime('2026-08-24T14:06:47Z', { timeZone: 'UTC' })
     ).toBe('Aug 24, 2026, 2:06 PM')
+  })
+
+  it('formats administrative timestamps deterministically in UTC', () => {
+    expect(formatStableDateTime('2026-08-24T14:06:47Z')).toBe(
+      'Aug 24, 2026, 2:06 PM UTC'
+    )
+    expect(formatStableDateTime('not-a-timestamp')).toBe('Unknown timestamp')
   })
 
   it('does not describe future timestamps as already elapsed', () => {
@@ -50,10 +59,13 @@ describe('API date and confidence formatting', () => {
     expect(formatRelativeTime(timestamp, now)).toBe('1year ago')
   })
 
-  it('keeps high probabilities below 100 percent when rounding allows it', () => {
+  it('keeps source precision available while offering compact operator display', () => {
+    expect(formatConfidencePercent(0.519262)).toBe('51.9262%')
+    expect(formatCompactConfidencePercent(0.519262)).toBe('51.9%')
     expect(formatConfidencePercent(0.9998)).toBe('99.98%')
     expect(formatConfidenceLabel(0.9998, 'CRITICAL')).toBe(
       '99.98% (Critical confidence)'
     )
+    expect(formatCompactConfidencePercent(0.9998)).toBe('99.98%')
   })
 })

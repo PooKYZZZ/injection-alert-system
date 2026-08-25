@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { authPrimaryButtonClass } from '@/components/auth/authStyles'
+
 export function VerifyEmailForm({ token }: { token: string }) {
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -29,7 +31,7 @@ export function VerifyEmailForm({ token }: { token: string }) {
 
   return (
     <div className="mt-8 flex flex-col gap-4">
-      <button className="h-11 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell disabled:opacity-50" disabled={pending || !token} onClick={() => void verify()} type="button">
+      <button className={authPrimaryButtonClass} disabled={pending || !token} onClick={() => void verify()} type="button">
         {pending ? 'Verifying…' : 'Verify email'}
       </button>
       {message ? <p role="status" className="text-sm leading-5 text-text-secondary">{message}</p> : null}

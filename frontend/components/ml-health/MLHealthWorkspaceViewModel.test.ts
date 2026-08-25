@@ -50,10 +50,10 @@ describe('MLHealthWorkspace.view-model', () => {
     const bands = buildPolicyBands(health)
 
     expect(bands).toHaveLength(4)
-    expect(bands[0]).toMatchObject({ label: 'Low confidence non-Normal', action: 'allow', rangeLabel: '<40%' })
-    expect(bands[1]).toMatchObject({ label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: '40%-70%' })
-    expect(bands[2]).toMatchObject({ label: 'High confidence non-Normal', action: 'block', rangeLabel: '>70%-<85%' })
-    expect(bands[3]).toMatchObject({ label: 'Critical confidence non-Normal', action: 'block', rangeLabel: '>=85%' })
+    expect(bands[0]).toMatchObject({ label: 'Low', action: 'allow', rangeLabel: '< 40%' })
+    expect(bands[1]).toMatchObject({ label: 'Medium', action: 'throttle', rangeLabel: '40% – ≤ 70%' })
+    expect(bands[2]).toMatchObject({ label: 'High', action: 'block', rangeLabel: '> 70% – < 85%' })
+    expect(bands[3]).toMatchObject({ label: 'Critical', action: 'block', rangeLabel: '≥ 85%' })
     expect(buildMLHealthViewModel(health).normalPolicyException).toBe(
       'Normal predictions remain allowed for all valid confidence tiers.'
     )
@@ -69,7 +69,80 @@ describe('MLHealthWorkspace.view-model', () => {
 
     expect(viewModel.driftScoreDisplay).toBe('Not reported')
     expect(viewModel.eceDisplay).toBe('Not reported')
-    expect(viewModel.calibrationSummary).toBe('Expected calibration error not reported in this snapshot.')
+    expect(viewModel.calibrationSummary).toBe('Expected calibration error was not reported in this snapshot.')
+    expect(viewModel.monitoringStatusLabel).toBe('Incomplete')
+    expect(viewModel.monitoringUnavailableCount).toBe(1)
+  })
+
+  it('does not turn reported evaluation metrics into invented health judgments', () => {
+    const viewModel = buildMLHealthViewModel(baseHealth)
+
+    expect(viewModel.calibrationSummary).toBe(
+      'Expected calibration error was reported; no acceptance threshold was provided.'
+    )
+    expect(viewModel.classMetrics).toEqual([
+      { label: 'SQL Injection', f1Display: '0.900' },
+      { label: 'XSS', f1Display: '0.840' },
+    ])
+  })
+
+  it('does not present zero traffic latency as a measured result', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      latency_ms: 0,
+      traffic_processed: 0,
+    })
+
+    expect(viewModel.latencyDisplay).toBe('Not available')
+    expect(viewModel.latencyTrendDisplay).toBe('No previous latency available')
+    expect(viewModel.hasTraffic).toBe(false)
+    expect(viewModel.servingStatusDetail).toMatch(/no serving traffic/i)
+  })
+
+  it('explains when prediction counts have no reported baseline', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      prediction_distribution: {
+        baseline: {},
+        current: { Normal: 12 },
+      },
+    })
+
+    expect(viewModel.evaluationEvidenceSummary).toBe('Reported evaluation metrics are included in this snapshot.')
+    expect(viewModel.distributionSummary).toBe(
+      'Current prediction counts are available; no reference baseline was supplied, so comparison is unavailable.'
+    )
+    expect(viewModel.distributionHasBaseline).toBe(false)
+    expect(viewModel.distributionRows).toEqual([
+      { label: 'Normal', baselineDisplay: null, currentDisplay: '12', deltaDisplay: null },
+    ])
+  })
+
+  it('separates BFF retrieval time from source freshness and evaluation provenance', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      retrieved_at: '2026-08-25T06:30:00Z',
+    })
+
+    expect(viewModel.retrievedAtDisplay).toBe('Aug 25, 2026, 6:30 AM UTC')
+    expect(viewModel.sourceFreshnessDisplay).toBe('Source timestamp unavailable')
+    expect(viewModel.evaluationProvenanceDisplay).toBe(
+      'Evaluation run identity and timestamp were not provided.'
+    )
+  })
+
+  it('does not claim that missing evaluation fields mean the model was evaluated', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      macro_f1: null,
+      ece: null,
+      per_class_f1: {},
+      calibration_bins: [],
+      prediction_distribution: undefined,
+    })
+
+    expect(viewModel.evaluationEvidenceSummary).toBe('No evaluation metrics were reported in this snapshot.')
+    expect(viewModel.evaluationProvenanceDisplay).toBe('No evaluation provenance was provided.')
   })
 
   it('marks policy ranges as not configured when thresholds are missing', () => {
@@ -87,7 +160,24 @@ describe('MLHealthWorkspace.view-model', () => {
     expect(bands[1]?.rangeLabel).toBe('Not configured')
     expect(bands[2]?.rangeLabel).toBe('Not configured')
     expect(bands[3]?.rangeLabel).toBe('Not configured')
-    expect(bands.every((band) => band.label.includes('non-Normal'))).toBe(true)
+    expect(bands.map((band) => band.label)).toEqual(['Low', 'Medium', 'High', 'Critical'])
+  })
+
+  it('orders known prediction classes for an operator-readable comparison', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      prediction_distribution: {
+        baseline: { 'Other Attacks': 2, 'SQL Injection': 20, Normal: 80 },
+        current: { 'Other Attacks': 3, 'SQL Injection': 24, Normal: 76 },
+      },
+    })
+
+    expect(viewModel.distributionRows.map((row) => row.label)).toEqual([
+      'Normal',
+      'SQL Injection',
+      'Other Attacks',
+    ])
+    expect(viewModel.distributionHasBaseline).toBe(true)
   })
 
   it('does not expose guessed deployment or parameter metadata', () => {

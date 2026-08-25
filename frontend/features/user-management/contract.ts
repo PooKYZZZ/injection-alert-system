@@ -25,17 +25,24 @@ export const accountRoleSchema = z.object({
 
 export const accountEnabledSchema = z.object({ enabled: z.boolean() })
 
-export type SafeManagedAccount = {
-  id: string
-  display_name: string
-  email: string
-  pending_email: string | null
-  role: UserRole
-  enabled: boolean
-  email_verified: boolean
-  mfa_status: 'not_required' | 'enrollment_required' | 'active'
-  created_at: string
-}
+export const safeManagedAccountSchema = z.object({
+  id: z.string().uuid(),
+  display_name: z.string().min(1),
+  email: z.string().email(),
+  pending_email: z.string().email().nullable(),
+  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  enabled: z.boolean(),
+  email_verified: z.boolean(),
+  mfa_status: z.enum(['not_required', 'enrollment_required', 'active']),
+  setup_status: z.enum(['pending', 'complete']),
+  created_at: z.string().datetime({ offset: true }),
+}).strict()
+
+export const managedAccountsResponseSchema = z.object({
+  accounts: z.array(safeManagedAccountSchema),
+}).strict()
+
+export type SafeManagedAccount = z.infer<typeof safeManagedAccountSchema>
 
 export function mfaRequiredForRole(role: UserRole): boolean {
   return role !== 'VIEWER'

@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 
 import { auth } from '@/auth'
+import { readPreAuthHandleFromCookies } from '@/lib/auth/preauth'
+import { canRenderLoginMfaPage } from '@/lib/auth/login-mfa-challenge'
 import { requireMfaChallengePermission } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import { readPageRuntimeAuthFlags } from '@/lib/server/runtime-config'
@@ -14,6 +16,7 @@ export default async function MfaVerifyPage() {
     session,
     PERMISSIONS.MFA_ENROLLMENT
   )
-  if (!authorization.ok) redirect('/login')
+  const preAuthHandle = await readPreAuthHandleFromCookies()
+  if (!authorization.ok || !canRenderLoginMfaPage(session, preAuthHandle)) redirect('/login')
   return <MfaVerifyForm />
 }

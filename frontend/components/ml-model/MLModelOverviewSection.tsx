@@ -4,6 +4,7 @@ import { Activity, Database, Download, Play, ShieldCheck, Users } from 'lucide-r
 import type { ReactNode } from 'react'
 
 import type { RetrainingSummary } from '@/features/ml-model/types'
+import { formatStableDateTime } from '@/lib/date-time'
 import styles from './MLModelWorkspace.module.css'
 
 interface Props {
@@ -15,12 +16,6 @@ interface Props {
   onExport: () => void
   actionError?: string | null
   notice?: string | null
-}
-
-function formatTimestamp(value: string | null): string {
-  if (!value) return 'Not recorded'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? 'Not recorded' : date.toLocaleString()
 }
 
 function MetricCard({
@@ -142,7 +137,7 @@ export function MLModelOverviewSection({
         />
         <MetricCard
           label="Last trigger"
-          value={formatTimestamp(summary.last_trigger_time)}
+          value={formatStableDateTime(summary.last_trigger_time, 'Not recorded')}
           detail={summary.latest_run_state ? `Latest state: ${summary.latest_run_state}` : 'No run recorded'}
           icon={<Activity size={15} />}
         />
