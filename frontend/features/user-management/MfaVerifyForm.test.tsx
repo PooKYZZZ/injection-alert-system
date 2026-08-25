@@ -86,9 +86,11 @@ describe('MfaVerifyForm', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Try again.')
     expect(input).toHaveValue('123456')
-    expect(document.activeElement).toBe(input)
-    expect(input.selectionStart).toBe(0)
-    expect(input.selectionEnd).toBe(6)
+    await waitFor(() => {
+      expect(document.activeElement).toBe(input)
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe(6)
+    })
   })
 
   it('replaces the OTP form with a terminal restart state', async () => {
