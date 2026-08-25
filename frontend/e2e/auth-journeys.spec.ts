@@ -204,7 +204,9 @@ test.describe('critical authentication journeys', () => {
     await expect(page).toHaveURL(/\/mfa\/verify$/)
     await page.goto('/mfa/recover')
 
-    await page.getByLabel('Backup code').fill(identity.backupCode)
+    await page
+      .getByRole('textbox', { name: 'Backup code' })
+      .fill(identity.backupCode)
     await page.getByRole('button', { name: /use backup code/i }).click()
 
     await expect(page).toHaveURL(/\/mfa\/enroll$/)
@@ -239,7 +241,7 @@ test.describe('critical authentication journeys', () => {
     await page.goto('/mfa/recover')
 
     await page
-      .getByRole('button', { name: /send a recovery code/i })
+      .getByRole('button', { name: /email me a recovery code/i })
       .click()
     await expect(
       page.getByText(/a code has been sent to your verified email/i)
@@ -299,7 +301,7 @@ test.describe('critical authentication journeys', () => {
       .getByRole('button', { name: /verify and continue/i })
       .click()
     await expect(
-      page.getByText('That authenticator code is invalid or already used.', {
+      page.getByText('That authenticator code is invalid. Try again.', {
         exact: true,
       })
     ).toBeVisible()
