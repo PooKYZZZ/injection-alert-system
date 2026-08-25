@@ -563,4 +563,4 @@ The implementation will append a dated entry for each focused group below with t
 - **Preserved:** Existing timeline controls, alert/table behavior, empty/loading/unavailable handling, semantic status colors, no-fabricated-data rules, and current responsive collapse behavior remain unchanged.
 - **Validation:** Focused Dashboard suite **PASS**, 1 file / 12 tests; full frontend suite **PASS**, 100 files / 625 tests; `npm run lint` **PASS**; `npm run typecheck` **PASS**; `npm run build` **PASS**; `git diff --check` **PASS**. The browser server was verified on this worktree, while the protected route redirected to `/login` without an authenticated session.
 - **Browser evidence:** Protected `/dashboard` inspection still redirects to `/login` in the available unauthenticated browser session; no authenticated screenshot claim is made.
-- **Commit:** `5195693` — `fix(dashboard): restore complete KPI summary`.
+- **Commit:** `4ff63d9` — `fix(dashboard): restore complete KPI summary`.
