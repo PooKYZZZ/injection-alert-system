@@ -7,7 +7,7 @@ import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
-import { formatAlertDateTime, formatConfidencePercent, formatConfidenceTierLabel, formatRelativeTime } from '@/lib/date-time'
+import { formatAlertDateTime, formatCompactConfidencePercent, formatConfidenceTierLabel, formatRelativeTime } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -374,7 +374,7 @@ function AlertsTableContent({
                   <td className="p-3">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-mono text-xs text-text-primary">
-                        {formatConfidencePercent(alert.confidence)}
+                        {formatCompactConfidencePercent(alert.confidence)}
                       </span>
                       <span className={`text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
                         {formatConfidenceTierLabel(alert.confidence_level)}

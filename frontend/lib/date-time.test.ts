@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatAlertDateTime,
   formatConfidenceLabel,
+  formatCompactConfidencePercent,
   formatConfidencePercent,
   formatRelativeTime,
   formatStableDateTime,
@@ -58,11 +59,13 @@ describe('API date and confidence formatting', () => {
     expect(formatRelativeTime(timestamp, now)).toBe('1 year ago')
   })
 
-  it('uses compact display precision while keeping high probabilities below 100 percent', () => {
-    expect(formatConfidencePercent(0.519262)).toBe('51.9%')
+  it('keeps source precision available while offering compact operator display', () => {
+    expect(formatConfidencePercent(0.519262)).toBe('51.9262%')
+    expect(formatCompactConfidencePercent(0.519262)).toBe('51.9%')
     expect(formatConfidencePercent(0.9998)).toBe('99.98%')
     expect(formatConfidenceLabel(0.9998, 'CRITICAL')).toBe(
       '99.98% (Critical confidence)'
     )
+    expect(formatCompactConfidencePercent(0.9998)).toBe('99.98%')
   })
 })

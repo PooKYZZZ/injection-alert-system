@@ -87,6 +87,13 @@ export function formatConfidencePercent(confidence: number | null | undefined): 
   if (confidence == null || !Number.isFinite(confidence)) return '—'
 
   const percentage = Math.min(Math.max(confidence, 0), 1) * 100
+  return `${percentage.toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
+}
+
+export function formatCompactConfidencePercent(confidence: number | null | undefined): string {
+  if (confidence == null || !Number.isFinite(confidence)) return '—'
+
+  const percentage = Math.min(Math.max(confidence, 0), 1) * 100
   const roundedToTenth = Math.round(percentage * 10) / 10
   const display = roundedToTenth >= 100 ? percentage.toFixed(2) : roundedToTenth.toFixed(1)
   return `${display.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
