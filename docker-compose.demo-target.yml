@@ -12,7 +12,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       HOSTNAME: 0.0.0.0
       PORT: 3010
-      DATABASE_URL: file:./prisma/dev.db
+      # Prisma resolves SQLite URLs relative to prisma/schema.prisma.
+      DATABASE_URL: file:./dev.db
       ENFORCEMENT_MODE: ${ENFORCEMENT_MODE:-off}
       ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
       ENFORCEMENT_CHALLENGE_URL: http://backend:8000/api/internal/enforcement/challenge
