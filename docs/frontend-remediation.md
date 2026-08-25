@@ -1,8 +1,8 @@
 # CyberTrace Frontend Remediation Ledger
 
 **Status:** Final audit recorded; explicit environment-bound deferrals documented
-**Branch:** `codex/ml-health-admin-mfa-remediation`  
-**Baseline HEAD:** `d1e3a6587990833201a663a868abf5468b2acdd6`  
+**Branch:** `codex/ml-health-admin-mfa-remediation`
+**Baseline HEAD:** `d1e3a6587990833201a663a868abf5468b2acdd6`
 **Current source HEAD:** `8eb2f8c` (`fix(auth): align login with CyberTrace shell`)
 **Governing specification:** User-provided “CyberTrace Frontend Redesign — Autonomous Product-Design and Engineering Master Prompt” in the task attachment. This ledger is the concise execution contract; it does not replace the master prompt.
 
