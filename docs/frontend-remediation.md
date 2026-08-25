@@ -127,7 +127,7 @@ Each item retains the original granular concern even when current evidence shows
 - **Implementation summary:** Added structured terminal TOTP response codes (`MFA_CHALLENGE_EXPIRED` and `MFA_CHALLENGE_LOCKED`), terminal pre-auth cleanup in the verify route, focus/select retry behavior, terminal restart rendering, and an explicit single-flight ref guard. Input semantics and error association remain intact.
 - **Tests and exact results:** Added route-response, route cleanup, retry focus/selection, terminal rendering, and duplicate-submit regression tests. `npx vitest run --pool=threads lib/server/db/account-route-response.test.ts app/api/mfa-verify.test.ts features/user-management/MfaVerifyForm.test.tsx` — **PASS**, 3 files / 11 tests. `npx vitest run --pool=threads features/user-management/MfaVerifyForm.test.tsx` — **PASS**, 1 file / 7 tests.
 - **Browser observations and evidence:** No live invalid TOTP was submitted, to avoid consuming challenge attempts. Existing in-app browser verification of authenticated/direct `/mfa/verify` behavior still redirects to `/login`; component tests cover recoverable and terminal render branches without mutating an account. A fresh terminal-state screenshot remains part of the broader MFA browser audit once a safe controlled harness is available.
-- **Commit:** Pending source commit; documentation hash will be recorded in the follow-up docs commit.
+- **Commit:** `58516b0` — `fix(auth): preserve MFA retry and terminal states`.
 - **Follow-up findings:** MFA-003 remains open for browser Back/Forward/refresh, abandoned challenge, rate-limit/service-unavailable rendering, and an end-to-end terminal screenshot. MFA-001 remains open for compact visual composition.
 
 ### MLH-001 — Give expanded ML evidence the width it requires
@@ -223,7 +223,7 @@ For every completed, deferred, or newly discovered meaningful finding, append/up
 | `d1e3a658` | Prior ML Health/admin/MFA design-plan baseline | Existing branch history; current runtime rechecked | Baseline |
 | `ec29240` | Remediation ledger | `git diff --check`, document review | Baseline recorded |
 | `aa2b4ee` | MLH-001 evidence-width recompose | 7 focused tests; desktop/narrow browser measurement; `git diff --check` | Resolved |
-| pending | MFA-002/003/004 retry, terminal-state, and single-flight behavior | 3 focused test files / 11 tests PASS; docs follow-up will record source hash | Source changes ready for commit |
+| `58516b0` | MFA-002/003/004 retry, terminal-state, and single-flight behavior | 3 focused test files / 11 tests PASS; `git diff --check` | MFA-002/004 resolved; MFA-003 remains in progress |
 
 ## Final gate
 
