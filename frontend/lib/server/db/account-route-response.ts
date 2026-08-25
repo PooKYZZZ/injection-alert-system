@@ -90,19 +90,40 @@ function safeErrorCode(error: unknown): string | undefined {
   return error.message
 }
 
+export function isTerminalTotpError(error: unknown): boolean {
+  const code = safeErrorCode(error)
+  return code === 'EXPIRED' || code === 'LOCKED' || code === 'MFA_CHALLENGE_EXPIRED' || code === 'MFA_CHALLENGE_LOCKED'
+}
+
 export function totpErrorResponse(error: unknown): Response {
   const code = safeErrorCode(error)
-  const status = code === 'INVALID_REQUEST' || code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' ? 400 : 503
+  const expired = code === 'EXPIRED' || code === 'MFA_CHALLENGE_EXPIRED'
+  const locked = code === 'LOCKED' || code === 'MFA_CHALLENGE_LOCKED'
+  const invalid = code === 'INVALID_CODE'
+  const invalidRequest = code === 'INVALID_REQUEST'
+  const status = expired || locked || invalid || invalidRequest ? 400 : 503
+  const clientCode = expired
+    ? 'MFA_CHALLENGE_EXPIRED'
+    : locked
+      ? 'MFA_CHALLENGE_LOCKED'
+      : invalid
+        ? 'INVALID_CODE'
+        : invalidRequest
+          ? 'INVALID_REQUEST'
+          : 'MFA_UNAVAILABLE'
   return NextResponse.json(
     {
       error: {
-        code: code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED' ? 'INVALID_CODE' : 'MFA_UNAVAILABLE',
-        message:
-          code === 'INVALID_CODE' || code === 'LOCKED' || code === 'EXPIRED'
-            ? 'That authenticator code is invalid or already used.'
-            : status === 400
-              ? 'The MFA request is invalid.'
-              : 'MFA enrollment is temporarily unavailable.',
+        code: clientCode,
+        message: expired
+          ? 'This sign-in challenge has expired. Start sign-in again.'
+          : locked
+            ? 'This sign-in challenge has reached its attempt limit. Start sign-in again.'
+            : invalid
+              ? 'That authenticator code is invalid. Try again.'
+              : invalidRequest
+                ? 'The MFA request is invalid.'
+                : 'MFA verification is temporarily unavailable.',
       },
     },
     { status }

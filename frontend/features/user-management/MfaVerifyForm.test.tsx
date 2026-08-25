@@ -9,6 +9,16 @@ afterEach(() => {
 })
 
 describe('MfaVerifyForm', () => {
+  it('uses a restrained CyberTrace second-factor shell', () => {
+    render(<MfaVerifyForm />)
+
+    expect(screen.getByRole('main')).toBeInTheDocument()
+    expect(screen.getByText('CYBERTRACE')).toBeInTheDocument()
+    expect(screen.getByText('Second factor required')).toBeInTheDocument()
+    expect(screen.getByText('Step 2 of 2')).toBeInTheDocument()
+    expect(screen.queryByText(/backup code|recovery/i)).not.toBeInTheDocument()
+  })
+
   it('requires a six-digit authenticator code', () => {
     render(<MfaVerifyForm />)
     expect(screen.getByRole('heading', { name: /verify your authenticator/i })).toBeInTheDocument()
@@ -49,5 +59,71 @@ describe('MfaVerifyForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Code expired.')
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(input).toHaveAttribute('aria-describedby', 'mfa-code-help mfa-code-error')
+  })
+
+  it('keeps a recoverable code available and selects it for immediate replacement', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: { code: 'INVALID_CODE', message: 'That authenticator code is invalid. Try again.' } }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MfaVerifyForm />)
+
+    const input = screen.getByRole('textbox', { name: 'Authenticator code' }) as HTMLInputElement
+    fireEvent.change(input, { target: { value: '123456' } })
+    fireEvent.submit(screen.getByRole('form', { name: /verify your authenticator/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Try again.')
+    expect(input).toHaveValue('123456')
+    expect(document.activeElement).toBe(input)
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe(6)
+  })
+
+  it('replaces the OTP form with a terminal restart state', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        error: {
+          code: 'MFA_CHALLENGE_EXPIRED',
+          message: 'This sign-in challenge has expired. Start sign-in again.',
+        },
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MfaVerifyForm />)
+
+    const input = screen.getByRole('textbox', { name: 'Authenticator code' })
+    fireEvent.change(input, { target: { value: '123456' } })
+    fireEvent.submit(screen.getByRole('form', { name: /verify your authenticator/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Start sign-in again' })).toBeInTheDocument()
+    expect(screen.getByText('This sign-in challenge has expired. Start sign-in again.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Return to sign in' })).toHaveAttribute('href', '/login')
+    expect(screen.queryByRole('textbox', { name: 'Authenticator code' })).not.toBeInTheDocument()
+  })
+
+  it('keeps verification single-flight when the form is submitted twice', async () => {
+    let resolveResponse: ((response: Response) => void) | undefined
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>((resolve) => {
+      resolveResponse = resolve
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MfaVerifyForm />)
+
+    const input = screen.getByRole('textbox', { name: 'Authenticator code' })
+    const form = screen.getByRole('form', { name: /verify your authenticator/i })
+    fireEvent.change(input, { target: { value: '123456' } })
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Verifying…' })).toBeDisabled()
+
+    resolveResponse?.({
+      ok: false,
+      json: async () => ({ error: { code: 'INVALID_CODE', message: 'Try again.' } }),
+    } as Response)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Try again.')
   })
 })

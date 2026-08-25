@@ -18,4 +18,29 @@ describe('account route error responses', () => {
     })
     expect(totp.status).toBe(400)
   })
+
+  it('preserves terminal TOTP challenge states for the client', async () => {
+    const expired = Object.assign(new Error('EXPIRED'), { code: 'EXPIRED' })
+    const locked = Object.assign(new Error('LOCKED'), { code: 'LOCKED' })
+    const invalid = Object.assign(new Error('INVALID_CODE'), { code: 'INVALID_CODE' })
+
+    expect(await totpErrorResponse(expired).json()).toEqual({
+      error: {
+        code: 'MFA_CHALLENGE_EXPIRED',
+        message: 'This sign-in challenge has expired. Start sign-in again.',
+      },
+    })
+    expect(await totpErrorResponse(locked).json()).toEqual({
+      error: {
+        code: 'MFA_CHALLENGE_LOCKED',
+        message: 'This sign-in challenge has reached its attempt limit. Start sign-in again.',
+      },
+    })
+    expect(await totpErrorResponse(invalid).json()).toEqual({
+      error: {
+        code: 'INVALID_CODE',
+        message: 'That authenticator code is invalid. Try again.',
+      },
+    })
+  })
 })

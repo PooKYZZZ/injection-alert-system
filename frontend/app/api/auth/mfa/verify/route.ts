@@ -9,6 +9,7 @@ import {
   mfaEnrollmentEnabled,
   requireTrustedOrigin,
   featureDisabledResponse,
+  isTerminalTotpError,
   totpErrorResponse,
 } from '@/lib/server/db/account-route-response'
 import { verifyMfaLogin } from '@/lib/server/db/mfa-challenges'
@@ -42,6 +43,13 @@ export async function POST(request: Request): Promise<Response> {
     await clearPreAuthCookie()
     return NextResponse.json({ status: 'authenticated' })
   } catch (error) {
+    if (isTerminalTotpError(error)) {
+      try {
+        await clearPreAuthCookie()
+      } catch {
+        // Keep the terminal response safe even if cookie cleanup is unavailable.
+      }
+    }
     return totpErrorResponse(error)
   }
 }
