@@ -3,6 +3,9 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useMemo, useState, type FormEvent } from 'react'
 
+import { PageHeader } from '@/components/layout/PageHeader'
+import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge'
+
 import { AccountActionsDialog } from './AccountActionsDialog'
 import {
   managedAccountsResponseSchema,
@@ -20,6 +23,24 @@ function mfaLabel(status: SafeManagedAccount['mfa_status']): string {
   if (status === 'active') return 'Enrolled'
   if (status === 'not_required') return 'Not required'
   return 'Enrollment required'
+}
+
+function lifecycleState(account: SafeManagedAccount): { label: string; detail: string; tone: StatusTone } {
+  if (!account.enabled) {
+    return { label: 'Disabled', detail: 'Sign-in blocked', tone: 'danger' }
+  }
+
+  if (account.setup_status === 'pending') {
+    return { label: 'Pending setup', detail: 'Password setup required', tone: 'warning' }
+  }
+
+  return { label: 'Active', detail: 'Ready for sign-in', tone: 'success' }
+}
+
+function mfaTone(status: SafeManagedAccount['mfa_status']): StatusTone {
+  if (status === 'active') return 'success'
+  if (status === 'enrollment_required') return 'warning'
+  return 'neutral'
 }
 
 const roleGuidance: Record<Role, string> = {
@@ -69,7 +90,9 @@ export function UserManagementWorkspace({
     ].some((value) => value.toLowerCase().includes(query)))
   }, [accounts, search])
 
-  const enabledCount = accounts.filter((account) => account.enabled).length
+  const activeCount = accounts.filter((account) => lifecycleState(account).label === 'Active').length
+  const pendingSetupCount = accounts.filter((account) => lifecycleState(account).label === 'Pending setup').length
+  const disabledCount = accounts.filter((account) => lifecycleState(account).label === 'Disabled').length
   const mfaRequiredCount = accounts.filter((account) => account.mfa_status !== 'not_required').length
 
   async function refreshAccounts() {
@@ -154,14 +177,11 @@ export function UserManagementWorkspace({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-8">
-      <header className="flex flex-col gap-4 border-b border-border-light pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-text-primary">User Management</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
-            Manage account lifecycle, access roles, and MFA enrollment. Select an account to review its administrative options.
-          </p>
-        </div>
+    <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8">
+      <PageHeader
+        title="User Management"
+        description="Review account lifecycle and access state. Administrative changes stay inside account details."
+      >
         <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
           <Dialog.Trigger asChild>
             <button type="button" className="h-10 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90">
@@ -205,23 +225,13 @@ export function UserManagementWorkspace({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-      </header>
+      </PageHeader>
 
       <section aria-label="Account summary" className="border-b border-border-light pb-5">
-        <dl className="grid max-w-2xl grid-cols-3 gap-5 text-xs">
-          <div>
-            <dt className="text-text-muted">Accounts</dt>
-            <dd className="mt-1 font-mono text-lg font-semibold text-text-primary">{accounts.length}</dd>
-          </div>
-          <div>
-            <dt className="text-text-muted">Enabled</dt>
-            <dd className="mt-1 font-mono text-lg font-semibold text-text-primary">{enabledCount}</dd>
-          </div>
-          <div>
-            <dt className="text-text-muted">MFA policy applies</dt>
-            <dd className="mt-1 font-mono text-lg font-semibold text-text-primary">{mfaRequiredCount}</dd>
-          </div>
-        </dl>
+        <p className="text-sm font-medium text-text-primary">
+          {accounts.length} account{accounts.length === 1 ? '' : 's'} · {activeCount} active · {pendingSetupCount} pending setup · {disabledCount} disabled
+        </p>
+        <p className="mt-1 text-xs leading-5 text-text-secondary">MFA required for {mfaRequiredCount} account{mfaRequiredCount === 1 ? '' : 's'}.</p>
       </section>
 
       {notice && !selectedAccount ? <p className="-mb-4 text-sm text-text-secondary" role="status">{notice}</p> : null}
@@ -254,7 +264,7 @@ export function UserManagementWorkspace({
             <tbody className="divide-y divide-border-light">
               {filteredAccounts.map((account) => (
                 <tr key={account.id} className="bg-surface-page transition-colors hover:bg-surface-panel/60">
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-3.5">
                     <button
                       type="button"
                       className="text-left font-medium text-text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-action focus-visible:outline-offset-2"
@@ -266,16 +276,16 @@ export function UserManagementWorkspace({
                     <div className="mt-1 text-xs text-text-secondary">{account.email}</div>
                     {account.pending_email ? <div className="mt-1 text-xs text-status-warning">Email change pending: {account.pending_email}</div> : null}
                   </td>
-                  <td className="px-4 py-4 text-text-secondary">{account.role === 'ADMIN' ? 'Admin' : account.role === 'ANALYST' ? 'Analyst' : 'Viewer'}</td>
-                  <td className="px-4 py-4">
-                    <span className={account.enabled ? 'font-medium text-status-success' : 'font-medium text-status-danger'}>
-                      {account.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    <span className="mt-1 block text-xs text-text-muted">
-                      {account.setup_status === 'pending' ? 'Setup pending' : 'Setup complete'} · {account.email_verified ? 'Email verified' : 'Email unverified'}
-                    </span>
+                  <td className="px-4 py-3.5 text-text-secondary">{account.role === 'ADMIN' ? 'Admin' : account.role === 'ANALYST' ? 'Analyst' : 'Viewer'}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex flex-col items-start gap-1">
+                      <StatusBadge label={lifecycleState(account).label} tone={lifecycleState(account).tone} domain="lifecycle" />
+                      <span className="text-xs text-text-muted">{lifecycleState(account).detail}</span>
+                    </div>
                   </td>
-                  <td className="px-4 py-4 text-text-secondary">{mfaLabel(account.mfa_status)}</td>
+                  <td className="px-4 py-3.5">
+                    <StatusBadge label={mfaLabel(account.mfa_status)} tone={mfaTone(account.mfa_status)} domain="auth" />
+                  </td>
                 </tr>
               ))}
             </tbody>

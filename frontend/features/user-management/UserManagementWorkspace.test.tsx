@@ -27,11 +27,12 @@ describe('UserManagementWorkspace', () => {
 
     expect(screen.getByRole('heading', { name: 'User Management' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Account summary' })).toBeInTheDocument()
-    expect(screen.getByText('MFA policy applies')).toBeInTheDocument()
+    expect(screen.getByText('MFA required for 1 account.')).toBeInTheDocument()
     expect(screen.queryByText('MFA scope')).not.toBeInTheDocument()
     expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
     expect(screen.getByText('Enrollment required')).toBeInTheDocument()
-    expect(screen.getByText('Setup complete · Email verified')).toBeInTheDocument()
+    expect(screen.getByText('Ready for sign-in')).toBeInTheDocument()
+    expect(screen.getByText('Active')).toBeInTheDocument()
     expect(screen.queryByText('Created')).not.toBeInTheDocument()
     expect(screen.queryByText('View details')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Search accounts')).toBeInTheDocument()
@@ -42,6 +43,7 @@ describe('UserManagementWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open account details for SOC Analyst' }))
 
     expect(screen.getByRole('dialog', { name: 'SOC Analyst' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveClass('max-sm:bottom-0', 'max-sm:top-auto')
     expect(screen.getByText('Account overview')).toBeInTheDocument()
     expect(screen.getByText('Administrative actions')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit role for SOC Analyst' })).toBeInTheDocument()
@@ -112,8 +114,7 @@ describe('UserManagementWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open account details for SOC Analyst' }))
 
-    expect(screen.getByText('Your own role cannot be changed here.')).toBeInTheDocument()
-    expect(screen.getByText('Your own account cannot be disabled here.')).toBeInTheDocument()
+    expect(screen.getByText('Your own role and sign-in access cannot be changed here.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Role for SOC Analyst')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Disable SOC Analyst' })).not.toBeInTheDocument()
   })
@@ -216,7 +217,7 @@ describe('UserManagementWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open account details for SOC Analyst' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Danger zone' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Access suspension' }))
     const disableButton = screen.getByRole('button', { name: 'Disable SOC Analyst' })
     fireEvent.click(disableButton)
 

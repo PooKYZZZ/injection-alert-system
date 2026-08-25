@@ -4,6 +4,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { useState } from 'react'
 
+import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge'
+
 import type { SafeManagedAccount } from './contract'
 
 type Role = 'ADMIN' | 'ANALYST' | 'VIEWER'
@@ -39,6 +41,18 @@ function mfaLabel(status: SafeManagedAccount['mfa_status']): string {
   if (status === 'active') return 'Enrolled'
   if (status === 'not_required') return 'Not required'
   return 'Enrollment required'
+}
+
+function lifecycleState(account: SafeManagedAccount): { label: string; detail: string; tone: StatusTone } {
+  if (!account.enabled) return { label: 'Disabled', detail: 'Sign-in blocked', tone: 'danger' }
+  if (account.setup_status === 'pending') return { label: 'Pending setup', detail: 'Password setup required', tone: 'warning' }
+  return { label: 'Active', detail: 'Ready for sign-in', tone: 'success' }
+}
+
+function mfaTone(status: SafeManagedAccount['mfa_status']): StatusTone {
+  if (status === 'active') return 'success'
+  if (status === 'enrollment_required') return 'warning'
+  return 'neutral'
 }
 
 const fieldClass =
@@ -86,7 +100,7 @@ export function AccountActionsDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
-        <Dialog.Content className="fixed inset-y-0 right-0 z-50 flex w-[min(100vw,520px)] flex-col overflow-y-auto border-l border-border-light bg-surface-panel shadow-2xl outline-none max-sm:inset-x-0 max-sm:inset-y-auto max-sm:max-h-[92vh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t">
+        <Dialog.Content className="fixed inset-y-0 right-0 z-50 flex w-[min(100vw,520px)] flex-col overflow-y-auto border-l border-border-light bg-surface-panel shadow-2xl outline-none max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:max-h-[92vh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t">
           <div className="flex items-start justify-between gap-5 border-b border-border-light px-6 py-5">
             <div className="min-w-0">
               <Dialog.Title className="truncate text-xl font-semibold tracking-tight text-text-primary">
@@ -135,14 +149,15 @@ export function AccountActionsDialog({
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
-                  <dt className="text-text-secondary">Account status</dt>
-                  <dd className={account.enabled ? 'font-medium text-status-success' : 'font-medium text-status-danger'}>
-                    {account.enabled ? 'Enabled' : 'Disabled'}
+                  <dt className="text-text-secondary">Lifecycle</dt>
+                  <dd className="flex flex-col items-end gap-1 text-right">
+                    <StatusBadge label={lifecycleState(account).label} tone={lifecycleState(account).tone} domain="lifecycle" />
+                    <span className="text-xs text-text-muted">{lifecycleState(account).detail}</span>
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
                   <dt className="text-text-secondary">MFA</dt>
-                  <dd className="text-right text-text-primary">{mfaLabel(account.mfa_status)}</dd>
+                  <dd className="text-right text-text-primary"><StatusBadge label={mfaLabel(account.mfa_status)} tone={mfaTone(account.mfa_status)} domain="auth" /></dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
                   <dt className="text-text-secondary">Email</dt>
@@ -158,7 +173,7 @@ export function AccountActionsDialog({
               </dl>
 
               {isSelf ? (
-                <p className="mt-3 text-xs leading-5 text-text-muted">Your own role cannot be changed here.</p>
+                <p className="mt-3 text-xs leading-5 text-text-secondary">Your own role and sign-in access cannot be changed here.</p>
               ) : null}
 
               {editingRole && !isSelf ? (
@@ -295,7 +310,6 @@ export function AccountActionsDialog({
                   </div>
                 ) : null}
               </div>
-              {isSelf ? <p className="mt-3 text-xs leading-5 text-text-muted">Your own account cannot be disabled here.</p> : null}
             </section>
 
             <section aria-labelledby="account-email-heading" className="border-t border-border-light pt-6">
@@ -335,15 +349,15 @@ export function AccountActionsDialog({
             </section>
 
             {!isSelf ? (
-              <section className="border-t border-status-danger/30 pt-5" aria-labelledby="danger-zone-heading">
+              <section className="border-t border-border-light pt-5" aria-labelledby="danger-zone-heading">
                 <button
                   id="danger-zone-heading"
                   type="button"
-                  className="text-sm font-medium text-status-danger underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-action focus-visible:outline-offset-2"
+                  className="text-sm font-medium text-text-secondary underline-offset-4 hover:text-text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-action focus-visible:outline-offset-2"
                   aria-expanded={dangerOpen}
                   onClick={() => setDangerOpen((current) => !current)}
                 >
-                  Danger zone
+                  Access suspension
                 </button>
                 {dangerOpen ? <div className="mt-3 border-l-2 border-status-danger/40 pl-4">
                   <p className="text-xs leading-5 text-text-secondary">Disabling blocks sign-in until the account is enabled again. This does not delete the account.</p>
