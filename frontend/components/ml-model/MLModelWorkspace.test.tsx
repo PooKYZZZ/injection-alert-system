@@ -122,6 +122,7 @@ function setHarness({
   isError = false,
   detailPending = false,
   detailError = false,
+  queryError = null,
   mutations = {},
 }: {
   runs?: RetrainingRun[]
@@ -131,18 +132,21 @@ function setHarness({
   isError?: boolean
   detailPending?: boolean
   detailError?: boolean
+  queryError?: unknown
   mutations?: Record<string, ReturnType<typeof mutation>>
 } = {}) {
   mockedUseSummary.mockReturnValue({
     data: summaryData,
     isPending,
     isError,
+    error: queryError,
     refetch: vi.fn(),
   } as never)
   mockedUseRuns.mockReturnValue({
     data: { runs },
     isPending,
     isError,
+    error: queryError,
     refetch: vi.fn(),
   } as never)
   mockedUseRun.mockReturnValue({
@@ -182,6 +186,20 @@ describe('MLModelWorkspace', () => {
     rerender(<MLModelWorkspace role={ROLES.VIEWER} />)
     expect(screen.getByText('No retraining runs have been requested yet.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Request retraining' })).toBeInTheDocument()
+  })
+
+  it('explains when local Model Operations are deliberately unavailable', () => {
+    setHarness({
+      isError: true,
+      summaryData: undefined as never,
+      queryError: Object.assign(new Error('Local retraining control is disabled.'), { status: 503 }),
+    })
+
+    render(<MLModelWorkspace role={ROLES.VIEWER} />)
+
+    expect(screen.getByText(/Model Operations are unavailable in this environment/i)).toBeInTheDocument()
+    expect(screen.getByText(/local retraining controls are disabled or unavailable/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry Model Operations' })).toBeInTheDocument()
   })
 
   it('shows the overview, queued stage, and unavailable evidence without inventing metrics', () => {

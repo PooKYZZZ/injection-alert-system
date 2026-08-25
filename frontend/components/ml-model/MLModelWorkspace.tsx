@@ -38,6 +38,15 @@ function errorMessage(error: unknown): string | null {
   return message
 }
 
+function isCapabilityUnavailable(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as { status?: unknown }).status === 503
+  )
+}
+
 function displayState(state: RetrainingRunStart['state']): string {
   return state.replaceAll('_', ' ')
 }
@@ -129,10 +138,21 @@ export function MLModelWorkspace({ role }: Props) {
   }
 
   if (summaryQuery.isError || runsQuery.isError || !summary) {
+    const capabilityUnavailable =
+      isCapabilityUnavailable(summaryQuery.error) || isCapabilityUnavailable(runsQuery.error)
+
     return (
       <div className={styles.loadingWrap} role="alert">
-        <strong>Failed to load Model Operations</strong>
-        <span>Run state is unavailable. Retry the workspace when the control plane is reachable.</span>
+        <strong>
+          {capabilityUnavailable
+            ? 'Model Operations are unavailable in this environment'
+            : 'Failed to load Model Operations'}
+        </strong>
+        <span>
+          {capabilityUnavailable
+            ? 'Local retraining controls are disabled or unavailable. No run state was loaded.'
+            : 'Run state is unavailable. Retry the workspace when the control plane is reachable.'}
+        </span>
         <button
           type="button"
           className={styles.secondaryButton}
@@ -141,7 +161,7 @@ export function MLModelWorkspace({ role }: Props) {
             void runsQuery.refetch()
           }}
         >
-          Retry
+          {capabilityUnavailable ? 'Retry Model Operations' : 'Retry'}
         </button>
       </div>
     )

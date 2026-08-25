@@ -35,10 +35,31 @@ export const mlModelKeys = {
   run: (runId: string) => ['ml-model', 'runs', runId] as const,
 }
 
-async function getJson<T>(path: string, schema: { parse: (value: unknown) => T }): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store' })
-  if (!response.ok) throw new Error(`${path} responded with ${response.status}`)
+export class RetrainingQueryError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = 'RetrainingQueryError'
+  }
+}
+
+async function getJson<T>(
+  path: string,
+  schema: { parse: (value: unknown) => T },
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await fetch(path, { cache: 'no-store', signal })
+  if (!response.ok) {
+    throw new RetrainingQueryError(`${path} responded with ${response.status}`, response.status)
+  }
   return schema.parse(await response.json())
+}
+
+function retryRetrainingQuery(failureCount: number, error: unknown): boolean {
+  if (error instanceof RetrainingQueryError) return false
+  return failureCount < 3
 }
 
 function safeMutationMessage(payload: unknown): string {
@@ -98,7 +119,8 @@ function hasActiveRun(data: RetrainingRunList | undefined): boolean {
 export function mlModelSummaryOptions() {
   return queryOptions<RetrainingSummary>({
     queryKey: mlModelKeys.summary(),
-    queryFn: () => getJson('/api/ml-model/summary', RetrainingSummarySchema),
+    queryFn: ({ signal }) => getJson('/api/ml-model/summary', RetrainingSummarySchema, signal),
+    retry: retryRetrainingQuery,
     staleTime: 10_000,
     refetchInterval: (query) => (query.state.data?.run_in_progress ? 3_000 : false),
   })
@@ -107,7 +129,8 @@ export function mlModelSummaryOptions() {
 export function mlModelRunsOptions() {
   return queryOptions<RetrainingRunList>({
     queryKey: mlModelKeys.runs(),
-    queryFn: () => getJson('/api/ml-model/runs', RetrainingRunListSchema),
+    queryFn: ({ signal }) => getJson('/api/ml-model/runs', RetrainingRunListSchema, signal),
+    retry: retryRetrainingQuery,
     staleTime: 5_000,
     refetchInterval: (query) => (hasActiveRun(query.state.data) ? 3_000 : false),
   })
@@ -116,9 +139,10 @@ export function mlModelRunsOptions() {
 export function mlModelRunOptions(runId: string) {
   return queryOptions<RetrainingRunDetail>({
     queryKey: mlModelKeys.run(runId),
-    queryFn: () =>
-      getJson(`/api/ml-model/runs/${encodeURIComponent(runId)}`, RetrainingRunDetailSchema),
+    queryFn: ({ signal }) =>
+      getJson(`/api/ml-model/runs/${encodeURIComponent(runId)}`, RetrainingRunDetailSchema, signal),
     enabled: runId.length > 0,
+    retry: retryRetrainingQuery,
     staleTime: 5_000,
     refetchInterval: (query) =>
       query.state.data && isRetrainingRunActive(query.state.data.state) ? 3_000 : false,
