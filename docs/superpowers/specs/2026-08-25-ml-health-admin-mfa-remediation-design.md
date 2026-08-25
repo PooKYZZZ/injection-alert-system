@@ -1,8 +1,8 @@
 # ML Health, User Management, and MFA Remediation Design
 
-**Date:** 2026-08-25  
-**Repository:** CyberTrace / Injection Alert System  
-**Base:** `origin/master` after Dashboard/Alerts remediation PR #123 was merged  
+**Date:** 2026-08-25
+**Repository:** CyberTrace / Injection Alert System
+**Base:** `origin/master` after Dashboard/Alerts remediation PR #123 was merged
 **Status:** Approved for implementation
 
 ## Purpose
