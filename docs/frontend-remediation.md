@@ -1,9 +1,9 @@
 # CyberTrace Frontend Remediation Ledger
 
-**Status:** Final audit recorded; explicit environment-bound deferrals documented  
+**Status:** Final audit recorded; explicit environment-bound deferrals documented
 **Branch:** `codex/ml-health-admin-mfa-remediation`  
 **Baseline HEAD:** `d1e3a6587990833201a663a868abf5468b2acdd6`  
-**Current HEAD:** `8eb2f8c` (`fix(auth): align login with CyberTrace shell`)  
+**Current source HEAD:** `8eb2f8c` (`fix(auth): align login with CyberTrace shell`)  
 **Governing specification:** User-provided “CyberTrace Frontend Redesign — Autonomous Product-Design and Engineering Master Prompt” in the task attachment. This ledger is the concise execution contract; it does not replace the master prompt.
 
 ## Execution contract
@@ -320,7 +320,7 @@ For every completed, deferred, or newly discovered meaningful finding, append/up
 | `879cc71` | MFA-001 compact verification surface | 7 focused tests PASS; typecheck PASS; lint PASS; direct route boundary checked in the in-app browser; `git diff --check` | Resolved for current MFA component; lifecycle browser proof remains under MFA-003 |
 | `f23c6b6` | UMG-005/006/010 action eligibility, compact summary, and drawer audit | 6 focused files / 39 tests PASS; desktop/narrow/protected-admin browser review; `git diff --check` | UMG-005/006 resolved; UMG-010 resolved by audit |
 | `8eb2f8c` | FOUND-005 login/MFA shell coherence and native login semantics | Login tests PASS; final lint/typecheck/build/browser review; `git diff --check` | Resolved |
-| `pending` | Final cross-product audit, evidence index, and explicit deferral record | 14 files / 118 tests PASS; lint/typecheck/build/backend health/browser desktop+narrow+console review; `git diff --check` | Documentation update in progress |
+| `8e973d5` | Final cross-product audit, evidence index, and explicit deferral record | 14 files / 118 tests PASS; lint/typecheck/build/backend health/browser desktop+narrow+console review; `git diff --check` | Recorded |
 
 ## Final gate
 
