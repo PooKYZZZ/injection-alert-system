@@ -2,33 +2,42 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MfaVerifyForm } from './MfaVerifyForm'
+import { AuthShell } from '@/components/auth/AuthShell'
 
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
 
+function renderMfa() {
+  return render(
+    <AuthShell>
+      <MfaVerifyForm />
+    </AuthShell>
+  )
+}
+
 describe('MfaVerifyForm', () => {
   it('uses a restrained CyberTrace second-factor shell', () => {
-    render(<MfaVerifyForm />)
+    renderMfa()
 
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
-    expect(screen.getByText('Second factor')).toBeInTheDocument()
     expect(screen.getByText('2 of 2')).toBeInTheDocument()
+    expect(screen.queryByText('Second factor')).not.toBeInTheDocument()
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
     expect(screen.queryByText(/quiet checkpoint|protected workspace|challenge is bound/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/backup code|recovery/i)).not.toBeInTheDocument()
   })
 
   it('requires a six-digit authenticator code', () => {
-    render(<MfaVerifyForm />)
+    renderMfa()
     expect(screen.getByRole('heading', { name: /verify your authenticator/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
   })
 
   it('uses an accessible semantic one-time-code form', () => {
-    render(<MfaVerifyForm />)
+    renderMfa()
 
     const form = screen.getByRole('form', { name: /verify your authenticator/i })
     const input = screen.getByRole('textbox', { name: 'Authenticator code' })
@@ -47,7 +56,7 @@ describe('MfaVerifyForm', () => {
       json: async () => ({ error: { message: 'Code expired.' } }),
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<MfaVerifyForm />)
+    renderMfa()
 
     const input = screen.getByRole('textbox', { name: 'Authenticator code' })
     const form = screen.getByRole('form', { name: /verify your authenticator/i })
@@ -69,7 +78,7 @@ describe('MfaVerifyForm', () => {
       json: async () => ({ error: { code: 'INVALID_CODE', message: 'That authenticator code is invalid. Try again.' } }),
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<MfaVerifyForm />)
+    renderMfa()
 
     const input = screen.getByRole('textbox', { name: 'Authenticator code' }) as HTMLInputElement
     fireEvent.change(input, { target: { value: '123456' } })
@@ -93,7 +102,7 @@ describe('MfaVerifyForm', () => {
       }),
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<MfaVerifyForm />)
+    renderMfa()
 
     const input = screen.getByRole('textbox', { name: 'Authenticator code' })
     fireEvent.change(input, { target: { value: '123456' } })
@@ -111,7 +120,7 @@ describe('MfaVerifyForm', () => {
       resolveResponse = resolve
     }))
     vi.stubGlobal('fetch', fetchMock)
-    render(<MfaVerifyForm />)
+    renderMfa()
 
     const input = screen.getByRole('textbox', { name: 'Authenticator code' })
     const form = screen.getByRole('form', { name: /verify your authenticator/i })

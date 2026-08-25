@@ -5,6 +5,8 @@ import { useEffect } from 'react'
 import Image from 'next/image'
 import QRCode from 'qrcode'
 
+import { authFieldClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+
 type Enrollment = {
   factor_id: string
   manual_key: string
@@ -107,7 +109,7 @@ export function TotpEnrollmentForm() {
           type="button"
           onClick={finalize}
           disabled={busy}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60"
+          className={authPrimaryButtonClass}
         >
           {busy ? 'Finishing…' : 'I saved my backup codes'}
         </button>
@@ -123,7 +125,7 @@ export function TotpEnrollmentForm() {
         <p className="mt-2 text-sm text-text-secondary">Use an authenticator app to scan the QR payload or enter the manual setup key.</p>
       </div>
       {!enrollment ? (
-        <button type="button" onClick={begin} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60">
+        <button type="button" onClick={begin} disabled={busy} className={authPrimaryButtonClass}>
           {busy ? 'Preparing…' : 'Start authenticator setup'}
         </button>
       ) : (
@@ -138,8 +140,8 @@ export function TotpEnrollmentForm() {
             </details>
           </div>
           <label className="block text-sm text-text-secondary" htmlFor="totp-code">Enter the six-digit code</label>
-          <input id="totp-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className="w-full rounded-md border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-text-primary" />
-          <button type="button" onClick={verify} disabled={busy || code.length !== 6} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60">
+          <input id="totp-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className={'max-w-xs font-mono ' + authFieldClass} />
+          <button type="button" onClick={verify} disabled={busy || code.length !== 6} className={authPrimaryButtonClass}>
             {busy ? 'Verifying…' : 'Verify authenticator'}
           </button>
         </>

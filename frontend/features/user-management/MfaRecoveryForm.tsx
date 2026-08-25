@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { authFieldClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+
 export function MfaRecoveryForm() {
   const [mode, setMode] = useState<'backup' | 'email'>('backup')
   const [code, setCode] = useState('')
@@ -65,16 +67,16 @@ export function MfaRecoveryForm() {
       {mode === 'backup' ? (
         <>
           <label htmlFor="backup-code" className="block text-sm text-text-secondary">Backup code</label>
-          <input id="backup-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="w-full rounded-md border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-text-primary" />
-          <button type="button" onClick={submitBackup} disabled={busy || !code} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60">Use backup code</button>
-          <button type="button" onClick={requestEmail} disabled={busy} className="block text-sm text-accent underline">Send a recovery code to verified email</button>
+          <input id="backup-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className={'font-mono ' + authFieldClass} />
+          <button type="button" onClick={submitBackup} disabled={busy || !code} className={authPrimaryButtonClass}>Use backup code</button>
+          <button type="button" onClick={requestEmail} disabled={busy} className={authLinkClass}>Send a recovery code to verified email</button>
         </>
       ) : (
         <>
           <p className="text-sm text-text-secondary">{message}</p>
           <label htmlFor="email-recovery-code" className="block text-sm text-text-secondary">Six-digit recovery code</label>
-          <input id="email-recovery-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className="w-full rounded-md border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-text-primary" />
-          <button type="button" onClick={verifyEmail} disabled={busy || code.length !== 6} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60">Verify recovery code</button>
+          <input id="email-recovery-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className={'font-mono ' + authFieldClass} />
+          <button type="button" onClick={verifyEmail} disabled={busy || code.length !== 6} className={authPrimaryButtonClass}>Verify recovery code</button>
         </>
       )}
       {error && <p role="alert" className="text-sm text-status-danger">{error}</p>}

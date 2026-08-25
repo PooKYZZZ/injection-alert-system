@@ -67,14 +67,8 @@ export function MfaVerifyForm() {
   }
 
   return (
-    <main className={styles.shell} aria-labelledby="mfa-verify-heading">
-      <section className={styles.frame}>
-        <header className={styles.header}>
-          <span className={styles.wordmark}>CyberTrace</span>
-          <span className={styles.step}>2 of 2</span>
-        </header>
-
-        <div className={styles.formRegion}>
+    <section className={styles.formRegion} aria-labelledby="mfa-verify-heading">
+          <div className={styles.stepRow}><span className={styles.step}>2 of 2</span></div>
           {terminalError ? (
             <div className={styles.terminal} role="alert" aria-labelledby="mfa-verify-heading">
               <p className={styles.eyebrow}>Sign-in challenge ended</p>
@@ -84,7 +78,6 @@ export function MfaVerifyForm() {
             </div>
           ) : (
             <>
-              <p className={styles.eyebrow}>Second factor</p>
               <h1 id="mfa-verify-heading" className={styles.heading}>Verify your authenticator</h1>
               <p className={styles.description}>Enter the 6-digit code from your authenticator app.</p>
 
@@ -117,8 +110,6 @@ export function MfaVerifyForm() {
               </form>
             </>
           )}
-        </div>
-      </section>
-    </main>
+    </section>
   )
 }

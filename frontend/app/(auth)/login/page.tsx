@@ -3,10 +3,8 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { authFieldClass } from '@/components/auth/authStyles'
 import { loginAction } from './actions'
-
-const fieldClass =
-  'min-h-11 w-full rounded-md border border-border-light bg-surface-inset px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent-action focus-visible:ring-2 focus-visible:ring-accent-action/35'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -40,16 +38,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-surface-page px-4 py-6 text-text-primary" aria-labelledby="login-heading">
-      <section className="w-full max-w-[520px] overflow-hidden rounded-xl border border-border-light bg-surface-panel shadow-2xl">
-        <header className="flex items-center justify-between gap-4 border-b border-border-light px-5 py-4">
-          <span className="text-sm font-semibold tracking-tight text-accent-action">CyberTrace</span>
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Sign in</span>
-        </header>
-
-        <div className="px-6 py-8 sm:px-10 sm:py-10">
-          <h1 id="login-heading" className="text-2xl font-semibold tracking-tight text-text-primary">Sign in</h1>
-          <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">Use your CyberTrace credentials to continue.</p>
+    <section className="w-full max-w-[430px] text-text-primary" aria-labelledby="login-heading">
+          <h1 id="login-heading" className="text-[2rem] font-semibold tracking-[-0.04em] text-text-primary">Sign in</h1>
+          <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">Enter your credentials to continue to CyberTrace.</p>
 
           {errorMessage ? (
             <p id="login-error" className="mt-5 rounded-md border border-status-danger/35 bg-status-danger/5 px-3 py-2 text-sm leading-5 text-status-danger" role="alert">
@@ -75,7 +66,7 @@ export default function LoginPage() {
                 required
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
-                className={fieldClass}
+                className={authFieldClass}
               />
             </div>
 
@@ -88,7 +79,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className={fieldClass}
+                className={authFieldClass}
               />
             </div>
 
@@ -101,13 +92,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 border-t border-border-light pt-5 text-center">
-            <a href="/forgot-password" className="text-sm text-text-secondary underline decoration-border-light underline-offset-4 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60">
-              Forgot password?
-            </a>
-          </div>
-        </div>
-      </section>
-    </main>
+      <div className="mt-7 flex items-center justify-between gap-4 border-t border-border-light pt-5">
+        <span className="text-xs text-text-muted">Password required</span>
+        <a href="/forgot-password" className="text-sm text-text-secondary underline decoration-border-light underline-offset-4 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60">
+          Forgot password?
+        </a>
+      </div>
+    </section>
   )
 }

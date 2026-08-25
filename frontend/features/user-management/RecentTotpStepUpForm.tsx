@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { authFieldClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+
 export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
   const [started, setStarted] = useState(false)
   const [code, setCode] = useState('')
@@ -49,14 +51,14 @@ export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
         <p className="mt-2 text-sm text-text-secondary">Enter a current authenticator code to continue.</p>
       </div>
       {!started ? (
-        <button type="button" onClick={begin} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60">
+        <button type="button" onClick={begin} disabled={busy} className={authPrimaryButtonClass}>
           {busy ? 'Preparing…' : 'Start verification'}
         </button>
       ) : (
         <>
           <label className="block text-sm text-text-secondary" htmlFor="step-up-code">Authenticator code</label>
-          <input id="step-up-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className="w-full rounded-md border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-text-primary" />
-          <button type="button" onClick={verify} disabled={busy || code.length !== 6} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-surface-base disabled:opacity-60">
+          <input id="step-up-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className={'max-w-xs font-mono ' + authFieldClass} />
+          <button type="button" onClick={verify} disabled={busy || code.length !== 6} className={authPrimaryButtonClass}>
             {busy ? 'Verifying…' : 'Verify and continue'}
           </button>
         </>

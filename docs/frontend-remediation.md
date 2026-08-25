@@ -6,6 +6,52 @@
 **Current source HEAD:** `8eb2f8c` (`fix(auth): align login with CyberTrace shell`)
 **Governing specification:** User-provided “CyberTrace Frontend Redesign — Autonomous Product-Design and Engineering Master Prompt” in the task attachment. This ledger is the concise execution contract; it does not replace the master prompt.
 
+## Reopened screenshot-critique remediation pass — 2026-08-25
+
+**Status:** Open; earlier visual resolutions are treated as evidence, not closure.
+**Reason reopened:** A fresh browser comparison against the user-provided screenshot critique found meaningful presentation and workflow defects that remained after the first remediation pass. This section is the active working memory for the pass and preserves the earlier ledger below.
+**Baseline:** HEAD `289d9c3a13ea7665580510fe9cf14089f2c1e77b`; branch `codex/ml-health-admin-mfa-remediation`; requested worktree `C:\Users\froi\.config\superpowers\worktrees\injection-alert-system\codex\ml-health-admin-mfa-remediation`; unrelated untracked `output/` evidence is preserved.
+
+### Reopened execution contract
+
+CyberTrace is a calm, dense security and ML-operations console. Neutral surfaces and typography carry hierarchy; amber is a restrained identity/action accent; green, yellow, red, and blue communicate semantic state. Structure should be felt through alignment, spacing, and grouping rather than repeated borders and cards. Every page must make the operator's next decision easier without fabricating data or capabilities.
+
+The working cycle remains:
+
+`inspect rendered app → confirm source/contract → research → decide → test behavior first → implement one finding group → run focused checks → browser verify at desktop and narrow widths → critique/refine → document → focused commit → continue`
+
+Preserve `Browser → Next.js route handler/BFF → FastAPI`, existing authorization and security state machines, truthful ML evidence, and the observational ML Health / controlling Model Operations boundary. Prefer native HTML semantics, progressive disclosure for rare mutations, concise sentence-case labels, and explicit status language over color-only or implementation-oriented wording.
+
+### Research decisions for this pass
+
+- W3C APG's [modal dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) requires a visible close path, contained focus, and a title/label that names the dialog. The account drawer keeps Radix focus handling but will reduce visual obstruction and put inspection before mutations.
+- [GOV.UK summary-list guidance](https://design-system.service.gov.uk/components/summary-list/) supports description lists for key facts and says not to use them as tables. This supports a compact lifecycle summary in the account drawer and removing low-value columns from the table.
+- [Carbon data-table guidance](https://carbondesignsystem.com/components/data-table/usage/) recommends short sentence-case headers, a table toolbar for search/utilities, and expandable/progressive disclosure for dense row detail. This supports one contextual row action rather than repeated outlined buttons and full-width ML evidence sections.
+- [GOV.UK error-message guidance](https://design-system.service.gov.uk/components/error-message/) says to keep failing form values, associate errors with their fields, and tell users how to recover. This supports preserving recoverable MFA input, returning focus/selecting the value, and repairing the bare password-recovery forms.
+- [OWASP Authentication guidance](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) supports generic password-recovery responses and careful MFA/re-authentication friction. No account-existence signal or unsupported recovery behavior will be added.
+- Supplementary practitioner evidence consistently warns that dashboards become unreadable when every metric has equal visual weight; it is treated as a design signal rather than a normative standard. The implementation keeps secondary evidence available while moving it behind clear diagnostics or disclosure boundaries.
+
+### Reopened prioritized backlog
+
+| ID | Priority | Finding | Evidence to resolve | Status |
+| --- | --- | --- | --- | --- |
+| CRIT-SHELL-001 | P1 | TopBar repeats the page title already present in page content; the shell also applies inconsistent title/width/spacing patterns across Dashboard, Alerts, ML Health, Model Operations, and User Management. | Remove redundant hierarchy at the shared primitive, then browser-audit all dashboard routes at desktop and narrow widths. | Open |
+| CRIT-TYPE-002 | P1 | Typography scale, helper contrast, uppercase eyebrows, control height, and spacing rhythm are inconsistent; small tracked labels carry too much hierarchy. | Recheck shared tokens/primitives and representative pages after every shared change. | Open |
+| CRIT-SURFACE-003 | P1 | Borders/cards/nested surfaces and orange accents compete with content; disabled controls and semantic status colors lack a consistent visual language. | Establish a restrained token adjustment and remove redundant framing in affected page owners. | Open |
+| CRIT-AUTH-004 | P1 | Authentication is not one coherent CyberTrace flow: Forgot Password and Reset Password are visually regressed, while setup, verification, recovery, and step-up routes do not share the login/MFA shell. | Create a small shared auth surface without changing BFF/security flow; validate every reachable auth route. | Open |
+| CRIT-MFA-005 | P1 | MFA verification still has oversized code-entry treatment, redundant second-factor labeling, and a weak disabled state even though retry logic is correct. | Preserve one logical OTP input, paste/autofill/mobile semantics, and recoverable focus/select behavior while tightening the transaction UI. | Open |
+| CRIT-ML-006 | P1 | ML Health repeats Healthy/monitoring/model information, gives Refresh too much prominence, uses implementation language, and frames the page as nested cards rather than an operator decision sequence. | Recompose Overview around serving → monitoring → evidence with one primary status and honest absence states. | Open |
+| CRIT-ML-007 | P1 | Diagnostics has weak information architecture: dense evidence competes horizontally; Drift mixes production monitoring with offline evaluation; Calibration renders empty Not reported tables; raw source fields leak into default UI. | Reorganize into Performance, Monitoring, Evaluation, and Policy; stack dense evidence and use compact no-evidence states. | Open |
+| CRIT-UMG-008 | P1 | User Management presents an unclear lifecycle, low-value Created column, repetitive View details buttons, ambiguous Security/Active wording, and a mutation-heavy drawer with always-visible MFA/email forms and overprominent disable action. | Make lifecycle facts primary, reduce table columns, use contextual row entry, and progressively disclose role/reset/email/disable workflows. | Open |
+| CRIT-CROSS-009 | P2 | Dashboard, Alerts, Model Operations, and shared shell still need a fresh visual consistency pass after the shared changes. | Compare typography, density, states, table treatment, focus, and narrow behavior across all required routes. | Open |
+| CRIT-VALID-010 | P1 | Earlier evidence does not prove the reopened final branch state. | Capture current screenshots, inspect console/runtime, run full practical checks, review diff, and record focused commits. | Open |
+
+### Non-goals and explicit safeguards
+
+- No new ML telemetry, timestamps, model states, recovery mechanisms, or admin guarantees will be invented to complete a visual matrix.
+- No production model write/promotion, database schema/function change, destructive account mutation, CI/deployment change, or new dependency is in scope.
+- Existing P0/P1 security and accessibility behavior is preserved unless a focused regression test proves the presentation change needs an adjustment.
+
 ## Execution contract
 
 CyberTrace is an academic security and analyst-triage product. The redesign must improve correctness, coherence, and product specificity together. Work in focused finding-sized groups:
@@ -322,6 +368,31 @@ For every completed, deferred, or newly discovered meaningful finding, append/up
 | `8eb2f8c` | FOUND-005 login/MFA shell coherence and native login semantics | Login tests PASS; final lint/typecheck/build/browser review; `git diff --check` | Resolved |
 | `8e973d5` | Final cross-product audit, evidence index, and explicit deferral record | 14 files / 118 tests PASS; lint/typecheck/build/backend health/browser desktop+narrow+console review; `git diff --check` | Recorded |
 
-## Final gate
+## Previous final gate (superseded by reopened screenshot-critique pass)
+
+The previous audit is retained for historical traceability. It is not the completion state for the reopened screenshot-critique pass.
+
+## Reopened pass work log
+
+### CRIT-AUTH-004 / CRIT-MFA-005 / CRIT-SHELL-001 — shared authentication surface and title hierarchy
+
+- Status: In progress; focused implementation complete, broader cross-product review still open.
+- Priority: P1.
+- Affected page/component: Auth route group, password recovery, MFA, and dashboard TopBar.
+- Category: Visual hierarchy, form semantics, recovery UX, disabled states, accessibility, shared shell.
+- Current rendered/source evidence: Forgot Password and Reset Password were bare route content, auth pages used different shells, MFA retained an oversized input and redundant eyebrow, and ML Health/User Management repeated their page title in TopBar and page content.
+- Research summary and sources: W3C APG dialog guidance, GOV.UK error guidance, Carbon data-table guidance, and OWASP password-recovery guidance are recorded in the reopened contract above.
+- Decision: Use one small AuthShell route layout, preserve form owners and BFF calls, centralize auth control classes, keep one logical OTP input, and remove duplicate page-title hierarchy.
+- Implementation summary: Added AuthShell, auth control classes, the auth layout, repaired password-recovery form semantics and recoverable error state, aligned supporting auth forms, tightened MFA sizing/disabled treatment, and hid duplicate ML Health/User Management TopBar titles.
+- Tests and exact results: Focused auth run PASS, 6 files / 20 tests; lint PASS; typecheck PASS; diff check PASS.
+- Browser observations: Desktop and narrow auth routes now share the branded surface. Authenticated MFA verification still redirects safely to sign-in; no challenge or mutation was fabricated.
+- Commit: Pending focused commit.
+- Follow-up: Recheck ML Health and User Management before marking the shared group resolved.
+
+### Reopened pass commit log
+
+| Commit | Finding group | Validation | Status |
+| --- | --- | --- | --- |
+| Pending | Shared auth surface, auth controls, MFA sizing, and page-title de-duplication | 6 files / 20 tests PASS; lint/typecheck/diff check PASS; browser review | In progress |
 
 The final audit is complete for the local branch scope: all meaningful in-scope P0/P1/P2 findings are resolved or explicitly deferred with a concrete contract/environment reason; the fresh Dashboard/Alerts/MFA/ML Health/Model Operations/User Management audit is recorded; frontend tests, BFF tests, lint, typecheck, build, browser desktop/narrow/keyboard/state/console checks, backend health, and `git diff --check` have fresh evidence. The in-app browser cannot expose a network HAR or layout-shift metric, so those remain `NOT_AVAILABLE`; UMG-004 and MFA-003 are documented deferrals, not silent omissions. Remaining issues are P3 taste, speculative future capability, or the two explicit boundary deferrals above.

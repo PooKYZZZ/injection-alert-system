@@ -15,12 +15,21 @@ vi.mock('next/navigation', () => ({
 
 import LoginPage from './page'
 import { loginAction } from './actions'
+import { AuthShell } from '@/components/auth/AuthShell'
 
 vi.mock('./actions', () => ({
   loginAction: vi.fn(),
 }))
 
 const mockedLoginAction = vi.mocked(loginAction)
+
+function renderLogin() {
+  return render(
+    <AuthShell>
+      <LoginPage />
+    </AuthShell>
+  )
+}
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -29,7 +38,7 @@ afterEach(() => {
 
 describe('LoginPage', () => {
   it('renders identifier and password fields without a role selector', () => {
-    render(<LoginPage />)
+    renderLogin()
 
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(screen.getByRole('form', { name: 'Sign in' })).toBeInTheDocument()
@@ -49,7 +58,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: false, code: 'INVALID_CREDENTIALS' })
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'unknown@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
@@ -65,7 +74,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: false, code: 'SERVER_ERROR' })
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
@@ -78,7 +87,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockRejectedValue(new Error('Unexpected failure'))
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')
@@ -96,7 +105,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup()
     mockedLoginAction.mockResolvedValue({ ok: true })
 
-    render(<LoginPage />)
+    renderLogin()
 
     await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
     await user.type(screen.getByLabelText('Password'), 'pw')

@@ -51,6 +51,7 @@ function pillClasses(confidenceTier: ConfidenceTierFilter, isActive: boolean): s
 
 interface TopBarProps {
   title: string
+  showTitle?: boolean
   showConfidenceTierControls?: boolean
   showSearch?: boolean
   showLiveStatus?: boolean
@@ -61,6 +62,7 @@ interface TopBarProps {
 
 function TopBarContent({
   title,
+  showTitle = true,
   showConfidenceTierControls = true,
   showSearch = true,
   showLiveStatus = false,
@@ -138,7 +140,7 @@ function TopBarContent({
             : 'flex-1 overflow-hidden'
         )}
       >
-        <div className="flex min-w-0 items-center gap-3">
+        {showTitle ? <div className="flex min-w-0 items-center gap-3">
           <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight text-text-primary">{title}</h2>
 
           {showLiveStatus ? (
@@ -154,7 +156,7 @@ function TopBarContent({
               <span className="hidden text-[10px] text-[var(--color-text-secondary)] md:inline">Reported in latest refresh</span>
             </>
           ) : null}
-        </div>
+        </div> : null}
 
         {showConfidenceTierControls ? (
           <>
@@ -315,11 +317,15 @@ export function DashboardTopBar() {
   }
 
   if (pathname === '/ml-health') {
-    return <TopBar title="ML Health" showConfidenceTierControls={false} showSearch={false} />
+    return <TopBar title="ML Health" showTitle={false} showConfidenceTierControls={false} showSearch={false} />
   }
 
   if (pathname === '/ml-model') {
     return <TopBar title="Model Operations" showConfidenceTierControls={false} showSearch={false} />
+  }
+
+  if (pathname === '/user-management') {
+    return <TopBar title="User Management" showTitle={false} showConfidenceTierControls={false} showSearch={false} />
   }
 
   const fallbackTitle =
