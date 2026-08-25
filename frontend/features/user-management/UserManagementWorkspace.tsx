@@ -203,22 +203,21 @@ export function UserManagementWorkspace({
         </Dialog.Root>
       </header>
 
-      <section aria-label="Account summary" className="grid grid-cols-2 gap-4 border-b border-border-light pb-6 sm:grid-cols-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">Accounts</p>
-          <p className="mt-1 font-mono text-xl font-semibold text-text-primary">{accounts.length}</p>
-          <p className="mt-1 text-xs text-text-secondary">Named accounts</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">Enabled</p>
-          <p className="mt-1 font-mono text-xl font-semibold text-text-primary">{enabledCount}</p>
-          <p className="mt-1 text-xs text-text-secondary">Can sign in</p>
-        </div>
-        <div className="col-span-2 sm:col-span-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">MFA scope</p>
-          <p className="mt-1 font-mono text-xl font-semibold text-text-primary">{mfaRequiredCount}</p>
-          <p className="mt-1 text-xs text-text-secondary">Accounts requiring MFA</p>
-        </div>
+      <section aria-label="Account summary" className="border-b border-border-light pb-4">
+        <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-xs">
+          <div className="flex items-baseline gap-2">
+            <dt className="text-text-muted">Accounts</dt>
+            <dd className="font-mono font-semibold text-text-primary">{accounts.length}</dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-text-muted">Enabled</dt>
+            <dd className="font-mono font-semibold text-text-primary">{enabledCount}</dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-text-muted">MFA required</dt>
+            <dd className="font-mono font-semibold text-text-primary">{mfaRequiredCount}</dd>
+          </div>
+        </dl>
       </section>
 
       {notice && !selectedAccount ? <p className="-mb-4 text-sm text-text-secondary" role="status">{notice}</p> : null}

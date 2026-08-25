@@ -26,6 +26,9 @@ describe('UserManagementWorkspace', () => {
     render(<UserManagementWorkspace initialAccounts={[account]} />)
 
     expect(screen.getByRole('heading', { name: 'User Management' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Account summary' })).toBeInTheDocument()
+    expect(screen.getByText('MFA required')).toBeInTheDocument()
+    expect(screen.queryByText('MFA scope')).not.toBeInTheDocument()
     expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
     expect(screen.getByText('Enrollment required')).toBeInTheDocument()
     expect(screen.getByText('Setup complete')).toBeInTheDocument()
@@ -102,6 +105,21 @@ describe('UserManagementWorkspace', () => {
     expect(screen.getByText('Your own account cannot be disabled here.')).toBeInTheDocument()
     expect(screen.getByLabelText('Role for SOC Analyst')).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Disable SOC Analyst' })).not.toBeInTheDocument()
+  })
+
+  it('shows MFA reset for another protected admin account and hides it when MFA is not applicable', () => {
+    const protectedAdmin = { ...account, id: '89a7fd9a-ec8f-4b0e-9c9a-5bcf1d260c2d', display_name: 'SOC Admin', role: 'ADMIN' as const, mfa_status: 'active' as const }
+    render(<UserManagementWorkspace initialAccounts={[protectedAdmin]} currentAccountId={account.id} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View details for SOC Admin' }))
+    expect(screen.getByRole('button', { name: 'Reset MFA for SOC Admin' })).toBeInTheDocument()
+
+    cleanup()
+    const viewer = { ...account, role: 'VIEWER' as const, mfa_status: 'not_required' as const }
+    render(<UserManagementWorkspace initialAccounts={[viewer]} currentAccountId={'89a7fd9a-ec8f-4b0e-9c9a-5bcf1d260c2d'} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View details for SOC Analyst' }))
+    expect(screen.queryByRole('button', { name: 'Reset MFA for SOC Analyst' })).not.toBeInTheDocument()
   })
 
   it('distinguishes an empty tenant from a filtered-empty result', () => {

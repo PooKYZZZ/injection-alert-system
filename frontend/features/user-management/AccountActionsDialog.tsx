@@ -248,7 +248,7 @@ export function AccountActionsDialog({
                   ) : null}
                 </div>
 
-                {!isSelf && account.role !== 'ADMIN' ? (
+                {!isSelf && account.mfa_status !== 'not_required' ? (
                   <div className="border-t border-border-light pt-4">
                     <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary" htmlFor={`mfa-reset-${account.id}`}>
                       Reset MFA
