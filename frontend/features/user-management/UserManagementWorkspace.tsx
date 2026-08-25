@@ -2,7 +2,12 @@
 
 import { useState, type FormEvent } from 'react'
 
-import type { SafeManagedAccount } from './contract'
+import { formatStableDateTime } from '@/lib/date-time'
+
+import {
+  managedAccountsResponseSchema,
+  type SafeManagedAccount,
+} from './contract'
 
 type Role = 'ADMIN' | 'ANALYST' | 'VIEWER'
 
@@ -10,6 +15,12 @@ const fieldClass =
   'h-10 rounded-md border border-border-light bg-surface-inset px-3 text-sm text-text-primary outline-none transition-colors focus:border-accent-action'
 const secondaryButton =
   'rounded-md border border-border-light px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary disabled:opacity-50'
+
+type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
+
+function actionKey(accountId: string, action: AccountAction): string {
+  return `${accountId}:${action}`
+}
 
 function mfaLabel(status: SafeManagedAccount['mfa_status']): string {
   if (status === 'active') return 'Active'
@@ -29,12 +40,23 @@ export function UserManagementWorkspace({
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingEmails, setPendingEmails] = useState<Record<string, string>>({})
+  const [refreshPending, setRefreshPending] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({})
 
   async function refreshAccounts() {
-    const response = await fetch('/api/admin/users', { cache: 'no-store' })
-    if (!response.ok) return
-    const payload = (await response.json()) as { accounts: SafeManagedAccount[] }
-    setAccounts(payload.accounts)
+    setRefreshPending(true)
+    setRefreshError(null)
+    try {
+      const response = await fetch('/api/admin/users', { cache: 'no-store' })
+      if (!response.ok) throw new Error('refresh_failed')
+      const payload = managedAccountsResponseSchema.parse(await response.json())
+      setAccounts(payload.accounts)
+    } catch {
+      setRefreshError('Unable to refresh account list. The last loaded data is still shown.')
+    } finally {
+      setRefreshPending(false)
+    }
   }
 
   async function mutate(url: string, method: 'POST' | 'PATCH', body?: object) {
@@ -45,6 +67,30 @@ export function UserManagementWorkspace({
       body: body ? JSON.stringify(body) : undefined,
     })
     if (!response.ok) throw new Error('request_failed')
+  }
+
+  async function runAction(
+    accountId: string,
+    action: AccountAction,
+    operation: () => Promise<void>,
+    successMessage: string,
+    failureMessage: string,
+  ) {
+    const key = actionKey(accountId, action)
+    setPendingActions((current) => ({ ...current, [key]: true }))
+    setNotice(null)
+    try {
+      await operation()
+      setNotice(successMessage)
+    } catch {
+      setNotice(failureMessage)
+    } finally {
+      setPendingActions((current) => {
+        const next = { ...current }
+        delete next[key]
+        return next
+      })
+    }
   }
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
@@ -121,14 +167,25 @@ export function UserManagementWorkspace({
             <h2 id="accounts-title" className="text-base font-semibold text-text-primary">Accounts</h2>
             <p className="mt-1 text-xs text-text-secondary">{accounts.length} named account{accounts.length === 1 ? '' : 's'}</p>
           </div>
-          <button type="button" className={secondaryButton} onClick={() => void refreshAccounts()}>Refresh</button>
+          <button
+            type="button"
+            className={secondaryButton}
+            aria-label="Refresh accounts"
+            disabled={refreshPending}
+            onClick={() => void refreshAccounts()}
+          >
+            {refreshPending ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
+        {refreshError ? <p className="mb-3 text-sm text-status-danger" role="alert">{refreshError}</p> : null}
+        <p className="mb-2 text-xs text-text-muted">On narrow screens, scroll horizontally to view all account fields and actions.</p>
         <div className="overflow-x-auto border-y border-border-light">
           <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
+            <caption className="sr-only">Managed accounts and protected administrative actions.</caption>
             <thead className="bg-surface-panel text-[10px] uppercase tracking-[0.14em] text-text-muted">
               <tr>
                 {['Account', 'Role', 'Email', 'MFA', 'Status', 'Created', 'Actions'].map((heading) => (
-                  <th key={heading} className="px-4 py-3 font-semibold">{heading}</th>
+                  <th key={heading} scope="col" className="px-4 py-3 font-semibold">{heading}</th>
                 ))}
               </tr>
             </thead>
@@ -141,7 +198,20 @@ export function UserManagementWorkspace({
                       aria-label={`Role for ${account.display_name}`}
                       className="rounded border border-border-light bg-surface-inset px-2 py-1 text-xs text-text-primary"
                       value={account.role}
-                      onChange={(event) => void mutate(`/api/admin/users/${account.id}/role`, 'PATCH', { role: event.target.value }).then(refreshAccounts).catch(() => setNotice('Role change failed. Recent TOTP authentication is required.'))}
+                      disabled={Boolean(pendingActions[actionKey(account.id, 'role')])}
+                      onChange={(event) => {
+                        const nextRole = event.target.value as Role
+                        void runAction(
+                          account.id,
+                          'role',
+                          async () => {
+                            await mutate(`/api/admin/users/${account.id}/role`, 'PATCH', { role: nextRole })
+                            await refreshAccounts()
+                          },
+                          'Role updated.',
+                          'Role change failed. Recent TOTP authentication is required.',
+                        )
+                      }}
                     >
                       <option value="VIEWER">VIEWER</option><option value="ANALYST">ANALYST</option><option value="ADMIN">ADMIN</option>
                     </select>
@@ -152,14 +222,81 @@ export function UserManagementWorkspace({
                   </td>
                   <td className="px-4 py-4 text-text-secondary">{mfaLabel(account.mfa_status)}</td>
                   <td className="px-4 py-4"><span className={account.enabled ? 'text-status-success' : 'text-status-danger'}>{account.enabled ? 'Enabled' : 'Disabled'}</span></td>
-                  <td className="px-4 py-4 text-text-secondary">{new Date(account.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-4 text-text-secondary">{formatStableDateTime(account.created_at, 'Unknown date')}</td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-2">
-                      <button className={secondaryButton} type="button" onClick={() => void mutate(`/api/admin/users/${account.id}/status`, 'PATCH', { enabled: !account.enabled }).then(refreshAccounts).catch(() => setNotice('Status change failed.'))}>{account.enabled ? 'Disable' : 'Enable'}</button>
-                      <button className={secondaryButton} type="button" onClick={() => void mutate(`/api/admin/users/${account.id}/resend-setup`, 'POST').then(() => setNotice('Setup email queued.')).catch(() => setNotice('Setup email could not be queued.'))}>Resend setup</button>
-                      {account.role !== 'ADMIN' && <button className={secondaryButton} type="button" onClick={() => { const reason = window.prompt('Reason for MFA reset'); if (reason) void mutate(`/api/admin/users/${account.id}/mfa-reset`, 'POST', { reason }).then(() => setNotice('MFA reset. The account must enroll a new authenticator.')).catch(() => setNotice('MFA reset failed. Recent TOTP authentication is required.')) }}>Reset MFA</button>}
-                      <input aria-label={`New email for ${account.display_name}`} className="w-48 rounded border border-border-light bg-surface-inset px-2 py-1 text-xs text-text-primary" type="email" placeholder="New verified email" value={pendingEmails[account.id] ?? ''} onChange={(event) => setPendingEmails((current) => ({ ...current, [account.id]: event.target.value }))} />
-                      <button className={secondaryButton} type="button" onClick={() => void mutate(`/api/admin/users/${account.id}/email`, 'POST', { email: pendingEmails[account.id] ?? '' }).then(() => setNotice('Verification email queued to the proposed address.')).catch(() => setNotice('Email change request failed.'))}>Verify new email</button>
+                      <button
+                        className={secondaryButton}
+                        type="button"
+                        aria-label={`${account.enabled ? 'Disable' : 'Enable'} ${account.display_name}`}
+                        disabled={Boolean(pendingActions[actionKey(account.id, 'status')])}
+                        onClick={() => void runAction(
+                          account.id,
+                          'status',
+                          async () => {
+                            await mutate(`/api/admin/users/${account.id}/status`, 'PATCH', { enabled: !account.enabled })
+                            await refreshAccounts()
+                          },
+                          account.enabled ? 'Account disabled.' : 'Account enabled.',
+                          'Status change failed.',
+                        )}
+                      >
+                        {account.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        className={secondaryButton}
+                        type="button"
+                        aria-label={`Resend setup for ${account.display_name}`}
+                        disabled={Boolean(pendingActions[actionKey(account.id, 'setup')])}
+                        onClick={() => void runAction(
+                          account.id,
+                          'setup',
+                          () => mutate(`/api/admin/users/${account.id}/resend-setup`, 'POST'),
+                          'Setup email queued.',
+                          'Setup email could not be queued.',
+                        )}
+                      >
+                        {pendingActions[actionKey(account.id, 'setup')] ? 'Queueing…' : 'Resend setup'}
+                      </button>
+                      {account.role !== 'ADMIN' && <button
+                        className={secondaryButton}
+                        type="button"
+                        aria-label={`Reset MFA for ${account.display_name}`}
+                        disabled={Boolean(pendingActions[actionKey(account.id, 'mfa')])}
+                        onClick={() => {
+                          const reason = window.prompt('Reason for MFA reset')
+                          if (reason?.trim()) {
+                            void runAction(
+                              account.id,
+                              'mfa',
+                              () => mutate(`/api/admin/users/${account.id}/mfa-reset`, 'POST', { reason: reason.trim() }),
+                              'MFA reset. The account must enroll a new authenticator.',
+                              'MFA reset failed. Recent TOTP authentication is required.',
+                            )
+                          }
+                        }}
+                      >
+                        {pendingActions[actionKey(account.id, 'mfa')] ? 'Resetting…' : 'Reset MFA'}
+                      </button>}
+                      <input aria-label={`New email for ${account.display_name}`} className="w-48 rounded border border-border-light bg-surface-inset px-2 py-1 text-xs text-text-primary" type="email" placeholder="Proposed email" value={pendingEmails[account.id] ?? ''} onChange={(event) => setPendingEmails((current) => ({ ...current, [account.id]: event.target.value }))} />
+                      <button
+                        className={secondaryButton}
+                        type="button"
+                        aria-label={`Request email verification for ${account.display_name}`}
+                        disabled={!pendingEmails[account.id]?.trim() || Boolean(pendingActions[actionKey(account.id, 'email')])}
+                        onClick={() => void runAction(
+                          account.id,
+                          'email',
+                          async () => {
+                            await mutate(`/api/admin/users/${account.id}/email`, 'POST', { email: pendingEmails[account.id] ?? '' })
+                            await refreshAccounts()
+                          },
+                          'Verification email queued to the proposed address.',
+                          'Email change request failed.',
+                        )}
+                      >
+                        {pendingActions[actionKey(account.id, 'email')] ? 'Queueing…' : 'Request verification'}
+                      </button>
                     </div>
                   </td>
                 </tr>
