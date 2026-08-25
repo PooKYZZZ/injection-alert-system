@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { describeEvidenceRelationship } from '@/features/alerts/evidence'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 
 interface AlertDrawerProps {
   role?: unknown
@@ -24,13 +25,13 @@ interface AlertDrawerProps {
 function formatTriageLabel(status: TriageStatus | null | undefined): string {
   switch (status) {
     case 'in_review':
-      return 'In Review'
+      return 'In review'
     case 'escalated':
       return 'Escalated'
     case 'resolved':
       return 'Resolved'
     case 'false_positive':
-      return 'False Positive'
+      return 'False positive'
     case 'new':
     case null:
     case undefined:
@@ -123,7 +124,6 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   const displayAction = alert?.action_taken ?? null
 
   const triageLabel = formatTriageLabel(displayStatus)
-  const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
   const confidenceLabel = alert
     ? formatConfidenceLabel(alert.confidence, alert.confidence_level)
     : '—'
@@ -153,48 +153,31 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
             {/* Drawer panel */}
             <Dialog.Content asChild>
               <motion.div
-                className="fixed top-0 right-0 z-30 flex h-full w-full max-w-[420px] flex-col border-l border-surface-border bg-surface-card shadow-2xl"
+                className="fixed right-0 top-0 z-30 flex h-full w-full max-w-[520px] flex-col border-l border-surface-border bg-surface-card shadow-2xl"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
               >
-                {/* Visually hidden title for screen readers */}
-                <Dialog.Title className="sr-only">
-                  Alert detail for {alert.prediction}
-                </Dialog.Title>
                 {/* Hidden description to satisfy Radix accessibility warnings */}
                 <Dialog.Description className="sr-only">
                   Details for {alert.prediction} — {formatAlertDateTime(alert.timestamp)}. Contains summary details, WAF evidence, captured request data, and role-appropriate review controls.
                 </Dialog.Description>
 
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-surface-border bg-surface-card p-4">
-                  <div className="min-w-0 space-y-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
-                      Alert summary
-                    </p>
+                <div className="sticky top-0 z-10 flex items-start justify-between border-b border-surface-border bg-surface-card p-5">
+                  <div className="min-w-0 space-y-2">
+                    <Dialog.Title className="text-base font-semibold text-text-primary">
+                      Alert details
+                    </Dialog.Title>
+                    <p className="text-sm text-text-secondary">{alert.prediction}</p>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[16px] font-semibold text-[var(--color-text-primary)]">
-                        {alert.prediction}
-                      </span>
-                      <span className="rounded-full border border-action-border bg-action-bg px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-action-accent">
-                        {triageLabel}
-                      </span>
-                      <span
-                        className={cn(
-                          'rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em]',
-                          displayAction === 'BLOCKED'
-                            ? 'border-severity-high-border text-severity-high-text'
-                            : displayAction === 'THROTTLED'
-                              ? 'border-severity-blocked-border text-severity-blocked-text'
-                              : displayAction === 'ALLOWED'
-                                ? 'border-severity-safe-border text-severity-safe-text'
-                                : 'border-surface-border text-[var(--color-text-secondary)]'
-                        )}
-                      >
-                        {displayAction ? ALERT_DISPLAY_ACTION_ALIASES[displayAction] : 'No Action'}
-                      </span>
+                      <StatusBadge label={triageLabel} tone={displayStatus === 'escalated' ? 'danger' : displayStatus === 'resolved' ? 'success' : displayStatus === 'in_review' ? 'warning' : 'info'} domain="workflow" />
+                      <StatusBadge
+                        label={displayAction ? ALERT_DISPLAY_ACTION_ALIASES[displayAction] : 'No recorded outcome'}
+                        tone={displayAction === 'BLOCKED' ? 'danger' : displayAction === 'THROTTLED' ? 'warning' : displayAction === 'ALLOWED' ? 'success' : 'neutral'}
+                        domain="enforcement"
+                      />
                     </div>
                     {isError && (
                       <span className="block text-[11px] text-severity-high-text">
@@ -238,39 +221,33 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                 {/* Content */}
                 <div
                   data-testid="alert-drawer-scroll-region"
-                  className="min-h-0 flex-1 overflow-y-auto p-3"
+                  className="min-h-0 flex-1 overflow-y-auto p-5"
                 >
-                  <div className="grid content-start gap-3">
-                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                      Core Details
+                  <div className="grid content-start gap-5">
+                  <section className="border-t-0 pt-0">
+                    <h3 className="mb-3 text-sm font-semibold text-text-primary">
+                      Detection details
                     </h3>
-                    <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                    <dl className="grid grid-cols-[minmax(92px,auto)_1fr] gap-x-3 gap-y-2 text-sm leading-5">
+                      <dt className="text-xs font-medium text-text-secondary">
                         Alert ID
                       </dt>
                       <dd className="font-mono text-[var(--color-text-primary)]">
                         {alert.alert_id}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      <dt className="text-xs font-medium text-text-secondary">
                         Time
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {formatAlertDateTime(alert.timestamp)}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      <dt className="text-xs font-medium text-text-secondary">
                         Source IP
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)]">
                         {alert.source_ip ?? '—'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Request
-                      </dt>
-                      <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)] break-all">
-                        {requestLine}
-                      </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      <dt className="text-xs font-medium text-text-secondary">
                         Model confidence
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
@@ -282,9 +259,9 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </dl>
                   </section>
 
-                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                      WAF Evidence
+                  <section className="border-t border-surface-border pt-4">
+                    <h3 className="mb-3 text-sm font-semibold text-text-primary">
+                      WAF evidence
                     </h3>
                     {evidenceRelationship ? (
                       <div className="mb-3 rounded-md border border-surface-border bg-surface-inset p-2">
@@ -302,37 +279,37 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       </p>
                     ) : (
                       <>
-                        <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <dl className="grid grid-cols-[minmax(112px,auto)_1fr] gap-x-3 gap-y-2 text-sm leading-5">
+                          <dt className="text-xs font-medium text-text-secondary">
                             Transaction ID
                           </dt>
                           <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">
                             {alert.transaction_id ?? '—'}
                           </dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          <dt className="text-xs font-medium text-text-secondary">
                             Ingest source
                           </dt>
                           <dd className="text-[var(--color-text-primary)]">{alert.ingest_source ?? '—'}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          <dt className="text-xs font-medium text-text-secondary">
                             Provenance
                           </dt>
                           <dd className="text-[var(--color-text-primary)]">{alert.source_provenance ?? '—'}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          <dt className="text-xs font-medium text-text-secondary">
                             Verification
                           </dt>
                           <dd className="text-[var(--color-text-primary)]">{alert.source_verification_status ?? '—'}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          <dt className="text-xs font-medium text-text-secondary">
                             CRS anomaly score
                           </dt>
                           <dd className="text-severity-blocked-text">{formatCrsScore(alert.crs_score)}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          <dt className="text-xs font-medium text-text-secondary">
                             Rule IDs
                           </dt>
                           <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">{crsRuleIds}</dd>
                         </dl>
                         {alert.matched_rule_messages?.length ? (
                           <div className="mt-3 border-t border-surface-border pt-2">
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                            <p className="text-xs font-semibold text-text-secondary">
                               Rule messages
                             </p>
                             <ul className="mt-1 list-disc space-y-1 pl-4 text-[10px] leading-4 text-[var(--color-text-primary)]">
@@ -344,7 +321,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         ) : null}
                         {alert.matched_rule_tags?.length ? (
                           <div className="mt-3 border-t border-surface-border pt-2">
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                            <p className="text-xs font-semibold text-text-secondary">
                               Rule tags
                             </p>
                             <p className="mt-1 break-words font-mono text-[10px] leading-4 text-[var(--color-text-primary)]">
@@ -357,17 +334,17 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   </section>
 
                   <section>
-                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                      Captured Request
+                    <h3 className="mb-2 text-sm font-semibold text-text-primary">
+                      Captured request
                     </h3>
                     <div className="max-h-44 overflow-auto rounded-lg border border-surface-border bg-surface-inset">
-                      <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-[10px]">
+                      <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-xs">
                         <div>
-                          <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Host</p>
+                          <p className="text-text-secondary">Host</p>
                           <p className="font-mono text-[var(--color-text-primary)]">—</p>
                         </div>
                         <div>
-                          <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Source-IP</p>
+                          <p className="text-text-secondary">Source IP</p>
                           <p className="font-mono text-[var(--color-accent-analytic)]">{alert.source_ip ?? '—'}</p>
                         </div>
                       </div>
@@ -384,11 +361,12 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </div>
                   </section>
 
-                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                  <details className="border-t border-surface-border pt-4">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card">
                       Training feedback
-                    </h3>
-                    <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
+                    </summary>
+                    <div className="mt-3">
+                    <p className="mb-3 text-sm leading-5 text-text-secondary">
                       Record a verified label for the training review process. This does not change the current model automatically.
                     </p>
                     {canTriage ? (
@@ -443,18 +421,22 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <p className="text-[11px] text-[var(--color-text-secondary)]">Viewer mode: training feedback is read-only.</p>
                     )}
                     {alert.label_review && (
-                      <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+                      <p className="mt-3 text-xs text-text-secondary">
                         Latest: {alert.label_review.verified_label} ({alert.label_review.approval_state.replaceAll('_', ' ')}) by {alert.label_review.reviewer_id} at {formatAlertDateTime(alert.label_review.reviewed_at)}
                       </p>
                     )}
-                  </section>
+                    </div>
+                  </details>
 
-                  <section>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          Analyst Workflow
+                  <section className="border-t border-surface-border pt-4">
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div>
+                        <h3 className="mb-2 text-sm font-semibold text-text-primary">
+                          Analyst disposition
                         </h3>
+                        <p className="mb-3 text-sm leading-5 text-text-secondary">
+                          Your review decision is separate from the recorded enforcement outcome.
+                        </p>
                         {canTriage ? (
                         <div className="flex flex-col gap-1.5">
                           {isNewTriageStatus(displayStatus) ? (
@@ -504,7 +486,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                               isPending && 'cursor-not-allowed opacity-50'
                             )}
                           >
-                            <span>False Positive</span>
+                            <span>False positive</span>
                             {isPending && displayStatus === 'false_positive' ? <span>Updating...</span> : <span>→</span>}
                           </button>
                           <button
@@ -531,16 +513,17 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         )}
                       </div>
 
-                      <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          System Outcome
-                        </h3>
-                        <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
+                      <details>
+                        <summary className="cursor-pointer list-none text-sm font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card">
+                          Recorded system outcome
+                        </summary>
+                        <div className="mt-3">
+                        <p className="mb-3 text-sm leading-5 text-text-secondary">
                           This is the action recorded when the request was processed. Updating it changes the stored alert record; it does not replay the request or apply a new network rule.
                         </p>
                         {canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
+                      <p className="text-xs font-semibold text-text-secondary">
                         Update recorded outcome
                       </p>
                       <button
@@ -623,7 +606,8 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             Action updates require Admin.
                           </p>
                         )}
-                      </div>
+                        </div>
+                      </details>
                     </div>
                   </section>
                   </div>

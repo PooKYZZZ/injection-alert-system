@@ -68,34 +68,38 @@ export function formatRelativeTime(
   if (absoluteSeconds < 60) return `${prefix}${absoluteSeconds}s${suffix}`
 
   const minutes = Math.floor(absoluteSeconds / 60)
-  if (minutes < 60) return `${prefix}${minutes}min${minutes === 1 ? '' : 's'}${suffix}`
+  if (minutes < 60) return `${prefix}${minutes} min${minutes === 1 ? '' : 's'}${suffix}`
 
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${prefix}${hours}hr${hours === 1 ? '' : 's'}${suffix}`
+  if (hours < 24) return `${prefix}${hours} hr${hours === 1 ? '' : 's'}${suffix}`
 
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${prefix}${days}day${days === 1 ? '' : 's'}${suffix}`
+  if (days < 30) return `${prefix}${days} day${days === 1 ? '' : 's'}${suffix}`
 
   const months = Math.floor(days / 30)
-  if (days < 365) return `${prefix}${months}month${months === 1 ? '' : 's'}${suffix}`
+  if (days < 365) return `${prefix}${months} month${months === 1 ? '' : 's'}${suffix}`
 
   const years = Math.floor(days / 365)
-  return `${prefix}${years}year${years === 1 ? '' : 's'}${suffix}`
+  return `${prefix}${years} year${years === 1 ? '' : 's'}${suffix}`
 }
 
 export function formatConfidencePercent(confidence: number | null | undefined): string {
   if (confidence == null || !Number.isFinite(confidence)) return '—'
 
   const percentage = Math.min(Math.max(confidence, 0), 1) * 100
-  return `${percentage.toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
+  const roundedToTenth = Math.round(percentage * 10) / 10
+  const display = roundedToTenth >= 100 ? percentage.toFixed(2) : roundedToTenth.toFixed(1)
+  return `${display.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
+}
+
+export function formatConfidenceTierLabel(confidenceTier: AlertConfidenceTier | string): string {
+  if (!confidenceTier) return 'Unknown'
+  return `${confidenceTier.charAt(0)}${confidenceTier.slice(1).toLowerCase()}`
 }
 
 export function formatConfidenceLabel(
   confidence: number | null | undefined,
   confidenceTier: AlertConfidenceTier | string
 ): string {
-  const tierLabel = confidenceTier
-    ? `${confidenceTier.charAt(0)}${confidenceTier.slice(1).toLowerCase()} confidence`
-    : 'Unknown confidence'
-  return `${formatConfidencePercent(confidence)} (${tierLabel})`
+  return `${formatConfidencePercent(confidence)} (${formatConfidenceTierLabel(confidenceTier)} confidence)`
 }

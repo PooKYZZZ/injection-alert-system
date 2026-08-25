@@ -45,9 +45,9 @@ describe('API date and confidence formatting', () => {
     const now = Date.parse('2026-08-24T14:06:47Z')
     const timestamp = new Date(now - days * 24 * 60 * 60 * 1000).toISOString()
 
-    expect(formatRelativeTime(timestamp, now)).toBe('12months ago')
+    expect(formatRelativeTime(timestamp, now)).toBe('12 months ago')
     expect(formatRelativeTime(new Date(now + days * 24 * 60 * 60 * 1000).toISOString(), now)).toBe(
-      'in 12months'
+      'in 12 months'
     )
   })
 
@@ -55,10 +55,11 @@ describe('API date and confidence formatting', () => {
     const now = Date.parse('2026-08-24T14:06:47Z')
     const timestamp = new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString()
 
-    expect(formatRelativeTime(timestamp, now)).toBe('1year ago')
+    expect(formatRelativeTime(timestamp, now)).toBe('1 year ago')
   })
 
-  it('keeps high probabilities below 100 percent when rounding allows it', () => {
+  it('uses compact display precision while keeping high probabilities below 100 percent', () => {
+    expect(formatConfidencePercent(0.519262)).toBe('51.9%')
     expect(formatConfidencePercent(0.9998)).toBe('99.98%')
     expect(formatConfidenceLabel(0.9998, 'CRITICAL')).toBe(
       '99.98% (Critical confidence)'

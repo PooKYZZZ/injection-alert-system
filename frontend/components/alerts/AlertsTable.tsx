@@ -7,7 +7,7 @@ import type { Alert } from '@/features/alerts/types'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
-import { formatAlertDateTime, formatConfidenceLabel, formatRelativeTime } from '@/lib/date-time'
+import { formatAlertDateTime, formatConfidencePercent, formatConfidenceTierLabel, formatRelativeTime } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -48,7 +48,7 @@ const ALERT_TABLE_COLUMNS = [
 
 function formatCrsScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
-  return score.toFixed(2)
+  return Number(score.toFixed(1)).toString()
 }
 
 function formatRequestHeadline(alert: Alert): string {
@@ -372,9 +372,14 @@ function AlertsTableContent({
                   </td>
                   <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-3">
-                    <span className={`font-mono text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
-                      {formatConfidenceLabel(alert.confidence, alert.confidence_level)}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-xs text-text-primary">
+                        {formatConfidencePercent(alert.confidence)}
+                      </span>
+                      <span className={`text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
+                        {formatConfidenceTierLabel(alert.confidence_level)}
+                      </span>
+                    </div>
                   </td>
                   <td className="p-3">
                     <ActionLabel action={alert.action_taken} bordered={false} />

@@ -128,9 +128,11 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
     expect(screen.getByText('SQL Injection Attack Detected')).toBeInTheDocument()
     expect(screen.getByText('attack-sqli')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Training feedback'))
+    fireEvent.click(screen.getByText('Recorded system outcome'))
+    expect(screen.getByText('Training feedback')).toBeInTheDocument()
 
-    const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured Request' })
+    const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured request' })
     const evidenceShell = capturedRequestHeading.nextElementSibling
 
     expect(evidenceShell).not.toBeNull()
@@ -184,6 +186,7 @@ describe('AlertDrawer', () => {
       />
     )
 
+    fireEvent.click(screen.getByText('Recorded system outcome'))
     fireEvent.click(screen.getByRole('button', { name: /Blocked/i }))
 
     expect(actionMutateMock).toHaveBeenCalledWith(
@@ -246,6 +249,8 @@ describe('AlertDrawer', () => {
         />
       )
 
+      fireEvent.click(screen.getByText('Recorded system outcome'))
+
       expect(Boolean(screen.queryByRole('button', { name: /Resolve/i }))).toBe(canTriage)
       expect(Boolean(screen.queryByRole('button', { name: /Blocked/i }))).toBe(
         canUpdateAction
@@ -266,6 +271,7 @@ describe('AlertDrawer', () => {
   it('shows analyst review controls and requires a selection before submitting', () => {
     render(<AlertDrawer role="ANALYST" alert={alertFixture} onClose={vi.fn()} />)
 
+    fireEvent.click(screen.getByText('Training feedback'))
     expect(screen.getByLabelText('Verified classification')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Approve for training' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Exclude from training' })).toBeDisabled()
@@ -308,6 +314,7 @@ describe('AlertDrawer', () => {
       />
     )
 
+    fireEvent.click(screen.getByText('Training feedback'))
     fireEvent.change(screen.getByLabelText('Verified classification'), {
       target: { value: 'Normal' },
     })

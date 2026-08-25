@@ -203,16 +203,17 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('95% (Critical confidence)')).toBeInTheDocument()
+    expect(await screen.findByText('95%')).toBeInTheDocument()
+    expect(await screen.findByText('Critical')).toBeInTheDocument()
   })
 
   it.each([
-    [0.8, 'MEDIUM', '80% (Medium confidence)', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95% (Medium confidence)', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70% (Critical confidence)', 'text-severity-high-text'],
+    [0.8, 'MEDIUM', '80%', 'Medium', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95%', 'Medium', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70%', 'Critical', 'text-severity-high-text'],
   ] as const)(
     'styles confidence %s from canonical tier %s',
-    async (confidence, confidenceLevel, expectedText, expectedClass) => {
+    async (confidence, confidenceLevel, expectedText, expectedTier, expectedClass) => {
       mockedUseAlertsFromFilters.mockReturnValue({
         ...buildQueryResult(),
         data: {
@@ -246,7 +247,8 @@ describe('AlertsTable', () => {
         />
       )
 
-      expect(await screen.findByText(expectedText)).toHaveClass(expectedClass)
+      expect(await screen.findByText(expectedText)).toBeInTheDocument()
+      expect(await screen.findByText(expectedTier)).toHaveClass(expectedClass)
     }
   )
 
