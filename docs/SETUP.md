@@ -656,8 +656,9 @@ npm run db:seed
 Pop-Location
 ```
 
-The Compose container uses `DATABASE_URL=file:./prisma/dev.db`, which resolves
-to `/app/prisma/dev.db` inside the production portal container.
+The Compose container uses `DATABASE_URL=file:./dev.db`; Prisma resolves that
+URL relative to `prisma/schema.prisma`, so it opens `/app/prisma/dev.db`
+inside the production portal container.
 
 Then start this repo with the demo-target profile:
 
