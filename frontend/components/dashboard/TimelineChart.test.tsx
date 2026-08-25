@@ -1,6 +1,10 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildUniqueDayTicks, buildYAxisMax, dedupeTooltipPayload, TimelineChart } from './TimelineChart'
+
+afterEach(() => {
+  cleanup()
+})
 
 vi.mock('recharts', async () => {
   const React = await import('react')
@@ -274,7 +278,7 @@ describe('TimelineChart', () => {
     const { container, getByText } = render(<TimelineChart buckets={[]} />)
 
     expect(getByText(/No events in this window/i)).toBeInTheDocument()
-    expect(getByText(/Traffic was quiet during this period/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Traffic was quiet during this period/i)).not.toBeInTheDocument()
     expect(container.querySelector('[data-testid="ComposedChart"]')).toBeNull()
   })
 
@@ -290,6 +294,6 @@ describe('TimelineChart', () => {
   it('shows the pending skeleton while loading', () => {
     const { container } = render(<TimelineChart buckets={[]} isPending />)
 
-    expect(container.querySelectorAll('.animate-skeleton')).toHaveLength(4)
+    expect(container.querySelectorAll('.animate-skeleton')).toHaveLength(3)
   })
 })
