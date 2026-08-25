@@ -31,7 +31,6 @@ describe('UserManagementWorkspace', () => {
     expect(screen.queryByText('MFA scope')).not.toBeInTheDocument()
     expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
     expect(screen.getByText('Enrollment required')).toBeInTheDocument()
-    expect(screen.getByText('Ready for sign-in')).toBeInTheDocument()
     expect(screen.getByText('Active')).toBeInTheDocument()
     expect(screen.queryByText('Created')).not.toBeInTheDocument()
     expect(screen.queryByText('View details')).not.toBeInTheDocument()
@@ -47,7 +46,7 @@ describe('UserManagementWorkspace', () => {
     expect(screen.getByText('Account overview')).toBeInTheDocument()
     expect(screen.getByText('Administrative actions')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit role for SOC Analyst' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reset authenticator for SOC Analyst' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reset MFA enrollment for SOC Analyst' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Change email address for SOC Analyst' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Role for SOC Analyst')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Reason for MFA reset')).not.toBeInTheDocument()
@@ -124,7 +123,7 @@ describe('UserManagementWorkspace', () => {
     render(<UserManagementWorkspace initialAccounts={[protectedAdmin]} currentAccountId={account.id} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open account details for SOC Admin' }))
-    expect(screen.getByRole('button', { name: 'Reset authenticator for SOC Admin' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reset MFA enrollment for SOC Admin' })).toBeInTheDocument()
 
     cleanup()
     const viewer = { ...account, role: 'VIEWER' as const, mfa_status: 'not_required' as const }

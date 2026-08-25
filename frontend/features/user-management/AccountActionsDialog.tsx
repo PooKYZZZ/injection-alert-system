@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge'
 
 import type { SafeManagedAccount } from './contract'
+import styles from './UserManagementWorkspace.module.css'
 
 type Role = 'ADMIN' | 'ANALYST' | 'VIEWER'
 type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
@@ -100,7 +101,7 @@ export function AccountActionsDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
-        <Dialog.Content className="fixed inset-y-0 right-0 z-50 flex w-[min(100vw,520px)] flex-col overflow-y-auto border-l border-border-light bg-surface-panel shadow-2xl outline-none max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:max-h-[92vh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t">
+        <Dialog.Content className={`${styles.detailsContent} fixed inset-y-0 right-0 z-50 flex w-[min(100vw,520px)] flex-col overflow-y-auto border-l border-border-light bg-surface-panel shadow-2xl outline-none max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:max-h-[92vh] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t`}>
           <div className="flex items-start justify-between gap-5 border-b border-border-light px-6 py-5">
             <div className="min-w-0">
               <Dialog.Title className="truncate text-xl font-semibold tracking-tight text-text-primary">
@@ -166,10 +167,12 @@ export function AccountActionsDialog({
                     {account.pending_email ? <span className="block text-xs text-status-warning">Change pending: {account.pending_email}</span> : null}
                   </dd>
                 </div>
-                <div className="flex items-center justify-between gap-4 py-3">
-                  <dt className="text-text-secondary">Password setup</dt>
-                  <dd className="text-right text-text-primary">{account.setup_status === 'pending' ? 'Pending' : 'Complete'}</dd>
-                </div>
+                {account.setup_status === 'pending' ? (
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <dt className="text-text-secondary">Password setup</dt>
+                    <dd className="text-right text-text-primary">Pending</dd>
+                  </div>
+                ) : null}
               </dl>
 
               {isSelf ? (
@@ -242,7 +245,6 @@ export function AccountActionsDialog({
 
             <section aria-labelledby="administrative-actions-heading">
               <h2 id="administrative-actions-heading" className="text-sm font-semibold text-text-primary">Administrative actions</h2>
-              <p className="mt-1 text-xs leading-5 text-text-secondary">Less frequent account changes stay closed until they are needed.</p>
               <div className="mt-4 divide-y divide-border-light border-y border-border-light">
                 {account.setup_status === 'pending' && account.enabled ? (
                   <div className="flex items-start justify-between gap-4 py-4">
@@ -260,17 +262,17 @@ export function AccountActionsDialog({
                   <div className="py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h3 className="text-sm font-medium text-text-primary">Authenticator</h3>
-                        <p className="mt-1 text-xs leading-5 text-text-muted">Reset only when the user has lost access to their authenticator.</p>
+                        <h3 className="text-sm font-medium text-text-primary">MFA enrollment</h3>
+                        <p className="mt-1 text-xs leading-5 text-text-muted">Clear the current enrollment when the user needs to set up a new authenticator.</p>
                       </div>
                       <button
                         type="button"
                         className={disclosureButton}
-                        aria-label={resetOpen ? `Close authenticator reset for ${account.display_name}` : `Reset authenticator for ${account.display_name}`}
+                        aria-label={resetOpen ? `Close MFA enrollment reset for ${account.display_name}` : `Reset MFA enrollment for ${account.display_name}`}
                         aria-expanded={resetOpen}
                         onClick={() => setResetOpen((current) => !current)}
                       >
-                        {resetOpen ? 'Close reset' : 'Reset authenticator'}
+                        {resetOpen ? 'Close reset' : 'Reset MFA enrollment'}
                       </button>
                     </div>
                     {resetOpen ? (

@@ -180,7 +180,7 @@ export function UserManagementWorkspace({
     <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8">
       <PageHeader
         title="User Management"
-        description="Review account lifecycle and access state. Administrative changes stay inside account details."
+        description="Review account access and MFA enrollment state."
       >
         <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
           <Dialog.Trigger asChild>
@@ -279,8 +279,14 @@ export function UserManagementWorkspace({
                   <td className="px-4 py-3.5 text-text-secondary">{account.role === 'ADMIN' ? 'Admin' : account.role === 'ANALYST' ? 'Analyst' : 'Viewer'}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex flex-col items-start gap-1">
-                      <StatusBadge label={lifecycleState(account).label} tone={lifecycleState(account).tone} domain="lifecycle" />
-                      <span className="text-xs text-text-muted">{lifecycleState(account).detail}</span>
+                      {lifecycleState(account).label === 'Active' ? (
+                        <span className="text-sm font-medium text-text-primary">Active</span>
+                      ) : (
+                        <>
+                          <StatusBadge label={lifecycleState(account).label} tone={lifecycleState(account).tone} domain="lifecycle" />
+                          <span className="text-xs text-text-muted">{lifecycleState(account).detail}</span>
+                        </>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
