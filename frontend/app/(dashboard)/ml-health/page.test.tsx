@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MLHealthPage from './page'
 import { useMLHealth } from '@/features/ml-health/queries'
@@ -39,6 +39,8 @@ vi.mock('recharts', () => {
 })
 
 const mockedUseMLHealth = vi.mocked(useMLHealth)
+
+afterEach(cleanup)
 
 beforeEach(() => {
   mockedUseMLHealth.mockReturnValue({
@@ -89,11 +91,11 @@ describe('MLHealthPage', () => {
     expect(screen.queryByText('Fallback')).not.toBeInTheDocument()
     expect(screen.getByText('Monitoring coverage')).toBeInTheDocument()
     expect(screen.getByText('Calibration evidence')).toBeInTheDocument()
-    expect(
-      screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Confidence policy'))
-    expect(screen.getByRole('table', { name: 'Non-Normal policy bands' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Confidence policy diagnostics' }))
+    expect(screen.getByRole('tab', { name: 'Diagnostics' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Policy' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
+    expect(screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')).toBeInTheDocument()
     expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
   })
