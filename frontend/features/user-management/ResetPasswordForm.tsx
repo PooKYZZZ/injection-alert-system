@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 
-import { authFieldClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
 export function ResetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState('')
   const [done, setDone] = useState(false)
@@ -33,8 +33,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   if (done) {
     return (
-      <section className="w-full max-w-[430px] space-y-5" aria-labelledby="reset-password-heading">
-        <h1 id="reset-password-heading" className="text-[2rem] font-semibold tracking-[-0.04em] text-text-primary">Password reset complete</h1>
+      <section className="w-full max-w-[400px] space-y-5" aria-labelledby="reset-password-heading">
+        <h1 id="reset-password-heading" className={authHeadingClass}>Password reset complete</h1>
         <p role="status" className="text-sm leading-6 text-status-success">Your password was changed. Sign in again to continue.</p>
         <a href="/login" className={'inline-flex ' + authLinkClass}>Return to sign in</a>
       </section>
@@ -42,9 +42,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <section className="w-full max-w-[430px] space-y-6" aria-labelledby="reset-password-heading">
+    <section className="w-full max-w-[400px] space-y-6" aria-labelledby="reset-password-heading">
       <div>
-        <h1 id="reset-password-heading" className="text-[2rem] font-semibold tracking-[-0.04em] text-text-primary">Set a new password</h1>
+        <h1 id="reset-password-heading" className={authHeadingClass}>Set a new password</h1>
         <p className="mt-2 text-sm leading-6 text-text-secondary">Use at least 15 characters. You will not be signed in automatically.</p>
       </div>
       <form aria-busy={pending || undefined} aria-describedby={error ? 'reset-password-error' : undefined} aria-labelledby="reset-password-heading" onSubmit={submit} className="grid gap-4">

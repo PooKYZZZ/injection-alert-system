@@ -68,10 +68,9 @@ export function MfaVerifyForm() {
 
   return (
     <section className={styles.formRegion} aria-labelledby="mfa-verify-heading">
-          <div className={styles.stepRow}><span className={styles.step}>2 of 2</span></div>
+          <div className={styles.stepRow}><span className={styles.step}>Step 2 of 2</span></div>
           {terminalError ? (
             <div className={styles.terminal} role="alert" aria-labelledby="mfa-verify-heading">
-              <p className={styles.eyebrow}>Sign-in challenge ended</p>
               <h1 id="mfa-verify-heading" className={styles.heading}>Start sign-in again</h1>
               <p className={styles.description}>{terminalError.message}</p>
               <a href="/login" className={styles.terminalAction}>Return to sign in</a>
@@ -108,6 +107,9 @@ export function MfaVerifyForm() {
                 </button>
                 {error && <p id="mfa-code-error" role="alert" className={styles.error}>{error}</p>}
               </form>
+              <div className={styles.secondaryActions}>
+                <a href="/mfa/recover" className={styles.secondaryLink}>Use a recovery method</a>
+              </div>
             </>
           )}
     </section>

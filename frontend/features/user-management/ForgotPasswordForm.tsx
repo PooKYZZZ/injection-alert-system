@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 
-import { authFieldClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -15,11 +15,12 @@ export function ForgotPasswordForm() {
     setSent(false)
     setError(null)
     try {
-      await fetch('/api/auth/forgot-password', {
+      const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email }),
       })
+      if (!response.ok) throw new Error('request_failed')
       setSent(true)
     } catch {
       setError('Unable to send a reset link right now. Try again without leaving this page.')
@@ -29,10 +30,10 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <section className="w-full max-w-[430px] space-y-6" aria-labelledby="forgot-password-heading">
+    <section className="w-full max-w-[400px] space-y-6" aria-labelledby="forgot-password-heading">
       <div>
-        <h1 id="forgot-password-heading" className="text-[2rem] font-semibold tracking-[-0.04em] text-text-primary">Forgot password</h1>
-        <p className="mt-2 text-sm leading-6 text-text-secondary">Enter your email and we’ll explain the next step if the account is eligible.</p>
+        <h1 id="forgot-password-heading" className={authHeadingClass}>Forgot password</h1>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">Enter the email address associated with your account. If it matches an account, we’ll send a reset link.</p>
       </div>
       <form aria-busy={pending || undefined} aria-describedby={error ? 'forgot-password-error' : undefined} aria-labelledby="forgot-password-heading" onSubmit={submit} className="grid gap-4">
         <div className="grid gap-1.5">

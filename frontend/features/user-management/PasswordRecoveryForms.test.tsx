@@ -13,7 +13,7 @@ describe('password recovery forms', () => {
   it('uses generic forgot-password copy', () => {
     render(<ForgotPasswordForm />)
     expect(screen.getByRole('heading', { name: /forgot password/i })).toBeInTheDocument()
-    expect(screen.getByText(/if the account is eligible/i)).toBeInTheDocument()
+    expect(screen.getByText(/if it matches an account/i)).toBeInTheDocument()
   })
 
   it('does not auto-login after reset', () => {
@@ -48,5 +48,16 @@ describe('password recovery forms', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to send/i)
     expect(input).toHaveValue('analyst@example.test')
+  })
+
+  it('treats a non-OK recovery response as a recoverable error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
+    render(<ForgotPasswordForm />)
+
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'analyst@example.test' } })
+    fireEvent.submit(screen.getByRole('form', { name: /forgot password/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/unable to send/i)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

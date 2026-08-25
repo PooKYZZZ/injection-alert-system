@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { authFieldClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
 
 export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
   const [started, setStarted] = useState(false)
@@ -45,9 +45,9 @@ export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
   }
 
   return (
-    <section className="max-w-md space-y-5" aria-labelledby="step-up-heading">
+    <section className="w-full max-w-[400px] space-y-5" aria-labelledby="step-up-heading">
       <div>
-        <h1 id="step-up-heading" className="text-2xl font-semibold text-text-primary">Confirm sensitive action</h1>
+        <h1 id="step-up-heading" className={authHeadingClass}>Confirm sensitive action</h1>
         <p className="mt-2 text-sm text-text-secondary">Enter a current authenticator code to continue.</p>
       </div>
       {!started ? (

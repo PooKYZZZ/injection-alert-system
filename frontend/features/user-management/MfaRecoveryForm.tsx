@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { authFieldClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authLinkClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
 
 export function MfaRecoveryForm() {
   const [mode, setMode] = useState<'backup' | 'email'>('backup')
@@ -59,9 +59,9 @@ export function MfaRecoveryForm() {
   }
 
   return (
-    <section className="max-w-md space-y-5" aria-labelledby="mfa-recovery-heading">
+    <section className="w-full max-w-[400px] space-y-5" aria-labelledby="mfa-recovery-heading">
       <div>
-        <h1 id="mfa-recovery-heading" className="text-2xl font-semibold text-text-primary">Recover authenticator access</h1>
+        <h1 id="mfa-recovery-heading" className={authHeadingClass}>Recover authenticator access</h1>
         <p className="mt-2 text-sm text-text-secondary">Recovery is temporary. You must enroll a new authenticator before entering the dashboard.</p>
       </div>
       {mode === 'backup' ? (

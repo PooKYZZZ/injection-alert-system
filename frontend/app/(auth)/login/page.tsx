@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { authFieldClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authLinkClass } from '@/components/auth/authStyles'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
@@ -38,8 +38,8 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="w-full max-w-[430px] text-text-primary" aria-labelledby="login-heading">
-          <h1 id="login-heading" className="text-[2rem] font-semibold tracking-[-0.04em] text-text-primary">Sign in</h1>
+    <section className="w-full max-w-[400px] text-text-primary" aria-labelledby="login-heading">
+          <h1 id="login-heading" className={authHeadingClass}>Sign in</h1>
           <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">Enter your credentials to continue to CyberTrace.</p>
 
           {errorMessage ? (
@@ -71,7 +71,10 @@ export default function LoginPage() {
             </div>
 
             <div className="grid gap-1.5">
-              <label htmlFor="password" className="text-xs font-medium text-text-secondary">Password</label>
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="password" className="text-xs font-medium text-text-secondary">Password</label>
+                <a href="/forgot-password" className={authLinkClass + ' text-xs'}>Forgot password?</a>
+              </div>
               <input
                 id="password"
                 type="password"
@@ -92,12 +95,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-      <div className="mt-7 flex items-center justify-between gap-4 border-t border-border-light pt-5">
-        <span className="text-xs text-text-muted">Password required</span>
-        <a href="/forgot-password" className="text-sm text-text-secondary underline decoration-border-light underline-offset-4 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/60">
-          Forgot password?
-        </a>
-      </div>
     </section>
   )
 }

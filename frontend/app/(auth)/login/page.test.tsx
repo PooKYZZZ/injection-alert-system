@@ -45,6 +45,8 @@ describe('LoginPage', () => {
     expect(screen.getByText('CyberTrace')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: 'background' })).not.toBeInTheDocument()
     expect(screen.queryByText(/advanced WAF|real-time attack monitoring/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Password required')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password')
 
     const identifierInput = screen.getByLabelText('Email or username')
     const passwordInput = screen.getByLabelText('Password')

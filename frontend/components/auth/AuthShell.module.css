@@ -2,29 +2,29 @@
   display: grid;
   min-height: 100dvh;
   place-items: center;
-  padding: 32px 20px;
+  padding: 24px 20px;
   background: var(--color-bg-page);
   color: var(--color-text-primary);
 }
 
 .surface {
-  width: min(100%, 760px);
+  width: min(100%, 520px);
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--color-border-light) 78%, transparent);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--color-bg-panel);
-  box-shadow: 0 24px 64px color-mix(in oklab, #000 22%, transparent);
+  box-shadow: 0 20px 48px color-mix(in oklab, #000 18%, transparent);
 }
 
 .header {
   display: flex;
-  min-height: 68px;
+  min-height: 56px;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 0 28px;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-border-light) 72%, transparent);
-  background: color-mix(in oklab, var(--color-bg-shell) 58%, var(--color-bg-panel));
+  padding: 0 24px;
+  border-bottom: 0;
+  background: transparent;
 }
 
 .brand {
@@ -53,7 +53,7 @@
 }
 
 .content {
-  padding: 48px clamp(24px, 7vw, 72px) 52px;
+  padding: 36px 40px 40px;
 }
 
 @media (max-width: 620px) {
@@ -72,6 +72,6 @@
   }
 
   .content {
-    padding: 32px 20px 36px;
+    padding: 28px 22px 32px;
   }
 }

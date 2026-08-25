@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import Image from 'next/image'
 import QRCode from 'qrcode'
 
-import { authFieldClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import { authFieldClass, authHeadingClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
 
 type Enrollment = {
   factor_id: string
@@ -119,9 +119,9 @@ export function TotpEnrollmentForm() {
   }
 
   return (
-    <section className="max-w-xl space-y-5" aria-labelledby="totp-heading">
+    <section className="w-full max-w-[400px] space-y-5" aria-labelledby="totp-heading">
       <div>
-        <h1 id="totp-heading" className="text-2xl font-semibold text-text-primary">Secure your account</h1>
+        <h1 id="totp-heading" className={authHeadingClass}>Secure your account</h1>
         <p className="mt-2 text-sm text-text-secondary">Use an authenticator app to scan the QR payload or enter the manual setup key.</p>
       </div>
       {!enrollment ? (
@@ -132,7 +132,7 @@ export function TotpEnrollmentForm() {
         <>
           <div className="rounded-lg border border-border-subtle bg-surface-raised p-4">
             {qrCode && <Image src={qrCode} alt="Authenticator setup QR code" width={224} height={224} unoptimized className="mb-4 rounded bg-white p-2" />}
-            <p className="text-xs uppercase tracking-wide text-text-muted">Manual setup key</p>
+            <p className="text-xs font-medium text-text-secondary">Manual setup key</p>
             <code className="mt-2 block break-all text-sm text-text-primary">{enrollment.manual_key}</code>
             <details className="mt-4">
               <summary className="cursor-pointer text-sm text-accent">Show QR payload</summary>
