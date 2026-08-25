@@ -127,7 +127,7 @@ Each item retains the original granular concern even when current evidence shows
 - **Implementation summary:** Changed `.disclosureGrid` from two equal desktop columns to one `minmax(0, 1fr)` column. No API, view-model, component, or contract change.
 - **Tests and exact results:** `npx vitest run --pool=threads "components/ml-health/MLHealthWorkspace.test.tsx" "components/ml-health/MLHealthDiagnosticsSection.test.tsx" "app/(dashboard)/ml-health/page.test.tsx"` — **PASS**, 3 files / 7 tests.
 - **Browser observations and evidence:** In-app browser after hot reload, 1440×900: one grid column, each expanded region approximately 1087px wide, each table approximately 1051px wide. At 575×912: one column, each region approximately 506px wide, existing table containers remain available at 470px. Browser was restored to `/alerts` and temporary viewport override was reset.
-- **Commit:** Focused MLH-001 implementation commit; its immutable hash is recorded by the following ledger-only update.
+- **Commit:** `aa2b4ee` — `fix(frontend): give ML evidence tables full width`.
 - **Follow-up findings:** `MLH-007` remains open for explicit keyboard focus/scroll behavior and complete diagnostics state coverage.
 
 ### Verified resolved findings retained for completeness
@@ -204,7 +204,7 @@ For every completed, deferred, or newly discovered meaningful finding, append/up
 | --- | --- | --- | --- |
 | `d1e3a658` | Prior ML Health/admin/MFA design-plan baseline | Existing branch history; current runtime rechecked | Baseline |
 | `ec29240` | Remediation ledger | `git diff --check`, document review | Baseline recorded |
-| _pending ledger update_ | MLH-001 evidence-width recompose | 7 focused tests; desktop/narrow browser measurement; `git diff --check` | Resolved |
+| `aa2b4ee` | MLH-001 evidence-width recompose | 7 focused tests; desktop/narrow browser measurement; `git diff --check` | Resolved |
 
 ## Final gate
 
