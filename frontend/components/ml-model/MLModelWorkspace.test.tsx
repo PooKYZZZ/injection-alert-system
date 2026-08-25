@@ -197,9 +197,10 @@ describe('MLModelWorkspace', () => {
 
     render(<MLModelWorkspace role={ROLES.VIEWER} />)
 
-    expect(screen.getByText(/Model Operations are unavailable in this environment/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Model Operations unavailable' })).toBeInTheDocument()
     expect(screen.getByText(/local retraining controls are disabled or unavailable/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry Model Operations' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review ML Health' })).toHaveAttribute('href', '/ml-health')
   })
 
   it('shows the overview, queued stage, and unavailable evidence without inventing metrics', () => {
