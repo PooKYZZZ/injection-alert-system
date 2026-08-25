@@ -34,6 +34,7 @@ export const safeManagedAccountSchema = z.object({
   enabled: z.boolean(),
   email_verified: z.boolean(),
   mfa_status: z.enum(['not_required', 'enrollment_required', 'active']),
+  setup_status: z.enum(['pending', 'complete']),
   created_at: z.string().datetime({ offset: true }),
 }).strict()
 

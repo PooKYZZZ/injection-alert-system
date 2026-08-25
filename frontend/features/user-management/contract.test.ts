@@ -16,6 +16,7 @@ const safeAccount = {
   enabled: true,
   email_verified: true,
   mfa_status: 'active',
+  setup_status: 'complete',
   created_at: '2026-08-01T00:00:00Z',
 }
 

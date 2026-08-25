@@ -1,21 +1,17 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { useMemo, useState, type FormEvent } from 'react'
 
 import { formatStableDateTime } from '@/lib/date-time'
 
+import { AccountActionsDialog } from './AccountActionsDialog'
 import {
   managedAccountsResponseSchema,
   type SafeManagedAccount,
 } from './contract'
 
 type Role = 'ADMIN' | 'ANALYST' | 'VIEWER'
-
-const fieldClass =
-  'h-10 rounded-md border border-border-light bg-surface-inset px-3 text-sm text-text-primary outline-none transition-colors focus:border-accent-action'
-const secondaryButton =
-  'rounded-md border border-border-light px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary disabled:opacity-50'
-
 type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
 
 function actionKey(accountId: string, action: AccountAction): string {
@@ -28,21 +24,49 @@ function mfaLabel(status: SafeManagedAccount['mfa_status']): string {
   return 'Enrollment required'
 }
 
+const fieldClass =
+  'h-10 rounded-md border border-border-light bg-surface-inset px-3 text-sm text-text-primary outline-none transition-colors focus:border-accent-action'
+const secondaryButton =
+  'rounded-md border border-border-light px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50'
+
 export function UserManagementWorkspace({
   initialAccounts,
+  currentAccountId,
 }: {
   initialAccounts: SafeManagedAccount[]
+  currentAccountId?: string
 }) {
   const [accounts, setAccounts] = useState(initialAccounts)
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<Role>('VIEWER')
+  const [createOpen, setCreateOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingEmails, setPendingEmails] = useState<Record<string, string>>({})
   const [refreshPending, setRefreshPending] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({})
+  const [search, setSearch] = useState('')
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
+
+  const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null
+  const filteredAccounts = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return accounts
+    return accounts.filter((account) => [
+      account.display_name,
+      account.email,
+      account.pending_email ?? '',
+      account.role,
+      account.enabled ? 'enabled' : 'disabled',
+      mfaLabel(account.mfa_status),
+      account.setup_status === 'pending' ? 'setup pending' : 'setup complete',
+    ].some((value) => value.toLowerCase().includes(query)))
+  }, [accounts, search])
+
+  const enabledCount = accounts.filter((account) => account.enabled).length
+  const mfaRequiredCount = accounts.filter((account) => account.mfa_status !== 'not_required').length
 
   async function refreshAccounts() {
     setRefreshPending(true)
@@ -106,6 +130,7 @@ export function UserManagementWorkspace({
       setDisplayName('')
       setRole('VIEWER')
       setNotice('Account created. A password setup email is queued.')
+      setCreateOpen(false)
       await refreshAccounts()
     } catch {
       setNotice('Unable to create the account. Confirm recent TOTP authentication and try again.')
@@ -114,197 +139,235 @@ export function UserManagementWorkspace({
     }
   }
 
+  function runAccountAction(
+    account: SafeManagedAccount,
+    action: AccountAction,
+    operation: () => Promise<void>,
+    successMessage: string,
+    failureMessage: string,
+  ) {
+    void runAction(account.id, action, operation, successMessage, failureMessage)
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-8">
-      <header className="flex flex-col gap-2 border-b border-border-light pb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-action">
-          Access administration
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-text-primary">
-          User Management
-        </h1>
-        <p className="max-w-3xl text-sm leading-6 text-text-secondary">
-          Create named accounts and manage verified identity state. Users choose their own password from a short-lived setup link.
-        </p>
-      </header>
-
-      <section aria-labelledby="create-account-title" className="grid gap-5 border-b border-border-light pb-8 lg:grid-cols-[260px_1fr]">
+      <header className="flex flex-col gap-4 border-b border-border-light pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 id="create-account-title" className="text-base font-semibold text-text-primary">
-            Create account
-          </h2>
-          <p className="mt-2 text-sm leading-5 text-text-secondary">
-            ADMIN and ANALYST accounts require TOTP. VIEWER accounts remain password-only for this thesis scope.
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-action">Access administration</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-text-primary">User Management</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
+            Review account access and verified identity state. Detailed actions open only for the account you select.
           </p>
         </div>
-        <form onSubmit={createAccount} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.3fr_1fr_180px_auto]">
-          <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
-            Account email
-            <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-          <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
-            Display name
-            <input className={fieldClass} value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={120} />
-          </label>
-          <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
-            Role
-            <select className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as Role)}>
-              <option value="VIEWER">Viewer</option>
-              <option value="ANALYST">Analyst</option>
-              <option value="ADMIN">Admin</option>
-            </select>
-          </label>
-          <button disabled={pending} className="mt-auto h-10 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90 disabled:opacity-50" type="submit">
-            {pending ? 'Creating…' : 'Create account'}
-          </button>
-        </form>
-        {notice ? <p className="lg:col-start-2 text-sm text-text-secondary" role="status">{notice}</p> : null}
+        <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+          <Dialog.Trigger asChild>
+            <button type="button" className="h-10 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90">
+              Create account
+            </button>
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border-light bg-surface-shell p-6 shadow-2xl outline-none">
+              <Dialog.Title className="text-xl font-semibold tracking-tight text-text-primary">Create account</Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm leading-5 text-text-secondary">
+                Create a named account. The user chooses their password from a short-lived setup link.
+              </Dialog.Description>
+              <form onSubmit={createAccount} className="mt-6 grid gap-4">
+                <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
+                  Account email
+                  <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                </label>
+                <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
+                  Display name
+                  <input className={fieldClass} value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={120} />
+                </label>
+                <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
+                  Role
+                  <select className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as Role)}>
+                    <option value="VIEWER">Viewer</option>
+                    <option value="ANALYST">Analyst</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                </label>
+                <div className="mt-2 flex justify-end gap-2">
+                  <Dialog.Close asChild>
+                    <button type="button" className={secondaryButton}>Cancel</button>
+                  </Dialog.Close>
+                  <button disabled={pending} className="rounded-md bg-accent-action px-4 py-2 text-sm font-semibold text-surface-shell disabled:opacity-50" type="submit">
+                    {pending ? 'Creating…' : 'Create account'}
+                  </button>
+                </div>
+              </form>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      </header>
+
+      <section aria-label="Account summary" className="grid grid-cols-2 gap-4 border-b border-border-light pb-6 sm:grid-cols-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">Accounts</p>
+          <p className="mt-1 font-mono text-xl font-semibold text-text-primary">{accounts.length}</p>
+          <p className="mt-1 text-xs text-text-secondary">Named accounts</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">Enabled</p>
+          <p className="mt-1 font-mono text-xl font-semibold text-text-primary">{enabledCount}</p>
+          <p className="mt-1 text-xs text-text-secondary">Can sign in</p>
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">MFA scope</p>
+          <p className="mt-1 font-mono text-xl font-semibold text-text-primary">{mfaRequiredCount}</p>
+          <p className="mt-1 text-xs text-text-secondary">Accounts requiring MFA</p>
+        </div>
       </section>
 
+      {notice && !selectedAccount ? <p className="-mb-4 text-sm text-text-secondary" role="status">{notice}</p> : null}
+
       <section aria-labelledby="accounts-title" className="min-w-0">
-        <div className="mb-4 flex items-end justify-between">
+        <div className="mb-4 flex flex-col gap-4 border-b border-border-light pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 id="accounts-title" className="text-base font-semibold text-text-primary">Accounts</h2>
-            <p className="mt-1 text-xs text-text-secondary">{accounts.length} named account{accounts.length === 1 ? '' : 's'}</p>
+            <p className="mt-1 text-xs text-text-secondary">{filteredAccounts.length} of {accounts.length} account{accounts.length === 1 ? '' : 's'} shown</p>
           </div>
-          <button
-            type="button"
-            className={secondaryButton}
-            aria-label="Refresh accounts"
-            disabled={refreshPending}
-            onClick={() => void refreshAccounts()}
-          >
-            {refreshPending ? 'Refreshing…' : 'Refresh'}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="sr-only" htmlFor="account-search">Search accounts</label>
+            <input id="account-search" className={`${fieldClass} min-w-0 sm:w-72`} type="search" placeholder="Search by name, email, role, or status" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <button type="button" className={secondaryButton} aria-label="Refresh accounts" disabled={refreshPending} onClick={() => void refreshAccounts()}>
+              {refreshPending ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
         </div>
         {refreshError ? <p className="mb-3 text-sm text-status-danger" role="alert">{refreshError}</p> : null}
-        <p className="mb-2 text-xs text-text-muted">On narrow screens, scroll horizontally to view all account fields and actions.</p>
+        <p className="mb-2 text-xs text-text-muted">Select an account to review administrative actions. On narrow screens, scroll horizontally to view all fields.</p>
         <div className="overflow-x-auto border-y border-border-light">
-          <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
-            <caption className="sr-only">Managed accounts and protected administrative actions.</caption>
+          <table className="w-full min-w-[930px] border-collapse text-left text-sm">
+            <caption className="sr-only">Managed accounts and their current access state.</caption>
             <thead className="bg-surface-panel text-[10px] uppercase tracking-[0.14em] text-text-muted">
               <tr>
-                {['Account', 'Role', 'Email', 'MFA', 'Status', 'Created', 'Actions'].map((heading) => (
+                {['Account', 'Role', 'Access', 'Security', 'Created', 'Actions'].map((heading) => (
                   <th key={heading} scope="col" className="px-4 py-3 font-semibold">{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-light">
-              {accounts.map((account) => (
+              {filteredAccounts.map((account) => (
                 <tr key={account.id} className="bg-surface-page transition-colors hover:bg-surface-panel/60">
-                  <td className="px-4 py-4 font-medium text-text-primary">{account.display_name}</td>
                   <td className="px-4 py-4">
-                    <select
-                      aria-label={`Role for ${account.display_name}`}
-                      className="rounded border border-border-light bg-surface-inset px-2 py-1 text-xs text-text-primary"
-                      value={account.role}
-                      disabled={Boolean(pendingActions[actionKey(account.id, 'role')])}
-                      onChange={(event) => {
-                        const nextRole = event.target.value as Role
-                        void runAction(
-                          account.id,
-                          'role',
-                          async () => {
-                            await mutate(`/api/admin/users/${account.id}/role`, 'PATCH', { role: nextRole })
-                            await refreshAccounts()
-                          },
-                          'Role updated.',
-                          'Role change failed. Recent TOTP authentication is required.',
-                        )
-                      }}
-                    >
-                      <option value="VIEWER">VIEWER</option><option value="ANALYST">ANALYST</option><option value="ADMIN">ADMIN</option>
-                    </select>
+                    <div className="font-medium text-text-primary">{account.display_name}</div>
+                    <div className="mt-1 text-xs text-text-secondary">{account.email}</div>
+                    {account.pending_email ? <div className="mt-1 text-xs text-status-warning">Email change pending: {account.pending_email}</div> : null}
                   </td>
-                  <td className="px-4 py-4 text-text-secondary">
-                    <div>{account.email}</div>
-                    <div className="mt-1 text-[11px] text-text-muted">{account.email_verified ? 'Verified' : 'Unverified'}{account.pending_email ? ` · Pending ${account.pending_email}` : ''}</div>
+                  <td className="px-4 py-4 font-mono text-xs text-text-secondary">{account.role}</td>
+                  <td className="px-4 py-4">
+                    <span className={account.enabled ? 'font-medium text-status-success' : 'font-medium text-status-danger'}>
+                      {account.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <span className="mt-1 block text-xs text-text-muted">{account.email_verified ? 'Email verified' : 'Email unverified'}</span>
+                    <span className="mt-1 block text-xs text-text-muted">{account.setup_status === 'pending' ? 'Setup pending' : 'Setup complete'}</span>
                   </td>
                   <td className="px-4 py-4 text-text-secondary">{mfaLabel(account.mfa_status)}</td>
-                  <td className="px-4 py-4"><span className={account.enabled ? 'text-status-success' : 'text-status-danger'}>{account.enabled ? 'Enabled' : 'Disabled'}</span></td>
                   <td className="px-4 py-4 text-text-secondary">{formatStableDateTime(account.created_at, 'Unknown date')}</td>
                   <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className={secondaryButton}
-                        type="button"
-                        aria-label={`${account.enabled ? 'Disable' : 'Enable'} ${account.display_name}`}
-                        disabled={Boolean(pendingActions[actionKey(account.id, 'status')])}
-                        onClick={() => void runAction(
-                          account.id,
-                          'status',
-                          async () => {
-                            await mutate(`/api/admin/users/${account.id}/status`, 'PATCH', { enabled: !account.enabled })
-                            await refreshAccounts()
-                          },
-                          account.enabled ? 'Account disabled.' : 'Account enabled.',
-                          'Status change failed.',
-                        )}
-                      >
-                        {account.enabled ? 'Disable' : 'Enable'}
-                      </button>
-                      <button
-                        className={secondaryButton}
-                        type="button"
-                        aria-label={`Resend setup for ${account.display_name}`}
-                        disabled={Boolean(pendingActions[actionKey(account.id, 'setup')])}
-                        onClick={() => void runAction(
-                          account.id,
-                          'setup',
-                          () => mutate(`/api/admin/users/${account.id}/resend-setup`, 'POST'),
-                          'Setup email queued.',
-                          'Setup email could not be queued.',
-                        )}
-                      >
-                        {pendingActions[actionKey(account.id, 'setup')] ? 'Queueing…' : 'Resend setup'}
-                      </button>
-                      {account.role !== 'ADMIN' && <button
-                        className={secondaryButton}
-                        type="button"
-                        aria-label={`Reset MFA for ${account.display_name}`}
-                        disabled={Boolean(pendingActions[actionKey(account.id, 'mfa')])}
-                        onClick={() => {
-                          const reason = window.prompt('Reason for MFA reset')
-                          if (reason?.trim()) {
-                            void runAction(
-                              account.id,
-                              'mfa',
-                              () => mutate(`/api/admin/users/${account.id}/mfa-reset`, 'POST', { reason: reason.trim() }),
-                              'MFA reset. The account must enroll a new authenticator.',
-                              'MFA reset failed. Recent TOTP authentication is required.',
-                            )
-                          }
-                        }}
-                      >
-                        {pendingActions[actionKey(account.id, 'mfa')] ? 'Resetting…' : 'Reset MFA'}
-                      </button>}
-                      <input aria-label={`New email for ${account.display_name}`} className="w-48 rounded border border-border-light bg-surface-inset px-2 py-1 text-xs text-text-primary" type="email" placeholder="Proposed email" value={pendingEmails[account.id] ?? ''} onChange={(event) => setPendingEmails((current) => ({ ...current, [account.id]: event.target.value }))} />
-                      <button
-                        className={secondaryButton}
-                        type="button"
-                        aria-label={`Request email verification for ${account.display_name}`}
-                        disabled={!pendingEmails[account.id]?.trim() || Boolean(pendingActions[actionKey(account.id, 'email')])}
-                        onClick={() => void runAction(
-                          account.id,
-                          'email',
-                          async () => {
-                            await mutate(`/api/admin/users/${account.id}/email`, 'POST', { email: pendingEmails[account.id] ?? '' })
-                            await refreshAccounts()
-                          },
-                          'Verification email queued to the proposed address.',
-                          'Email change request failed.',
-                        )}
-                      >
-                        {pendingActions[actionKey(account.id, 'email')] ? 'Queueing…' : 'Request verification'}
-                      </button>
-                    </div>
+                    <button type="button" className={secondaryButton} aria-label={`View details for ${account.display_name}`} onClick={() => setSelectedAccountId(account.id)}>
+                      View details
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {filteredAccounts.length === 0 ? (
+          accounts.length === 0 ? (
+            <p className="border-b border-border-light px-4 py-8 text-sm text-text-secondary">No managed accounts yet. Create an account to begin.</p>
+          ) : search.trim() ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-4 py-8">
+              <p className="text-sm text-text-secondary">No accounts match “{search.trim()}”.</p>
+              <button type="button" className={secondaryButton} onClick={() => setSearch('')}>Clear account search</button>
+            </div>
+          ) : (
+            <p className="border-b border-border-light px-4 py-8 text-sm text-text-secondary">No managed accounts are available.</p>
+          )
+        ) : null}
       </section>
+
+      <AccountActionsDialog
+        key={`${selectedAccountId ?? 'closed'}-${selectedAccount?.role ?? 'closed'}-${selectedAccount ? 'open' : 'closed'}`}
+        account={selectedAccount}
+        currentAccountId={currentAccountId}
+        notice={notice}
+        open={selectedAccount !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAccountId(null)
+        }}
+        pendingActions={pendingActions}
+        pendingEmail={selectedAccount ? pendingEmails[selectedAccount.id] ?? '' : ''}
+        onPendingEmailChange={(value) => {
+          if (selectedAccount) setPendingEmails((current) => ({ ...current, [selectedAccount.id]: value }))
+        }}
+        onRoleChange={(nextRole) => {
+          if (!selectedAccount) return
+          runAccountAction(
+            selectedAccount,
+            'role',
+            async () => {
+              await mutate(`/api/admin/users/${selectedAccount.id}/role`, 'PATCH', { role: nextRole })
+              await refreshAccounts()
+            },
+            `Role for ${selectedAccount.display_name} changed to ${nextRole}.`,
+            `Role change for ${selectedAccount.display_name} failed. Recent TOTP authentication is required.`,
+          )
+        }}
+        onToggleStatus={() => {
+          if (!selectedAccount) return
+          runAccountAction(
+            selectedAccount,
+            'status',
+            async () => {
+              await mutate(`/api/admin/users/${selectedAccount.id}/status`, 'PATCH', { enabled: !selectedAccount.enabled })
+              await refreshAccounts()
+            },
+            selectedAccount.enabled
+              ? `${selectedAccount.display_name} was disabled.`
+              : `${selectedAccount.display_name} was enabled.`,
+            `Status change for ${selectedAccount.display_name} failed.`,
+          )
+        }}
+        onResendSetup={() => {
+          if (!selectedAccount) return
+          runAccountAction(
+            selectedAccount,
+            'setup',
+            () => mutate(`/api/admin/users/${selectedAccount.id}/resend-setup`, 'POST'),
+            `Password setup email queued for ${selectedAccount.display_name}.`,
+            `Password setup email for ${selectedAccount.display_name} could not be queued.`,
+          )
+        }}
+        onResetMfa={(reason) => {
+          if (!selectedAccount) return
+          runAccountAction(
+            selectedAccount,
+            'mfa',
+            () => mutate(`/api/admin/users/${selectedAccount.id}/mfa-reset`, 'POST', { reason }),
+            `MFA reset for ${selectedAccount.display_name} completed. The account must enroll a new authenticator.`,
+            `MFA reset for ${selectedAccount.display_name} failed. Recent TOTP authentication is required.`,
+          )
+        }}
+        onRequestEmail={() => {
+          if (!selectedAccount) return
+          runAccountAction(
+            selectedAccount,
+            'email',
+            async () => {
+              await mutate(`/api/admin/users/${selectedAccount.id}/email`, 'POST', { email: pendingEmails[selectedAccount.id] ?? '' })
+              setPendingEmails((current) => ({ ...current, [selectedAccount.id]: '' }))
+              await refreshAccounts()
+            },
+            `Verification email queued for ${selectedAccount.display_name}.`,
+            `Email change request for ${selectedAccount.display_name} failed.`,
+          )
+        }}
+      />
     </div>
   )
 }
