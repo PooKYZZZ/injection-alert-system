@@ -534,3 +534,11 @@ The implementation will append a dated entry for each focused group below with t
 - **Browser evidence:** Direct protected-route inspection without a valid session redirects to `/login`; no authenticated MFA screenshot or terminal live-state claim is made. Component tests cover focused input semantics, wrong-code retry selection, terminal restart, single-flight submission, generic recovery copy, non-OK recovery handling, and login navigation.
 - **Commit:** `fabfe4c` — `fix(auth): tighten recovery and verification surfaces`.
 - **Follow-up:** Reopen `/login`, `/forgot-password`, `/mfa/verify`, `/mfa/recover`, `/mfa/enroll`, and reset/setup routes at desktop and narrow widths with a safe session; validate browser focus rings and the actual challenge recovery/terminal transitions.
+
+### 2026-08-26 — ALERT-014 follow-up: preserve confidence display contracts
+
+- **Status:** Resolved.
+- **Finding:** The broad suite caught that compact confidence formatting had been applied to the shared `ConfidenceBar`, breaking its existing high-precision contract even though the Alerts table needed shorter operator-facing values.
+- **Decision:** Keep `formatConfidencePercent` as the precision-preserving source display and add `formatCompactConfidencePercent` for the Alerts table only. This resolves table overprecision without weakening the reusable bar or source-label behavior.
+- **Validation:** ConfidenceBar, AlertsTable, and date-time tests **PASS**, 3 files / 33 tests; lint/typecheck/diff check **PASS**.
+- **Commit:** `aeab59b` — `fix(alerts): preserve confidence display contracts`.
