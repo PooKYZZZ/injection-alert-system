@@ -3,8 +3,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useMemo, useState, type FormEvent } from 'react'
 
-import { formatStableDateTime } from '@/lib/date-time'
-
 import { AccountActionsDialog } from './AccountActionsDialog'
 import {
   managedAccountsResponseSchema,
@@ -19,9 +17,15 @@ function actionKey(accountId: string, action: AccountAction): string {
 }
 
 function mfaLabel(status: SafeManagedAccount['mfa_status']): string {
-  if (status === 'active') return 'Active'
+  if (status === 'active') return 'Enrolled'
   if (status === 'not_required') return 'Not required'
   return 'Enrollment required'
+}
+
+const roleGuidance: Record<Role, string> = {
+  VIEWER: 'Viewers can review security activity without changing analyst or account settings.',
+  ANALYST: 'Analysts can investigate alerts and update triage work without managing accounts.',
+  ADMIN: 'Admins can manage accounts and access settings; MFA enrollment is required.',
 }
 
 const fieldClass =
@@ -129,7 +133,7 @@ export function UserManagementWorkspace({
       setEmail('')
       setDisplayName('')
       setRole('VIEWER')
-      setNotice('Account created. A password setup email is queued.')
+      setNotice('Invitation created. A password setup email is queued.')
       setCreateOpen(false)
       await refreshAccounts()
     } catch {
@@ -153,28 +157,27 @@ export function UserManagementWorkspace({
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-8">
       <header className="flex flex-col gap-4 border-b border-border-light pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-action">Access administration</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-text-primary">User Management</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-text-primary">User Management</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
-            Review account access and verified identity state. Detailed actions open only for the account you select.
+            Manage account lifecycle, access roles, and MFA enrollment. Select an account to review its administrative options.
           </p>
         </div>
         <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
           <Dialog.Trigger asChild>
             <button type="button" className="h-10 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90">
-              Create account
+              Invite user
             </button>
           </Dialog.Trigger>
           <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45" />
-            <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border-light bg-surface-shell p-6 shadow-2xl outline-none">
-              <Dialog.Title className="text-xl font-semibold tracking-tight text-text-primary">Create account</Dialog.Title>
+            <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border-light bg-surface-panel p-6 shadow-2xl outline-none">
+              <Dialog.Title className="text-xl font-semibold tracking-tight text-text-primary">Invite user</Dialog.Title>
               <Dialog.Description className="mt-2 text-sm leading-5 text-text-secondary">
-                Create a named account. The user chooses their password from a short-lived setup link.
+                Create an account and send a short-lived password setup link. The user chooses their password after accepting the invitation.
               </Dialog.Description>
               <form onSubmit={createAccount} className="mt-6 grid gap-4">
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
-                  Account email
+                  Email address
                   <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                 </label>
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
@@ -182,19 +185,20 @@ export function UserManagementWorkspace({
                   <input className={fieldClass} value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={120} />
                 </label>
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
-                  Role
-                  <select className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as Role)}>
+                  Access role
+                  <select id="invite-role" aria-label="Access role" className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as Role)}>
                     <option value="VIEWER">Viewer</option>
                     <option value="ANALYST">Analyst</option>
                     <option value="ADMIN">Admin</option>
                   </select>
+                  <span className="text-xs font-normal leading-5 text-text-muted">{roleGuidance[role]}</span>
                 </label>
                 <div className="mt-2 flex justify-end gap-2">
                   <Dialog.Close asChild>
                     <button type="button" className={secondaryButton}>Cancel</button>
                   </Dialog.Close>
                   <button disabled={pending} className="rounded-md bg-accent-action px-4 py-2 text-sm font-semibold text-surface-shell disabled:opacity-50" type="submit">
-                    {pending ? 'Creating…' : 'Create account'}
+                    {pending ? 'Sending…' : 'Send invite'}
                   </button>
                 </div>
               </form>
@@ -203,19 +207,19 @@ export function UserManagementWorkspace({
         </Dialog.Root>
       </header>
 
-      <section aria-label="Account summary" className="border-b border-border-light pb-4">
-        <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-xs">
-          <div className="flex items-baseline gap-2">
+      <section aria-label="Account summary" className="border-b border-border-light pb-5">
+        <dl className="grid max-w-2xl grid-cols-3 gap-5 text-xs">
+          <div>
             <dt className="text-text-muted">Accounts</dt>
-            <dd className="font-mono font-semibold text-text-primary">{accounts.length}</dd>
+            <dd className="mt-1 font-mono text-lg font-semibold text-text-primary">{accounts.length}</dd>
           </div>
-          <div className="flex items-baseline gap-2">
+          <div>
             <dt className="text-text-muted">Enabled</dt>
-            <dd className="font-mono font-semibold text-text-primary">{enabledCount}</dd>
+            <dd className="mt-1 font-mono text-lg font-semibold text-text-primary">{enabledCount}</dd>
           </div>
-          <div className="flex items-baseline gap-2">
-            <dt className="text-text-muted">MFA required</dt>
-            <dd className="font-mono font-semibold text-text-primary">{mfaRequiredCount}</dd>
+          <div>
+            <dt className="text-text-muted">MFA policy applies</dt>
+            <dd className="mt-1 font-mono text-lg font-semibold text-text-primary">{mfaRequiredCount}</dd>
           </div>
         </dl>
       </section>
@@ -230,20 +234,19 @@ export function UserManagementWorkspace({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="sr-only" htmlFor="account-search">Search accounts</label>
-            <input id="account-search" className={`${fieldClass} min-w-0 sm:w-72`} type="search" placeholder="Search by name, email, role, or status" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input id="account-search" className={`${fieldClass} min-w-0 sm:w-72`} type="search" placeholder="Search name, email, role, or state" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button type="button" className={secondaryButton} aria-label="Refresh accounts" disabled={refreshPending} onClick={() => void refreshAccounts()}>
               {refreshPending ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
         </div>
         {refreshError ? <p className="mb-3 text-sm text-status-danger" role="alert">{refreshError}</p> : null}
-        <p className="mb-2 text-xs text-text-muted">Select an account to review administrative actions. On narrow screens, scroll horizontally to view all fields.</p>
         <div className="overflow-x-auto border-y border-border-light">
-          <table className="w-full min-w-[930px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <caption className="sr-only">Managed accounts and their current access state.</caption>
-            <thead className="bg-surface-panel text-[10px] uppercase tracking-[0.14em] text-text-muted">
+            <thead className="bg-surface-panel text-[10px] font-semibold text-text-muted">
               <tr>
-                {['Account', 'Role', 'Access', 'Security', 'Created', 'Actions'].map((heading) => (
+                {['Account', 'Role', 'Lifecycle', 'MFA'].map((heading) => (
                   <th key={heading} scope="col" className="px-4 py-3 font-semibold">{heading}</th>
                 ))}
               </tr>
@@ -252,25 +255,27 @@ export function UserManagementWorkspace({
               {filteredAccounts.map((account) => (
                 <tr key={account.id} className="bg-surface-page transition-colors hover:bg-surface-panel/60">
                   <td className="px-4 py-4">
-                    <div className="font-medium text-text-primary">{account.display_name}</div>
+                    <button
+                      type="button"
+                      className="text-left font-medium text-text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-action focus-visible:outline-offset-2"
+                      aria-label={`Open account details for ${account.display_name}`}
+                      onClick={() => setSelectedAccountId(account.id)}
+                    >
+                      {account.display_name}
+                    </button>
                     <div className="mt-1 text-xs text-text-secondary">{account.email}</div>
                     {account.pending_email ? <div className="mt-1 text-xs text-status-warning">Email change pending: {account.pending_email}</div> : null}
                   </td>
-                  <td className="px-4 py-4 font-mono text-xs text-text-secondary">{account.role}</td>
+                  <td className="px-4 py-4 text-text-secondary">{account.role === 'ADMIN' ? 'Admin' : account.role === 'ANALYST' ? 'Analyst' : 'Viewer'}</td>
                   <td className="px-4 py-4">
                     <span className={account.enabled ? 'font-medium text-status-success' : 'font-medium text-status-danger'}>
                       {account.enabled ? 'Enabled' : 'Disabled'}
                     </span>
-                    <span className="mt-1 block text-xs text-text-muted">{account.email_verified ? 'Email verified' : 'Email unverified'}</span>
-                    <span className="mt-1 block text-xs text-text-muted">{account.setup_status === 'pending' ? 'Setup pending' : 'Setup complete'}</span>
+                    <span className="mt-1 block text-xs text-text-muted">
+                      {account.setup_status === 'pending' ? 'Setup pending' : 'Setup complete'} · {account.email_verified ? 'Email verified' : 'Email unverified'}
+                    </span>
                   </td>
                   <td className="px-4 py-4 text-text-secondary">{mfaLabel(account.mfa_status)}</td>
-                  <td className="px-4 py-4 text-text-secondary">{formatStableDateTime(account.created_at, 'Unknown date')}</td>
-                  <td className="px-4 py-4">
-                    <button type="button" className={secondaryButton} aria-label={`View details for ${account.display_name}`} onClick={() => setSelectedAccountId(account.id)}>
-                      View details
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
