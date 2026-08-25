@@ -127,7 +127,7 @@ Each item retains the original granular concern even when current evidence shows
 - **Implementation summary:** Added `setup_status` to the strict safe account contract and server mapping from `password_set_at`; added lifecycle labels to the table/drawer; gated setup resend; added explicit role draft/save/cancel/consequence/confirmation flow; passed current account identity to self guards; moved open-drawer mutation status into the dialog; made notices target-specific; added true-empty and filtered-empty search states; and labelled pending email replacement semantics.
 - **Tests and exact results:** `npx vitest run --pool=threads features/user-management/contract.test.ts features/user-management/UserManagementWorkspace.test.tsx app/api/admin-users.test.ts lib/server/db/account-management.test.ts` — **PASS**, 4 files / 29 tests. `npm run typecheck` — **PASS**. Earlier red tests intentionally captured unconditional setup resend, immediate role mutation, missing setup/empty/pending-email semantics before implementation.
 - **Browser observations and evidence:** In-app browser `/user-management` at desktop with the current real authenticated session shows two accounts with `Setup complete`; an active account drawer has no setup resend; the current session account has disabled role/status controls with explicit self-protection copy; a different account’s role draft shows the MFA consequence and Save/Cancel controls. No role/status/email/MFA mutation was submitted during browser review.
-- **Commit:** Pending source commit; documentation hash will be recorded in the follow-up docs commit.
+- **Commit:** `5e66bc6` — `fix(admin): clarify account lifecycle actions`.
 - **Follow-up findings:** UMG-004 last-enabled-ADMIN protection needs an approved database-function change; UMG-005 still needs a complete MFA reset/email mutation audit; UMG-006/010 remain visual-density/summary decisions.
 
 ### MFA-002/MFA-003/MFA-004 — Preserve recoverable retry context and expose terminal restart
@@ -242,7 +242,7 @@ For every completed, deferred, or newly discovered meaningful finding, append/up
 | `ec29240` | Remediation ledger | `git diff --check`, document review | Baseline recorded |
 | `aa2b4ee` | MLH-001 evidence-width recompose | 7 focused tests; desktop/narrow browser measurement; `git diff --check` | Resolved |
 | `58516b0` | MFA-002/003/004 retry, terminal-state, and single-flight behavior | 3 focused test files / 11 tests PASS; `git diff --check` | MFA-002/004 resolved; MFA-003 remains in progress |
-| pending | UMG-001/002/003/004/007/008/009 account lifecycle and mutation UX | 4 focused test files / 29 tests PASS; typecheck PASS; browser desktop/self/draft review | Source changes ready for commit |
+| `5e66bc6` | UMG-001/002/003/004/007/008/009 account lifecycle and mutation UX | 4 focused test files / 29 tests PASS; typecheck PASS; lint PASS; browser desktop/self/draft review | UMG-001/002/003/007/008/009 resolved; UMG-004 deferred for backend gap |
 
 ## Final gate
 
