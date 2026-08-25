@@ -3,7 +3,7 @@
 **Status:** Final audit recorded; explicit environment-bound deferrals documented
 **Branch:** `codex/ml-health-admin-mfa-remediation`
 **Baseline HEAD:** `d1e3a6587990833201a663a868abf5468b2acdd6`
-**Current source HEAD:** `7a01746` (`fix(ml-model): make unavailable state actionable`)
+**Current implementation HEAD:** `7a01746` (`fix(ml-model): make unavailable state actionable`)
 **Governing specification:** User-provided “CyberTrace Frontend Redesign — Autonomous Product-Design and Engineering Master Prompt” in the task attachment. This ledger is the concise execution contract; it does not replace the master prompt.
 
 ## Reopened screenshot-critique remediation pass — 2026-08-25
@@ -458,7 +458,7 @@ The following records are the current implementation state for the screenshot-cr
 | `7a01746` | Model Operations unavailable state | 1 file / 13 focused tests PASS; lint/typecheck/build PASS; browser desktop/narrow review | Resolved |
 | `5bbb2e6` | ML Health page tests aligned to the final tab vocabulary | 3 page tests PASS; included in full suite | Resolved |
 | `8e7a431` | MFA retry-selection assertion waits for the documented focus effect | 7 MFA tests PASS; included in full suite | Resolved |
-| Pending | Current remediation ledger and final validation record | Full suite 98 files / 619 tests PASS; lint/typecheck/build/backend health/browser review | Documentation update in progress |
+| `1b05227` | Current remediation ledger and final validation record | Full suite 98 files / 619 tests PASS; lint/typecheck/build/backend health/browser review | Recorded |
 
 ## Completion state
 
