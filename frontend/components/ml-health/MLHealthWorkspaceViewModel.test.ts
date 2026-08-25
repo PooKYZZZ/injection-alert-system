@@ -72,6 +72,33 @@ describe('MLHealthWorkspace.view-model', () => {
     expect(viewModel.calibrationSummary).toBe('Expected calibration error not reported in this snapshot.')
   })
 
+  it('does not present zero traffic latency as a measured result', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      latency_ms: 0,
+      traffic_processed: 0,
+    })
+
+    expect(viewModel.latencyDisplay).toBe('Not measured')
+  })
+
+  it('explains when prediction counts have no reported baseline', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      prediction_distribution: {
+        baseline: {},
+        current: { Normal: 12 },
+      },
+    })
+
+    expect(viewModel.evaluationEvidenceSummary).toBe(
+      'Reported evaluation evidence is separate from current traffic quality.'
+    )
+    expect(viewModel.distributionSummary).toBe(
+      'Current prediction counts are reported; no reference baseline was supplied.'
+    )
+  })
+
   it('marks policy ranges as not configured when thresholds are missing', () => {
     const bands = buildPolicyBands({
       ...baseHealth,

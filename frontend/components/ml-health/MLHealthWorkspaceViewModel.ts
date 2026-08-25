@@ -32,6 +32,8 @@ export type MLHealthViewModel = {
   trafficProcessedDisplay: string
   latencyDisplay: string
   latencyTrendDisplay: string
+  evaluationEvidenceSummary: string
+  distributionSummary: string
   driftScoreDisplay: string
   driftStatusDisplay: string
   eceDisplay: string
@@ -192,6 +194,29 @@ function buildDistributionRows(health: MLHealthData): DistributionRowView[] {
     })
 }
 
+function buildEvaluationEvidenceSummary(health: MLHealthData): string {
+  const hasEvidence =
+    health.macro_f1 != null ||
+    health.ece != null ||
+    Object.keys(health.per_class_f1 ?? {}).length > 0 ||
+    (health.calibration_bins?.length ?? 0) > 0
+
+  return hasEvidence
+    ? 'Reported evaluation evidence is separate from current traffic quality.'
+    : 'Evaluation evidence is not reported in this snapshot.'
+}
+
+function buildDistributionSummary(health: MLHealthData): string {
+  const distribution = health.prediction_distribution
+  if (!distribution) {
+    return 'Prediction counts are not reported in this snapshot.'
+  }
+
+  return Object.keys(distribution.baseline).length > 0
+    ? 'Current prediction counts are reported against a supplied reference baseline.'
+    : 'Current prediction counts are reported; no reference baseline was supplied.'
+}
+
 function buildCalibrationSummary(ece: number | null | undefined): string {
   if (ece == null) {
     return 'Expected calibration error not reported in this snapshot.'
@@ -216,9 +241,12 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
     windowLabel: 'Reported window',
     granularityLabel: 'Snapshot-based',
     trafficProcessedDisplay: formatCount(health.traffic_processed),
-    latencyDisplay: `${health.latency_ms.toFixed(1)}ms`,
+    latencyDisplay:
+      health.traffic_processed > 0 ? `${health.latency_ms.toFixed(1)}ms` : 'Not measured',
     latencyTrendDisplay:
       health.latency_trend == null ? 'No trend reported' : `${health.latency_trend > 0 ? '+' : ''}${health.latency_trend.toFixed(1)}ms`,
+    evaluationEvidenceSummary: buildEvaluationEvidenceSummary(health),
+    distributionSummary: buildDistributionSummary(health),
     driftScoreDisplay: driftScore == null ? 'Not reported' : driftScore.toFixed(3),
     driftStatusDisplay: health.drift_status ?? 'Not reported',
     eceDisplay: ece == null ? 'Not reported' : ece.toFixed(3),

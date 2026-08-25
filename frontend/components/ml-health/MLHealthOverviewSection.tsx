@@ -71,7 +71,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
         <div className={styles.kpiCard}>
           <div className={styles.kpiLabel}>Feature drift</div>
           <div className={`${styles.kpiValue} ${styles.kpiValueSmall}`}>{viewModel.driftScoreDisplay}</div>
-          <div className={styles.kpiSub}>status: {viewModel.driftStatusDisplay} · threshold 0.050</div>
+          <div className={styles.kpiSub}>status: {viewModel.driftStatusDisplay} · policy threshold not reported</div>
         </div>
 
         <div className={styles.kpiCard}>
@@ -125,7 +125,10 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
 
         <div className={styles.panel}>
           <div className={styles.panelHeader}>
-            <span className={styles.panelTitle}>Per-class F1 (reported)</span>
+            <span className={styles.panelTitle}>Per-class F1 (reported evaluation)</span>
+          </div>
+          <div className={styles.panelBody}>
+            <p className={styles.policyFootnote}>{viewModel.evaluationEvidenceSummary}</p>
           </div>
           <div className={styles.tableScroll}>
             {viewModel.classMetrics.length > 0 ? (
@@ -194,7 +197,7 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
         </div>
         <div className={styles.panelBody}>
           <p className={styles.policyFootnote}>
-            Counts reflect the latest API payload. No synthetic timeline is generated in this view.
+            {viewModel.distributionSummary} No synthetic timeline is generated in this view.
           </p>
         </div>
       </section>
