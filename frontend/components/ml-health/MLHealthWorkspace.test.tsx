@@ -46,4 +46,10 @@ describe('MLHealthWorkspace', () => {
     expect(overview).toHaveAttribute('aria-pressed', 'false')
     expect(diagnostics).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('associates overview table headers with their columns', () => {
+    render(<MLHealthWorkspace />)
+
+    expect(screen.getAllByRole('columnheader').every((header) => header.getAttribute('scope') === 'col')).toBe(true)
+  })
 })

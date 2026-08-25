@@ -90,9 +90,9 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
             <table className={styles.compTable}>
               <thead>
                 <tr>
-                  <th>Band</th>
-                  <th>Confidence range</th>
-                  <th>Non-Normal action</th>
+                  <th scope="col">Band</th>
+                  <th scope="col">Confidence range</th>
+                  <th scope="col">Non-Normal action</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,9 +135,9 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
               <table className={styles.compTable}>
                 <thead>
                   <tr>
-                    <th>Class</th>
-                    <th>F1 score</th>
-                    <th>State</th>
+                    <th scope="col">Class</th>
+                    <th scope="col">F1 score</th>
+                    <th scope="col">State</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,10 +172,10 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
             <table className={styles.compTable}>
               <thead>
                 <tr>
-                  <th>Class</th>
-                  <th>Baseline</th>
-                  <th>Current</th>
-                  <th>Delta</th>
+                  <th scope="col">Class</th>
+                  <th scope="col">Baseline</th>
+                  <th scope="col">Current</th>
+                  <th scope="col">Delta</th>
                 </tr>
               </thead>
               <tbody>

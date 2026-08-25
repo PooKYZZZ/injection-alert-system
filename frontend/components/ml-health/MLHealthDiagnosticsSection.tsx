@@ -23,9 +23,9 @@ function PerformanceTab({ health, viewModel }: Props) {
           <table className={styles.compTable} aria-label="Performance snapshot">
             <thead>
               <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Source</th>
+                <th scope="col">Metric</th>
+                <th scope="col">Value</th>
+                <th scope="col">Source</th>
               </tr>
             </thead>
             <tbody>
@@ -68,9 +68,9 @@ function DriftTab({ viewModel }: Props) {
           <table className={styles.compTable} aria-label="Drift snapshot">
             <thead>
               <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Source</th>
+                <th scope="col">Metric</th>
+                <th scope="col">Value</th>
+                <th scope="col">Source</th>
               </tr>
             </thead>
             <tbody>
@@ -98,9 +98,9 @@ function DriftTab({ viewModel }: Props) {
             <table className={styles.compTable} aria-label="Per-class F1 reported evaluation">
               <thead>
                 <tr>
-                  <th>Class</th>
-                  <th>F1 score</th>
-                  <th>State</th>
+                  <th scope="col">Class</th>
+                  <th scope="col">F1 score</th>
+                  <th scope="col">State</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,9 +139,9 @@ function CalibrationTab({ viewModel }: Props) {
           <table className={styles.compTable} aria-label="Calibration snapshot">
             <thead>
               <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Source</th>
+                <th scope="col">Metric</th>
+                <th scope="col">Value</th>
+                <th scope="col">Source</th>
               </tr>
             </thead>
             <tbody>
@@ -169,11 +169,11 @@ function CalibrationTab({ viewModel }: Props) {
             <table className={styles.compTable} aria-label="Calibration bins reported evaluation">
               <thead>
                 <tr>
-                  <th>Bin</th>
-                  <th>Center</th>
-                  <th>Confidence</th>
-                  <th>Accuracy</th>
-                  <th>Count</th>
+                  <th scope="col">Bin</th>
+                  <th scope="col">Center</th>
+                  <th scope="col">Confidence</th>
+                  <th scope="col">Accuracy</th>
+                  <th scope="col">Count</th>
                 </tr>
               </thead>
               <tbody>
@@ -210,9 +210,9 @@ function PolicyTab({ viewModel }: Props) {
           <table className={styles.compTable} aria-label="Policy decision bands">
             <thead>
               <tr>
-                <th>Band</th>
-                <th>Confidence range</th>
-                <th>Action</th>
+                <th scope="col">Band</th>
+                <th scope="col">Confidence range</th>
+                <th scope="col">Action</th>
               </tr>
             </thead>
             <tbody>

@@ -213,6 +213,7 @@ describe('MLModelWorkspace', () => {
     expect(screen.getAllByText('True Normal false-positive rate').length).toBeGreaterThan(0)
     expect(screen.getAllByText('NOT_RUN').length).toBeGreaterThan(0)
     expect(screen.getByText(/ground-truth evidence uses verified_label/i)).toBeInTheDocument()
+    expect(screen.getByText(/scroll horizontally to view all columns on narrow screens/i)).toBeInTheDocument()
   })
 
   it('warns the operator when published evidence is invalid', () => {

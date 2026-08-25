@@ -94,6 +94,12 @@
   text-align: right;
 }
 
+.tableHint {
+  margin: 0 0 8px;
+  color: var(--mlm-muted);
+  font-size: 10px;
+}
+
 .actionCluster {
   display: flex;
   min-width: 270px;
