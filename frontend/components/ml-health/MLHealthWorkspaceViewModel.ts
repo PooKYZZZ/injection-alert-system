@@ -157,9 +157,9 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
 
   return [
     { label: 'Low confidence non-Normal', action: 'allow', rangeLabel: `<${lowPct}%` },
-    { label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: `${lowPct}%-${highPct}%` },
-    { label: 'High confidence non-Normal', action: 'block', rangeLabel: `>${highPct}%-<${criticalPct}%` },
-    { label: 'Critical confidence non-Normal', action: 'block', rangeLabel: `>=${criticalPct}%` },
+    { label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: `${lowPct}%–<${highPct}%` },
+    { label: 'High confidence non-Normal', action: 'block', rangeLabel: `${highPct}%–<${criticalPct}%` },
+    { label: 'Critical confidence non-Normal', action: 'block', rangeLabel: `≥${criticalPct}%` },
   ]
 }
 
@@ -259,12 +259,12 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
     windowLabel: 'Reported window',
     granularityLabel: 'Snapshot-based',
     retrievedAtDisplay: formatStableDateTime(health.retrieved_at, 'Not available'),
-    sourceFreshnessDisplay: 'Source monitoring timestamp not reported',
+    sourceFreshnessDisplay: 'Monitoring timestamp not reported',
     trafficProcessedDisplay: formatCount(health.traffic_processed),
     latencyDisplay:
       health.traffic_processed > 0 ? `${health.latency_ms.toFixed(1)}ms` : 'Not measured',
     latencyTrendDisplay:
-      health.latency_trend == null ? 'No trend reported' : `${health.latency_trend > 0 ? '+' : ''}${health.latency_trend.toFixed(1)}ms`,
+      health.latency_trend == null ? 'No comparison reported' : `${health.latency_trend > 0 ? '+' : ''}${health.latency_trend.toFixed(1)}ms`,
     evaluationEvidenceSummary: buildEvaluationEvidenceSummary(health),
     evaluationProvenanceDisplay: hasReportedEvaluationEvidence(health)
       ? 'Evaluation run identity and timestamp are not supplied by the endpoint.'

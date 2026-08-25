@@ -51,9 +51,9 @@ describe('MLHealthWorkspace.view-model', () => {
 
     expect(bands).toHaveLength(4)
     expect(bands[0]).toMatchObject({ label: 'Low confidence non-Normal', action: 'allow', rangeLabel: '<40%' })
-    expect(bands[1]).toMatchObject({ label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: '40%-70%' })
-    expect(bands[2]).toMatchObject({ label: 'High confidence non-Normal', action: 'block', rangeLabel: '>70%-<85%' })
-    expect(bands[3]).toMatchObject({ label: 'Critical confidence non-Normal', action: 'block', rangeLabel: '>=85%' })
+    expect(bands[1]).toMatchObject({ label: 'Medium confidence non-Normal', action: 'throttle', rangeLabel: '40%–<70%' })
+    expect(bands[2]).toMatchObject({ label: 'High confidence non-Normal', action: 'block', rangeLabel: '70%–<85%' })
+    expect(bands[3]).toMatchObject({ label: 'Critical confidence non-Normal', action: 'block', rangeLabel: '≥85%' })
     expect(buildMLHealthViewModel(health).normalPolicyException).toBe(
       'Normal predictions remain allowed for all valid confidence tiers.'
     )
@@ -118,7 +118,7 @@ describe('MLHealthWorkspace.view-model', () => {
     })
 
     expect(viewModel.retrievedAtDisplay).toBe('Aug 25, 2026, 6:30 AM UTC')
-    expect(viewModel.sourceFreshnessDisplay).toBe('Source monitoring timestamp not reported')
+    expect(viewModel.sourceFreshnessDisplay).toBe('Monitoring timestamp not reported')
     expect(viewModel.evaluationProvenanceDisplay).toBe(
       'Evaluation run identity and timestamp are not supplied by the endpoint.'
     )

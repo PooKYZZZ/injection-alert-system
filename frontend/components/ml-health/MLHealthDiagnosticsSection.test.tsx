@@ -19,7 +19,7 @@ const health: MLHealthData = {
 }
 
 describe('MLHealthDiagnosticsSection', () => {
-  it('exposes the active diagnostic tab and a named table with scroll guidance', () => {
+  it('exposes readable diagnostic categories without leaking source fields', () => {
     render(
       <MLHealthDiagnosticsSection
         health={health}
@@ -28,18 +28,21 @@ describe('MLHealthDiagnosticsSection', () => {
     )
 
     const performance = screen.getByRole('tab', { name: 'Performance' })
-    const drift = screen.getByRole('tab', { name: 'Drift' })
+    const monitoring = screen.getByRole('tab', { name: 'Monitoring' })
 
     expect(performance).toHaveAttribute('role', 'tab')
     expect(performance).toHaveAttribute('aria-selected', 'true')
-    expect(drift).toHaveAttribute('aria-selected', 'false')
-    expect(screen.getByRole('table', { name: 'Performance snapshot' })).toBeInTheDocument()
-    expect(screen.getByText(/scroll horizontally to view all columns/i)).toBeInTheDocument()
+    expect(monitoring).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('table', { name: 'Serving metrics' })).toBeInTheDocument()
+    expect(screen.queryByText(/scroll horizontally to view all columns/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/source field/i)).not.toBeInTheDocument()
 
-    fireEvent.click(drift)
+    fireEvent.click(monitoring)
 
     expect(performance).toHaveAttribute('aria-selected', 'false')
-    expect(drift).toHaveAttribute('aria-selected', 'true')
+    expect(monitoring).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Drift not reported')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Drift monitoring' })).not.toBeInTheDocument()
   })
 
   it('supports roving focus and automatic activation for diagnostic tabs', () => {
@@ -51,20 +54,20 @@ describe('MLHealthDiagnosticsSection', () => {
     )
 
     const performance = screen.getByRole('tab', { name: 'Performance' })
-    const drift = screen.getByRole('tab', { name: 'Drift' })
+    const monitoring = screen.getByRole('tab', { name: 'Monitoring' })
     const policy = screen.getByRole('tab', { name: 'Policy' })
 
     expect(performance).toHaveAttribute('tabindex', '0')
-    expect(drift).toHaveAttribute('tabindex', '-1')
+    expect(monitoring).toHaveAttribute('tabindex', '-1')
 
     performance.focus()
     fireEvent.keyDown(performance, { key: 'ArrowRight' })
 
-    expect(drift).toHaveAttribute('aria-selected', 'true')
-    expect(drift).toHaveAttribute('tabindex', '0')
-    expect(document.activeElement).toBe(drift)
+    expect(monitoring).toHaveAttribute('aria-selected', 'true')
+    expect(monitoring).toHaveAttribute('tabindex', '0')
+    expect(document.activeElement).toBe(monitoring)
 
-    fireEvent.keyDown(drift, { key: 'End' })
+    fireEvent.keyDown(monitoring, { key: 'End' })
 
     expect(policy).toHaveAttribute('aria-selected', 'true')
     expect(document.activeElement).toBe(policy)

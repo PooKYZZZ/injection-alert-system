@@ -19,18 +19,6 @@ function toneClass(tone: Tone): string {
   return styles.toneUnknown
 }
 
-function servingLabel(status: MLHealthData['status']): string {
-  if (status === 'HEALTHY') return 'Healthy'
-  if (status === 'DEGRADED') return 'Degraded'
-  return 'Down'
-}
-
-function servingTone(status: MLHealthData['status']): Tone {
-  if (status === 'HEALTHY') return 'healthy'
-  if (status === 'DEGRADED') return 'warning'
-  return 'critical'
-}
-
 function monitoringTone(status: MLHealthData['drift_status']): Tone {
   if (status === 'NORMAL') return 'healthy'
   if (status === 'WARNING') return 'warning'
@@ -119,37 +107,19 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
     <div className={styles.overview}>
       <section className={`${styles.statusHero} ${toneClass(viewModel.tone)}`} aria-labelledby="ml-health-status-heading">
         <div className={styles.statusHeroMain}>
-          <p className={styles.eyebrow}>Serving answer</p>
           <h2 id="ml-health-status-heading">{viewModel.statusHeadline}</h2>
           <p className={styles.statusSubline}>{viewModel.statusSubline}</p>
         </div>
-        <dl className={styles.statusHeroAside}>
-          <div>
-            <dt>Serving status</dt>
-            <dd>{health.status}</dd>
-          </div>
-          <div>
-            <dt>Snapshot</dt>
-            <dd>Latest reported state</dd>
-          </div>
-        </dl>
       </section>
 
-      <section className={styles.section} aria-labelledby="operational-signals-heading">
+      <section className={styles.section} aria-labelledby="monitoring-coverage-heading">
         <div className={styles.sectionHeader}>
           <div>
-            <p className={styles.eyebrow}>Monitoring</p>
-            <h2 id="operational-signals-heading">Operational signals</h2>
+            <h2 id="monitoring-coverage-heading">Monitoring coverage</h2>
           </div>
-          <p className={styles.sectionDescription}>A signal is marked not reported when the current endpoint supplied no result.</p>
+          <p className={styles.sectionDescription}>Drift and calibration are shown only when the snapshot includes a result.</p>
         </div>
         <div className={styles.signalList}>
-          <SignalRow
-            label="Inference endpoint"
-            value={servingLabel(health.status)}
-            detail={health.status === 'HEALTHY' ? 'The latest snapshot reports the model as ready.' : viewModel.statusSubline}
-            tone={servingTone(health.status)}
-          />
           <SignalRow
             label="Feature drift"
             value={monitoringLabel(health.drift_status)}
@@ -168,16 +138,15 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
       <section className={styles.section} aria-labelledby="serving-snapshot-heading">
         <div className={styles.sectionHeader}>
           <div>
-            <p className={styles.eyebrow}>Runtime</p>
-            <h2 id="serving-snapshot-heading">Serving snapshot</h2>
+            <h2 id="serving-snapshot-heading">Runtime snapshot</h2>
           </div>
-          <p className={styles.sectionDescription}>Values reported by the ML health endpoint; no synthetic time series is shown.</p>
+          <p className={styles.sectionDescription}>Traffic and latency included in this health response.</p>
         </div>
         <dl className={styles.metricList}>
           <div className={styles.metricRow}>
-            <dt>Requests analyzed</dt>
+            <dt>Requests in snapshot</dt>
             <dd>{viewModel.trafficProcessedDisplay}</dd>
-            <p>Traffic processed in the reported snapshot</p>
+            <p>Requests included in this health response</p>
           </div>
           <div className={styles.metricRow}>
             <dt>Inference latency</dt>
@@ -185,53 +154,51 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
             <p>Measured only when traffic is reported</p>
           </div>
           <div className={styles.metricRow}>
-            <dt>Latency trend</dt>
+            <dt>Latency comparison</dt>
             <dd>{viewModel.latencyTrendDisplay}</dd>
-            <p>Comparison supplied by the health endpoint</p>
+            <p>Change from the previous result, when supplied</p>
           </div>
         </dl>
       </section>
 
-      <section className={styles.section} aria-labelledby="evidence-policy-heading">
+      <section className={`${styles.section} ${styles.evidenceSection}`} aria-labelledby="evidence-policy-heading">
         <div className={styles.sectionHeader}>
           <div>
-            <p className={styles.eyebrow}>Evidence</p>
-            <h2 id="evidence-policy-heading">Evidence and policy</h2>
+            <h2 id="evidence-policy-heading">Evidence</h2>
           </div>
-          <p className={styles.sectionDescription}>Open a section when the serving answer needs investigation.</p>
+          <p className={styles.sectionDescription}>Open a section when the snapshot needs investigation.</p>
         </div>
 
         <div className={styles.disclosureGrid}>
           <details className={styles.disclosure}>
             <summary>
               <span className={styles.summaryTitle}>
-                <span className={styles.summaryKicker}>Reported evaluation</span>
+                <span className={styles.summaryKicker}>Evaluation</span>
                 <strong>Model quality evidence</strong>
               </span>
-              <span className={styles.summaryValue}>{viewModel.classMetrics.length > 0 ? `${viewModel.classMetrics.length} classes` : 'Not reported'}</span>
+              <span className={styles.summaryValue}>{viewModel.classMetrics.length > 0 ? `${viewModel.classMetrics.length} classes` : 'No per-class metrics'}</span>
               <ChevronDown size={16} aria-hidden="true" className={styles.disclosureChevron} />
             </summary>
             <div className={styles.disclosureBody}>
               <p className={styles.evidenceNote}>{viewModel.evaluationEvidenceSummary}</p>
               {viewModel.classMetrics.length > 0 ? (
-                <p className={styles.evidenceNote}>{viewModel.classMetrics.length} per-class metric{viewModel.classMetrics.length === 1 ? '' : 's'} reported. Open Diagnostics → Drift for the detailed table.</p>
-              ) : <p className={styles.emptyEvidence}>Per-class metrics are not reported in this snapshot.</p>}
-              <p className={styles.evidenceNote}>Detailed prediction distribution and calibration evidence are available in Diagnostics. {viewModel.evaluationProvenanceDisplay}</p>
+                <p className={styles.evidenceNote}>{viewModel.classMetrics.length} per-class metric{viewModel.classMetrics.length === 1 ? '' : 's'} reported. Open Diagnostics for the detailed tables.</p>
+              ) : <p className={styles.emptyEvidence}>Per-class metrics are not included in this snapshot.</p>}
+              <p className={styles.evidenceNote}>{viewModel.evaluationProvenanceDisplay}</p>
             </div>
           </details>
 
           <details className={styles.disclosure}>
             <summary>
               <span className={styles.summaryTitle}>
-                <span className={styles.summaryKicker}>Automatic response</span>
+                <span className={styles.summaryKicker}>Response policy</span>
                 <strong>Confidence policy</strong>
               </span>
               <span className={styles.summaryValue}>4 bands</span>
               <ChevronDown size={16} aria-hidden="true" className={styles.disclosureChevron} />
             </summary>
             <div className={styles.disclosureBody}>
-              <p className={styles.evidenceNote}>Threshold-based policy bands from configured confidence thresholds. These rules apply to non-Normal predictions only.</p>
-              <h3 className={styles.subsectionTitle}>Non-Normal policy bands</h3>
+              <p className={styles.evidenceNote}>Configured bands for non-Normal predictions.</p>
               <PolicyTable viewModel={viewModel} />
               <p className={styles.evidenceNote}>{viewModel.normalPolicyException}</p>
             </div>
@@ -239,11 +206,6 @@ export function MLHealthOverviewSection({ health, viewModel }: Props) {
         </div>
       </section>
 
-      <footer className={styles.provenance}>
-        <span>Source: ML health endpoint</span>
-        <span className={styles.provenanceDivider}>·</span>
-        <code>{health.model_version}</code>
-      </footer>
     </div>
   )
 }

@@ -42,8 +42,9 @@ describe('MLHealthWorkspace', () => {
 
     expect(screen.getByRole('heading', { name: /serving is healthy/i })).toBeInTheDocument()
     expect(screen.getByText('Active model')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Operational signals' })).toBeInTheDocument()
-    expect(screen.getByText('Source monitoring timestamp not reported')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Monitoring coverage' })).toBeInTheDocument()
+    expect(screen.queryByText('Inference endpoint')).not.toBeInTheDocument()
+    expect(screen.getByText('Monitoring timestamp not reported')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Model Operations' })).toHaveAttribute('href', '/ml-model')
 
     const overview = screen.getByRole('tab', { name: 'Overview' })

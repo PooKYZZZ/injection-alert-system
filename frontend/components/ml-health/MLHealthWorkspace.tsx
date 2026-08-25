@@ -18,12 +18,12 @@ const tabs: Array<{ key: WorkspaceView; label: string; description: string }> = 
   {
     key: 'overview',
     label: 'Overview',
-    description: 'Serving status and the operational snapshot',
+    description: 'Current serving and monitoring summary',
   },
   {
     key: 'diagnostics',
     label: 'Diagnostics',
-    description: 'Reported evidence and policy details',
+    description: 'Detailed evidence and policy',
   },
 ]
 
@@ -73,10 +73,9 @@ export function MLHealthWorkspace() {
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <div className={styles.pageHeading}>
-          <p className={styles.eyebrow}>Model observability</p>
           <h1>ML Health</h1>
           <p className={styles.pageDescription}>
-            Confirm the serving state first, then open the evidence you need to investigate model behavior.
+            A current snapshot of serving availability, monitoring coverage, and reported evaluation evidence.
           </p>
         </div>
 
