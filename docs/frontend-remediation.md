@@ -110,6 +110,26 @@ Each item retains the original granular concern even when current evidence shows
 | FOUND-006 | Loading, stale, empty, unavailable, degraded, permission, pending, success, and error states need a route-by-route inventory and browser proof. | Cross-product / states | Open | Current ML Health and Model Operations have explicit unavailable/no-traffic states; Dashboard was observed loading. Complete the inventory and fix only meaningful gaps. |
 | FOUND-007 | Browser/runtime validation must include network, console, duplicate requests, layout shift, and interaction latency for affected surfaces. | Cross-product / performance | Open | Establish clean console/network baseline and compare after each focused group. Do not optimize unobservable micro-costs. |
 
+## Completed finding records
+
+### MLH-001 — Give expanded ML evidence the width it requires
+
+- **Status:** Resolved
+- **Priority:** P2
+- **Affected page/component:** `/ml-health`; `frontend/components/ml-health/MLHealthWorkspace.module.css`
+- **Category:** Information density, responsive composition, tables
+- **User job and domain state:** An operator compares reported evaluation evidence and the active confidence policy while investigating the current model. Both are evidence datasets, not decorative summary cards.
+- **Current rendered/source evidence:** Before the fix, `.disclosureGrid` used two desktop columns. At 1440×900, both expanded disclosures measured approximately 538px wide and their tables approximately 502px wide. Narrow mode stacked them, but desktop still made two detailed datasets compete for horizontal reading width.
+- **Why it mattered / impact:** Carbon recommends placing data tables in the main content area with plenty of space and warns against cramped containers; dense comparative data needs readable columns. Grafana’s dashboard guidance uses rows/tabs and minimum sizing to keep observability sections legible. Primer’s table guidance treats horizontal scroll as a valid fallback only when the table remains available and keyboard-accessible. The CyberTrace evidence sections were not independent objects that benefited from side-by-side comparison, so the grid added compression without adding a useful comparison.
+- **Research questions:** Should both disclosures remain side by side, become a vertical evidence sequence, or move to a separate page/modal? When is horizontal table scrolling acceptable, and how should it remain discoverable and keyboard-usable?
+- **Research summary and sources:** `[HIGH]` [Carbon Data table usage](https://v10.carbondesignsystem.com/components/data-table/usage/) gives dense tables the main content width and recommends a dedicated page/modal when expanded detail feels cramped. `[HIGH]` [Grafana dashboard best practices](https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/best-practices/) recommends an explicit observability strategy, meaningful grouping, and cross-referenceable sections rather than uncontrolled panel growth. `[HIGH]` [Primer DataTable accessibility](https://primer-docs-preview.github.com/product/components/data-table/accessibility/) preserves table content with width options or horizontal scrolling and requires keyboard access to a scrollable table. `[MEDIUM]` the [Carbon horizontal-scroll issue](https://github.com/carbon-design-system/carbon/issues/4748) and practitioner discussions show that retaining full tables is often preferable to hiding or shrinking columns, but the appropriate choice depends on the comparison task.
+- **Decision and rejected alternatives:** Stack the two native `<details>` disclosures vertically at all widths. Keep the existing table semantics and narrow-screen overflow fallback. Rejected keeping two columns because it preserves a card/grid composition at the cost of dense evidence width; rejected converting evidence to mobile-only cards because the content is comparative and should remain tabular; rejected adding a new route/modal because this is a small local composition defect and no separate navigation is needed.
+- **Implementation summary:** Changed `.disclosureGrid` from two equal desktop columns to one `minmax(0, 1fr)` column. No API, view-model, component, or contract change.
+- **Tests and exact results:** `npx vitest run --pool=threads "components/ml-health/MLHealthWorkspace.test.tsx" "components/ml-health/MLHealthDiagnosticsSection.test.tsx" "app/(dashboard)/ml-health/page.test.tsx"` — **PASS**, 3 files / 7 tests.
+- **Browser observations and evidence:** In-app browser after hot reload, 1440×900: one grid column, each expanded region approximately 1087px wide, each table approximately 1051px wide. At 575×912: one column, each region approximately 506px wide, existing table containers remain available at 470px. Browser was restored to `/alerts` and temporary viewport override was reset.
+- **Commit:** Focused MLH-001 implementation commit; its immutable hash is recorded by the following ledger-only update.
+- **Follow-up findings:** `MLH-007` remains open for explicit keyboard focus/scroll behavior and complete diagnostics state coverage.
+
 ### Verified resolved findings retained for completeness
 
 | ID | Original concern | Current evidence |
@@ -183,7 +203,8 @@ For every completed, deferred, or newly discovered meaningful finding, append/up
 | Commit | Finding group | Validation | Status |
 | --- | --- | --- | --- |
 | `d1e3a658` | Prior ML Health/admin/MFA design-plan baseline | Existing branch history; current runtime rechecked | Baseline |
-| _pending_ | Remediation ledger | `git diff --check`, document review | In progress |
+| `ec29240` | Remediation ledger | `git diff --check`, document review | Baseline recorded |
+| _pending ledger update_ | MLH-001 evidence-width recompose | 7 focused tests; desktop/narrow browser measurement; `git diff --check` | Resolved |
 
 ## Final gate
 
