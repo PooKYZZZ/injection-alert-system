@@ -72,6 +72,18 @@ describe('MLHealthWorkspace.view-model', () => {
     expect(viewModel.calibrationSummary).toBe('Expected calibration error not reported in this snapshot.')
   })
 
+  it('does not turn reported evaluation metrics into invented health judgments', () => {
+    const viewModel = buildMLHealthViewModel(baseHealth)
+
+    expect(viewModel.calibrationSummary).toBe(
+      'Reported in evaluation evidence; no acceptance threshold is supplied by the endpoint.'
+    )
+    expect(viewModel.classMetrics).toEqual([
+      { label: 'XSS', f1Display: '0.840' },
+      { label: 'SQL Injection', f1Display: '0.900' },
+    ])
+  })
+
   it('does not present zero traffic latency as a measured result', () => {
     const viewModel = buildMLHealthViewModel({
       ...baseHealth,
@@ -92,10 +104,38 @@ describe('MLHealthWorkspace.view-model', () => {
     })
 
     expect(viewModel.evaluationEvidenceSummary).toBe(
-      'Reported evaluation evidence is separate from current traffic quality.'
+      'Reported evaluation fields are supplied by the active model health response and are separate from current traffic quality.'
     )
     expect(viewModel.distributionSummary).toBe(
       'Current prediction counts are reported; no reference baseline was supplied.'
+    )
+  })
+
+  it('separates BFF retrieval time from source freshness and evaluation provenance', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      retrieved_at: '2026-08-25T06:30:00Z',
+    })
+
+    expect(viewModel.retrievedAtDisplay).toBe('Aug 25, 2026, 6:30 AM UTC')
+    expect(viewModel.sourceFreshnessDisplay).toBe('Source monitoring timestamp not reported')
+    expect(viewModel.evaluationProvenanceDisplay).toBe(
+      'Evaluation run identity and timestamp are not supplied by the endpoint.'
+    )
+  })
+
+  it('does not claim that missing evaluation fields mean the model was evaluated', () => {
+    const viewModel = buildMLHealthViewModel({
+      ...baseHealth,
+      macro_f1: null,
+      ece: null,
+      per_class_f1: {},
+      calibration_bins: [],
+      prediction_distribution: undefined,
+    })
+
+    expect(viewModel.evaluationEvidenceSummary).toBe(
+      'Evaluation metrics are not reported by the active model health response; the endpoint does not distinguish unevaluated data from unavailable data.'
     )
   })
 

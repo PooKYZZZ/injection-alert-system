@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MLHealthData } from '@/features/ml-health/types'
 import { useMLHealth } from '@/features/ml-health/queries'
@@ -31,25 +31,79 @@ beforeEach(() => {
   } as never)
 })
 
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
 describe('MLHealthWorkspace', () => {
-  it('exposes the selected top-level view to assistive technology', () => {
+  it('leads with the serving answer and exposes the selected top-level view', () => {
     render(<MLHealthWorkspace />)
 
-    const overview = screen.getByRole('button', { name: 'Overview' })
-    const diagnostics = screen.getByRole('button', { name: 'Diagnostics' })
+    expect(screen.getByRole('heading', { name: /serving is healthy/i })).toBeInTheDocument()
+    expect(screen.getByText('Active model')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Operational signals' })).toBeInTheDocument()
+    expect(screen.getByText('Source monitoring timestamp not reported')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Model Operations' })).toHaveAttribute('href', '/ml-model')
 
-    expect(overview).toHaveAttribute('aria-pressed', 'true')
-    expect(diagnostics).toHaveAttribute('aria-pressed', 'false')
+    const overview = screen.getByRole('tab', { name: 'Overview' })
+    const diagnostics = screen.getByRole('tab', { name: 'Diagnostics' })
+
+    expect(overview).toHaveAttribute('role', 'tab')
+    expect(overview).toHaveAttribute('aria-selected', 'true')
+    expect(diagnostics).toHaveAttribute('aria-selected', 'false')
 
     fireEvent.click(diagnostics)
 
-    expect(overview).toHaveAttribute('aria-pressed', 'false')
-    expect(diagnostics).toHaveAttribute('aria-pressed', 'true')
+    expect(overview).toHaveAttribute('aria-selected', 'false')
+    expect(diagnostics).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('associates overview table headers with their columns', () => {
+  it('supports keyboard navigation across top-level views', () => {
     render(<MLHealthWorkspace />)
 
-    expect(screen.getAllByRole('columnheader').every((header) => header.getAttribute('scope') === 'col')).toBe(true)
+    const overview = screen.getByRole('tab', { name: 'Overview' })
+    const diagnostics = screen.getByRole('tab', { name: 'Diagnostics' })
+
+    overview.focus()
+    fireEvent.keyDown(overview, { key: 'ArrowRight' })
+
+    expect(diagnostics).toHaveAttribute('aria-selected', 'true')
+    expect(diagnostics).toHaveAttribute('tabindex', '0')
+    expect(document.activeElement).toBe(diagnostics)
+  })
+
+  it('keeps unavailable monitoring explicit and supports refreshing the snapshot', () => {
+    const refetch = vi.fn()
+    mockedUseMLHealth.mockReturnValue({
+      data: health,
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      refetch,
+    } as never)
+
+    render(<MLHealthWorkspace />)
+
+    expect(screen.getAllByText('Not reported').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/monitoring data is not reported/i).length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh ml health/i }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows refresh progress without replacing the last successful snapshot', () => {
+    mockedUseMLHealth.mockReturnValue({
+      data: health,
+      isPending: false,
+      isFetching: true,
+      isError: false,
+      refetch: vi.fn(),
+    } as never)
+
+    render(<MLHealthWorkspace />)
+
+    expect(screen.getByRole('button', { name: /refreshing ml health/i })).toBeDisabled()
+    expect(screen.getAllByRole('heading', { name: /serving is healthy/i }).length).toBeGreaterThan(0)
   })
 })

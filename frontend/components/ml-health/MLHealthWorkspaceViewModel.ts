@@ -1,4 +1,5 @@
 import type { CalibrationBin, MLHealthData } from '@/features/ml-health/types'
+import { formatStableDateTime } from '@/lib/date-time'
 
 export type HealthTone = 'healthy' | 'warning' | 'critical' | 'unknown'
 export type PolicyBandAction = 'allow' | 'throttle' | 'block'
@@ -12,7 +13,6 @@ export type PolicyBandView = {
 export type ClassMetricView = {
   label: string
   f1Display: string
-  isElevated: boolean
 }
 
 export type DistributionRowView = {
@@ -29,10 +29,13 @@ export type MLHealthViewModel = {
   displayName: string
   windowLabel: string
   granularityLabel: string
+  retrievedAtDisplay: string
+  sourceFreshnessDisplay: string
   trafficProcessedDisplay: string
   latencyDisplay: string
   latencyTrendDisplay: string
   evaluationEvidenceSummary: string
+  evaluationProvenanceDisplay: string
   distributionSummary: string
   driftScoreDisplay: string
   driftStatusDisplay: string
@@ -67,20 +70,30 @@ function deriveDisplayName(modelVersion: string): string {
   return modelVersion.split('_cleaned_')[0] ?? modelVersion
 }
 
-function buildStatusHeadline(tone: HealthTone): string {
+function countUnavailableMonitoringSignals(health: MLHealthData): number {
+  return Number(health.drift_status == null) + Number(health.ece == null)
+}
+
+function buildStatusHeadline(health: MLHealthData): string {
+  const tone = deriveHealthTone(health)
+
+  if (tone === 'healthy' && countUnavailableMonitoringSignals(health) > 0) {
+    return 'Serving is healthy; monitoring coverage is incomplete'
+  }
+
   if (tone === 'healthy') {
-    return 'All core health signals are within expected range'
+    return 'Serving is healthy and monitoring is reporting normally'
   }
 
   if (tone === 'warning') {
-    return 'One or more health signals require review'
+    return 'Serving is available, but review is recommended'
   }
 
   if (tone === 'critical') {
-    return 'Critical health signal detected'
+    return 'Attention required in the ML subsystem'
   }
 
-  return 'Health signals are partially reported'
+  return 'ML health is only partially reported'
 }
 
 function buildStatusSubline(health: MLHealthData): string {
@@ -100,7 +113,12 @@ function buildStatusSubline(health: MLHealthData): string {
     return 'Drift monitoring reported a warning signal in the latest snapshot.'
   }
 
-  return 'Latest snapshot indicates healthy serving and no critical drift alerts.'
+  const unavailableCount = countUnavailableMonitoringSignals(health)
+  if (unavailableCount > 0) {
+    return `The latest snapshot reports serving health, but ${unavailableCount} monitoring signal${unavailableCount === 1 ? ' is' : 's are'} not reported.`
+  }
+
+  return 'The latest snapshot reports healthy serving and no monitoring warnings.'
 }
 
 export function deriveHealthTone(health: MLHealthData): HealthTone {
@@ -152,7 +170,6 @@ function buildClassMetrics(health: MLHealthData): ClassMetricView[] {
   return entries.map(([label, value]) => ({
     label,
     f1Display: value.toFixed(3),
-    isElevated: value < 0.89,
   }))
 }
 
@@ -194,16 +211,21 @@ function buildDistributionRows(health: MLHealthData): DistributionRowView[] {
     })
 }
 
-function buildEvaluationEvidenceSummary(health: MLHealthData): string {
-  const hasEvidence =
+function hasReportedEvaluationEvidence(health: MLHealthData): boolean {
+  return (
     health.macro_f1 != null ||
     health.ece != null ||
     Object.keys(health.per_class_f1 ?? {}).length > 0 ||
     (health.calibration_bins?.length ?? 0) > 0
+  )
+}
+
+function buildEvaluationEvidenceSummary(health: MLHealthData): string {
+  const hasEvidence = hasReportedEvaluationEvidence(health)
 
   return hasEvidence
-    ? 'Reported evaluation evidence is separate from current traffic quality.'
-    : 'Evaluation evidence is not reported in this snapshot.'
+    ? 'Reported evaluation fields are supplied by the active model health response and are separate from current traffic quality.'
+    : 'Evaluation metrics are not reported by the active model health response; the endpoint does not distinguish unevaluated data from unavailable data.'
 }
 
 function buildDistributionSummary(health: MLHealthData): string {
@@ -222,11 +244,7 @@ function buildCalibrationSummary(ece: number | null | undefined): string {
     return 'Expected calibration error not reported in this snapshot.'
   }
 
-  if (ece <= 0.05) {
-    return 'Calibration is within the preferred range (<= 0.050).'
-  }
-
-  return 'Calibration is above the preferred range (> 0.050).'
+  return 'Reported in evaluation evidence; no acceptance threshold is supplied by the endpoint.'
 }
 
 export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel {
@@ -235,17 +253,22 @@ export function buildMLHealthViewModel(health: MLHealthData): MLHealthViewModel 
 
   return {
     tone: deriveHealthTone(health),
-    statusHeadline: buildStatusHeadline(deriveHealthTone(health)),
+    statusHeadline: buildStatusHeadline(health),
     statusSubline: buildStatusSubline(health),
     displayName: deriveDisplayName(health.model_version),
     windowLabel: 'Reported window',
     granularityLabel: 'Snapshot-based',
+    retrievedAtDisplay: formatStableDateTime(health.retrieved_at, 'Not available'),
+    sourceFreshnessDisplay: 'Source monitoring timestamp not reported',
     trafficProcessedDisplay: formatCount(health.traffic_processed),
     latencyDisplay:
       health.traffic_processed > 0 ? `${health.latency_ms.toFixed(1)}ms` : 'Not measured',
     latencyTrendDisplay:
       health.latency_trend == null ? 'No trend reported' : `${health.latency_trend > 0 ? '+' : ''}${health.latency_trend.toFixed(1)}ms`,
     evaluationEvidenceSummary: buildEvaluationEvidenceSummary(health),
+    evaluationProvenanceDisplay: hasReportedEvaluationEvidence(health)
+      ? 'Evaluation run identity and timestamp are not supplied by the endpoint.'
+      : 'Evaluation status is not reported by the endpoint.',
     distributionSummary: buildDistributionSummary(health),
     driftScoreDisplay: driftScore == null ? 'Not reported' : driftScore.toFixed(3),
     driftStatusDisplay: health.drift_status ?? 'Not reported',

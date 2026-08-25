@@ -84,14 +84,16 @@ describe('MLHealthPage', () => {
     expect(screen.queryByPlaceholderText('Search metrics...')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Non-Normal Policy Bands')).toBeInTheDocument()
-    expect(screen.getByText('Non-Normal action')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Fallback')).not.toBeInTheDocument()
+    expect(screen.getByText('Operational signals')).toBeInTheDocument()
+    expect(screen.getByText('Calibration evidence')).toBeInTheDocument()
     expect(
       screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')
     ).toBeInTheDocument()
-    expect(screen.getByText('Prediction Distribution Snapshot')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Confidence policy'))
+    expect(screen.getByText('Non-Normal policy bands')).toBeInTheDocument()
     expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
   })
@@ -99,17 +101,17 @@ describe('MLHealthPage', () => {
   it('switches into diagnostics and shows policy details with explicit derived labeling', () => {
     render(<MLHealthPage />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Diagnostics' })[0])
+    fireEvent.click(screen.getAllByRole('tab', { name: 'Diagnostics' })[0])
 
-    expect(screen.getByRole('button', { name: 'Performance' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Drift' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Calibration' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Policy' })).toBeInTheDocument()
-    expect(screen.getByText('Performance Snapshot')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Performance' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Drift' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Calibration' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Policy' })).toBeInTheDocument()
+    expect(screen.getByText('Serving performance')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Policy' }))
 
-    expect(screen.getByText('Policy decision bands')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Policy decision bands' })).toBeInTheDocument()
     expect(screen.getAllByText('Threshold-based policy bands from configured confidence thresholds.').length).toBeGreaterThan(0)
   })
 

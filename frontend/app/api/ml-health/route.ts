@@ -24,7 +24,11 @@ export async function GET(): Promise<Response> {
       return response
     }
 
-    return NextResponse.json(result.data)
+    return NextResponse.json({
+      ...result.data,
+      // This is the BFF retrieval instant, not a claim about monitoring-source freshness.
+      retrieved_at: new Date().toISOString(),
+    })
   } catch {
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.' } },
