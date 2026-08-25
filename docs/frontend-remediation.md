@@ -512,3 +512,14 @@ The implementation will append a dated entry for each focused group below with t
 - **Browser evidence:** Direct protected-route inspection attempted at `/ml-health`; it redirected to `/login` because no valid authenticated session was available. No authenticated screenshot is claimed for this pass.
 - **Commit:** `902ca23` — `fix(ml-health): clarify snapshot evidence hierarchy`.
 - **Follow-up:** Recheck the authenticated Overview and all four Diagnostics tabs at desktop and narrow widths when a safe session is available; confirm the real staged model identity and no horizontal competition between stacked evidence tables.
+
+### 2026-08-26 — UMG-011 lifecycle states and narrow drawer anchoring
+
+- **Status:** Implemented; last-enabled-admin database protection remains the explicit UMG-004 deferral.
+- **Before → problem:** The account list combined `Enabled` with setup/email fragments, making the lifecycle state harder to scan. The summary label `MFA policy applies` was ambiguous, and the mobile drawer used `inset-y-auto` without explicit top/bottom anchoring, which could leave a fixed bottom sheet positioned unpredictably.
+- **Research/principle:** GOV.UK Summary List guidance supports compact facts for small records; Primer state-label guidance supports consistent semantic status treatment; WAI-ARIA Dialog guidance requires a clear contained dialog surface and close path. The product decision was to make lifecycle the primary list fact and keep mutation controls progressive.
+- **Implementation:** `UserManagementWorkspace` now uses the shared `PageHeader`, a 1280px task-appropriate container, a one-line lifecycle summary (`active`, `pending setup`, `disabled`) plus explicit MFA-required count, and semantic lifecycle/MFA labels in the table. `AccountActionsDialog` now uses explicit `top:auto; bottom:0` narrow-screen anchoring, shows lifecycle and MFA as distinct facts, consolidates self-account guidance, and presents `Access suspension` as a neutral disclosure until the destructive confirmation is opened. Existing role/status/setup/MFA/email operations, self-account guards, confirmation, pending-action state, refresh, and no-mutation list behavior are preserved.
+- **Tests:** Focused User Management suite **PASS**, 3 files / 18 tests; `npm run lint` **PASS**; `npm run typecheck` **PASS**; `git diff --check` **PASS**.
+- **Browser evidence:** Authenticated `/user-management` visual review is not claimed in this pass because the current browser session has no valid dashboard session. Component tests verify the narrow drawer anchoring class and progressive action states.
+- **Commit:** `f3d5bbd` — `fix(user-management): clarify lifecycle states`.
+- **Follow-up:** Recheck desktop and 390px/768px drawer screenshots with a safe authenticated session; confirm the table’s horizontal overflow remains intentional and the bottom sheet stays within the viewport.
