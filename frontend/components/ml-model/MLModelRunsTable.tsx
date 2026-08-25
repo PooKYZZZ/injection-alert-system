@@ -1,19 +1,13 @@
 'use client'
 
 import type { RetrainingRun } from '@/features/ml-model/types'
+import { formatStableDateTime } from '@/lib/date-time'
 import styles from './MLModelWorkspace.module.css'
 
 interface Props {
   runs: RetrainingRun[]
   selectedRunId: string | null
   onSelect: (runId: string) => void
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString()
 }
 
 function formatState(state: RetrainingRun['state']): string {
@@ -108,8 +102,8 @@ export function MLModelRunsTable({ runs, selectedRunId, onSelect }: Props) {
                       <span className={styles.statusBadge}>{formatState(run.state)}</span>
                     </td>
                     <td>{Math.max(1, run.attempt)}</td>
-                    <td>{formatDate(run.heartbeat_at)}</td>
-                    <td>{formatDate(run.created_at)}</td>
+                    <td>{formatStableDateTime(run.heartbeat_at, '—')}</td>
+                    <td>{formatStableDateTime(run.created_at, '—')}</td>
                   </tr>
                 )
               })}

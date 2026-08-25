@@ -34,6 +34,25 @@ export function formatAlertDateTime(
   })
 }
 
+export function formatStableDateTime(
+  value: string | null | undefined,
+  fallback = 'Unknown timestamp'
+): string {
+  const parsed = parseApiTimestamp(value)
+  if (!parsed) return fallback
+
+  return parsed.toLocaleString('en-US', {
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 export function formatRelativeTime(
   value: string | null | undefined,
   nowMs = Date.now()

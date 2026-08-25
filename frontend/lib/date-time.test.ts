@@ -5,6 +5,7 @@ import {
   formatConfidenceLabel,
   formatConfidencePercent,
   formatRelativeTime,
+  formatStableDateTime,
   parseApiTimestamp,
 } from './date-time'
 
@@ -25,6 +26,13 @@ describe('API date and confidence formatting', () => {
     expect(
       formatAlertDateTime('2026-08-24T14:06:47Z', { timeZone: 'UTC' })
     ).toBe('Aug 24, 2026, 2:06 PM')
+  })
+
+  it('formats administrative timestamps deterministically in UTC', () => {
+    expect(formatStableDateTime('2026-08-24T14:06:47Z')).toBe(
+      'Aug 24, 2026, 2:06 PM UTC'
+    )
+    expect(formatStableDateTime('not-a-timestamp')).toBe('Unknown timestamp')
   })
 
   it('does not describe future timestamps as already elapsed', () => {
