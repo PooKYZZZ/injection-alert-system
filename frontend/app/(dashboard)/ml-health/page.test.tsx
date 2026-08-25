@@ -87,13 +87,13 @@ describe('MLHealthPage', () => {
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument()
     expect(screen.getAllByRole('tab', { name: 'Diagnostics' }).length).toBeGreaterThan(0)
     expect(screen.queryByText('Fallback')).not.toBeInTheDocument()
-    expect(screen.getByText('Operational signals')).toBeInTheDocument()
+    expect(screen.getByText('Monitoring coverage')).toBeInTheDocument()
     expect(screen.getByText('Calibration evidence')).toBeInTheDocument()
     expect(
       screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')
     ).toBeInTheDocument()
     fireEvent.click(screen.getByText('Confidence policy'))
-    expect(screen.getByText('Non-Normal policy bands')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Non-Normal policy bands' })).toBeInTheDocument()
     expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
   })
@@ -104,15 +104,15 @@ describe('MLHealthPage', () => {
     fireEvent.click(screen.getAllByRole('tab', { name: 'Diagnostics' })[0])
 
     expect(screen.getByRole('tab', { name: 'Performance' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Drift' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Calibration' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Monitoring' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Evaluation' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Policy' })).toBeInTheDocument()
-    expect(screen.getByText('Serving performance')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Serving metrics' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Policy' }))
 
-    expect(screen.getByRole('table', { name: 'Policy decision bands' })).toBeInTheDocument()
-    expect(screen.getAllByText('Threshold-based policy bands from configured confidence thresholds.').length).toBeGreaterThan(0)
+    expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
+    expect(screen.getAllByText('Automatic response bands for non-Normal predictions.').length).toBeGreaterThan(0)
   })
 
   it('renders loading and error states from the workspace component', () => {
