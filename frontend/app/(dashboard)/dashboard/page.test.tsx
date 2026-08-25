@@ -32,7 +32,7 @@ vi.mock('motion/react', () => ({
 
 vi.mock('@/components/dashboard/StatCard', () => ({
   StatCard: ({ label, value, secondary }: { label: string; value: string | number; secondary?: string }) => (
-    <div>
+    <div data-testid="stat-card">
       <span>{label}</span>
       <span>{value}</span>
       {secondary ? <span>{secondary}</span> : null}
@@ -108,18 +108,28 @@ describe('DashboardPage metric definitions', () => {
     useAlerts.mockReturnValue({ data: { items: [] }, isPending: false })
   })
 
-  it('labels the traffic false-positive field as an operational proxy', () => {
+  it('labels the traffic false-positive KPI as an operational proxy', () => {
     render(<DashboardPage />)
 
-    expect(screen.getByText('Allowed non-Normal rate')).toBeInTheDocument()
-    expect(screen.getByText('operational proxy, not ground-truth FPR')).toBeInTheDocument()
+    expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
+    expect(screen.getByText('Not ground-truth FPR')).toBeInTheDocument()
+    expect(screen.queryByText('Allowed non-Normal rate')).not.toBeInTheDocument()
+  })
+
+  it('keeps the complete KPI set and enforcement panel visible', () => {
+    render(<DashboardPage />)
+
+    expect(screen.getAllByTestId('stat-card')).toHaveLength(6)
+    expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
+    expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
+    expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map: 5/6/7/8')
   })
 
   it('distinguishes model confidence from attack severity and names the window semantics', () => {
     render(<DashboardPage />)
 
-    expect(screen.getByText('Average model confidence')).toBeInTheDocument()
-    expect(screen.getByText('not attack severity')).toBeInTheDocument()
+    expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
+    expect(screen.getByText('Average model certainty; not attack severity')).toBeInTheDocument()
     expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
   })
 

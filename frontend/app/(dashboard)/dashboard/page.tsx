@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { AttackTypePanel } from '@/components/dashboard/AttackTypePanel'
 import { MLConfidenceBands } from '@/components/dashboard/MLConfidenceBands'
+import { MLEnforcementMap } from '@/components/dashboard/MLEnforcementMap'
 import { TopSourceIPs } from '@/components/dashboard/TopSourceIPs'
 import { TopTargetedPaths } from '@/components/dashboard/TopTargetedPaths'
 import { RecentAlertsTable } from '@/components/dashboard/RecentAlertsTable'
@@ -17,6 +18,7 @@ import { ErrorState } from '@/components/ui/StateViews'
 import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
+import { emptyConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
 import { formatConfidencePercent } from '@/lib/date-time'
 import { getCurrentSearchParams } from '@/lib/searchParams'
@@ -120,6 +122,7 @@ export default function DashboardPage() {
   // used as the source for Dashboard totals.
   const attackCounts = stats?.attack_distribution ?? {}
   const allConfidenceBands = stats?.counts_by_confidence_tier ?? null
+  const nonNormalEnforcementBands = stats?.non_normal_counts_by_confidence_tier ?? null
 
   const summaryWindowTotal = stats?.total_requests ?? 0
 
@@ -201,6 +204,30 @@ export default function DashboardPage() {
       deltaInverted: true,
       delay: 0.15,
     },
+    {
+      label: 'Average model confidence',
+      value: formatConfidencePercent(stats?.avg_confidence),
+      secondary:
+        statsUnavailable
+          ? 'Unavailable'
+          : stats?.avg_confidence != null
+            ? 'Average model certainty; not attack severity'
+            : 'No traffic in window',
+      secondaryColor: 'text-emerald-400',
+      delay: 0.2,
+    },
+    {
+      label: 'Allowed non-Normal prediction rate (proxy)',
+      value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
+      secondary:
+        statsUnavailable
+          ? 'Unavailable'
+          : stats?.false_positive_rate == null
+            ? 'No telemetry in window'
+            : 'Not ground-truth FPR',
+      secondaryColor: 'text-text-secondary',
+      delay: 0.25,
+    },
   ]
 
   return (
@@ -216,7 +243,7 @@ export default function DashboardPage() {
       />
 
       {/* Summary metrics */}
-      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-4 xl:divide-x xl:divide-y-0">
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3 lg:divide-x lg:divide-y-0 xl:grid-cols-6">
         {statCards.map((card) => (
           <StatCard
             key={card.label}
@@ -228,26 +255,12 @@ export default function DashboardPage() {
             secondaryColor={card.secondaryColor}
             previousValue={card.previousValue}
             deltaInverted={card.deltaInverted}
+            progressBar={card.progressBar}
             hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
             delay={card.delay}
           />
         ))}
       </div>
-
-      <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-sm">
-        <div className="flex items-baseline gap-2">
-          <dt className="text-text-secondary">Average model confidence</dt>
-          <dd className="font-medium tabular-nums text-text-primary">{formatConfidencePercent(stats?.avg_confidence)}</dd>
-          <span className="text-xs text-text-muted">not attack severity</span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className="text-text-secondary">Allowed non-Normal rate</dt>
-          <dd className="font-medium tabular-nums text-text-primary">
-            {stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—'}
-          </dd>
-          <span className="text-xs text-text-muted">operational proxy, not ground-truth FPR</span>
-        </div>
-      </dl>
 
       {/* Timeline Panel */}
       <motion.div
@@ -357,7 +370,7 @@ export default function DashboardPage() {
 
       {/* Window detail */}
       {!statsUnavailable && hasDistributionData ? (
-        <div className="grid min-w-0 grid-cols-1 divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-surface-panel md:grid-cols-2 md:divide-x md:divide-y-0">
+        <div className="grid min-w-0 grid-cols-1 divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-surface-panel md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -383,6 +396,14 @@ export default function DashboardPage() {
               isPending={statsPending}
               unavailable={allConfidenceBands == null}
             />
+            <div className="mt-4 min-w-0 border-t border-border-light pt-3 flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-text-secondary">ML Enforcement Map</h3>
+              <MLEnforcementMap
+                nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
+                isPending={statsPending}
+                unavailable={nonNormalEnforcementBands == null}
+              />
+            </div>
             <p className="mt-3 text-xs leading-5 text-text-muted">
               Enforcement thresholds are maintained with the active model.
               <Link href="/ml-health" className="ml-1 text-text-secondary underline decoration-border-light underline-offset-2 hover:text-text-primary">
