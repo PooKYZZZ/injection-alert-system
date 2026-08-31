@@ -11,6 +11,7 @@ DEMO_TEST_OVERRIDE = "docker-compose.demo-target.test.yml"
 SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
 HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
 TARGET_CLOUDFLARE_OVERLAY = "docker-compose.target-cloudflare.yml"
+APP_CLOUDFLARE_OVERLAY = "docker-compose.app-cloudflare.yml"
 
 
 def _run_hosted_launcher(env_file: Path) -> subprocess.CompletedProcess[str]:
@@ -338,6 +339,42 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"
+
+
+def test_app_cloudflare_overlay_adds_least_privilege_frontend_network(
+    tmp_path: Path,
+) -> None:
+    token_path = tmp_path / "cloudflared-target.token"
+    token_path.write_text("token-must-not-render\n", encoding="utf-8")
+    result = _compose_config_result(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        TARGET_CLOUDFLARE_OVERLAY,
+        APP_CLOUDFLARE_OVERLAY,
+        profile=["demo-target", "target-cloudflare"],
+        token_file=str(token_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    config = json.loads(result.stdout)
+    rendered = json.dumps(config)
+    assert "token-must-not-render" not in rendered
+    assert config["networks"]["app_cloudflare_ingress"]["internal"] is True
+    assert set(config["services"]["frontend"]["networks"]) == {
+        "default",
+        "app_cloudflare_ingress",
+    }
+    assert set(config["services"]["cloudflared"]["networks"]) == {
+        "target_cloudflare_egress",
+        "target_waf_ingress",
+        "app_cloudflare_ingress",
+    }
+    assert "app_cloudflare_ingress" not in config["services"]["backend"][
+        "networks"
+    ]
+    assert "app_cloudflare_ingress" not in config["services"][
+        "demo-target-modsecurity"
+    ]["networks"]
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
     ] == "unverified"

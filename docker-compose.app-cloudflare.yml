@@ -1,0 +1,17 @@
+# Adds the least-privilege Docker path for the dashboard's Cloudflare route.
+# Use this overlay with docker-compose.target-cloudflare.yml.
+services:
+  frontend:
+    networks:
+      # Keep the existing frontend -> backend service-discovery path.
+      default: {}
+      app_cloudflare_ingress: {}
+
+  cloudflared:
+    networks:
+      # The target overlay retains the target egress and WAF ingress networks.
+      app_cloudflare_ingress: {}
+
+networks:
+  app_cloudflare_ingress:
+    internal: true
