@@ -8,16 +8,29 @@ export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <main className={styles.shell} aria-label="CyberTrace authentication">
       <aside className={styles.visual} aria-label="CyberTrace security operations">
-        <Link href="/login" className={styles.brand} aria-label="CyberTrace home">
-          <Image src="/logo.png" alt="" width={32} height={32} priority className={styles.logo} />
-          <span>CyberTrace</span>
-        </Link>
-
         <div className={styles.visualMessage}>
-          <p className={styles.visualEyebrow}>WAF–ML security operations</p>
-          <h2 className={styles.visualTitle}>Protect the request path.</h2>
+          <Link href="/login" className={styles.brand} aria-label="CyberTrace home">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={70}
+              height={70}
+              priority
+              className={styles.logo}
+            />
+            <span>CyberTrace</span>
+          </Link>
+
+          <p className={styles.visualEyebrow}>
+            WAF–ML security operations
+          </p>
+
+          <h2 className={styles.visualTitle}>
+            Protect every request.
+          </h2>
+
           <p className={styles.visualDescription}>
-            Investigate injection signals with the context your team needs to respond decisively.
+            Investigate injection signals with the context your team needs to respond.
           </p>
         </div>
 

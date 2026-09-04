@@ -17,7 +17,7 @@ describe('AuthShell', () => {
 
     expect(screen.getByRole('complementary', { name: 'CyberTrace security operations' })).toBeInTheDocument()
     expect(screen.getByText('WAF–ML security operations')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Protect the request path.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Protect every request.' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Authentication form' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'CyberTrace home' })).toHaveAttribute('href', '/login')
     expect(screen.getByRole('heading', { name: 'Test authentication content' })).toBeInTheDocument()

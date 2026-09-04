@@ -18,7 +18,11 @@
   padding: clamp(32px, 6vw, 88px);
   background-color: #08153f;
   background-image:
-    linear-gradient(180deg, color-mix(in oklab, #07123a 54%, transparent), color-mix(in oklab, #121417 80%, transparent)),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, #191829 54%, transparent),
+      color-mix(in oklab, #121417 80%, transparent)
+    ),
     url('/assets/login-left.svg');
   background-position: center;
   background-size: cover;
@@ -28,7 +32,11 @@
   position: absolute;
   z-index: -1;
   inset: 0;
-  background: linear-gradient(135deg, color-mix(in oklab, var(--color-accent-action) 14%, transparent), transparent 42%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--color-accent-action) 14%, transparent),
+    transparent 42%
+  );
   content: '';
   pointer-events: none;
 }
@@ -38,66 +46,74 @@
   z-index: 1;
 }
 
+.visualMessage {
+  width: 100%;
+  max-width: 38rem;
+  margin: auto;
+  padding-block: 40px;
+  text-align: center;
+}
+
 .brand {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  gap: 10px;
+  justify-content: center;
+  gap: 18px;
   width: fit-content;
+  margin: 0 auto 16px;
   color: #f3f5f7;
   font-family: var(--font-orbitron), var(--font-sans), sans-serif;
-  font-size: 14px;
+  font-size: 50px;
   font-weight: 700;
   letter-spacing: 0.04em;
+  line-height: 1;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .brand:focus-visible {
   outline: 2px solid var(--color-accent-action);
-  outline-offset: 4px;
+  outline-offset: 6px;
   border-radius: 4px;
 }
 
 .logo {
-  width: 32px;
-  height: 32px;
+  width: 150px;
+  height: 150px;
   object-fit: contain;
 }
 
-.visualMessage {
-  max-width: 34rem;
-  margin-block: auto;
-  padding-block: clamp(48px, 10vh, 120px);
-}
-
 .visualEyebrow {
-  margin: 0 0 20px;
+  margin: 0 0 18px;
   color: #d5b17b;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
   line-height: 1.4;
+  text-align: center;
   text-transform: uppercase;
 }
 
 .visualTitle {
-  max-width: 10ch;
-  margin: 0;
+  max-width: none;
+  margin: 0 auto;
   color: #f3f5f7;
   font-family: var(--font-orbitron), var(--font-sans), sans-serif;
-  font-size: clamp(2.4rem, 4.5vw, 4.7rem);
+  font-size: clamp(1.6rem, 2.4vw, 2.6rem);
   font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 0.98;
-  text-wrap: balance;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .visualDescription {
   max-width: 31rem;
-  margin: 28px 0 0;
+  margin: 26px auto 0;
   color: color-mix(in oklab, #f3f5f7 72%, transparent);
   font-size: 16px;
   line-height: 1.7;
+  text-align: center;
 }
 
 .visualFooter {
@@ -120,7 +136,8 @@
   justify-content: center;
   overflow-y: auto;
   padding: clamp(40px, 7vw, 112px);
-  border-left: 1px solid color-mix(in oklab, var(--color-border-light) 76%, transparent);
+  border-left: 1px solid
+    color-mix(in oklab, var(--color-border-light) 76%, transparent);
   background: var(--color-bg-page);
 }
 
@@ -148,22 +165,48 @@
   .visual {
     min-height: auto;
     padding: 18px 24px;
-    border-bottom: 1px solid color-mix(in oklab, var(--color-border-light) 76%, transparent);
+    border-bottom: 1px solid
+      color-mix(in oklab, var(--color-border-light) 76%, transparent);
     background: var(--color-bg-page);
   }
 
-  .visual::after,
-  .visualMessage,
+  .visual::after {
+    display: none;
+  }
+
+  .visualMessage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .brand {
+    margin: 0;
+    gap: 10px;
+    font-size: 18px;
+  }
+
+  .logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .visualEyebrow,
+  .visualTitle,
+  .visualDescription {
+    display: none;
+  }
+
   .visualFooter {
     display: none;
   }
 
-  .brand {
-    color: var(--color-text-primary);
-  }
-
   .contentPane {
-    min-height: calc(100dvh - 69px);
+    min-height: calc(100dvh - 78px);
     align-items: center;
     padding: clamp(32px, 8vh, 72px) 24px 48px;
     border-left: 0;

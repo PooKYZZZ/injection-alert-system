@@ -389,7 +389,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       Training feedback
                     </h3>
                     <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                      Record a verified label for the training review process. This does not change the current model automatically.
+                      Add a correct label for training review. The current model is not changed automatically.
                     </p>
                     {canTriage ? (
                       <div className="space-y-2">
@@ -404,7 +404,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           disabled={isLabelReviewPending}
                           className="w-full rounded-md border border-surface-border bg-surface-card px-2.5 py-1.5 text-[11px] text-[var(--color-text-primary)]"
                         >
-                          <option value="">Select a canonical class</option>
+                          <option value="">Select the correct class</option>
                           {VERIFIED_LABEL_VALUES.map((label) => (
                             <option key={label} value={label}>{label}</option>
                           ))}
@@ -460,7 +460,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           {isNewTriageStatus(displayStatus) ? (
                             <>
                               <p className="mb-1 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                                Opening this drawer is read-only. Start a review when you are ready to record analyst ownership.
+                                Assign yourself to this alert before reviewing.
                               </p>
                               <button
                                 type="button"
@@ -536,7 +536,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           System Outcome
                         </h3>
                         <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                          This is the action recorded when the request was processed. Updating it changes the stored alert record; it does not replay the request or apply a new network rule.
+                          Recorded result of the original request.
                         </p>
                         {canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
