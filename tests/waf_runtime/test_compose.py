@@ -73,20 +73,18 @@ def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
     )
 
     mounts = config["services"]["backend"]["volumes"]
-    assert {
-        "type": "bind",
-        "source": "E:\\AI\\PDDDD\\injection-alert-system\\data\\processed\\v3_907k_cleaned",
-        "target": "/app/data/processed/v3_907k_cleaned",
-        "read_only": True,
-        "bind": {},
-    } in mounts
-    assert {
-        "type": "bind",
-        "source": "E:\\AI\\PDDDD\\injection-alert-system\\data\\processed\\v3_907k_cleaned_model_input_v2",
-        "target": "/app/data/processed/v3_907k_cleaned_model_input_v2",
-        "read_only": True,
-        "bind": {},
-    } in mounts
+    expected_datasets = (
+        "v3_907k_cleaned",
+        "v3_907k_cleaned_model_input_v2",
+    )
+    for dataset in expected_datasets:
+        assert {
+            "type": "bind",
+            "source": str((ROOT / "data" / "processed" / dataset).resolve()),
+            "target": f"/app/data/processed/{dataset}",
+            "read_only": True,
+            "bind": {},
+        } in mounts
 
 
 def test_local_compose_uses_an_explicit_postgres_database():

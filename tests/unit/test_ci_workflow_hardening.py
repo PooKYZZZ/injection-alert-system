@@ -83,3 +83,18 @@ def test_ci_lints_only_the_remediated_backend_boundaries() -> None:
     assert "Lint the remediated backend boundaries" in backend_job
     assert "web_app/application/retraining_control_use_case.py" in backend_job
     assert "ruff check ." not in backend_job
+
+
+def test_frontend_audit_retries_registry_failures_without_ignoring_failures() -> None:
+    source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    frontend_job = source.split("  frontend:", 1)[1].split(
+        "  auth-e2e:", 1
+    )[0]
+
+    assert "name: Audit frontend dependencies" in frontend_job
+    assert "for attempt in 1 2 3" in frontend_job
+    assert "--fetch-retries=5" in frontend_job
+    assert "--fetch-retry-maxtimeout=30000" in frontend_job
+    assert "npm audit failed after 3 attempts" in frontend_job
+    assert "exit 1" in frontend_job
+    assert "continue-on-error" not in frontend_job

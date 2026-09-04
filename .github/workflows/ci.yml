@@ -104,8 +104,32 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm audit --audit-level=high
+      # The npm advisory bulk endpoint can transiently return registry 5xx
+      # responses. Keep the audit blocking, but retry transient registry
+      # failures before failing the job.
+      - name: Audit frontend dependencies
         working-directory: frontend
+        run: |
+          for attempt in 1 2 3; do
+            if npm audit \
+              --audit-level=high \
+              --fetch-retries=5 \
+              --fetch-retry-factor=2 \
+              --fetch-retry-mintimeout=1000 \
+              --fetch-retry-maxtimeout=30000 \
+              --fetch-timeout=120000; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              delay=$((attempt * 10))
+              echo "npm audit failed; retrying in ${delay}s (attempt ${attempt}/3)"
+              sleep "$delay"
+            fi
+          done
+
+          echo "npm audit failed after 3 attempts" >&2
+          exit 1
       - run: npx vitest run
         working-directory: frontend
       - run: npm run build
