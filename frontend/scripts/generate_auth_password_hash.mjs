@@ -1,6 +1,7 @@
 import argon2 from 'argon2'
 import { pathToFileURL } from 'node:url'
 
+export const MIN_PASSWORD_LENGTH = 6
 export const MAX_PASSWORD_LENGTH = 256
 export const ARGON2_OPTIONS = {
   type: argon2.argon2id,
@@ -12,10 +13,10 @@ export const ARGON2_OPTIONS = {
 export async function generatePasswordHash(password) {
   if (
     typeof password !== 'string' ||
-    password.length === 0 ||
+    password.length < MIN_PASSWORD_LENGTH ||
     password.length > MAX_PASSWORD_LENGTH
   ) {
-    throw new Error('Password must contain 1 to 256 characters.')
+    throw new Error('Password must contain 6 to 256 characters.')
   }
   return argon2.hash(password, ARGON2_OPTIONS)
 }

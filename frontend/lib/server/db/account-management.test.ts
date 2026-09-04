@@ -15,7 +15,7 @@ vi.mock('@/lib/auth/password-hash', () => ({
   PASSWORD_HASH_CONCURRENCY_LIMIT: 2,
   hashPassword: harness.hashPassword,
   validateNewPassword: (password: unknown) =>
-    typeof password === 'string' && password.length >= 15
+    typeof password === 'string' && password.length >= 6
       ? { ok: true }
       : { ok: false, code: 'PASSWORD_TOO_SHORT' },
 }))

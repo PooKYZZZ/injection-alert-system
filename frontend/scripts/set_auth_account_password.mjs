@@ -3,13 +3,15 @@ import { pathToFileURL } from 'node:url'
 
 import { createSupabaseScriptClient } from '../lib/server/db/script-client.mjs'
 
+const MIN_PASSWORD_LENGTH = 6
+
 export async function buildPasswordUpdate(password, authzVersion) {
   if (
     typeof password !== 'string' ||
-    password.length === 0 ||
+    password.length < MIN_PASSWORD_LENGTH ||
     password.length > 256
   ) {
-    throw new Error('Password must contain 1 to 256 characters.')
+    throw new Error('Password must contain 6 to 256 characters.')
   }
   return {
     password_hash: await argon2.hash(password, {

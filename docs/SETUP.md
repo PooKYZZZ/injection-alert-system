@@ -345,6 +345,7 @@ Notes:
 - `AUTH_TRUST_HOST=true` is required for local `next start` validation so Auth.js trusts the local host.
 - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are required for login and protected BFF access. Missing configuration or a Supabase outage fails closed; there is no `AUTH_USERS_JSON` fallback.
 - At least one `auth_accounts` row with an approved Argon2id `password_hash` must exist before login can succeed. Runtime verification requires PHC version `v=19` with at least `m=19456,t=2,p=1`; weak, null, old scrypt/bcrypt, malformed, and unsupported hashes are rejected before native verification.
+- New passwords set through account setup, password reset, or provisioning scripts must contain at least 6 characters and at most 256 characters.
 - The login form accepts account id, normalized email, or normalized username plus password. There is no demo-password fallback.
 - Disablement, `mfa_required`, role changes, and `authz_version` changes are checked against the current DB row on every protected BFF request. Existing JWTs are denied when the account is missing, disabled, newly MFA-required, downgraded, or stale.
 - Assured MFA sessions retain an eight-hour Auth.js maximum. Password-level MFA sessions are additionally bounded by the database challenge expiry and cannot reach the dashboard. This is not an AAL2 compliance claim.
@@ -626,6 +627,30 @@ This means:
 - Backend transaction lookup proof: `docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend ...`
 
 Do not use `localhost:8000` for Docker proof unless backend port 8000 is explicitly published.
+
+### Supabase-backed Docker runtime
+
+The local overlay above is intentionally for isolated development: it replaces
+`DATABASE_URL` with the private `postgres` service. To run the hosted-style
+application against the Supabase URL already stored in the ignored root
+`.env`, do not include `docker-compose.local.yml`. Use the reviewed hosted
+Cloudflare overlays instead:
+
+```powershell
+docker compose --env-file .env -p injection-alert-system `
+  -f docker-compose.yml `
+  -f docker-compose.demo-target.yml `
+  -f docker-compose.target-cloudflare.yml `
+  -f docker-compose.app-cloudflare.yml `
+  --profile demo-target --profile target-cloudflare up -d --no-build backend frontend cloudflared
+```
+
+The hosted overlays deliberately skip `safe_local_migrate`; applying migrations
+to live Supabase is a separate, reviewed operator step. They also bind-mount
+the approved processed datasets at `/app/data/processed/...` read-only. That
+mount is required for Model Operations to verify dataset identity; it does not
+run training or permit the web app to alter the source datasets. The Docker
+backend remains internal-only, and the frontend still calls `http://backend:8000`.
 
 ### Final realistic demo-target stack
 

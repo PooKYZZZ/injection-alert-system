@@ -4,7 +4,16 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['.next/**', 'coverage/**', 'node_modules/**', '**/_playwright_capture_real.js'],
+    ignores: [
+      '.next/**',
+      '.venv/**',
+      'coverage/**',
+      'node_modules/**',
+      'playwright-report/**',
+      'test-results/**',
+      'temp/**',
+      '**/_playwright_capture_real.js',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

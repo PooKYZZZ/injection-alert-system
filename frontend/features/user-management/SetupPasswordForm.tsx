@@ -48,7 +48,7 @@ export function SetupPasswordForm({ token }: { token: string }) {
           aria-label="New password"
           autoComplete="new-password"
           className={authFieldClass}
-          minLength={15}
+          minLength={6}
           maxLength={256}
           type="password"
           value={password}
@@ -62,7 +62,7 @@ export function SetupPasswordForm({ token }: { token: string }) {
           aria-label="Confirm password"
           autoComplete="new-password"
           className={authFieldClass}
-          minLength={15}
+          minLength={6}
           maxLength={256}
           type="password"
           value={confirmation}
@@ -71,7 +71,7 @@ export function SetupPasswordForm({ token }: { token: string }) {
         />
       </label>
       <p className="text-xs leading-5 text-text-muted">
-        Use at least 15 characters. Spaces and password-manager paste are supported.
+        Use at least 6 characters. Spaces and password-manager paste are supported.
       </p>
       <button className={authPrimaryButtonClass} disabled={pending || !token} type="submit">
         {pending ? 'Setting password…' : 'Set password'}

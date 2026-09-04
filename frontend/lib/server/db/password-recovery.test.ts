@@ -12,7 +12,7 @@ vi.mock('./client', () => ({ getSupabaseServerClient: () => ({ from: harness.fro
 vi.mock('@/lib/auth/password-hash', () => ({
   PASSWORD_HASH_CONCURRENCY_LIMIT: 2,
   hashPassword: harness.hash,
-  validateNewPassword: (password: unknown) => typeof password === 'string' && password.length >= 15 ? { ok: true } : { ok: false, code: 'PASSWORD_TOO_SHORT' },
+  validateNewPassword: (password: unknown) => typeof password === 'string' && password.length >= 6 ? { ok: true } : { ok: false, code: 'PASSWORD_TOO_SHORT' },
 }))
 vi.mock('@/lib/server/notifications/payload-crypto', () => ({
   protectNotificationPayload: harness.protect,

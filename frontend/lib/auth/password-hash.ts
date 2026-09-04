@@ -4,7 +4,7 @@ export const ARGON2_MEMORY_COST = 19_456
 export const ARGON2_TIME_COST = 2
 export const ARGON2_PARALLELISM = 1
 export const MAX_PASSWORD_LENGTH = 256
-export const MIN_NEW_PASSWORD_LENGTH = 15
+export const MIN_NEW_PASSWORD_LENGTH = 6
 export const PASSWORD_HASH_CONCURRENCY_LIMIT = 2
 export const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$bN0r/SKG56J5Ob9MOsU6/g$9XJz/v+ujBicSJlqn5EsoyP5yRugqmFdYl3xjxEH5ko'

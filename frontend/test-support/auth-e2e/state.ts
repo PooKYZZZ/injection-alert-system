@@ -8,7 +8,7 @@ const disposableEmail = z
 const identitySchema = z.object({
   id: z.string().uuid(),
   email: disposableEmail,
-  password: z.string().min(15).max(256),
+  password: z.string().min(6).max(256),
 })
 
 const totpIdentitySchema = identitySchema.extend({

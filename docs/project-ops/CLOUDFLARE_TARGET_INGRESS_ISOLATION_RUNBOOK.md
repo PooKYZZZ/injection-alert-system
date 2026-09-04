@@ -55,8 +55,9 @@ containing environment-specific paths longer than needed.
 
 The current target overlay defaults to `unverified` and sets
 `CLOUDFLARE_TARGET_ISOLATION_ENABLED=true`. The cloudflared health check uses
-exec form (`CMD cloudflared tunnel ready --metrics 127.0.0.1:20241`) because the
-pinned image has no `/bin/sh`.
+exec form (`CMD cloudflared tunnel --metrics 127.0.0.1:20241 ready`) because the
+pinned image has no `/bin/sh`; `--metrics` must precede the `ready` subcommand
+for this pinned cloudflared version.
 
 ## Explicit future verified-mode proof switch
 
