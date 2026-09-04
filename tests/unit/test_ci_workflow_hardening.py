@@ -83,3 +83,25 @@ def test_ci_lints_only_the_remediated_backend_boundaries() -> None:
     assert "Lint the remediated backend boundaries" in backend_job
     assert "web_app/application/retraining_control_use_case.py" in backend_job
     assert "ruff check ." not in backend_job
+
+
+def test_frontend_pr_dependency_review_avoids_registry_audit_outage_failures() -> None:
+    source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    frontend_job = source.split("  frontend:", 1)[1].split(
+        "  frontend-dependency-review:", 1
+    )[0]
+    review_job = source.split("  frontend-dependency-review:", 1)[1].split(
+        "  auth-e2e:", 1
+    )[0]
+
+    assert "npm audit" not in frontend_job
+    assert "if: github.event_name == 'pull_request'" in review_job
+    assert (
+        "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+        in review_job
+    )
+    assert "fail-on-severity: high" in review_job
+    assert "fail-on-scopes: runtime, development" in review_job
+    assert "license-check: false" in review_job
+    assert "vulnerability-check: true" in review_job
+    assert "warn-only: true" not in review_job

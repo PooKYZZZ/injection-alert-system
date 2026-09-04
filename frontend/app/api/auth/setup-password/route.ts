@@ -11,7 +11,7 @@ import { completeInitialPasswordSetup } from '@/lib/server/db/account-management
 
 const requestSchema = z.object({
   token: z.string().min(20).max(512),
-  password: z.string().min(1).max(256),
+  password: z.string().min(6).max(256),
 }).strict()
 
 export async function POST(request: Request): Promise<Response> {

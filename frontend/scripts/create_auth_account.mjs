@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { createSupabaseScriptClient } from '../lib/server/db/script-client.mjs'
 
 const ROLES = new Set(['ADMIN', 'ANALYST', 'VIEWER'])
+const MIN_PASSWORD_LENGTH = 6
 const MAX_PASSWORD_LENGTH = 256
 
 function readArgs(argv) {
@@ -39,9 +40,9 @@ export async function buildCreateAccountPayload(values) {
   const password = values.password
   if (
     password !== undefined &&
-    (password.length === 0 || password.length > MAX_PASSWORD_LENGTH)
+    (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH)
   ) {
-    throw new Error('Password must contain 1 to 256 characters.')
+    throw new Error('Password must contain 6 to 256 characters.')
   }
   const now = new Date().toISOString()
   const mfaOverride = parseBoolean(values['mfa-required'], 'mfa-required')

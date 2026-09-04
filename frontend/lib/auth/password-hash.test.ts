@@ -16,11 +16,12 @@ import {
 } from './password-hash'
 
 describe('new password policy', () => {
-  it('requires 15 characters, allows spaces, and never truncates', () => {
-    expect(validateNewPassword('short password')).toEqual({
+  it('requires 6 characters, allows spaces, and never truncates', () => {
+    expect(validateNewPassword('short')).toEqual({
       ok: false,
       code: 'PASSWORD_TOO_SHORT',
     })
+    expect(validateNewPassword('abcdef')).toEqual({ ok: true })
     expect(validateNewPassword('a long pass phrase')).toEqual({ ok: true })
     expect(validateNewPassword('x'.repeat(257))).toEqual({
       ok: false,

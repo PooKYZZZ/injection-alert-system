@@ -81,6 +81,7 @@ pnpm-debug.log*
 # Local tool state
 .worktrees/
 .playwright-mcp/
+/.playwright-cli/
 .kilocode/mcp.json
 .kilocode/
 .copilot/
@@ -95,6 +96,7 @@ playwright/.cache/
 
 # Local screenshots and temporary evidence
 local-screenshots/
+/output/
 tmp/
 
 # Local artifacts and external archive workspace
@@ -106,6 +108,9 @@ archive/
 
 # Local planning tracker
 /PD2_PRIORITY_TRACKER.md
+
+# Local-only implementation and defense checklist
+/docs/ML_DEPLOYMENT_TRAINING_TESTING_DEFENSE_CHECKLIST.md
 
 # ML model weights — distributed via team shared drive, not committed to repo
 ml_model/model_registry/**/*.bin

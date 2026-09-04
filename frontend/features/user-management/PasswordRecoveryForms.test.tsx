@@ -69,7 +69,7 @@ describe('password recovery forms', () => {
     render(<ResetPasswordForm token={'a'.repeat(43)} />)
 
     const input = screen.getByLabelText('New password')
-    fireEvent.change(input, { target: { value: 'a'.repeat(15) } })
+    fireEvent.change(input, { target: { value: 'a'.repeat(6) } })
     fireEvent.submit(screen.getByRole('form', { name: /set a new password/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/invalid or expired/i)

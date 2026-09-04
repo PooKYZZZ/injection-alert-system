@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { requireTrustedOrigin } from '@/lib/server/db/account-route-response'
 import { completePasswordReset } from '@/lib/server/db/password-recovery'
 
-const requestSchema = z.object({ token: z.string().min(40).max(512), password: z.string().min(1).max(256) }).strict()
+const requestSchema = z.object({ token: z.string().min(40).max(512), password: z.string().min(6).max(256) }).strict()
 
 export async function POST(request: Request): Promise<Response> {
   if (process.env.AUTH_PASSWORD_RESET_ENABLED !== 'true') return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 })
