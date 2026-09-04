@@ -22,7 +22,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           </Link>
 
           <p className={styles.visualEyebrow}>
-            WAF–ML SECURITY OPERATIONS
+            WAF–ML security operations
           </p>
 
           <h2 className={styles.visualTitle}>
