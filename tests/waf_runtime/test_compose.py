@@ -65,6 +65,30 @@ def test_cloudflare_target_compose_starts_without_local_migration_guard():
     assert "safe_local_migrate" not in " ".join(command)
 
 
+def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+    )
+
+    mounts = config["services"]["backend"]["volumes"]
+    assert {
+        "type": "bind",
+        "source": "E:\\AI\\PDDDD\\injection-alert-system\\data\\processed\\v3_907k_cleaned",
+        "target": "/app/data/processed/v3_907k_cleaned",
+        "read_only": True,
+        "bind": {},
+    } in mounts
+    assert {
+        "type": "bind",
+        "source": "E:\\AI\\PDDDD\\injection-alert-system\\data\\processed\\v3_907k_cleaned_model_input_v2",
+        "target": "/app/data/processed/v3_907k_cleaned_model_input_v2",
+        "read_only": True,
+        "bind": {},
+    } in mounts
+
+
 def test_local_compose_uses_an_explicit_postgres_database():
     config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
 

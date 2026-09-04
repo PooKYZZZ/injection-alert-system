@@ -392,9 +392,9 @@ def test_app_cloudflare_overlay_adds_least_privilege_frontend_network(
         "CMD",
         "cloudflared",
         "tunnel",
-        "ready",
         "--metrics",
         "127.0.0.1:20241",
+        "ready",
     ]
     assert "CMD-SHELL" not in healthcheck["test"]
     assert config["services"]["demo-target-modsecurity"]["environment"][

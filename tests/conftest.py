@@ -1,7 +1,8 @@
-import pytest
 import os
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -16,6 +17,10 @@ os.environ["MODEL_PATH"] = "ml_model/models/mock_model.py"
 os.environ["MODEL_REGISTRY_PATH"] = "ml_model/model_registry/does_not_exist"
 os.environ["API_SECRET_KEY"] = "test-secret-key"
 os.environ["WAF_INGEST_API_KEY"] = "test-waf-ingest-key-at-least-32-characters"
+# The test suite uses in-memory SQLite; the PostgreSQL notification worker must
+# stay disabled regardless of settings in a developer's ignored .env file.
+os.environ["NOTIFICATION_WORKER_ENABLED"] = "false"
+os.environ["NOTIFICATION_WORKER_REQUIRED"] = "false"
 
 
 @pytest.fixture(scope="session", autouse=True)
