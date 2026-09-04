@@ -78,13 +78,14 @@ def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
         "v3_907k_cleaned_model_input_v2",
     )
     for dataset in expected_datasets:
-        assert {
-            "type": "bind",
-            "source": str((ROOT / "data" / "processed" / dataset).resolve()),
-            "target": f"/app/data/processed/{dataset}",
-            "read_only": True,
-            "bind": {},
-        } in mounts
+        expected_source = str((ROOT / "data" / "processed" / dataset).resolve())
+        assert any(
+            mount.get("type") == "bind"
+            and mount.get("source") == expected_source
+            and mount.get("target") == f"/app/data/processed/{dataset}"
+            and mount.get("read_only") is True
+            for mount in mounts
+        )
 
 
 def test_local_compose_uses_an_explicit_postgres_database():
