@@ -1,0 +1,25 @@
+services:
+  backend:
+    networks:
+      default: {}
+      target_waf_ingress:
+        ipv4_address: 172.30.20.4
+    volumes:
+      - ./logs/modsecurity/search-records-test:/app/search-test-audit:ro
+
+  demo-target-modsecurity:
+    environment:
+      # The normal target uses RelevantOnly so only blocked/error responses
+      # are audited. The isolated test captures every Search Records response
+      # so accepted requests can also be correlated with model inference.
+      MODSEC_AUDIT_LOG_RELEVANT_STATUS: ".*"
+    volumes:
+      - ./logs/modsecurity/search-records-test:/var/log/modsecurity
+
+  demo-target-bridge:
+    networks:
+      default: {}
+      target_waf_ingress:
+        ipv4_address: 172.30.20.5
+    volumes:
+      - ./logs/modsecurity/search-records-test:/var/log/modsecurity:ro

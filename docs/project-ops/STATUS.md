@@ -2,7 +2,7 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-07-30
+**Last updated:** 2026-09-04
 
 ---
 
@@ -63,6 +63,16 @@
 - Backend runtime: FastAPI `0.138.0`, Pydantic `2.12.5`, SQLAlchemy `2.0.48` (async)
 - Model/runtime artifacts boundary: `ml_model/model_registry/`
 - Data/runtime boundary: Supabase-backed PostgreSQL for app runtime, SQLite for tests
+- CI remediation verified on 2026-09-04 in GitHub Actions run `33851810127`: backend,
+  PostgreSQL, frontend, authentication E2E, container smoke, PR7 WAF runtime,
+  secret scan, and dependency review all passed. The backend Compose mount test
+  now derives repository paths instead of assuming a Windows checkout, while
+  still requiring read-only bind mounts and the approved dataset targets.
+- Frontend dependency controls now pin the patched transitive `browserslist`
+  (`4.28.8`) and `@humanfs/node` (`0.16.8`) through `frontend/package.json` and
+  its lockfile. The PR security gate uses the pinned GitHub dependency-review
+  action because the npm advisory bulk endpoint repeatedly timed out during CI;
+  the repository's GitHub dependency graph/vulnerability alerts are enabled.
 - DistilBERT promotion workflow CLI: `ml_model/export/promote_final_training_run.py`
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
@@ -387,7 +397,10 @@ production evidence boundary only. **Technical debt:** none newly classified.
 - Frontend production build: `cd frontend && npm run build` → **pass**
 - PR #79 exposed an intermittent Ubuntu 24.04 / Node `24.18.0` native `Napi::Error` during threaded Vitest. PR #81 removes accidental native Argon2 loading from non-hashing auth/provisioning tests, retains real Argon2id coverage in `password-hash.test.ts`, and passed the full frontend CI job twice. Vitest remains on `threads`; package scripts, CI workflow, production Argon2id, and auth behavior are unchanged.
 - Promotion pipeline unit tests: `.venv\Scripts\python.exe -m pytest -q tests/unit/test_promote_final_training_run.py` → **21 passed**
-- Dependency gates: `pip-audit -r requirements.txt` found no known vulnerabilities after the `click` patch; `npm audit --audit-level=high` passed with two transitive moderate PostCSS findings and no high/critical findings. The forced npm fix is breaking and was not applied.
+- Historical dependency-gate record: the earlier `npm audit --audit-level=high`
+  snapshot reported two transitive moderate PostCSS findings and no
+  high/critical findings. See the 2026-09-04 CI remediation entry above for
+  the current frontend dependency status and PR gate.
 - Promotion dry-run command (April DistilBERT source path) → **pass** (planned actions printed, no writes)
 - Promotion real-run command (April DistilBERT source path) → **failed closed** with strict checkpoint architecture incompatibility:
   - `package_serving_artifact.py` strict load expects DistilBERT classification head shapes (`768`) but final-training checkpoint head uses `256`-dim layers

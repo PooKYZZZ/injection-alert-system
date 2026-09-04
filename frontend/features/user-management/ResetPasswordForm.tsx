@@ -45,7 +45,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     <section className="w-full max-w-[400px] space-y-6" aria-labelledby="reset-password-heading">
       <div>
         <h1 id="reset-password-heading" className={authHeadingClass}>Set a new password</h1>
-        <p className="mt-2 text-sm leading-6 text-text-secondary">Use at least 15 characters. You will not be signed in automatically.</p>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">Use at least 6 characters. You will not be signed in automatically.</p>
       </div>
       <form aria-busy={pending || undefined} aria-describedby={error ? 'reset-password-error' : undefined} aria-labelledby="reset-password-heading" onSubmit={submit} className="grid gap-4">
         <div className="grid gap-1.5">
@@ -53,7 +53,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           <input
             id="reset-password-value"
             required
-            minLength={15}
+            minLength={6}
             type="password"
             autoComplete="new-password"
             value={password}

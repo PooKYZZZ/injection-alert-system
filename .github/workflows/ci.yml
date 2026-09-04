@@ -104,14 +104,30 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm audit --audit-level=high
-        working-directory: frontend
       - run: npx vitest run
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
         env:
           AUTH_SECRET: ci-build-only-placeholder
+  frontend-dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # npm's advisory bulk endpoint has caused false CI failures during
+      # registry outages. GitHub's PR dependency review keeps the security
+      # gate blocking while avoiding that registry-specific failure mode.
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime, development
+          license-check: false
+          vulnerability-check: true
   auth-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20

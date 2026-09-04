@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "run_id": "search-records-seeds-20260903",
+  "route": {
+    "method": "GET",
+    "path": "/records/search",
+    "query_parameter": "query"
+  },
+  "selection_note": "Exact payloads are preserved for reruns. Confirmed examples have an exact expected-label match in this run; LOW/MEDIUM general cases are confidence references and retain their match status.",
+  "confirmed_sql_injection_examples": [],
+  "confirmed_code_injection_examples": [],
+  "confirmed_general_attack_examples": [],
+  "known_low_confidence_general_attack_cases": [],
+  "known_medium_confidence_general_attack_cases": [],
+  "general_low_medium_missed_cases": []
+}

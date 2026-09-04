@@ -8,6 +8,13 @@ services:
         "-c",
         "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
       ]
+    # The datasets are intentionally excluded from the image. Hosted
+    # retraining controls need their content identity, while training itself
+    # remains an explicit operator action. Keep both approved datasets
+    # available without allowing the container to modify them.
+    volumes:
+      - ./data/processed/v3_907k_cleaned:/app/data/processed/v3_907k_cleaned:ro
+      - ./data/processed/v3_907k_cleaned_model_input_v2:/app/data/processed/v3_907k_cleaned_model_input_v2:ro
     environment:
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
       WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}
@@ -46,9 +53,9 @@ services:
         - "CMD"
         - "cloudflared"
         - "tunnel"
-        - "ready"
         - "--metrics"
         - "127.0.0.1:20241"
+        - "ready"
       interval: 5s
       timeout: 3s
       retries: 12

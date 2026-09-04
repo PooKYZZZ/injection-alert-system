@@ -71,6 +71,21 @@ describe('auth account provisioning scripts', () => {
     })
   })
 
+  it('rejects provisioning passwords shorter than six characters', async () => {
+    await expect(
+      buildCreateAccountPayload({
+        email: 'user@example.test',
+        name: 'User',
+        role: 'ADMIN',
+        password: 'short',
+      })
+    ).rejects.toThrow('Password must contain 6 to 256 characters.')
+
+    await expect(
+      buildPasswordUpdate('short', 7)
+    ).rejects.toThrow('Password must contain 6 to 256 characters.')
+  })
+
   it('defaults viewer MFA off and supports schema-backed setup-pending mode', async () => {
     const payload = await buildCreateAccountPayload({
       email: 'viewer@example.test',
