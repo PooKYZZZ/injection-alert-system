@@ -85,16 +85,23 @@ def test_ci_lints_only_the_remediated_backend_boundaries() -> None:
     assert "ruff check ." not in backend_job
 
 
-def test_frontend_audit_retries_registry_failures_without_ignoring_failures() -> None:
+def test_frontend_pr_dependency_review_avoids_registry_audit_outage_failures() -> None:
     source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     frontend_job = source.split("  frontend:", 1)[1].split(
+        "  frontend-dependency-review:", 1
+    )[0]
+    review_job = source.split("  frontend-dependency-review:", 1)[1].split(
         "  auth-e2e:", 1
     )[0]
 
-    assert "name: Audit frontend dependencies" in frontend_job
-    assert "for attempt in 1 2 3" in frontend_job
-    assert "--fetch-retries=5" in frontend_job
-    assert "--fetch-retry-maxtimeout=30000" in frontend_job
-    assert "npm audit failed after 3 attempts" in frontend_job
-    assert "exit 1" in frontend_job
-    assert "continue-on-error" not in frontend_job
+    assert "npm audit" not in frontend_job
+    assert "if: github.event_name == 'pull_request'" in review_job
+    assert (
+        "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+        in review_job
+    )
+    assert "fail-on-severity: high" in review_job
+    assert "fail-on-scopes: runtime, development" in review_job
+    assert "license-check: false" in review_job
+    assert "vulnerability-check: true" in review_job
+    assert "warn-only: true" not in review_job
