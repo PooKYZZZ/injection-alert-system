@@ -19,6 +19,7 @@ from web_app.application.retraining_run_use_case import (
     RetrainingRunUseCase,
     RetrainingStartResult,
 )
+from web_app.domain.authorization import Permission, role_has_permission
 from web_app.domain.interfaces import ITrafficLabelReviewRepository
 from web_app.infrastructure.repositories.retraining_run_artifact_repository import (
     ArtifactRepositoryError,
@@ -181,9 +182,9 @@ class RetrainingControlUseCase:
     def retry_run(
         self, *, run_id: str, actor_id: str, actor_role: str
     ) -> RetrainingRunRecord:
-        if actor_role not in {"ANALYST", "ADMIN"}:
+        if not role_has_permission(actor_role, Permission.ML_MODEL_RUN):
             raise RetrainingControlError(
-                "FORBIDDEN", "Operator permission is required.", status_code=403
+                "FORBIDDEN", "Owner permission is required.", status_code=403
             )
         if not actor_id.strip() or len(actor_id) > 128:
             raise RetrainingControlError(
@@ -444,9 +445,9 @@ class RetrainingControlUseCase:
         actor_id: str,
         actor_role: str,
     ) -> RetrainingDecisionResult:
-        if actor_role != "ADMIN":
+        if not role_has_permission(actor_role, Permission.ML_MODEL_APPROVE):
             raise RetrainingControlError(
-                "FORBIDDEN", "Administrator review is required.", status_code=403
+                "FORBIDDEN", "Owner review is required.", status_code=403
             )
         if decision not in {"approve", "hold", "reject"}:
             raise RetrainingControlError("INVALID_DECISION", "Decision is invalid.")
@@ -615,10 +616,10 @@ class RetrainingControlUseCase:
         evaluation, comparison = self._read_evidence_artifacts(record)
         self._validate_evidence_binding(record, evaluation, comparison)
 
-    def _require_admin(self, actor_id: str, actor_role: str) -> None:
-        if actor_role != "ADMIN":
+    def _require_deployment_permission(self, actor_id: str, actor_role: str) -> None:
+        if not role_has_permission(actor_role, Permission.ML_MODEL_DEPLOY):
             raise RetrainingControlError(
-                "FORBIDDEN", "Administrator review is required.", status_code=403
+                "FORBIDDEN", "Owner deployment permission is required.", status_code=403
             )
         if not actor_id.strip() or len(actor_id) > 128:
             raise RetrainingControlError(
@@ -823,7 +824,7 @@ class RetrainingControlUseCase:
         actor_id: str,
         actor_role: str,
     ) -> RetrainingRunRecord:
-        self._require_admin(actor_id, actor_role)
+        self._require_deployment_permission(actor_id, actor_role)
         record = self._load_control_run(run_id)
         try:
             self._validate_deployment_evidence(
@@ -1069,7 +1070,7 @@ class RetrainingControlUseCase:
         actor_id: str,
         actor_role: str,
     ) -> RetrainingRunRecord:
-        self._require_admin(actor_id, actor_role)
+        self._require_deployment_permission(actor_id, actor_role)
         if not reason.strip() or len(reason) > 500:
             raise RetrainingControlError(
                 "REASON_REQUIRED", "A rollback reason is required."

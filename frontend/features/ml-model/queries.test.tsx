@@ -48,7 +48,7 @@ describe('ML model queries', () => {
     )
   })
 
-  it('surfaces a disabled Model Operations response without retrying it', async () => {
+  it('surfaces a disabled ML Deployment response without retrying it', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'Local retraining control is disabled.' }), { status: 503 })
     )

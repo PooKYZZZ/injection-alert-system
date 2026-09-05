@@ -217,7 +217,14 @@ def test_alerts_endpoint_accepts_confidence_tier_sort_alias(client):
 
 
 def test_ml_health_exposes_critical_threshold(client):
-    response = client.get("/api/ml-health", headers=INTERNAL_HEADERS)
+    response = client.get(
+        "/api/ml-health",
+        headers={
+            **INTERNAL_HEADERS,
+            "X-Reviewer-Id": "owner-1",
+            "X-Reviewer-Role": "OWNER",
+        },
+    )
 
     assert response.status_code == 200
     data = response.json()

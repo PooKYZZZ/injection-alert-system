@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
@@ -406,9 +405,6 @@ export default function DashboardPage() {
             </div>
             <p className="mt-3 text-xs leading-5 text-text-muted">
               Enforcement thresholds are maintained with the active model.
-              <Link href="/ml-health" className="ml-1 text-text-secondary underline decoration-border-light underline-offset-2 hover:text-text-primary">
-                Review ML Health
-              </Link>
             </p>
           </motion.div>
 

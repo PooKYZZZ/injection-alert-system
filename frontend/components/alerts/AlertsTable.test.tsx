@@ -439,7 +439,7 @@ describe('AlertsTable', () => {
     ['ANALYST', true],
     ['ADMIN', true],
     [undefined, false],
-    ['OWNER', false],
+    ['OWNER', true],
   ] as const)(
     'shows selection affordances without implicit row triage for role %s: %s',
     async (role, canTriage) => {

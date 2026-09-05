@@ -22,7 +22,7 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/auth', () => ({ auth: harness.auth }))
 vi.mock('@/lib/auth/route-guard', () => ({
   requireMfaPermission: harness.requireMfa,
-  requireRecentTotpAdmin: harness.requireRecentAdmin,
+  requireRecentTotp: harness.requireRecentAdmin,
 }))
 vi.mock('@/lib/server/db/account-management', () => ({
   listManagedAccounts: harness.list,
@@ -58,8 +58,8 @@ describe('ADMIN user management routes', () => {
       'admin/users/[id]/mfa-reset/route.ts',
     ]) {
       const source = fs.readFileSync(path.resolve(__dirname, route), 'utf8')
-      expect(source).toContain('requireRecentTotpAdmin')
-      expect(source).toMatch(/await\s+requireRecentTotpAdmin\s*\(/)
+      expect(source).toContain('requireRecentTotp')
+      expect(source).toMatch(/await\s+requireRecentTotp\s*\(/)
       expect(source).toContain('requireTrustedOrigin')
     }
   })

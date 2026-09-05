@@ -164,7 +164,8 @@ describe('BFF route handlers', () => {
   })
 
   it('exposes BFF retrieval time without inventing source monitoring freshness', async () => {
-    authMock.mockResolvedValueOnce(session())
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
     getMlHealthMock.mockResolvedValueOnce({
       ok: true,
       data: { status: 'HEALTHY', model_version: 'active-v1' },
@@ -179,9 +180,23 @@ describe('BFF route handlers', () => {
     expect(body.retrieved_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
   })
 
+  it.each([ROLES.ADMIN, ROLES.ANALYST, ROLES.VIEWER])(
+    'rejects %s from reading ML Health through the BFF',
+    async (role) => {
+      authMock.mockResolvedValueOnce(session(role))
+      setCurrentAccount(role)
+
+      const { GET } = await import('./ml-health/route')
+      const response = await GET()
+
+      expect(response.status).toBe(403)
+      expect(getMlHealthMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('retraining run reads pass the authenticated actor to the BFF client', async () => {
-    setCurrentAccount(ROLES.ANALYST)
-    authMock.mockResolvedValue(session(ROLES.ANALYST))
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValue(session(ROLES.OWNER))
     getRetrainingRunsMock.mockResolvedValue({ ok: true, data: { runs: [] } })
     getRetrainingRunMock.mockResolvedValue({ ok: true, data: { run_id: 'run-1' } })
 
@@ -190,7 +205,7 @@ describe('BFF route handlers', () => {
     expect(listResponse.status).toBe(200)
     expect(getRetrainingRunsMock).toHaveBeenCalledWith({
       id: accountId,
-      role: ROLES.ANALYST,
+      role: ROLES.OWNER,
     })
 
     const { GET: getRun } = await import('./ml-model/runs/[runId]/route')
@@ -200,12 +215,13 @@ describe('BFF route handlers', () => {
     expect(detailResponse.status).toBe(200)
     expect(getRetrainingRunMock).toHaveBeenCalledWith(
       'retrain-20260811T120000Z-000000000001',
-      { id: accountId, role: ROLES.ANALYST }
+      { id: accountId, role: ROLES.OWNER }
     )
   })
 
   it('retraining export rejects malformed JSON instead of treating it as an empty request', async () => {
-    authMock.mockResolvedValue(session())
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValue(session(ROLES.OWNER))
     process.env.AUTH_APP_ORIGIN = 'http://localhost:3000'
 
     const { POST } = await import('./ml-model/export/route')
@@ -418,7 +434,8 @@ describe('BFF route handlers', () => {
   })
 
   it('ml-health route returns the frontend component contract shape', async () => {
-    authMock.mockResolvedValueOnce(session())
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
     getMlHealthMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -496,7 +513,8 @@ describe('BFF route handlers', () => {
   })
 
   it('ml-health route propagates INTERNAL_SERVICE_AUTH_FAILED error', async () => {
-    authMock.mockResolvedValueOnce(session())
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
     getMlHealthMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -953,7 +971,7 @@ describe('BFF route handlers', () => {
     expect(body.error.code).toBe('INVALID_ID')
   })
 
-  it('allows VIEWER sessions to call every read route', async () => {
+  it('allows VIEWER sessions to read alerts and stats but denies ML Health', async () => {
     setCurrentAccount(ROLES.VIEWER)
     authMock
       .mockResolvedValueOnce(session(ROLES.VIEWER))
@@ -963,7 +981,6 @@ describe('BFF route handlers', () => {
     getAlertsMock.mockResolvedValueOnce({ ok: true, data: { items: [] } })
     getAlertDetailMock.mockResolvedValueOnce({ ok: true, data: { alert_id: '1' } })
     getStatsMock.mockResolvedValueOnce({ ok: true, data: { total_requests: 0 } })
-    getMlHealthMock.mockResolvedValueOnce({ ok: true, data: { status: 'HEALTHY' } })
 
     const [{ GET: getAlerts }, { GET: getAlert }, { GET: getStats }, { GET: getMlHealth }] =
       await Promise.all([
@@ -986,7 +1003,20 @@ describe('BFF route handlers', () => {
     expect(
       (await getStats(new NextRequest('http://localhost:3000/api/stats'))).status
     ).toBe(200)
-    expect((await getMlHealth()).status).toBe(200)
+    expect((await getMlHealth()).status).toBe(403)
+    expect(getMlHealthMock).not.toHaveBeenCalled()
+  })
+
+  it('allows only OWNER sessions to retrieve ML Health through the BFF', async () => {
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
+    getMlHealthMock.mockResolvedValueOnce({ ok: true, data: { status: 'HEALTHY' } })
+    const { GET } = await import('./ml-health/route')
+
+    const response = await GET()
+
+    expect(response.status).toBe(200)
+    expect(getMlHealthMock).toHaveBeenCalledWith({ id: accountId, role: ROLES.OWNER })
   })
 
   it('returns 403 before parsing or forwarding VIEWER mutation requests', async () => {

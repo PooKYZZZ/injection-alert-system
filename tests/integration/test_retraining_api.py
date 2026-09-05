@@ -35,7 +35,7 @@ def _record(state: RunState = RunState.QUEUED) -> RetrainingRunRecord:
         updated_at=NOW,
         heartbeat_at=None,
         trigger="manual",
-        requested_by="analyst-1",
+        requested_by="owner-1",
         requested_timezone="Asia/Manila",
         input_fingerprint="a" * 64,
         source_review_revisions=("1:1",),
@@ -75,6 +75,14 @@ class FakeControlPlane:
         self.start_calls.append(kwargs)
         self.start_count += 1
         return RetrainingStartResult(run=_record(), created=self.start_count == 1)
+
+    async def export_samples(self, **_kwargs):
+        return SimpleNamespace(
+            status="EMPTY",
+            summary=SimpleNamespace(approved=0, excluded=0),
+            samples=(),
+            rejections=(),
+        )
 
     def list_runs(self):
         return [_record()]
@@ -150,7 +158,7 @@ def client(monkeypatch):
         yield test_client, control
 
 
-def _headers(*, role: str = "ANALYST", actor: str = "analyst-1"):
+def _headers(*, role: str = "OWNER", actor: str = "owner-1"):
     return {
         "Authorization": f"Bearer {API_KEY}",
         "X-Reviewer-Id": actor,
@@ -190,12 +198,12 @@ def test_deploy_and_rollback_requests_reject_model_paths_and_forbidden_text(clie
 
     deploy = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/deploy",
-        headers=_headers(role="ADMIN"),
+        headers=_headers(role="OWNER"),
         json={"expected_candidate_version": "C:/models/candidate"},
     )
     rollback = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/rollback",
-        headers=_headers(role="ADMIN", actor="admin-1"),
+        headers=_headers(role="OWNER"),
         json={
             "previous_staging_version": "staging-v1",
             "reason": "INTERNAL_API_KEY=not-a-reason",
@@ -219,12 +227,12 @@ def test_deploy_and_rollback_return_typed_run_records(client):
 
     deploy = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/deploy",
-        headers=_headers(role="ADMIN"),
+        headers=_headers(role="OWNER"),
         json={"expected_candidate_version": "candidate-v1"},
     )
     rollback = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/rollback",
-        headers=_headers(role="ADMIN", actor="admin-1"),
+        headers=_headers(role="OWNER"),
         json={
             "previous_staging_version": "active-v1",
             "reason": "Restore the verified local staging model.",
@@ -235,8 +243,8 @@ def test_deploy_and_rollback_return_typed_run_records(client):
     assert deploy.json()["state"] == "deployed"
     assert rollback.status_code == 200
     assert rollback.json()["state"] == "rolled_back"
-    assert deploy_calls[0]["actor_role"] == "ADMIN"
-    assert rollback_calls[0]["actor_id"] == "admin-1"
+    assert deploy_calls[0]["actor_role"] == "OWNER"
+    assert rollback_calls[0]["actor_id"] == "owner-1"
 
 
 def test_retraining_run_is_accepted_without_waiting_for_worker(client):
@@ -251,7 +259,7 @@ def test_retraining_run_is_accepted_without_waiting_for_worker(client):
     assert response.status_code == 202
     assert response.json()["run_id"] == RUN_ID
     assert response.json()["created"] is True
-    assert control.start_calls[0]["requested_by"] == "analyst-1"
+    assert control.start_calls[0]["requested_by"] == "owner-1"
 
 
 def test_retraining_run_preserves_idempotent_existing_run_response(client):
@@ -329,7 +337,7 @@ def test_retry_is_operator_only_and_has_no_client_training_options(client):
 
     response = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/retry",
-        headers=_headers(role="ANALYST"),
+        headers=_headers(role="OWNER"),
         json={},
     )
 
@@ -338,14 +346,14 @@ def test_retry_is_operator_only_and_has_no_client_training_options(client):
     assert control.retry_calls == [
         {
             "run_id": RUN_ID,
-            "actor_id": "analyst-1",
-            "actor_role": "ANALYST",
+            "actor_id": "owner-1",
+            "actor_role": "OWNER",
         }
     ]
 
     invalid = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/retry",
-        headers=_headers(role="ANALYST"),
+        headers=_headers(role="OWNER"),
         json={"training_flags": ["--epochs", "100"]},
     )
     assert invalid.status_code == 422
@@ -367,7 +375,7 @@ def test_retry_offloads_synchronous_control_work(client, monkeypatch):
 
     response = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/retry",
-        headers=_headers(role="ANALYST"),
+        headers=_headers(role="OWNER"),
         json={},
     )
 
@@ -378,8 +386,8 @@ def test_retry_offloads_synchronous_control_work(client, monkeypatch):
     assert args == ()
     assert kwargs == {
         "run_id": RUN_ID,
-        "actor_id": "analyst-1",
-        "actor_role": "ANALYST",
+        "actor_id": "owner-1",
+        "actor_role": "OWNER",
     }
 
 
@@ -403,7 +411,7 @@ def test_sync_control_reads_and_decisions_are_offloaded(client, monkeypatch):
     )
     decision_response = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/decision",
-        headers=_headers(role="ADMIN"),
+        headers=_headers(role="OWNER"),
         json={"decision": "hold", "reason": "need more evidence"},
     )
 
@@ -417,7 +425,7 @@ def test_sync_control_reads_and_decisions_are_offloaded(client, monkeypatch):
     ]
 
 
-def test_only_administrators_can_decide_candidate_state(client):
+def test_only_owners_can_decide_candidate_state(client):
     test_client, control = client
 
     response = test_client.post(
@@ -435,15 +443,82 @@ def test_deploy_and_rollback_are_explicit_control_plane_boundaries(client):
 
     deploy = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/deploy",
-        headers=_headers(role="ADMIN"),
+        headers=_headers(role="OWNER"),
         json={"expected_candidate_version": "candidate-v1"},
     )
     rollback = test_client.post(
         f"/api/retraining/runs/{RUN_ID}/rollback",
-        headers=_headers(role="ADMIN"),
+        headers=_headers(role="OWNER"),
         json={"previous_staging_version": "staging-v1", "reason": "demo"},
     )
 
     assert deploy.status_code == 501
     assert rollback.status_code == 501
     assert "absolute" not in deploy.text.lower()
+
+
+@pytest.mark.parametrize(
+    ("role", "allowed"),
+    [
+        ("OWNER", True),
+        ("ADMIN", False),
+        ("ANALYST", False),
+        ("VIEWER", False),
+    ],
+)
+def test_owner_only_ml_deployment_authorization_matrix(client, role, allowed):
+    test_client, control = client
+    headers = _headers(role=role, actor=f"{role.lower()}-1")
+
+    responses = [
+        test_client.get("/api/retraining/summary", headers=headers),
+        test_client.get("/api/retraining/runs", headers=headers),
+        test_client.get(f"/api/retraining/runs/{RUN_ID}", headers=headers),
+        test_client.post(
+            "/api/retraining/runs",
+            headers=headers,
+            json={"trigger": "manual"},
+        ),
+        test_client.post("/api/retraining/export", headers=headers, json={}),
+        test_client.post(
+            f"/api/retraining/runs/{RUN_ID}/retry",
+            headers=headers,
+            json={},
+        ),
+        test_client.post(
+            f"/api/retraining/runs/{RUN_ID}/decision",
+            headers=headers,
+            json={"decision": "hold", "reason": "matrix check"},
+        ),
+        test_client.post(
+            f"/api/retraining/runs/{RUN_ID}/deploy",
+            headers=headers,
+            json={"expected_candidate_version": "candidate-v1"},
+        ),
+        test_client.post(
+            f"/api/retraining/runs/{RUN_ID}/rollback",
+            headers=headers,
+            json={
+                "previous_staging_version": "active-v1",
+                "reason": "matrix check",
+            },
+        ),
+    ]
+
+    if allowed:
+        assert [response.status_code for response in responses] == [
+            200,
+            200,
+            200,
+            202,
+            200,
+            202,
+            200,
+            501,
+            501,
+        ]
+    else:
+        assert all(response.status_code == 403 for response in responses)
+        assert control.start_calls == []
+        assert control.retry_calls == []
+        assert control.decision_calls == []

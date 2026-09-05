@@ -14,7 +14,7 @@ The request path is:
 ```text
 Browser -> Next.js BFF -> FastAPI control plane -> durable local run artifacts
                                                     -> worker -> candidate evidence
-                                                    -> explicit admin staging action
+                                                    -> explicit Owner staging action
 ```
 
 Browser code cannot select filesystem paths, shell commands, model paths, or
@@ -34,9 +34,26 @@ RETRAINING_SCHEDULE_TIMEZONE=Asia/Manila
 These are server-side settings. They are not request fields and must remain in
 ignored environment/configuration files where overridden.
 
+### Container persistence
+
+When the backend runs through the repository Compose files, the three
+controlled-local runtime roots are bind-mounted from the checkout:
+
+```text
+ml_model/results/dashboard_retraining -> /app/ml_model/results/dashboard_retraining
+ml_model/model_registry/staging      -> /app/ml_model/model_registry/staging
+ml_model/model_registry/archive      -> /app/ml_model/model_registry/archive
+```
+
+Create the results directory if it does not exist before the first Compose
+start. These paths preserve run manifests, events, evidence, and controlled
+staging/archive state across backend image rebuilds and container recreation.
+They remain local runtime state; the production registry is not mounted and
+the web app never writes to it.
+
 ## Reviewer workflow
 
-1. An analyst starts a manual run, or the scheduled wrapper requests one.
+1. An Owner starts a manual run, or the scheduled wrapper requests one.
 2. The server resolves the latest eligible approved reviews and binds the run
    to dataset, active-model, preprocessing, and pipeline identities.
 3. Export, cumulative snapshot creation, training, and evaluation write
@@ -44,10 +61,10 @@ ignored environment/configuration files where overridden.
 4. The run enters `pending_approval` only after the worker records its result.
    A reviewer checks the dataset/version, candidate identity, evaluation
    evidence, active-model binding, and comparison gates.
-5. An administrator chooses approve, hold, or reject. Hold and reject leave
+5. An Owner chooses approve, hold, or reject. Hold and reject leave
    the active model unchanged. Approved is only a decision state; it does not
    activate the candidate.
-6. The administrator explicitly selects Deploy from Model Operations. The
+6. The Owner explicitly selects Deploy from ML Deployment. The
    server rechecks the run state, evidence hashes, gate result, active binding,
    serving manifest, allowlisted files, preprocessing version, label map, and
    CPU load/prediction smoke before copying to local staging.
@@ -57,7 +74,7 @@ ignored environment/configuration files where overridden.
    It then archives the predecessor, reloads the model, and records `deployed`.
    A load failure restores and verifies the previous model and records
    `rolled_back`.
-8. Rollback is a separate administrator action bound to the deployment record
+8. Rollback is a separate Owner action bound to the deployment record
    and the requested previous staging version. If the process exits while the
    run is `deploying`, the same action reconciles a still-active predecessor
    back to `approved`, or completes a physically finished rollback to

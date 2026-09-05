@@ -45,14 +45,14 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Implemented and manually verified in the tested hosted deployment | post-commit in-process broadcaster -> native FastAPI SSE -> authenticated Next.js streaming BFF -> one dashboard EventSource -> TanStack Query alert/stats invalidation; no-refresh, browser reconnect, and named-domain hosted SSE proof passed; no durable replay or multi-worker fan-out |
-| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260803_000028`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts |
-| RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; JWT role and `authz_version` claims are rechecked against the current DB row by all protected BFF routes |
+| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260905_000029`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts |
+| RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; the `OWNER`/`ADMIN`/`ANALYST`/`VIEWER` role claim and `authz_version` are rechecked against the current DB row by all protected BFF routes; centralized permissions make ML Health and ML Deployment Owner-only |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
 | `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
 | Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 and Block 2 controlled-local WAF runtime implemented and E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Explicit `ENFORCE`/`confidence-enforcement-v2` rows use the existing expiring recommendation store; LOW/MEDIUM retain PostgreSQL fixed-window counters and tier-bound server-verified challenge grants. `/api/internal/enforcement/check` returns exact `ALLOW`, `CHALLENGE`, `THROTTLE`, or `BLOCK` decisions only for `/records/search`. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`. PR7 adds durable revisioned effective WAF state, an authenticated snapshot boundary, deterministic candidate rendering, reload/generation confirmation, candidate-specific probing, and rollback. The controlled PostgreSQL-to-backend-to-WAF path passes; Block 3 still owns full attack-to-ML creation, external ingress/source identity, PR6/PR7 integrated regression, and portal no-upstream evidence. Hosted active enforcement remains disabled. |
-| Verified label review workflow | Implemented locally; export and retraining lifecycle implemented in controlled local mode | Analysts and admins append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Alert responses project only the latest revision. Only `approved_for_training` enters the retraining snapshot. The Model Operations control plane, worker lifecycle, evidence gates, explicit local staging promotion, rollback, and scheduled trigger are implemented; hosted/production promotion remains disabled and unverified. |
+| Verified label review workflow | Implemented locally; export and retraining lifecycle implemented in controlled local mode | Analysts and admins append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Alert responses project only the latest revision. Only `approved_for_training` enters the retraining snapshot. The Owner-only ML Deployment control plane, worker lifecycle, evidence gates, explicit local staging promotion, rollback, and scheduled trigger are implemented; hosted/production promotion remains disabled and unverified. |
 | Training/evaluation source organization | Implemented for controlled-local execution | Canonical benchmark helpers and script-first entrypoints live under `ml_model/training/`, `ml_model/preprocessing/`, and `ml_model/evaluation/`; the dashboard native adapter reuses those entrypoints rather than duplicating a training loop. Native laptop quality proof remains separate evidence. |
 | Retraining pipeline | Implemented controlled-local lifecycle; hosted/production NOT_RUN | Reviewed-sample export, cumulative snapshots, durable worker runs, evidence-gated decisions, explicit local staging promotion/rollback, and a bounded scheduled trigger are implemented. Native model-quality execution, installed scheduling, hosted promotion, and production registry writes remain separate evidence. |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
@@ -108,24 +108,25 @@ route reference.
 The current Auth.js credentials flow is the named-account foundation. Client requirements still call for:
 
 - secure login backed by real user access management,
-- RBAC for role-specific access such as Admin and Analyst,
+- RBAC for role-specific access such as Owner, Admin, and Analyst,
 - strong account security controls,
 - 2FA.
 
 Implemented in the current foundation:
 
 - Supabase `auth_accounts` with Argon2id password hashes,
-- `ADMIN`/`ANALYST`/`VIEWER` session claims,
+- `OWNER`/`ADMIN`/`ANALYST`/`VIEWER` session claims and an explicit role hierarchy,
 - current DB account, disablement, role, and `authz_version` freshness checks in BFF route guards,
 - current `mfa_required` fail-closed checks in login and every protected BFF route,
 - local login hardening with generic errors, dummy verification, throttles, and JSON audit events.
-- alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set.
+- a centralized role-to-permission policy: Owner has the complete permission set, while ML Health and ML Deployment permissions are absent from Admin and lower roles,
+- alerts UI role affordances in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full alert/account control set.
 
 MFA and password recovery extend the existing Auth.js boundary with server-only Supabase RPCs, encrypted TOTP material, replay-safe challenges, trusted database verification timestamps, factor-aware enrollment, purpose-bound completion contracts, recent-TOTP step-up, and scanner-safe POST routes. Availability flags fail closed when absent and are evaluated at request time by `frontend/lib/server/runtime-config.ts`, which calls Next.js `connection()` before reading runtime environment values.
 
 ### Auth.js session and MFA transition
 
-- Admin-managed account creation emits a one-time setup link; the setup token is consumed server-side to establish the password without exposing credentials to the browser or logs.
+- Owner- or Admin-managed account creation emits a one-time setup link; the setup token is consumed server-side to establish the password without exposing credentials to the browser or logs.
 - Credential authentication creates a password-level Auth.js session containing the account identity and current authorization metadata.
 - Accounts requiring MFA receive a short-lived, purpose-bound pre-auth challenge and an HttpOnly pre-auth handle; password-level sessions cannot reach protected dashboard or User Management routes.
 - Successful TOTP enrollment or verification completes the database challenge and transitions the browser to the MFA-authenticated session state. The pre-auth handle is cleared as part of the completion flow.
@@ -149,7 +150,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 ### Current BFF status
 
 - `frontend/lib/bff-client.ts` is the shared server-only BFF client.
-- All eight route handlers wired:
+- Protected dashboard route handlers wired:
   - `frontend/app/api/alerts/route.ts` (GET list)
   - `frontend/app/api/alerts/stream/route.ts` (GET SSE stream)
   - `frontend/app/api/alerts/[id]/route.ts` (GET detail)
@@ -158,7 +159,8 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
   - `frontend/app/api/alerts/[id]/action/route.ts` (PATCH action)
   - `frontend/app/api/stats/route.ts`
   - `frontend/app/api/ml-health/route.ts`
-- Those eight handlers require a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work.
+  - `frontend/app/api/ml-model/summary/route.ts`, `/export`, and `/runs/*`
+- Every protected handler requires a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work. ML Health and every ML Deployment BFF route require Owner-only permissions; the BFF forwards the validated session actor to FastAPI for a second authorization check.
 - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
 - `frontend/app/api/alerts/[id]/label-review/route.ts` accepts the four-class
@@ -169,7 +171,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
   `POST /api/alerts/{alert_id}/label-review`. Label review state is separate
   from triage `action_taken` and is not an enforcement decision.
 - The alerts table and alert drawer now hide unavailable dense-row mutation controls for viewers and preserve triage/action control visibility according to the current role.
-- `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes.
+- `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes, including `/ml-model`.
 
 ### Real-time alert synchronization
 
@@ -215,7 +217,7 @@ the client-facing behavior for disabled or unauthorized pages.
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- Repository Alembic head: `20260803_000028`. Latest hosted Supabase revision with recorded evidence: `20260712_000020`.
+- Repository Alembic head: `20260905_000029`. Latest hosted Supabase revision with recorded evidence: `20260712_000020`.
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
 - Notification outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, and lease reconciliation. Email retains AES-GCM protection for active credential-equivalent payloads; Telegram is database-restricted to safe `threat_detected` payloads. Terminal payloads are scrubbed.

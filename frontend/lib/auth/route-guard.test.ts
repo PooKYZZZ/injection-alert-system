@@ -5,13 +5,13 @@ vi.mock('../server/db/mfa-challenges', () => ({
   hasActiveMfaEnrollmentChallenge: vi.fn().mockResolvedValue(false),
 }))
 
-import { PERMISSIONS, ROLES } from './roles'
+import { PERMISSIONS, ROLES, type UserRole } from './roles'
 import {
   requireMfaChallengePermission,
   requireMfaEnrollmentPermission,
   requireMfaPermission,
   requirePermission,
-  requireRecentTotpAdmin,
+  requireRecentTotp,
 } from './route-guard'
 
 const guardHarness = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
 function currentAccount(
   overrides: Partial<{
     id: string
-    role: 'ADMIN' | 'ANALYST' | 'VIEWER'
+    role: UserRole
     authzVersion: number
     mfaRequired: boolean
     disabledAt: string | null
@@ -90,7 +90,7 @@ describe('requirePermission', () => {
   })
 
   it('returns 403 when the session role is missing or invalid', async () => {
-    for (const role of [undefined, 'OWNER']) {
+    for (const role of [undefined, 'NOT_A_ROLE']) {
       const currentSession = session() as {
         user: Record<string, unknown>
         expires: string
@@ -386,7 +386,7 @@ describe('requirePermission', () => {
     )
   })
 
-  it('requires recent TOTP-authenticated ADMIN for account mutations', async () => {
+  it('requires recent TOTP-authenticated account-management roles for mutations', async () => {
     guardHarness.getAccount.mockResolvedValue(
       currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
     )
@@ -397,7 +397,7 @@ describe('requirePermission', () => {
     })
 
     await expect(
-      requireRecentTotpAdmin(
+      requireRecentTotp(
         recentAdmin,
         PERMISSIONS.ACCOUNTS_MANAGE,
         () => 1_599
@@ -407,7 +407,7 @@ describe('requirePermission', () => {
     guardHarness.getAccount.mockResolvedValueOnce(
       currentAccount({ role: ROLES.ANALYST, mfaRequired: true })
     )
-    const analystResult = await requireRecentTotpAdmin(
+    const analystResult = await requireRecentTotp(
       session(ROLES.ANALYST, 1, {
         auth_level: 'mfa',
         auth_method: 'totp',
@@ -434,7 +434,7 @@ describe('requirePermission', () => {
         auth_time: 1_000,
       }),
     ]) {
-      const result = await requireRecentTotpAdmin(
+      const result = await requireRecentTotp(
         deniedSession,
         PERMISSIONS.ACCOUNTS_MANAGE,
         () => 1_601
@@ -442,5 +442,20 @@ describe('requirePermission', () => {
       expect(result.ok).toBe(false)
       if (!result.ok) expect([401, 403]).toContain(result.response.status)
     }
+
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.OWNER, mfaRequired: true })
+    )
+    await expect(
+      requireRecentTotp(
+        session(ROLES.OWNER, 1, {
+          auth_level: 'mfa',
+          auth_method: 'totp',
+          auth_time: 1_000,
+        }),
+        PERMISSIONS.ACCOUNTS_MANAGE,
+        () => 1_001
+      )
+    ).resolves.toEqual({ ok: true })
   })
 })

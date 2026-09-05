@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { UserRole } from '@/lib/auth/roles'
+import { ROLE_VALUES, roleRequiresMfa, type UserRole } from '@/lib/auth/roles'
 
 const normalizedEmail = z
   .string()
@@ -12,7 +12,7 @@ const normalizedEmail = z
 export const createAccountSchema = z.object({
   email: normalizedEmail,
   display_name: z.string().trim().min(1).max(120),
-  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  role: z.enum(ROLE_VALUES),
 }).strict()
 
 export const managedEmailSchema = z.object({
@@ -20,7 +20,7 @@ export const managedEmailSchema = z.object({
 })
 
 export const accountRoleSchema = z.object({
-  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  role: z.enum(ROLE_VALUES),
 })
 
 export const accountEnabledSchema = z.object({ enabled: z.boolean() })
@@ -30,7 +30,7 @@ export const safeManagedAccountSchema = z.object({
   display_name: z.string().min(1),
   email: z.string().email(),
   pending_email: z.string().email().nullable(),
-  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  role: z.enum(ROLE_VALUES),
   enabled: z.boolean(),
   email_verified: z.boolean(),
   mfa_status: z.enum(['not_required', 'enrollment_required', 'active']),
@@ -45,5 +45,5 @@ export const managedAccountsResponseSchema = z.object({
 export type SafeManagedAccount = z.infer<typeof safeManagedAccountSchema>
 
 export function mfaRequiredForRole(role: UserRole): boolean {
-  return role !== 'VIEWER'
+  return roleRequiresMfa(role)
 }

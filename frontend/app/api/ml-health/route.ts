@@ -15,7 +15,10 @@ export async function GET(): Promise<Response> {
       return authorization.response
     }
 
-    const result = await getMlHealth()
+    const result = await getMlHealth({
+      id: session!.user.id,
+      role: session!.user.role,
+    })
     if (!result.ok) {
       const response = NextResponse.json({ error: result.error }, { status: result.status })
       if (result.retryAfter) {

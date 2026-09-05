@@ -1,15 +1,34 @@
+import { PERMISSIONS, type Permission } from './auth/roles'
+
+type NavItem = {
+  label: string
+  href: string
+  icon: string
+  requiredPermission?: Permission
+}
+
 export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
   { label: 'Alerts', href: '/alerts', icon: 'notifications' },
-  { label: 'ML Health', href: '/ml-health', icon: 'monitor_heart' },
-  { label: 'Model Operations', href: '/ml-model', icon: 'model_training' },
+  {
+    label: 'ML Health',
+    href: '/ml-health',
+    icon: 'monitor_heart',
+    requiredPermission: PERMISSIONS.ML_HEALTH_READ,
+  },
+  {
+    label: 'ML Deployment',
+    href: '/ml-model',
+    icon: 'model_training',
+    requiredPermission: PERMISSIONS.ML_MODEL_READ,
+  },
   {
     label: 'User Management',
     href: '/user-management',
     icon: 'manage_accounts',
-    adminOnly: true,
+    requiredPermission: PERMISSIONS.ACCOUNTS_READ,
   },
-] as const
+] satisfies readonly NavItem[]
 
 export const SYSTEM_NAV_ITEMS = [] as const
 

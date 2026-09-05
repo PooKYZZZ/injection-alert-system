@@ -38,9 +38,16 @@ async function signIn(page: Page, identity: AuthE2EIdentity): Promise<void> {
 }
 
 async function readSession(page: Page): Promise<AuthSession> {
-  const response = await page.request.get('/api/auth/session')
-  expect(response.ok()).toBe(true)
-  return (await response.json()) as AuthSession
+  const result = await page.evaluate(async () => {
+    const response = await fetch('/api/auth/session')
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: (await response.json()) as AuthSession,
+    }
+  })
+  expect(result.ok, `session endpoint returned ${result.status}`).toBe(true)
+  return result.body
 }
 
 async function expectSession(

@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from web_app.domain.authorization import Permission, role_has_permission
 from web_app.domain.interfaces import ITrafficLabelReviewRepository, TrafficLabelReview
 
-CANONICAL_LABELS = frozenset({"Normal", "SQL Injection", "Code Injection", "Other Attacks"})
+CANONICAL_LABELS = frozenset(
+    {"Normal", "SQL Injection", "Code Injection", "Other Attacks"}
+)
 REVIEW_ACTION_STATES = frozenset({"approved_for_training", "excluded_from_training"})
-REVIEWER_ROLES = frozenset({"ANALYST", "ADMIN"})
-
-
 @dataclass(frozen=True)
 class ReviewerContext:
     reviewer_id: str
@@ -50,7 +50,7 @@ class LabelReviewUseCase:
             raise InvalidLabelReviewError("approval_state is not a review action")
         if not reviewer.reviewer_id or len(reviewer.reviewer_id) > 128:
             raise InvalidLabelReviewError("reviewer identity is invalid")
-        if reviewer.reviewer_role not in REVIEWER_ROLES:
+        if not role_has_permission(reviewer.reviewer_role, Permission.ALERTS_TRIAGE):
             raise UnauthorizedLabelReviewerError("reviewer role is not authorized")
         if review_note is not None and len(review_note) > 1000:
             raise InvalidLabelReviewError("review note is too long")

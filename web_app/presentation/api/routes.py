@@ -34,15 +34,15 @@ from web_app.application.enforcement_use_cases import (
     VerifyEnforcementChallengeUseCase,
 )
 from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.application.inference_queue import (
+    InferenceQueueFullError,
+    InferenceQueueService,
+)
 from web_app.application.label_review_use_case import (
     InvalidLabelReviewError,
     LabelReviewUseCase,
     ReviewerContext,
     UnauthorizedLabelReviewerError,
-)
-from web_app.application.inference_queue import (
-    InferenceQueueFullError,
-    InferenceQueueService,
 )
 from web_app.application.post_triage_enforcement import (
     PostTriageEnforcementCoordinator,
@@ -67,6 +67,7 @@ from web_app.application.update_alert_triage_use_case import (
 )
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
+from web_app.domain.authorization import Permission
 from web_app.domain.enforcement import EnforcementMode, EnforcementScope
 from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.domain.source_address import SourceProvenance
@@ -74,11 +75,11 @@ from web_app.infrastructure.database import AsyncSessionLocal, get_db
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
     EnforcementRecommendationRepository,
 )
-from web_app.infrastructure.repositories.traffic_log_repository import (
-    TrafficLogRepository,
-)
 from web_app.infrastructure.repositories.traffic_label_review_repository import (
     TrafficLabelReviewRepository,
+)
+from web_app.infrastructure.repositories.traffic_log_repository import (
+    TrafficLogRepository,
 )
 from web_app.infrastructure.repositories.waf_state_repository import WafStateRepository
 from web_app.infrastructure.turnstile import TurnstileVerifier
@@ -88,6 +89,10 @@ from web_app.presentation.dependencies.auth import (
     verify_enforcement_check_token,
     verify_internal_token,
     verify_waf_ingest_token,
+)
+from web_app.presentation.dependencies.authorization import (
+    get_reviewer_context,
+    require_reviewer_permission,
 )
 from web_app.presentation.schemas import (
     ActionUpdateRequest,
@@ -156,15 +161,6 @@ def get_label_review_repository(
     db: AsyncSession = Depends(get_db),
 ) -> TrafficLabelReviewRepository:
     return TrafficLabelReviewRepository(db)
-
-
-def get_reviewer_context(request: Request) -> ReviewerContext:
-    """Read identity asserted by the trusted server-side BFF context."""
-    reviewer_id = request.headers.get("X-Reviewer-Id", "")
-    reviewer_role = request.headers.get("X-Reviewer-Role", "")
-    if not reviewer_id or not reviewer_role:
-        raise HTTPException(status_code=403, detail="Reviewer context required")
-    return ReviewerContext(reviewer_id=reviewer_id, reviewer_role=reviewer_role.upper())
 
 
 def get_enforcement_repository(
@@ -626,6 +622,9 @@ async def get_stats(
 async def get_ml_health(
     response: Response,
     request: Request,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_HEALTH_READ)
+    ),
     model_service=Depends(get_model_service),
     repository: TrafficLogRepository = Depends(get_repository),
 ):

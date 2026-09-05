@@ -3,6 +3,8 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
+import { ROLE_VALUES } from '@/lib/auth/roles'
+
 import {
   accountEnabledSchema,
   accountRoleSchema,
@@ -30,7 +32,7 @@ const managedAccountRow = z.object({
   email: z.string().email(),
   pending_email: z.string().email().nullable(),
   name: z.string().min(1),
-  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  role: z.enum(ROLE_VALUES),
   mfa_required: z.boolean(),
   password_set_at: z.string().nullable(),
   email_verified_at: z.string().nullable(),

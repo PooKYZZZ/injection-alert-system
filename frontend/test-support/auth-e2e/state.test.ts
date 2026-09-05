@@ -17,6 +17,12 @@ const validState = {
     email: { ...identity, id: 'adabb9de-1dff-44b7-9a44-12efe8a6716f', email: 'email-e2e@example.test' },
     stepup: { ...identity, id: 'bebbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'stepup-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
   },
+  roleMatrix: {
+    owner: { ...identity, id: 'cfbbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'owner-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+    admin: { ...identity, id: 'd0bbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'admin-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+    analyst: { ...identity, id: 'e1bbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'analyst-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+    viewer: { ...identity, id: 'f2bbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'viewer-e2e@example.test' },
+  },
 }
 
 describe('authentication E2E state', () => {

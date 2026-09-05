@@ -4,7 +4,7 @@
 
 **Goal:** Connect the existing Model Operations dashboard to a controlled native training run on the laptop without weakening the repository's evidence, provenance, security, approval, deployment, or accessibility boundaries.
 
-**Architecture:** Preserve Browser → Next.js BFF → FastAPI → durable local run → isolated worker subprocess → native training/evaluation/package path. The browser requests a run and observes state; it never chooses a command, path, dataset, model, or training flag. The active model remains unchanged until an administrator explicitly approves and deploys a verified candidate.
+**Architecture:** Preserve Browser → Next.js BFF → FastAPI → durable local run → isolated worker subprocess → native training/evaluation/package path. The browser requests a run and observes state; it never chooses a command, path, dataset, model, or training flag. The active model remains unchanged until an Owner explicitly approves and deploys a verified candidate.
 
 **Tech Stack:** Python 3.14, FastAPI, async SQLAlchemy, Pydantic, the existing ml_model.training entrypoint, PyTorch, Hugging Face Transformers, Docker Compose, Next.js App Router, React, TanStack Query, Zod, Vitest, Testing Library, pytest, PowerShell, and the repository's local filesystem run/artifact contracts.
 
@@ -376,7 +376,7 @@ The exact names must follow the live implementation. The invariant is more impor
 - the final manifest is not published before the supporting artifacts exist;
 - provenance binds the same dataset, preprocessing, active-model, evaluation-split, training-profile, and source-summary identity;
 - a failed or timed-out run cannot look like a complete candidate;
-- the active model remains unchanged until explicit administrator-approved staging/deployment.
+- the active model remains unchanged until explicit Owner-approved staging/deployment.
 
 ### Frontend ownership
 
@@ -768,13 +768,13 @@ The BFF tests must continue to prove:
 
 - browser requests cannot choose paths or flags;
 - actor identity and role are propagated;
-- viewers can read but cannot decide/deploy;
+- only Owner can read, run, decide, deploy, or roll back; Admin and lower roles receive `403`;
 - typed validation occurs before the backend call;
 - safe errors do not expose secrets or raw payloads.
 
 ### Frontend tests
 
-Run the existing Model Operations tests:
+Run the existing ML Deployment tests:
 
 ~~~
 cd frontend

@@ -37,6 +37,7 @@ import type {
 import { MOCK_ALERTS } from '@/mocks/alerts'
 import { MOCK_ML_HEALTH } from '@/mocks/ml-health'
 import { MOCK_STATS } from '@/mocks/stats'
+import type { UserRole } from '@/lib/auth/roles'
 
 export interface BffError {
   code: string
@@ -673,7 +674,8 @@ function normalizeMlHealth(
 
 async function fetchUpstream<T>(
   path: string,
-  schema: z.ZodType<T>
+  schema: z.ZodType<T>,
+  options: { actor?: RetrainingActor } = {}
 ): Promise<BffResult<T>> {
   const config = getUpstreamConfig()
   if (!config.ok) {
@@ -692,6 +694,7 @@ async function fetchUpstream<T>(
       headers: {
         Authorization: `Bearer ${config.data.apiKey}`,
         'Content-Type': 'application/json',
+        ...actorHeaders(options.actor),
       },
       signal: upstreamRequestSignal(),
     })
@@ -744,7 +747,7 @@ async function fetchUpstream<T>(
   return normalizeWithSchema(schema, payload)
 }
 
-export type RetrainingActor = { id: string; role: string }
+export type RetrainingActor = { id: string; role: UserRole }
 
 function parseRetrainingRunId(runId: string): BffResult<string> {
   if (!RetrainingRunIdSchema.safeParse(runId).success) {
@@ -823,9 +826,12 @@ async function fetchRetrainingUpstream<T>(
   return normalizeWithSchema(schema, payload)
 }
 
-export async function getRetrainingSummary(): Promise<BffResult<RetrainingSummary>> {
+export async function getRetrainingSummary(
+  actor: RetrainingActor
+): Promise<BffResult<RetrainingSummary>> {
   return fetchRetrainingUpstream('/api/retraining/summary', RetrainingSummarySchema, {
     method: 'GET',
+    actor,
   })
 }
 
@@ -1098,12 +1104,16 @@ export async function getStats(
   return normalizeStats(upstream.data)
 }
 
-export async function getMlHealth(): Promise<BffResult<MLHealthData>> {
+export async function getMlHealth(
+  actor: RetrainingActor
+): Promise<BffResult<MLHealthData>> {
   if (isMockMode()) {
     return ok(MOCK_ML_HEALTH)
   }
 
-  const upstream = await fetchUpstream('/api/ml-health', BackendMlHealthSchema)
+  const upstream = await fetchUpstream('/api/ml-health', BackendMlHealthSchema, {
+    actor,
+  })
   if (!upstream.ok) {
     return upstream
   }

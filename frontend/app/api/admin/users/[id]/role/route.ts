@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { auth } from '@/auth'
-import { requireRecentTotpAdmin } from '@/lib/auth/route-guard'
+import { requireRecentTotp } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import {
   accountErrorResponse,
@@ -17,7 +17,7 @@ export async function PATCH(
 ): Promise<Response> {
   if (!accountManagementEnabled()) return featureDisabledResponse()
   const session = await auth()
-  const authorization = await requireRecentTotpAdmin(
+  const authorization = await requireRecentTotp(
     session,
     PERMISSIONS.ACCOUNTS_MANAGE
   )

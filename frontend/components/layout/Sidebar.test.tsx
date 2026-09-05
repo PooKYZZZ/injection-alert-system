@@ -48,12 +48,32 @@ describe('Sidebar', () => {
     expect(screen.queryByText('soc@example.com')).not.toBeInTheDocument()
   })
 
-  it('shows User Management only for ADMIN', () => {
+  it('shows User Management for ADMIN and OWNER', () => {
     const { rerender } = render(<Sidebar role="ADMIN" />)
     expect(screen.getByText('User Management')).toBeInTheDocument()
 
     rerender(<Sidebar role="ANALYST" />)
     expect(screen.queryByText('User Management')).not.toBeInTheDocument()
+
+    rerender(<Sidebar role="OWNER" />)
+    expect(screen.getByText('User Management')).toBeInTheDocument()
+  })
+
+  it.each(['ADMIN', 'ANALYST', 'VIEWER'] as const)(
+    'hides ML Health and ML Deployment from %s',
+    (role) => {
+      render(<Sidebar role={role} />)
+
+      expect(screen.queryByText('ML Health')).not.toBeInTheDocument()
+      expect(screen.queryByText('ML Deployment')).not.toBeInTheDocument()
+    }
+  )
+
+  it('shows both protected ML navigation entries and health widget for OWNER', () => {
+    render(<Sidebar role="OWNER" />)
+
+    expect(screen.getAllByText('ML Health').length).toBeGreaterThan(0)
+    expect(screen.getByText('ML Deployment')).toBeInTheDocument()
   })
 
   it('uses set1 shell styling for the analyst identity badge', () => {

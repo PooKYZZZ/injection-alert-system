@@ -48,7 +48,7 @@ describe('MLHealthWorkspace', () => {
     expect(screen.queryByText('Inference endpoint')).not.toBeInTheDocument()
     expect(screen.getByLabelText('ML health snapshot freshness')).toHaveTextContent('Source timestamp unavailable')
     expect(screen.getByLabelText('ML health snapshot freshness')).not.toHaveTextContent('Snapshot ·')
-    expect(screen.getByRole('link', { name: 'Open Model Operations' })).toHaveAttribute('href', '/ml-model')
+    expect(screen.getByRole('link', { name: 'Open ML Deployment' })).toHaveAttribute('href', '/ml-model')
 
     const overview = screen.getByRole('tab', { name: 'Overview' })
     const diagnostics = screen.getByRole('tab', { name: 'Diagnostics' })

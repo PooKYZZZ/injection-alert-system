@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UserRole } from './roles'
 
 const TEST_ARGON2_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$mockSalt$mockHash'
@@ -8,7 +9,7 @@ type LoginAccount = {
   email: string
   username: string | null
   name: string
-  role: 'ADMIN' | 'ANALYST' | 'VIEWER'
+  role: UserRole
   authzVersion: number
   passwordHash: string | null
   mfaRequired: boolean

@@ -155,7 +155,7 @@ export function DashboardTopBar() {
   const routeTitles: Record<string, string> = {
     dashboard: 'Dashboard',
     'ml-health': 'ML Health',
-    'ml-model': 'Model Operations',
+    'ml-model': 'ML Deployment',
     mfa: 'MFA',
   }
 

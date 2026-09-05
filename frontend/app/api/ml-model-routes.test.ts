@@ -41,7 +41,7 @@ vi.mock('@/lib/server/db/auth-accounts', () => ({
   getAccountForSessionFreshness: getAccountForSessionFreshnessMock,
 }))
 
-function session(role: UserRole = ROLES.ADMIN, authzVersion = 1) {
+function session(role: UserRole = ROLES.OWNER, authzVersion = 1) {
   return {
     user: { id: accountId, role, authz_version: authzVersion },
     expires: '2099-01-01T00:00:00.000Z',
@@ -76,8 +76,8 @@ describe('ML Model retraining BFF routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.AUTH_APP_ORIGIN = 'http://localhost:3000'
-    authMock.mockResolvedValue(session())
-    setCurrentAccount(ROLES.ADMIN)
+    authMock.mockResolvedValue(session(ROLES.OWNER))
+    setCurrentAccount(ROLES.OWNER)
     getRetrainingSummaryMock.mockResolvedValue(okSummary)
   })
 
@@ -100,16 +100,30 @@ describe('ML Model retraining BFF routes', () => {
     }
   })
 
-  it('allows viewers to read summary through the BFF', async () => {
-    authMock.mockResolvedValueOnce(session(ROLES.VIEWER))
-    setCurrentAccount(ROLES.VIEWER)
+  it.each([ROLES.ADMIN, ROLES.ANALYST, ROLES.VIEWER])(
+    'rejects %s from reading summary through the BFF',
+    async (role) => {
+      authMock.mockResolvedValueOnce(session(role))
+      setCurrentAccount(role)
+      const { GET } = await import('./ml-model/summary/route')
+
+      const response = await GET()
+
+      expect(response.status).toBe(403)
+      expect(getRetrainingSummaryMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('allows Owner to read summary through the BFF and forwards actor context', async () => {
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
+    setCurrentAccount(ROLES.OWNER)
     const { GET } = await import('./ml-model/summary/route')
 
     const response = await GET()
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('application/json')
-    expect(getRetrainingSummaryMock).toHaveBeenCalledOnce()
+    expect(getRetrainingSummaryMock).toHaveBeenCalledWith({ id: accountId, role: ROLES.OWNER })
   })
 
   it('rejects arbitrary paths and flags at the BFF boundary', async () => {
@@ -157,12 +171,12 @@ describe('ML Model retraining BFF routes', () => {
     expect(response.status).toBe(202)
     expect(startRetrainingRunMock).toHaveBeenCalledWith(
       { trigger: 'manual' },
-      { id: accountId, role: ROLES.ADMIN },
+      { id: accountId, role: ROLES.OWNER },
       'America/New_York'
     )
   })
 
-  it('requires administrator permission for decisions', async () => {
+  it('requires Owner permission for decisions', async () => {
     authMock.mockResolvedValueOnce(session(ROLES.ANALYST))
     setCurrentAccount(ROLES.ANALYST)
     const { POST } = await import('./ml-model/runs/[runId]/decision/route')
@@ -239,7 +253,7 @@ describe('ML Model retraining BFF routes', () => {
       {},
       {
         id: accountId,
-        role: ROLES.ADMIN,
+        role: ROLES.OWNER,
       }
     )
   })

@@ -88,6 +88,31 @@ def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
         )
 
 
+def test_backend_persists_controlled_retraining_state_without_mounting_production():
+    config = _merged_compose("docker-compose.yml")
+
+    mounts = config["services"]["backend"]["volumes"]
+    expected = {
+        "ml_model/results/dashboard_retraining": "/app/ml_model/results/dashboard_retraining",
+        "ml_model/model_registry/staging": "/app/ml_model/model_registry/staging",
+        "ml_model/model_registry/archive": "/app/ml_model/model_registry/archive",
+    }
+    for source, target in expected.items():
+        expected_source = str((ROOT / source).resolve())
+        assert any(
+            mount.get("type") == "bind"
+            and mount.get("source") == expected_source
+            and mount.get("target") == target
+            and mount.get("read_only") is not True
+            for mount in mounts
+        )
+
+    assert not any(
+        mount.get("target") == "/app/ml_model/model_registry/production"
+        for mount in mounts
+    )
+
+
 def test_local_compose_uses_an_explicit_postgres_database():
     config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
 

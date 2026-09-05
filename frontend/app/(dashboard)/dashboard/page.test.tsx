@@ -181,7 +181,6 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('1/2/3/4')
-    expect(screen.getByText('Review ML Health')).toBeInTheDocument()
   })
 
   it('does not present missing confidence aggregates as zero-count data', () => {
