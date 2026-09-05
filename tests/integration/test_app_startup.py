@@ -275,7 +275,11 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
 
     response = client.get(
         "/api/ml-health",
-        headers=INTERNAL_HEADERS,
+        headers={
+            **INTERNAL_HEADERS,
+            "X-Reviewer-Id": "owner-1",
+            "X-Reviewer-Role": "OWNER",
+        },
     )
 
     assert response.status_code == 200

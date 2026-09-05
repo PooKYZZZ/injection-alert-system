@@ -8,7 +8,7 @@ import { SidebarNavItem } from './SidebarNavItem'
 import { AlertsNavItem } from './AlertsNavItem'
 import { MLHealthWidget } from './MLHealthWidget'
 import { signOut } from 'next-auth/react'
-import type { UserRole } from '@/lib/auth/roles'
+import { PERMISSIONS, roleHasPermission, type UserRole } from '@/lib/auth/roles'
 
 interface SidebarProps {
   displayName?: string | null
@@ -54,7 +54,9 @@ function SidebarNavigation({
       className="flex flex-1 flex-col overflow-y-auto bg-surface-panel py-4"
     >
       {NAV_ITEMS.filter(
-        (item) => !('adminOnly' in item) || role === 'ADMIN'
+        (item) =>
+          !item.requiredPermission ||
+          roleHasPermission(role, item.requiredPermission)
       ).map((item) =>
         item.href === '/alerts' ? (
           <AlertsNavItem
@@ -144,7 +146,9 @@ export function Sidebar({ displayName, role }: SidebarProps) {
 
           <div className="bg-surface-panel">
             <div className="border-t border-border-light">
+            {roleHasPermission(role, PERMISSIONS.ML_HEALTH_READ) ? (
               <MLHealthWidget />
+            ) : null}
             </div>
             <SidebarUserFooter
               resolvedName={resolvedName}
@@ -195,7 +199,9 @@ export function Sidebar({ displayName, role }: SidebarProps) {
               />
               <div className="bg-surface-panel">
                 <div className="border-t border-border-light">
-                  <MLHealthWidget />
+                  {roleHasPermission(role, PERMISSIONS.ML_HEALTH_READ) ? (
+                    <MLHealthWidget />
+                  ) : null}
                 </div>
                 <SidebarUserFooter
                   resolvedName={resolvedName}

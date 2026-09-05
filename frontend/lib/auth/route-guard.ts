@@ -274,15 +274,14 @@ export async function requireMfaPermission(
   return { ok: true }
 }
 
-export async function requireRecentTotpAdmin(
+export async function requireRecentTotp(
   session: GuardSession,
   permission: Permission,
   nowSeconds: () => number = () => Math.floor(Date.now() / 1_000)
 ): Promise<GuardResult> {
   const authorization = await requireMfaPermission(session, permission)
   if (!authorization.ok) return authorization
-  if (session?.user?.role !== 'ADMIN') return denied(403)
-  const authTime = session.user.auth_time
+  const authTime = session?.user?.auth_time
   const now = nowSeconds()
   if (
     typeof authTime !== 'number' ||

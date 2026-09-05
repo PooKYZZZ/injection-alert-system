@@ -220,7 +220,7 @@ describe('AlertDrawer', () => {
     ['ANALYST', true, false],
     ['ADMIN', true, true],
     [undefined, false, false],
-    ['OWNER', false, false],
+    ['OWNER', true, true],
   ] as const)(
     'renders mutation affordances for role %s',
     (role, canTriage, canUpdateAction) => {

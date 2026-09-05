@@ -4,7 +4,10 @@ import authConfig from './playwright.auth.config'
 
 describe('authentication Playwright configuration', () => {
   it('runs only the critical auth file in the supported Chromium browser', () => {
-    expect(authConfig.testMatch).toEqual(['auth-journeys.spec.ts'])
+    expect(authConfig.testMatch).toEqual([
+      'auth-journeys.spec.ts',
+      'role-access.spec.ts',
+    ])
     expect(authConfig.projects).toHaveLength(1)
     expect(authConfig.projects?.[0].name).toBe('auth-chromium')
   })

@@ -23,6 +23,8 @@ import { prewarmAuthRoutes } from '@/test-support/auth-e2e/prewarm'
 
 const JOURNEYS = ['enroll', 'login', 'backup', 'email', 'stepup'] as const
 const ACTIVE_FACTOR_JOURNEYS = ['login', 'backup', 'email', 'stepup'] as const
+const ROLE_MATRIX = ['owner', 'admin', 'analyst', 'viewer'] as const
+const ACTIVE_ROLE_MATRIX = ['owner', 'admin', 'analyst'] as const
 
 function fixedSetupError(stage: string, databaseError?: unknown): Error {
   const diagnostic = databaseError
@@ -47,6 +49,12 @@ function createJourneyState(): AuthE2EState {
     email: `cybertrace-${suffix}-${journey}@example.test`,
     password: generateTestPassword(),
   })
+  const roleIdentity = (role: (typeof ROLE_MATRIX)[number]) => ({
+    id: randomUUID(),
+    email: `cybertrace-${suffix}-role-${role}@example.test`,
+    password: generateTestPassword(),
+    ...(role === 'viewer' ? {} : { totpSecret: generateTotpSecret() }),
+  })
   return parseAuthE2EState(
     JSON.stringify({
       runId,
@@ -57,8 +65,21 @@ function createJourneyState(): AuthE2EState {
         email: baseIdentity('email'),
         stepup: { ...baseIdentity('stepup'), totpSecret: generateTotpSecret() },
       },
+      roleMatrix: {
+        owner: roleIdentity('owner'),
+        admin: roleIdentity('admin'),
+        analyst: roleIdentity('analyst'),
+        viewer: roleIdentity('viewer'),
+      },
     })
   )
+}
+
+function allIdentities(state: AuthE2EState) {
+  return [
+    ...JOURNEYS.map((journey) => state.identities[journey]),
+    ...ROLE_MATRIX.map((role) => state.roleMatrix[role]),
+  ]
 }
 
 async function seedJourneyState(
@@ -80,6 +101,21 @@ async function seedJourneyState(
       password_set_at: createdAt,
       email_verified_at: createdAt,
       mfa_required: true,
+    })
+  }
+  for (const role of ROLE_MATRIX) {
+    const identity = state.roleMatrix[role]
+    accountRows.push({
+      id: identity.id,
+      email: identity.email,
+      username: `e2e-${state.runId.slice(0, 8)}-role-${role}`,
+      name: `E2E role ${role}`,
+      role: role.toUpperCase(),
+      authz_version: 1,
+      password_hash: await hashPassword(identity.password),
+      password_set_at: createdAt,
+      email_verified_at: createdAt,
+      mfa_required: role !== 'viewer',
     })
   }
   await assertMutation(
@@ -112,6 +148,29 @@ async function seedJourneyState(
       verified_at: createdAt,
     }
   })
+  factorRows.push(
+    ...ACTIVE_ROLE_MATRIX.map((role) => {
+      const identity = state.roleMatrix[role]
+      const factorId = randomUUID()
+      const encrypted = encryptTotpSecretForSeed(
+        identity.totpSecret,
+        identity.id,
+        factorId,
+        encryptionKey
+      )
+      return {
+        id: factorId,
+        account_id: identity.id,
+        factor_type: 'totp',
+        status: 'active',
+        secret_ciphertext: encrypted.ciphertext,
+        secret_nonce: encrypted.nonce,
+        secret_key_version: encrypted.key_version,
+        activated_at: createdAt,
+        verified_at: createdAt,
+      }
+    })
+  )
   await assertMutation(
     client.from('auth_mfa_factors').insert(factorRows),
     'factor seed'
@@ -132,9 +191,11 @@ async function seedJourneyState(
     .select('id', { count: 'exact', head: true })
     .in(
       'id',
-      JOURNEYS.map((journey) => state.identities[journey].id)
+      allIdentities(state).map(({ id }) => id)
     )
-  if (error || count !== JOURNEYS.length) throw fixedSetupError('verification')
+  if (error || count !== JOURNEYS.length + ROLE_MATRIX.length) {
+    throw fixedSetupError('verification')
+  }
 }
 
 async function cleanupJourneyState(
@@ -142,8 +203,9 @@ async function cleanupJourneyState(
   state: AuthE2EState,
   bestEffort = false
 ): Promise<void> {
-  const accountIds = JOURNEYS.map((journey) => state.identities[journey].id)
-  const recipients = JOURNEYS.map((journey) => state.identities[journey].email)
+  const identities = allIdentities(state)
+  const accountIds = identities.map(({ id }) => id)
+  const recipients = identities.map(({ email }) => email)
   const cleanup = async () => {
     await assertMutation(
       client.from('notification_outbox').delete().in('recipient', recipients),

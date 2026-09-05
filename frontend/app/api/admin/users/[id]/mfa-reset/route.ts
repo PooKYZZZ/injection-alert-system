@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { auth } from '@/auth'
-import { requireRecentTotpAdmin } from '@/lib/auth/route-guard'
+import { requireRecentTotp } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import { accountErrorResponse, accountManagementEnabled, featureDisabledResponse, requireTrustedOrigin } from '@/lib/server/db/account-route-response'
 import { resetManagedAccountMfa } from '@/lib/server/db/password-recovery'
@@ -12,7 +12,7 @@ const requestSchema = z.object({ reason: z.string().trim().min(1).max(128) }).st
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   if (!accountManagementEnabled()) return featureDisabledResponse()
   const session = await auth()
-  const authorization = await requireRecentTotpAdmin(session, PERMISSIONS.ACCOUNTS_MANAGE)
+  const authorization = await requireRecentTotp(session, PERMISSIONS.ACCOUNTS_MANAGE)
   if (!authorization.ok) return authorization.response
   const originError = requireTrustedOrigin(request)
   if (originError) return originError

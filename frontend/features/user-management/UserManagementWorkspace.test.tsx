@@ -88,7 +88,7 @@ describe('UserManagementWorkspace', () => {
       `/api/admin/users/${account.id}/role`,
       expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ role: 'VIEWER' }) }),
     ))
-    expect(await screen.findByRole('status')).toHaveTextContent('Role for SOC Analyst changed to VIEWER.')
+    expect(await screen.findByRole('status')).toHaveTextContent('Role for SOC Analyst changed to Viewer.')
   })
 
   it('shows setup resend only when the account is still waiting to set a password', () => {

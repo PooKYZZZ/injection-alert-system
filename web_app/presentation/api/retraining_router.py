@@ -15,7 +15,9 @@ from web_app.application.retraining_control_use_case import (
     RetrainingControlError,
     RetrainingControlUseCase,
 )
+from web_app.domain.authorization import Permission
 from web_app.presentation.dependencies.auth import verify_internal_token
+from web_app.presentation.dependencies.authorization import require_reviewer_permission
 from web_app.presentation.dependencies.retraining import (
     get_retraining_control_use_case,
 )
@@ -44,28 +46,6 @@ router = APIRouter(
 RetrainingRunId = Annotated[
     str, Path(pattern=r"^retrain-\d{8}T\d{6}Z-[0-9a-f]{12}$")
 ]
-
-
-def _actor(request: Request) -> ReviewerContext:
-    reviewer_id = request.headers.get("X-Reviewer-Id", "").strip()
-    reviewer_role = request.headers.get("X-Reviewer-Role", "").strip().upper()
-    if not reviewer_id or reviewer_role not in {"ANALYST", "ADMIN", "VIEWER"}:
-        raise HTTPException(status_code=403, detail="Reviewer context required")
-    return ReviewerContext(reviewer_id=reviewer_id, reviewer_role=reviewer_role)
-
-
-def _operator(request: Request) -> ReviewerContext:
-    actor = _actor(request)
-    if actor.reviewer_role not in {"ANALYST", "ADMIN"}:
-        raise HTTPException(status_code=403, detail="Operator permission required")
-    return actor
-
-
-def _administrator(request: Request) -> ReviewerContext:
-    actor = _actor(request)
-    if actor.reviewer_role != "ADMIN":
-        raise HTTPException(status_code=403, detail="Administrator permission required")
-    return actor
 
 
 def _raise_control_error(exc: RetrainingControlError) -> None:
@@ -117,6 +97,9 @@ def _event_response(event: dict[str, object]) -> RetrainingEventResponse | None:
 
 @router.get("/summary", response_model=RetrainingSummaryResponse)
 async def retraining_summary(
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_READ)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingSummaryResponse:
     try:
@@ -143,9 +126,11 @@ async def retraining_summary(
 async def export_retraining_samples(
     request: Request,
     _payload: RetrainingExportRequest | None = None,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_RUN)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingExportResponse:
-    actor = _operator(request)
     export_id = build_run_id(
         datetime.now(timezone.utc), entropy=f"{actor.reviewer_id}:{time_ns()}"
     )
@@ -172,9 +157,11 @@ async def export_retraining_samples(
 async def start_retraining_run(
     request: Request,
     payload: RetrainingRunRequest,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_RUN)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunStartResponse:
-    actor = _operator(request)
     scheduled_at = None
     raw_scheduled_at = request.headers.get("X-Scheduled-At")
     if payload.trigger == "scheduled" and raw_scheduled_at:
@@ -209,10 +196,11 @@ async def start_retraining_run(
 
 @router.get("/runs", response_model=RetrainingRunListResponse)
 async def list_retraining_runs(
-    request: Request,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_READ)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunListResponse:
-    _actor(request)
     records = await run_in_threadpool(control.list_runs)
     return RetrainingRunListResponse(
         runs=[_run_response(record) for record in records]
@@ -224,11 +212,12 @@ async def list_retraining_runs(
     response_model=RetrainingRunDetailResponse,
 )
 async def get_retraining_run(
-    request: Request,
     run_id: RetrainingRunId,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_READ)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunDetailResponse:
-    _actor(request)
     try:
         detail = await run_in_threadpool(control.get_run_detail, run_id)
     except RetrainingControlError as exc:
@@ -256,12 +245,13 @@ async def get_retraining_run(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def retry_retraining_run(
-    request: Request,
     run_id: RetrainingRunId,
     _payload: RetrainingRetryRequest | None = None,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_RUN)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingRunResponse:
-    actor = _operator(request)
     try:
         record = await run_in_threadpool(
             control.retry_run,
@@ -279,12 +269,13 @@ async def retry_retraining_run(
     response_model=RetrainingDecisionResponse,
 )
 async def decide_retraining_run(
-    request: Request,
     payload: RetrainingDecisionRequest,
     run_id: RetrainingRunId,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_APPROVE)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ) -> RetrainingDecisionResponse:
-    actor = _administrator(request)
     try:
         result = await run_in_threadpool(
             control.decide,
@@ -308,12 +299,13 @@ async def decide_retraining_run(
     status_code=status.HTTP_200_OK,
 )
 async def deploy_retraining_run(
-    request: Request,
     payload: RetrainingDeployRequest,
     run_id: RetrainingRunId,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_DEPLOY)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ):
-    actor = _administrator(request)
     try:
         result = await run_in_threadpool(
             control.deploy,
@@ -333,12 +325,13 @@ async def deploy_retraining_run(
     status_code=status.HTTP_200_OK,
 )
 async def rollback_retraining_run(
-    request: Request,
     payload: RetrainingRollbackRequest,
     run_id: RetrainingRunId,
+    actor: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.ML_MODEL_DEPLOY)
+    ),
     control: RetrainingControlUseCase = Depends(get_retraining_control_use_case),
 ):
-    actor = _administrator(request)
     try:
         result = await run_in_threadpool(
             control.rollback,

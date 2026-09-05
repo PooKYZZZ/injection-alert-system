@@ -42,7 +42,7 @@ describe('bff-client', () => {
     )
 
     const { getRetrainingSummary, startRetrainingRun, getRetrainingRun } = await loadClient()
-    const summary = await getRetrainingSummary()
+    const summary = await getRetrainingSummary({ id: 'owner-1', role: 'OWNER' })
     const invalidRequest = await startRetrainingRun(
       { trigger: 'manual', filesystem_path: 'C:/outside' },
       { id: 'analyst-1', role: 'ANALYST' }
@@ -59,6 +59,8 @@ describe('bff-client', () => {
         headers: {
           Authorization: 'Bearer test-secret',
           'Content-Type': 'application/json',
+          'X-Reviewer-Id': 'owner-1',
+          'X-Reviewer-Role': 'OWNER',
         },
       })
     )
@@ -179,7 +181,7 @@ describe('bff-client', () => {
       )
 
     const { getRetrainingRuns, getRetrainingRun } = await loadClient()
-    const actor = { id: 'analyst-1', role: 'ANALYST' }
+    const actor = { id: 'analyst-1', role: 'ANALYST' as const }
     expect((await getRetrainingRuns(actor)).ok).toBe(true)
     expect((await getRetrainingRun(run.run_id, actor)).ok).toBe(true)
 
@@ -1069,7 +1071,7 @@ describe('bff-client', () => {
     )
 
     const { getMlHealth } = await loadClient()
-    const result = await getMlHealth()
+    const result = await getMlHealth({ id: 'owner-1', role: 'OWNER' })
 
     expect(result).toEqual({
       ok: true,
@@ -1138,7 +1140,7 @@ describe('bff-client', () => {
     )
 
     const { getMlHealth } = await loadClient()
-    const result = await getMlHealth()
+    const result = await getMlHealth({ id: 'owner-1', role: 'OWNER' })
 
     expect(result.ok).toBe(true)
     if (!result.ok) {
@@ -1226,7 +1228,7 @@ describe('bff-client', () => {
     } = await loadClient()
     const results = [
       await getStats(),
-      await getRetrainingSummary(),
+      await getRetrainingSummary({ id: 'owner-1', role: 'OWNER' }),
       await submitAlertLabelReview(
         '7',
         { verified_label: 'Normal', approval_state: 'excluded_from_training' },
@@ -1411,7 +1413,7 @@ describe('bff-client', () => {
     const { getAlerts, getStats, getMlHealth } = await loadClient()
     const alerts = await getAlerts(new URLSearchParams())
     const stats = await getStats()
-    const mlHealth = await getMlHealth()
+    const mlHealth = await getMlHealth({ id: 'owner-1', role: 'OWNER' })
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(alerts.ok).toBe(true)

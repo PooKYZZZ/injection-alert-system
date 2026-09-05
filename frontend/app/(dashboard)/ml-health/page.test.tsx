@@ -5,6 +5,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MLHealthPage from './page'
 import { useMLHealth } from '@/features/ml-health/queries'
 
+const pageHarness = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  requirePermission: vi.fn(),
+  forbidden: vi.fn(),
+  redirect: vi.fn(),
+}))
+
+vi.mock('@/lib/auth-session', () => ({ getSession: pageHarness.getSession }))
+vi.mock('@/lib/auth/route-guard', () => ({ requirePermission: pageHarness.requirePermission }))
+vi.mock('next/navigation', () => ({
+  forbidden: pageHarness.forbidden,
+  redirect: pageHarness.redirect,
+}))
+
 vi.mock('@/features/ml-health/queries', () => ({
   useMLHealth: vi.fn(),
 }))
@@ -43,6 +57,16 @@ const mockedUseMLHealth = vi.mocked(useMLHealth)
 afterEach(cleanup)
 
 beforeEach(() => {
+  pageHarness.getSession.mockResolvedValue({
+    user: { id: 'owner-1', role: 'OWNER', authz_version: 1 },
+  })
+  pageHarness.requirePermission.mockResolvedValue({ ok: true })
+  pageHarness.forbidden.mockImplementation(() => {
+    throw new Error('NEXT_FORBIDDEN')
+  })
+  pageHarness.redirect.mockImplementation(() => {
+    throw new Error('NEXT_REDIRECT')
+  })
   mockedUseMLHealth.mockReturnValue({
     data: {
       model_version: 'distilbert_cleaned_120k_20260324',
@@ -79,8 +103,8 @@ beforeEach(() => {
 })
 
 describe('MLHealthPage', () => {
-  it('renders the overview with snapshot-first ML health sections', () => {
-    render(<MLHealthPage />)
+  it('renders the overview with snapshot-first ML health sections', async () => {
+    render(await MLHealthPage())
 
     expect(screen.getAllByText('distilbert_cleaned_120k_20260324').length).toBeGreaterThan(0)
     expect(screen.queryByPlaceholderText('Search metrics...')).not.toBeInTheDocument()
@@ -100,8 +124,8 @@ describe('MLHealthPage', () => {
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
   })
 
-  it('switches into diagnostics and shows policy details with explicit derived labeling', () => {
-    render(<MLHealthPage />)
+  it('switches into diagnostics and shows policy details with explicit derived labeling', async () => {
+    render(await MLHealthPage())
 
     fireEvent.click(screen.getAllByRole('tab', { name: 'Diagnostics' })[0])
 
@@ -117,7 +141,7 @@ describe('MLHealthPage', () => {
     expect(screen.getAllByText('Automatic response bands for non-Normal predictions.').length).toBeGreaterThan(0)
   })
 
-  it('renders loading and error states from the workspace component', () => {
+  it('renders loading and error states from the workspace component', async () => {
     mockedUseMLHealth.mockReturnValueOnce({
       data: undefined,
       isPending: true,
@@ -125,7 +149,7 @@ describe('MLHealthPage', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useMLHealth>)
 
-    const { rerender } = render(<MLHealthPage />)
+    const { rerender } = render(await MLHealthPage())
 
     expect(screen.getByTestId('loading-skeleton')).toHaveTextContent('rows:10')
 
@@ -136,8 +160,23 @@ describe('MLHealthPage', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useMLHealth>)
 
-    rerender(<MLHealthPage />)
+    rerender(await MLHealthPage())
 
     expect(screen.getByTestId('error-state')).toHaveTextContent('Failed to load ML health data')
   })
+
+  it.each(['ADMIN', 'ANALYST', 'VIEWER'] as const)(
+    'does not render the page for %s',
+    async (role) => {
+      pageHarness.getSession.mockResolvedValue({
+        user: { id: `${role.toLowerCase()}-1`, role, authz_version: 1 },
+      })
+      pageHarness.requirePermission.mockResolvedValue({
+        ok: false,
+        response: new Response(null, { status: 403 }),
+      })
+
+      await expect(MLHealthPage()).rejects.toThrow('NEXT_FORBIDDEN')
+    }
+  )
 })

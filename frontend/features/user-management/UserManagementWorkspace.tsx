@@ -5,6 +5,12 @@ import { useMemo, useState, type FormEvent } from 'react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge'
+import {
+  ROLES,
+  roleLabel,
+  rolesAssignableBy,
+  type UserRole,
+} from '@/lib/auth/roles'
 
 import { AccountActionsDialog } from './AccountActionsDialog'
 import {
@@ -12,7 +18,6 @@ import {
   type SafeManagedAccount,
 } from './contract'
 
-type Role = 'ADMIN' | 'ANALYST' | 'VIEWER'
 type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
 
 function actionKey(accountId: string, action: AccountAction): string {
@@ -43,10 +48,11 @@ function mfaTone(status: SafeManagedAccount['mfa_status']): StatusTone {
   return 'neutral'
 }
 
-const roleGuidance: Record<Role, string> = {
+const roleGuidance: Record<UserRole, string> = {
   VIEWER: 'Viewers can review security activity without changing analyst or account settings.',
   ANALYST: 'Analysts can investigate alerts and update triage work without managing accounts.',
   ADMIN: 'Admins can manage accounts and access settings; MFA enrollment is required.',
+  OWNER: 'Owners have the highest privilege level, including ML Deployment and ML Health access.',
 }
 
 const fieldClass =
@@ -57,14 +63,18 @@ const secondaryButton =
 export function UserManagementWorkspace({
   initialAccounts,
   currentAccountId,
+  currentAccountRole,
 }: {
   initialAccounts: SafeManagedAccount[]
   currentAccountId?: string
+  currentAccountRole?: UserRole
 }) {
+  const actorRole = currentAccountRole ?? ROLES.ADMIN
+  const assignableRoles = rolesAssignableBy(actorRole)
   const [accounts, setAccounts] = useState(initialAccounts)
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [role, setRole] = useState<Role>('VIEWER')
+  const [role, setRole] = useState<UserRole>(ROLES.VIEWER)
   const [createOpen, setCreateOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -206,10 +216,10 @@ export function UserManagementWorkspace({
                 </label>
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
                   Access role
-                  <select id="invite-role" aria-label="Access role" className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as Role)}>
-                    <option value="VIEWER">Viewer</option>
-                    <option value="ANALYST">Analyst</option>
-                    <option value="ADMIN">Admin</option>
+                  <select id="invite-role" aria-label="Access role" className={fieldClass} value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
+                    {assignableRoles.map((assignableRole) => (
+                      <option key={assignableRole} value={assignableRole}>{roleLabel(assignableRole)}</option>
+                    ))}
                   </select>
                   <span className="text-xs font-normal leading-5 text-text-muted">{roleGuidance[role]}</span>
                 </label>
@@ -276,7 +286,7 @@ export function UserManagementWorkspace({
                     <div className="mt-1 text-xs text-text-secondary">{account.email}</div>
                     {account.pending_email ? <div className="mt-1 text-xs text-status-warning">Email change pending: {account.pending_email}</div> : null}
                   </td>
-                  <td className="px-4 py-3.5 text-text-secondary">{account.role === 'ADMIN' ? 'Admin' : account.role === 'ANALYST' ? 'Analyst' : 'Viewer'}</td>
+                  <td className="px-4 py-3.5 text-text-secondary">{roleLabel(account.role)}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex flex-col items-start gap-1">
                       {lifecycleState(account).label === 'Active' ? (
@@ -315,6 +325,8 @@ export function UserManagementWorkspace({
         key={`${selectedAccountId ?? 'closed'}-${selectedAccount?.role ?? 'closed'}-${selectedAccount ? 'open' : 'closed'}`}
         account={selectedAccount}
         currentAccountId={currentAccountId}
+        currentAccountRole={actorRole}
+        assignableRoles={assignableRoles}
         notice={notice}
         open={selectedAccount !== null}
         onOpenChange={(open) => {
@@ -334,7 +346,7 @@ export function UserManagementWorkspace({
               await mutate(`/api/admin/users/${selectedAccount.id}/role`, 'PATCH', { role: nextRole })
               await refreshAccounts()
             },
-            `Role for ${selectedAccount.display_name} changed to ${nextRole}.`,
+            `Role for ${selectedAccount.display_name} changed to ${roleLabel(nextRole)}.`,
             `Role change for ${selectedAccount.display_name} failed. Recent TOTP authentication is required.`,
           )
         }}

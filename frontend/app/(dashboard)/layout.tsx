@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { getSession } from '@/lib/auth-session'
 import { requirePermission } from '@/lib/auth/route-guard'
-import { PERMISSIONS } from '@/lib/auth/roles'
+import { PERMISSIONS, roleRequiresMfa } from '@/lib/auth/roles'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { DashboardTopBar } from '@/components/layout/TopBar'
 import { AlertStreamSync } from '@/components/alerts/AlertStreamSync'
@@ -21,7 +21,7 @@ export default async function DashboardLayout({
   if (!authorization.ok) {
     if (
       session.user?.auth_level === 'password' &&
-      (session.user.role === 'ADMIN' || session.user.role === 'ANALYST')
+      roleRequiresMfa(session.user.role)
     ) {
       redirect(
         session.user.mfa_challenge_purpose === 'mfa_enrollment'
@@ -31,7 +31,7 @@ export default async function DashboardLayout({
     }
     if (
       session.user?.auth_level === 'recovery' &&
-      (session.user.role === 'ADMIN' || session.user.role === 'ANALYST')
+      roleRequiresMfa(session.user.role)
     ) {
       redirect('/mfa/enroll')
     }

@@ -5,23 +5,31 @@ import { X } from 'lucide-react'
 import { useState } from 'react'
 
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge'
+import {
+  canManageAccount,
+  ROLES,
+  roleLabel,
+  rolesAssignableBy,
+  type UserRole,
+} from '@/lib/auth/roles'
 
 import type { SafeManagedAccount } from './contract'
 import styles from './UserManagementWorkspace.module.css'
 
-type Role = 'ADMIN' | 'ANALYST' | 'VIEWER'
 type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
 
 type Props = {
   account: SafeManagedAccount | null
   currentAccountId?: string
+  currentAccountRole?: UserRole
+  assignableRoles?: readonly UserRole[]
   notice?: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
   pendingActions: Record<string, boolean>
   pendingEmail: string
   onPendingEmailChange: (value: string) => void
-  onRoleChange: (role: Role) => void
+  onRoleChange: (role: UserRole) => void
   onToggleStatus: () => void
   onResendSetup: () => void
   onResetMfa: (reason: string) => void
@@ -30,12 +38,6 @@ type Props = {
 
 function actionKey(accountId: string, action: AccountAction): string {
   return `${accountId}:${action}`
-}
-
-function roleLabel(role: Role): string {
-  if (role === 'ADMIN') return 'Admin'
-  if (role === 'ANALYST') return 'Analyst'
-  return 'Viewer'
 }
 
 function mfaLabel(status: SafeManagedAccount['mfa_status']): string {
@@ -66,6 +68,8 @@ const disclosureButton =
 export function AccountActionsDialog({
   account,
   currentAccountId,
+  currentAccountRole,
+  assignableRoles,
   notice,
   open,
   onOpenChange,
@@ -84,12 +88,15 @@ export function AccountActionsDialog({
   const [resetOpen, setResetOpen] = useState(false)
   const [emailOpen, setEmailOpen] = useState(false)
   const [dangerOpen, setDangerOpen] = useState(false)
-  const [draftRole, setDraftRole] = useState<Role>(account?.role ?? 'VIEWER')
+  const [draftRole, setDraftRole] = useState<UserRole>(account?.role ?? ROLES.VIEWER)
   const [resetReason, setResetReason] = useState('')
 
   if (!account) return null
 
   const isSelf = currentAccountId === account.id
+  const actorRole = currentAccountRole ?? ROLES.ADMIN
+  const canManageTarget = canManageAccount(actorRole, account.role)
+  const roleOptions = assignableRoles ?? rolesAssignableBy(actorRole)
   const roleDirty = draftRole !== account.role
   const rolePending = Boolean(pendingActions[actionKey(account.id, 'role')])
   const statusPending = Boolean(pendingActions[actionKey(account.id, 'status')])
@@ -132,7 +139,7 @@ export function AccountActionsDialog({
                   <dt className="text-text-secondary">Role</dt>
                   <dd className="flex items-center gap-3 text-right text-text-primary">
                     <span>{roleLabel(account.role)}</span>
-                    {!isSelf ? (
+                    {!isSelf && canManageTarget ? (
                       <button
                         type="button"
                         className={disclosureButton}
@@ -190,20 +197,20 @@ export function AccountActionsDialog({
                       value={draftRole}
                       disabled={rolePending}
                       onChange={(event) => {
-                        setDraftRole(event.target.value as Role)
+                        setDraftRole(event.target.value as UserRole)
                         setConfirmingRole(false)
                       }}
                     >
-                      <option value="VIEWER">Viewer</option>
-                      <option value="ANALYST">Analyst</option>
-                      <option value="ADMIN">Admin</option>
+                      {roleOptions.map((roleOption) => (
+                        <option key={roleOption} value={roleOption}>{roleLabel(roleOption)}</option>
+                      ))}
                     </select>
                   </label>
                   {roleDirty ? (
                     <p className="mt-2 text-xs leading-5 text-text-secondary">
-                      {draftRole === 'VIEWER' && account.role !== 'VIEWER'
+                      {draftRole === ROLES.VIEWER && account.role !== ROLES.VIEWER
                         ? 'MFA will no longer be required by this role.'
-                        : draftRole !== 'VIEWER' && account.role === 'VIEWER'
+                        : draftRole !== ROLES.VIEWER && account.role === ROLES.VIEWER
                           ? 'This role requires MFA enrollment before protected work.'
                           : 'This changes the account’s access role.'}
                     </p>
@@ -243,7 +250,7 @@ export function AccountActionsDialog({
               ) : null}
             </section>
 
-            <section aria-labelledby="administrative-actions-heading">
+            {canManageTarget ? <section aria-labelledby="administrative-actions-heading">
               <h2 id="administrative-actions-heading" className="text-sm font-semibold text-text-primary">Administrative actions</h2>
               <div className="mt-4 divide-y divide-border-light border-y border-border-light">
                 {account.setup_status === 'pending' && account.enabled ? (
@@ -312,9 +319,9 @@ export function AccountActionsDialog({
                   </div>
                 ) : null}
               </div>
-            </section>
+            </section> : null}
 
-            <section aria-labelledby="account-email-heading" className="border-t border-border-light pt-6">
+            {canManageTarget ? <section aria-labelledby="account-email-heading" className="border-t border-border-light pt-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 id="account-email-heading" className="text-sm font-semibold text-text-primary">Account email</h2>
@@ -348,9 +355,9 @@ export function AccountActionsDialog({
                   </button>
                 </div>
               ) : null}
-            </section>
+            </section> : null}
 
-            {!isSelf ? (
+            {!isSelf && canManageTarget ? (
               <section className="border-t border-border-light pt-5" aria-labelledby="danger-zone-heading">
                 <button
                   id="danger-zone-heading"

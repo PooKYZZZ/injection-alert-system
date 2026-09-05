@@ -1,14 +1,18 @@
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database import database as db_module
+from web_app.infrastructure.database import get_db
 from web_app.infrastructure.database.database import Base
 from web_app.presentation.api.routes import get_model_service
 from web_app.presentation.app import create_app
 
-INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
+INTERNAL_HEADERS = {
+    "Authorization": "Bearer test-secret-key",
+    "X-Reviewer-Id": "owner-1",
+    "X-Reviewer-Role": "OWNER",
+}
 
 
 class FakeModelHealthService:
@@ -101,3 +105,17 @@ def test_ml_health_includes_queue_health_fields(ml_health_client):
         "last_error_at",
         "last_processed_at",
     }
+
+
+@pytest.mark.parametrize("role", ["OWNER", "ADMIN", "ANALYST", "VIEWER"])
+def test_ml_health_authorization_matrix(ml_health_client, role):
+    response = ml_health_client.get(
+        "/api/ml-health",
+        headers={
+            "Authorization": "Bearer test-secret-key",
+            "X-Reviewer-Id": f"{role.lower()}-1",
+            "X-Reviewer-Role": role,
+        },
+    )
+
+    assert response.status_code == (200 if role == "OWNER" else 403)

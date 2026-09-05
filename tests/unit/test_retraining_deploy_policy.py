@@ -232,8 +232,8 @@ def test_deploy_requires_approval_passing_gate_and_current_active_binding(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     control, repository, _, _, _, _, adapter = _make_control(
@@ -254,8 +254,8 @@ def test_deploy_requires_approval_passing_gate_and_current_active_binding(
         stale.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
 
@@ -269,8 +269,8 @@ def test_gate_failure_and_tampered_candidate_are_refused_without_staging_change(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
     assert repository.load_run(RUN_ID).state is RunState.APPROVED
     assert (staging_root / "active-v1").is_dir()
@@ -284,8 +284,8 @@ def test_gate_failure_and_tampered_candidate_are_refused_without_staging_change(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
     assert repository.load_run(RUN_ID).state is RunState.APPROVED
     assert (staging_root / "active-v1").is_dir()
@@ -306,8 +306,8 @@ def test_successful_local_staging_deploy_and_rollback_reload_known_good_model(
     deployed = control.deploy(
         run_id=RUN_ID,
         expected_candidate_version="candidate-v1",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
     assert deployed.state is RunState.DEPLOYED
     assert (staging_root / "candidate-v1").is_dir()
@@ -323,14 +323,14 @@ def test_successful_local_staging_deploy_and_rollback_reload_known_good_model(
         archive_root / next(path.name for path in archive_root.iterdir())
     )
     assert started["previous_staging_version"] == "active-v1"
-    assert started["actor_id"] == "admin-1"
+    assert started["actor_id"] == "owner-1"
 
     rolled_back = control.rollback(
         run_id=RUN_ID,
         previous_staging_version="active-v1",
         reason="Restore the known-good staging version.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
     assert rolled_back.state is RunState.ROLLED_BACK
     assert (staging_root / "active-v1").is_dir()
@@ -355,8 +355,8 @@ def test_candidate_load_failure_restores_previous_staging_and_marks_rolled_back(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     assert repository.load_run(RUN_ID).state is RunState.ROLLED_BACK
@@ -383,8 +383,8 @@ def test_pointer_publication_failure_reports_restored_deployment_state(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     run = repository.load_run(RUN_ID)
@@ -415,8 +415,8 @@ def test_deploy_audit_failure_enters_recovery_and_can_rollback_after_restart_bou
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
@@ -427,8 +427,8 @@ def test_deploy_audit_failure_enters_recovery_and_can_rollback_after_restart_bou
         run_id=RUN_ID,
         previous_staging_version="active-v1",
         reason="Reconcile the local staging state.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert rolled_back.state is RunState.ROLLED_BACK
@@ -463,8 +463,8 @@ def test_deploy_audit_failure_before_activation_restores_approved_state(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     assert deployment_called is False
@@ -495,8 +495,8 @@ def test_unclean_deploy_before_activation_is_reconciled_after_restart(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     restarted_adapter = LocalStagingAdapter(
@@ -522,8 +522,8 @@ def test_unclean_deploy_before_activation_is_reconciled_after_restart(
         run_id=RUN_ID,
         previous_staging_version="active-v1",
         reason="Reconcile an interrupted local deployment.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert reconciled.state is RunState.APPROVED
@@ -585,8 +585,8 @@ def test_prepared_deployment_cleanup_failure_enters_recovery(
             run_id=RUN_ID,
             previous_staging_version="active-v1",
             reason="Recover the interrupted deployment.",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
@@ -616,8 +616,8 @@ def test_unreadable_recovery_events_fail_closed_after_interrupted_deploy(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     restarted_adapter = LocalStagingAdapter(
@@ -648,8 +648,8 @@ def test_unreadable_recovery_events_fail_closed_after_interrupted_deploy(
             run_id=RUN_ID,
             previous_staging_version="active-v1",
             reason="Recover after an interrupted deployment.",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
@@ -679,8 +679,8 @@ def test_unclean_deploy_after_activation_can_rollback_after_restart(
         control.deploy(
             run_id=RUN_ID,
             expected_candidate_version="candidate-v1",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     restarted_adapter = LocalStagingAdapter(
@@ -706,8 +706,8 @@ def test_unclean_deploy_after_activation_can_rollback_after_restart(
         run_id=RUN_ID,
         previous_staging_version="active-v1",
         reason="Restore the known-good model after an interrupted deployment.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert rolled_back.state is RunState.ROLLED_BACK
@@ -725,8 +725,8 @@ def test_unclean_rollback_after_physical_restore_is_reconciled_after_restart(
     control.deploy(
         run_id=RUN_ID,
         expected_candidate_version="candidate-v1",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
     original_rollback = adapter.rollback
 
@@ -742,8 +742,8 @@ def test_unclean_rollback_after_physical_restore_is_reconciled_after_restart(
             run_id=RUN_ID,
             previous_staging_version="active-v1",
             reason="Restore the known-good model before the process exits.",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     restarted_adapter = LocalStagingAdapter(
@@ -769,8 +769,8 @@ def test_unclean_rollback_after_physical_restore_is_reconciled_after_restart(
         run_id=RUN_ID,
         previous_staging_version="active-v1",
         reason="Finalize the interrupted rollback record.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert reconciled.state is RunState.ROLLED_BACK
@@ -831,8 +831,8 @@ def test_rollback_pointer_publication_termination_keeps_candidate_pointer_valid(
     control.deploy(
         run_id=RUN_ID,
         expected_candidate_version="candidate-v1",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
     deployment = StagingDeploymentRecord.from_payload(
         json.loads(
@@ -866,8 +866,8 @@ def test_rollback_audit_failure_enters_recovery_and_reconciles_known_good_pointe
     control.deploy(
         run_id=RUN_ID,
         expected_candidate_version="candidate-v1",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
     original_publish = repository.publish_json_artifact
 
@@ -883,8 +883,8 @@ def test_rollback_audit_failure_enters_recovery_and_reconciles_known_good_pointe
             run_id=RUN_ID,
             previous_staging_version="active-v1",
             reason="Restore the known-good local staging version.",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     assert repository.load_run(RUN_ID).state is RunState.RECOVERY_REQUIRED
@@ -898,8 +898,8 @@ def test_rollback_audit_failure_enters_recovery_and_reconciles_known_good_pointe
         run_id=RUN_ID,
         previous_staging_version="active-v1",
         reason="Finalize the recoverable rollback record.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert reconciled.state is RunState.ROLLED_BACK

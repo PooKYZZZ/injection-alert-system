@@ -7,7 +7,7 @@ import {
   passwordHashConcurrencyGate,
 } from './lib/auth/login-throttle'
 import { verifyPasswordForAccount } from './lib/auth/password-hash'
-import { isUserRole } from './lib/auth/roles'
+import { isUserRole, type UserRole } from './lib/auth/roles'
 import {
   AUTH_CREDENTIAL_FIELDS,
   parseCredentialMode,
@@ -32,7 +32,7 @@ type VerifiedCompletion = {
   id: string
   name: string
   email: string
-  role: 'ADMIN' | 'ANALYST' | 'VIEWER'
+  role: UserRole
   authz_version: number
   auth_level: 'mfa' | 'recovery'
   auth_method: 'totp' | 'backup_code' | 'email_otp'

@@ -2,7 +2,7 @@ import 'server-only'
 
 import { z } from 'zod'
 
-import type { UserRole } from '@/lib/auth/roles'
+import { ROLE_VALUES, type UserRole } from '@/lib/auth/roles'
 import { getSupabaseServerClient } from './client'
 
 export type AuthAccountForLogin = {
@@ -36,7 +36,7 @@ const loginAccountSchema = z.object({
   email: z.string().trim().email(),
   username: z.string().trim().min(1).nullable(),
   name: z.string().trim().min(1),
-  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  role: z.enum(ROLE_VALUES),
   authz_version: z.number().int().min(1),
   password_hash: z.string().nullable(),
   mfa_required: z.boolean(),
@@ -45,7 +45,7 @@ const loginAccountSchema = z.object({
 
 const freshnessAccountSchema = z.object({
   id: z.string().uuid(),
-  role: z.enum(['ADMIN', 'ANALYST', 'VIEWER']),
+  role: z.enum(ROLE_VALUES),
   authz_version: z.number().int().min(1),
   mfa_required: z.boolean(),
   disabled_at: z.string().min(1).nullable(),

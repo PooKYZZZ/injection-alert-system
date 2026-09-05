@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url'
 
 import { createSupabaseScriptClient } from '../lib/server/db/script-client.mjs'
 
-const ROLES = new Set(['ADMIN', 'ANALYST', 'VIEWER'])
+const ROLES = new Set(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER'])
 const MIN_PASSWORD_LENGTH = 6
 const MAX_PASSWORD_LENGTH = 256
 
@@ -35,7 +35,7 @@ export async function buildCreateAccountPayload(values) {
     throw new Error('A valid email is required.')
   }
   if (!name) throw new Error('Name is required.')
-  if (!ROLES.has(role)) throw new Error('Role must be ADMIN, ANALYST, or VIEWER.')
+  if (!ROLES.has(role)) throw new Error('Role must be OWNER, ADMIN, ANALYST, or VIEWER.')
 
   const password = values.password
   if (

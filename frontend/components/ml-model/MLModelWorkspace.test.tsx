@@ -176,11 +176,11 @@ describe('MLModelWorkspace', () => {
   it('renders loading, error, and empty-run states honestly', () => {
     setHarness({ isPending: true, summaryData: undefined as never })
     const { rerender } = render(<MLModelWorkspace role={ROLES.VIEWER} />)
-    expect(screen.getByText('Loading Model Operations')).toBeInTheDocument()
+    expect(screen.getByText('Loading ML Deployment')).toBeInTheDocument()
 
     setHarness({ isError: true, summaryData: undefined as never })
     rerender(<MLModelWorkspace role={ROLES.VIEWER} />)
-    expect(screen.getByText('Failed to load Model Operations')).toBeInTheDocument()
+    expect(screen.getByText('Failed to load ML Deployment')).toBeInTheDocument()
 
     setHarness({ runs: [] })
     rerender(<MLModelWorkspace role={ROLES.VIEWER} />)
@@ -188,7 +188,7 @@ describe('MLModelWorkspace', () => {
     expect(screen.getByRole('button', { name: 'Request retraining' })).toBeInTheDocument()
   })
 
-  it('explains when local Model Operations are deliberately unavailable', () => {
+  it('explains when local ML Deployment is deliberately unavailable', () => {
     setHarness({
       isError: true,
       summaryData: undefined as never,
@@ -197,10 +197,10 @@ describe('MLModelWorkspace', () => {
 
     render(<MLModelWorkspace role={ROLES.VIEWER} />)
 
-    expect(screen.getByRole('heading', { name: 'Model Operations unavailable' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'ML Deployment unavailable' })).toBeInTheDocument()
     expect(screen.getByText(/local retraining controls are disabled or unavailable/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry Model Operations' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Review ML Health' })).toHaveAttribute('href', '/ml-health')
+    expect(screen.getByRole('button', { name: 'Retry ML Deployment' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open ML Health' })).toHaveAttribute('href', '/ml-health')
   })
 
   it('shows the overview, queued stage, and unavailable evidence without inventing metrics', () => {
@@ -233,7 +233,7 @@ describe('MLModelWorkspace', () => {
       }),
     })
 
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     expect(screen.getByText(/published evaluation evidence is missing, unreadable/i)).toBeInTheDocument()
   })
@@ -251,7 +251,7 @@ describe('MLModelWorkspace', () => {
         }),
       ],
     })
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     expect(screen.queryByRole('heading', { name: 'Candidate decision' })).not.toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Loading selected run evidence' })).toBeInTheDocument()
@@ -264,7 +264,7 @@ describe('MLModelWorkspace', () => {
       runs: [],
       mutations: { start, export: exportSamples },
     })
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Request retraining' }))
     fireEvent.click(screen.getByRole('button', { name: 'Export approved samples' }))
@@ -298,7 +298,7 @@ describe('MLModelWorkspace', () => {
       runs: [],
       mutations: { start, export: exportSamples },
     })
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Request retraining' }))
     await waitFor(() => {
@@ -332,7 +332,7 @@ describe('MLModelWorkspace', () => {
       }),
       mutations: { decision },
     })
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     expect(screen.getByRole('heading', { name: 'Candidate decision' })).toBeInTheDocument()
     const reason = screen.getByRole('textbox', { name: 'Decision reason' })
@@ -355,7 +355,7 @@ describe('MLModelWorkspace', () => {
       selectedRun: detail({ state: 'held', stage: 'decision_hold' }),
       mutations: { decision },
     })
-    const { rerender } = render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    const { rerender } = render(<MLModelWorkspace role={ROLES.OWNER} />)
     expect(screen.getByText(/Verified samples were retained for the next retraining cycle/i)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Candidate decision' })).not.toBeInTheDocument()
 
@@ -376,7 +376,7 @@ describe('MLModelWorkspace', () => {
       }),
       mutations: { decision },
     })
-    rerender(<MLModelWorkspace role={ROLES.ADMIN} />)
+    rerender(<MLModelWorkspace role={ROLES.OWNER} />)
     fireEvent.change(screen.getByRole('textbox', { name: 'Decision reason' }), {
       target: { value: 'Approved after review.' },
     })
@@ -410,7 +410,7 @@ describe('MLModelWorkspace', () => {
         },
       }),
     })
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     expect(screen.getByRole('button', { name: 'Approve candidate' })).toBeDisabled()
   })
@@ -443,7 +443,7 @@ describe('MLModelWorkspace', () => {
       selectedRun: detail({ state: 'RECOVERY_REQUIRED', stage: 'deploy_recovery_required' }),
     })
 
-    render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    render(<MLModelWorkspace role={ROLES.OWNER} />)
 
     expect(screen.getByText('Deployment state needs reconciliation')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reconcile with rollback' })).toBeInTheDocument()
@@ -457,13 +457,13 @@ describe('MLModelWorkspace', () => {
       selectedRun: detail({ state: 'approved', candidate_model_version: 'candidate-v1' }),
       mutations: { deploy, rollback },
     })
-    const { rerender } = render(<MLModelWorkspace role={ROLES.ADMIN} />)
+    const { rerender } = render(<MLModelWorkspace role={ROLES.OWNER} />)
     expect(screen.getByRole('button', { name: 'Deploy to local staging' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Deploy to local staging' }))
     expect(deploy.mutateAsync).toHaveBeenCalled()
 
     setHarness({ selectedRun: detail({ state: 'deployed' }), mutations: { deploy, rollback } })
-    rerender(<MLModelWorkspace role={ROLES.ADMIN} />)
+    rerender(<MLModelWorkspace role={ROLES.OWNER} />)
     expect(screen.getByRole('button', { name: 'Roll back local staging' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Roll back local staging' }))
     expect(rollback.mutateAsync).toHaveBeenCalled()

@@ -124,7 +124,7 @@ export function MLModelDecisionPanel({
                 Candidate review is pending
               </h2>
             </div>
-            <span className={styles.statusBadge}>ADMIN ONLY</span>
+            <span className={styles.statusBadge}>OWNER ONLY</span>
           </div>
           <p className={styles.sectionDescription}>
             This account can inspect the candidate evidence but cannot approve, hold, or reject it.
@@ -240,7 +240,7 @@ export function MLModelDecisionPanel({
             Deploy to local staging
           </button>
         ) : (
-          <p className={styles.sectionDescription}>Local staging deployment requires administrator permission.</p>
+          <p className={styles.sectionDescription}>Local staging deployment requires Owner permission.</p>
         )}
         {actionError && <p className={styles.formError} role="alert">{actionError}</p>}
       </section>
@@ -268,7 +268,7 @@ export function MLModelDecisionPanel({
             className={styles.dangerButton}
             onClick={() => {
               if (window.confirm('Roll back local staging to the previous known-good version?')) {
-                void onRollback('Operator requested rollback from Model Operations.').catch(() => undefined)
+                void onRollback('Owner requested rollback from ML Deployment.').catch(() => undefined)
               }
             }}
             disabled={actionsDisabled || rollbackPending}
@@ -276,7 +276,7 @@ export function MLModelDecisionPanel({
             Roll back local staging
           </button>
         ) : (
-          <p className={styles.sectionDescription}>Local staging rollback requires administrator permission.</p>
+          <p className={styles.sectionDescription}>Local staging rollback requires Owner permission.</p>
         )}
         {actionError && <p className={styles.formError} role="alert">{actionError}</p>}
       </section>
@@ -312,7 +312,7 @@ export function MLModelDecisionPanel({
             Reconcile with rollback
           </button>
         ) : (
-          <p className={styles.sectionDescription}>Recovery requires administrator permission.</p>
+          <p className={styles.sectionDescription}>Recovery requires Owner permission.</p>
         )}
         {actionError && <p className={styles.formError} role="alert">{actionError}</p>}
       </section>

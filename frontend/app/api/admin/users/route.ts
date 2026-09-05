@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import {
   requireMfaPermission,
-  requireRecentTotpAdmin,
+  requireRecentTotp,
 } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
 import {
@@ -35,7 +35,7 @@ export async function GET(): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   if (!accountManagementEnabled()) return featureDisabledResponse()
   const session = await auth()
-  const authorization = await requireRecentTotpAdmin(
+  const authorization = await requireRecentTotp(
     session,
     PERMISSIONS.ACCOUNTS_MANAGE
   )

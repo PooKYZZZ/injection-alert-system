@@ -131,7 +131,7 @@ export function MLModelWorkspace({ role }: Props) {
   if (summaryQuery.isPending || runsQuery.isPending) {
     return (
       <div className={styles.loadingWrap} role="status">
-        <strong>Loading Model Operations</strong>
+        <strong>Loading ML Deployment</strong>
         <span>Loading safe run and evidence state…</span>
       </div>
     )
@@ -148,7 +148,7 @@ export function MLModelWorkspace({ role }: Props) {
           <div className={styles.unavailableCopy}>
             <p className={styles.stateLabel}>Model lifecycle</p>
             <h1 id="model-operations-state-title">
-              {capabilityUnavailable ? 'Model Operations unavailable' : 'Failed to load Model Operations'}
+              {capabilityUnavailable ? 'ML Deployment unavailable' : 'Failed to load ML Deployment'}
             </h1>
             <p>
               {capabilityUnavailable
@@ -165,11 +165,11 @@ export function MLModelWorkspace({ role }: Props) {
                 void runsQuery.refetch()
               }}
             >
-              {capabilityUnavailable ? 'Retry Model Operations' : 'Retry'}
+              {capabilityUnavailable ? 'Retry ML Deployment' : 'Retry'}
             </button>
             {capabilityUnavailable ? (
               <a className={styles.stateLink} href="/ml-health">
-                Review ML Health
+                Open ML Health
               </a>
             ) : null}
           </div>

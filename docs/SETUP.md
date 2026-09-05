@@ -181,9 +181,12 @@ RLS on the new public-schema auth/security tables is defense-in-depth only.
 Auth.js Credentials login and BFF session freshness checks now read
 `auth_accounts` through the server-only client. `AUTH_USERS_JSON` is not a
 runtime source or outage fallback.
-The hosted migration has been completed through `20260712_000020` using a
-reviewed deployment step. Do not rerun or downgrade the hosted database
-casually; use `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`.
+The repository migration chain now includes `20260905_000029` for the Owner
+role and authorization policy. Apply that migration through the reviewed
+deployment process before using Owner accounts in a hosted database. The
+previously recorded hosted migration state is through `20260712_000020`; do
+not rerun or downgrade the hosted database casually; use
+`docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`.
 
 The V6.1 account/MFA/recovery feature switches are documented in
 `frontend/.env.example`; they fail closed when absent. Runtime values are read
@@ -360,7 +363,7 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current repository migration head is `20260803_000028`. The latest hosted Supabase
+- The current repository migration head is `20260905_000029`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
 - Hosted migration state is only confirmed through `20260712_000020`; the
@@ -448,7 +451,7 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260803_000028`. Use
+The repository has exactly one current head, `20260905_000029`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).
@@ -480,13 +483,16 @@ not require static E2E credentials or a hosted project. CI runs the same command
 
 ### Dashboard role matrix
 
-| Role | Read alerts/stats/ML health | Triage alerts | Update `action_taken` |
-|---|---:|---:|---:|
-| `VIEWER` | Yes | No | No |
-| `ANALYST` | Yes | Yes | No |
-| `ADMIN` | Yes | Yes | Yes |
+| Role | Read alerts/stats | ML Health | ML Deployment | Triage alerts | Update `action_taken` |
+|---|---:|---:|---:|---:|---:|
+| `VIEWER` | Yes | No | No | No | No |
+| `ANALYST` | Yes | No | No | Yes | No |
+| `ADMIN` | Yes | No | No | Yes | Yes |
+| `OWNER` | Yes | Yes | Yes | Yes | Yes |
 
-The BFF route guards are the authorization authority. This SOC-team console does not implement per-alert ownership or tenant scoping.
+Only `OWNER` can read ML Health or use the ML Deployment control plane. The
+BFF route guards are the authorization authority. This SOC-team console does
+not implement per-alert ownership or tenant scoping.
 
 ### Start the frontend
 
@@ -549,6 +555,9 @@ Be explicit about the current BFF status:
 - `/api/ml-health`
   - Wired through `frontend/lib/bff-client.ts`
   - Calls real FastAPI in non-mock mode
+- `/api/ml-model/*`
+  - Wired through `frontend/lib/bff-client.ts`
+  - Owner-only ML Deployment control-plane proxy to real FastAPI in non-mock mode
 
 So the current local dashboard can run fully against the backend, with optional centralized mock mode via `USE_MOCK_API=true`.
 
@@ -559,8 +568,8 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/login` is the public sign-in page.
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
-- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`.
-- All eight BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied.
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/ml-health`, and `/ml-model`.
+- All protected BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied. The ML handlers require Owner-only permissions.
 
 ## 5. What This Setup Does Not Cover
 
@@ -651,6 +660,20 @@ the approved processed datasets at `/app/data/processed/...` read-only. That
 mount is required for Model Operations to verify dataset identity; it does not
 run training or permit the web app to alter the source datasets. The Docker
 backend remains internal-only, and the frontend still calls `http://backend:8000`.
+The base backend Compose service also bind-mounts the controlled-local
+retraining results, staging, and archive directories:
+
+```text
+./ml_model/results/dashboard_retraining -> /app/ml_model/results/dashboard_retraining
+./ml_model/model_registry/staging      -> /app/ml_model/model_registry/staging
+./ml_model/model_registry/archive      -> /app/ml_model/model_registry/archive
+```
+
+These mounts keep run manifests, worker events, candidate evidence, and
+controlled-local staging state available after an image rebuild or container
+recreation. The directories are local runtime state and are covered by the
+repository ignore rules. The production model registry is not mounted by
+Compose and is never a web-app write target.
 
 ### Final realistic demo-target stack
 

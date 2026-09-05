@@ -21,6 +21,13 @@ const backupIdentitySchema = identitySchema.extend({
     .regex(/^[2-9A-HJ-NP-Z]{4}(?:-[2-9A-HJ-NP-Z]{4}){2}$/),
 })
 
+const roleMatrixSchema = z.object({
+  owner: totpIdentitySchema,
+  admin: totpIdentitySchema,
+  analyst: totpIdentitySchema,
+  viewer: identitySchema,
+})
+
 const authE2EStateSchema = z
   .object({
     runId: z.string().uuid(),
@@ -31,9 +38,13 @@ const authE2EStateSchema = z
       email: identitySchema,
       stepup: totpIdentitySchema,
     }),
+    roleMatrix: roleMatrixSchema,
   })
   .superRefine((state, context) => {
-    const identities = Object.values(state.identities)
+    const identities = [
+      ...Object.values(state.identities),
+      ...Object.values(state.roleMatrix),
+    ]
     if (new Set(identities.map(({ id }) => id)).size !== identities.length) {
       context.addIssue({ code: 'custom', message: 'Identity ids must be unique.' })
     }
@@ -51,6 +62,8 @@ export type AuthE2EState = z.infer<typeof authE2EStateSchema>
 export type AuthE2EIdentity = AuthE2EState['identities'][
   keyof AuthE2EState['identities']
 ]
+export type AuthE2ERole = keyof AuthE2EState['roleMatrix']
+export type AuthE2ERoleIdentity = AuthE2EState['roleMatrix'][AuthE2ERole]
 
 export function parseAuthE2EState(raw: string | undefined): AuthE2EState {
   try {

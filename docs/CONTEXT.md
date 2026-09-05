@@ -117,7 +117,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 - PR7 Block 1 effective WAF state and authenticated snapshot boundary were
   implemented and validated at the prior migration point `20260728_000025`;
-  the current repository head is `20260803_000028`.
+  the current repository head is `20260905_000029`.
 - PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
   rendering, persistent selection/latch state, reload and worker-generation
   confirmation, candidate-specific source/path probes, and empty-first
@@ -213,9 +213,9 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - Authentication is implemented with Auth.js credentials auth
 - Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; hosted account invitation, setup, password, TOTP, and MFA login flows are verified
 - Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow includes encrypted TOTP enrollment, replay-safe MFA completion, recovery-only claims, and password recovery behind fail-closed server-side availability flags
-- Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, and admins keep the full control set
+- Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, admins keep the full alert/account control set, and Owner is the only role with ML Health and ML Deployment access
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
-- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, and `/ml-health`
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/ml-health`, and `/ml-model`
 - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`
 - Current BFF status in the working tree:
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client
@@ -227,9 +227,10 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
     verified-label review submission; reviewer identity and role come from the
     server session and are not accepted from the browser body
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
-  - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode
+  - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode after the Owner-only permission check
+  - `frontend/app/api/ml-model/*` proxies the Owner-only ML Deployment control plane to FastAPI in non-mock mode
   - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**)
-  - all eight handlers await the central DB-backed permission guard before downstream work
+  - every protected handler awaits the central DB-backed permission guard before downstream work; the ML handlers also forward the authenticated actor to FastAPI for defense in depth
   - one dashboard-level `AlertStreamSync` connection invalidates the existing
     alert and stats TanStack Query families on `alert.created` and `open`; the
     latter provides canonical REST catch-up after native EventSource reconnect
@@ -290,7 +291,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   implemented. Reviews are revisioned, alert responses project the latest
   revision, and the run-local exporter selects only `approved_for_training`.
   The dashboard can request smoke or server-configured native runs, inspect
-  evidence, record an administrator decision, and explicitly deploy or roll
+  evidence, record an Owner decision, and explicitly deploy or roll
   back local staging. The bounded scheduling wrapper only requests a run; no
   installed scheduler, automatic approval/promotion, hosted deployment, or
   web-app write to `ml_model/model_registry/production/` is claimed.

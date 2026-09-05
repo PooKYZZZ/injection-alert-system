@@ -93,7 +93,7 @@ export function MLHealthWorkspace() {
           <p className={styles.snapshotMeta} aria-label="ML health snapshot freshness">
             {viewModel.sourceFreshnessDisplay} · Retrieved {viewModel.retrievedAtDisplay}
           </p>
-          <Link href="/ml-model" className={styles.secondaryLink}>Open Model Operations</Link>
+          <Link href="/ml-model" className={styles.secondaryLink}>Open ML Deployment</Link>
           <button
             type="button"
             className={styles.refreshButton}

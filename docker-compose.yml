@@ -35,6 +35,13 @@ services:
       ]
     expose:
       - "8000"
+    # Keep controlled-local retraining evidence and staging state across
+    # backend image rebuilds and container recreation. The active production
+    # registry is intentionally not mounted or writable by the web app.
+    volumes:
+      - ./ml_model/results/dashboard_retraining:/app/ml_model/results/dashboard_retraining
+      - ./ml_model/model_registry/staging:/app/ml_model/model_registry/staging
+      - ./ml_model/model_registry/archive:/app/ml_model/model_registry/archive
     env_file:
       - path: .env
         required: true

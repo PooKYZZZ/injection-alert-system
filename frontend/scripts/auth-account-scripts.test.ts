@@ -38,9 +38,9 @@ describe('auth account provisioning scripts', () => {
       buildCreateAccountPayload({
         email: 'user@example.test',
         name: 'User',
-        role: 'OWNER',
+        role: 'SUPERUSER',
       })
-    ).rejects.toThrow('Role must be ADMIN, ANALYST, or VIEWER.')
+    ).rejects.toThrow('Role must be OWNER, ADMIN, ANALYST, or VIEWER.')
   })
 
   it('normalizes account data and requests approved Argon2id hashing', async () => {

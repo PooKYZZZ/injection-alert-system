@@ -316,23 +316,23 @@ def test_hold_requires_reason_and_records_administrator_event(tmp_path):
             run_id=run_id,
             decision="hold",
             reason=None,
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     result = control.decide(
         run_id=run_id,
         decision="hold",
         reason="Need a second reviewer.",
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert result.run.state is RunState.HELD
     event = repository.read_events(run_id)[-1]
     assert event["code"] == "CANDIDATE_HOLD"
-    assert event["actor_id"] == "admin-1"
-    assert event["actor_role"] == "ADMIN"
+    assert event["actor_id"] == "owner-1"
+    assert event["actor_role"] == "OWNER"
     assert event["message"] == "Need a second reviewer."
     with pytest.raises(ArtifactRepositoryError):
         repository.append_event(
@@ -355,8 +355,8 @@ def test_approve_requires_complete_candidate_and_evaluation_evidence(tmp_path):
             run_id=run_id,
             decision="approve",
             reason=None,
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )
 
     repository.publish_json_artifact(
@@ -393,8 +393,8 @@ def test_approve_requires_complete_candidate_and_evaluation_evidence(tmp_path):
         run_id=run_id,
         decision="approve",
         reason=None,
-        actor_id="admin-1",
-        actor_role="ADMIN",
+        actor_id="owner-1",
+        actor_role="OWNER",
     )
 
     assert result.run.state is RunState.APPROVED
@@ -411,6 +411,6 @@ def test_decision_rejects_runs_that_are_not_pending_approval(tmp_path):
             run_id=run_id,
             decision="hold",
             reason="not ready",
-            actor_id="admin-1",
-            actor_role="ADMIN",
+            actor_id="owner-1",
+            actor_role="OWNER",
         )

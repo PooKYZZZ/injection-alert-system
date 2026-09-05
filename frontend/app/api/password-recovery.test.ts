@@ -16,7 +16,7 @@ vi.mock('@/lib/server/db/password-recovery', () => ({
   resetManagedAccountMfa: harness.resetMfa,
 }))
 vi.mock('@/auth', () => ({ auth: harness.auth }))
-vi.mock('@/lib/auth/route-guard', () => ({ requireRecentTotpAdmin: harness.guard }))
+vi.mock('@/lib/auth/route-guard', () => ({ requireRecentTotp: harness.guard }))
 
 const accountId = '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
 const targetId = '2c0d7d68-e70d-4f22-9487-57b3df572b6c'
