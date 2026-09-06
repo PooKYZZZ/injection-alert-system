@@ -1551,7 +1551,7 @@ describe('bff-client', () => {
           verified_label: 'Normal',
           approval_state: 'approved_for_training',
           reviewer_id: 'account-7',
-          reviewer_role: 'ANALYST',
+          reviewer_role: 'OWNER',
           reviewed_at: '2026-08-02T00:00:00Z',
           model_version: 'model-v1',
           input_hash: null,
@@ -1570,7 +1570,7 @@ describe('bff-client', () => {
         approval_state: 'approved_for_training',
         review_note: 'Confirmed',
       },
-      { id: 'account-7', role: 'ANALYST' }
+      { id: 'account-7', role: 'OWNER' }
     )
 
     expect(result.ok).toBe(true)
@@ -1582,7 +1582,7 @@ describe('bff-client', () => {
           Authorization: 'Bearer test-secret',
           'Content-Type': 'application/json',
           'X-Reviewer-Id': 'account-7',
-          'X-Reviewer-Role': 'ANALYST',
+          'X-Reviewer-Role': 'OWNER',
         },
         body: JSON.stringify({
           verified_label: 'Normal',

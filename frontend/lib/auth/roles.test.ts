@@ -22,6 +22,7 @@ describe('role permission policy', () => {
       ALERTS_READ: 'alerts:read',
       ALERTS_TRIAGE: 'alerts:triage',
       ALERTS_ACTION_UPDATE: 'alerts:action:update',
+      TRAINING_FEEDBACK_MANAGE: 'training-feedback:manage',
       STATS_READ: 'stats:read',
       ML_HEALTH_READ: 'ml-health:read',
       ML_MODEL_READ: 'ml-model:read',
@@ -54,6 +55,7 @@ describe('role permission policy', () => {
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ML_MODEL_APPROVE)).toBe(false)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_TRIAGE)).toBe(true)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ALERTS_ACTION_UPDATE)).toBe(false)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.TRAINING_FEEDBACK_MANAGE)).toBe(false)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.ACCOUNTS_MANAGE)).toBe(false)
     expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.MFA_ENROLLMENT)).toBe(true)
   })
@@ -75,8 +77,16 @@ describe('role permission policy', () => {
     }
   })
 
+  it('keeps Training Feedback management exclusive to OWNER', () => {
+    for (const role of [ROLES.ADMIN, ROLES.ANALYST, ROLES.VIEWER]) {
+      expect(roleHasPermission(role, PERMISSIONS.TRAINING_FEEDBACK_MANAGE)).toBe(false)
+    }
+    expect(roleHasPermission(ROLES.OWNER, PERMISSIONS.TRAINING_FEEDBACK_MANAGE)).toBe(true)
+  })
+
   it('denies unknown and missing roles', () => {
     expect(roleHasPermission('NOT_A_ROLE', PERMISSIONS.ALERTS_READ)).toBe(false)
+    expect(roleHasPermission('NOT_A_ROLE', PERMISSIONS.TRAINING_FEEDBACK_MANAGE)).toBe(false)
     expect(roleHasPermission(undefined, PERMISSIONS.ALERTS_READ)).toBe(false)
   })
 

@@ -20,7 +20,10 @@ export async function POST(
 ): Promise<Response> {
   try {
     const session = await auth()
-    const authorization = await requirePermission(session, PERMISSIONS.ALERTS_TRIAGE)
+    const authorization = await requirePermission(
+      session,
+      PERMISSIONS.TRAINING_FEEDBACK_MANAGE
+    )
     if (!authorization.ok) return authorization.response
 
     const { id } = await params

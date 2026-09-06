@@ -649,9 +649,9 @@ describe('BFF route handlers', () => {
     })
   })
 
-  it('label review POST forwards canonical data and session-derived identity', async () => {
-    setCurrentAccount(ROLES.ANALYST)
-    authMock.mockResolvedValueOnce(session(ROLES.ANALYST))
+  it('label review POST forwards canonical data and Owner session-derived identity', async () => {
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
     submitAlertLabelReviewMock.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -661,7 +661,7 @@ describe('BFF route handlers', () => {
         verified_label: 'SQL Injection',
         approval_state: 'approved_for_training',
         reviewer_id: accountId,
-        reviewer_role: 'ANALYST',
+        reviewer_role: 'OWNER',
         reviewed_at: '2026-08-02T00:00:00Z',
       },
     })
@@ -686,23 +686,31 @@ describe('BFF route handlers', () => {
         approval_state: 'approved_for_training',
         review_note: 'Confirmed',
       },
-      { id: accountId, role: 'ANALYST' }
+      { id: accountId, role: 'OWNER' }
     )
   })
 
-  it('label review POST rejects viewers and unknown body fields before forwarding', async () => {
-    setCurrentAccount(ROLES.VIEWER)
-    authMock.mockResolvedValueOnce(session(ROLES.VIEWER))
-    const jsonMock = vi.fn()
-    const viewerResponse = await (await import('./alerts/[id]/label-review/route')).POST(
-      { json: jsonMock } as unknown as NextRequest,
-      { params: Promise.resolve({ id: '1' }) }
-    )
-    expect(viewerResponse.status).toBe(403)
-    expect(jsonMock).not.toHaveBeenCalled()
+  it.each([ROLES.ADMIN, ROLES.ANALYST, ROLES.VIEWER] as const)(
+    'label review POST rejects %s before parsing or forwarding',
+    async (role) => {
+      setCurrentAccount(role)
+      authMock.mockResolvedValueOnce(session(role))
+      const jsonMock = vi.fn()
+      const { POST } = await import('./alerts/[id]/label-review/route')
+      const response = await POST(
+        { json: jsonMock } as unknown as NextRequest,
+        { params: Promise.resolve({ id: '1' }) }
+      )
 
-    setCurrentAccount(ROLES.ANALYST)
-    authMock.mockResolvedValueOnce(session(ROLES.ANALYST))
+      expect(response.status).toBe(403)
+      expect(jsonMock).not.toHaveBeenCalled()
+      expect(submitAlertLabelReviewMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('Owner label review POST rejects unknown body fields before forwarding', async () => {
+    setCurrentAccount(ROLES.OWNER)
+    authMock.mockResolvedValueOnce(session(ROLES.OWNER))
     const { POST } = await import('./alerts/[id]/label-review/route')
     const response = await POST(
       new NextRequest('http://localhost:3000/api/alerts/1/label-review', {

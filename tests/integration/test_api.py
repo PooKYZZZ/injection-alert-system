@@ -280,9 +280,10 @@ def test_alerts_endpoint_with_data(client):
 def test_feedback_endpoint(client):
     """Test feedback endpoint stores analyst correction"""
     # First create a prediction
+    raw_request = "GET /api/training-feedback-owner-test"
     client.post(
         "/api/predict",
-        json={"http_request": "GET /api/test"},
+        json={"http_request": raw_request},
         headers=INTERNAL_HEADERS,
     )
 
@@ -290,33 +291,118 @@ def test_feedback_endpoint(client):
     alerts_response = client.get("/api/alerts", headers=INTERNAL_HEADERS)
     alerts = alerts_response.json()["items"]
 
-    if alerts:
-        traffic_id = alerts[0]["id"]
-        feedback_response = client.post(
-            "/api/feedback",
-            json={
-                "traffic_id": traffic_id,
-                "correct_label": "Normal",
-                "analyst_email": "test@example.com",
-            },
-            headers=INTERNAL_HEADERS,
-        )
-        assert feedback_response.status_code == 200
+    alert = alerts[0]
+    feedback_response = client.post(
+        "/api/feedback",
+        json={
+            "traffic_id": alert["id"],
+            "correct_label": "Normal",
+            "analyst_email": "test@example.com",
+        },
+        headers={
+            **INTERNAL_HEADERS,
+            "X-Reviewer-Id": "owner-feedback",
+            "X-Reviewer-Role": "OWNER",
+        },
+    )
+    assert feedback_response.status_code == 200
+    detail = client.get(f"/api/alerts/{alert['id']}", headers=INTERNAL_HEADERS)
+    assert detail.status_code == 200
+    assert detail.json()["analyst_label"] == "Normal"
+    assert detail.json()["labeled_by"] == "test@example.com"
+
+
+@pytest.mark.parametrize(
+    "role", ["OWNER", "ADMIN", "ANALYST", "VIEWER", "FUTURE_ROLE"]
+)
+def test_label_review_role_matrix_preserves_read_access_and_mutation_boundary(
+    client, role
+):
+    raw_request = f"SELECT * FROM training_feedback_role_matrix WHERE role='{role}'"
+    prediction = client.post(
+        "/api/predict",
+        json={"http_request": raw_request},
+        headers=INTERNAL_HEADERS,
+    )
+    assert prediction.status_code == 200
+
+    alerts = client.get("/api/alerts", headers=INTERNAL_HEADERS).json()["items"]
+    alert = alerts[0]
+    alert_id = alert["id"]
+    reviewer_headers = {
+        **INTERNAL_HEADERS,
+        "X-Reviewer-Id": f"{role.lower()}-label-review",
+        "X-Reviewer-Role": role,
+    }
+
+    response = client.post(
+        f"/api/alerts/{alert_id}/label-review",
+        json={
+            "verified_label": "SQL Injection",
+            "approval_state": "approved_for_training",
+        },
+        headers=reviewer_headers,
+    )
+    detail = client.get(f"/api/alerts/{alert_id}", headers=INTERNAL_HEADERS)
+
+    assert detail.status_code == 200
+    assert detail.json()["id"] == alert_id
+    assert detail.json()["prediction"] == "SQL Injection"
+    if role == "OWNER":
+        assert response.status_code == 200
+        assert detail.json()["label_review"]["reviewer_role"] == "OWNER"
+    else:
+        assert response.status_code == 403
+        assert detail.json().get("label_review") is None
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "ANALYST", "VIEWER"])
+def test_legacy_feedback_role_matrix_rejects_non_owners_without_mutation(client, role):
+    raw_request = f"SELECT * FROM legacy_training_feedback_matrix WHERE role='{role}'"
+    prediction = client.post(
+        "/api/predict",
+        json={"http_request": raw_request},
+        headers=INTERNAL_HEADERS,
+    )
+    assert prediction.status_code == 200
+
+    alerts = client.get("/api/alerts", headers=INTERNAL_HEADERS).json()["items"]
+    alert = alerts[0]
+    response = client.post(
+        "/api/feedback",
+        json={
+            "traffic_id": alert["id"],
+            "correct_label": "Normal",
+            "analyst_email": "spoofed@example.com",
+        },
+        headers={
+            **INTERNAL_HEADERS,
+            "X-Reviewer-Id": f"{role.lower()}-legacy-feedback",
+            "X-Reviewer-Role": role,
+        },
+    )
+    detail = client.get(f"/api/alerts/{alert['id']}", headers=INTERNAL_HEADERS)
+
+    assert response.status_code == 403
+    assert detail.status_code == 200
+    assert detail.json().get("analyst_label") is None
 
 
 def test_verified_label_reviews_are_append_only_and_project_latest_state(client):
+    raw_request = "SELECT * FROM accounts WHERE id=1 AND source='append-only-test'"
     client.post(
         "/api/predict",
-        json={"http_request": "SELECT * FROM accounts WHERE id=1"},
+        json={"http_request": raw_request},
         headers=INTERNAL_HEADERS,
     )
-    initial_detail = client.get("/api/alerts", headers=INTERNAL_HEADERS).json()["items"][0]
+    alerts = client.get("/api/alerts", headers=INTERNAL_HEADERS).json()["items"]
+    initial_detail = alerts[0]
     alert_id = initial_detail["id"]
     original_action = initial_detail["action_taken"]
     reviewer_headers = {
         **INTERNAL_HEADERS,
-        "X-Reviewer-Id": "integration-analyst",
-        "X-Reviewer-Role": "ANALYST",
+        "X-Reviewer-Id": "integration-owner",
+        "X-Reviewer-Role": "OWNER",
     }
 
     first = client.post(

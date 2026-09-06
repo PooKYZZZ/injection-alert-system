@@ -36,6 +36,13 @@ def test_only_owner_has_ml_permissions(role: UserRole) -> None:
         assert role_has_permission(role, permission) is (role is UserRole.OWNER)
 
 
+@pytest.mark.parametrize("role", list(UserRole))
+def test_training_feedback_management_is_owner_only(role: UserRole) -> None:
+    assert role_has_permission(role, Permission.TRAINING_FEEDBACK_MANAGE) is (
+        role is UserRole.OWNER
+    )
+
+
 def test_owner_inherits_every_existing_permission() -> None:
     assert ROLE_PERMISSIONS[UserRole.OWNER] == frozenset(Permission)
 
@@ -43,4 +50,5 @@ def test_owner_inherits_every_existing_permission() -> None:
 def test_unknown_roles_fail_closed() -> None:
     assert parse_user_role("not-a-role") is None
     assert not role_has_permission("not-a-role", Permission.ALERTS_READ)
+    assert not role_has_permission("not-a-role", Permission.TRAINING_FEEDBACK_MANAGE)
     assert not role_has_permission(None, Permission.ML_MODEL_READ)

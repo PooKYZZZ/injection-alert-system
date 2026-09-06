@@ -16,6 +16,7 @@ class Permission(StrEnum):
     ALERTS_READ = "alerts:read"
     ALERTS_TRIAGE = "alerts:triage"
     ALERTS_ACTION_UPDATE = "alerts:action:update"
+    TRAINING_FEEDBACK_MANAGE = "training-feedback:manage"
     STATS_READ = "stats:read"
     ML_HEALTH_READ = "ml-health:read"
     ML_MODEL_READ = "ml-model:read"

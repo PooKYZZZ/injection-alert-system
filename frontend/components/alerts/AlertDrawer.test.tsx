@@ -94,7 +94,7 @@ describe('AlertDrawer', () => {
   it('removes placeholder header text, styles captured request as evidence, and keeps unselected interventions actionable', () => {
     render(
       <AlertDrawer
-        role="ADMIN"
+        role="OWNER"
         alert={{
           alert_id: 'drawer-1',
           transaction_id: 'tx-drawer-1',
@@ -216,14 +216,15 @@ describe('AlertDrawer', () => {
   })
 
   it.each([
-    ['VIEWER', false, false],
-    ['ANALYST', true, false],
-    ['ADMIN', true, true],
-    [undefined, false, false],
-    ['OWNER', true, true],
+    ['VIEWER', false, false, false],
+    ['ANALYST', true, false, false],
+    ['ADMIN', true, true, false],
+    [undefined, false, false, false],
+    ['FUTURE_ROLE', false, false, false],
+    ['OWNER', true, true, true],
   ] as const)(
     'renders mutation affordances for role %s',
-    (role, canTriage, canUpdateAction) => {
+    (role, canTriage, canUpdateAction, canManageTrainingFeedback) => {
       render(
         <AlertDrawer
           role={role}
@@ -250,6 +251,12 @@ describe('AlertDrawer', () => {
       expect(Boolean(screen.queryByRole('button', { name: /Blocked/i }))).toBe(
         canUpdateAction
       )
+      expect(
+        Boolean(screen.queryByRole('heading', { name: 'Training feedback' }))
+      ).toBe(canManageTrainingFeedback)
+      expect(Boolean(screen.queryByLabelText('Verified classification'))).toBe(
+        canManageTrainingFeedback
+      )
 
       if (role === 'ANALYST') {
         expect(screen.getByText('Action updates require Admin.')).toBeInTheDocument()
@@ -263,8 +270,8 @@ describe('AlertDrawer', () => {
     }
   )
 
-  it('shows analyst review controls and requires a selection before submitting', () => {
-    render(<AlertDrawer role="ANALYST" alert={alertFixture} onClose={vi.fn()} />)
+  it('shows Owner review controls and requires a selection before submitting', () => {
+    render(<AlertDrawer role="OWNER" alert={alertFixture} onClose={vi.fn()} />)
 
     expect(screen.getByLabelText('Verified classification')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Approve for training' })).toBeDisabled()
@@ -294,14 +301,14 @@ describe('AlertDrawer', () => {
       revision: 2,
       verified_label: 'Normal',
       approval_state: 'approved_for_training',
-      reviewer_id: 'analyst-1',
-      reviewer_role: 'ANALYST',
+      reviewer_id: 'owner-1',
+      reviewer_role: 'OWNER',
       reviewed_at: '2026-08-04T00:00:00Z',
     }
 
     render(
       <AlertDrawer
-        role="ANALYST"
+        role="OWNER"
         alert={alertFixture}
         onClose={vi.fn()}
         onReviewUpdated={onReviewUpdated}
@@ -325,12 +332,20 @@ describe('AlertDrawer', () => {
     expect(screen.getByTestId('alert-drawer-scroll-region')).toHaveClass('overflow-y-auto')
   })
 
-  it('hides verified review mutation controls from viewers', () => {
-    render(<AlertDrawer role="VIEWER" alert={alertFixture} onClose={vi.fn()} />)
+  it.each(['ADMIN', 'ANALYST', 'VIEWER'] as const)(
+    'hides the complete training feedback section from %s',
+    (role) => {
+      render(<AlertDrawer role={role} alert={alertFixture} onClose={vi.fn()} />)
 
-    expect(screen.queryByLabelText('Verified classification')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Approve for training' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Exclude from training' })).not.toBeInTheDocument()
-    expect(labelReviewMutateMock).not.toHaveBeenCalled()
-  })
+      expect(
+        screen.queryByRole('heading', { name: 'Training feedback' })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Verified classification')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Review note (optional)')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Approve for training' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Exclude from training' })).not.toBeInTheDocument()
+      expect(screen.getByText('Alert ID')).toBeInTheDocument()
+      expect(labelReviewMutateMock).not.toHaveBeenCalled()
+    }
+  )
 })

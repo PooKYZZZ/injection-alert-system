@@ -6,6 +6,7 @@ from web_app.application.label_review_use_case import (
     InvalidLabelReviewError,
     LabelReviewUseCase,
     ReviewerContext,
+    UnauthorizedLabelReviewerError,
 )
 from web_app.domain.interfaces import TrafficLabelReview
 
@@ -28,8 +29,8 @@ def _review() -> TrafficLabelReview:
         predicted_label="SQL Injection",
         verified_label="Normal",
         approval_state="approved_for_training",
-        reviewer_id="analyst-1",
-        reviewer_role="ANALYST",
+        reviewer_id="owner-1",
+        reviewer_role="OWNER",
         reviewed_at=datetime.now(),
         model_version="model-v1",
         input_hash="a" * 64,
@@ -44,12 +45,12 @@ async def test_valid_review_uses_authenticated_reviewer_context():
         alert_id=10,
         verified_label="Normal",
         approval_state="approved_for_training",
-        reviewer=ReviewerContext("analyst-1", "ANALYST"),
+        reviewer=ReviewerContext("owner-1", "OWNER"),
     )
 
     assert result.review.id == 1
-    assert repository.arguments["reviewer_id"] == "analyst-1"
-    assert repository.arguments["reviewer_role"] == "ANALYST"
+    assert repository.arguments["reviewer_id"] == "owner-1"
+    assert repository.arguments["reviewer_role"] == "OWNER"
     assert isinstance(repository.arguments["reviewed_at"], datetime)
 
 
@@ -60,12 +61,11 @@ async def test_invalid_label_state_identity_and_note_are_rejected():
         "alert_id": 10,
         "verified_label": "Normal",
         "approval_state": "approved_for_training",
-        "reviewer": ReviewerContext("analyst-1", "ANALYST"),
+        "reviewer": ReviewerContext("owner-1", "OWNER"),
     }
     for override in [
         {"verified_label": "free-form"},
         {"approval_state": "superseded"},
-        {"reviewer": ReviewerContext("viewer-1", "VIEWER")},
         {"review_note": "x" * 1001},
     ]:
         with pytest.raises(InvalidLabelReviewError):
@@ -79,6 +79,22 @@ async def test_unknown_alert_returns_none():
         alert_id=999,
         verified_label="Normal",
         approval_state="excluded_from_training",
-        reviewer=ReviewerContext("analyst-1", "ANALYST"),
+        reviewer=ReviewerContext("owner-1", "OWNER"),
     )
     assert result is None
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "ANALYST", "VIEWER"])
+@pytest.mark.asyncio
+async def test_non_owner_cannot_submit_label_review(role):
+    repository = RecordingRepository(_review())
+
+    with pytest.raises(UnauthorizedLabelReviewerError):
+        await LabelReviewUseCase(repository).execute(
+            alert_id=10,
+            verified_label="Normal",
+            approval_state="approved_for_training",
+            reviewer=ReviewerContext(f"{role.lower()}-1", role),
+        )
+
+    assert repository.arguments is None

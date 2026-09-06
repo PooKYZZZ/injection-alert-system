@@ -255,14 +255,15 @@ commands for current totals. Current release evidence is summarized in
 
 ### Verify a label review locally
 
-With the backend test environment running and an authenticated analyst or admin
-session available, create a prediction and open its alert in the dashboard.
+With the backend test environment running and an authenticated Owner session
+available, create a prediction and open its alert in the dashboard.
 Use the drawer's **Verified label** controls to submit one of the four labels:
 `SQL Injection`, `Code Injection`, `Other Attacks`, or `Normal`. Choose either
 `approved_for_training` or `excluded_from_training` and optionally add a note.
 Submit a second review, then reload the alert: the response should show the
-second revision while the existing triage action remains unchanged. A viewer
-must see the review read-only and receive `403` if it attempts the BFF route.
+second revision while the existing triage action remains unchanged. Admin,
+Analyst, and Viewer sessions retain read-only alert information, do not see the
+Training Feedback section, and receive `403` if they attempt the BFF route.
 
 The browser calls `frontend/app/api/alerts/[id]/label-review/route.ts`; that
 route derives reviewer id/role from the server session and proxies to the
@@ -358,7 +359,9 @@ Notes:
 - Login audit events are single-line JSON logs with hashed identifiers and fixed reason codes. They are operational logs, not a persistent or tamper-resistant audit store.
 - `INTERNAL_API_KEY` must match backend `API_SECRET_KEY` for BFF-to-FastAPI requests.
 - `USE_MOCK_API` is the only server-side mock toggle for alerts, alert detail, triage, stats, and ML health.
-- Verified label review is persisted only through the authenticated BFF and database-backed FastAPI route. With `USE_MOCK_API=true`, the BFF returns `503` unavailable and never fabricates a successful review.
+- Verified label review is persisted only through the authenticated Owner-only
+  BFF and database-backed FastAPI route. With `USE_MOCK_API=true`, the BFF
+  returns `503` unavailable and never fabricates a successful review.
 - Keep backend-only values unprefixed. Do not add `NEXT_PUBLIC_` to server-only secrets.
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.

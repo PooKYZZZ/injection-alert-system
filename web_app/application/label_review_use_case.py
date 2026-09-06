@@ -44,14 +44,18 @@ class LabelReviewUseCase:
         reviewer: ReviewerContext,
         review_note: str | None = None,
     ) -> LabelReviewResult | None:
+        if not role_has_permission(
+            reviewer.reviewer_role, Permission.TRAINING_FEEDBACK_MANAGE
+        ):
+            raise UnauthorizedLabelReviewerError(
+                "reviewer role is not authorized to manage training feedback"
+            )
         if verified_label not in CANONICAL_LABELS:
             raise InvalidLabelReviewError("verified_label is not canonical")
         if approval_state not in REVIEW_ACTION_STATES:
             raise InvalidLabelReviewError("approval_state is not a review action")
         if not reviewer.reviewer_id or len(reviewer.reviewer_id) > 128:
             raise InvalidLabelReviewError("reviewer identity is invalid")
-        if not role_has_permission(reviewer.reviewer_role, Permission.ALERTS_TRIAGE):
-            raise UnauthorizedLabelReviewerError("reviewer role is not authorized")
         if review_note is not None and len(review_note) > 1000:
             raise InvalidLabelReviewError("review note is too long")
 

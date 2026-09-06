@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
+from web_app.domain.authorization import Permission, role_has_permission
 from web_app.domain.interfaces import ITrafficLogRepository
 
 
@@ -26,6 +27,10 @@ class FeedbackResult:
     success: bool
     traffic_id: int
     message: str
+
+
+class UnauthorizedFeedbackReviewerError(PermissionError):
+    """Raised when a caller cannot mutate legacy training feedback."""
 
 
 class FeedbackUseCase:
@@ -43,8 +48,16 @@ class FeedbackUseCase:
         traffic_id: int,
         correct_label: str,
         analyst_email: str,
+        reviewer_role: str | None = None,
     ) -> FeedbackResult:
         """Record analyst feedback for a traffic log entry."""
+        if not role_has_permission(
+            reviewer_role, Permission.TRAINING_FEEDBACK_MANAGE
+        ):
+            raise UnauthorizedFeedbackReviewerError(
+                "reviewer role is not authorized to manage training feedback"
+            )
+
         updated = await self._repository.update_feedback(
             traffic_id=traffic_id,
             analyst_label=correct_label,

@@ -88,8 +88,8 @@ def test_label_review_rejects_superseded_client_action_and_unknown_fields(client
         headers={
             **INTERNAL_HEADERS,
             "X-Request-ID": "abuse-label-review",
-            "X-Reviewer-Id": "analyst-1",
-            "X-Reviewer-Role": "ANALYST",
+            "X-Reviewer-Id": "owner-1",
+            "X-Reviewer-Role": "OWNER",
         },
     )
     assert response.status_code == 422
@@ -105,8 +105,8 @@ def test_label_review_rejects_superseded_as_invalid_request(client):
         },
         headers={
             **INTERNAL_HEADERS,
-            "X-Reviewer-Id": "analyst-1",
-            "X-Reviewer-Role": "ANALYST",
+            "X-Reviewer-Id": "owner-1",
+            "X-Reviewer-Role": "OWNER",
         },
     )
 

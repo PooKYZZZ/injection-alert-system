@@ -55,6 +55,10 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
     role,
     PERMISSIONS.ALERTS_ACTION_UPDATE
   )
+  const canManageTrainingFeedback = roleHasPermission(
+    role,
+    PERMISSIONS.TRAINING_FEEDBACK_MANAGE
+  )
   const [verifiedLabel, setVerifiedLabel] = useState<VerifiedLabel | ''>(
     alert?.label_review?.verified_label ?? ''
   )
@@ -107,7 +111,12 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   const handleLabelReview = (
     approvalState: 'approved_for_training' | 'excluded_from_training'
   ) => {
-    if (alert && verifiedLabel && !isLabelReviewPending) {
+    if (
+      canManageTrainingFeedback &&
+      alert &&
+      verifiedLabel &&
+      !isLabelReviewPending
+    ) {
       mutateLabelReview({
         id: alert.alert_id,
         verifiedLabel,
@@ -384,14 +393,14 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </div>
                   </section>
 
-                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                      Training feedback
-                    </h3>
-                    <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                      Add a correct label for training review. The current model is not changed automatically.
-                    </p>
-                    {canTriage ? (
+                  {canManageTrainingFeedback && (
+                    <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
+                      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Training feedback
+                      </h3>
+                      <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
+                        Add a correct label for training review. The current model is not changed automatically.
+                      </p>
                       <div className="space-y-2">
                         <label htmlFor="verified-label" className="sr-only">
                           Verified classification
@@ -439,15 +448,13 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           </button>
                         </div>
                       </div>
-                    ) : (
-                      <p className="text-[11px] text-[var(--color-text-secondary)]">Viewer mode: training feedback is read-only.</p>
-                    )}
-                    {alert.label_review && (
-                      <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
-                        Latest: {alert.label_review.verified_label} ({alert.label_review.approval_state.replaceAll('_', ' ')}) by {alert.label_review.reviewer_id} at {formatAlertDateTime(alert.label_review.reviewed_at)}
-                      </p>
-                    )}
-                  </section>
+                      {alert.label_review && (
+                        <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+                          Latest: {alert.label_review.verified_label} ({alert.label_review.approval_state.replaceAll('_', ' ')}) by {alert.label_review.reviewer_id} at {formatAlertDateTime(alert.label_review.reviewed_at)}
+                        </p>
+                      )}
+                    </section>
+                  )}
 
                   <section>
                     <div className="grid gap-4 md:grid-cols-2">

@@ -213,7 +213,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - Authentication is implemented with Auth.js credentials auth
 - Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; hosted account invitation, setup, password, TOTP, and MFA login flows are verified
 - Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow includes encrypted TOTP enrollment, replay-safe MFA completion, recovery-only claims, and password recovery behind fail-closed server-side availability flags
-- Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, admins keep the full alert/account control set, and Owner is the only role with ML Health and ML Deployment access
+- Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, admins keep the full alert/account control set, and Owner is the only role with ML Health, ML Deployment, and Training Feedback access
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/ml-health`, and `/ml-model`
 - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`
@@ -224,8 +224,8 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   - `frontend/app/api/alerts/[id]/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/alerts/[id]/triage/route.ts` handles PATCH triage
   - `frontend/app/api/alerts/[id]/label-review/route.ts` handles authenticated
-    verified-label review submission; reviewer identity and role come from the
-    server session and are not accepted from the browser body
+    Owner-only verified-label review submission; reviewer identity and role come
+    from the server session and are not accepted from the browser body
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode after the Owner-only permission check
   - `frontend/app/api/ml-model/*` proxies the Owner-only ML Deployment control plane to FastAPI in non-mock mode

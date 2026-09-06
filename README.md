@@ -251,9 +251,9 @@ curl -X POST "http://localhost:8000/api/predict" \
   - `PATCH /api/alerts/{id}/triage`
   - `GET /api/stats`
   - `GET /api/ml-health`
-- Internal bearer-token protected backend endpoints:
+- Internal bearer-token protected backend endpoints (training-feedback mutations require the Owner-only `TRAINING_FEEDBACK_MANAGE` permission from the authenticated BFF):
   - `POST /api/feedback`
-  - `POST /api/alerts/{alert_id}/label-review` (requires trusted reviewer context from the authenticated BFF)
+  - `POST /api/alerts/{alert_id}/label-review`
 - Public backend endpoints:
   - `GET /health`
   - `GET /api/health`

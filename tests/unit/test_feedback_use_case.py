@@ -7,7 +7,10 @@ without touching the database.
 import pytest
 from unittest.mock import AsyncMock
 
-from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.application.feedback_use_case import (
+    FeedbackUseCase,
+    UnauthorizedFeedbackReviewerError,
+)
 from web_app.domain.interfaces import TrafficLogEntity
 
 
@@ -35,6 +38,7 @@ async def test_feedback_success(mock_repository):
         traffic_id=1,
         correct_label="False Positive",
         analyst_email="analyst@example.com",
+        reviewer_role="OWNER",
     )
 
     assert result.success is True
@@ -53,8 +57,25 @@ async def test_feedback_not_found(mock_repository):
         traffic_id=999,
         correct_label="Normal",
         analyst_email="analyst@example.com",
+        reviewer_role="OWNER",
     )
 
     assert result.success is False
     assert result.traffic_id == 999
     assert "not found" in result.message.lower()
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "ANALYST", "VIEWER"])
+@pytest.mark.asyncio
+async def test_non_owner_cannot_mutate_legacy_feedback(mock_repository, role):
+    use_case = FeedbackUseCase(repository=mock_repository)
+
+    with pytest.raises(UnauthorizedFeedbackReviewerError):
+        await use_case.execute(
+            traffic_id=1,
+            correct_label="Normal",
+            analyst_email="analyst@example.com",
+            reviewer_role=role,
+        )
+
+    mock_repository.update_feedback.assert_not_called()

@@ -33,7 +33,10 @@ from web_app.application.enforcement_use_cases import (
     RecordShadowRecommendationUseCase,
     VerifyEnforcementChallengeUseCase,
 )
-from web_app.application.feedback_use_case import FeedbackUseCase
+from web_app.application.feedback_use_case import (
+    FeedbackUseCase,
+    UnauthorizedFeedbackReviewerError,
+)
 from web_app.application.inference_queue import (
     InferenceQueueFullError,
     InferenceQueueService,
@@ -92,7 +95,6 @@ from web_app.presentation.dependencies.auth import (
     verify_waf_ingest_token,
 )
 from web_app.presentation.dependencies.authorization import (
-    get_reviewer_context,
     require_reviewer_permission,
 )
 from web_app.presentation.schemas import (
@@ -751,15 +753,22 @@ async def get_alerts(
 async def submit_feedback(
     feedback: FeedbackRequest,
     repository: TrafficLogRepository = Depends(get_repository),
+    reviewer: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.TRAINING_FEEDBACK_MANAGE)
+    ),
 ):
-    """Store analyst feedback/correction for a prediction."""
+    """Store Owner-authorized legacy feedback/correction for a prediction."""
     use_case = FeedbackUseCase(repository=repository)
 
-    result = await use_case.execute(
-        traffic_id=feedback.traffic_id,
-        correct_label=feedback.correct_label,
-        analyst_email=feedback.analyst_email,
-    )
+    try:
+        result = await use_case.execute(
+            traffic_id=feedback.traffic_id,
+            correct_label=feedback.correct_label,
+            analyst_email=feedback.analyst_email,
+            reviewer_role=reviewer.reviewer_role,
+        )
+    except UnauthorizedFeedbackReviewerError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     if not result.success:
         raise HTTPException(status_code=404, detail=result.message)
@@ -774,9 +783,11 @@ async def submit_label_review(
     alert_id: int = Path(..., ge=1),
     request: LabelReviewRequest = ...,
     repository: TrafficLabelReviewRepository = Depends(get_label_review_repository),
-    reviewer: ReviewerContext = Depends(get_reviewer_context),
+    reviewer: ReviewerContext = Depends(
+        require_reviewer_permission(Permission.TRAINING_FEEDBACK_MANAGE)
+    ),
 ):
-    """Record one authenticated analyst review revision."""
+    """Record one authenticated Owner review revision."""
     try:
         result = await LabelReviewUseCase(repository).execute(
             alert_id=alert_id,
