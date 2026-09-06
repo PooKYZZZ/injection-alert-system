@@ -138,7 +138,7 @@ describe('MLHealthPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Policy' }))
 
     expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
-    expect(screen.getAllByText('Automatic response bands for non-Normal predictions.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Automatic response bands for in-scope actionable attacks.').length).toBeGreaterThan(0)
   })
 
   it('renders loading and error states from the workspace component', async () => {

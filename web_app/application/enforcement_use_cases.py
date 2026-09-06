@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
 
+from web_app.domain.classification_scope import is_actionable_attack_class
 from web_app.domain.enforcement import (
     ACTIVE_POLICY_VERSION,
     ChallengeGrant,
@@ -471,7 +472,11 @@ class RecordShadowRecommendationUseCase:
         request_path: str,
         occurred_at: datetime | None = None,
     ) -> bool:
-        if self._mode is EnforcementMode.OFF or alert_id is None:
+        if (
+            self._mode is EnforcementMode.OFF
+            or alert_id is None
+            or not is_actionable_attack_class(prediction)
+        ):
             return False
         try:
             recommendation = EnforcementPolicy.recommend(

@@ -28,8 +28,6 @@ const colorMap: Record<AlertPrediction, string> = {
 const labelOrder: AlertPrediction[] = [
   'SQL Injection',
   'Code Injection',
-  'Other Attacks',
-  'Normal',
 ]
 
 const viewButtonClasses =

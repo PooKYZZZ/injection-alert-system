@@ -18,6 +18,8 @@ from typing import Any
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+from web_app.domain.classification_scope import is_actionable_attack_class
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FIXTURE_DATASET = (
     REPO_ROOT / "scripts" / "fixtures" / "attack_dataset_samples.json"
@@ -681,7 +683,7 @@ def expected_action_for(
 ) -> str | None:
     if expected_label == "Normal":
         return "ALLOWED"
-    if expected_label not in ATTACK_LABELS:
+    if not is_actionable_attack_class(expected_label):
         return None
     return {
         "LOW": "ALLOWED",
@@ -700,11 +702,14 @@ def classify_failure(result: PredictionResult) -> str:
         result.predicted_label is None
         or result.confidence is None
         or result.confidence_level is None
-        or result.action_taken is None
     ):
         return "confidence/calibration"
     expected_action = expected_action_for(result.sample.label, result.confidence_level)
-    if expected_action and result.action_taken != expected_action:
+    if expected_action is None:
+        return "policy" if result.action_taken is not None else ""
+    if result.action_taken is None:
+        return "confidence/calibration"
+    if result.action_taken != expected_action:
         return "policy"
     return ""
 
@@ -718,12 +723,13 @@ def acceptance_status(result: PredictionResult) -> str:
         or result.predicted_label is None
         or result.confidence is None
         or result.confidence_level is None
-        or result.action_taken is None
     ):
         return "REVIEW"
     expected_action = expected_action_for(expected_label, result.confidence_level)
     label_ok = result.predicted_label == expected_label
-    action_ok = expected_action is None or result.action_taken == expected_action
+    action_ok = result.action_taken == expected_action
+    if expected_action is not None and result.action_taken is None:
+        return "REVIEW"
     if not label_ok or not action_ok:
         return (
             "FAIL"
@@ -755,7 +761,7 @@ def _report_row(
     expected_action = expected_action_for(result.sample.label, result.confidence_level)
     action_match = (
         ""
-        if not expected_action or not result.action_taken
+        if not result.sample.label
         else str(result.action_taken == expected_action)
     )
     input_sha256 = hashlib.sha256(

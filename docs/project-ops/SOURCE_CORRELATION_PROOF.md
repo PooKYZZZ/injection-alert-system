@@ -170,8 +170,8 @@ confirmed.
 ## Target-only isolation prerequisite
 
 `docker-compose.target-cloudflare.yml` is a separate target-specific overlay.
-It pins `cloudflare/cloudflared:2026.7.1` to digest
-`sha256:188bb03589a32affed3cf4d0590565ffe67b78866e6b5582574afab2b705bafe`,
+The current repository pin is
+`cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339`,
 uses the read-only external secret `CLOUDFLARED_TARGET_TOKEN_FILE`, and runs
 the metrics readiness endpoint on port `20241`. The WAF ingress network is
 `internal: true`, uses `172.30.20.0/28`, and assigns `172.30.20.2` to

@@ -39,16 +39,16 @@ export function MLEnforcementMap({
       className="min-w-0 flex flex-col gap-1.5"
     >
       <div className="break-words text-[11px] font-medium text-[var(--color-text-primary)]">
-        Action policy for non-Normal predictions
+        Action policy for actionable attacks
       </div>
       <div className="break-words text-[11px] leading-tight text-[var(--color-text-muted)]">
-        Normal predictions remain ALLOWED for all valid confidence tiers.
+        Normal predictions remain ALLOWED; out-of-scope labels do not enter this policy.
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-high-accent" />
-          <span className="truncate text-[var(--color-accent-analytic)]">CRITICAL non-Normal</span>
+          <span className="truncate text-[var(--color-accent-analytic)]">CRITICAL actionable attacks</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{critical}</span>
@@ -64,7 +64,7 @@ export function MLEnforcementMap({
       <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-high-accent" />
-          <span className="truncate text-[var(--color-accent-analytic)]">HIGH non-Normal</span>
+          <span className="truncate text-[var(--color-accent-analytic)]">HIGH actionable attacks</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{high}</span>
@@ -80,7 +80,7 @@ export function MLEnforcementMap({
       <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[10px]">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-blocked-accent" />
-          <span className="truncate text-[var(--color-accent-analytic)]">MEDIUM non-Normal</span>
+          <span className="truncate text-[var(--color-accent-analytic)]">MEDIUM actionable attacks</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{medium}</span>
@@ -96,7 +96,7 @@ export function MLEnforcementMap({
       <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[10px]">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-severity-safe-accent" />
-          <span className="truncate text-[var(--color-accent-analytic)]">LOW non-Normal</span>
+          <span className="truncate text-[var(--color-accent-analytic)]">LOW actionable attacks</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{low}</span>

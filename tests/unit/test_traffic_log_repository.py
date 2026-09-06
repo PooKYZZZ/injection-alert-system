@@ -80,6 +80,82 @@ async def test_get_stats_summary_preserves_high_confidence_precision(
 
 
 @pytest.mark.asyncio
+async def test_historical_out_of_scope_rows_stay_internal_and_cannot_enter_alert_views(
+    repository: TrafficLogRepository,
+):
+    other = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-historical-other",
+            source_ip="198.51.100.60",
+            request_path="/internal-other",
+            request_method="GET",
+            http_request="GET /internal-other",
+            prediction="Other Attacks",
+            confidence=0.88,
+            confidence_level="HIGH",
+            action_taken="BLOCKED",
+        )
+    )
+    unknown = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-future-label",
+            source_ip="198.51.100.61",
+            request_path="/future-label",
+            request_method="GET",
+            http_request="GET /future-label",
+            prediction="Future Attack",
+            confidence=0.99,
+            confidence_level="CRITICAL",
+            action_taken="BLOCKED",
+        )
+    )
+    normal = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-normal-internal",
+            source_ip="198.51.100.62",
+            request_path="/health",
+            request_method="GET",
+            http_request="GET /health",
+            prediction="Normal",
+            confidence=0.99,
+            confidence_level="HIGH",
+            action_taken="ALLOWED",
+        )
+    )
+    sql = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-sql-operational",
+            source_ip="198.51.100.63",
+            request_path="/login",
+            request_method="POST",
+            http_request="POST /login",
+            prediction="SQL Injection",
+            confidence=0.97,
+            confidence_level="CRITICAL",
+            action_taken="BLOCKED",
+        )
+    )
+
+    page = await repository.get_alert_list(page=1, page_size=100)
+    summary = await repository.get_stats_summary()
+    recent = await repository.list_recent(limit=100)
+
+    assert [item.id for item in page.items] == [sql.id]
+    assert page.total == 1
+    assert summary.total_requests == 2
+    assert summary.high_alert_count == 1
+    assert summary.counts_by_label["Other Attacks"] == 0
+    assert summary.attack_distribution == {"SQL Injection": 1, "Code Injection": 0}
+    assert {item.id for item in recent} == {normal.id, sql.id}
+
+    assert (await repository.get_by_id(other.id)).prediction == "Other Attacks"
+    assert (await repository.get_by_id(unknown.id)).prediction == "Future Attack"
+    assert await repository.get_operational_alert_by_id(other.id) is None
+    assert await repository.update_triage_status(other.id, "in_review") is None
+    assert await repository.update_action_taken(other.id, "ALLOWED") is None
+
+
+@pytest.mark.asyncio
 async def test_get_alert_list_returns_filtered_total_and_stable_order(
     repository: TrafficLogRepository,
 ):
@@ -936,36 +1012,35 @@ async def test_windowed_summary_filters_are_strictly_bounded(
         reference_time=reference_time,
     )
 
-    assert summary.total_requests == 3
+    assert summary.total_requests == 2
     assert summary.blocked_count == 1
     assert summary.throttled_count == 1
-    assert summary.allowed_count == 1
+    assert summary.allowed_count == 0
     assert summary.total_requests == sum(bucket.total_count for bucket in buckets)
     assert summary.blocked_count == sum(bucket.blocked_count for bucket in buckets)
     assert summary.throttled_count == sum(bucket.throttled_count for bucket in buckets)
     assert summary.allowed_count == sum(bucket.allowed_count for bucket in buckets)
-    assert summary.false_positive_count == 1
-    assert summary.false_positive_rate == round((1 / 3) * 100, 2)
+    assert summary.false_positive_count == 0
+    assert summary.false_positive_rate == 0.0
     assert summary.counts_by_confidence_tier == {
         "CRITICAL": 0,
         "HIGH": 2,
-        "MEDIUM": 1,
+        "MEDIUM": 0,
         "LOW": 0,
     }
     assert summary.non_normal_counts_by_confidence_tier == {
         "CRITICAL": 0,
         "HIGH": 2,
-        "MEDIUM": 1,
+        "MEDIUM": 0,
         "LOW": 0,
     }
     assert summary.counts_by_label["SQL Injection"] == 1
     assert summary.counts_by_label["Code Injection"] == 1
-    assert summary.counts_by_label["Other Attacks"] == 1
+    assert summary.counts_by_label["Other Attacks"] == 0
     assert summary.counts_by_label["Normal"] == 0
     assert summary.attack_distribution == {
         "SQL Injection": 1,
         "Code Injection": 1,
-        "Other Attacks": 1,
     }
 
     assert summary.top_source_ips
@@ -977,7 +1052,6 @@ async def test_windowed_summary_filters_are_strictly_bounded(
     assert top_paths == {
         "/api/login": 1,
         "/api/search": 1,
-        "/api/public": 1,
     }
 
 
@@ -1020,23 +1094,18 @@ async def test_all_rolling_windows_are_nested_and_parity_holds_at_fixed_referenc
     window_order = ("1h", "6h", "24h", "7d")
     expected_ids = {
         "1h": {"inside-1h", "at-1h-start"},
-        "6h": {"inside-1h", "at-1h-start", "just-outside-1h", "at-6h-start"},
+        "6h": {"inside-1h", "at-1h-start", "at-6h-start"},
         "24h": {
             "inside-1h",
             "at-1h-start",
-            "just-outside-1h",
             "at-6h-start",
             "just-outside-6h",
-            "at-24h-start",
         },
         "7d": {
             "inside-1h",
             "at-1h-start",
-            "just-outside-1h",
             "at-6h-start",
             "just-outside-6h",
-            "at-24h-start",
-            "just-outside-24h",
             "at-7d-start",
         },
     }
@@ -1062,7 +1131,7 @@ async def test_all_rolling_windows_are_nested_and_parity_holds_at_fixed_referenc
         ids = {item.transaction_id for item in page.items}
         observed_ids[window] = ids
         assert ids == expected_ids[window]
-        assert page.total == summary.total_requests == len(expected_ids[window])
+        assert page.total == summary.high_alert_count == len(expected_ids[window])
         assert summary.total_requests == sum(bucket.total_count for bucket in buckets)
         assert summary.blocked_count == sum(bucket.blocked_count for bucket in buckets)
         assert summary.throttled_count == sum(bucket.throttled_count for bucket in buckets)
@@ -1072,7 +1141,7 @@ async def test_all_rolling_windows_are_nested_and_parity_holds_at_fixed_referenc
         assert sum(summary.non_normal_counts_by_confidence_tier.values()) == sum(
             count
             for label, count in summary.counts_by_label.items()
-            if label != "Normal"
+            if label in {"SQL Injection", "Code Injection"}
         )
 
     assert observed_ids["1h"] < observed_ids["6h"] < observed_ids["24h"] < observed_ids["7d"]
@@ -1143,7 +1212,7 @@ async def test_get_alert_list_sorts_by_severity_rank(
             request_path="/low",
             request_method="GET",
             http_request="GET /low",
-            prediction="Normal",
+            prediction="SQL Injection",
             confidence=0.25,
             confidence_level="LOW",
             inference_latency_ms=2.0,
@@ -1226,7 +1295,7 @@ async def test_get_alert_list_sorts_by_confidence_tier_rank(
             request_path="/low",
             request_method="GET",
             http_request="GET /low",
-            prediction="Normal",
+            prediction="Code Injection",
             confidence=0.25,
             confidence_level="LOW",
             inference_latency_ms=2.0,

@@ -25,6 +25,10 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from web_app.domain.classification_scope import (
+    ACTIONABLE_ATTACK_CLASSES,
+    OPERATIONAL_TRAFFIC_CLASSES,
+)
 from web_app.domain.interfaces import (
     ITrafficLogRepository,
     TrafficLogEntity,
@@ -119,6 +123,18 @@ class TrafficLogRepository(ITrafficLogRepository):
         return or_(TrafficLog.status == "COMPLETED", TrafficLog.status.is_(None))
 
     @staticmethod
+    def _operational_traffic_clause():
+        """Limit user-facing traffic views to known operational labels."""
+
+        return TrafficLog.prediction.in_(tuple(OPERATIONAL_TRAFFIC_CLASSES))
+
+    @staticmethod
+    def _actionable_alert_clause():
+        """Limit alert/workflow views to the explicit attack allowlist."""
+
+        return TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES))
+
+    @staticmethod
     def _normalize_reference_time(reference_time: Optional[datetime]) -> datetime:
         if reference_time is None:
             return datetime.now(timezone.utc)
@@ -172,7 +188,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         session: Optional[AsyncSession] = None,
     ) -> dict[str, int]:
         s = session or self._session
-        filters = [self._completed_or_legacy_clause()]
+        filters = [
+            self._completed_or_legacy_clause(),
+            self._operational_traffic_clause(),
+        ]
         if start is not None:
             filters.append(TrafficLog.timestamp >= start)
         if end is not None:
@@ -207,7 +226,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         session: Optional[AsyncSession] = None,
     ) -> dict[str, int]:
         s = session or self._session
-        filters = [self._completed_or_legacy_clause()]
+        filters = [
+            self._completed_or_legacy_clause(),
+            self._operational_traffic_clause(),
+        ]
         if start is not None:
             filters.append(TrafficLog.timestamp >= start)
         if end is not None:
@@ -589,7 +611,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         confidence_level: str,
         inference_latency_ms: Optional[float],
         model_version: Optional[str],
-        action_taken: str,
+        action_taken: Optional[str],
         model_input_hash: Optional[str] = None,
         model_input_text: Optional[str] = None,
         preprocessing_version: Optional[str] = None,
@@ -643,6 +665,24 @@ class TrafficLogRepository(ITrafficLogRepository):
         reviews = await self._latest_reviews([orm_obj.id])
         return self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
 
+    async def get_operational_alert_by_id(
+        self, alert_id: int
+    ) -> Optional[TrafficLogEntity]:
+        """Retrieve one in-scope operational alert without hiding raw evidence."""
+
+        result = await self._session.execute(
+            select(TrafficLog).filter(
+                TrafficLog.id == alert_id,
+                self._completed_or_legacy_clause(),
+                self._actionable_alert_clause(),
+            )
+        )
+        orm_obj = result.scalars().first()
+        if orm_obj is None:
+            return None
+        reviews = await self._latest_reviews([orm_obj.id])
+        return self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
+
     async def get_by_transaction_id(
         self,
         transaction_id: str,
@@ -663,7 +703,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         session: Optional[AsyncSession] = None,
     ):
         s = session or self._session
-        summary_where = [self._completed_or_legacy_clause()]
+        summary_where = [
+            self._completed_or_legacy_clause(),
+            self._operational_traffic_clause(),
+        ]
         if window_start is not None:
             summary_where.append(TrafficLog.timestamp >= window_start)
         if window_end is not None:
@@ -685,7 +728,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         session: Optional[AsyncSession] = None,
     ):
         s = session or self._session
-        filters = [self._completed_or_legacy_clause()]
+        filters = [
+            self._completed_or_legacy_clause(),
+            self._operational_traffic_clause(),
+        ]
         if window_start is not None:
             filters.append(TrafficLog.timestamp >= window_start)
         if window_end is not None:
@@ -712,7 +758,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 .filter(
                     and_(
                         TrafficLog.action_taken == "ALLOWED",
-                        TrafficLog.prediction != "Normal",
+                        TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES)),
                     )
                 )
                 .label("false_positive_count"),
@@ -749,6 +795,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 func.count(TrafficLog.confidence).label("confidence_count"),
             )
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .where(TrafficLog.confidence.isnot(None))
         )
         if window_start is not None:
@@ -775,6 +822,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 func.count(TrafficLog.id).label("prediction_count"),
             )
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .group_by(TrafficLog.prediction)
         )
         if window_start is not None:
@@ -794,7 +842,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         window_end: Optional[datetime],
         session: Optional[AsyncSession] = None,
     ) -> tuple[dict[str, int], dict[str, int]]:
-        """Return complete-window confidence counts, including non-Normal counts.
+        """Return complete-window confidence counts and in-scope attack counts.
 
         The Dashboard's confidence widgets must use the same unpaginated
         aggregate as the statistic cards.  Keeping this query here avoids
@@ -802,7 +850,10 @@ class TrafficLogRepository(ITrafficLogRepository):
         to the first page of rows.
         """
         s = session or self._session
-        filters = [self._completed_or_legacy_clause()]
+        filters = [
+            self._completed_or_legacy_clause(),
+            self._operational_traffic_clause(),
+        ]
         if window_start is not None:
             filters.append(TrafficLog.timestamp >= window_start)
         if window_end is not None:
@@ -825,7 +876,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 continue
             count_value = int(count)
             counts[confidence_level] += count_value
-            if prediction != "Normal":
+            if prediction in ACTIONABLE_ATTACK_CLASSES:
                 non_normal_counts[confidence_level] += count_value
 
         return counts, non_normal_counts
@@ -849,6 +900,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 .label("rn"),
             )
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .where(TrafficLog.source_ip.isnot(None))
         )
         if window_start is not None:
@@ -873,6 +925,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 & (latest_action_subquery.c.rn == 1),
             )
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .where(TrafficLog.source_ip.isnot(None))
             .group_by(TrafficLog.source_ip, latest_action_subquery.c.action_taken)
             .order_by(func.count(TrafficLog.id).desc())
@@ -906,6 +959,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 func.count(TrafficLog.id).label("hit_count"),
             )
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .where(TrafficLog.request_path.isnot(None))
             .group_by(TrafficLog.request_path)
             .order_by(func.count(TrafficLog.id).desc())
@@ -931,8 +985,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         s = session or self._session
         query = select(func.count(TrafficLog.id).label("false_positive_count")).where(
             self._completed_or_legacy_clause(),
+            self._operational_traffic_clause(),
             TrafficLog.action_taken == "ALLOWED",
-            TrafficLog.prediction != "Normal",
+            TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES)),
         )
         if window_start is not None:
             query = query.where(TrafficLog.timestamp >= window_start)
@@ -1061,22 +1116,21 @@ class TrafficLogRepository(ITrafficLogRepository):
         )
 
         attack_distribution = {
-            k: v
-            for k, v in counts_by_label.items()
-            if k in ("SQL Injection", "Code Injection", "Other Attacks")
+            k: v for k, v in counts_by_label.items() if k in ACTIONABLE_ATTACK_CLASSES
         }
         counts_by_confidence_tier, non_normal_counts_by_confidence_tier = (
             confidence_band_counts
         )
 
         high_alert_count = sum(
-            count for label, count in counts_by_label.items() if label != "Normal"
+            count for label, count in counts_by_label.items()
+            if label in ACTIONABLE_ATTACK_CLASSES
         )
         prev_high_alert_count = (
             sum(
                 count
                 for label, count in previous_label_counts.items()
-                if label != "Normal"
+                if label in ACTIONABLE_ATTACK_CLASSES
             )
             if previous_label_counts
             else None
@@ -1291,6 +1345,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 func.count().label("cnt"),
             )
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .where(TrafficLog.timestamp >= window_start)
             .where(TrafficLog.timestamp < window_end)
             .group_by(text("bucket_idx"), TrafficLog.action_taken)
@@ -1356,7 +1411,11 @@ class TrafficLogRepository(ITrafficLogRepository):
         page_size = max(1, min(page_size, 100))
         offset = (page - 1) * page_size
 
-        stmt = select(TrafficLog).where(self._completed_or_legacy_clause())
+        stmt = (
+            select(TrafficLog)
+            .where(self._completed_or_legacy_clause())
+            .where(self._actionable_alert_clause())
+        )
 
         effective_confidence_tier_filter = confidence_tier_filter or severity
 
@@ -1472,10 +1531,11 @@ class TrafficLogRepository(ITrafficLogRepository):
     async def list_recent(
         self, skip: int = 0, limit: int = 100
     ) -> List[TrafficLogEntity]:
-        """Retrieve recent traffic logs ordered by timestamp descending."""
+        """Retrieve recent operational traffic ordered by timestamp descending."""
         result = await self._session.execute(
             select(TrafficLog)
             .where(self._completed_or_legacy_clause())
+            .where(self._operational_traffic_clause())
             .order_by(TrafficLog.timestamp.desc())
             .offset(skip)
             .limit(limit)
@@ -1511,7 +1571,10 @@ class TrafficLogRepository(ITrafficLogRepository):
     ) -> Optional[TrafficLogEntity]:
         """Update triage status on a traffic log. Returns None if not found."""
         result = await self._session.execute(
-            select(TrafficLog).filter(TrafficLog.id == traffic_id)
+            select(TrafficLog).filter(
+                TrafficLog.id == traffic_id,
+                self._actionable_alert_clause(),
+            )
         )
         orm_obj = result.scalars().first()
         if orm_obj is None:
@@ -1529,7 +1592,10 @@ class TrafficLogRepository(ITrafficLogRepository):
     ) -> Optional[TrafficLogEntity]:
         """Update action_taken on a traffic log. Returns None if not found."""
         result = await self._session.execute(
-            select(TrafficLog).filter(TrafficLog.id == traffic_id)
+            select(TrafficLog).filter(
+                TrafficLog.id == traffic_id,
+                self._actionable_alert_clause(),
+            )
         )
         orm_obj = result.scalars().first()
         if orm_obj is None:

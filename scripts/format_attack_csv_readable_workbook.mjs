@@ -37,11 +37,19 @@ function safeSheetName(fileName, usedNames) {
 }
 
 const SOURCE_SHEET_CONFIG = {
+  "master_attack_test_dataset.csv": {
+    sheetName: "Master Dataset - All Cases",
+    tableName: "tblMasterAttackDataset",
+  },
   "panel-results-final.csv": { sheetName: "Panel Final - Mixed Cases", tableName: "tblPanelFinalMixedCases" },
   "panel-results.csv": { sheetName: "Panel Results - Mixed Cases", tableName: "tblPanelResultsMixedCases" },
   "search-records-code-expansion-20260903.csv": {
     sheetName: "Code Expansion - Code Injection",
     tableName: "tblCodeExpansionCodeInjection",
+  },
+  "search-records-code-expansion-round2-20260903.csv": {
+    sheetName: "Code Expansion R2 - Code",
+    tableName: "tblCodeExpansionR2Code",
   },
   "search-records-full-before-code-expansion-20260903.csv": {
     sheetName: "Full Baseline - All Attacks",
@@ -200,14 +208,14 @@ async function addReadme(workbook, sourceMetadata, payloadSummaries) {
     .join("; ");
   sheet.getRange("A1:B9").values = [
     ["Readable attack-test CSV workbook", ""],
-    ["Purpose", "Human-readable view of every CSV currently under output/attack-tests."],
+    ["Purpose", "Human-readable view of the attack-test CSVs currently under output/attack-tests, including the consolidated master dataset."],
     ["Important", "The original CSV files were not padded or rewritten; exact payloads and machine-readable values remain unchanged."],
     ["Why", "CSV has no visual column-width metadata. This workbook supplies widths, wrapped long fields, a frozen header row, and clear boundaries."],
     ["Payload tabs", payloadDescription],
     ["Raw result tabs", rawDescription],
     ["Source directory", "output/attack-tests"],
-    ["Exact payload fields", "Each Payload tab includes the complete payload in the payload column and the complete encoded request in the wire_query column."],
-    ["How to use", "Use the four Payload tabs for the complete payload and encoded wire query. Use the named raw tabs for the full evidence columns."],
+    ["Exact payload fields", "Each Payload tab includes the complete payload in the payload column and the complete encoded request in the wire_query column. The Master Dataset - All Cases tab retains the full evidence columns and source_dataset membership."],
+    ["How to use", "Use the Payload tabs for category-focused review, the Master Dataset - All Cases tab for the consolidated 474-row record set, and the other raw tabs for source-specific evidence."],
   ];
   sheet.mergeCells("A1:B1");
   sheet.getRange("A1:B1").format = {
@@ -257,6 +265,7 @@ async function main() {
 
   const fullResults = sourceData.get("search-records-full.csv")?.rows ?? [];
   const codeExpansion = sourceData.get("search-records-code-expansion-20260903.csv")?.rows ?? [];
+  const codeExpansionRound2 = sourceData.get("search-records-code-expansion-round2-20260903.csv")?.rows ?? [];
   const normalBaseline = sourceData.get("search-records-normal-baseline-20260903.csv")?.rows ?? [];
   const payloadPlans = [
     {
@@ -275,6 +284,13 @@ async function main() {
           .map((row) => payloadRow("search-records-full.csv", "Original Code Injection baseline", row)),
         ...codeExpansion.map((row) =>
           payloadRow("search-records-code-expansion-20260903.csv", "Expanded Code Injection variations", row),
+        ),
+        ...codeExpansionRound2.map((row) =>
+          payloadRow(
+            "search-records-code-expansion-round2-20260903.csv",
+            "Expanded Code Injection variations - round 2",
+            row,
+          ),
         ),
       ],
     },

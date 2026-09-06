@@ -224,7 +224,7 @@ function PolicyTab({ viewModel }: ViewProps) {
         <div className={styles.panelHeader}>
           <div>
             <h2 id="policy-heading">Confidence policy</h2>
-            <p className={styles.panelDescription}>Automatic response bands for non-Normal predictions.</p>
+            <p className={styles.panelDescription}>Automatic response bands for in-scope actionable attacks.</p>
           </div>
         </div>
         <DiagnosticsTable label="Confidence policy">

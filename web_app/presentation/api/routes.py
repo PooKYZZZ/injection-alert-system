@@ -68,6 +68,7 @@ from web_app.application.update_alert_triage_use_case import (
 from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.authorization import Permission
+from web_app.domain.classification_scope import is_actionable_attack_class
 from web_app.domain.enforcement import EnforcementMode, EnforcementScope
 from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.domain.source_address import SourceProvenance
@@ -231,10 +232,21 @@ async def predict(
         alert_event_publisher=get_alert_event_broadcaster(request),
     )
 
-    result = await use_case.execute(
-        http_request=prediction_request.http_request,
-        source_ip=request.client.host if request.client else None,
-    )
+    try:
+        result = await use_case.execute(
+            http_request=prediction_request.http_request,
+            source_ip=request.client.host if request.client else None,
+        )
+    except ModelNotReadyError as exc:
+        log_event(
+            logger,
+            "prediction.model_not_ready",
+            "Prediction rejected because the model response was not usable",
+            level="WARNING",
+            status_code=503,
+            error_type=type(exc).__name__,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     log_event(
         logger,
         "prediction.completed",
@@ -456,7 +468,7 @@ async def ingest_waf_event(
         **_queue_log_fields(inference_queue),
     )
 
-    if result.alert_id is not None and result.prediction != "Normal":
+    if result.alert_id is not None:
         outbox_repository = getattr(
             request.app.state, "notification_outbox_repository", None
         )
@@ -502,7 +514,11 @@ async def get_waf_ingest_by_transaction_id(
     return WafIngestLookupResponse(
         found=True,
         transaction_id=transaction_id,
-        alert_id=entity.id,
+        alert_id=(
+            entity.id
+            if is_actionable_attack_class(entity.prediction)
+            else None
+        ),
         status=entity.status,
         prediction=entity.prediction,
         confidence=entity.confidence,
@@ -692,7 +708,7 @@ async def get_alert_by_id(
     repository: TrafficLogRepository = Depends(get_repository),
 ):
     """Return a single alert by primary key or 404 when it does not exist."""
-    entity = await repository.get_by_id(alert_id)
+    entity = await repository.get_operational_alert_by_id(alert_id)
     if entity is None:
         raise HTTPException(status_code=404, detail="Alert not found")
     return AlertDetailResponse.model_validate(entity)

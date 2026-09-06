@@ -45,7 +45,7 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Implemented and manually verified in the tested hosted deployment | post-commit in-process broadcaster -> native FastAPI SSE -> authenticated Next.js streaming BFF -> one dashboard EventSource -> TanStack Query alert/stats invalidation; no-refresh, browser reconnect, and named-domain hosted SSE proof passed; no durable replay or multi-worker fan-out |
-| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260905_000029`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted non-Normal HIGH/CRITICAL alerts |
+| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260905_000029`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted in-scope HIGH/CRITICAL alerts |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; the `OWNER`/`ADMIN`/`ANALYST`/`VIEWER` role claim and `authz_version` are rechecked against the current DB row by all protected BFF routes; centralized permissions make ML Health and ML Deployment Owner-only |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
@@ -93,6 +93,34 @@ route reference.
 - In production mode, `MODEL_REGISTRY_PATH` must point to an explicit model run directory.
 - In development and testing, the service can resolve the latest staged run from a broader directory, or fall back to a mock service if the configured path does not exist.
 - The active model artifact tree is under `ml_model/model_registry/`.
+
+### Classification scope and operational alert boundary
+
+The classifier vocabulary is broader than the product's operational security
+scope. `web_app/domain/classification_scope.py` is the single fail-closed
+policy: only `SQL Injection` and `Code Injection` are actionable attack
+classes; `Normal` is benign; `Other Attacks` and any unknown future label are
+out of operational scope.
+
+`WafIngestUseCase` and the legacy triage route still preprocess, infer, and
+persist every completed classification in the `TrafficLog` evidence row. The
+row preserves the original prediction, confidence, model input/provenance,
+request metadata, timestamps, and model version. This repository has no
+separate alert table: an operational alert is the in-scope projection of that
+row. The triage result exposes an alert id and publishes the post-commit alert
+signal only for the positive allowlist, and the WAF route then runs
+enforcement/action recommendations and notification enqueueing only for that
+result.
+
+The same policy is applied in the repository boundary for alert list/detail,
+statistics, activity buckets, recent operational traffic, triage/action
+updates, enforcement recommendation lookups, and direct threat notification
+helpers. Consequently, historical `Other Attacks` rows remain available to
+raw/internal review, drift, model-health, and retraining/evaluation paths but
+cannot contribute to current operational alert views, dashboard attack
+aggregates, Alert Summary/detail, realtime alert invalidation, Telegram/email
+threat jobs, or enforcement actions. No schema migration or duplicated scope
+column is required because the decision is derived from the persisted label.
 
 ## Frontend
 
@@ -302,7 +330,7 @@ and hosted deployment gates remain separately tracked there.
 - Current confidence tiers are `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
 - `CRITICAL >=90%` is implemented as the top confidence threshold, and historical rows are not retroactively reclassified.
 - Persisted-alert dashboard aggregations use backend-emitted `confidence_level`; the frontend does not reclassify stored alerts from raw confidence or current ML-health thresholds.
-- Confidence distributions include all predictions, while enforcement-policy counts include non-Normal predictions only. Normal predictions remain `ALLOWED` at every valid confidence tier.
+- Confidence distributions include all operational traffic labels, while enforcement-policy counts include only the explicit in-scope attack classes. Normal predictions remain `ALLOWED` at every valid confidence tier; out-of-scope classifications are excluded from operational counts.
 - Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.

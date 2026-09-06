@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
+from web_app.domain.classification_scope import is_actionable_attack_class
+
 POLICY_VERSION = "confidence-enforcement-v1"
 ACTIVE_POLICY_VERSION = "confidence-enforcement-v2"
 
@@ -183,7 +185,9 @@ class EnforcementPolicy:
         except ValueError:
             raise ValueError(f"Unknown confidence_level: {confidence_level}") from None
 
-        if request_path != "/records/search" or prediction == "Normal":
+        if request_path != "/records/search" or not is_actionable_attack_class(
+            prediction
+        ):
             return None
 
         selected_mode = EnforcementMode(mode)

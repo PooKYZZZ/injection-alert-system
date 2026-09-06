@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Protocol
 
+from web_app.domain.classification_scope import is_actionable_attack_class
 from web_app.notifications.models import PendingNotification
 from web_app.notifications.outbox import (
     build_telegram_threat_notification,
@@ -38,6 +39,8 @@ async def enqueue_threat_notification_safely(
     action_taken: str,
     request_path: str,
 ) -> bool:
+    if not is_actionable_attack_class(attack_category):
+        return False
     if not settings.threat_email_enabled or not settings.threat_email_to:
         return False
     notification = build_threat_notification(
@@ -73,6 +76,8 @@ async def enqueue_threat_notifications_safely(
     request_method: str,
     request_path: str,
 ) -> bool:
+    if not is_actionable_attack_class(attack_category):
+        return False
     email_queued = await enqueue_threat_notification_safely(
         repository=repository,
         settings=settings,
@@ -109,6 +114,8 @@ async def _enqueue_telegram_threat_safely(
     request_method: str,
     request_path: str,
 ) -> bool:
+    if not is_actionable_attack_class(attack_category):
+        return False
     if confidence_tier not in {"HIGH", "CRITICAL"}:
         return False
     if not settings.threat_telegram_enabled:

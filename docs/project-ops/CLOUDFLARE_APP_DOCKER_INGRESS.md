@@ -13,6 +13,11 @@ The route is configured in the Cloudflare dashboard. This repository change
 only makes the `frontend` service name reachable from the Docker-managed
 `cloudflared` connector.
 
+The target Cloudflare overlay pins the official `cloudflare/cloudflared`
+`2026.8.3` multi-architecture image by digest. The tunnel command keeps
+`--no-autoupdate`, so future upgrades are deliberate, reviewable Compose
+changes followed by a controlled container recreation.
+
 ## Local topology
 
 The frontend remains on the Compose `default` network so it can reach

@@ -353,8 +353,8 @@ def _catalog(
             "action mapping is changed to produce a desired result."
         ),
         "expected_action_policy": (
-            "Normal=ALLOWED; attack LOW=ALLOWED, MEDIUM=THROTTLED, "
-            "HIGH/CRITICAL=BLOCKED"
+            "Normal=ALLOWED; SQL Injection/Code Injection LOW=ALLOWED, "
+            "MEDIUM=THROTTLED, HIGH/CRITICAL=BLOCKED; Other Attacks=None"
         ),
         "cases": cases,
     }

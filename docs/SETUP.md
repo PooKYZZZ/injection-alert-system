@@ -381,8 +381,10 @@ Notes:
 
 ### Telegram threat notifications
 
-Telegram is a secondary notification channel for persisted non-Normal `HIGH`
-and `CRITICAL` confidence-tier alerts. Configure server-only values:
+Telegram is a secondary notification channel for persisted in-scope attack
+(`SQL Injection` or `Code Injection`) `HIGH` and `CRITICAL` confidence-tier
+alerts. `Normal`, `Other Attacks`, and unknown labels are not eligible.
+Configure server-only values:
 
 Notification links use the dashboard-neutral alert review contract
 `/alerts?alert_id=<id>`. The existing Alerts workspace validates the identifier,

@@ -453,28 +453,9 @@ def test_alert_read_endpoints_tolerate_sparse_legacy_rows(api_client):
 
     assert list_response.status_code == 200
     list_payload = list_response.json()
-    assert list_payload["total"] == 1
-    assert list_payload["items"][0]["id"] == 1
-    assert list_payload["items"][0]["request_path"] is None
-    assert list_payload["items"][0]["request_method"] is None
-    assert list_payload["items"][0]["crs_score"] is None
-    assert list_payload["items"][0]["crs_rule_ids"] is None
-    assert list_payload["items"][0]["analyst_label"] is None
-    assert list_payload["items"][0]["labeled_at"] is None
-    assert list_payload["items"][0]["labeled_by"] is None
-    assert list_payload["items"][0]["payload_snippet"] == "GET /legacy?q=test"
-
-    assert detail_response.status_code == 200
-    detail_payload = detail_response.json()
-    assert detail_payload["id"] == 1
-    assert detail_payload["request_path"] is None
-    assert detail_payload["request_method"] is None
-    assert detail_payload["crs_score"] is None
-    assert detail_payload["crs_rule_ids"] is None
-    assert detail_payload["analyst_label"] is None
-    assert detail_payload["labeled_at"] is None
-    assert detail_payload["labeled_by"] is None
-    assert detail_payload["payload_snippet"] == "GET /legacy?q=test"
+    assert list_payload["total"] == 0
+    assert list_payload["items"] == []
+    assert detail_response.status_code == 404
 
 
 def test_auth_missing_token_returns_401(api_client):
@@ -730,10 +711,10 @@ def test_processing_placeholder_rows_do_not_appear_in_alerts(api_client):
                         request_path="/visible",
                         request_method="GET",
                         http_request="GET /visible HTTP/1.1",
-                        prediction="Normal",
-                        confidence=0.44,
-                        confidence_level="LOW",
-                        action_taken="ALLOWED",
+                        prediction="SQL Injection",
+                        confidence=0.94,
+                        confidence_level="HIGH",
+                        action_taken="BLOCKED",
                         status="COMPLETED",
                     ),
                     TrafficLog(

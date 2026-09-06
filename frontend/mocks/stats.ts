@@ -64,8 +64,6 @@ export const MOCK_STATS: DashboardStats = {
   attack_distribution: {
     'SQL Injection': 45,
     'Code Injection': 8,
-    'Other Attacks': 12,
-    'Normal': 3,
   },
   top_source_ips: [
     { ip: '192.168.1.14', count: 7, action: 'BLOCKED' },

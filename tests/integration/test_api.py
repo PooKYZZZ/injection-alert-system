@@ -3,6 +3,7 @@ import logging
 
 import pytest
 from fastapi.testclient import TestClient
+from web_app.presentation.api.routes import get_model_service
 from web_app.presentation.app import create_app
 
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
@@ -116,6 +117,32 @@ def test_predict_endpoint_normal_request(client):
     assert response.status_code == 200
     data = response.json()
     assert data["class_label"] == "Normal"
+
+
+def test_predict_endpoint_rejects_malformed_model_classification(client):
+    class MalformedModel:
+        loaded = True
+        model_version = "malformed-test-model"
+
+        def predict(self, _http_request):
+            return {
+                "prediction": ["Other Attacks"],
+                "confidence": 0.91,
+                "confidence_level": "HIGH",
+            }
+
+    client.app.dependency_overrides[get_model_service] = lambda: MalformedModel()
+    try:
+        response = client.post(
+            "/api/predict",
+            json={"http_request": "GET /records/search HTTP/1.1"},
+            headers=INTERNAL_HEADERS,
+        )
+    finally:
+        client.app.dependency_overrides.pop(get_model_service, None)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Model returned an invalid prediction payload"
 
 
 def test_predict_endpoint_missing_request(client):

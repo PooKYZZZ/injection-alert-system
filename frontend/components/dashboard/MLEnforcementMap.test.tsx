@@ -8,21 +8,21 @@ afterEach(() => {
 })
 
 describe('MLEnforcementMap', () => {
-  it('renders an explicit non-Normal count contract and all policy actions', () => {
+  it('renders an explicit actionable-attack count contract and all policy actions', () => {
     render(
       <MLEnforcementMap
         nonNormalCounts={{ critical: 4, high: 3, medium: 2, low: 1 }}
       />
     )
 
-    expect(screen.getByText('Action policy for non-Normal predictions')).toBeInTheDocument()
+    expect(screen.getByText('Action policy for actionable attacks')).toBeInTheDocument()
     expect(
-      screen.getByText('Normal predictions remain ALLOWED for all valid confidence tiers.')
+      screen.getByText('Normal predictions remain ALLOWED; out-of-scope labels do not enter this policy.')
     ).toBeInTheDocument()
-    const criticalRow = screen.getByText('CRITICAL non-Normal').closest('div')?.parentElement
-    const highRow = screen.getByText('HIGH non-Normal').closest('div')?.parentElement
-    const mediumRow = screen.getByText('MEDIUM non-Normal').closest('div')?.parentElement
-    const lowRow = screen.getByText('LOW non-Normal').closest('div')?.parentElement
+    const criticalRow = screen.getByText('CRITICAL actionable attacks').closest('div')?.parentElement
+    const highRow = screen.getByText('HIGH actionable attacks').closest('div')?.parentElement
+    const mediumRow = screen.getByText('MEDIUM actionable attacks').closest('div')?.parentElement
+    const lowRow = screen.getByText('LOW actionable attacks').closest('div')?.parentElement
     expect(criticalRow).not.toBeNull()
     expect(highRow).not.toBeNull()
     expect(mediumRow).not.toBeNull()

@@ -47,11 +47,11 @@ describe('AttackTypePanel', () => {
     expect(pieButton).toHaveAttribute('aria-pressed', 'true')
     expect(
       screen.getByRole('img', {
-        name: 'Attack type distribution pie chart. SQL Injection: 4 (40%); Code Injection: 2 (20%); Other Attacks: 1 (10%); Normal: 3 (30%).',
+        name: 'Attack type distribution pie chart. SQL Injection: 4 (67%); Code Injection: 2 (33%).',
       })
     ).toBeInTheDocument()
-    expect(screen.getByTestId('pie-data')).toHaveTextContent('SQL Injection:4|Code Injection:2|Other Attacks:1|Normal:3')
-    expect(screen.getByText('4 · 40%')).toBeInTheDocument()
+    expect(screen.getByTestId('pie-data')).toHaveTextContent('SQL Injection:4|Code Injection:2')
+    expect(screen.getByText('4 · 67%')).toBeInTheDocument()
     expect(screen.getByTestId('pie-tooltip-style')).toHaveAttribute(
       'data-background',
       'var(--color-surface-card)'
