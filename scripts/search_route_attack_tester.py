@@ -32,6 +32,7 @@ from scripts.search_records_attack_catalog import (
     ROUTE_PATH,
     load_catalog,
 )
+from web_app.domain.classification_scope import is_actionable_attack_class
 
 DEFAULT_ORIGIN = "http://demo-target-modsecurity:8080"
 DEFAULT_BACKEND = "http://127.0.0.1:8000"
@@ -322,6 +323,8 @@ def _poll_backend(
 def _expected_action(expected_label: str, confidence_level: str | None) -> str | None:
     if expected_label == "Normal":
         return "ALLOWED"
+    if not is_actionable_attack_class(expected_label):
+        return None
     if confidence_level == "LOW":
         return "ALLOWED"
     if confidence_level == "MEDIUM":
@@ -370,11 +373,13 @@ def _result_row(
     predicted = str(lookup.get("prediction") or "") if lookup else ""
     confidence = lookup.get("confidence") if lookup else None
     confidence_level = str(lookup.get("confidence_level") or "") if lookup else ""
-    action_taken = str(lookup.get("action_taken") or "") if lookup else ""
+    action_taken = lookup.get("action_taken") if lookup else None
+    if action_taken is not None:
+        action_taken = str(action_taken)
     expected_label = case["expected_label"]
     expected_action = _expected_action(expected_label, confidence_level)
     label_match = bool(predicted) and predicted == expected_label
-    action_match = bool(action_taken) and expected_action == action_taken
+    action_match = expected_action == action_taken
     failure_class = ""
     if request_error:
         failure_class = "REQUEST_FAILED"
@@ -384,6 +389,10 @@ def _result_row(
         failure_class = "BRIDGE_NOT_OBSERVED"
     elif not predicted or confidence is None or not confidence_level:
         failure_class = "INVALID_BACKEND_RESULT"
+    elif expected_action is not None and action_taken is None:
+        failure_class = "INVALID_BACKEND_RESULT"
+    elif expected_action is None and action_taken is not None:
+        failure_class = "OUT_OF_SCOPE_ACTION"
     row = {
         "run_id": run_id,
         "observed_at_utc": datetime.now(timezone.utc)
@@ -412,7 +421,7 @@ def _result_row(
         "confidence": "" if confidence is None else f"{float(confidence):.6f}",
         "confidence_level": confidence_level,
         "expected_action": "" if expected_action is None else expected_action,
-        "action_taken": action_taken,
+        "action_taken": "" if action_taken is None else action_taken,
         "action_match": str(action_match),
         "http_status": "" if status is None else str(status),
         "request_executed": str(status is not None),

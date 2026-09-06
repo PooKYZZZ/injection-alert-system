@@ -443,8 +443,8 @@ def build_catalog(phase: str = "full") -> dict[str, Any]:
             "altered to force a LOW, MEDIUM, HIGH, or CRITICAL result."
         ),
         "expected_action_policy": (
-            "Normal=ALLOWED; attack LOW=ALLOWED, MEDIUM=THROTTLED, "
-            "HIGH/CRITICAL=BLOCKED"
+            "Normal=ALLOWED; SQL Injection/Code Injection LOW=ALLOWED, "
+            "MEDIUM=THROTTLED, HIGH/CRITICAL=BLOCKED; Other Attacks=None"
         ),
         "cases": [_case_to_dict(case) for case in cases],
     }

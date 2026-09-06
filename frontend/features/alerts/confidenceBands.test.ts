@@ -14,6 +14,7 @@ const alerts: FixtureAlert[] = [
   { prediction: 'Normal', confidence: 0.99, confidence_level: 'CRITICAL', action_taken: 'ALLOWED' },
   { prediction: 'SQL Injection', confidence: 0.99, confidence_level: 'CRITICAL', action_taken: 'BLOCKED' },
   { prediction: 'Normal', confidence: 0.85, confidence_level: 'HIGH', action_taken: 'ALLOWED' },
+  { prediction: 'Other Attacks', confidence: 0.8, confidence_level: 'HIGH', action_taken: 'BLOCKED' },
   { prediction: 'SQL Injection', confidence: 0.7, confidence_level: 'MEDIUM', action_taken: 'THROTTLED' },
   { prediction: 'Code Injection', confidence: 0.3, confidence_level: 'LOW', action_taken: 'ALLOWED' },
   { prediction: 'SQL Injection', confidence: 0.95, confidence_level: 'MEDIUM', action_taken: 'THROTTLED' },
@@ -23,13 +24,13 @@ describe('countAlertsByConfidenceTier', () => {
   it('counts all persisted alerts by backend-emitted confidence_level', () => {
     expect(countAlertsByConfidenceTier(alerts)).toEqual({
       critical: 2,
-      high: 1,
+      high: 2,
       medium: 2,
       low: 1,
     })
   })
 
-  it('excludes Normal predictions from non-Normal enforcement counts', () => {
+  it('excludes benign and out-of-scope predictions from enforcement counts', () => {
     expect(countAlertsByConfidenceTier(alerts, { nonNormalOnly: true })).toEqual({
       critical: 1,
       high: 0,

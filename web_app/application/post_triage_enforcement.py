@@ -10,6 +10,7 @@ from typing import Literal, Protocol
 from web_app.application.enforcement_use_cases import (
     RecordShadowRecommendationUseCase,
 )
+from web_app.domain.classification_scope import is_actionable_attack_class
 from web_app.domain.enforcement import EnforcementMode
 from web_app.domain.waf_state import PR7_DEFAULT_CAPACITY, PR7_PATH
 
@@ -77,7 +78,7 @@ class PostTriageEnforcementCoordinator:
         request_path: str,
         occurred_at: datetime | None,
     ) -> PostTriageEnforcementResult:
-        if alert_id is None:
+        if alert_id is None or not is_actionable_attack_class(prediction):
             return PostTriageEnforcementResult(
                 route="NONE",
                 recorded=False,
@@ -87,7 +88,6 @@ class PostTriageEnforcementCoordinator:
         is_pr7_candidate = (
             self._pr7_mutation_enabled
             and self._mode is EnforcementMode.ENFORCE
-            and prediction != "Normal"
             and confidence_level == "CRITICAL"
             and request_path == PR7_PATH
         )

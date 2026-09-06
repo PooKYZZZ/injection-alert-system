@@ -35,9 +35,9 @@ describe('StatCard', () => {
   })
 
   it('allows long metric labels to shrink inside responsive grids', () => {
-    render(<StatCard label="Allowed non-Normal prediction rate (proxy)" value="—" />)
+    render(<StatCard label="Allowed actionable attack rate (proxy)" value="—" />)
 
-    const labelEl = screen.getByText('Allowed non-Normal prediction rate (proxy)')
+    const labelEl = screen.getByText('Allowed actionable attack rate (proxy)')
     const card = labelEl.closest('div')?.parentElement
 
     expect(card).toHaveClass('min-w-0')

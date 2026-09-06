@@ -55,8 +55,9 @@ class PredictionResponse(BaseModel):
     confidence_level: ConfidenceLevel = Field(
         ..., description="Confidence level (LOW, MEDIUM, HIGH, CRITICAL)"
     )
-    action_taken: ActionTaken = Field(
-        ..., description="Action taken in response to the prediction"
+    action_taken: ActionTaken | None = Field(
+        default=None,
+        description="Action taken; null when the classification is out of operational scope",
     )
 
 
@@ -76,11 +77,17 @@ class TriageIngestRequest(BaseModel):
 
 
 class TriageIngestResponse(BaseModel):
-    alert_id: int = Field(..., ge=1)
+    # Classification evidence can be retained without becoming an operational
+    # alert.  In-scope attacks receive an id; Normal and out-of-scope labels do
+    # not enter the alert pipeline.
+    alert_id: Optional[int] = Field(default=None, ge=1)
     prediction: PredictionLabel
     confidence: float = Field(..., ge=0.0, le=1.0)
     confidence_level: ConfidenceLevel
-    action_taken: ActionTaken
+    action_taken: ActionTaken | None = Field(
+        default=None,
+        description="Action taken; null for Normal or out-of-scope classifications",
+    )
     model_version: str | None = None
 
 
@@ -230,7 +237,9 @@ class StatsResponse(BaseModel):
     )
     non_normal_counts_by_confidence_tier: dict[str, int] = Field(
         default_factory=dict,
-        description="Complete-window non-Normal counts grouped by confidence tier",
+        description=(
+            "Complete-window actionable attack counts grouped by confidence tier"
+        ),
     )
     avg_inference_latency_ms: float = Field(default=0.0, ge=0.0)
     blocked_count: int = Field(default=0, ge=0)

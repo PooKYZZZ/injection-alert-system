@@ -43,6 +43,16 @@ def test_prediction_response_structure():
     assert response.action_taken == "BLOCKED"
 
 
+def test_prediction_response_represents_out_of_scope_without_an_action():
+    response = PredictionResponse(
+        class_label="Other Attacks",
+        confidence=0.92,
+        confidence_level="HIGH",
+    )
+
+    assert response.action_taken is None
+
+
 def test_prediction_response_accepts_critical_confidence_level():
     response = PredictionResponse(
         class_label="SQL Injection",
@@ -232,6 +242,17 @@ def test_triage_ingest_response_structure():
     )
     assert response.alert_id == 1
     assert response.prediction == "SQL Injection"
+
+
+def test_triage_ingest_response_represents_out_of_scope_without_an_action():
+    response = TriageIngestResponse(
+        prediction="Other Attacks",
+        confidence=0.92,
+        confidence_level="HIGH",
+    )
+
+    assert response.alert_id is None
+    assert response.action_taken is None
 
 
 def test_triage_ingest_response_accepts_critical_confidence_level():

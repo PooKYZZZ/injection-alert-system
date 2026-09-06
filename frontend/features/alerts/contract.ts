@@ -5,6 +5,15 @@ export const ALERT_PREDICTION_VALUES = [
   'Normal',
 ] as const
 
+// Operational alerting is intentionally narrower than the classifier label
+// contract.  The remaining labels stay available to evaluation/review paths.
+export const ACTIONABLE_ATTACK_CLASSES = ['SQL Injection', 'Code Injection'] as const
+export type ActionableAttackClass = (typeof ACTIONABLE_ATTACK_CLASSES)[number]
+
+export function isActionableAttackClass(value: string): value is ActionableAttackClass {
+  return ACTIONABLE_ATTACK_CLASSES.includes(value as ActionableAttackClass)
+}
+
 // Current alert transport values mirror backend-emitted `action_taken` values.
 // If `ALLOWED` is later renamed to `LOGGED`, that change must start in backend
 // policy/source code and only then propagate through frontend contracts.

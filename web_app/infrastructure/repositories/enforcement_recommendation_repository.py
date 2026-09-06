@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from web_app.domain.classification_scope import ACTIONABLE_ATTACK_CLASSES
 from web_app.domain.enforcement import (
     ChallengeGrant,
     CounterKind,
@@ -87,6 +88,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             )
             .where(
                 TrafficLog.source_ip == source_ip,
+                TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES)),
                 EnforcementRecommendationRow.scope == scope.value,
                 EnforcementRecommendationRow.enforcement_mode == "SHADOW",
                 EnforcementRecommendationRow.expires_at > now,
@@ -138,6 +140,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             )
             .where(
                 TrafficLog.source_ip == source_ip,
+                TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES)),
                 EnforcementRecommendationRow.scope == scope.value,
                 EnforcementRecommendationRow.enforcement_mode == "ENFORCE",
                 EnforcementRecommendationRow.policy_version == policy_version,

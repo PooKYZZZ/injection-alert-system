@@ -8,6 +8,10 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from web_app.domain.classification_scope import (
+    ACTIONABLE_ATTACK_CLASSES,
+    is_actionable_attack_class,
+)
 from web_app.domain.waf_state import (
     PR7_DEFAULT_CAPACITY,
     PR7_ENFORCEMENT_MODE,
@@ -137,6 +141,27 @@ class WafStateRepository:
             )
             changed_rows = await self._expire_active(now)
             cleaned = bool(changed_rows)
+            traffic = (
+                await self.session.execute(
+                    select(
+                        TrafficLog.status,
+                        TrafficLog.prediction,
+                        TrafficLog.confidence_level,
+                        TrafficLog.request_path,
+                        TrafficLog.source_verification_status,
+                        TrafficLog.source_provenance,
+                        TrafficLog.source_ip,
+                    ).where(TrafficLog.id == trigger_traffic_log_id)
+                )
+            ).one_or_none()
+            if traffic is None or not is_actionable_attack_class(traffic.prediction):
+                revision = self._finalize_revision(control, now, changed_rows)
+                return WafMutationResult(
+                    "INELIGIBLE",
+                    int(existing_id or 0),
+                    revision,
+                    cleaned,
+                )
             if existing_id is None and recommendation_expires_at <= now:
                 revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult("EXPIRED_CANDIDATE", 0, revision, cleaned)
@@ -182,20 +207,7 @@ class WafStateRepository:
                     EnforcementRecommendationRow.id == recommendation_id
                 )
             )
-            traffic = (
-                await self.session.execute(
-                    select(
-                        TrafficLog.status,
-                        TrafficLog.prediction,
-                        TrafficLog.confidence_level,
-                        TrafficLog.request_path,
-                        TrafficLog.source_verification_status,
-                        TrafficLog.source_provenance,
-                        TrafficLog.source_ip,
-                    ).where(TrafficLog.id == trigger_traffic_log_id)
-                )
-            ).one_or_none()
-            if recommendation is None or traffic is None:
+            if recommendation is None:
                 revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult(
                     "INELIGIBLE", int(recommendation_id), revision, cleaned
@@ -204,7 +216,7 @@ class WafStateRepository:
             canonical_ip = canonicalize_waf_source_ip(traffic.source_ip)
             if (
                 traffic.status != "COMPLETED"
-                or traffic.prediction in (None, "Normal")
+                or not is_actionable_attack_class(traffic.prediction)
                 or traffic.confidence_level != "CRITICAL"
                 or traffic.request_path != PR7_PATH
                 or traffic.source_verification_status != "VERIFIED"
@@ -317,7 +329,22 @@ class WafStateRepository:
                             WafEffectiveStateRow.protected_path,
                             WafEffectiveStateRow.expires_at,
                         )
+                        .join(
+                            EnforcementRecommendationRow,
+                            WafEffectiveStateRow.recommendation_id
+                            == EnforcementRecommendationRow.id,
+                        )
+                        .join(
+                            TrafficLog,
+                            EnforcementRecommendationRow.trigger_traffic_log_id
+                            == TrafficLog.id,
+                        )
                         .where(WafEffectiveStateRow.status == WafLifecycle.ACTIVE)
+                        .where(
+                            TrafficLog.prediction.in_(
+                                tuple(ACTIONABLE_ATTACK_CLASSES)
+                            )
+                        )
                         .order_by(WafEffectiveStateRow.id)
                     )
                 ).all()

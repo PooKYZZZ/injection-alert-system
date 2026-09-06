@@ -87,8 +87,9 @@
 ### Telegram threat alerts PR state
 
 - The local PR3 branch adds Telegram as a second durable outbox channel at
-  historical Alembic revision `20260720_000022`. Only persisted non-Normal `HIGH` and
-  `CRITICAL` confidence-tier alerts are eligible.
+  historical Alembic revision `20260720_000022`. Only persisted in-scope
+  (`SQL Injection` or `Code Injection`) `HIGH` and `CRITICAL` confidence-tier
+  alerts are eligible; `Other Attacks` remains internal evaluation evidence.
 - Detection persistence and SSE remain authoritative. Email and Telegram
   enqueue attempts have separate failure boundaries; provider/API work remains
   in the worker and cannot change a successful WAF response.

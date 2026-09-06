@@ -38,8 +38,8 @@ def test_expected_action_uses_existing_policy() -> None:
     assert _expected_action("Normal", "CRITICAL") == "ALLOWED"
     assert _expected_action("SQL Injection", "LOW") == "ALLOWED"
     assert _expected_action("Code Injection", "MEDIUM") == "THROTTLED"
-    assert _expected_action("Other Attacks", "HIGH") == "BLOCKED"
-    assert _expected_action("Other Attacks", "CRITICAL") == "BLOCKED"
+    assert _expected_action("Other Attacks", "HIGH") is None
+    assert _expected_action("Other Attacks", "CRITICAL") is None
 
 
 def test_audit_match_requires_search_records_uri() -> None:

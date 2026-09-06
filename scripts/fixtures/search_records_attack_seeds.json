@@ -14,7 +14,7 @@
     "maximum_cases": 150
   },
   "confidence_note": "Confidence is observed from the unchanged model. Cases are not altered to force a LOW, MEDIUM, HIGH, or CRITICAL result.",
-  "expected_action_policy": "Normal=ALLOWED; attack LOW=ALLOWED, MEDIUM=THROTTLED, HIGH/CRITICAL=BLOCKED",
+  "expected_action_policy": "Normal=ALLOWED; SQL Injection/Code Injection LOW=ALLOWED, MEDIUM=THROTTLED, HIGH/CRITICAL=BLOCKED; Other Attacks=None",
   "cases": [
     {
       "case_id": "SR-SQL-001",

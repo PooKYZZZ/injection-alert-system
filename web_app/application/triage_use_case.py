@@ -33,6 +33,7 @@ from web_app.application.waf_event_sanitizer import (
     redact_query_string,
     redact_sensitive_text,
 )
+from web_app.domain.classification_scope import is_actionable_attack_class
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 from web_app.domain.source_address import (
     SourceProvenance,
@@ -86,7 +87,7 @@ class TriageResult:
     prediction: str
     confidence: float
     confidence_level: str
-    action_taken: str
+    action_taken: str | None
     model_version: str | None
     occurred_at: datetime | None
 
@@ -172,7 +173,7 @@ class TriageUseCase:
                 action_taken=action_taken,
             )
         )
-        self._publish_alert_created_safely()
+        self._publish_alert_created_safely(saved.prediction)
         return self._result_from_entity(saved)
 
     async def ingest(self, command: TriageIngestCommand) -> TriageResult:
@@ -265,11 +266,13 @@ class TriageUseCase:
                     f"Unsupported triage completion status '{saved.status}'"
                 )
         else:
-            self._publish_alert_created_safely()
+            self._publish_alert_created_safely(saved.prediction)
         return self._result_from_entity(saved)
 
-    def _publish_alert_created_safely(self) -> None:
+    def _publish_alert_created_safely(self, prediction: str | None) -> None:
         """Publish post-commit invalidation without changing write success."""
+        if not is_actionable_attack_class(prediction):
+            return
         if self._alert_event_publisher is None:
             return
         try:
@@ -358,6 +361,8 @@ class TriageUseCase:
         )
 
         raw_result = await run_in_threadpool(self._classifier.predict, model_input)
+        if not isinstance(raw_result, dict):
+            raise ModelNotReadyError("Model returned an invalid prediction payload")
         prediction = raw_result.get("prediction") or raw_result.get("class")
         confidence_level = raw_result.get("confidence_level") or raw_result.get(
             "confidence_tier"
@@ -378,11 +383,17 @@ class TriageUseCase:
                 "Model returned an invalid prediction payload"
             ) from None
 
-        if not prediction or not confidence_level:
+        if not isinstance(prediction, str) or not prediction:
+            raise ModelNotReadyError("Model returned an invalid prediction payload")
+        if not isinstance(confidence_level, str) or not confidence_level:
             raise ModelNotReadyError("Model returned an invalid prediction payload")
         if prediction not in self.VALID_PREDICTIONS:
             raise ModelNotReadyError(
                 "Model returned an unsupported prediction label"
+            )
+        if confidence_level not in self._VALID_CONFIDENCE_LEVELS:
+            raise ModelNotReadyError(
+                "Model returned an unsupported confidence level"
             )
 
         return {
@@ -400,16 +411,18 @@ class TriageUseCase:
         }
 
     @staticmethod
-    def _action_for(*, prediction: str, confidence_level: str) -> str:
-        if not prediction:
+    def _action_for(*, prediction: str, confidence_level: str) -> str | None:
+        if not isinstance(prediction, str) or not prediction:
             raise ValueError("prediction is required")
-        if not confidence_level:
+        if not isinstance(confidence_level, str) or not confidence_level:
             raise ValueError("confidence_level is required")
         if confidence_level not in TriageUseCase._VALID_CONFIDENCE_LEVELS:
             raise ValueError(f"Unknown confidence_level: {confidence_level}")
 
         if prediction == "Normal":
             return "ALLOWED"
+        if not is_actionable_attack_class(prediction):
+            return None
         if confidence_level in {"HIGH", "CRITICAL"}:
             return "BLOCKED"
         if confidence_level == "MEDIUM":
@@ -453,11 +466,15 @@ class TriageUseCase:
     @staticmethod
     def _result_from_entity(entity: TrafficLogEntity) -> TriageResult:
         return TriageResult(
-            alert_id=entity.id,
+            alert_id=(
+                entity.id
+                if is_actionable_attack_class(entity.prediction)
+                else None
+            ),
             prediction=entity.prediction or "Normal",
             confidence=entity.confidence or 0.0,
             confidence_level=entity.confidence_level or "LOW",
-            action_taken=entity.action_taken or "ALLOWED",
+            action_taken=entity.action_taken,
             model_version=entity.model_version,
             occurred_at=entity.timestamp,
         )

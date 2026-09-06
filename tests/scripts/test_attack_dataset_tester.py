@@ -106,6 +106,7 @@ def test_endpoint_rejects_public_destination_by_default():
         ("SQL Injection", "MEDIUM", "THROTTLED"),
         ("SQL Injection", "HIGH", "BLOCKED"),
         ("SQL Injection", "CRITICAL", "BLOCKED"),
+        ("Other Attacks", "CRITICAL", None),
     ],
 )
 def test_expected_action_uses_existing_policy(label, tier, action):
@@ -137,6 +138,29 @@ def test_report_contains_required_fields_without_raw_request():
     assert row["acceptance_status"] == "PASS"
     assert "http_request" not in row
     assert "fixture" not in json.dumps(row["input_sha256"])
+
+
+def test_out_of_scope_result_requires_no_action():
+    sample = _sample(label="Other Attacks", family="other_attacks")
+    result = _result(
+        sample=sample,
+        predicted_label="Other Attacks",
+        action_taken=None,
+    )
+
+    assert classify_failure(result) == ""
+    assert acceptance_status(result) == "PASS"
+    row = _report_row(
+        result,
+        run_id="attack-test-run",
+        observed_at_utc="2026-09-02T00:00:00Z",
+        environment="local-offline",
+        endpoint="http://127.0.0.1:8000/api/predict",
+        metadata={},
+    )
+    assert row["expected_action"] == ""
+    assert row["action_taken"] == ""
+    assert row["action_match"] == "True"
 
 
 def test_proposed_variant_is_review_even_when_prediction_matches():

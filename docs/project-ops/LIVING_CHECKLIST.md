@@ -27,8 +27,9 @@ Status note:
   regression evidence are recorded in `docs/project-ops/STATUS.md`.
 - [x] Add Telegram as a database-backed outbox channel restricted to
   `threat_detected`, with versioned V6.2 claiming and channel-specific dedupe.
-- [x] Enqueue Telegram only for persisted non-Normal HIGH/CRITICAL alerts while
-  preserving email and isolating each channel's enqueue failure.
+- [x] Enqueue Telegram only for persisted in-scope (`SQL Injection` or `Code
+  Injection`) HIGH/CRITICAL alerts while preserving email and isolating each
+  channel's enqueue failure.
 - [x] Add plain-text HTTPX `sendMessage` delivery, explicit timeouts, bounded
   429/5xx retry classification, ambiguous-delivery handling, and secret-safe logs.
 - [x] Add mocked provider/worker/WAF failure-isolation tests and an explicitly

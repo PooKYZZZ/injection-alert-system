@@ -111,7 +111,7 @@ describe('DashboardPage metric definitions', () => {
   it('labels the traffic false-positive KPI as an operational proxy', () => {
     render(<DashboardPage />)
 
-    expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
+    expect(screen.getByText('Allowed actionable attack rate (proxy)')).toBeInTheDocument()
     expect(screen.getByText('Not ground-truth FPR')).toBeInTheDocument()
     expect(screen.queryByText('Allowed non-Normal rate')).not.toBeInTheDocument()
   })
@@ -121,7 +121,7 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getAllByTestId('stat-card')).toHaveLength(6)
     expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
-    expect(screen.getByText('Allowed non-Normal prediction rate (proxy)')).toBeInTheDocument()
+    expect(screen.getByText('Allowed actionable attack rate (proxy)')).toBeInTheDocument()
     expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map: 5/6/7/8')
   })
 
@@ -238,7 +238,7 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Dashboard metrics are unavailable')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.getByText('Non-Normal predictions')).toBeInTheDocument()
+    expect(screen.getByText('Actionable attacks')).toBeInTheDocument()
     expect(screen.getByText('Timeline unavailable')).toBeInTheDocument()
     expect(screen.queryByTestId('timeline-chart')).not.toBeInTheDocument()
     expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
@@ -271,7 +271,7 @@ describe('DashboardPage metric definitions', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByText('Non-Normal predictions')).toBeInTheDocument()
+    expect(screen.getByText('Actionable attacks')).toBeInTheDocument()
     expect(screen.getByTestId('timeline-chart')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/showing the last successful data/i)
   })

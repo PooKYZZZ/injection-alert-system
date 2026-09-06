@@ -149,7 +149,7 @@ export default function DashboardPage() {
   // Stat card values with honest fallback
   const statCards = [
     {
-      label: 'Non-Normal predictions',
+      label: 'Actionable attacks',
       value: stats?.high_alert_count ?? '—',
       valueColor: 'text-text-primary',
       valueFlashColor: 'text-red-200',
@@ -216,7 +216,7 @@ export default function DashboardPage() {
       delay: 0.2,
     },
     {
-      label: 'Allowed non-Normal prediction rate (proxy)',
+      label: 'Allowed actionable attack rate (proxy)',
       value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
       secondary:
         statsUnavailable

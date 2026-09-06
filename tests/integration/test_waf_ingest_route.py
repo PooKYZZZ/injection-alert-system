@@ -3,6 +3,7 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,13 +37,14 @@ WAF_HEADERS = {
 
 
 class FakeWafModelService:
-    def __init__(self, *, loaded: bool = True):
+    def __init__(self, *, loaded: bool = True, prediction: str = "SQL Injection"):
         self.loaded = loaded
+        self.prediction = prediction
         self.model_version = "triage-model-v1"
 
     def predict(self, http_request: str):
         return {
-            "prediction": "SQL Injection",
+            "prediction": self.prediction,
             "confidence": 0.91,
             "confidence_tier": "HIGH",
             "inference_latency_ms": 4.2,
@@ -200,6 +202,221 @@ def test_waf_ingest_valid_event_returns_prediction(waf_api_client, caplog):
     assert request_completed["route"] == "/api/internal/waf-events"
     assert "test-secret-key" not in caplog.text
     assert "' OR 1=1 --" not in caplog.text
+
+
+def test_waf_ingest_scope_boundary_covers_all_classifier_outcomes(
+    waf_api_client,
+    monkeypatch,
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    actual_settings = routes_module.get_settings()
+    settings = actual_settings.model_copy(
+        update={
+            "enforcement_mode": "shadow",
+            "threat_email_enabled": True,
+            "threat_email_to": "soc@example.test",
+            "threat_telegram_enabled": True,
+            "telegram_available": True,
+            "telegram_bot_token": "test-token",
+            "telegram_chat_id": "-100123",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+
+    class CapturingOutbox:
+        def __init__(self):
+            self.notifications = []
+
+        async def enqueue(self, notification):
+            self.notifications.append(notification)
+            return True
+
+    class CapturingRecommendationRepository:
+        def __init__(self):
+            self.inserted = []
+
+        async def insert_if_absent(self, recommendation):
+            self.inserted.append(recommendation)
+            return True
+
+    outbox = CapturingOutbox()
+    recommendations = CapturingRecommendationRepository()
+    publisher = MagicMock()
+    client.app.state.notification_outbox_repository = outbox
+    client.app.state.alert_event_broadcaster = publisher
+    client.app.dependency_overrides[get_enforcement_repository] = (
+        lambda: recommendations
+    )
+
+    responses = {}
+    for index, prediction in enumerate(
+        ("Normal", "SQL Injection", "Code Injection", "Other Attacks"),
+        start=1,
+    ):
+        client.app.dependency_overrides[get_model_service] = (
+            lambda prediction=prediction: FakeWafModelService(prediction=prediction)
+        )
+        payload = _waf_payload()
+        payload.update(
+            {
+                "transaction_id": f"waf-scope-{index}",
+                "request_path": "/records/search",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        response = client.post(
+            "/api/internal/waf-events",
+            json=payload,
+            headers=WAF_HEADERS,
+        )
+        assert response.status_code == 200
+        responses[prediction] = response.json()
+
+    assert responses["Normal"]["alert_id"] is None
+    assert responses["Normal"]["prediction"] == "Normal"
+    assert responses["Normal"]["action_taken"] == "ALLOWED"
+    assert responses["SQL Injection"]["alert_id"] is not None
+    assert responses["Code Injection"]["alert_id"] is not None
+    assert responses["Other Attacks"]["alert_id"] is None
+    assert responses["Other Attacks"]["prediction"] == "Other Attacks"
+    assert responses["Other Attacks"]["action_taken"] is None
+
+    assert publisher.publish_alert_created.call_count == 2
+    assert len(recommendations.inserted) == 2
+    assert len(outbox.notifications) == 4
+    assert {item.channel for item in outbox.notifications} == {"email", "telegram"}
+
+    alert_list = client.get("/api/alerts?page=1&page_size=20", headers=INTERNAL_HEADERS)
+    assert alert_list.status_code == 200
+    alert_payload = alert_list.json()
+    assert alert_payload["total"] == 2
+    assert {item["prediction"] for item in alert_payload["items"]} == {
+        "SQL Injection",
+        "Code Injection",
+    }
+
+    stats = client.get("/api/stats", headers=INTERNAL_HEADERS)
+    assert stats.status_code == 200
+    stats_payload = stats.json()
+    assert stats_payload["total_requests"] == 3
+    assert stats_payload["counts_by_label"]["Other Attacks"] == 0
+    assert stats_payload["high_alert_count"] == 2
+    assert stats_payload["attack_distribution"] == {
+        "SQL Injection": 1,
+        "Code Injection": 1,
+    }
+
+    assert client.get("/api/alerts/1", headers=INTERNAL_HEADERS).status_code == 404
+    assert client.get("/api/alerts/4", headers=INTERNAL_HEADERS).status_code == 404
+
+    for index, prediction in enumerate(
+        ("Normal", "SQL Injection", "Code Injection", "Other Attacks"),
+        start=1,
+    ):
+        lookup = client.get(
+            f"/api/internal/waf-events/waf-scope-{index}",
+            headers=INTERNAL_HEADERS,
+        )
+        assert lookup.status_code == 200
+        assert lookup.json()["prediction"] == prediction
+        assert lookup.json()["alert_id"] == responses[prediction]["alert_id"]
+        assert lookup.json()["action_taken"] == responses[prediction]["action_taken"]
+
+    for prediction in ("SQL Injection", "Code Injection"):
+        alert_id = responses[prediction]["alert_id"]
+        detail_response = client.get(
+            f"/api/alerts/{alert_id}",
+            headers=INTERNAL_HEADERS,
+        )
+        assert detail_response.status_code == 200
+        assert detail_response.json()["prediction"] == prediction
+        action_response = client.patch(
+            f"/api/alerts/{alert_id}/action",
+            json={"action_taken": "ALLOWED"},
+            headers=INTERNAL_HEADERS,
+        )
+        assert action_response.status_code == 200
+
+    assert (
+        client.patch(
+            "/api/alerts/4/action",
+            json={"action_taken": "ALLOWED"},
+            headers=INTERNAL_HEADERS,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.patch(
+            "/api/alerts/4/triage",
+            json={"triage_status": "in_review"},
+            headers=INTERNAL_HEADERS,
+        ).status_code
+        == 404
+    )
+
+    client.app.dependency_overrides.clear()
+
+
+def test_out_of_scope_ingest_skips_pr7_action_writer(waf_api_client, monkeypatch):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "enforcement_mode": "enforce",
+            "pr7_critical_waf_mutation_enabled": True,
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+
+    class ExplodingGenericRepository:
+        async def insert_if_absent(self, recommendation):
+            raise AssertionError("out-of-scope traffic must not create actions")
+
+    class RecordingWafStateRepository:
+        def __init__(self):
+            self.calls = []
+
+        async def record_critical_waf_recommendation(self, **kwargs):
+            self.calls.append(kwargs)
+            raise AssertionError("out-of-scope traffic must not reach PR7")
+
+    waf_repository = RecordingWafStateRepository()
+    client.app.dependency_overrides[get_model_service] = (
+        lambda: FakeWafModelService(prediction="Other Attacks")
+    )
+    client.app.dependency_overrides[get_enforcement_repository] = (
+        lambda: ExplodingGenericRepository()
+    )
+    client.app.dependency_overrides[get_waf_state_repository] = (
+        lambda: waf_repository
+    )
+
+    payload = _waf_payload()
+    payload.update(
+        {
+            "transaction_id": "waf-txn-pr7-out-of-scope",
+            "request_path": "/records/search",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers=WAF_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["alert_id"] is None
+    assert response.json()["prediction"] == "Other Attacks"
+    assert response.json()["action_taken"] is None
+    assert waf_repository.calls == []
+
+    client.app.dependency_overrides.clear()
 
 
 def test_shadow_persistence_starts_after_inference_queue_releases_worker(

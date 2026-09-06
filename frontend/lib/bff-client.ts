@@ -3,7 +3,9 @@ import 'server-only'
 import { z } from 'zod'
 import { AlertSchema, LabelReviewSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
 import {
+  ACTIONABLE_ATTACK_CLASSES,
   ALERT_ACTION_TAKEN_VALUES,
+  isActionableAttackClass,
   type AlertAction,
 } from '@/features/alerts/contract'
 import type { Alert, LabelReview, PaginatedAlerts } from '@/features/alerts/types'
@@ -402,6 +404,13 @@ function validateMockData<T>(
 }
 
 function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Alert> {
+  if (!isActionableAttackClass(alert.prediction)) {
+    return err(
+      502,
+      'UPSTREAM_ERROR',
+      'Upstream response contained a non-actionable classification in an alert view.'
+    )
+  }
   let labelReview: z.infer<typeof LabelReviewSchema> | null = null
   if (alert.label_review != null) {
     const parsedReview = normalizeWithSchema(LabelReviewSchema, alert.label_review)
@@ -485,15 +494,19 @@ function normalizeConfidenceBandCounts(
 }
 
 function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats> {
-  const actionableAlerts =
-    (payload.counts_by_label['SQL Injection'] ?? 0) +
-    (payload.counts_by_label['Code Injection'] ?? 0) +
-    (payload.counts_by_label['Other Attacks'] ?? 0)
+  const actionableAlerts = ACTIONABLE_ATTACK_CLASSES.reduce(
+    (total, label) => total + (payload.counts_by_label[label] ?? 0),
+    0
+  )
 
   // Keep optional aggregate fields unavailable until the backend supplies them.
   // Missing data must not look like a valid all-zero window.
   const throttledCount = payload.throttled_count ?? 0
-  const attackDistribution = payload.attack_distribution ?? {}
+  const attackDistribution = Object.fromEntries(
+    Object.entries(payload.attack_distribution ?? {}).filter(([label]) =>
+      isActionableAttackClass(label)
+    )
+  )
   const topSourceIps = (payload.top_source_ips ?? []).map((ip) => ({
     ip: ip.ip,
     count: ip.count,
@@ -503,11 +516,10 @@ function normalizeStats(payload: BackendStatsPayload): BffResult<DashboardStats>
     path: path.path,
     hits: path.hits,
   }))
-  const highAlertCount =
-    payload.high_alert_count ??
-    Object.entries(payload.counts_by_label)
-      .filter(([label]) => label !== 'Normal')
-      .reduce((sum, [, count]) => sum + count, 0)
+  const highAlertCount = ACTIONABLE_ATTACK_CLASSES.reduce(
+    (total, label) => total + (payload.counts_by_label[label] ?? 0),
+    0
+  )
 
   const normalizedBuckets: NormalizedBucket[] = []
   for (let idx = 0; idx < payload.activity_buckets.length; idx += 1) {

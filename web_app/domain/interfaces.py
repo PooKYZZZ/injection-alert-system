@@ -339,7 +339,7 @@ class ITrafficLogRepository(ABC):
         confidence_level: str,
         inference_latency_ms: Optional[float],
         model_version: Optional[str],
-        action_taken: str,
+        action_taken: Optional[str],
     ) -> tuple[TrafficLogEntity, bool]:
         """Return the authoritative row and whether this owner completed it."""
         ...

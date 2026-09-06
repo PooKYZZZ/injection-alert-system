@@ -6,7 +6,6 @@ from web_app.domain.enforcement import (
     EnforcementMode,
     EnforcementPolicy,
     EnforcementScope,
-    EnforcementTier,
     RecommendedAction,
 )
 
@@ -15,7 +14,6 @@ from web_app.domain.enforcement import (
     ("prediction", "tier", "expected_action"),
     [
         ("SQL Injection", "LOW", RecommendedAction.MONITOR),
-        ("Other Attacks", "MEDIUM", RecommendedAction.THROTTLE),
         ("Code Injection", "HIGH", RecommendedAction.APPLICATION_BLOCK),
         ("SQL Injection", "CRITICAL", RecommendedAction.WAF_BLOCK),
     ],
@@ -44,6 +42,18 @@ def test_normal_prediction_produces_no_recommendation(tier: str) -> None:
         EnforcementPolicy.recommend(
             prediction="Normal",
             confidence_level=tier,
+            request_path="/records/search",
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("prediction", ["Other Attacks", "Future Attack"])
+def test_out_of_scope_prediction_produces_no_recommendation(prediction: str) -> None:
+    assert (
+        EnforcementPolicy.recommend(
+            prediction=prediction,
+            confidence_level="HIGH",
             request_path="/records/search",
         )
         is None
@@ -97,7 +107,7 @@ def test_enforce_policy_uses_v2_active_actions_without_changing_shadow_mapping()
         mode=EnforcementMode.ENFORCE,
     )
     medium = EnforcementPolicy.recommend(
-        prediction="Other Attacks",
+        prediction="Code Injection",
         confidence_level="MEDIUM",
         request_path="/records/search",
         mode=EnforcementMode.ENFORCE,

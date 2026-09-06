@@ -147,7 +147,7 @@ async def test_triage_normal_high_confidence_is_allowed(mock_classifier, mock_re
 
 @pytest.mark.asyncio
 async def test_triage_low_confidence_is_allowed(mock_classifier, mock_repository):
-    """LOW confidence → ALLOWED"""
+    """Out-of-scope classifications do not receive an operational action."""
     mock_classifier.predict.return_value = {
         "class": "Other Attacks",
         "confidence": 0.3,
@@ -160,7 +160,53 @@ async def test_triage_low_confidence_is_allowed(mock_classifier, mock_repository
         source_ip="10.0.0.1",
     )
 
-    assert result.action_taken == "ALLOWED"
+    assert result.action_taken is None
+    saved = mock_repository.save.call_args.args[0]
+    assert saved.action_taken is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("prediction", "expected_alert_id", "publishes", "expected_action"),
+    [
+        ("Normal", None, False, "ALLOWED"),
+        ("SQL Injection", 1, True, "BLOCKED"),
+        ("Code Injection", 1, True, "BLOCKED"),
+        ("Other Attacks", None, False, None),
+    ],
+)
+async def test_classification_scope_controls_alert_side_effects(
+    mock_classifier,
+    mock_repository,
+    prediction,
+    expected_alert_id,
+    publishes,
+    expected_action,
+):
+    mock_classifier.predict.return_value = {
+        "prediction": prediction,
+        "confidence": 0.91,
+        "confidence_level": "HIGH",
+    }
+    publisher = MagicMock()
+    use_case = TriageUseCase(
+        classifier=mock_classifier,
+        repository=mock_repository,
+        alert_event_publisher=publisher,
+    )
+
+    result = await use_case.execute(
+        http_request="GET /records/search HTTP/1.1",
+        source_ip="203.0.113.10",
+    )
+
+    assert result.prediction == prediction
+    assert result.alert_id == expected_alert_id
+    assert result.action_taken == expected_action
+    assert publisher.publish_alert_created.called is publishes
+    saved = mock_repository.save.call_args.args[0]
+    assert saved.prediction == prediction
+    assert saved.action_taken == expected_action
 
 
 @pytest.mark.parametrize(
@@ -168,7 +214,8 @@ async def test_triage_low_confidence_is_allowed(mock_classifier, mock_repository
     [
         ("SQL Injection", "CRITICAL", "BLOCKED"),
         ("Code Injection", "CRITICAL", "BLOCKED"),
-        ("Other Attacks", "CRITICAL", "BLOCKED"),
+        ("Other Attacks", "CRITICAL", None),
+        ("Future Attack", "CRITICAL", None),
         ("Normal", "CRITICAL", "ALLOWED"),
     ],
 )
@@ -263,7 +310,7 @@ async def test_triage_offloads_sync_predict_via_threadpool(
     assert captured["args"] == ("get /health",)
     assert captured["kwargs"] == {}
     assert result == TriageResult(
-        alert_id=1,
+        alert_id=None,
         prediction="Normal",
         confidence=0.42,
         confidence_level="LOW",
@@ -765,12 +812,24 @@ async def test_ingest_raises_model_not_ready_when_service_not_loaded(
             "confidence": "not-a-number",
             "confidence_level": "HIGH",
         },
+        {
+            "prediction": ["Other Attacks"],
+            "confidence": 0.9,
+            "confidence_level": "HIGH",
+        },
+        {
+            "prediction": "Other Attacks",
+            "confidence": 0.9,
+            "confidence_level": ["HIGH"],
+        },
     ],
     ids=[
         "missing-prediction",
         "missing-confidence-level",
         "missing-confidence",
         "invalid-confidence",
+        "non-string-prediction",
+        "non-string-confidence-level",
     ],
 )
 async def test_fresh_model_output_must_include_required_prediction_fields(

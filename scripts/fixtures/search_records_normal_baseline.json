@@ -14,7 +14,7 @@
     "maximum_cases": 50
   },
   "confidence_note": "Confidence is observed from the unchanged model. No threshold or action mapping is changed to produce a desired result.",
-  "expected_action_policy": "Normal=ALLOWED; attack LOW=ALLOWED, MEDIUM=THROTTLED, HIGH/CRITICAL=BLOCKED",
+  "expected_action_policy": "Normal=ALLOWED; SQL Injection/Code Injection LOW=ALLOWED, MEDIUM=THROTTLED, HIGH/CRITICAL=BLOCKED; Other Attacks=None",
   "cases": [
     {
       "case_id": "SR-NORMAL-001",

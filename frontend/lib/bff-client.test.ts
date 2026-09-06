@@ -307,6 +307,45 @@ describe('bff-client', () => {
     })
   })
 
+  it('rejects non-actionable classifications from operational alert payloads', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 11,
+              timestamp: '2026-03-15T00:00:00Z',
+              source_ip: '203.0.113.11',
+              request_path: '/records/search',
+              request_method: 'GET',
+              payload_snippet: 'unclassified attack-like payload',
+              prediction: 'Other Attacks',
+              confidence: 0.88,
+              confidence_level: 'HIGH',
+              action_taken: 'BLOCKED',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'UPSTREAM_ERROR',
+        message: 'Upstream response contained a non-actionable classification in an alert view.',
+      },
+    })
+  })
+
   it('prefers confidence_tier when forwarding the alerts filter to FastAPI', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
@@ -381,7 +420,7 @@ describe('bff-client', () => {
               id: 9,
               timestamp: '2026-03-15T00:00:00',
               payload_snippet: 'payload',
-              prediction: 'Normal',
+              prediction: 'SQL Injection',
               confidence: 0.12,
               confidence_level: 'LOW',
               action_taken: 'ALLOWED',
@@ -487,7 +526,7 @@ describe('bff-client', () => {
               request_path: null,
               request_method: null,
               payload_snippet: 'payload',
-              prediction: 'Normal',
+              prediction: 'SQL Injection',
               confidence: 0.12,
               confidence_level: 'LOW',
               crs_score: null,
@@ -520,7 +559,7 @@ describe('bff-client', () => {
             request_path: null,
             request_method: null,
             payload_snippet: 'payload',
-            prediction: 'Normal',
+            prediction: 'SQL Injection',
             confidence: 0.12,
             confidence_level: 'LOW',
             action_taken: null,
@@ -667,6 +706,12 @@ describe('bff-client', () => {
           avg_confidence: 0.82,
           counts_by_confidence_tier: { CRITICAL: 1, HIGH: 2, MEDIUM: 3, LOW: 4 },
           non_normal_counts_by_confidence_tier: { CRITICAL: 5, HIGH: 6, MEDIUM: 7, LOW: 8 },
+          attack_distribution: {
+            'SQL Injection': 2,
+            'Code Injection': 1,
+            'Other Attacks': 3,
+            Normal: 10,
+          },
           prev_high_alert_count: 123,
           activity_buckets: [
             { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
@@ -683,7 +728,7 @@ describe('bff-client', () => {
     expect(result).toEqual({
       ok: true,
       data: {
-        actionable_alerts: 6,
+        actionable_alerts: 3,
         total_requests: 321,
         avg_inference_latency_ms: 4.5,
         blocked_count: 4,
@@ -694,7 +739,7 @@ describe('bff-client', () => {
         non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8 },
         false_positive_rate: 0,
         false_positive_count: 0,
-        high_alert_count: 6,
+        high_alert_count: 3,
         prev_high_alert_count: 123,
         prev_total_requests: null,
         prev_blocked_count: null,
@@ -704,7 +749,7 @@ describe('bff-client', () => {
           { bucket_index: 0, total_count: 10, blocked_count: 2, allowed_count: 7, throttled_count: 1, timestamp_start: '2026-03-18T12:00:00Z', timestamp_end: '2026-03-18T13:00:00Z', bucket_width_seconds: 3600 },
           { bucket_index: 1, total_count: 15, blocked_count: 3, allowed_count: 11, throttled_count: 1, timestamp_start: '2026-03-18T13:00:00Z', timestamp_end: '2026-03-18T14:00:00Z', bucket_width_seconds: 3600 },
         ],
-        attack_distribution: {},
+        attack_distribution: { 'SQL Injection': 2, 'Code Injection': 1 },
         top_source_ips: [],
         top_targeted_paths: [],
       },

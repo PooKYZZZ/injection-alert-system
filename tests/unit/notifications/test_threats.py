@@ -153,3 +153,29 @@ async def test_email_enqueue_failure_does_not_prevent_telegram_attempt() -> None
         "email",
         "telegram",
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "attack_category", ["Other Attacks", "Normal", "Future Attack"]
+)
+async def test_non_actionable_classifications_never_enqueue_notifications(
+    attack_category: str,
+) -> None:
+    repository = CapturingRepository()
+
+    queued = await threats.enqueue_threat_notifications_safely(
+        repository=repository,
+        settings=ThreatSettings(),
+        alert_id=42,
+        timestamp="2026-07-20T09:00:00Z",
+        attack_category=attack_category,
+        confidence_tier="CRITICAL",
+        confidence=0.99,
+        action_taken="BLOCKED",
+        request_method="POST",
+        request_path="/records/search",
+    )
+
+    assert queued is False
+    assert repository.notifications == []
