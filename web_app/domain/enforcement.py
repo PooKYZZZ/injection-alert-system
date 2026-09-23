@@ -23,7 +23,8 @@ class EnforcementTier(StrEnum):
 
 
 class RecommendedAction(StrEnum):
-    # v1 values are historical shadow policy intents. v2 adds CHALLENGE for LOW.
+    # v1 values are historical shadow policy intents. v2 keeps LOW monitor-only;
+    # legacy LOW challenge rows are handled as non-enforcing state.
     MONITOR = "MONITOR"
     CHALLENGE = "CHALLENGE"
     THROTTLE = "THROTTLE"
@@ -191,18 +192,15 @@ class EnforcementPolicy:
             return None
 
         selected_mode = EnforcementMode(mode)
-        actions = cls._ACTIONS
-        policy_version = POLICY_VERSION
-        if selected_mode is EnforcementMode.ENFORCE:
-            actions = {
-                **cls._ACTIONS,
-                EnforcementTier.LOW: RecommendedAction.CHALLENGE,
-            }
-            policy_version = ACTIVE_POLICY_VERSION
+        policy_version = (
+            ACTIVE_POLICY_VERSION
+            if selected_mode is EnforcementMode.ENFORCE
+            else POLICY_VERSION
+        )
 
         return PolicyRecommendation(
             scope=EnforcementScope.RECORD_SEARCH,
             tier=tier,
-            action=actions[tier],
+            action=cls._ACTIONS[tier],
             policy_version=policy_version,
         )

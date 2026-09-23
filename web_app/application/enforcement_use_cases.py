@@ -54,7 +54,7 @@ class EnforcementChallengeResult:
 
 
 class VerifyEnforcementChallengeUseCase:
-    """Verify a challenge server-side and persist only bounded grant metadata."""
+    """Verify a MEDIUM challenge and persist only bounded grant metadata."""
 
     def __init__(
         self,
@@ -134,7 +134,9 @@ class VerifyEnforcementChallengeUseCase:
                 )
 
             tier = recommendation.tier
-            if tier not in {EnforcementTier.LOW, EnforcementTier.MEDIUM}:
+            # LOW is monitor-only. Do not let legacy LOW challenge rows invoke
+            # Turnstile or create a bypass grant.
+            if tier is not EnforcementTier.MEDIUM:
                 return finish(
                     EnforcementChallengeResult(status="NO_ACTIVE_ENFORCEMENT"),
                     tier=tier,
@@ -224,7 +226,7 @@ class VerifyEnforcementChallengeUseCase:
 
 
 class EvaluateEnforcementUseCase:
-    """Evaluate explicit v2 LOW/MEDIUM/HIGH state for the protected search route."""
+    """Evaluate v2 state while keeping LOW traffic permanently monitor-only."""
 
     def __init__(
         self,
@@ -337,39 +339,9 @@ class EvaluateEnforcementUseCase:
                 )
 
             if recommendation.tier is EnforcementTier.LOW:
-                grant = await self._repository.find_valid_challenge_grant(
-                    source_ip=canonical_ip,
-                    scope=scope,
-                    tier=EnforcementTier.LOW,
-                    policy_version=ACTIVE_POLICY_VERSION,
-                    now=now,
-                )
-                if grant is not None:
-                    return finish(
-                        ActiveEnforcementResult(
-                            matched=True,
-                            recommendation=recommendation,
-                        )
-                    )
-                state = await self._repository.increment_request_window(
-                    source_ip=canonical_ip,
-                    scope=scope,
-                    counter_kind=CounterKind.LOW_LIGHT,
-                    policy_version=ACTIVE_POLICY_VERSION,
-                    now=now,
-                    window_seconds=self._low_window_seconds,
-                )
-                if state.request_count > self._low_max_unchallenged_requests:
-                    return finish(
-                        ActiveEnforcementResult(
-                            decision=EnforcementDecision.CHALLENGE.value,
-                            matched=True,
-                            recommendation=recommendation,
-                            challenge_tier=EnforcementTier.LOW.value,
-                        ),
-                        counter_kind=CounterKind.LOW_LIGHT,
-                        threshold_crossed=True,
-                    )
+                # The low-window settings remain accepted for configuration
+                # compatibility, but LOW must never challenge or count toward
+                # a restriction in the revised policy.
                 return finish(
                     ActiveEnforcementResult(
                         matched=True,

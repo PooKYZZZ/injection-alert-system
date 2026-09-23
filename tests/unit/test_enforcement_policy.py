@@ -99,7 +99,7 @@ def test_policy_recommendation_is_immutable() -> None:
         recommendation.action = RecommendedAction.WAF_BLOCK  # type: ignore[misc]
 
 
-def test_enforce_policy_uses_v2_active_actions_without_changing_shadow_mapping() -> None:
+def test_enforce_policy_keeps_low_monitor_only_while_versioning_active_actions() -> None:
     low = EnforcementPolicy.recommend(
         prediction="SQL Injection",
         confidence_level="LOW",
@@ -119,7 +119,7 @@ def test_enforce_policy_uses_v2_active_actions_without_changing_shadow_mapping()
     )
 
     assert low is not None
-    assert low.action is RecommendedAction.CHALLENGE
+    assert low.action is RecommendedAction.MONITOR
     assert low.policy_version == ACTIVE_POLICY_VERSION
     assert medium is not None
     assert medium.action is RecommendedAction.THROTTLE

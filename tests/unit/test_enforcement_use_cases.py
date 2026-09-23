@@ -117,7 +117,7 @@ def _active_recommendation(tier: EnforcementTier, *, source_status="VERIFIED"):
         scope=EnforcementScope.RECORD_SEARCH,
         tier=tier,
         action={
-            EnforcementTier.LOW: RecommendedAction.CHALLENGE,
+            EnforcementTier.LOW: RecommendedAction.MONITOR,
             EnforcementTier.MEDIUM: RecommendedAction.THROTTLE,
             EnforcementTier.HIGH: RecommendedAction.APPLICATION_BLOCK,
             EnforcementTier.CRITICAL: RecommendedAction.WAF_BLOCK,
@@ -283,7 +283,7 @@ async def test_record_enforcement_recommendation_persists_explicit_v2_mode():
     )
     assert repo.inserted[0].mode is EnforcementMode.ENFORCE
     assert repo.inserted[0].policy_version == ACTIVE_POLICY_VERSION
-    assert repo.inserted[0].action is RecommendedAction.CHALLENGE
+    assert repo.inserted[0].action is RecommendedAction.MONITOR
 
 
 @pytest.mark.asyncio
@@ -326,7 +326,7 @@ async def test_check_shadow_enforcement_invalid_ip_or_failure_allows():
 
 
 @pytest.mark.asyncio
-async def test_low_enforcement_allows_maximum_then_challenges_first_request_above_it():
+async def test_low_enforcement_remains_monitor_only_without_counter_state():
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
     repo = ActiveRepository(_active_recommendation(EnforcementTier.LOW))
     use_case = EvaluateEnforcementUseCase(
@@ -347,7 +347,8 @@ async def test_low_enforcement_allows_maximum_then_challenges_first_request_abov
             )
         ).decision
         for _ in range(3)
-    ] == ["ALLOW", "ALLOW", "CHALLENGE"]
+    ] == ["ALLOW", "ALLOW", "ALLOW"]
+    assert repo.counts == {}
 
 
 @pytest.mark.asyncio
@@ -548,9 +549,9 @@ async def test_active_evaluation_fails_open_for_ineligible_source_and_repo_failu
 
 
 @pytest.mark.asyncio
-async def test_successful_challenge_creates_tier_bound_grant_capped_by_recommendation():
+async def test_successful_medium_challenge_creates_tier_bound_grant_capped_by_recommendation():
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
-    repo = ActiveRepository(_active_recommendation(EnforcementTier.LOW))
+    repo = ActiveRepository(_active_recommendation(EnforcementTier.MEDIUM))
     result = await VerifyEnforcementChallengeUseCase(
         repository=repo,
         verifier=StubTurnstile(TurnstileVerificationResult(success=True)),
@@ -565,8 +566,33 @@ async def test_successful_challenge_creates_tier_bound_grant_capped_by_recommend
     )
 
     assert result.verified is True
-    grant = repo.grants[("203.0.113.25", EnforcementTier.LOW, ACTIVE_POLICY_VERSION)]
+    grant = repo.grants[("203.0.113.25", EnforcementTier.MEDIUM, ACTIVE_POLICY_VERSION)]
     assert grant.expires_at == now + timedelta(minutes=5)
+
+
+@pytest.mark.asyncio
+async def test_low_challenge_is_disabled_without_verifier_or_grant():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    verifier = StubTurnstile(TurnstileVerificationResult(success=True))
+    repo = ActiveRepository(_active_recommendation(EnforcementTier.LOW))
+
+    result = await VerifyEnforcementChallengeUseCase(
+        repository=repo,
+        verifier=verifier,
+        mode=EnforcementMode.ENFORCE,
+        grant_ttl_seconds=300,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(
+        source_ip="203.0.113.251",
+        scope=EnforcementScope.RECORD_SEARCH,
+        token="legacy-low-token",
+    )
+
+    assert result.verified is False
+    assert result.status == "NO_ACTIVE_ENFORCEMENT"
+    assert verifier.tokens == []
+    assert repo.grants == {}
 
 
 @pytest.mark.asyncio
@@ -599,7 +625,7 @@ async def test_challenge_uses_fresh_time_after_provider_verification() -> None:
     initial = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
     expired = initial + timedelta(seconds=3)
     recommendation = replace(
-        _active_recommendation(EnforcementTier.LOW),
+        _active_recommendation(EnforcementTier.MEDIUM),
         expires_at=initial + timedelta(seconds=2),
     )
     repo = ExpiringActiveRepository(recommendation)

@@ -148,7 +148,7 @@ def test_enforcement_check_returns_503_when_lookup_is_unavailable(monkeypatch):
     assert response.json() == {"detail": "Shadow enforcement lookup unavailable"}
 
 
-def test_active_enforcement_returns_challenge_for_unverified_test_source(monkeypatch):
+def test_active_enforcement_keeps_low_source_monitor_only(monkeypatch):
     key = "enforcement-key-for-integration-tests-32chars"
     settings = SimpleNamespace(
         enforcement_check_api_key=key,
@@ -167,8 +167,9 @@ def test_active_enforcement_returns_challenge_for_unverified_test_source(monkeyp
     monkeypatch.setattr(routes, "get_settings", lambda: settings)
 
     app = create_app()
+    repository = ActiveLowRepository()
     app.dependency_overrides[routes.get_enforcement_repository] = (
-        lambda: ActiveLowRepository()
+        lambda: repository
     )
     with TestClient(app) as client:
         response = client.post(
@@ -179,10 +180,8 @@ def test_active_enforcement_returns_challenge_for_unverified_test_source(monkeyp
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {
-        "decision": "CHALLENGE",
-        "enforcement_tier": "LOW",
-    }
+    assert response.json() == {"decision": "ALLOW"}
+    assert repository.count == 0
 
 
 def test_active_enforcement_serializes_exact_high_block_contract(monkeypatch):
@@ -219,7 +218,7 @@ def test_active_enforcement_serializes_exact_high_block_contract(monkeypatch):
     assert response.json() == {"decision": "BLOCK"}
 
 
-def test_active_challenge_verification_persists_only_verified_grant(monkeypatch):
+def test_active_low_challenge_is_rejected_without_a_grant(monkeypatch):
     key = "enforcement-key-for-integration-tests-32chars"
     settings = SimpleNamespace(
         enforcement_check_api_key=key,
@@ -252,5 +251,8 @@ def test_active_challenge_verification_persists_only_verified_grant(monkeypatch)
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {"verified": True, "status": "VERIFIED"}
-    assert repository.grant.tier is EnforcementTier.LOW
+    assert response.json() == {
+        "verified": False,
+        "status": "NO_ACTIVE_ENFORCEMENT",
+    }
+    assert getattr(repository, "grant", None) is None
