@@ -41,6 +41,11 @@ async def enqueue_threat_notification_safely(
 ) -> bool:
     if not is_actionable_attack_class(attack_category):
         return False
+    # LOW is monitor-only and MEDIUM is conditional throttling evidence; neither
+    # tier is an analyst notification. Keep email aligned with Telegram and the
+    # approved HIGH/CRITICAL alert allowlist.
+    if confidence_tier not in {"HIGH", "CRITICAL"}:
+        return False
     if not settings.threat_email_enabled or not settings.threat_email_to:
         return False
     notification = build_threat_notification(

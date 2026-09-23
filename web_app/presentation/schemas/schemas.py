@@ -337,6 +337,12 @@ class AlertDetailResponse(BaseModel):
     confidence: float
     confidence_level: ConfidenceLevel
     action_taken: Optional[ActionTaken] = None
+    policy_decision: Optional[
+        Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
+    ] = None
+    policy_decision_reason: Optional[str] = Field(default=None, max_length=128)
+    policy_version: Optional[str] = Field(default=None, max_length=64)
+    policy_evidence_context: Optional[dict[str, object]] = None
     crs_score: Optional[int] = None
     crs_rule_ids: Optional[list[str]] = None
     ingest_source: Optional[str] = None
@@ -389,6 +395,12 @@ class WafIngestLookupResponse(BaseModel):
     confidence: float | None = None
     confidence_level: ConfidenceLevel | None = None
     action_taken: ActionTaken | None = None
+    policy_decision: Optional[
+        Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
+    ] = None
+    policy_decision_reason: Optional[str] = Field(default=None, max_length=128)
+    policy_version: Optional[str] = Field(default=None, max_length=64)
+    policy_evidence_context: Optional[dict[str, object]] = None
     ingest_source: str | None = None
     source_ip: str | None = None
     source_provenance: str | None = None

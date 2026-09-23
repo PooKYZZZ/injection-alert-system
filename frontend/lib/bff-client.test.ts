@@ -390,6 +390,13 @@ describe('bff-client', () => {
               confidence: 0.97,
               confidence_level: 'CRITICAL',
               action_taken: 'BLOCKED',
+              policy_decision: 'WAF_BLOCK',
+              policy_decision_reason: 'STRONG_CRS_EVIDENCE',
+              policy_version: 'confidence-enforcement-v2',
+              policy_evidence_context: {
+                source_verified: true,
+                strong_waf_evidence: true,
+              },
             },
           ],
           total: 1,
@@ -409,6 +416,12 @@ describe('bff-client', () => {
     }
 
     expect(result.data.items[0]?.confidence_level).toBe('CRITICAL')
+    expect(result.data.items[0]?.policy_decision).toBe('WAF_BLOCK')
+    expect(result.data.items[0]?.policy_decision_reason).toBe('STRONG_CRS_EVIDENCE')
+    expect(result.data.items[0]?.policy_evidence_context).toEqual({
+      source_verified: true,
+      strong_waf_evidence: true,
+    })
   })
 
   it('rejects alert timestamps without an explicit timezone', async () => {

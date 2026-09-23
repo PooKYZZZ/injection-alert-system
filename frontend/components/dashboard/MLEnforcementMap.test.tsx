@@ -17,7 +17,7 @@ describe('MLEnforcementMap', () => {
 
     expect(screen.getByText('Action policy for actionable attacks')).toBeInTheDocument()
     expect(
-      screen.getByText('Normal predictions remain ALLOWED; out-of-scope labels do not enter this policy.')
+      screen.getByText('Normal predictions remain ALLOWED; LOW actionable attacks are MONITOR ONLY; out-of-scope labels do not enter this policy.')
     ).toBeInTheDocument()
     const criticalRow = screen.getByText('CRITICAL actionable attacks').closest('div')?.parentElement
     const highRow = screen.getByText('HIGH actionable attacks').closest('div')?.parentElement
@@ -27,10 +27,10 @@ describe('MLEnforcementMap', () => {
     expect(highRow).not.toBeNull()
     expect(mediumRow).not.toBeNull()
     expect(lowRow).not.toBeNull()
-    expect(within(criticalRow as HTMLElement).getByText('BLOCKED')).toBeInTheDocument()
-    expect(within(highRow as HTMLElement).getByText('BLOCKED')).toBeInTheDocument()
-    expect(within(mediumRow as HTMLElement).getByText('THROTTLED')).toBeInTheDocument()
-    expect(within(lowRow as HTMLElement).getByText('ALLOWED')).toBeInTheDocument()
+    expect(within(criticalRow as HTMLElement).getByText('BLOCK WITH EVIDENCE')).toBeInTheDocument()
+    expect(within(highRow as HTMLElement).getByText('BLOCK WITH EVIDENCE')).toBeInTheDocument()
+    expect(within(mediumRow as HTMLElement).getByText('THROTTLE WITH EVIDENCE')).toBeInTheDocument()
+    expect(within(lowRow as HTMLElement).getByText('MONITOR ONLY')).toBeInTheDocument()
     expect(screen.queryByText(/strictly bound/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/CRITICAL always BLOCKED/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/CRITICAL confidence always maps to BLOCKED/i)).not.toBeInTheDocument()

@@ -380,7 +380,11 @@ function AlertsTableContent({
                     </span>
                   </td>
                   <td className="p-3">
-                    <ActionLabel action={alert.action_taken} bordered={false} />
+                    <ActionLabel
+                      action={alert.action_taken}
+                      confidenceTier={alert.confidence_level}
+                      bordered={false}
+                    />
                   </td>
                   <td className="p-3 font-mono text-xs text-[var(--color-text-secondary)]">
                     {formatCrsScore(alert.crs_score)}

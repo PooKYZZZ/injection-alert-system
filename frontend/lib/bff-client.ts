@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { AlertSchema, LabelReviewSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
 import {
   ACTIONABLE_ATTACK_CLASSES,
+  ALERT_POLICY_DECISION_VALUES,
   ALERT_ACTION_TAKEN_VALUES,
   isActionableAttackClass,
   type AlertAction,
@@ -62,6 +63,10 @@ const BackendAlertSchema = z.object({
   confidence: z.number().min(0).max(1),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
+  policy_decision: z.enum(ALERT_POLICY_DECISION_VALUES).nullable().optional(),
+  policy_decision_reason: z.string().max(128).nullable().optional(),
+  policy_version: z.string().max(64).nullable().optional(),
+  policy_evidence_context: z.record(z.string(), z.unknown()).nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
@@ -417,6 +422,12 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     if (!parsedReview.ok) return parsedReview
     labelReview = parsedReview.data
   }
+  const hasPolicyContext = [
+    alert.policy_decision,
+    alert.policy_decision_reason,
+    alert.policy_version,
+    alert.policy_evidence_context,
+  ].some((value) => value != null)
 
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
@@ -430,6 +441,14 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
     action_taken: alert.action_taken ?? null,
+    ...(hasPolicyContext
+      ? {
+          policy_decision: alert.policy_decision ?? null,
+          policy_decision_reason: alert.policy_decision_reason ?? null,
+          policy_version: alert.policy_version ?? null,
+          policy_evidence_context: alert.policy_evidence_context ?? null,
+        }
+      : {}),
     crs_score: alert.crs_score ?? null,
     crs_rule_ids: alert.crs_rule_ids ?? null,
     ingest_source: alert.ingest_source ?? null,

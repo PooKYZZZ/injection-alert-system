@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from web_app.domain.interfaces import TrafficLogEntity
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
-from web_app.infrastructure.database.database import Base
+from web_app.infrastructure.database.database import Base, EnforcementRecommendationRow
 from web_app.infrastructure.repositories import traffic_log_repository as repo_module
 from web_app.infrastructure.repositories.traffic_log_repository import (
     _StatsCache,
@@ -356,6 +356,59 @@ async def test_get_by_transaction_id_returns_entity(
     assert found is not None
     assert found.id == saved.id
     assert found.transaction_id == "txn-123"
+
+
+@pytest.mark.asyncio
+async def test_alert_views_include_persisted_policy_context(
+    repository: TrafficLogRepository,
+):
+    saved = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-policy-context-1",
+            source_ip="203.0.113.20",
+            request_path="/records/search",
+            request_method="GET",
+            http_request="GET /records/search?q=probe",
+            prediction="SQL Injection",
+            confidence=0.96,
+            confidence_level="CRITICAL",
+            action_taken="BLOCKED",
+        )
+    )
+    now = datetime.now(timezone.utc)
+    repository._session.add(
+        EnforcementRecommendationRow(
+            trigger_traffic_log_id=saved.id,
+            scope="RECORD_SEARCH",
+            enforcement_tier="CRITICAL",
+            recommended_action="WAF_BLOCK",
+            enforcement_mode="ENFORCE",
+            policy_version="confidence-enforcement-v2",
+            created_at=now,
+            expires_at=now + timedelta(minutes=15),
+            decision_reason="STRONG_CRS_EVIDENCE",
+            evidence_context={
+                "source_verified": True,
+                "strong_waf_evidence": True,
+                "crs_rule_ids": ["942100"],
+            },
+        )
+    )
+    await repository._session.commit()
+
+    page = await repository.get_alert_list(page=1, page_size=20)
+    assert page.items[0].policy_decision == "WAF_BLOCK"
+    assert page.items[0].policy_decision_reason == "STRONG_CRS_EVIDENCE"
+    assert page.items[0].policy_version == "confidence-enforcement-v2"
+    assert page.items[0].policy_evidence_context == {
+        "source_verified": True,
+        "strong_waf_evidence": True,
+        "crs_rule_ids": ["942100"],
+    }
+
+    detail = await repository.get_operational_alert_by_id(saved.id)
+    assert detail is not None
+    assert detail.policy_decision == "WAF_BLOCK"
 
 
 @pytest.mark.asyncio
