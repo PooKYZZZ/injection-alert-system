@@ -440,11 +440,13 @@ async def test_notification_status_lookup_uses_dedupe_keys_without_payload_acces
     class FakeSession:
         def __init__(self):
             self.params = None
+            self.statement = None
 
         def get_bind(self):
             return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
 
-        async def execute(self, _statement, params):
+        async def execute(self, statement, params):
+            self.statement = statement
             self.params = params
             return FakeResult()
 
@@ -457,6 +459,7 @@ async def test_notification_status_lookup_uses_dedupe_keys_without_payload_acces
     assert session.params == {
         "dedupe_keys": ["threat/42", "threat/42/telegram"]
     }
+    assert "payload_safe_json" not in str(session.statement)
 
 
 @pytest.mark.asyncio
