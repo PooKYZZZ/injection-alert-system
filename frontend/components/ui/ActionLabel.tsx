@@ -3,11 +3,16 @@
 import { cn } from '@/lib/utils'
 import {
   ALERT_DISPLAY_ACTION_ALIASES,
+  isActionableAttackClass,
   type AlertAction,
+  type AlertConfidenceTier,
+  type AlertPrediction,
 } from '@/features/alerts/contract'
 
 interface ActionLabelProps {
   action: AlertAction | null
+  confidenceTier?: AlertConfidenceTier | null
+  prediction?: AlertPrediction | null
   bordered?: boolean
 }
 
@@ -23,7 +28,29 @@ const borderedStyles: Record<AlertAction, string> = {
   ALLOWED: 'border border-severity-safe-border/30',
 }
 
-export function ActionLabel({ action, bordered = true }: ActionLabelProps) {
+export function getActionLabelText(
+  action: AlertAction,
+  confidenceTier?: AlertConfidenceTier | null,
+  prediction?: AlertPrediction | null
+): string {
+  if (
+    action === 'ALLOWED' &&
+    confidenceTier === 'LOW' &&
+    prediction != null &&
+    isActionableAttackClass(prediction)
+  ) {
+    return 'Monitor Only'
+  }
+
+  return ALERT_DISPLAY_ACTION_ALIASES[action]
+}
+
+export function ActionLabel({
+  action,
+  confidenceTier,
+  prediction,
+  bordered = true,
+}: ActionLabelProps) {
   if (action === null) {
     return (
       <span className="inline-flex items-center rounded-full border border-surface-border bg-surface-inset px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
@@ -40,7 +67,7 @@ export function ActionLabel({ action, bordered = true }: ActionLabelProps) {
         bordered && borderedStyles[action]
       )}
     >
-      {ALERT_DISPLAY_ACTION_ALIASES[action]}
+      {getActionLabelText(action, confidenceTier, prediction)}
     </span>
   )
 }

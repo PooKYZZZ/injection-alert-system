@@ -101,7 +101,7 @@ export function MLEnforcementMap({
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{low}</span>
           <span className="rounded border border-severity-safe-border bg-severity-safe-bg px-1 py-0.5 text-[10px] font-bold text-severity-safe-text">
-            ALLOWED
+            MONITOR ONLY
           </span>
         </div>
       </div>
