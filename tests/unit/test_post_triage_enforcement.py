@@ -6,7 +6,7 @@ from web_app.application.post_triage_enforcement import (
     PostTriageEnforcementCoordinator,
     WafMutationOutcome,
 )
-from web_app.domain.enforcement import EnforcementMode
+from web_app.domain.enforcement import EnforcementEvidence, EnforcementMode
 
 
 class RecordingGenericRecommendation:
@@ -56,6 +56,11 @@ async def test_critical_pr7_candidate_uses_only_the_atomic_waf_writer():
         confidence_level="CRITICAL",
         request_path="/records/search",
         occurred_at=occurred_at,
+        evidence=EnforcementEvidence(
+            source_verification_status="VERIFIED",
+            crs_rule_ids=("942100",),
+            matched_rule_tags=("attack-sqli",),
+        ),
     )
 
     assert result.route == "PR7"
@@ -180,6 +185,11 @@ async def test_pr7_candidate_normalizes_naive_persisted_event_time_as_utc():
         confidence_level="CRITICAL",
         request_path="/records/search",
         occurred_at=datetime(2026, 7, 30, 10),
+        evidence=EnforcementEvidence(
+            source_verification_status="VERIFIED",
+            crs_rule_ids=("942100",),
+            matched_rule_tags=("attack-sqli",),
+        ),
     )
 
     assert waf.calls[0]["recommendation_expires_at"] == datetime(

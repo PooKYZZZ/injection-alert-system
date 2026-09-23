@@ -3,10 +3,12 @@ import pytest
 from web_app.domain.enforcement import (
     ACTIVE_POLICY_VERSION,
     POLICY_VERSION,
+    EnforcementEvidence,
     EnforcementMode,
     EnforcementPolicy,
     EnforcementScope,
     RecommendedAction,
+    scope_for_request_path,
 )
 
 
@@ -14,8 +16,8 @@ from web_app.domain.enforcement import (
     ("prediction", "tier", "expected_action"),
     [
         ("SQL Injection", "LOW", RecommendedAction.MONITOR),
-        ("Code Injection", "HIGH", RecommendedAction.APPLICATION_BLOCK),
-        ("SQL Injection", "CRITICAL", RecommendedAction.WAF_BLOCK),
+        ("Code Injection", "HIGH", RecommendedAction.MONITOR),
+        ("SQL Injection", "CRITICAL", RecommendedAction.MONITOR),
     ],
 )
 def test_non_normal_predictions_map_to_shadow_policy_intent(
@@ -65,10 +67,58 @@ def test_unsupported_path_produces_no_recommendation() -> None:
         EnforcementPolicy.recommend(
             prediction="SQL Injection",
             confidence_level="HIGH",
-            request_path="/support/submit",
+            request_path="/not-a-protected-route",
         )
         is None
     )
+
+
+def test_approved_dynamic_routes_map_to_explicit_scopes() -> None:
+    assert scope_for_request_path("/records/search") is EnforcementScope.RECORD_SEARCH
+    assert scope_for_request_path("/records/REC-100") is EnforcementScope.RECORD_DETAIL
+    assert (
+        scope_for_request_path("/records/REC-100/request-copy")
+        is EnforcementScope.REQUEST_COPY_SUBMIT
+    )
+    assert (
+        scope_for_request_path("/records/REC-100/request-copy/submit")
+        is EnforcementScope.REQUEST_COPY_SUBMIT
+    )
+    assert (
+        scope_for_request_path("/transactions/status")
+        is EnforcementScope.TRACK_STATUS
+    )
+    assert scope_for_request_path("/support/submit") is EnforcementScope.SUPPORT_SUBMIT
+    assert scope_for_request_path("/health") is None
+
+
+def test_high_and_critical_require_explicit_strong_crs_evidence() -> None:
+    evidence = EnforcementEvidence(
+        source_verification_status="VERIFIED",
+        crs_score=8,
+        crs_rule_ids=("942100",),
+        matched_rule_tags=("attack-sqli",),
+    )
+    high = EnforcementPolicy.recommend(
+        prediction="SQL Injection",
+        confidence_level="HIGH",
+        request_path="/support/submit",
+        mode=EnforcementMode.ENFORCE,
+        evidence=evidence,
+    )
+    critical = EnforcementPolicy.recommend(
+        prediction="Code Injection",
+        confidence_level="CRITICAL",
+        request_path="/records/REC-100",
+        mode=EnforcementMode.ENFORCE,
+        evidence=evidence,
+    )
+    assert high is not None
+    assert high.action is RecommendedAction.APPLICATION_BLOCK
+    assert critical is not None
+    assert critical.action is RecommendedAction.WAF_BLOCK
+    assert high.evidence_context is not None
+    assert high.evidence_context["strong_waf_evidence"] is True
 
 
 @pytest.mark.parametrize(
@@ -99,7 +149,8 @@ def test_policy_recommendation_is_immutable() -> None:
         recommendation.action = RecommendedAction.WAF_BLOCK  # type: ignore[misc]
 
 
-def test_enforce_policy_keeps_low_monitor_only_while_versioning_active_actions() -> None:
+def test_enforce_policy_keeps_low_monitor_only_while_versioning_active_actions(
+) -> None:
     low = EnforcementPolicy.recommend(
         prediction="SQL Injection",
         confidence_level="LOW",

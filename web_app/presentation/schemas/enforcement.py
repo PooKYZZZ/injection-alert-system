@@ -6,7 +6,16 @@ from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, model_validato
 class EnforcementCheckRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    scope: Literal["RECORD_SEARCH"]
+    scope: Literal[
+        "RECORD_SEARCH",
+        "RECORD_DETAIL",
+        "TRACK_STATUS",
+        "SUPPORT_SUBMIT",
+        "APPOINTMENT_SUBMIT",
+        "COMMENTS_SUBMIT",
+        "LOGIN_SUBMIT",
+        "REQUEST_COPY_SUBMIT",
+    ]
     source_ip: IPvAnyAddress
 
 
@@ -16,6 +25,7 @@ class EnforcementCheckResponse(BaseModel):
     decision: Literal["ALLOW", "CHALLENGE", "THROTTLE", "BLOCK"]
     enforcement_tier: Literal["LOW", "MEDIUM"] | None = None
     retry_after_seconds: int | None = Field(default=None, ge=1)
+    decision_reason: str | None = Field(default=None, min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def validate_decision_metadata(self) -> "EnforcementCheckResponse":
@@ -33,7 +43,16 @@ class EnforcementCheckResponse(BaseModel):
 class EnforcementChallengeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    scope: Literal["RECORD_SEARCH"]
+    scope: Literal[
+        "RECORD_SEARCH",
+        "RECORD_DETAIL",
+        "TRACK_STATUS",
+        "SUPPORT_SUBMIT",
+        "APPOINTMENT_SUBMIT",
+        "COMMENTS_SUBMIT",
+        "LOGIN_SUBMIT",
+        "REQUEST_COPY_SUBMIT",
+    ]
     source_ip: IPvAnyAddress
     token: str = Field(min_length=1, max_length=2048)
 

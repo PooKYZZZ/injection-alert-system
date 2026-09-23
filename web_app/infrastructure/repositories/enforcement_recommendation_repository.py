@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, case, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +50,8 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             "policy_version": recommendation.policy_version,
             "created_at": recommendation.created_at,
             "expires_at": recommendation.expires_at,
+            "decision_reason": recommendation.decision_reason or "LEGACY_POLICY",
+            "evidence_context": recommendation.evidence_context,
         }
         dialect_name = self._session.bind.dialect.name if self._session.bind else ""
         if dialect_name == "postgresql":
@@ -115,6 +117,8 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             created_at=recommendation.created_at,
             expires_at=recommendation.expires_at,
             source_verification_status=source_verification_status,
+            decision_reason=recommendation.decision_reason or "LEGACY_POLICY",
+            evidence_context=recommendation.evidence_context,
         )
 
     async def find_effective_enforceable(
@@ -127,6 +131,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
         require_verified: bool,
     ) -> EffectiveRecommendation | None:
         tier_rank = case(
+            (EnforcementRecommendationRow.enforcement_tier == "CRITICAL", 4),
             (EnforcementRecommendationRow.enforcement_tier == "HIGH", 3),
             (EnforcementRecommendationRow.enforcement_tier == "MEDIUM", 2),
             (EnforcementRecommendationRow.enforcement_tier == "LOW", 1),
@@ -161,6 +166,10 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
                         EnforcementRecommendationRow.recommended_action
                         == "APPLICATION_BLOCK",
                     ),
+                    and_(
+                        EnforcementRecommendationRow.enforcement_tier == "CRITICAL",
+                        EnforcementRecommendationRow.recommended_action == "WAF_BLOCK",
+                    ),
                 ),
                 EnforcementRecommendationRow.expires_at > now,
             )
@@ -189,7 +198,47 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             created_at=recommendation.created_at,
             expires_at=recommendation.expires_at,
             source_verification_status=source_verification_status,
+            decision_reason=recommendation.decision_reason or "LEGACY_POLICY",
+            evidence_context=recommendation.evidence_context,
         )
+
+    async def count_recent_suspicious_events(
+        self,
+        *,
+        source_ip: str,
+        scope: EnforcementScope,
+        now: datetime,
+        window_seconds: int,
+    ) -> int:
+        """Count bounded, persisted suspicious events for one source/scope.
+
+        This intentionally does not reuse ``enforcement_request_windows``:
+        those rows count transport requests after a challenge, not independent
+        suspicious WAF/ML events.
+        """
+
+        lower_bound = now - timedelta(seconds=window_seconds)
+        statement = (
+            select(func.count(EnforcementRecommendationRow.id))
+            .join(
+                TrafficLog,
+                EnforcementRecommendationRow.trigger_traffic_log_id == TrafficLog.id,
+            )
+            .where(
+                TrafficLog.source_ip == source_ip,
+                TrafficLog.status == "COMPLETED",
+                TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES)),
+                TrafficLog.timestamp >= lower_bound,
+                TrafficLog.timestamp <= now,
+                EnforcementRecommendationRow.scope == scope.value,
+                EnforcementRecommendationRow.enforcement_mode == "ENFORCE",
+                EnforcementRecommendationRow.recommended_action.in_(
+                    ["THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
+                ),
+            )
+        )
+        count = (await self._session.execute(statement)).scalar_one()
+        return int(count or 0)
 
     @staticmethod
     def _window_bounds(now: datetime, window_seconds: int) -> tuple[datetime, datetime]:
