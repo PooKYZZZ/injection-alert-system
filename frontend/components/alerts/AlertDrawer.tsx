@@ -598,15 +598,15 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
 
                       <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          System Outcome
+                          Recorded action
                         </h3>
                         <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                          Recorded result of the original request.
+                          This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.
                         </p>
                         {canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
                       <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
-                        Update recorded outcome
+                        Update action label
                       </p>
                       <button
                         type="button"

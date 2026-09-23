@@ -70,7 +70,7 @@ const BackendAlertSchema = z.object({
   policy_version: z.string().max(64).nullable().optional(),
   policy_evidence_context: z.record(z.string(), z.unknown()).nullable().optional(),
   notification_status: z
-    .record(z.enum(ALERT_NOTIFICATION_CHANNEL_VALUES), z.enum(ALERT_NOTIFICATION_STATUS_VALUES))
+    .partialRecord(z.enum(ALERT_NOTIFICATION_CHANNEL_VALUES), z.enum(ALERT_NOTIFICATION_STATUS_VALUES))
     .nullable()
     .optional(),
   crs_score: z.number().nullable().optional(),

@@ -71,6 +71,17 @@ const alertFixture = {
 }
 
 describe('AlertDrawer', () => {
+  it('clarifies the saved action label is not the observed WAF or origin response', () => {
+    render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: 'Recorded action' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('keeps opening read-only and offers an explicit Start Review action for new alerts', () => {
     render(
       <AlertDrawer
