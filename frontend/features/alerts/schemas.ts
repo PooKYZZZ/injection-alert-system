@@ -2,6 +2,8 @@ import { z } from 'zod'
 import {
   ALERT_ACTION_TAKEN_VALUES,
   ALERT_CONFIDENCE_TIER_VALUES,
+  ALERT_NOTIFICATION_CHANNEL_VALUES,
+  ALERT_NOTIFICATION_STATUS_VALUES,
   ALERT_POLICY_DECISION_VALUES,
   ALERT_PREDICTION_VALUES,
   LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES,
@@ -91,6 +93,10 @@ export const AlertSchema = z.object({
   policy_decision_reason: z.string().max(128).nullable().optional(),
   policy_version: z.string().max(64).nullable().optional(),
   policy_evidence_context: z.record(z.string(), z.unknown()).nullable().optional(),
+  notification_status: z
+    .record(z.enum(ALERT_NOTIFICATION_CHANNEL_VALUES), z.enum(ALERT_NOTIFICATION_STATUS_VALUES))
+    .nullable()
+    .optional(),
   triage_status: TriageStatusSchema.nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),

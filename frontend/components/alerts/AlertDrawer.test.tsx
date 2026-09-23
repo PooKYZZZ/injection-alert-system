@@ -110,6 +110,11 @@ describe('AlertDrawer', () => {
           triage_status: 'in_review',
           crs_score: 11,
           crs_rule_ids: ['942100'],
+          policy_decision: 'APPLICATION_BLOCK',
+          policy_decision_reason: 'STRONG_CRS_EVIDENCE',
+          policy_version: 'confidence-enforcement-v2',
+          policy_evidence_context: { strong_waf_evidence: true },
+          notification_status: { email: 'sent', telegram: 'retry_wait' },
           ingest_source: 'modsec_audit_bridge',
           source_provenance: 'DIRECT_REMOTE_ADDR',
           source_verification_status: 'VERIFIED',
@@ -128,6 +133,11 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
     expect(screen.getByText('SQL Injection Attack Detected')).toBeInTheDocument()
     expect(screen.getByText('attack-sqli')).toBeInTheDocument()
+    expect(screen.getByText('Policy decision').nextElementSibling).toHaveTextContent('APPLICATION_BLOCK')
+    expect(screen.getByText('Decision reason').nextElementSibling).toHaveTextContent('STRONG CRS EVIDENCE')
+    expect(screen.getByText('Notifications').nextElementSibling).toHaveTextContent(
+      'email: sent, telegram: retry wait'
+    )
     expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
 
     const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured Request' })

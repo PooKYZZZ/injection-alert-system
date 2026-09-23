@@ -14,15 +14,17 @@ Dependency rule:
   - Does NOT import from presentation/ or application/
 """
 
-from dataclasses import dataclass
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional, List
 
-from sqlalchemy import Integer, and_, case, func, or_, select, text, update
+from sqlalchemy import Integer, and_, bindparam, case, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.domain.classification_scope import (
@@ -58,6 +60,8 @@ CANONICAL_PREDICTION_LABELS = (
 CONFIDENCE_TIER_VALUES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 
 _STATS_CACHE_TTL_SECONDS = 10
+
+logger = logging.getLogger(__name__)
 
 
 class _StatsCache:
@@ -368,6 +372,7 @@ class TrafficLogRepository(ITrafficLogRepository):
                 and isinstance(policy_context.get("evidence"), dict)
                 else None
             ),
+            notification_status=None,
         )
 
     async def _policy_context_by_traffic_ids(
@@ -396,25 +401,85 @@ class TrafficLogRepository(ITrafficLogRepository):
             for row in result.all()
         }
 
-    async def _attach_policy_context(
+    async def _notification_status_by_traffic_ids(
+        self, traffic_ids: list[int]
+    ) -> dict[int, dict[str, str]]:
+        """Read channel/status only from the existing PostgreSQL outbox.
+
+        Threat notifications use a stable dedupe key because their encrypted
+        payload cannot be searched for an alert id. SQLite application tests do
+        not create the PostgreSQL-only outbox, so they intentionally receive an
+        empty status summary.
+        """
+        if not traffic_ids or self._session.get_bind().dialect.name != "postgresql":
+            return {}
+        dedupe_keys = [
+            key
+            for traffic_id in traffic_ids
+            for key in (f"threat/{traffic_id}", f"threat/{traffic_id}/telegram")
+        ]
+        try:
+            result = await self._session.execute(
+                text(
+                    """
+SELECT dedupe_key, channel, status
+FROM public.notification_outbox
+WHERE kind = 'threat_detected'
+  AND dedupe_key IN :dedupe_keys
+ORDER BY created_at DESC, id DESC
+"""
+                ).bindparams(bindparam("dedupe_keys", expanding=True)),
+                {"dedupe_keys": dedupe_keys},
+            )
+        except SQLAlchemyError:
+            # An unavailable optional read must not hide a persisted security
+            # event or make the alert list unavailable.
+            logger.warning(
+                "notification status lookup unavailable",
+                extra={"traffic_id_count": len(traffic_ids)},
+                exc_info=True,
+            )
+            return {}
+
+        statuses: dict[int, dict[str, str]] = {}
+        for row in result.mappings().all():
+            dedupe_key = str(row["dedupe_key"] or "")
+            parts = dedupe_key.split("/")
+            if len(parts) not in {2, 3} or parts[0] != "threat":
+                continue
+            try:
+                traffic_id = int(parts[1])
+            except (TypeError, ValueError):
+                continue
+            channel = str(row["channel"] or "")
+            if channel not in {"email", "telegram"}:
+                continue
+            statuses.setdefault(traffic_id, {}).setdefault(
+                channel, str(row["status"] or "")
+            )
+        return statuses
+
+    async def _attach_alert_context(
         self, entities: list[TrafficLogEntity]
     ) -> list[TrafficLogEntity]:
-        contexts = await self._policy_context_by_traffic_ids(
-            [int(entity.id) for entity in entities if entity.id is not None]
+        traffic_ids = [int(entity.id) for entity in entities if entity.id is not None]
+        contexts = await self._policy_context_by_traffic_ids(traffic_ids)
+        notification_statuses = await self._notification_status_by_traffic_ids(
+            traffic_ids
         )
         for entity in entities:
             if entity.id is None:
                 continue
             context = contexts.get(int(entity.id))
-            if context is None:
-                continue
-            entity.policy_decision = context.get("decision")  # type: ignore[assignment]
-            entity.policy_decision_reason = context.get("reason")  # type: ignore[assignment]
-            entity.policy_version = context.get("version")  # type: ignore[assignment]
-            evidence = context.get("evidence")
-            entity.policy_evidence_context = (
-                dict(evidence) if isinstance(evidence, dict) else None
-            )
+            if context is not None:
+                entity.policy_decision = context.get("decision")  # type: ignore[assignment]
+                entity.policy_decision_reason = context.get("reason")  # type: ignore[assignment]
+                entity.policy_version = context.get("version")  # type: ignore[assignment]
+                evidence = context.get("evidence")
+                entity.policy_evidence_context = (
+                    dict(evidence) if isinstance(evidence, dict) else None
+                )
+            entity.notification_status = notification_statuses.get(int(entity.id))
         return entities
 
     @staticmethod
@@ -736,7 +801,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             return None
         reviews = await self._latest_reviews([orm_obj.id])
         entity = self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
-        attached = await self._attach_policy_context([entity])
+        attached = await self._attach_alert_context([entity])
         return attached[0]
 
     async def get_operational_alert_by_id(
@@ -756,7 +821,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             return None
         reviews = await self._latest_reviews([orm_obj.id])
         entity = self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
-        attached = await self._attach_policy_context([entity])
+        attached = await self._attach_alert_context([entity])
         return attached[0]
 
     async def get_by_transaction_id(
@@ -770,7 +835,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj = result.scalars().first()
         if orm_obj is None:
             return None
-        attached = await self._attach_policy_context([self._orm_to_entity(orm_obj)])
+        attached = await self._attach_alert_context([self._orm_to_entity(orm_obj)])
         return attached[0]
 
     async def _get_summary_row(
@@ -1598,7 +1663,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         rows = result.scalars().all()
         reviews = await self._latest_reviews([row.id for row in rows])
         items = [self._orm_to_entity(row, reviews.get(row.id)) for row in rows]
-        items = await self._attach_policy_context(items)
+        items = await self._attach_alert_context(items)
         return TrafficLogPage(
             items=items,
             total=total,
@@ -1619,7 +1684,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             .limit(limit)
         )
         items = [self._orm_to_entity(row) for row in result.scalars().all()]
-        return await self._attach_policy_context(items)
+        return await self._attach_alert_context(items)
 
     async def update_feedback(
         self,
@@ -1641,7 +1706,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.labeled_at = labeled_at
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return (await self._attach_policy_context([self._orm_to_entity(orm_obj)]))[0]
+        return (await self._attach_alert_context([self._orm_to_entity(orm_obj)]))[0]
 
     async def update_triage_status(
         self,
@@ -1662,7 +1727,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.triage_status = triage_status
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return (await self._attach_policy_context([self._orm_to_entity(orm_obj)]))[0]
+        return (await self._attach_alert_context([self._orm_to_entity(orm_obj)]))[0]
 
     async def update_action_taken(
         self,
@@ -1683,4 +1748,4 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.action_taken = action_taken
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return (await self._attach_policy_context([self._orm_to_entity(orm_obj)]))[0]
+        return (await self._attach_alert_context([self._orm_to_entity(orm_obj)]))[0]

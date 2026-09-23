@@ -113,6 +113,10 @@ class TrafficLogEntity:
     policy_decision_reason: Optional[str] = None
     policy_version: Optional[str] = None
     policy_evidence_context: Optional[dict[str, object]] = None
+    # Read-only lifecycle summary from the existing notification outbox. It
+    # intentionally contains channel/status only; recipients and payloads stay
+    # behind the notification boundary.
+    notification_status: Optional[dict[str, str]] = None
 
     @property
     def payload_snippet(self) -> str:

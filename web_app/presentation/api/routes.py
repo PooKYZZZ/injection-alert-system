@@ -548,6 +548,7 @@ async def get_waf_ingest_by_transaction_id(
         policy_decision_reason=entity.policy_decision_reason,
         policy_version=entity.policy_version,
         policy_evidence_context=entity.policy_evidence_context,
+        notification_status=entity.notification_status,
         ingest_source=entity.ingest_source,
         source_ip=entity.source_ip,
         source_provenance=entity.source_provenance,

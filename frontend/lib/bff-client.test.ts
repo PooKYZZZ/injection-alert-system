@@ -397,6 +397,10 @@ describe('bff-client', () => {
                 source_verified: true,
                 strong_waf_evidence: true,
               },
+              notification_status: {
+                email: 'sent',
+                telegram: 'retry_wait',
+              },
             },
           ],
           total: 1,
@@ -421,6 +425,10 @@ describe('bff-client', () => {
     expect(result.data.items[0]?.policy_evidence_context).toEqual({
       source_verified: true,
       strong_waf_evidence: true,
+    })
+    expect(result.data.items[0]?.notification_status).toEqual({
+      email: 'sent',
+      telegram: 'retry_wait',
     })
   })
 
