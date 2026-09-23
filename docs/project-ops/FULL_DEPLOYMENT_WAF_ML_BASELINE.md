@@ -22,9 +22,9 @@ The plan is still marked as planning-only. It must not be treated as proof that 
 | Repository | Current branch and commit | Working-tree state | Milestone branch status |
 |---|---|---|---|
 | Main WAF-ML application (`E:\AI\PDDDD\injection-alert-system`) | `master` at `2e7dfb3` before this milestone | Pre-existing `.gitignore` modification preserved; it ignores the local copy of the full-deployment plan | `codex/waf-ml-m00-architecture-baseline` created for this document |
-| Target portal (`E:\AI\land-records-portal`) | `stable/portal-pre-waf` at `f011b9f` | Pre-existing `.dockerignore` modification preserved (`.pytest_cache`, `.serena`) | No branch created yet |
+| Target portal (`E:\AI\land-records-portal`) | `stable/portal-pre-waf` at `f011b9f` | Pre-existing `.dockerignore` modification preserved (`.pytest_cache`, `.serena`) | Confirmed target base; no milestone branch created yet |
 
-Both working directories currently point at the same GitHub remote, `PooKYZZZ/injection-alert-system`. A distinct target-portal GitHub repository has not been verified. Therefore a target-repository branch or linked target PR must not be invented until the repository identity is confirmed.
+Both working directories intentionally point at the same GitHub repository, `PooKYZZZ/injection-alert-system`. The target portal is coordinated through the `stable/portal-pre-waf` branch; future portal milestone branches and PRs should use that branch as their target base, while main-application PRs use `master` unless a stacked dependency is explicitly documented.
 
 ## Live architecture map
 
@@ -85,7 +85,7 @@ The next route-coverage milestone must define exclusions for health checks, stat
 | Evidence persistence and correlation | PARTIAL | Existing WAF ingest and recommendation paths exist; unified transaction/correlation/policy evidence representation is not established |
 | Dashboard and export representation | NOT TESTED | Validate LOW as “Monitor Only,” policy reason, evidence, final action, and notification status |
 | Telegram/email delivery | NOT TESTED | Run approved notification paths with failure persistence; do not expose credentials in evidence |
-| Cross-repository compatibility | BLOCKED | Target repository identity and shared contract decisions are not confirmed |
+| Cross-branch compatibility | PARTIAL | The target branch is confirmed; shared contract and rollout-order decisions remain unresolved |
 
 ## Research summary and application
 
@@ -94,7 +94,7 @@ The research was limited to sources relevant to this project. Findings were trea
 | Finding | Application | Decision |
 |---|---|---|
 | OpenAI harness guidance favors depth-first repository-local context and versioned instructions for long-running coding work. | Keep this baseline and the ignored progress handoff concise and evidence-based; reload them at milestone boundaries. | ADOPTED |
-| GitHub pull requests are reviewable change units with explicit base/head branches and review history. | Use one open PR per independently reviewable milestone and cross-link coordinated PRs only after repository identity is confirmed. | ADOPTED |
+| GitHub pull requests are reviewable change units with explicit base/head branches and review history. | Use one open PR per independently reviewable milestone, use `master` and `stable/portal-pre-waf` as the confirmed bases, and cross-link coordinated PRs. | ADOPTED |
 | OWASP API guidance treats unrestricted resource consumption as a bounded rate-limit and resource-isolation concern. | Use route-specific, source-verified, expiring restrictions; do not add an unbounded global throttle. | ADOPTED |
 | OWASP logging guidance emphasizes interaction identifiers, source context, consistent event fields, redaction, and failure handling. | Preserve correlation IDs, provenance, policy reason, notification status, and redacted evidence without restoring raw secrets or headers. | ADOPTED |
 | ModSecurity's transaction variables and disruptive actions must remain distinguishable from application policy decisions. | Keep CRS blocking, ML evidence, and application enforcement as separate evidence/action fields; do not switch the entire WAF to DetectionOnly to make a test pass. | ADOPTED |
@@ -120,7 +120,7 @@ The following choices change a public contract, security behavior, persistence, 
 5. Temporary throttle duration and exact response format, including `Retry-After` behavior.
 6. Whether same-request ML enforcement is required or whether the approved design is asynchronous recommendation plus subsequent request enforcement.
 7. Whether the public application hostname must traverse the target's protected WAF ingress or retain a separate ingress with equivalent controls.
-8. The target portal's actual GitHub repository identity and the rollout order for coordinated PRs.
+8. The rollout order for coordinated PRs: main policy contract first, then target-branch route coverage, followed by ingress and end-to-end validation.
 9. Any database migration or additive schema change required to persist the approved evidence and policy contract.
 
 ## Baseline validation
@@ -141,4 +141,4 @@ Not run at this milestone: full backend/frontend suites, Docker startup, public 
 
 ## Milestone boundary
 
-This baseline is documentation-only. It creates no database migration, changes no API contract, changes no enforcement behavior, and changes no Docker or reverse-proxy configuration. The next functional milestone is blocked until the decisions above—especially shared repository identity and policy thresholds/evidence semantics—are resolved or explicitly staged with a compatibility plan.
+This baseline is documentation-only. It creates no database migration, changes no API contract, changes no enforcement behavior, and changes no Docker or reverse-proxy configuration. The next functional milestone is blocked until the policy, evidence, ingress, and compatibility decisions above are resolved or explicitly staged with a compatibility plan.
