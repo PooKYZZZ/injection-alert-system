@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { browserRedirect } from "@/lib/redirect";
 import { z } from "zod";
+import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
+import { enforcementRouteResponse } from "../../../lib/enforcement-boundary";
 
 const commentSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
@@ -11,6 +13,10 @@ const commentSchema = z.object({
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const enforcement = await checkEnforcementFromRuntime("COMMENTS_SUBMIT");
+  const enforcementResponse = enforcementRouteResponse(enforcement);
+  if (enforcementResponse) return enforcementResponse;
+
   try {
     const formData = await request.formData();
     const data = {

@@ -1,6 +1,15 @@
 export interface WafRouteContract {
   path: string;
   method: 'GET' | 'POST';
+  enforcementScope:
+    | 'RECORD_SEARCH'
+    | 'RECORD_DETAIL'
+    | 'TRACK_STATUS'
+    | 'SUPPORT_SUBMIT'
+    | 'APPOINTMENT_SUBMIT'
+    | 'COMMENTS_SUBMIT'
+    | 'LOGIN_SUBMIT'
+    | 'REQUEST_COPY_SUBMIT';
   purpose: string;
   expectedParams: {
     name: string;
@@ -19,6 +28,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/records/search',
     method: 'GET',
+    enforcementScope: 'RECORD_SEARCH',
     purpose: 'Query indexed public land records by the portal search text',
     expectedParams: [
       { name: 'query', type: 'query', required: false, description: 'Text search string matched against seeded land-record fields' }
@@ -31,6 +41,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/records/[recordNo]',
     method: 'GET',
+    enforcementScope: 'RECORD_DETAIL',
     purpose: 'Retrieve detailed profile and metadata for any specific cadastral land title',
     expectedParams: [
       { name: 'recordNo', type: 'path', required: true, description: 'Target record identification serial key (e.g. REC-2026-0001)' }
@@ -43,6 +54,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/transactions/status',
     method: 'GET',
+    enforcementScope: 'TRACK_STATUS',
     purpose: 'Query real-time processing dispatch milestone tracker for certified true copies',
     expectedParams: [
       { name: 'ref', type: 'query', required: true, description: 'Alphanumeric tracking reference hash assigned at submission (e.g. TXN-100201)' }
@@ -55,6 +67,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/support/submit',
     method: 'POST',
+    enforcementScope: 'SUPPORT_SUBMIT',
     purpose: 'Create and persist a citizen boundary grievance or administrative dispute audit ticket',
     expectedParams: [
       { name: 'subject', type: 'body', required: true, description: 'Short grievance headline description' },
@@ -72,6 +85,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/appointments/submit',
     method: 'POST',
+    enforcementScope: 'APPOINTMENT_SUBMIT',
     purpose: 'Schedule a physical consultation desk reservation at a regional branch registry office',
     expectedParams: [
       { name: 'fullName', type: 'body', required: true, description: 'Legal name of the appointment applicant' },
@@ -90,6 +104,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/comments/submit',
     method: 'POST',
+    enforcementScope: 'COMMENTS_SUBMIT',
     purpose: 'Publish feedback or public community verification inquiries on the public message board',
     expectedParams: [
       { name: 'displayName', type: 'body', required: true, description: 'Public citizen identity nick or title alias' },
@@ -104,6 +119,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/login/submit',
     method: 'POST',
+    enforcementScope: 'LOGIN_SUBMIT',
     purpose: 'Authenticate land department personnel against the registry gateway',
     expectedParams: [
       { name: 'username', type: 'body', required: true, description: 'Staff registry identity name' },
@@ -118,6 +134,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/records/[recordNo]/request-copy',
     method: 'GET',
+    enforcementScope: 'REQUEST_COPY_SUBMIT',
     purpose: 'Render page with form for a Citizen True Copy (CTC) certification application',
     expectedParams: [
       { name: 'recordNo', type: 'path', required: true, description: 'Identifier of land record to request copy for' }
@@ -130,6 +147,7 @@ export const WAF_ROUTES: WafRouteContract[] = [
   {
     path: '/records/[recordNo]/request-copy/submit',
     method: 'POST',
+    enforcementScope: 'REQUEST_COPY_SUBMIT',
     purpose: 'Submit and file property certification copy order, storing transactional status code',
     expectedParams: [
       { name: 'fullName', type: 'body', required: true, description: 'Applicant name for delivery tracking' },

@@ -14,6 +14,8 @@ import {
 import { SITE_CONFIG } from "../../../lib/demo-config";
 import { getPublicStatus } from "../../../lib/status";
 import { prisma } from "@/lib/prisma";
+import { EnforcementDecisionPage } from "../../../components/EnforcementDecisionPage";
+import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,15 @@ export default async function TransactionStatusPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const enforcement = await checkEnforcementFromRuntime("TRACK_STATUS");
+  if (enforcement.decision !== "ALLOW") {
+    return (
+      <EnforcementDecisionPage
+        result={enforcement}
+        resourceLabel="Status tracking"
+      />
+    );
+  }
   const { ref } = await searchParams;
   const uppercaseRef = (ref || "").toUpperCase().trim();
 

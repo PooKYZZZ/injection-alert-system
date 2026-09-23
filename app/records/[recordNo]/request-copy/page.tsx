@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { EnforcementDecisionPage } from "../../../../components/EnforcementDecisionPage";
+import { checkEnforcementFromRuntime } from "../../../../lib/enforcement-check-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,15 @@ export default async function RequestCopyPage({
 }: {
   params: Promise<{ recordNo: string }>;
 }) {
+  const enforcement = await checkEnforcementFromRuntime("REQUEST_COPY_SUBMIT");
+  if (enforcement.decision !== "ALLOW") {
+    return (
+      <EnforcementDecisionPage
+        result={enforcement}
+        resourceLabel="Copy-request form"
+      />
+    );
+  }
   const { recordNo } = await params;
   const record = await prisma.record.findUnique({
     where: { recordNo: recordNo.toUpperCase() },

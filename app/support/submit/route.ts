@@ -3,10 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { browserRedirect } from "@/lib/redirect";
 import { validateSupportForm } from "../../../lib/validation";
 import { generateReferenceNumber } from "../../../lib/reference-number";
+import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
+import { enforcementRouteResponse } from "../../../lib/enforcement-boundary";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const enforcement = await checkEnforcementFromRuntime("SUPPORT_SUBMIT");
+  const enforcementResponse = enforcementRouteResponse(enforcement);
+  if (enforcementResponse) return enforcementResponse;
+
   try {
     const formData = await request.formData();
     const subject = (formData.get("subject") as string) || "";
