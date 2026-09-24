@@ -54,9 +54,12 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
   not retained for this source; the database keeps the existing input hash and
   classification metadata. POST body values are intentionally excluded, so
   successful form submissions are ingested as method/path/query metadata only
-  and are not yet proven to classify as `Normal`. ModSecurity stays `On` with
-  `RelevantOnly`; its independent CRS blocks continue through the existing
-  audit bridge. The two sources remain distinguishable by `ingest_source`.
+  and are not yet proven to classify as `Normal`. This Unix datagram path is
+  best-effort: the bridge retries an event after receipt, but a datagram can be
+  lost if the listener is unavailable or its socket buffer overflows; ordinary
+  successes have no durable queue. ModSecurity stays `On` with `RelevantOnly`;
+  its independent CRS blocks continue through the existing audit bridge. The
+  two sources remain distinguishable by `ingest_source`.
 
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.

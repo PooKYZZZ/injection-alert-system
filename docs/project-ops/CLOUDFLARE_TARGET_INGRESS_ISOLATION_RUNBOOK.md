@@ -103,7 +103,9 @@ persisted `TrafficLog` contains only method/path and source-correlation
 metadata—not the query string, request body, or headers. The bridge requires a
 matching received `CF-Connecting-IP` and effective NGINX address, plus the
 exact tunnel peer, before setting the source match flag for those events.
-ModSecurity audit part `B` remains excluded.
+ModSecurity audit part `B` remains excluded. This datagram path is best-effort:
+the bridge retries after receiving an event, but it has no durable queue for
+successful traffic if the listener is unavailable or the socket buffer fills.
 
 The backend rejects `cloudflare_tunnel` unless the isolation overlay is active
 and this explicit proof switch is true. The switch is rejected in
