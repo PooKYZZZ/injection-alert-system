@@ -26,6 +26,38 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
   HTTP context, where the controlled proof confirmed that NGINX restores the
   address before ModSecurity sees the request.
 
+## Cloudflare target source proof and ordinary traffic
+
+- The default `scripts/start_full_cloudflare_target.ps1` mode remains
+  `WAF_SOURCE_VERIFICATION_MODE=unverified` and bridge provenance
+  `direct_remote_addr`.
+- `-VerifyCloudflareSourceProof` is an explicit, opt-in source-proof mode. It
+  selects `cloudflare_tunnel` plus `cloudflare_connecting_ip`, enables the
+  existing isolation proof guard, keeps `ENFORCEMENT_MODE=shadow`, and forces
+  `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=false`. It does not activate
+  ML enforcement.
+- The Cloudflare target overlay trusts only the fixed `cloudflared` peer
+  `172.30.20.2/32`. Normal access telemetry additionally requires the received
+  `CF-Connecting-IP` to match NGINX's effective client address and the original
+  NGINX peer to equal `172.30.20.2` before recording verified provenance.
+- Successful telemetry is limited to the protected routes in
+  `normal-access-logging.conf.template`; it records request ID, timestamp,
+  source/proxy addresses, method, normalized path, query string, and status;
+  it excludes Next.js `_rsc` prefetches and never captures request bodies or
+  headers. NGINX sends these records over a shared, non-host-published Unix
+  datagram socket to the bridge instead of writing the query to a log file.
+  Location-level access logging sends the stock full-request format to
+  `/dev/null` for the target proxy location.
+- `nginx_access_bridge` sends accepted 2xx/3xx workflow events through the same
+  FastAPI model-triage and persistence path, so safe search query text is
+  available to inference. The raw query and normalized model-input text are
+  not retained for this source; the database keeps the existing input hash and
+  classification metadata. POST body values are intentionally excluded, so
+  successful form submissions are ingested as method/path/query metadata only
+  and are not yet proven to classify as `Normal`. ModSecurity stays `On` with
+  `RelevantOnly`; its independent CRS blocks continue through the existing
+  audit bridge. The two sources remain distinguishable by `ingest_source`.
+
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
 

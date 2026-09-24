@@ -909,6 +909,113 @@ def test_marked_cloudflare_audit_evidence_can_verify_server_side(
     assert lookup.json()["source_verification_status"] == "VERIFIED"
 
 
+def test_marked_nginx_access_event_can_verify_source_server_side(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "ingest_source": "nginx_access_bridge",
+            "transaction_id": "waf-normal-access-marked",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "query_string": None,
+            "request_headers": None,
+            "sanitized_body": None,
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "matched_rule_messages": None,
+            "matched_rule_tags": None,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers={
+            **WAF_HEADERS,
+            "X-CyberTrace-WAF-Audit": "nginx_access",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
+        },
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-normal-access-marked",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["ingest_source"] == "nginx_access_bridge"
+    assert lookup.json()["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert lookup.json()["source_verification_status"] == "VERIFIED"
+
+
+def test_nginx_access_event_rejects_modsecurity_marker_for_source_verification(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "ingest_source": "nginx_access_bridge",
+            "transaction_id": "waf-normal-access-wrong-marker",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "query_string": None,
+            "request_headers": None,
+            "sanitized_body": None,
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "matched_rule_messages": None,
+            "matched_rule_tags": None,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers={
+            **WAF_HEADERS,
+            "X-CyberTrace-WAF-Audit": "modsecurity",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
+        },
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-normal-access-wrong-marker",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert lookup.json()["source_verification_status"] == "UNVERIFIED"
+
+
 def test_waf_ingest_lookup_returns_stored_event_by_transaction_id(waf_api_client):
     client, init_tables = waf_api_client
     import asyncio

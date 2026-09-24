@@ -4,6 +4,8 @@ import argparse
 import json
 import os
 import re
+import socket
+import stat
 import sys
 import threading
 import time
@@ -41,6 +43,12 @@ _SOURCE_PROVENANCE_MODES = {
     "direct_remote_addr",
     "cloudflare_connecting_ip",
 }
+_NORMAL_ACCESS_INGEST_SOURCE = "nginx_access_bridge"
+_NORMAL_ACCESS_PATH_RE = re.compile(
+    r"^/(?:records/search|records/[A-Za-z0-9-]+|transactions/status|"
+    r"appointments(?:/submit)?|support(?:/submit)?|login(?:/submit)?|"
+    r"comments(?:/submit)?|records/[A-Za-z0-9-]+/request-copy(?:/submit)?)$"
+)
 _TRUTHY = {"1", "true", "yes", "on"}
 _LOOPBACKS = {"127.0.0.1", "::1"}
 
@@ -144,6 +152,10 @@ def _redact_headers(headers: dict[str, Any]) -> dict[str, str]:
     for key, value in headers.items():
         key_str = str(key)
         lower_key = key_str.lower()
+        # This is used only as transient provenance evidence at the bridge.
+        # Persist the canonical source_ip field, not a second raw IP header.
+        if lower_key == "cf-connecting-ip":
+            continue
         if lower_key in _SENSITIVE_HEADERS or any(
             part in lower_key for part in _SENSITIVE_SUBSTRINGS
         ):
@@ -201,6 +213,9 @@ def _source_evidence(
     client_ip: Any,
     request_headers: dict[str, Any],
     provenance_mode: str,
+    cf_connecting_ip: Any = None,
+    proxy_peer_ip: Any = None,
+    allow_missing_tunnel_metadata: bool = False,
 ) -> tuple[str | None, str, bool | None]:
     canonical_client_ip = canonicalize_source_ip(client_ip)
     if provenance_mode == "direct_remote_addr":
@@ -212,10 +227,51 @@ def _source_evidence(
     if provenance_mode != "cloudflare_connecting_ip":
         raise ValueError("unsupported source provenance mode")
 
+    configured_peer = canonicalize_source_ip(os.getenv("WAF_TRUSTED_TUNNEL_PEER"))
+    header_value = cf_connecting_ip
+    if header_value is None:
+        header_value = next(
+            (
+                value
+                for key, value in request_headers.items()
+                if str(key).lower() == "cf-connecting-ip"
+            ),
+            None,
+        )
+
+    canonical_header_ip = canonicalize_source_ip(header_value)
+    canonical_peer_ip = canonicalize_source_ip(proxy_peer_ip)
+    peer_matches = (
+        configured_peer is not None
+        and (
+            canonical_peer_ip == configured_peer
+            if proxy_peer_ip is not None
+            else allow_missing_tunnel_metadata
+        )
+    )
+    # ModSecurity audit part B intentionally remains disabled to avoid
+    # collecting cookies/credentials. Its authenticated audit event therefore
+    # relies on the separately guarded, isolated tunnel topology; when a header
+    # is present, still require an exact canonical match.
+    header_matches = (
+        canonical_client_ip is not None
+        and (
+            canonical_header_ip == canonical_client_ip
+            if header_value is not None
+            else allow_missing_tunnel_metadata
+        )
+    )
+    if peer_matches and header_matches:
+        return (
+            canonical_client_ip,
+            SourceProvenance.CLOUDFLARE_CONNECTING_IP.value,
+            True,
+        )
+
     return (
         canonical_client_ip,
-        SourceProvenance.CLOUDFLARE_CONNECTING_IP.value,
-        True if canonical_client_ip is not None else None,
+        SourceProvenance.DIRECT_REMOTE_ADDR.value,
+        None,
     )
 
 
@@ -346,7 +402,55 @@ def normalize_event(
     raw_event: dict[str, Any],
     *,
     provenance_mode: str = "direct_remote_addr",
+    ingest_source: str = "modsec_audit_bridge",
 ) -> dict[str, Any]:
+    if ingest_source == _NORMAL_ACCESS_INGEST_SOURCE:
+        request_method = str(raw_event.get("request_method") or "")
+        request_path = str(raw_event.get("request_path") or "")
+        try:
+            status = int(raw_event.get("status"))
+        except (TypeError, ValueError):
+            status = 0
+        if (
+            request_method not in {"GET", "POST"}
+            or not _NORMAL_ACCESS_PATH_RE.fullmatch(request_path)
+            or not 200 <= status < 400
+        ):
+            raise ValueError("normal access event is outside the ingest allowlist")
+
+        source_ip, source_provenance, cf_matches = _source_evidence(
+            client_ip=raw_event.get("source_ip"),
+            request_headers={},
+            provenance_mode=provenance_mode,
+            cf_connecting_ip=raw_event.get("cf_connecting_ip"),
+            proxy_peer_ip=raw_event.get("proxy_peer_ip"),
+        )
+        query_string = raw_event.get("query_string")
+        if query_string is not None and (
+            not isinstance(query_string, str) or len(query_string) > 4096
+        ):
+            raise ValueError("normal access query is invalid or exceeds its limit")
+        return {
+            "ingest_source": _NORMAL_ACCESS_INGEST_SOURCE,
+            "transaction_id": str(raw_event.get("transaction_id") or uuid4().hex),
+            "timestamp": normalize_timestamp(raw_event.get("timestamp")),
+            "source_ip": source_ip,
+            "source_provenance": source_provenance,
+            "cf_connecting_ip_matches_client_ip": cf_matches,
+            "request_method": request_method,
+            "request_path": request_path,
+            "query_string": query_string,
+            "request_headers": None,
+            "sanitized_body": None,
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "matched_rule_messages": None,
+            "matched_rule_tags": None,
+        }
+
+    if ingest_source != "modsec_audit_bridge":
+        raise ValueError("unsupported WAF ingest source")
+
     transaction = raw_event.get("transaction")
     if isinstance(transaction, dict):
         request = transaction.get("request")
@@ -366,6 +470,7 @@ def normalize_event(
             if isinstance(request_headers_raw, dict)
             else {},
             provenance_mode=provenance_mode,
+            allow_missing_tunnel_metadata=True,
         )
 
         rule_ids, messages, tags = _extract_rule_metadata(
@@ -479,6 +584,7 @@ def post_event(
     api_secret: str,
     timeout: int,
     audit_evidence: bool = False,
+    audit_marker_value: str = "modsecurity",
 ) -> int:
     data = json.dumps(payload).encode("utf-8")
     headers = {
@@ -486,7 +592,7 @@ def post_event(
         "Authorization": f"Bearer {api_secret}",
     }
     if audit_evidence:
-        headers["X-CyberTrace-WAF-Audit"] = "modsecurity"
+        headers["X-CyberTrace-WAF-Audit"] = audit_marker_value
         audit_key = os.getenv("WAF_AUDIT_EVIDENCE_KEY")
         if audit_key:
             headers["X-CyberTrace-WAF-Audit-Key"] = audit_key
@@ -561,6 +667,7 @@ def _post_event_with_retry(
     max_retries: int,
     retry_delay_seconds: float,
     audit_evidence: bool = False,
+    audit_marker_value: str = "modsecurity",
 ) -> int:
     attempts = max_retries + 1
 
@@ -569,6 +676,8 @@ def _post_event_with_retry(
             post_kwargs = {}
             if audit_evidence:
                 post_kwargs["audit_evidence"] = True
+                if audit_marker_value != "modsecurity":
+                    post_kwargs["audit_marker_value"] = audit_marker_value
             status = post_event(
                 payload,
                 endpoint=endpoint,
@@ -648,6 +757,7 @@ def run_bridge(
     max_retries: int = 20,
     retry_delay_seconds: float = 2.0,
     provenance_mode: str = "direct_remote_addr",
+    ingest_source: str = "modsec_audit_bridge",
 ) -> tuple[int, int, int]:
     total = 0
     success = 0
@@ -671,6 +781,7 @@ def run_bridge(
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
             provenance_mode=provenance_mode,
+            ingest_source=ingest_source,
             seen_transaction_ids=seen_transaction_ids,
         )
         if posted:
@@ -690,6 +801,7 @@ def _process_event_line(
     max_retries: int,
     retry_delay_seconds: float,
     provenance_mode: str,
+    ingest_source: str = "modsec_audit_bridge",
     seen_transaction_ids: _TransactionDedupCache | None = None,
 ) -> tuple[bool, bool]:
     transaction_id = "unknown"
@@ -710,11 +822,18 @@ def _process_event_line(
             )
             return True, False
 
-        payload = normalize_event(event, provenance_mode=provenance_mode)
+        payload = normalize_event(
+            event,
+            provenance_mode=provenance_mode,
+            ingest_source=ingest_source,
+        )
         transaction_id = str(payload.get("transaction_id") or "")
         audit_evidence = (
             provenance_mode == "cloudflare_connecting_ip"
-            and isinstance(event.get("transaction"), dict)
+            and (
+                isinstance(event.get("transaction"), dict)
+                or ingest_source == _NORMAL_ACCESS_INGEST_SOURCE
+            )
         )
         if seen_transaction_ids is not None and transaction_id in seen_transaction_ids:
             _log_event(
@@ -732,6 +851,11 @@ def _process_event_line(
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
             audit_evidence=audit_evidence,
+            audit_marker_value=(
+                "nginx_access"
+                if ingest_source == _NORMAL_ACCESS_INGEST_SOURCE
+                else "modsecurity"
+            ),
         )
         if 200 <= status < 300:
             if seen_transaction_ids is not None:
@@ -780,6 +904,102 @@ def _process_event_line(
         return False, False
 
 
+def _decode_normal_access_syslog(message: bytes) -> dict[str, Any]:
+    """Extract NGINX's JSON log record from its syslog datagram envelope."""
+    text = message.decode("utf-8", errors="strict")
+    payload_start = text.find("{")
+    if payload_start < 0:
+        raise ValueError("normal access syslog message has no JSON record")
+    event, end = json.JSONDecoder().raw_decode(text[payload_start:])
+    if text[payload_start + end :].strip():
+        raise ValueError("normal access syslog message has trailing data")
+    if not isinstance(event, dict):
+        raise ValueError("normal access syslog record must be an object")
+    return event
+
+
+def follow_normal_access_socket(
+    *,
+    socket_path: str | os.PathLike[str],
+    endpoint: str,
+    api_secret: str,
+    timeout: int,
+    max_retries: int = 20,
+    retry_delay_seconds: float = 2.0,
+    provenance_mode: str = "direct_remote_addr",
+    stop_event: threading.Event | None = None,
+) -> None:
+    """Receive allowlisted NGINX success events without disk logging."""
+    path = Path(socket_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing_mode = path.lstat().st_mode
+    except FileNotFoundError:
+        existing_mode = None
+    if existing_mode is not None:
+        if not stat.S_ISSOCK(existing_mode):
+            raise RuntimeError("normal access socket path is not a socket")
+        path.unlink()
+
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    listener.bind(str(path))
+    # The socket volume is mounted only into this bridge and the pinned WAF
+    # container; world-writable mode lets the NGINX worker (uid/gid 101) send.
+    # The volume is not host-published or mounted into the application stack.
+    os.chmod(path, 0o666)
+    listener.settimeout(0.5)
+    stop_signal = stop_event or threading.Event()
+    seen_transaction_ids = _TransactionDedupCache(
+        max_entries=_TRANSACTION_DEDUP_MAX_ENTRIES,
+        ttl_seconds=_TRANSACTION_DEDUP_TTL_SECONDS,
+    )
+    _log_event(
+        "bridge.normal_access_listening",
+        "Bridge is listening for allowlisted NGINX success events",
+    )
+    try:
+        while not stop_signal.is_set():
+            try:
+                message = listener.recv(65_535)
+            except socket.timeout:
+                continue
+            except OSError as exc:
+                _log_event(
+                    "bridge.normal_access_socket_failed",
+                    "Normal access socket receive failed",
+                    level="ERROR",
+                    error_type=type(exc).__name__,
+                )
+                break
+            try:
+                event = _decode_normal_access_syslog(message)
+                _process_event_line(
+                    json.dumps(event, separators=(",", ":")),
+                    endpoint=endpoint,
+                    api_secret=api_secret,
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    retry_delay_seconds=retry_delay_seconds,
+                    provenance_mode=provenance_mode,
+                    ingest_source=_NORMAL_ACCESS_INGEST_SOURCE,
+                    seen_transaction_ids=seen_transaction_ids,
+                )
+            except Exception as exc:  # noqa: BLE001
+                _log_event(
+                    "bridge.normal_access_message_rejected",
+                    "Normal access syslog message could not be processed",
+                    level="WARNING",
+                    error_type=type(exc).__name__,
+                )
+    finally:
+        listener.close()
+        try:
+            if stat.S_ISSOCK(path.lstat().st_mode):
+                path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def follow_bridge(
     *,
     input_path: str | os.PathLike[str],
@@ -793,6 +1013,7 @@ def follow_bridge(
     idle_timeout_seconds: float | None = None,
     start_at_end: bool = True,
     provenance_mode: str = "direct_remote_addr",
+    ingest_source: str = "modsec_audit_bridge",
 ) -> tuple[int, int, int]:
     total = 0
     success = 0
@@ -806,9 +1027,23 @@ def follow_bridge(
     current_position = 0
     first_open = True
     logged_following = False
+    logged_missing_input = False
 
     while not stop_signal.is_set():
-        with open(Path(input_path), "r", encoding="utf-8", errors="replace") as handle:
+        try:
+            handle = open(Path(input_path), "r", encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            if not logged_missing_input:
+                _log_event(
+                    "bridge.waiting_for_input",
+                    "Bridge input log is not created yet",
+                    input_path=str(input_path),
+                )
+                logged_missing_input = True
+            time.sleep(poll_interval_seconds)
+            continue
+        with handle:
+            logged_missing_input = False
             if first_open and start_at_end:
                 handle.seek(0, os.SEEK_END)
                 current_position = handle.tell()
@@ -871,6 +1106,7 @@ def follow_bridge(
                     max_retries=max_retries,
                     retry_delay_seconds=retry_delay_seconds,
                     provenance_mode=provenance_mode,
+                    ingest_source=ingest_source,
                     seen_transaction_ids=seen_transaction_ids,
                 )
                 if posted:
@@ -899,6 +1135,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--input", default="-", help="Input JSONL file path or '-' for stdin"
+    )
+    parser.add_argument(
+        "--normal-access-socket",
+        default=None,
+        help="Optional Unix datagram socket for allowlisted NGINX success events",
     )
     parser.add_argument(
         "--follow",
@@ -948,6 +1189,8 @@ def main() -> int:
 
     if args.timeout <= 0:
         parser.error("--timeout must be greater than zero")
+    if args.normal_access_socket and not args.follow:
+        parser.error("--normal-access-socket requires --follow")
     if args.max_retries < 0:
         parser.error("--max-retries must be zero or greater")
     if args.retry_delay < 0:
@@ -977,6 +1220,17 @@ def main() -> int:
             reason="invalid_source_provenance_mode",
         )
         return 2
+    if provenance_mode == "cloudflare_connecting_ip" and canonicalize_source_ip(
+        os.getenv("WAF_TRUSTED_TUNNEL_PEER")
+    ) is None:
+        _log_event(
+            "bridge.configuration_failed",
+            "Cloudflare source mode requires one canonical trusted tunnel peer",
+            level="ERROR",
+            stream=sys.stderr,
+            reason="missing_trusted_tunnel_peer",
+        )
+        return 2
 
     endpoint = _build_endpoint(args.endpoint)
     _log_event(
@@ -986,6 +1240,23 @@ def main() -> int:
         endpoint=_redact_endpoint(endpoint),
         follow=args.follow,
     )
+
+    if args.normal_access_socket:
+        normal_worker = threading.Thread(
+            target=follow_normal_access_socket,
+            kwargs={
+                "socket_path": args.normal_access_socket,
+                "endpoint": endpoint,
+                "api_secret": api_secret,
+                "timeout": args.timeout,
+                "max_retries": max(0, args.max_retries),
+                "retry_delay_seconds": max(0.0, args.retry_delay),
+                "provenance_mode": provenance_mode,
+            },
+            name="cybertrace-normal-access-bridge",
+            daemon=True,
+        )
+        normal_worker.start()
 
     if args.follow:
         if args.input == "-":

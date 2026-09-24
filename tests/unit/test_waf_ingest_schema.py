@@ -28,6 +28,26 @@ def test_accepts_minimal_valid_waf_event():
     assert parsed.crs_score == 8
 
 
+def test_accepts_normal_access_bridge_event_without_payload_fields():
+    parsed = WafIngestRequest.model_validate(
+        {
+            "ingest_source": "nginx_access_bridge",
+            "transaction_id": "normal-req-123",
+            "timestamp": "2026-09-24T18:00:00+08:00",
+            "source_ip": "198.51.100.24",
+            "source_provenance": "DIRECT_REMOTE_ADDR",
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+        }
+    )
+
+    assert parsed.ingest_source == "nginx_access_bridge"
+    assert parsed.query_string is None
+    assert parsed.sanitized_body is None
+
+
 def test_malformed_source_timestamp_becomes_null():
     parsed = WafIngestRequest.model_validate(
         {

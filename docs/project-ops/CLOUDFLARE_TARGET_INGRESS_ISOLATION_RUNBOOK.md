@@ -59,18 +59,51 @@ exec form (`CMD cloudflared tunnel --metrics 127.0.0.1:20241 ready`) because the
 pinned image has no `/bin/sh`; `--metrics` must precede the `ready` subcommand
 for this pinned cloudflared version.
 
-## Explicit future verified-mode proof switch
+## Guarded verified-source proof switch
 
-Do not run this during the current preflight. After the temporary proof has
-been independently reviewed, the exact guarded command is:
+The reproducible launcher keeps the default mode `unverified`. Its explicit
+`-VerifyCloudflareSourceProof` switch selects `cloudflare_tunnel` and
+`cloudflare_connecting_ip` only for a proof run. It also forces
+`ENFORCEMENT_MODE=shadow` and
+`ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=false`; this does not activate
+ML request enforcement.
+
+First validate without starting or recreating services:
 
 ```powershell
-$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"
-$env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"
-$env:WAF_SOURCE_PROVENANCE_MODE = "cloudflare_connecting_ip"
-$env:WAF_AUDIT_EVIDENCE_KEY = "<operator-generated value outside the repository>"
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-bridge
+pwsh -NoProfile -File scripts/start_full_cloudflare_target.ps1 `
+  -VerifyCloudflareSourceProof -ValidateOnly
 ```
+
+After checking the public Cloudflare route, the isolation network, and the
+current Cloudflare Network settings, the full reproducible launch command is:
+
+```powershell
+pwsh -NoProfile -File scripts/start_full_cloudflare_target.ps1 `
+  -VerifyCloudflareSourceProof
+```
+
+The launcher uses the existing tunnel and domains; it does not change
+Cloudflare routes. The bridge requires the configured tunnel peer to be the
+single canonical `172.30.20.2` address. It authenticates source evidence with
+the separate `WAF_AUDIT_EVIDENCE_KEY`, in addition to the normal ingest key.
+The backend rejects verified mode unless the isolation overlay and explicit
+proof guard are active.
+
+Successful ordinary traffic uses a separate `nginx_access_bridge` event path.
+Allowlisted requests are sent from NGINX to the bridge over a shared Unix
+datagram socket (not a request log file); the query can be used transiently by
+inference, while raw query and model-input text are not retained for this source.
+Request bodies and headers are intentionally excluded, so successful POST
+form workflows still need separate privacy-safe input coverage before claiming
+Normal classification for those submissions.
+Only allowlisted protected routes with 2xx/3xx responses are forwarded; the
+socket event carries the query string transiently to inference, but the
+persisted `TrafficLog` contains only method/path and source-correlation
+metadata—not the query string, request body, or headers. The bridge requires a
+matching received `CF-Connecting-IP` and effective NGINX address, plus the
+exact tunnel peer, before setting the source match flag for those events.
+ModSecurity audit part `B` remains excluded.
 
 The backend rejects `cloudflare_tunnel` unless the isolation overlay is active
 and this explicit proof switch is true. The switch is rejected in
