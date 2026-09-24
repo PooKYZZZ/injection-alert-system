@@ -75,8 +75,15 @@ export async function checkEnforcementFromRuntime(
   scope: EnforcementScope,
 ): Promise<EnforcementCheckResult> {
   const { headers } = await import("next/headers");
+  return checkEnforcementForHeaders(scope, await headers());
+}
+
+export async function checkEnforcementForHeaders(
+  scope: EnforcementScope,
+  requestHeaders: Pick<Headers, "get">,
+): Promise<EnforcementCheckResult> {
   const result = await checkEnforcement({
-    requestHeaders: await headers(),
+    requestHeaders,
     config: runtimeConfig(),
     scope,
   });
