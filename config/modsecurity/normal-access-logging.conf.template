@@ -3,7 +3,7 @@
 # Keep the allowlist aligned with lib/routes.ts; exclude Next.js RSC prefetches.
 map "${CYBERTRACE_NORMAL_ACCESS_TELEMETRY}|$request_method|$uri|$status|$arg__rsc" $cybertrace_normal_access_loggable {
     default 0;
-    ~^true\|(?:GET|POST)\|/(?:records/search|records/[A-Za-z0-9-]+|transactions/status|appointments(?:/submit)?|support(?:/submit)?|login(?:/submit)?|comments(?:/submit)?|records/[A-Za-z0-9-]+/request-copy(?:/submit)?)\|[23][0-9][0-9]\|$ 1;
+    ~^true\|GET\|/(?:records/search|records/[A-Za-z0-9-]+|transactions/status|appointments|support|login|comments|records/[A-Za-z0-9-]+/request-copy)\|[23][0-9][0-9]\|$ 1;
 }
 
 log_format cybertrace_normal escape=json
