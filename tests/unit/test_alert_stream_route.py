@@ -22,6 +22,11 @@ async def test_alert_stream_emits_named_minimal_event_and_cleans_up() -> None:
 
     assert event.event == "alert.created"
     assert event.data == {"changed": True}
+
+    broadcaster.publish_traffic_changed()
+    traffic_event = await asyncio.wait_for(anext(iterator), timeout=0.1)
+    assert traffic_event.event == "traffic.changed"
+    assert traffic_event.data == {"changed": True, "event": "traffic.changed"}
     await iterator.aclose()
     assert broadcaster.subscriber_count == 0
 

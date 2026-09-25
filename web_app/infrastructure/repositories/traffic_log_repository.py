@@ -1542,6 +1542,7 @@ ORDER BY created_at DESC, id DESC
         sort_by: Optional[str] = "timestamp",
         sort_dir: Optional[str] = "desc",
         reference_time: Optional[datetime] = None,
+        include_normal: bool = False,
     ) -> TrafficLogPage:
         """Return a filtered, paginated alert list with deterministic ordering.
 
@@ -1556,7 +1557,11 @@ ORDER BY created_at DESC, id DESC
         stmt = (
             select(TrafficLog)
             .where(self._completed_or_legacy_clause())
-            .where(self._actionable_alert_clause())
+            .where(
+                self._operational_traffic_clause()
+                if include_normal and triage_status is None
+                else self._actionable_alert_clause()
+            )
         )
 
         effective_confidence_tier_filter = confidence_tier_filter or severity

@@ -747,7 +747,10 @@ async def stream_alert_events(
                 signal = await asyncio.wait_for(events.get(), timeout=remaining_seconds)
             except TimeoutError:
                 return
-            yield ServerSentEvent(event="alert.created", data=signal)
+            yield ServerSentEvent(
+                event=signal.get("event", "alert.created"),
+                data=signal,
+            )
 
 
 @internal_router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)
@@ -784,6 +787,7 @@ async def get_alerts(
         sort_by=query.sort_by,
         sort_dir=query.sort_dir,
         reference_time=reference_time,
+        include_normal=query.include_normal,
     )
     return AlertListResponse(
         items=[

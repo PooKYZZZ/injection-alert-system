@@ -449,6 +449,10 @@ class AlertQueryParams(BaseModel):
 
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    include_normal: bool = Field(
+        default=False,
+        description="Include stored Normal traffic alongside supported attacks",
+    )
     severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(
         default=None, description="Legacy compatibility alias for confidence tier"
     )

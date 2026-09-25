@@ -29,6 +29,19 @@ async def test_full_subscriber_queue_coalesces_without_blocking() -> None:
 
 
 @pytest.mark.asyncio
+async def test_publish_traffic_change_uses_a_distinct_non_alert_event() -> None:
+    broadcaster = AlertEventBroadcaster()
+
+    async with broadcaster.subscribe() as events:
+        broadcaster.publish_traffic_changed()
+
+        assert await asyncio.wait_for(events.get(), timeout=0.1) == {
+            "changed": True,
+            "event": "traffic.changed",
+        }
+
+
+@pytest.mark.asyncio
 async def test_subscriber_is_removed_when_context_closes() -> None:
     broadcaster = AlertEventBroadcaster()
 

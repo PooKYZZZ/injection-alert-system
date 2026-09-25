@@ -4,7 +4,12 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState } from 'react'
 import type { Alert, LabelReview, TriageStatus } from '@/features/alerts/types'
-import { ALERT_DISPLAY_ACTION_ALIASES, getAlertActionLabel, VERIFIED_LABEL_VALUES } from '@/features/alerts/contract'
+import {
+  ALERT_DISPLAY_ACTION_ALIASES,
+  getAlertActionLabel,
+  isActionableAttackClass,
+  VERIFIED_LABEL_VALUES,
+} from '@/features/alerts/contract'
 import type { AlertAction, VerifiedLabel } from '@/features/alerts/contract'
 import { useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
@@ -76,6 +81,7 @@ function formatNotificationStatus(
 }
 
 function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated }: AlertDrawerProps) {
+  const isActionableAlert = alert !== null && isActionableAttackClass(alert.prediction)
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
     role,
@@ -96,7 +102,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   } = useTriageMutation()
 
   const handleVerdictClick = (status: TriageStatus) => {
-    if (alert && !isPending) {
+    if (alert && isActionableAlert && !isPending) {
       mutate(
         { id: alert.alert_id, status },
         { onSuccess: (updatedAlert) => onTriageUpdated?.(updatedAlert) }
@@ -105,7 +111,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   }
 
   const handleStartReview = () => {
-    if (alert && !isPending && isNewTriageStatus(displayStatus)) {
+    if (alert && isActionableAlert && !isPending && isNewTriageStatus(displayStatus)) {
       mutate(
         { id: alert.alert_id, status: 'in_review' },
         { onSuccess: (updatedAlert) => onTriageUpdated?.(updatedAlert) }
@@ -120,7 +126,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   } = useActionMutation()
 
   const handleActionClick = (action: AlertAction) => {
-    if (alert && !isActionPending) {
+    if (alert && isActionableAlert && !isActionPending) {
       mutateAction(
         { id: alert.alert_id, action },
         { onSuccess: (updatedAlert) => onActionUpdated?.(updatedAlert) }
@@ -140,6 +146,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
     if (
       canManageTrainingFeedback &&
       alert &&
+      isActionableAlert &&
       verifiedLabel &&
       !isLabelReviewPending
     ) {
@@ -157,7 +164,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   const displayStatus = alert?.triage_status ?? null
   const displayAction = alert?.action_taken ?? null
 
-  const triageLabel = formatTriageLabel(displayStatus)
+  const triageLabel = isActionableAlert ? formatTriageLabel(displayStatus) : 'Traffic'
   const requestLine = [alert?.request_method ?? '—', alert?.request_path ?? '—'].join(' ')
   const confidenceLabel = alert
     ? formatConfidenceLabel(alert.confidence, alert.confidence_level)
@@ -196,26 +203,35 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
               >
                 {/* Visually hidden title for screen readers */}
                 <Dialog.Title className="sr-only">
-                  Alert detail for {alert.prediction}
+                  {isActionableAlert ? 'Alert detail' : 'Traffic record detail'} for {alert.prediction}
                 </Dialog.Title>
                 {/* Hidden description to satisfy Radix accessibility warnings */}
                 <Dialog.Description className="sr-only">
-                  Details for {alert.prediction} — {formatAlertDateTime(alert.timestamp)}. Contains summary details, WAF evidence, captured request data, and role-appropriate review controls.
+                  Details for {alert.prediction} — {formatAlertDateTime(alert.timestamp)}. {isActionableAlert
+                    ? 'Contains summary details, WAF evidence, captured request data, and role-appropriate review controls.'
+                    : 'Contains the stored request and classification. Normal traffic has no analyst triage status.'}
                 </Dialog.Description>
 
                 {/* Header */}
                 <div className="sticky top-0 z-10 flex items-start justify-between border-b border-surface-border bg-surface-card p-4">
                   <div className="min-w-0 space-y-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
-                      Alert summary
+                      {isActionableAlert ? 'Alert summary' : 'Traffic summary'}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[16px] font-semibold text-[var(--color-text-primary)]">
+                      <span className={cn(
+                        'rounded-full border px-2 py-1 text-[12px] font-semibold',
+                        alert.prediction === 'Normal'
+                          ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
+                          : 'border-action-border bg-action-bg text-action-accent'
+                      )}>
                         {alert.prediction}
                       </span>
-                      <span className="rounded-full border border-action-border bg-action-bg px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-action-accent">
-                        {triageLabel}
-                      </span>
+                      {isActionableAlert && (
+                        <span className="rounded-full border border-action-border bg-action-bg px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em] text-action-accent">
+                          {triageLabel}
+                        </span>
+                      )}
                       <span
                         className={cn(
                           'rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.08em]',
@@ -284,7 +300,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </h3>
                     <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Alert ID
+                        {isActionableAlert ? 'Alert ID' : 'Traffic record ID'}
                       </dt>
                       <dd className="font-mono text-[var(--color-text-primary)]">
                         {alert.alert_id}
@@ -451,7 +467,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </div>
                   </section>
 
-                  {canManageTrainingFeedback && (
+                  {isActionableAlert && canManageTrainingFeedback && (
                     <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
                       <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Training feedback
@@ -520,7 +536,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           Analyst Workflow
                         </h3>
-                        {canTriage ? (
+                        {!isActionableAlert ? (
+                          <p className="text-[11px] leading-4 text-[var(--color-text-secondary)]">
+                            Normal traffic has no analyst triage workflow.
+                          </p>
+                        ) : canTriage ? (
                         <div className="flex flex-col gap-1.5">
                           {isNewTriageStatus(displayStatus) ? (
                             <>
@@ -603,7 +623,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
                           This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.
                         </p>
-                        {canUpdateAction ? (
+                        {isActionableAlert && canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
                       <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
                         Update action label
@@ -685,7 +705,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         </div>
                         ) : (
                           <p className="text-[11px] text-[var(--color-text-secondary)]">
-                            Action updates require Admin.
+                            {isActionableAlert
+                              ? 'Action updates require Admin.'
+                              : displayAction
+                                ? `Recorded action: ${getAlertActionLabel(displayAction, alert.confidence_level)}.`
+                                : 'No action was recorded.'}
                           </p>
                         )}
                       </div>

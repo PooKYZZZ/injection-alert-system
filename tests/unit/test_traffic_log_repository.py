@@ -204,6 +204,91 @@ async def test_get_alert_list_returns_filtered_total_and_stable_order(
 
 
 @pytest.mark.asyncio
+async def test_get_alert_list_can_include_normal_without_expanding_alert_scope(
+    repository: TrafficLogRepository,
+):
+    now = datetime.now(timezone.utc)
+    normal = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-normal-visible",
+            timestamp=now - timedelta(minutes=5),
+            source_ip="198.51.100.21",
+            request_path="/records/track",
+            request_method="GET",
+            http_request="GET /records/track?id=demo-42",
+            prediction="Normal",
+            confidence=0.82,
+            confidence_level="MEDIUM",
+            action_taken="ALLOWED",
+        )
+    )
+    sql = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-sql-visible",
+            timestamp=now - timedelta(minutes=1),
+            source_ip="198.51.100.22",
+            request_path="/records/search",
+            request_method="GET",
+            http_request="GET /records/search?q=test",
+            prediction="SQL Injection",
+            confidence=0.94,
+            confidence_level="HIGH",
+            action_taken="BLOCKED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-other-not-visible",
+            timestamp=now,
+            source_ip="198.51.100.23",
+            request_path="/internal",
+            request_method="GET",
+            http_request="GET /internal",
+            prediction="Other Attacks",
+            confidence=0.99,
+            confidence_level="CRITICAL",
+            action_taken="BLOCKED",
+        )
+    )
+
+    default_page = await repository.get_alert_list(page=1, page_size=20)
+    mixed_page = await repository.get_alert_list(
+        page=1,
+        page_size=1,
+        include_normal=True,
+    )
+    second_page = await repository.get_alert_list(
+        page=2,
+        page_size=1,
+        include_normal=True,
+    )
+    allowed_page = await repository.get_alert_list(
+        page=1,
+        page_size=20,
+        include_normal=True,
+        action="ALLOWED",
+    )
+    triaged_page = await repository.get_alert_list(
+        page=1,
+        page_size=20,
+        include_normal=True,
+        triage_status="new",
+    )
+
+    assert default_page.total == 1
+    assert [item.prediction for item in default_page.items] == ["SQL Injection"]
+    assert mixed_page.total == 2
+    assert [item.id for item in mixed_page.items] == [sql.id]
+    assert second_page.total == 2
+    assert [item.id for item in second_page.items] == [normal.id]
+    assert second_page.items[0].action_taken == "ALLOWED"
+    assert allowed_page.total == 1
+    assert [item.id for item in allowed_page.items] == [normal.id]
+    assert triaged_page.total == 1
+    assert [item.prediction for item in triaged_page.items] == ["SQL Injection"]
+
+
+@pytest.mark.asyncio
 async def test_get_alert_list_time_range_excludes_future_records(
     repository: TrafficLogRepository,
 ):

@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AlertsTable } from './AlertsTable'
@@ -494,4 +495,102 @@ describe('AlertsTable', () => {
       expect(mockTriageMutate).not.toHaveBeenCalled()
     }
   )
+
+  it('renders Normal as a traffic record without triage selection and keeps its stored action', async () => {
+    mockedUseSearchParams.mockReturnValue(
+      new URLSearchParams('include_normal=true') as unknown as ReturnType<typeof useSearchParams>
+    )
+    mockedUseAlertsFromFilters.mockReturnValue({
+      ...buildQueryResult(),
+      data: {
+        items: [
+          {
+            alert_id: 'traffic-18',
+            timestamp: '2026-04-03T10:00:00.000Z',
+            source_ip: '203.0.113.18',
+            request_path: '/records/track',
+            request_method: 'GET',
+            payload_snippet: 'id=demo-18',
+            prediction: 'Normal',
+            confidence: 0.82,
+            confidence_level: 'MEDIUM',
+            action_taken: 'ALLOWED',
+            triage_status: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+    render(
+      <AlertsTable
+        role="ANALYST"
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('Normal')).toHaveClass('rounded-full')
+    expect(screen.getByLabelText('Not triaged')).toBeInTheDocument()
+    expect(screen.getByText('Allowed')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Select alert traffic-18' })).not.toBeInTheDocument()
+  })
+
+  it('selects only actionable alerts when Normal traffic is included', async () => {
+    const user = userEvent.setup()
+    const onSelectionChange = vi.fn()
+    mockedUseSearchParams.mockReturnValue(
+      new URLSearchParams('include_normal=true') as unknown as ReturnType<typeof useSearchParams>
+    )
+    mockedUseAlertsFromFilters.mockReturnValue({
+      ...buildQueryResult(),
+      data: {
+        items: [
+          {
+            alert_id: 'attack-18',
+            timestamp: '2026-04-03T10:01:00.000Z',
+            source_ip: '203.0.113.18',
+            request_path: '/records/search',
+            request_method: 'GET',
+            payload_snippet: 'q=test',
+            prediction: 'SQL Injection',
+            confidence: 0.94,
+            confidence_level: 'HIGH',
+            action_taken: 'BLOCKED',
+          },
+          {
+            alert_id: 'traffic-18',
+            timestamp: '2026-04-03T10:00:00.000Z',
+            source_ip: '203.0.113.18',
+            request_path: '/records/track',
+            request_method: 'GET',
+            payload_snippet: 'id=demo-18',
+            prediction: 'Normal',
+            confidence: 0.82,
+            confidence_level: 'MEDIUM',
+            action_taken: 'ALLOWED',
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+      },
+    } as unknown as ReturnType<typeof useAlertsFromFilters>)
+
+    render(
+      <AlertsTable
+        role="ANALYST"
+        selectedIds={[]}
+        onSelectionChange={onSelectionChange}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all security alerts' }))
+
+    expect(onSelectionChange).toHaveBeenCalledWith(['attack-18'])
+  })
 })

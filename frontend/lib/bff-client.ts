@@ -414,8 +414,14 @@ function validateMockData<T>(
   }
 }
 
-function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Alert> {
-  if (!isActionableAttackClass(alert.prediction)) {
+function normalizeAlert(
+  alert: z.infer<typeof BackendAlertSchema>,
+  includeNormal = false
+): BffResult<Alert> {
+  if (
+    !isActionableAttackClass(alert.prediction) &&
+    !(includeNormal && alert.prediction === 'Normal')
+  ) {
     return err(
       502,
       'UPSTREAM_ERROR',
@@ -473,11 +479,12 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
 }
 
 function normalizeAlertList(
-  payload: z.infer<typeof BackendPaginatedAlertsSchema>
+  payload: z.infer<typeof BackendPaginatedAlertsSchema>,
+  includeNormal = false
 ): BffResult<PaginatedAlerts> {
   const normalizedItems: Alert[] = []
   for (const item of payload.items) {
-    const normalizedAlert = normalizeAlert(item)
+    const normalizedAlert = normalizeAlert(item, includeNormal)
     if (!normalizedAlert.ok) {
       return normalizedAlert
     }
@@ -991,6 +998,7 @@ export async function rollbackRetrainingRun(
 const PARAM_MAP: Record<string, string> = {
   page: 'page',
   pageSize: 'page_size',
+  include_normal: 'include_normal',
   severity: 'severity',
   confidence_tier: 'confidence_tier',
   action: 'action',
@@ -1034,7 +1042,10 @@ export async function getAlerts(
     return upstream
   }
 
-  return normalizeAlertList(upstream.data)
+  return normalizeAlertList(
+    upstream.data,
+    searchParams.get('include_normal') === 'true'
+  )
 }
 
 export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>> {

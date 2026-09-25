@@ -33,7 +33,10 @@ from web_app.application.waf_event_sanitizer import (
     redact_query_string,
     redact_sensitive_text,
 )
-from web_app.domain.classification_scope import is_actionable_attack_class
+from web_app.domain.classification_scope import (
+    is_actionable_attack_class,
+    is_operational_traffic_class,
+)
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 from web_app.domain.source_address import (
     SourceProvenance,
@@ -173,7 +176,7 @@ class TriageUseCase:
                 action_taken=action_taken,
             )
         )
-        self._publish_alert_created_safely(saved.prediction)
+        self._publish_visibility_change_safely(saved.prediction)
         return self._result_from_entity(saved)
 
     async def ingest(self, command: TriageIngestCommand) -> TriageResult:
@@ -276,22 +279,32 @@ class TriageUseCase:
                     f"Unsupported triage completion status '{saved.status}'"
                 )
         else:
-            self._publish_alert_created_safely(saved.prediction)
+            self._publish_visibility_change_safely(saved.prediction)
         return self._result_from_entity(saved)
 
-    def _publish_alert_created_safely(self, prediction: str | None) -> None:
-        """Publish post-commit invalidation without changing write success."""
-        if not is_actionable_attack_class(prediction):
+    def _publish_visibility_change_safely(self, prediction: str | None) -> None:
+        """Publish a post-commit visibility event without changing write success."""
+        if not is_operational_traffic_class(prediction):
             return
         if self._alert_event_publisher is None:
             return
+        is_alert = is_actionable_attack_class(prediction)
         try:
-            self._alert_event_publisher.publish_alert_created()
+            if is_alert:
+                self._alert_event_publisher.publish_alert_created()
+            else:
+                self._alert_event_publisher.publish_traffic_changed()
         except Exception as exc:
             log_event(
                 logger,
-                "alert_event.publish_failed",
-                "Persisted alert invalidation could not be published",
+                (
+                    "alert_event.publish_failed"
+                    if is_alert
+                    else "traffic_event.publish_failed"
+                ),
+                "Persisted alert invalidation could not be published"
+                if is_alert
+                else "Persisted traffic visibility change could not be published",
                 level="WARNING",
                 error_type=type(exc).__name__,
             )

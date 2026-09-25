@@ -4,6 +4,7 @@ import { useMemo, useSyncExternalStore, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
+import { isActionableAttackClass } from '@/features/alerts/contract'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
@@ -106,16 +107,24 @@ function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
 
 function EmptyState({
   hasFilters,
+  includeNormal,
   onClearFilters,
 }: {
   hasFilters: boolean
+  includeNormal: boolean
   onClearFilters?: () => void
 }) {
   return (
     <tr>
       <td colSpan={10} className="p-8 text-center">
         <p className="text-sm text-[var(--color-text-secondary)]">
-          {hasFilters ? 'No alerts match the current filters.' : 'No alerts in the current window.'}
+          {includeNormal
+            ? hasFilters
+              ? 'No traffic records match the current filters.'
+              : 'No traffic records in the current window.'
+            : hasFilters
+              ? 'No alerts match the current filters.'
+              : 'No alerts in the current window.'}
         </p>
         {hasFilters && onClearFilters && (
           <button
@@ -214,6 +223,9 @@ function AlertsTableContent({
   // Use full AlertFilters for the alerts page (not down-converted to DashboardFilters)
   const { data, isPending, isFetching, isError, refetch } = useAlertsFromFilters(params)
   const alerts = data?.items ?? []
+  const selectableAlerts = alerts.filter((alert) =>
+    isActionableAttackClass(alert.prediction)
+  )
 
   const currentSort = (params.sort_by as SortColumn | undefined) ?? null
   const currentDir = params.sort_dir ?? 'desc'
@@ -232,7 +244,7 @@ function AlertsTableContent({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      onSelectionChange(alerts.map((a) => a.alert_id))
+      onSelectionChange(selectableAlerts.map((alert) => alert.alert_id))
     } else {
       onSelectionChange([])
     }
@@ -251,7 +263,7 @@ function AlertsTableContent({
   }
 
   const handleClearFilters = () => {
-    const paramsToKeep = ['page']
+    const paramsToKeep = ['include_normal']
     const currentParams = getCurrentSearchParams(searchParams)
     const newParams = new URLSearchParams()
     for (const key of paramsToKeep) {
@@ -268,6 +280,7 @@ function AlertsTableContent({
     params.triage_status !== undefined ||
     params.prediction !== undefined ||
     params.window !== undefined ||
+    params.include_normal ||
     (params.confidence_level && params.confidence_level.length > 0) ||
     (params.search && params.search.length > 0)
   )
@@ -287,18 +300,24 @@ function AlertsTableContent({
         className="max-h-[500px] overflow-x-auto overflow-y-auto"
       >
         <table className="w-full text-sm">
-          <caption className="sr-only">Security alerts matching the current filters</caption>
+          <caption className="sr-only">
+            {params.include_normal
+              ? 'Traffic records and security alerts matching the current filters'
+              : 'Security alerts matching the current filters'}
+          </caption>
           <thead className="sticky top-0 z-10 bg-surface-panel">
             <tr className="border-b border-surface-border">
               <th scope="col" className="w-10 p-3">
-                {canTriage && (
+                {canTriage && selectableAlerts.length > 0 && (
                   <input
                     type="checkbox"
-                    checked={alerts.length > 0 && selectedIds.length === alerts.length}
+                    checked={selectableAlerts.every((alert) =>
+                      selectedIdsSet.has(alert.alert_id)
+                    )}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                     className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
                     style={{ accentColor: 'var(--color-action-accent)' }}
-                    aria-label="Select all alerts"
+                    aria-label="Select all security alerts"
                   />
                 )}
               </th>
@@ -320,7 +339,11 @@ function AlertsTableContent({
             ) : isError ? (
               <ErrorState onRetry={() => void refetch()} />
             ) : alerts.length === 0 ? (
-              <EmptyState hasFilters={hasFilters} onClearFilters={handleClearFilters} />
+              <EmptyState
+                hasFilters={hasFilters}
+                includeNormal={params.include_normal}
+                onClearFilters={handleClearFilters}
+              />
             ) : (
               alerts.map((alert) => (
                 <tr
@@ -334,7 +357,7 @@ function AlertsTableContent({
                   onClick={() => handleRowClick(alert)}
                 >
                   <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                    {canTriage && (
+                    {canTriage && isActionableAttackClass(alert.prediction) && (
                       <input
                         type="checkbox"
                         checked={selectedIdsSet.has(alert.alert_id)}
@@ -346,7 +369,17 @@ function AlertsTableContent({
                     )}
                   </td>
                   <td className="p-3">
-                    <TriageBadge triage_status={alert.triage_status ?? null} />
+                    {isActionableAttackClass(alert.prediction) ? (
+                      <TriageBadge triage_status={alert.triage_status ?? null} />
+                    ) : (
+                      <span
+                        title="Normal traffic does not have analyst triage status"
+                        aria-label="Not triaged"
+                        className="text-xs text-[var(--color-text-muted)]"
+                      >
+                        —
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-primary)]">
                     <time dateTime={alert.timestamp}>{formatAlertDateTime(alert.timestamp)}</time>
@@ -373,7 +406,15 @@ function AlertsTableContent({
                       </span>
                     </div>
                   </td>
-                  <td className="p-3 text-xs text-[var(--color-text-primary)]">{alert.prediction}</td>
+                  <td className="p-3 text-xs text-[var(--color-text-primary)]">
+                    {alert.prediction === 'Normal' ? (
+                      <span className="inline-flex rounded-full border border-severity-safe-border bg-severity-safe-bg px-2 py-1 text-[10px] font-medium text-severity-safe-text">
+                        Normal
+                      </span>
+                    ) : (
+                      alert.prediction
+                    )}
+                  </td>
                   <td className="p-3">
                     <span className={`font-mono text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
                       {formatConfidenceLabel(alert.confidence, alert.confidence_level)}
@@ -394,7 +435,7 @@ function AlertsTableContent({
                     <button
                       type="button"
                       className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-surface-border hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
-                      aria-label={`View details for alert ${alert.alert_id}`}
+                      aria-label={`View details for ${alert.prediction === 'Normal' ? 'traffic record' : 'alert'} ${alert.alert_id}`}
                     >
                       <svg
                         width="14"
@@ -442,11 +483,12 @@ function AlertsTableContent({
         <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">
             {data?.total === 0 ? (
-              'Showing 0 alerts'
+              params.include_normal ? 'Showing 0 traffic records' : 'Showing 0 alerts'
             ) : data ? (
               <>
                 Showing {(params.page - 1) * params.pageSize + 1}–
-                {Math.min(params.page * params.pageSize, data.total)} of {data.total} alerts
+                {Math.min(params.page * params.pageSize, data.total)} of {data.total}{' '}
+                {params.include_normal ? 'traffic records' : 'alerts'}
               </>
             ) : (
               'Loading...'
