@@ -6,6 +6,7 @@ import scripts.search_route_attack_tester as tester
 from scripts.search_route_attack_tester import (
     _expected_action,
     _request_uri_matches,
+    _result_row,
     _validate_endpoint,
     build_reference_bundle,
 )
@@ -184,3 +185,109 @@ def test_backend_lookup_waits_for_processing_row_to_complete(monkeypatch) -> Non
     assert payload is not None
     assert payload["status"] == "COMPLETED"
     assert sleeps == [0.15]
+
+
+@pytest.mark.parametrize(
+    ("predicted_label", "confidence_level"),
+    [("Other Attacks", "HIGH"), ("Normal", "MEDIUM")],
+)
+def test_valid_non_actionable_prediction_is_not_a_backend_failure(
+    predicted_label: str, confidence_level: str
+) -> None:
+    case = {
+        "case_id": "SR-CODE-TEST",
+        "seed_id": "CODE-SEED-TEST",
+        "family": "code_injection",
+        "variant": "mutation",
+        "mutation": "test",
+        "description": "unit test",
+        "ground_truth_status": "baseline_candidate",
+        "replay_policy": "local_search_records_only",
+        "payload": "safe-test-value",
+        "wire_query": "safe-test-value",
+        "payload_sha256": "payload-hash",
+        "wire_sha256": "wire-hash",
+        "expected_label": "Code Injection",
+    }
+    event = {
+        "transaction": {
+            "unique_id": "tx-valid-non-actionable",
+            "request": {"uri": "/records/search?query=safe-test-value"},
+            "messages": [],
+        }
+    }
+    lookup = {
+        "found": True,
+        "status": "COMPLETED",
+        "prediction": predicted_label,
+        "confidence": 0.85,
+        "confidence_level": confidence_level,
+        "action_taken": None,
+    }
+
+    row = _result_row(
+        case,
+        run_id="test-valid-non-actionable",
+        environment="unit-test",
+        origin="http://demo-target-modsecurity:8080",
+        status=403,
+        duration_ms=1.0,
+        request_error=None,
+        audit_event=event,
+        lookup=lookup,
+        lookup_error=None,
+        catalog_version="test",
+    )
+
+    assert row["failure_class"] == ""
+    assert row["classification_correct"] == "False"
+    assert row["acceptance_status"] == "REVIEW"
+
+
+def test_unknown_prediction_remains_an_invalid_backend_result() -> None:
+    case = {
+        "case_id": "SR-CODE-TEST",
+        "seed_id": "CODE-SEED-TEST",
+        "family": "code_injection",
+        "variant": "mutation",
+        "mutation": "test",
+        "description": "unit test",
+        "ground_truth_status": "baseline_candidate",
+        "replay_policy": "local_search_records_only",
+        "payload": "safe-test-value",
+        "wire_query": "safe-test-value",
+        "payload_sha256": "payload-hash",
+        "wire_sha256": "wire-hash",
+        "expected_label": "Code Injection",
+    }
+    event = {
+        "transaction": {
+            "unique_id": "tx-unknown-prediction",
+            "request": {"uri": "/records/search?query=safe-test-value"},
+            "messages": [],
+        }
+    }
+    lookup = {
+        "found": True,
+        "status": "COMPLETED",
+        "prediction": "Future Attack",
+        "confidence": 0.85,
+        "confidence_level": "HIGH",
+        "action_taken": None,
+    }
+
+    row = _result_row(
+        case,
+        run_id="test-unknown-prediction",
+        environment="unit-test",
+        origin="http://demo-target-modsecurity:8080",
+        status=403,
+        duration_ms=1.0,
+        request_error=None,
+        audit_event=event,
+        lookup=lookup,
+        lookup_error=None,
+        catalog_version="test",
+    )
+
+    assert row["failure_class"] == "INVALID_BACKEND_RESULT"

@@ -83,6 +83,7 @@ REPORT_FIELDS = [
     "error",
 ]
 ATTACK_LABELS = set(EXPECTED_LABELS.values())
+KNOWN_PREDICTIONS = {"Normal", *ATTACK_LABELS}
 CONFIDENCE_LEVELS = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 
 
@@ -387,11 +388,15 @@ def _result_row(
         failure_class = "AUDIT_NOT_OBSERVED"
     elif not lookup:
         failure_class = "BRIDGE_NOT_OBSERVED"
-    elif not predicted or confidence is None or not confidence_level:
+    elif (
+        predicted not in KNOWN_PREDICTIONS
+        or confidence is None
+        or not confidence_level
+    ):
         failure_class = "INVALID_BACKEND_RESULT"
-    elif expected_action is not None and action_taken is None:
+    elif is_actionable_attack_class(predicted) and action_taken is None:
         failure_class = "INVALID_BACKEND_RESULT"
-    elif expected_action is None and action_taken is not None:
+    elif not is_actionable_attack_class(predicted) and action_taken is not None:
         failure_class = "OUT_OF_SCOPE_ACTION"
     row = {
         "run_id": run_id,

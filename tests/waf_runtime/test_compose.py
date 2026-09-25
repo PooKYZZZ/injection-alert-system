@@ -1,8 +1,8 @@
-from pathlib import Path
 import json
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -63,6 +63,51 @@ def test_cloudflare_target_compose_starts_without_local_migration_guard():
         "uvicorn --factory web_app.presentation.app:create_app --host 0.0.0.0 --port 8000",
     ]
     assert "safe_local_migrate" not in " ".join(command)
+
+
+def test_cloudflare_target_compose_connects_portal_to_backend_on_private_network():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+    )
+
+    services = config["services"]
+    policy_network = "target_enforcement_api"
+    assert policy_network in services["backend"]["networks"]
+    assert policy_network in services["demo-portal"]["networks"]
+    assert set(services["demo-target-modsecurity"]["networks"]) == {
+        "target_application",
+        "target_waf_ingress",
+    }
+    assert config["networks"][policy_network]["internal"] is True
+    assert services["backend"]["environment"]["ENFORCEMENT_SOURCE_TRUST_MODE"] == (
+        "cloudflare_verified"
+    )
+    assert services["demo-portal"]["environment"]["ENFORCEMENT_SOURCE_TRUST_MODE"] == (
+        "cloudflare_verified"
+    )
+    portal_environment = services["demo-portal"]["environment"]
+    assert portal_environment["WAF_INGEST_URL"] == (
+        "http://backend:8000/api/internal/waf-events"
+    )
+    assert "WAF_INGEST_API_KEY" in portal_environment
+    assert "WAF_AUDIT_EVIDENCE_KEY" in portal_environment
+    assert services["backend"].get("ports", []) == []
+    assert services["demo-portal"].get("ports", []) == []
+
+
+def test_normal_access_telemetry_does_not_duplicate_portal_post_ingest():
+    template = (
+        Path(__file__).resolve().parents[2]
+        / "config"
+        / "modsecurity"
+        / "normal-access-logging.conf.template"
+    ).read_text(encoding="utf-8")
+
+    assert "~^true\\|GET\\|" in template
+    assert "(?:GET|POST)" not in template
+    assert "/submit" not in template
 
 
 def test_cloudflare_target_compose_mounts_approved_datasets_read_only():

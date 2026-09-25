@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
+from web_app.domain.source_address import SourceProvenance
 from web_app.presentation.schemas import WafIngestRequest
 
 
@@ -309,3 +310,31 @@ def test_rejects_client_supplied_or_unknown_fields(forbidden_field: str) -> None
 
     with pytest.raises(ValidationError):
         WafIngestRequest.model_validate(payload)
+
+
+def test_accepts_portal_route_bridge_post_event():
+    parsed = WafIngestRequest.model_validate(
+        {
+            "ingest_source": "portal_route_bridge",
+            "transaction_id": "portal-post-123",
+            "timestamp": "2026-09-24T18:00:00+08:00",
+            "source_ip": "198.51.100.24",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+            "request_method": "POST",
+            "request_path": "/support/submit",
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "sanitized_body": (
+                "subject=Records+question&message=Please+check+the+title."
+            ),
+        }
+    )
+
+    assert parsed.ingest_source == "portal_route_bridge"
+    assert parsed.request_method == "POST"
+    assert parsed.request_path == "/support/submit"
+    assert parsed.source_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
+    assert parsed.sanitized_body == (
+        "subject=Records+question&message=Please+check+the+title."
+    )

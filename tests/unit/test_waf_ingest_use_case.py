@@ -364,3 +364,58 @@ async def test_cloudflare_mode_accepts_direct_evidence_as_unverified_and_warns(
         }
     ]
     assert "must-not-log" not in repr(logged)
+
+
+@pytest.mark.asyncio
+async def test_portal_post_body_is_classified_but_not_retained_as_request_text():
+    classifier = Mock()
+    classifier.loaded = True
+    classifier.model_version = "test"
+    classifier.predict.return_value = {
+        "prediction": "Normal",
+        "confidence": 0.88,
+        "confidence_level": "HIGH",
+        "model_version": "test",
+    }
+    repository = AsyncMock()
+
+    async def _claim(entity, *, owner_token, **_kwargs):
+        entity.id = 8
+        entity.processing_owner_token = owner_token
+        return entity
+
+    repository.claim_or_reclaim_processing.side_effect = _claim
+    repository.complete_processing.return_value = _completed(
+        id=8,
+        prediction="Normal",
+        confidence=0.88,
+        confidence_level="HIGH",
+        action_taken="ALLOWED",
+        model_version="test",
+    )
+    use_case = WafIngestUseCase(
+        classifier=classifier,
+        repository=repository,
+        source_verification_mode="cloudflare_tunnel",
+    )
+
+    await use_case.execute(
+        transaction_id="portal-post-privacy",
+        timestamp=None,
+        ingest_source="portal_route_bridge",
+        source_ip="198.51.100.24",
+        source_provenance=SourceProvenance.CLOUDFLARE_CONNECTING_IP,
+        cf_connecting_ip_matches_client_ip=True,
+        request_method="POST",
+        request_path="/support/submit",
+        request_headers={"user-agent": "CyberTrace-QA"},
+        sanitized_body="message=cybertrace-portal-body-test",
+        crs_score=0,
+        crs_rule_ids=["no-crs-match"],
+    )
+
+    assert classifier.predict.call_count == 1
+    assert "cybertrace-portal-body-test" in classifier.predict.call_args.args[0]
+    persisted_entity = repository.claim_or_reclaim_processing.call_args.args[0]
+    assert "cybertrace-portal-body-test" not in persisted_entity.http_request
+    assert repository.complete_processing.call_args.kwargs["model_input_text"] is None

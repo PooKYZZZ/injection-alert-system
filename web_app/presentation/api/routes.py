@@ -77,6 +77,7 @@ from web_app.domain.enforcement import (
     EnforcementMode,
     EnforcementScope,
     evidence_from_waf_fields,
+    scope_for_request_path,
 )
 from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.domain.source_address import SourceProvenance
@@ -303,7 +304,23 @@ async def ingest_waf_event(
     expected_audit_marker = {
         "modsec_audit_bridge": "modsecurity",
         "nginx_access_bridge": "nginx_access",
+        "portal_route_bridge": "portal_route",
     }.get(payload.ingest_source)
+    if payload.ingest_source == "portal_route_bridge":
+        if (
+            payload.request_method != "POST"
+            or scope_for_request_path(payload.request_path) is None
+            or payload.crs_score != 0
+            or payload.crs_rule_ids != ["no-crs-match"]
+            or payload.matched_rule_messages
+            or payload.matched_rule_tags
+            or payload.query_string
+            or payload.request_headers
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid portal route telemetry",
+            )
     if (
         audit_key
         and expected_audit_key
@@ -548,6 +565,7 @@ async def get_waf_ingest_by_transaction_id(
         prediction=entity.prediction,
         confidence=entity.confidence,
         confidence_level=entity.confidence_level,
+        model_version=entity.model_version,
         action_taken=entity.action_taken,
         policy_decision=entity.policy_decision,
         policy_decision_reason=entity.policy_decision_reason,

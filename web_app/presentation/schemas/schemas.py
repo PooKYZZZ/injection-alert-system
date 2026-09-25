@@ -407,6 +407,7 @@ class WafIngestLookupResponse(BaseModel):
     prediction: str | None = None
     confidence: float | None = None
     confidence_level: ConfidenceLevel | None = None
+    model_version: str | None = None
     action_taken: ActionTaken | None = None
     policy_decision: Optional[
         Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]

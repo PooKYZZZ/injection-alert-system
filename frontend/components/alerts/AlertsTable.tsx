@@ -424,6 +424,7 @@ function AlertsTableContent({
                     <ActionLabel
                       action={alert.action_taken}
                       confidenceTier={alert.confidence_level}
+                      prediction={alert.prediction}
                       bordered={false}
                     />
                   </td>
