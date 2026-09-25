@@ -192,6 +192,68 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
+  it('shows the separately captured query string without duplicating the request line', () => {
+    const queryString = 'query=LND-2026-0001&order=latest%20first'
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          query_string: queryString,
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Captured query string (sensitive values redacted):')).toBeInTheDocument()
+    expect(screen.getByText(queryString)).toBeInTheDocument()
+    expect(screen.queryByText('GET /records/search HTTP/1.1')).not.toBeInTheDocument()
+  })
+
+  it('explains why synchronous portal input is not included in alert details', () => {
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          ingest_source: 'portal_route_bridge',
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('explains that access-log events do not retain query strings', () => {
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          ingest_source: 'nginx_access_bridge',
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Access-log events do not retain query strings, so the original input is unavailable here.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('forwards a changed recorded outcome so the open drawer stays current', () => {
     const onActionUpdated = vi.fn()
     const updatedAlert = { ...alertFixture, action_taken: 'BLOCKED' as const }

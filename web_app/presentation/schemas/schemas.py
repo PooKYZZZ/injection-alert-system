@@ -333,7 +333,7 @@ class QueueHealthResponse(BaseModel):
     last_processed_at: Optional[str] = None
 
 
-class AlertDetailResponse(BaseModel):
+class _AlertResponseBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -374,8 +374,18 @@ class AlertDetailResponse(BaseModel):
         return _serialize_utc_timestamp(value)
 
 
+class AlertDetailResponse(_AlertResponseBase):
+    # Query data is stored separately after sensitive values are redacted and
+    # is included only in authenticated detail-shaped alert responses.
+    query_string: Optional[str] = Field(default=None, max_length=4096)
+
+
+class AlertListItemResponse(_AlertResponseBase):
+    """List projection intentionally excludes request query data."""
+
+
 class AlertListResponse(BaseModel):
-    items: list[AlertDetailResponse] = Field(default_factory=list)
+    items: list[AlertListItemResponse] = Field(default_factory=list)
     total: int = Field(default=0, ge=0)
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)

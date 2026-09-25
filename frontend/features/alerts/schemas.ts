@@ -86,6 +86,7 @@ export const AlertSchema = z.object({
   request_method: z.string().nullable(),
   user_agent: z.string().optional(),
   payload_snippet: z.string(),
+  query_string: z.string().max(4096).nullable().optional(),
   prediction: z.enum(ALERT_PREDICTION_VALUES),
   confidence: z.number().min(0).max(1),
   confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),

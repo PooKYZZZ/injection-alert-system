@@ -228,6 +228,7 @@ describe('bff-client', () => {
               request_path: '/login',
               request_method: 'POST',
               payload_snippet: "username=admin' OR '1'='1",
+              query_string: 'query=synthetic%20lookup&token=%5BREDACTED%5D',
               prediction: 'SQL Injection',
               confidence: 0.91,
               confidence_level: 'HIGH',
@@ -715,6 +716,35 @@ describe('bff-client', () => {
         message: 'Requested resource was not found.',
       },
     })
+  })
+
+  it('preserves the redacted query string on authenticated alert detail only', async () => {
+    const queryString = 'query=synthetic%20lookup&token=%5BREDACTED%5D'
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 99,
+          timestamp: '2026-09-25T00:00:00Z',
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          query_string: queryString,
+          prediction: 'Code Injection',
+          confidence: 0.71,
+          confidence_level: 'MEDIUM',
+          action_taken: 'THROTTLED',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlertDetail } = await loadClient()
+    const result = await getAlertDetail('99')
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.query_string).toBe(queryString)
+    }
   })
 
   it('rejects non-digit alert ids locally with 400 before fetch', async () => {

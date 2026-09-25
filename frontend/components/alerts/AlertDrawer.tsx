@@ -82,6 +82,22 @@ function formatNotificationStatus(
 
 function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated }: AlertDrawerProps) {
   const isActionableAlert = alert !== null && isActionableAttackClass(alert.prediction)
+  const capturedRequestLine = alert
+    ? `${alert.request_method ?? '—'} ${alert.request_path ?? '—'} HTTP/1.1`
+    : ''
+  const queryString = alert?.query_string?.trim() ?? ''
+  const payloadSnippet = alert?.payload_snippet?.trim() ?? ''
+  const additionalPayload = payloadSnippet && payloadSnippet !== capturedRequestLine
+    ? payloadSnippet
+    : ''
+  const missingRequestDetailsMessage =
+    alert?.ingest_source === 'portal_route_bridge'
+      ? 'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+      : alert?.ingest_source === 'nginx_access_bridge'
+        ? 'Access-log events do not retain query strings, so the original input is unavailable here.'
+        : payloadSnippet
+          ? 'No additional request data captured.'
+          : 'No payload captured.'
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
     role,
@@ -458,11 +474,33 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
                         <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
                         <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
-                        {'\n'}
-                        {'\n'}
-                        <span className="text-[var(--color-text-primary)]">
-                          {alert.payload_snippet?.trim() || 'No payload captured.'}
-                        </span>
+                        {queryString ? (
+                          <>
+                            {'\n'}
+                            {'\n'}
+                            <span className="text-[var(--color-text-soft)]">
+                              Captured query string (sensitive values redacted):
+                            </span>
+                            {'\n'}
+                            <span className="text-[var(--color-text-primary)]">{queryString}</span>
+                          </>
+                        ) : null}
+                        {additionalPayload ? (
+                          <>
+                            {'\n'}
+                            {'\n'}
+                            <span className="text-[var(--color-text-primary)]">{additionalPayload}</span>
+                          </>
+                        ) : null}
+                        {!queryString && !additionalPayload ? (
+                          <>
+                            {'\n'}
+                            {'\n'}
+                            <span className="text-[var(--color-text-soft)]">
+                              {missingRequestDetailsMessage}
+                            </span>
+                          </>
+                        ) : null}
                       </pre>
                     </div>
                   </section>
