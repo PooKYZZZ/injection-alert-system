@@ -17,19 +17,21 @@ services:
       - ./data/processed/v3_907k_cleaned_model_input_v2:/app/data/processed/v3_907k_cleaned_model_input_v2:ro
     environment:
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
-      WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}
+      WAF_SOURCE_VERIFICATION_MODE: cloudflare_tunnel
+      WAF_SOURCE_PROVENANCE_MODE: cloudflare_connecting_ip
       # The target portal asks FastAPI for the active policy decision. Keep
       # that trust mode aligned with the Cloudflare-only ingress path.
       ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified
       CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
-      CLOUDFLARE_TARGET_VERIFIED_PROOF: ${CLOUDFLARE_TARGET_VERIFIED_PROOF:-false}
+      CLOUDFLARE_TARGET_VERIFIED_PROOF: "true"
+      ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: "false"
     networks:
       default: {}
       target_enforcement_api: {}
 
   demo-target-bridge:
     environment:
-      WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
+      WAF_SOURCE_PROVENANCE_MODE: cloudflare_connecting_ip
       WAF_TRUSTED_TUNNEL_PEER: 172.30.20.2
       CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-true}
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
@@ -73,6 +75,9 @@ services:
   demo-target-modsecurity:
     ports: !override []
     environment:
+      # This Cloudflare-only profile records CRS findings but leaves response
+      # policy to CyberTrace's verified-source enforcement path.
+      MODSEC_RULE_ENGINE: DetectionOnly
       CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-true}
       REAL_IP_HEADER: CF-Connecting-IP
       REAL_IP_PROXY_HEADER: CF-Connecting-IP
@@ -88,6 +93,7 @@ services:
   demo-portal:
     environment:
       ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified
+      ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: "false"
       WAF_INGEST_URL: http://backend:8000/api/internal/waf-events
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}

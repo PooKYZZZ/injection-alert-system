@@ -40,24 +40,28 @@ async def _insert_traffic_log(
     source_ip: str,
     *,
     verification_status: SourceVerificationStatus = SourceVerificationStatus.UNVERIFIED,
+    timestamp: datetime | None = None,
 ) -> int:
     provenance = (
         SourceProvenance.CLOUDFLARE_CONNECTING_IP
         if verification_status is SourceVerificationStatus.VERIFIED
         else SourceProvenance.DIRECT_REMOTE_ADDR
     )
-    row = TrafficLog(
-        source_ip=source_ip,
-        source_provenance=provenance.value,
-        source_verification_status=verification_status.value,
-        request_path="/records/search",
-        request_method="GET",
-        http_request="GET /records/search HTTP/1.1",
-        prediction="SQL Injection",
-        confidence_level="HIGH",
-        action_taken="BLOCKED",
-        status="COMPLETED",
-    )
+    values = {
+        "source_ip": source_ip,
+        "source_provenance": provenance.value,
+        "source_verification_status": verification_status.value,
+        "request_path": "/records/search",
+        "request_method": "GET",
+        "http_request": "GET /records/search HTTP/1.1",
+        "prediction": "SQL Injection",
+        "confidence_level": "HIGH",
+        "action_taken": "BLOCKED",
+        "status": "COMPLETED",
+    }
+    if timestamp is not None:
+        values["timestamp"] = timestamp
+    row = TrafficLog(**values)
     session.add(row)
     await session.commit()
     return row.id
@@ -255,7 +259,7 @@ async def test_active_lookup_applies_source_eligibility_before_tier_precedence(
 
 
 @pytest.mark.asyncio
-async def test_active_lookup_selects_high_over_lower_tiers_but_never_critical(
+async def test_active_lookup_selects_critical_over_lower_tiers_when_eligible(
     repository,
 ) -> None:
     now = datetime.now(timezone.utc).replace(microsecond=0)
@@ -323,8 +327,8 @@ async def test_active_lookup_selects_high_over_lower_tiers_but_never_critical(
     )
 
     assert selected is not None
-    assert selected.tier is EnforcementTier.HIGH
-    assert selected.action is RecommendedAction.APPLICATION_BLOCK
+    assert selected.tier is EnforcementTier.CRITICAL
+    assert selected.action is RecommendedAction.WAF_BLOCK
     assert unrelated_source is None
     assert expired is None
 
@@ -417,6 +421,48 @@ async def test_active_lookup_ignores_malformed_medium_before_low_precedence(
     assert selected is not None
     assert selected.tier is EnforcementTier.LOW
     assert selected.action is RecommendedAction.CHALLENGE
+
+
+@pytest.mark.asyncio
+async def test_medium_repeat_count_uses_only_verified_current_policy_events(
+    repository,
+) -> None:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    session = repository._session
+    source_ip = "203.0.113.34"
+    cases = [
+        (SourceVerificationStatus.VERIFIED, ACTIVE_POLICY_VERSION),
+        (SourceVerificationStatus.UNVERIFIED, ACTIVE_POLICY_VERSION),
+        (SourceVerificationStatus.VERIFIED, "confidence-enforcement-v2"),
+    ]
+    for index, (verification_status, policy_version) in enumerate(cases):
+        alert_id = await _insert_traffic_log(
+            session,
+            source_ip,
+            verification_status=verification_status,
+            timestamp=now - timedelta(seconds=index + 1),
+        )
+        recommendation = replace(
+            _recommendation(
+                alert_id=alert_id,
+                tier=EnforcementTier.MEDIUM,
+                action=RecommendedAction.THROTTLE,
+                created_at=now - timedelta(seconds=index + 1),
+                expires_at=now + timedelta(minutes=15),
+            ),
+            mode=EnforcementMode.ENFORCE,
+            policy_version=policy_version,
+        )
+        assert await repository.insert_if_absent(recommendation)
+
+    count = await repository.count_recent_suspicious_events(
+        source_ip=source_ip,
+        scope=EnforcementScope.RECORD_SEARCH,
+        now=now,
+        window_seconds=60,
+    )
+
+    assert count == 1
 
 
 @pytest.mark.asyncio

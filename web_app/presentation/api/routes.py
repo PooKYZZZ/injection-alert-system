@@ -307,9 +307,21 @@ async def ingest_waf_event(
         "portal_route_bridge": "portal_route",
     }.get(payload.ingest_source)
     if payload.ingest_source == "portal_route_bridge":
+        search_get = (
+            payload.request_method == "GET"
+            and payload.request_path == "/records/search"
+        )
+        track_status_get = (
+            payload.request_method == "GET"
+            and payload.request_path == "/transactions/status"
+        )
+        protected_post = (
+            payload.request_method == "POST"
+            and payload.request_path != "/records/search"
+            and scope_for_request_path(payload.request_path) is not None
+        )
         if (
-            payload.request_method != "POST"
-            or scope_for_request_path(payload.request_path) is None
+            not (search_get or track_status_get or protected_post)
             or payload.crs_score != 0
             or payload.crs_rule_ids != ["no-crs-match"]
             or payload.matched_rule_messages

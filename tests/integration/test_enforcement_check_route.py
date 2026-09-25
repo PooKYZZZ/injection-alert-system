@@ -82,6 +82,10 @@ class ActiveHighRepository(ActiveLowRepository):
             created_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
             source_verification_status="UNVERIFIED",
+            evidence_context={
+                "strong_waf_evidence": True,
+                "strong_waf_evidence_for_prediction": True,
+            },
         )
 
 

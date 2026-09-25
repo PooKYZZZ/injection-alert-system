@@ -229,7 +229,7 @@ class VerifyEnforcementChallengeUseCase:
 
 
 class EvaluateEnforcementUseCase:
-    """Evaluate v2 state while keeping LOW traffic permanently monitor-only."""
+    """Evaluate v3 state while keeping LOW traffic permanently monitor-only."""
 
     def __init__(
         self,
@@ -333,7 +333,12 @@ class EvaluateEnforcementUseCase:
                     if recommendation.tier is EnforcementTier.HIGH
                     else RecommendedAction.WAF_BLOCK
                 )
-                if recommendation.action is not expected_action:
+                evidence_context = recommendation.evidence_context or {}
+                if (
+                    recommendation.action is not expected_action
+                    or evidence_context.get("strong_waf_evidence_for_prediction")
+                    is not True
+                ):
                     log_event(
                         logger,
                         "enforcement.invalid_evidence_recommendation",
@@ -396,8 +401,9 @@ class EvaluateEnforcementUseCase:
                     )
                 )
                 evidence_context = recommendation.evidence_context or {}
-                has_strong_evidence = bool(
-                    evidence_context.get("strong_waf_evidence")
+                has_strong_evidence = (
+                    evidence_context.get("strong_waf_evidence_for_prediction")
+                    is True
                 )
                 if not has_strong_evidence and (
                     suspicious_event_count < self._suspicious_event_threshold
@@ -411,13 +417,48 @@ class EvaluateEnforcementUseCase:
                         counter_kind=CounterKind.MEDIUM_HARD,
                     )
 
-                window_end_epoch = (
-                    int(now.timestamp()) // self._suspicious_event_window_seconds + 1
-                ) * self._suspicious_event_window_seconds
-                window_end = datetime.fromtimestamp(
-                    window_end_epoch, tz=timezone.utc
+                recommendation_created_at = recommendation.created_at
+                if (
+                    recommendation_created_at.tzinfo is None
+                    or recommendation_created_at.utcoffset() is None
+                ):
+                    recommendation_created_at = recommendation_created_at.replace(
+                        tzinfo=timezone.utc
+                    )
+                else:
+                    recommendation_created_at = recommendation_created_at.astimezone(
+                        timezone.utc
+                    )
+                recommendation_expires_at = recommendation.expires_at
+                if (
+                    recommendation_expires_at.tzinfo is None
+                    or recommendation_expires_at.utcoffset() is None
+                ):
+                    recommendation_expires_at = recommendation_expires_at.replace(
+                        tzinfo=timezone.utc
+                    )
+                else:
+                    recommendation_expires_at = recommendation_expires_at.astimezone(
+                        timezone.utc
+                    )
+                throttle_expires_at = min(
+                    recommendation_created_at
+                    + timedelta(seconds=self._medium_window_seconds),
+                    recommendation_expires_at,
                 )
-                retry_after = max(1, math.ceil((window_end - now).total_seconds()))
+                if now >= throttle_expires_at:
+                    return finish(
+                        ActiveEnforcementResult(
+                            matched=True,
+                            recommendation=recommendation,
+                            decision_reason="MEDIUM_THROTTLE_EXPIRED",
+                        ),
+                        counter_kind=CounterKind.MEDIUM_HARD,
+                    )
+                retry_after = max(
+                    1,
+                    math.ceil((throttle_expires_at - now).total_seconds()),
+                )
                 reason = (
                     "STRONG_CRS_EVIDENCE"
                     if has_strong_evidence
@@ -460,7 +501,7 @@ class EvaluateEnforcementUseCase:
 
 
 class RecordShadowRecommendationUseCase:
-    """Persist a durable, expiring v1 shadow or v2 active recommendation."""
+    """Persist a durable, expiring v1 shadow or v3 active recommendation."""
 
     def __init__(
         self,

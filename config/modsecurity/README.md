@@ -37,9 +37,14 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
   `ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS=false`. It does not activate
   ML enforcement.
 - The Cloudflare target overlay trusts only the fixed `cloudflared` peer
-  `172.30.20.2/32`. Normal access telemetry additionally requires the received
-  `CF-Connecting-IP` to match NGINX's effective client address and the original
-  NGINX peer to equal `172.30.20.2` before recording verified provenance.
+  `172.30.20.2/32`. NGINX restores `CF-Connecting-IP` only for that peer and
+  overwrites `X-CyberTrace-Cloudflare-Peer-Verified` with a server-generated
+  assertion based on the original peer address. The portal requires that
+  assertion for active enforcement and portal-route telemetry; a valid
+  `CF-Connecting-IP` value alone is not proof of Cloudflare provenance. Normal
+  access telemetry additionally requires the received `CF-Connecting-IP` to
+  match NGINX's effective client address and the original NGINX peer to equal
+  `172.30.20.2` before recording verified provenance.
 - Successful telemetry is limited to the protected routes in
   `normal-access-logging.conf.template`; it records request ID, timestamp,
   source/proxy addresses, method, normalized path, query string, and status;

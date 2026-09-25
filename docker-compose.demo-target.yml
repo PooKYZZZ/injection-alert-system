@@ -51,7 +51,9 @@ services:
       PARANOIA: 1
       BLOCKING_PARANOIA: 1
       ALLOWED_METHODS: GET POST PATCH
-      MODSEC_RULE_ENGINE: On
+      # Keep CRS blocking by default. Set MODSEC_RULE_ENGINE=DetectionOnly
+      # for a controlled test run; this affects all requests through this WAF.
+      MODSEC_RULE_ENGINE: ${MODSEC_RULE_ENGINE:-On}
       MODSEC_AUDIT_ENGINE: RelevantOnly
       MODSEC_AUDIT_LOG_FORMAT: JSON
       MODSEC_AUDIT_LOG_TYPE: Serial

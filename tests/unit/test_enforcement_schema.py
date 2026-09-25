@@ -26,6 +26,14 @@ def test_enforcement_request_rejects_unsupported_scope_or_ip():
         EnforcementCheckRequest(scope="RECORD_SEARCH", source_ip="invalid")
 
 
+def test_enforcement_request_accepts_track_status_scope():
+    request = EnforcementCheckRequest(
+        scope="TRACK_STATUS", source_ip="203.0.113.10"
+    )
+
+    assert request.scope == "TRACK_STATUS"
+
+
 def test_enforcement_response_models_active_decisions_with_required_metadata():
     assert EnforcementCheckResponse(decision="ALLOW").model_dump(exclude_none=True) == {
         "decision": "ALLOW"

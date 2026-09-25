@@ -92,7 +92,7 @@ class PostTriageEnforcementCoordinator:
             and confidence_level == "CRITICAL"
             and request_path == PR7_PATH
             and evidence is not None
-            and evidence.has_strong_waf_evidence
+            and evidence.strongly_supports(prediction)
         )
         if not is_pr7_candidate:
             inserted = await self._generic.execute(
