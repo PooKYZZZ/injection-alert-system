@@ -81,6 +81,39 @@ async def test_critical_pr7_candidate_uses_only_the_atomic_waf_writer():
 
 
 @pytest.mark.asyncio
+async def test_crs_evidence_for_another_class_cannot_select_pr7_writer():
+    generic = RecordingGenericRecommendation()
+    waf = RecordingWafStateMutation(
+        WafMutationOutcome("ACTIVATED", 17, 4, True)
+    )
+    coordinator = PostTriageEnforcementCoordinator(
+        generic_use_case=generic,
+        waf_repository=waf,
+        enforcement_mode=EnforcementMode.ENFORCE,
+        pr7_mutation_enabled=True,
+        recommendation_ttl_seconds=900,
+    )
+
+    result = await coordinator.execute(
+        alert_id=43,
+        prediction="Code Injection",
+        confidence_level="CRITICAL",
+        request_path="/records/search",
+        occurred_at=datetime(2026, 7, 30, 10, tzinfo=timezone.utc),
+        evidence=EnforcementEvidence(
+            source_verification_status="VERIFIED",
+            crs_rule_ids=("942100",),
+            matched_rule_tags=("attack-sqli",),
+        ),
+    )
+
+    assert result.route == "GENERIC"
+    assert result.recorded is True
+    assert len(generic.calls) == 1
+    assert waf.calls == []
+
+
+@pytest.mark.asyncio
 async def test_non_critical_result_keeps_generic_recommendation_ownership():
     generic = RecordingGenericRecommendation()
     waf = RecordingWafStateMutation(

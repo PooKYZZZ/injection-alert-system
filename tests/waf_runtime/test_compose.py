@@ -84,6 +84,24 @@ def test_cloudflare_target_compose_connects_portal_to_backend_on_private_network
     assert services["backend"]["environment"]["ENFORCEMENT_SOURCE_TRUST_MODE"] == (
         "cloudflare_verified"
     )
+    assert services["backend"]["environment"]["WAF_SOURCE_VERIFICATION_MODE"] == (
+        "cloudflare_tunnel"
+    )
+    assert services["backend"]["environment"]["WAF_SOURCE_PROVENANCE_MODE"] == (
+        "cloudflare_connecting_ip"
+    )
+    assert services["backend"]["environment"]["CLOUDFLARE_TARGET_VERIFIED_PROOF"] == (
+        "true"
+    )
+    assert services["backend"]["environment"][
+        "ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS"
+    ] == "false"
+    assert services["demo-target-bridge"]["environment"][
+        "WAF_SOURCE_PROVENANCE_MODE"
+    ] == "cloudflare_connecting_ip"
+    assert services["demo-target-modsecurity"]["environment"][
+        "MODSEC_RULE_ENGINE"
+    ] == "DetectionOnly"
     assert services["demo-portal"]["environment"]["ENFORCEMENT_SOURCE_TRUST_MODE"] == (
         "cloudflare_verified"
     )

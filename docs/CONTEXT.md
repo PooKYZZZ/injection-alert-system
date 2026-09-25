@@ -93,11 +93,16 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 ### PR6 HIGH application blocking (2026-07-23)
 
-- Valid, active, matching `HIGH` `ENFORCE` recommendations under
-  `confidence-enforcement-v2` now produce the exact internal decision
+- Valid, active, matching `HIGH` `ENFORCE` recommendations under the current
+  `confidence-enforcement-v3` policy produce the exact internal decision
   `{"decision":"BLOCK"}`. The existing query gives HIGH precedence over
   MEDIUM/LOW while continuing to exclude CRITICAL, SHADOW, expired,
-  wrong-source, wrong-policy, and ineligible-source rows.
+  wrong-source, wrong-policy, and ineligible-source rows. CRS evidence must
+  match the predicted attack family; older v2 recommendations are not eligible.
+- Current portal synchronous-ingest requests provide `no-crs-match`; therefore
+  class-matched evidence enforcement is covered by controlled fixtures, but
+  same-request CRS-backed ML blocking is not yet established. ModSecurity can
+  independently block before the portal bridge runs.
 - The Land Records portal accepts only the exact `BLOCK` contract and stops
   before record-search work. It renders generic temporary-block copy, emits a
   distinct safe application-block event, and keeps the dynamic response

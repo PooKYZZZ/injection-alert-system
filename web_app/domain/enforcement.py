@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from web_app.domain.classification_scope import is_actionable_attack_class
 
 POLICY_VERSION = "confidence-enforcement-v1"
-ACTIVE_POLICY_VERSION = "confidence-enforcement-v2"
+ACTIVE_POLICY_VERSION = "confidence-enforcement-v3"
 
 
 class EnforcementScope(StrEnum):
@@ -32,7 +32,7 @@ class EnforcementTier(StrEnum):
 
 
 class RecommendedAction(StrEnum):
-    # v1 values are historical shadow policy intents. v2 keeps LOW monitor-only;
+    # v1 values are historical shadow policy intents. v3 keeps LOW monitor-only;
     # legacy LOW challenge rows are handled as non-enforcing state.
     MONITOR = "MONITOR"
     CHALLENGE = "CHALLENGE"
@@ -63,14 +63,27 @@ class CounterKind(StrEnum):
 # evaluation rule such as 949110 is not sufficient evidence for an application
 # block.  The bridge currently emits tags like ``attack-sqli`` and numeric CRS
 # rule IDs, so keep both representations in the policy boundary.
-STRONG_CRS_TAGS = frozenset(
-    {
-        "attack-sqli",
-        "attack-rce",
-        "attack-command-injection",
-    }
+STRONG_CRS_TAGS_BY_CLASS = {
+    "SQL Injection": frozenset({"attack-sqli"}),
+    "Code Injection": frozenset(
+        {
+            "attack-rce",
+            "attack-command-injection",
+            "attack-injection-php",
+            "attack-injection-nodejs",
+        }
+    ),
+}
+STRONG_CRS_RULE_PREFIXES_BY_CLASS = {
+    "SQL Injection": ("942",),
+    "Code Injection": ("932", "933", "934"),
+}
+STRONG_CRS_TAGS = frozenset().union(*STRONG_CRS_TAGS_BY_CLASS.values())
+STRONG_CRS_RULE_PREFIXES = tuple(
+    prefix
+    for prefixes in STRONG_CRS_RULE_PREFIXES_BY_CLASS.values()
+    for prefix in prefixes
 )
-STRONG_CRS_RULE_PREFIXES = ("932", "942")
 _NUMERIC_RULE_ID = re.compile(r"^[0-9]{3,}$")
 
 
@@ -89,6 +102,8 @@ class EnforcementEvidence:
 
     @property
     def has_strong_waf_evidence(self) -> bool:
+        """Whether any supported CRS attack-family signal is present."""
+
         tags = {tag.strip().lower() for tag in self.matched_rule_tags if tag.strip()}
         if tags.intersection(STRONG_CRS_TAGS):
             return True
@@ -98,16 +113,36 @@ class EnforcementEvidence:
             for rule_id in self.crs_rule_ids
         )
 
-    def to_context(self) -> dict[str, object]:
+    def strongly_supports(self, prediction: str) -> bool:
+        """Whether CRS evidence belongs to the predicted attack family."""
+
+        tags = {tag.strip().lower() for tag in self.matched_rule_tags if tag.strip()}
+        expected_tags = STRONG_CRS_TAGS_BY_CLASS.get(prediction, frozenset())
+        if tags.intersection(expected_tags):
+            return True
+
+        expected_prefixes = STRONG_CRS_RULE_PREFIXES_BY_CLASS.get(prediction, ())
+        return any(
+            _NUMERIC_RULE_ID.fullmatch(rule_id.strip())
+            and rule_id.strip().startswith(expected_prefixes)
+            for rule_id in self.crs_rule_ids
+        )
+
+    def to_context(self, *, prediction: str | None = None) -> dict[str, object]:
         """Return bounded, non-payload evidence suitable for JSON persistence."""
 
-        return {
+        context: dict[str, object] = {
             "source_verification_status": self.source_verification_status,
             "crs_score": self.crs_score,
             "crs_rule_ids": list(self.crs_rule_ids[:32]),
             "matched_rule_tags": list(self.matched_rule_tags[:32]),
             "strong_waf_evidence": self.has_strong_waf_evidence,
         }
+        if prediction is not None:
+            context["strong_waf_evidence_for_prediction"] = self.strongly_supports(
+                prediction
+            )
+        return context
 
 
 def evidence_from_waf_fields(
@@ -317,7 +352,7 @@ class EnforcementPolicy:
         selected_evidence = evidence or EnforcementEvidence()
         action = cls._ACTIONS[tier]
         if tier in {EnforcementTier.HIGH, EnforcementTier.CRITICAL}:
-            if selected_evidence.has_strong_waf_evidence:
+            if selected_evidence.strongly_supports(prediction):
                 decision_reason = "STRONG_CRS_EVIDENCE"
             else:
                 action = RecommendedAction.MONITOR
@@ -333,5 +368,5 @@ class EnforcementPolicy:
             action=action,
             policy_version=policy_version,
             decision_reason=decision_reason,
-            evidence_context=selected_evidence.to_context(),
+            evidence_context=selected_evidence.to_context(prediction=prediction),
         )
