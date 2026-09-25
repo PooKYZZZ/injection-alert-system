@@ -29,6 +29,13 @@ const activeConfig = {
   sourceTrustMode: "cloudflare_verified" as const,
 };
 
+function verifiedCloudflareHeaders() {
+  return new Headers({
+    "cf-connecting-ip": "203.0.113.10",
+    "x-cybertrace-cloudflare-peer-verified": "1",
+  });
+}
+
 test("uses a valid Cloudflare source before forwarded headers", () => {
   const headers = new Headers({
     "cf-connecting-ip": "203.0.113.10",
@@ -36,6 +43,28 @@ test("uses a valid Cloudflare source before forwarded headers", () => {
   });
 
   assert.equal(requestSourceIp(headers), "203.0.113.10");
+});
+
+test("active enforcement requires the trusted tunnel-peer assertion", () => {
+  const untrusted = new Headers({
+    "cf-connecting-ip": "203.0.113.10",
+    "x-forwarded-for": "198.51.100.20",
+  });
+  assert.equal(requestSourceIp(untrusted, { active: true }), null);
+
+  const trusted = new Headers({
+    "cf-connecting-ip": "203.0.113.10",
+    "x-forwarded-for": "198.51.100.20",
+    "x-cybertrace-cloudflare-peer-verified": "1",
+  });
+  assert.equal(requestSourceIp(trusted, { active: true }), "203.0.113.10");
+
+  const forged = new Headers({
+    "cf-connecting-ip": "203.0.113.10",
+    "x-forwarded-for": "198.51.100.20",
+    "x-cybertrace-cloudflare-peer-verified": "0",
+  });
+  assert.equal(requestSourceIp(forged, { active: true }), null);
 });
 
 test("falls back to the first valid forwarded address", () => {
@@ -88,7 +117,10 @@ test("accepts only the exact ALLOW response", async () => {
 test("sends the selected route scope and preserves a safe decision reason", async () => {
   let requestBody = "";
   const result = await checkEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: new Headers({
+      "cf-connecting-ip": "203.0.113.10",
+      "x-cybertrace-cloudflare-peer-verified": "1",
+    }),
     config: activeConfig,
     scope: "SUPPORT_SUBMIT",
     fetchImpl: async (_input, init) => {
@@ -187,7 +219,7 @@ test("parses active challenge and throttle decisions", async () => {
     ...activeConfig,
   };
   const challenge = await checkRecordSearchEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: enforceConfig,
     fetchImpl: async () =>
       new Response(JSON.stringify({ decision: "CHALLENGE", enforcement_tier: "LOW" }), {
@@ -195,7 +227,7 @@ test("parses active challenge and throttle decisions", async () => {
       }),
   });
   const throttle = await checkRecordSearchEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: enforceConfig,
     fetchImpl: async () =>
       new Response(JSON.stringify({ decision: "THROTTLE", retry_after_seconds: 4 }), {
@@ -217,13 +249,13 @@ test("parses active challenge and throttle decisions", async () => {
 
 test("parses only the exact active block decision", async () => {
   const blocked = await checkRecordSearchEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: activeConfig,
     fetchImpl: async () =>
       new Response(JSON.stringify({ decision: "BLOCK" }), { status: 200 }),
   });
   const leakedMetadata = await checkRecordSearchEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: activeConfig,
     fetchImpl: async () =>
       new Response(
@@ -242,7 +274,10 @@ test("parses only the exact active block decision", async () => {
 
 test("accepts a bounded reason on an active block", async () => {
   const result = await checkEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: new Headers({
+      "cf-connecting-ip": "203.0.113.10",
+      "x-cybertrace-cloudflare-peer-verified": "1",
+    }),
     config: activeConfig,
     scope: "RECORD_DETAIL",
     fetchImpl: async () =>
@@ -300,7 +335,7 @@ test("active mode does not fall back to arbitrary forwarded headers", async () =
 
 test("active malformed decisions fail open", async () => {
   const result = await checkRecordSearchEnforcement({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: activeConfig,
     fetchImpl: async () =>
       new Response(JSON.stringify({ decision: "DENY" }), { status: 200 }),
@@ -316,7 +351,7 @@ test("active malformed decisions fail open", async () => {
 test("challenge verification stays server-side and accepts only verified status", async () => {
   let requestBody = "";
   const result = await verifyRecordSearchEnforcementChallenge({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: {
       ...activeConfig,
     },
@@ -336,7 +371,7 @@ test("challenge verification stays server-side and accepts only verified status"
 
 test("challenge verification does not turn provider failure into a bypass", async () => {
   const result = await verifyRecordSearchEnforcementChallenge({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: {
       ...activeConfig,
     },
@@ -429,7 +464,7 @@ test("active mode requires explicit trusted ingress unless controlled test bypas
 
 test("challenge verification uses its longer provider-aware timeout", async () => {
   const result = await verifyRecordSearchEnforcementChallenge({
-    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    requestHeaders: verifiedCloudflareHeaders(),
     config: { ...activeConfig, timeoutMs: 1, challengeTimeoutMs: 4000 },
     token: "turnstile-token",
     fetchImpl: (_input, init) =>
