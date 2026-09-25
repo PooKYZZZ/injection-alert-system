@@ -112,7 +112,15 @@ signal only for the positive allowlist, and the WAF route then runs
 enforcement/action recommendations and notification enqueueing only for that
 result.
 
-The same policy is applied in the repository boundary for alert list/detail,
+The default alert list and alert detail remain restricted to that actionable
+attack allowlist. The alert list also supports an explicit `include_normal=true`
+view option that extends only the list query to the operational traffic
+allowlist (`Normal`, `SQL Injection`, and `Code Injection`). In that opt-in
+view, Normal rows remain traffic records: they retain their stored classification
+and action, have no analyst triage or action-update workflow, and do not create
+operational alerts. The default API response is unchanged.
+
+The same policy is applied in the repository boundary for alert detail,
 statistics, activity buckets, recent operational traffic, triage/action
 updates, enforcement recommendation lookups, and direct threat notification
 helpers. Consequently, historical `Other Attacks` rows remain available to
@@ -214,6 +222,11 @@ coalesces bursts for 200 ms and invalidates the existing alerts and stats query
 families. Initial connection and native EventSource reconnection both emit
 `open`, which triggers the same canonical REST refetch and recovers alerts
 created while disconnected.
+
+Persisted Normal traffic emits a separate `traffic.changed` visibility signal
+that invalidates the same canonical queries. Normal rows appear in the Alerts
+table only for an opted-in `include_normal=true` list request; the traffic
+signal does not publish `alert.created` or invoke alert notifications.
 
 Each backend stream ends after five minutes. Native EventSource reconnection
 therefore re-enters the authenticated BFF and re-runs current account and RBAC

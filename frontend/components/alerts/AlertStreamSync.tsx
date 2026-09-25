@@ -26,10 +26,12 @@ export function AlertStreamSync() {
 
     source.addEventListener('open', scheduleCanonicalRefetch)
     source.addEventListener('alert.created', scheduleCanonicalRefetch)
+    source.addEventListener('traffic.changed', scheduleCanonicalRefetch)
 
     return () => {
       source.removeEventListener('open', scheduleCanonicalRefetch)
       source.removeEventListener('alert.created', scheduleCanonicalRefetch)
+      source.removeEventListener('traffic.changed', scheduleCanonicalRefetch)
       if (invalidationTimer !== null) clearTimeout(invalidationTimer)
       source.close()
     }

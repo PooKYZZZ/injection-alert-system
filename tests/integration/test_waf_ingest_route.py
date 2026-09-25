@@ -285,6 +285,7 @@ def test_waf_ingest_scope_boundary_covers_all_classifier_outcomes(
     assert responses["Other Attacks"]["action_taken"] is None
 
     assert publisher.publish_alert_created.call_count == 2
+    publisher.publish_traffic_changed.assert_called_once_with()
     assert len(recommendations.inserted) == 2
     assert len(outbox.notifications) == 4
     assert {item.channel for item in outbox.notifications} == {"email", "telegram"}

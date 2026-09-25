@@ -23,6 +23,7 @@ class TestAlertQueryParams:
 
         assert params.page == 1
         assert params.page_size == 20
+        assert params.include_normal is False
         assert params.severity is None
         assert params.confidence_tier is None
         assert params.time_range is None
@@ -52,6 +53,11 @@ class TestAlertQueryParams:
         for time_range in ["1h", "6h", "24h", "7d"]:
             params = AlertQueryParams(time_range=time_range)
             assert params.time_range == time_range
+
+    def test_include_normal_defaults_off_and_accepts_explicit_opt_in(self):
+        assert AlertQueryParams().include_normal is False
+        assert AlertQueryParams(include_normal=True).include_normal is True
+        assert AlertQueryParams(include_normal=False).include_normal is False
 
     def test_valid_action_filter(self):
         """Test valid action filter values."""

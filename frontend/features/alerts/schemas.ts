@@ -61,6 +61,7 @@ export const SourceIntelSchema = z.object({
 export const AlertFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().default(20),
+  include_normal: z.boolean().default(false),
   confidence_tier: z.enum(['ALL', ...ALERT_CONFIDENCE_TIER_VALUES]).optional(),
   severity: z.enum(['ALL', ...ALERT_CONFIDENCE_TIER_VALUES]).optional(),
   confidence_level: z.array(z.enum(ALERT_CONFIDENCE_TIER_VALUES)).optional(),

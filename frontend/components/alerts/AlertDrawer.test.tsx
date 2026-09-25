@@ -369,4 +369,37 @@ describe('AlertDrawer', () => {
       expect(labelReviewMutateMock).not.toHaveBeenCalled()
     }
   )
+
+  it('shows Normal records as read-only traffic with the stored action and no alert controls', () => {
+    render(
+      <AlertDrawer
+        role="OWNER"
+        alert={{
+          ...alertFixture,
+          alert_id: 'traffic-record-18',
+          prediction: 'Normal',
+          confidence: 0.82,
+          confidence_level: 'MEDIUM',
+          action_taken: 'ALLOWED',
+          triage_status: null,
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Traffic summary')).toBeInTheDocument()
+    expect(screen.getByText('Traffic record ID').nextElementSibling).toHaveTextContent(
+      'traffic-record-18'
+    )
+    expect(screen.getByText('Normal').closest('span')).toHaveClass('border-severity-safe-border')
+    expect(screen.getByText('Normal traffic has no analyst triage workflow.')).toBeInTheDocument()
+    expect(screen.getByText('Recorded action: Allowed.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start Review' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Update action label')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Training feedback' })).not.toBeInTheDocument()
+    expect(triageMutateMock).not.toHaveBeenCalled()
+    expect(actionMutateMock).not.toHaveBeenCalled()
+    expect(labelReviewMutateMock).not.toHaveBeenCalled()
+  })
 })
