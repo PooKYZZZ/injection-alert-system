@@ -15,31 +15,31 @@ export default function ServicesPage() {
       icon: Search,
     },
     {
-      title: "Certified True Copy Request",
-      category: "Document Certification",
-      description: "Submit a request form for a sample certified copy after identifying a record.",
+      title: "Sample Copy Request",
+      category: "Mock document request",
+      description: "Create a mock copy request for a sample record. No certified document is issued.",
       href: "/records/search", // Users search first to find a record to request certified copies for! That's excellent! Or they can submit from the detail page.
       customRef: "Required: Search first",
       icon: FileSymlink,
     },
     {
-      title: "Transaction & Copy Dispatch Tracking",
-      category: "Status Verification",
-      description: "Review the processing status of copy requests, support tickets, and appointments by reference number.",
+      title: "Demo Request Status",
+      category: "Sample status lookup",
+      description: "Look up sample statuses for mock requests by reference number. Updates are not live.",
       href: "/transactions/status",
       icon: ClipboardList,
     },
     {
-      title: "Direct Appointment Scheduling",
-      category: "In-Person Consultation",
-      description: "Request a consultation time at a sample branch for boundary or title questions.",
+      title: "Appointment Request Form",
+      category: "Mock form",
+      description: "Submit a mock date and branch choice. This does not reserve a meeting.",
       href: "/appointments",
       icon: Calendar,
     },
     {
-      title: "Lodge Support Ticket & Disputes",
-      category: "Citizen Grievances",
-      description: "Open a support ticket to report record typos, outdated owner details, boundary questions, or system issues.",
+      title: "Support Request Form",
+      category: "Mock form",
+      description: "Create a sample ticket using synthetic details. No support reply is sent.",
       href: "/support",
       icon: LifeBuoy,
     },
@@ -55,12 +55,12 @@ export default function ServicesPage() {
       </div>
 
       <div className="border-b border-gray-200 pb-4">
-        <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">Online Citizen Services Catalog</h2>
-        <p className="text-slate-500 text-sm mt-1">Official registry lookup interfaces and document request workflows.</p>
+        <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">Demo Workflows</h2>
+        <p className="text-slate-500 text-sm mt-1">Explore mock land-record tasks. This is not an official registry service.</p>
       </div>
 
       <NoticeBanner 
-        message="Important: Certified True Copy request portals require the applicant to identify the record from the public registry index first before filing a certified true copy request transaction." 
+        message="Use synthetic inputs only. These mock workflows do not issue official records, reserve appointments, or send support replies."
         type="info"
       />
 

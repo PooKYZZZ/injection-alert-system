@@ -30,36 +30,36 @@ export default async function HomePage() {
   const TASKS = [
     {
       title: "Search Land Deeds",
-      description: "Query publicly accessible cadastral indexes and registered land certificates in our demo database.",
-      cta: "Search record indexes",
+      description: "Search the sample records included with this demo.",
+      cta: "Search records",
       href: "/records/search",
       icon: Search,
     },
     {
-      title: "Request a Certified Copy",
-      description: "Request a demo copy summary for property transactions, verification, or personal records.",
-      cta: "Request copy",
+      title: "Request a Sample Copy",
+      description: "Create a mock copy request for the sample record.",
+      cta: "Request sample copy",
       href: "/records/LND-2026-0001", // Lead to records system where they inspect and click request copy
       icon: FileText,
     },
     {
-      title: "Check Transaction Status",
-      description: "Track the real-time processing state of support tickets, appointments, or copy requests under review.",
-      cta: "Track status code",
+      title: "Track Demo Status",
+      description: "Look up a mock support, appointment, or copy request by reference number.",
+      cta: "Track demo status",
       href: "/transactions/status",
       icon: ShieldCheck,
     },
     {
-      title: "Book an Appointment",
-      description: "Schedule a consultation or boundary arbitration session with regional registrar officers.",
-      cta: "Book public session",
+      title: "Test an Appointment Request",
+      description: "Submit a mock date and branch choice. No appointment is reserved.",
+      cta: "Send demo request",
       href: "/appointments",
       icon: CalendarDays,
     },
     {
-      title: "Submit a Support Desk Ticket",
-      description: "Report coordinate overlaps, missing land details, or registry index discrepancies to our software engineers.",
-      cta: "Open system ticket",
+      title: "Submit a Support Request",
+      description: "Create a mock ticket using synthetic details. No reply is sent.",
+      cta: "Send demo request",
       href: "/support",
       icon: Ticket,
     },
@@ -91,9 +91,9 @@ export default async function HomePage() {
       {/* Task-Based Portal Services */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full" id="service-tasks">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Citizen Core Tasks</h2>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Choose a Demo Workflow</h2>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-            Select one of the online workflows below to submit a mock request or query public database indexes.
+            Use synthetic inputs to explore the mock workflows.
           </p>
         </div>
         
@@ -139,7 +139,7 @@ export default async function HomePage() {
               Service Journey Pattern
             </h2>
             <p className="text-xs text-gray-400">
-              Guidance flow describing the sequential lifecycle of typical registry files.
+              What happens in this test portal.
             </p>
           </div>
 
@@ -150,10 +150,10 @@ export default async function HomePage() {
                 <div className="h-8 w-8 rounded-full bg-slate-800 text-white font-mono text-xs font-black flex items-center justify-center">
                   1
                 </div>
-                <h3 className="text-sm font-bold text-slate-900">Submit Request</h3>
+                <h3 className="text-sm font-bold text-slate-900">Choose a workflow</h3>
               </div>
               <p className="text-xs text-gray-500 leading-relaxed pl-11 md:pl-0">
-                Complete and submit the appropriate portal digital form, supplying valid property references.
+                Open a mock search or service form.
               </p>
             </div>
 
@@ -163,10 +163,10 @@ export default async function HomePage() {
                 <div className="h-8 w-8 rounded-full bg-slate-800 text-white font-mono text-xs font-black flex items-center justify-center">
                   2
                 </div>
-                <h3 className="text-sm font-bold text-slate-900">Obtain Reference</h3>
+                <h3 className="text-sm font-bold text-slate-900">Send synthetic input</h3>
               </div>
               <p className="text-xs text-gray-500 leading-relaxed pl-11 md:pl-0">
-                A non-volatile reference token gets generated for verification, logging, and status queries.
+                Use test values only. Do not enter real personal or property details.
               </p>
             </div>
 
@@ -176,10 +176,10 @@ export default async function HomePage() {
                 <div className="h-8 w-8 rounded-full bg-blue-600 text-white font-mono text-xs font-black flex items-center justify-center">
                   3
                 </div>
-                <h3 className="text-sm font-bold text-slate-900">Processing Review</h3>
+                <h3 className="text-sm font-bold text-slate-900">View the response</h3>
               </div>
               <p className="text-xs text-gray-500 leading-relaxed pl-11 md:pl-0">
-                Data is saved as mock records that follow normal registrar processing steps.
+                The portal shows a mock confirmation or form feedback.
               </p>
             </div>
 
@@ -189,10 +189,10 @@ export default async function HomePage() {
                 <div className="h-8 w-8 rounded-full bg-slate-800 text-white font-mono text-xs font-black flex items-center justify-center">
                   4
                 </div>
-                <h3 className="text-sm font-bold text-slate-900">Track Processing</h3>
+                <h3 className="text-sm font-bold text-slate-900">Check demo status</h3>
               </div>
               <p className="text-xs text-gray-500 leading-relaxed pl-11 md:pl-0">
-                Track real-time status updates via reference lookup, or visit public surveyor branches.
+                Look up a sample status by reference. Updates are not live.
               </p>
             </div>
           </div>
@@ -204,11 +204,11 @@ export default async function HomePage() {
         <div className="bg-slate-50 rounded-2xl border border-gray-200 p-6 md:p-8">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="h-5 w-5 text-slate-700" aria-hidden="true" />
-            <h2 className="text-lg font-bold text-slate-900">Citizen Comments & Feedback</h2>
+            <h2 className="text-lg font-bold text-slate-900">Demo Comments & Feedback</h2>
           </div>
           
           <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-            Read comments or share suggestions in the demo registry feedback board.
+            Read demo comments or share feedback about testing this portal.
           </p>
 
           <div className="space-y-4 mb-8">

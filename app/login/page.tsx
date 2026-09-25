@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DemoLoginForm from "@/components/DemoLoginForm";
 
 export const dynamic = "force-dynamic";
 
@@ -11,47 +12,18 @@ export default function LoginPage() {
             Land Records Demo Portal
           </p>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">
-            Registrar Login
+            Demo Login
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            This is a mock sign-in form for local demo workflows.
+            Authentication is disabled. Use synthetic values to test the login request; no account or session is created.
           </p>
         </div>
 
-        <form action="/login/submit" method="post" className="space-y-5 px-4 py-6 sm:px-6" noValidate>
-          <div className="space-y-1.5">
-            <label htmlFor="login-username" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-              Username <span aria-hidden="true" className="text-rose-600">*</span>
-            </label>
-            <input
-              id="login-username"
-              name="username"
-              type="text"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 min-h-11"
-            />
-          </div>
+        <DemoLoginForm />
 
-          <div className="space-y-1.5">
-            <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-              Password <span aria-hidden="true" className="text-rose-600">*</span>
-            </label>
-            <input
-              id="login-password"
-              name="password"
-              type="password"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 min-h-11"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 min-h-11"
-          >
-            Sign in
-          </button>
-        </form>
+        <p className="px-6 pb-4 text-xs text-slate-600">
+          The demo records the username for a failed attempt. Passwords are not stored.
+        </p>
 
         <div className="border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
           <Link href="/" className="font-semibold text-blue-700 hover:underline">

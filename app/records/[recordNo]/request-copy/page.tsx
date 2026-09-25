@@ -37,10 +37,10 @@ export default async function RequestCopyPage({
             Land Records Demo Portal
           </p>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">
-            Request Certified Copy
+            Request a Sample Copy
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Submit a native form for record <span className="font-mono font-semibold text-slate-900">{record.recordNo}</span>.
+            Create a mock request for record <span className="font-mono font-semibold text-slate-900">{record.recordNo}</span>. No certified document is produced.
           </p>
         </div>
 
@@ -52,15 +52,18 @@ export default async function RequestCopyPage({
         >
           <div className="space-y-1.5">
             <label htmlFor="copy-fullName" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-              Full Name <span aria-hidden="true" className="text-rose-600">*</span>
+              Name <span aria-hidden="true" className="text-rose-600">*</span>
             </label>
             <input
               id="copy-fullName"
               name="fullName"
               type="text"
+              placeholder="e.g., Demo User"
+              aria-describedby="copy-fullName-help"
               required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 min-h-11"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 min-h-11 placeholder-gray-400"
             />
+            <p id="copy-fullName-help" className="mt-1 text-xs text-slate-600">Use a synthetic name. Do not enter real identity details.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -71,9 +74,12 @@ export default async function RequestCopyPage({
               id="copy-email"
               name="email"
               type="email"
+              placeholder="e.g., tester@example.test"
+              aria-describedby="copy-email-help"
               required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 min-h-11"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 min-h-11 placeholder-gray-400"
             />
+            <p id="copy-email-help" className="mt-1 text-xs text-slate-600">Use a synthetic address. No email is sent.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -104,8 +110,9 @@ export default async function RequestCopyPage({
             </label>
             <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-4 py-3">
               <input type="radio" name="deliveryOption" value="Printed certified copy" required />
-              <span className="text-sm text-slate-900">Printed certified copy</span>
+              <span className="text-sm text-slate-900">Printed copy (sample test value)</span>
             </label>
+            <p className="text-sm text-slate-700">Delivery choices are test inputs only; no document is produced or delivered.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -116,7 +123,8 @@ export default async function RequestCopyPage({
               id="copy-remarks"
               name="remarks"
               rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600"
+              placeholder="Optional synthetic note."
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-offset-2 focus:ring-2 focus:ring-blue-600 placeholder-gray-400"
             />
           </div>
 
@@ -124,7 +132,7 @@ export default async function RequestCopyPage({
             type="submit"
             className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 min-h-11"
           >
-            Submit request
+            Send sample request
           </button>
         </form>
 

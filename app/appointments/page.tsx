@@ -4,8 +4,10 @@ import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { CalendarDays, AlertCircle, CheckCircle2 } from "lucide-react";
 
+type FormIssue = { field: string; message: string };
+
 export default function AppointmentsPage() {
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<FormIssue[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -19,48 +21,44 @@ export default function AppointmentsPage() {
     const serviceType = formData.get("serviceType") as string || "";
     const preferredDate = formData.get("preferredDate") as string || "";
 
-    const newErrors: string[] = [];
+    const newErrors: FormIssue[] = [];
     const newFieldErrors: Record<string, string> = {};
+    const addError = (field: string, message: string) => {
+      newErrors.push({ field, message });
+      newFieldErrors[field] = message;
+    };
 
     if (!fullName) {
-      newErrors.push("Full Name is required.");
-      newFieldErrors.fullName = "Please enter your full legal name.";
+      addError("fullName", "Enter a name for this demo request.");
     } else if (fullName.length < 2) {
-      newErrors.push("Full Name must be at least 2 characters.");
-      newFieldErrors.fullName = "Legal name is too short (minimum 2 characters).";
+      addError("fullName", "Enter at least 2 characters.");
     }
 
     if (!email) {
-      newErrors.push("Email Address is required.");
-      newFieldErrors.email = "Please enter your email address.";
+      addError("email", "Enter a synthetic email address.");
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
-        newErrors.push("Please enter a valid email address.");
-        newFieldErrors.email = "The email address format is invalid (e.g., citizen@example.gov).";
+        addError("email", "Enter a valid email address.");
       }
     }
 
     if (!branch) {
-      newErrors.push("Regional Registry Branch selection is required.");
-      newFieldErrors.branch = "Please select a branch office for your consultation.";
+      addError("branch", "Select a branch.");
     }
 
     if (!serviceType) {
-      newErrors.push("Service Consultation Type selection is required.");
-      newFieldErrors.serviceType = "Please select the type of registry service needed.";
+      addError("serviceType", "Select a request type.");
     }
 
     if (!preferredDate) {
-      newErrors.push("Preferred Consultation Date is required.");
-      newFieldErrors.preferredDate = "Please select a preferred date.";
+      addError("preferredDate", "Select a date.");
     } else {
       const selected = new Date(preferredDate);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (selected < today) {
-        newErrors.push("Preferred Consultation Date cannot be in the past.");
-        newFieldErrors.preferredDate = "The selected date is in the past. Please schedule a future date.";
+        addError("preferredDate", "Choose a date that is today or later.");
       }
     }
 
@@ -91,10 +89,10 @@ export default function AppointmentsPage() {
 
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          Book Registrar Appointment
+          Appointment Demo Request
         </h1>
         <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-          Schedule an in-person consultation with local land surveyors or registrars. Administrative hours are Monday to Friday, 8:00 AM - 5:00 PM (GMT+8).
+          Use synthetic details to test this mock form. It does not reserve an appointment or send email.
         </p>
       </div>
 
@@ -102,20 +100,20 @@ export default function AppointmentsPage() {
         {/* Banner */}
         <div className="bg-slate-900 text-white p-6 sm:p-8">
           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-[9px] font-semibold tracking-wider uppercase text-slate-300 mb-3">
-            In-Office Bookings & Surveys
+            Demo appointment request
           </div>
           <h2 className="text-lg font-bold tracking-tight">
-            Consultations & Survey Booking
+            Test an appointment request
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Fill out the details below to secure a consultation slot in your preferred regional office branch.
+            Choose a sample branch and date. This form does not book a real appointment.
           </p>
         </div>
 
         {/* Accessibility Guidelines Message */}
         <div className="p-6 sm:px-8 pb-0">
           <p className="text-[11px] text-gray-500 leading-relaxed bg-slate-50 p-3 rounded-lg border border-gray-100">
-            A red asterisk (<span className="text-red-600 font-bold" aria-hidden="true">*</span>) indicates a required field. Pre-validation checks prevent administrative entry errors.
+            Fields marked with <span className="text-red-600 font-bold" aria-hidden="true">*</span> are required. Use synthetic values only.
           </p>
         </div>
 
@@ -124,6 +122,7 @@ export default function AppointmentsPage() {
           <div className="p-6 sm:px-8 pb-0">
             <div
               ref={summaryRef}
+              id="appointment-errors-summary"
               tabIndex={-1}
               className="p-4 bg-red-50 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               aria-labelledby="errors-summary-title"
@@ -132,11 +131,15 @@ export default function AppointmentsPage() {
                 <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <h3 id="errors-summary-title" className="text-xs font-bold text-red-950 uppercase tracking-wider">
-                    Please check the required fields below before submitting
+                    Please correct these fields before submitting
                   </h3>
                   <ul className="list-disc pl-4 mt-2 space-y-1 text-xs text-red-800">
-                    {errors.map((error, idx) => (
-                      <li key={idx}>{error}</li>
+                    {errors.map(({ field, message }) => (
+                      <li key={field}>
+                        <a className="underline underline-offset-2 hover:text-red-950 focus:outline-none focus:ring-2 focus:ring-red-500" href={`#appointment-input-${field}`}>
+                          {message}
+                        </a>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -162,7 +165,7 @@ export default function AppointmentsPage() {
               id="appointment-input-fullName"
               type="text"
               name="fullName"
-              placeholder="e.g., Maria Santos"
+              placeholder="e.g., Demo User"
               required
               aria-required="true"
               aria-invalid={!!fieldErrors.fullName}
@@ -172,7 +175,7 @@ export default function AppointmentsPage() {
               } rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 placeholder-gray-400 transition-colors min-h-11`}
             />
             <p className="text-[10px] text-gray-400 mt-1" id="appointment-input-fullName-help">
-              Enter your full legal name as it appears on your title deeds or government IDs.
+              Use a synthetic name. Do not enter real identity details.
             </p>
             {fieldErrors.fullName && (
               <p className="text-[11px] text-red-600 font-medium mt-1.5 flex items-center gap-1" id="appointment-input-fullName-error">
@@ -189,7 +192,7 @@ export default function AppointmentsPage() {
               id="appointment-input-email"
               type="email"
               name="email"
-              placeholder="e.g., citizen@example.com"
+              placeholder="e.g., tester@example.test"
               required
               aria-required="true"
               aria-invalid={!!fieldErrors.email}
@@ -199,7 +202,7 @@ export default function AppointmentsPage() {
               } rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 placeholder-gray-400 transition-colors min-h-11`}
             />
             <p className="text-[10px] text-gray-400 mt-1" id="appointment-input-email-help">
-              The appointment confirmation and reservation token will be sent to this email.
+              Use a synthetic address. No confirmation email is sent.
             </p>
             {fieldErrors.email && (
               <p className="text-[11px] text-red-600 font-medium mt-1.5 flex items-center gap-1" id="appointment-input-email-error">
@@ -283,7 +286,7 @@ export default function AppointmentsPage() {
               } rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 text-slate-800 min-h-11`}
             />
             <p className="text-[10px] text-gray-400 mt-1" id="appointment-input-preferredDate-help">
-              Appointments are subject to registrar availability during normal working hours.
+              This demo records the requested date; it does not reserve a time.
             </p>
             {fieldErrors.preferredDate && (
               <p className="text-[11px] text-red-600 font-medium mt-1.5 flex items-center gap-1" id="appointment-input-preferredDate-error">
@@ -300,7 +303,7 @@ export default function AppointmentsPage() {
               id="appointment-input-notes"
               name="notes"
               rows={3}
-              placeholder="e.g., Provide reference coordinates or plot information to help our surveyors prepare..."
+              placeholder="Add a synthetic note for this test request."
               className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-1 placeholder-gray-400"
             ></textarea>
           </div>
@@ -309,7 +312,7 @@ export default function AppointmentsPage() {
             <CalendarDays className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
             <div className="text-[10px] text-amber-800 leading-relaxed font-sans">
               <span className="font-bold text-amber-900 block" id="simulation-notice-title">Demo Notice</span>
-              This is a demo portal. All records, submissions, and reference numbers are mock data for local testing only.
+              This is a CyberTrace test demo, not an official registry. Do not enter real personal, contact, or property details.
             </div>
           </div>
 
@@ -319,7 +322,7 @@ export default function AppointmentsPage() {
               type="submit"
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-6 py-2.5 rounded-lg shadow-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[44px] flex items-center justify-center"
             >
-              Request appointment
+              Send demo request
             </button>
           </div>
         </form>

@@ -31,6 +31,8 @@ test("homepage keeps core destinations clear and exposes the first task CTA on m
     await page.goto("/");
 
     await expect(page.getByText("A CyberTrace test demo, not an official registry.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Demo Comments & Feedback" })).toBeVisible();
+    await expect(page.getByText("Read demo comments or share feedback about testing this portal.", { exact: true })).toBeVisible();
     for (const statistic of ["427,910", "2.8M", "100%", "4 Branches"]) {
       await expect(page.getByText(statistic, { exact: true })).toHaveCount(0);
     }

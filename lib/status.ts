@@ -13,64 +13,64 @@ export interface PublicStatusInfo {
 export const STATUS_MAPPINGS: Record<string, PublicStatusInfo> = {
   // Formal service statuses requested in guidelines
   "PENDING_REVIEW": {
-    label: "Pending Review",
-    description: "The submitted request is waiting for review by the demo registry team.",
+    label: "Demo: Pending review",
+    description: "This is a sample state in the demo workflow; no staff review is performed.",
     badgeStyle: "bg-amber-50 text-amber-900 border-amber-300",
-    nextAction: "No action required. Registry staff will process this within 1-2 administrative days.",
+    nextAction: "No action is required for this mock request.",
   },
   "UNDER_PROCESSING": {
-    label: "Under Processing",
-    description: "The request is being reviewed against sample land records.",
+    label: "Demo: Processing",
+    description: "This is a sample processing state; no real registry review occurs.",
     badgeStyle: "bg-blue-50 text-blue-900 border-blue-300",
-    nextAction: "Keep your reference number at hand for updates.",
+    nextAction: "Use the reference number to look up this demo status.",
   },
   "FOR_VERIFICATION": {
-    label: "For Verification",
-    description: "The sample coordinates are being checked for consistency.",
+    label: "Demo: Verification",
+    description: "This sample status does not verify real property coordinates.",
     badgeStyle: "bg-purple-50 text-purple-900 border-purple-300",
-    nextAction: "No active verification items are requested from the submitting citizen.",
+    nextAction: "No real verification is performed by this demo.",
   },
   "QUEUED": {
-    label: "Queued",
-    description: "Your document request is waiting in the processing queue.",
+    label: "Demo: Queued",
+    description: "This is a sample queue state in the mock workflow.",
     badgeStyle: "bg-slate-100 text-slate-800 border-slate-350",
-    nextAction: "The demo copy summary will be prepared soon.",
+    nextAction: "No document is prepared or delivered by this demo.",
   },
   "READY_FOR_PICKUP": {
-    label: "Ready for Pickup",
-    description: "The printed certified copy is ready in the selected demo branch.",
+    label: "Demo: Ready for pickup",
+    description: "This sample status does not mean a real document is ready.",
     badgeStyle: "bg-emerald-50 text-emerald-950 border-emerald-300",
-    nextAction: "Visit your selected branch during municipal office hours to collect your hard copy.",
+    nextAction: "No in-person pickup is available through this demo.",
   },
   "RELEASED": {
-    label: "Released",
-    description: "The requested sample record packet has been released.",
+    label: "Demo: Released",
+    description: "The demo shows a sample release status; no official packet is issued.",
     badgeStyle: "bg-emerald-50 text-emerald-950 border-emerald-300",
-    nextAction: "Review the released sample record packet.",
+    nextAction: "No document is delivered by this demo.",
   },
   "DELIVERED": {
-    label: "Delivered",
-    description: "The digital copy summary has been prepared.",
+    label: "Demo: Delivered",
+    description: "The demo shows a sample delivery status; no document is sent.",
     badgeStyle: "bg-emerald-50 text-emerald-950 border-emerald-300",
-    nextAction: "Review the demo copy summary in this portal.",
+    nextAction: "No document is delivered by this demo.",
   },
   "REQUEST_RECEIVED": {
-    label: "Request Received",
-    description: "Your submission has been saved in the demo processing queue.",
+    label: "Demo: Request received",
+    description: "The mock submission was saved for this demo workflow.",
     badgeStyle: "bg-blue-50 text-blue-950 border-blue-300",
-    nextAction: "The requested deed copy is being prepared for registration review.",
+    nextAction: "Use the reference number to look up its sample status.",
   },
   "APPROVED": {
-    label: "Approved & Scheduled",
-    description: "Your consultation request has been approved.",
+    label: "Demo: Appointment status",
+    description: "This sample status does not approve or schedule a real consultation.",
     badgeStyle: "bg-emerald-50 text-emerald-950 border-emerald-300",
-    nextAction: "Use the selected branch and schedule details for this demo record.",
+    nextAction: "No meeting is booked through this demo.",
   },
   "CONFIRMED": {
-    label: "Confirmed",
-    description: "The appointment request has a confirmed demo slot.",
+    label: "Demo: Confirmed",
+    description: "This mock status does not confirm a real appointment.",
     badgeStyle: "bg-green-50 text-green-950 border-green-300",
-    nextAction: "Prepare any sample record details before the appointment.",
+    nextAction: "No appointment is booked through this demo.",
   }
 };
 
@@ -93,8 +93,8 @@ export function getPublicStatus(status: string): PublicStatusInfo {
   // Fallback defaults
   return {
     label: status || "Under Review",
-    description: "Your transaction or ticket request is currently undergoing review.",
+    description: "This is a sample status in the demo workflow.",
     badgeStyle: "bg-slate-50 text-slate-800 border-gray-300",
-    nextAction: "Check back later or open a support ticket if you have additional questions.",
+    nextAction: "Use a synthetic reference number to explore the demo status page.",
   };
 }

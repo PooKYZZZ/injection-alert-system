@@ -4,8 +4,10 @@ import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { Ticket, AlertCircle } from "lucide-react";
 
+type FormIssue = { field: string; message: string };
+
 export default function SupportPage() {
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<FormIssue[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -18,39 +20,36 @@ export default function SupportPage() {
     const subject = (formData.get("subject") as string || "").trim();
     const message = (formData.get("message") as string || "").trim();
 
-    const newErrors: string[] = [];
+    const newErrors: FormIssue[] = [];
     const newFieldErrors: Record<string, string> = {};
+    const addError = (field: string, message: string) => {
+      newErrors.push({ field, message });
+      newFieldErrors[field] = message;
+    };
 
     if (!email) {
-      newErrors.push("Your Email is required.");
-      newFieldErrors.email = "Please enter your email address.";
+      addError("email", "Enter a synthetic email address.");
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
-        newErrors.push("Please enter a valid email address.");
-        newFieldErrors.email = "The email address format is invalid.";
+        addError("email", "Enter a valid email address.");
       }
     }
 
     if (!category) {
-      newErrors.push("Inquiry Category selection is required.");
-      newFieldErrors.category = "Please select an inquiry category.";
+      addError("category", "Select a category.");
     }
 
     if (!subject) {
-      newErrors.push("Ticket Subject is required.");
-      newFieldErrors.subject = "Please enter a ticket subject.";
+      addError("subject", "Enter a subject.");
     } else if (subject.length < 5) {
-      newErrors.push("Ticket Subject must be at least 5 characters.");
-      newFieldErrors.subject = "Subject is too short (minimum 5 characters).";
+      addError("subject", "Subject must be at least 5 characters.");
     }
 
     if (!message) {
-      newErrors.push("Message Body is required.");
-      newFieldErrors.message = "Please enter a detailed description of the issue.";
+      addError("message", "Enter a message.");
     } else if (message.length < 10) {
-      newErrors.push("Message Body must be at least 10 characters.");
-      newFieldErrors.message = "Message description is too brief (minimum 10 characters).";
+      addError("message", "Message must be at least 10 characters.");
     }
 
     if (newErrors.length > 0) {
@@ -80,10 +79,10 @@ export default function SupportPage() {
 
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          Registry Support Desk
+          Demo Support Desk
         </h1>
         <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-          Need assistance with coordinate discrepancies, record lookups, or system errors? Open a support ticket below. Available Monday to Friday, 8:00 AM - 5:00 PM (GMT+8).
+          Use synthetic details to test this mock support workflow. No support reply is sent.
         </p>
       </div>
 
@@ -94,10 +93,10 @@ export default function SupportPage() {
             Support Desk
           </div>
           <h2 className="text-lg font-bold tracking-tight">
-            Create Support Ticket
+            Create a demo ticket
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Add a clear subject, category, and reference number so the demo request is easy to track.
+            Add a subject and category. A reference number is optional.
           </p>
         </div>
 
@@ -113,6 +112,7 @@ export default function SupportPage() {
           <div className="p-6 sm:px-8 pb-0">
             <div
               ref={summaryRef}
+              id="support-errors-summary"
               tabIndex={-1}
               className="p-4 bg-red-50 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               aria-labelledby="errors-summary-title"
@@ -121,11 +121,15 @@ export default function SupportPage() {
                 <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <h3 id="errors-summary-title" className="text-xs font-bold text-red-950 uppercase tracking-wider">
-                    Please check the required fields below before submitting
+                    Please correct these fields before submitting
                   </h3>
                   <ul className="list-disc pl-4 mt-2 space-y-1 text-xs text-red-800">
-                    {errors.map((error, idx) => (
-                      <li key={idx}>{error}</li>
+                    {errors.map(({ field, message }) => (
+                      <li key={field}>
+                        <a className="underline underline-offset-2 hover:text-red-950 focus:outline-none focus:ring-2 focus:ring-red-500" href={`#support-input-${field}`}>
+                          {message}
+                        </a>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -152,7 +156,7 @@ export default function SupportPage() {
                 id="support-input-email"
                 type="email"
                 name="email"
-                placeholder="e.g., citizen@example.com"
+                placeholder="e.g., tester@example.test"
                 required
                 aria-required="true"
                 aria-invalid={!!fieldErrors.email}
@@ -162,7 +166,7 @@ export default function SupportPage() {
                 } rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 placeholder-gray-400 min-h-11`}
               />
               <p className="text-[10px] text-gray-400 mt-1" id="support-input-email-help">
-                We will list the dispatch details to this email address.
+                Use a synthetic address. No email reply is sent.
               </p>
               {fieldErrors.email && (
                 <p className="text-[11px] text-red-600 font-medium mt-1.5 flex items-center gap-1" id="support-input-email-error">
@@ -208,7 +212,7 @@ export default function SupportPage() {
               id="support-input-subject"
               type="text"
               name="subject"
-              placeholder="e.g., Coordinates overlap in boundary maps"
+              placeholder="e.g., Demo record lookup issue"
               required
               aria-required="true"
               aria-invalid={!!fieldErrors.subject}
@@ -239,7 +243,7 @@ export default function SupportPage() {
               className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-1 placeholder-gray-400 font-mono min-h-11"
             />
             <p className="text-[10px] text-gray-400 mt-1">
-              Provide an existing record number if the issue relates to a specific deed document.
+              Use a sample record number if the test needs one.
             </p>
           </div>
 
@@ -251,7 +255,7 @@ export default function SupportPage() {
               id="support-input-message"
               name="message"
               rows={4}
-              placeholder="e.g., Describe the issues regarding system alignment, boundary lines, or record indexing..."
+              placeholder="Describe a sample issue with the demo workflow."
               required
               aria-required="true"
               aria-invalid={!!fieldErrors.message}
@@ -272,7 +276,7 @@ export default function SupportPage() {
             <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
             <div className="text-[10px] text-amber-800 leading-relaxed font-sans">
               <span className="font-bold text-amber-900 block" id="simulation-notice-title">Demo Notice</span>
-              This is a demo portal. All records, submissions, and reference numbers are mock data for local testing only.
+              This is a CyberTrace test demo, not an official registry. Do not enter real personal, contact, or property details.
             </div>
           </div>
 
@@ -282,7 +286,7 @@ export default function SupportPage() {
                type="submit"
                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-6 py-2.5 rounded-lg shadow-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[44px] flex items-center justify-center"
             >
-              Submit support ticket
+              Send demo request
             </button>
           </div>
         </form>

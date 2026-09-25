@@ -7,12 +7,6 @@ export const dynamic = "force-dynamic";
 interface SuccessParams {
   type?: string;
   ref?: string;
-  email?: string;
-  fullName?: string;
-  subject?: string;
-  recordNo?: string;
-  username?: string;
-  displayName?: string;
 }
 
 export default async function SuccessPage({
@@ -20,63 +14,63 @@ export default async function SuccessPage({
 }: {
   searchParams: Promise<SuccessParams>;
 }) {
-  const { type, ref, email, fullName, subject, recordNo, username, displayName } = await searchParams;
+  const { type, ref } = await searchParams;
 
   let title = "Submission Received";
-  let description = "Your request was processed successfully.";
+  let description = "Your demo request was recorded.";
   let badgeText = "RECEIVED";
   let contentMessage = "";
   let requestType = "General request";
-  let disclaimer = "This is a demo portal. All records, submissions, and reference numbers are mock data for local testing only.";
+  let disclaimer = "CyberTrace test demo. Use synthetic values only; do not enter real personal or property details.";
   let linkHref = "/";
   let linkText = "Return to Dashboard";
   let IconComponent = CheckCircle2;
 
   if (type === "support") {
-    title = "Support ticket submitted";
-    description = "Your support ticket has been received.";
-    badgeText = "SUP-TICKET";
-    requestType = "Support";
-    contentMessage = `Your support ticket "${subject || "Record question"}" has been filed by ${email || "the requester"}.`;
+    title = "Demo support request received";
+    description = "Your mock ticket was saved. No email reply is sent.";
+    badgeText = "DEMO SUPPORT";
+    requestType = "Support request";
+    contentMessage = "Use the reference number below to look up this demo request's status.";
     linkHref = "/support";
-    linkText = "File Another Ticket";
+    linkText = "Send another demo request";
     IconComponent = Ticket;
   } else if (type === "appointment") {
-    title = "Appointment request received";
-    description = "Your appointment request has been received.";
-    badgeText = "APT-BOOKING";
-    requestType = "Appointment";
-    contentMessage = `The appointment request for ${fullName || "the requester"} has been saved with a demo reference number.`;
+    title = "Demo appointment request received";
+    description = "Your test request was recorded. It does not book a real appointment or send email.";
+    badgeText = "DEMO REQUEST";
+    requestType = "Appointment request";
+    contentMessage = "This page confirms a test request only. No real appointment was booked.";
     linkHref = "/appointments";
-    linkText = "Book Another Session";
+    linkText = "Send another demo request";
     IconComponent = CalendarDays;
   } else if (type === "copy") {
-    title = "Certified copy request received";
-    description = "Your certified copy request has been received.";
-    badgeText = "REQ-CERTIFIED";
-    requestType = "Certified copy";
-    contentMessage = `The copy request for property deed ${recordNo || "N/A"} has been registered for ${fullName || "the requester"}.`;
+    title = "Sample copy request received";
+    description = "Your mock request was recorded. No certified document is produced or delivered.";
+    badgeText = "SAMPLE COPY";
+    requestType = "Sample copy request";
+    contentMessage = "This demo records a sample copy request only.";
     linkHref = `/records/search`;
-    linkText = "Return to Records Search";
+    linkText = "Return to sample records";
     IconComponent = FileText;
   } else if (type === "comment") {
-    title = "Comment submitted";
-    description = "Your feedback has been added to the public comments page.";
-    badgeText = "CITIZEN-FEEDBACK";
+    title = "Comment added to the demo";
+    description = "Your mock comment was saved to the demo feedback page.";
+    badgeText = "DEMO COMMENT";
     requestType = "Comment";
-    contentMessage = `The comment from "${displayName || fullName || "Anonymous"}" was submitted and can be viewed on the comments page.`;
+    contentMessage = "Comments may be visible to other users of this demo. Do not include personal details.";
     linkHref = "/";
-    linkText = "Return to Feed";
+    linkText = "Return to demo home";
     IconComponent = MessageSquare;
   } else if (type === "login") {
-    title = "Demo login received";
-    description = "Authentication is disabled in this mock portal.";
+    title = "Demo login attempt recorded";
+    description = "Authentication is disabled. No account or session was created.";
     badgeText = "DEMO LOGIN";
-    requestType = "Demo login";
-    contentMessage = "Demo login received. Authentication is disabled in this mock portal.";
-    disclaimer = "This is a mock sign-in page. Authentication is disabled and passwords are not shown on the result page.";
+    requestType = "Demo login attempt";
+    contentMessage = "The test attempt was recorded. No password is stored and no sign-in occurred.";
+    disclaimer = "This demo does not create accounts or sessions. Use synthetic login values only.";
     linkHref = "/";
-    linkText = "Return to Dashboard";
+    linkText = "Return to demo portal";
     IconComponent = ShieldCheck;
   }
 
