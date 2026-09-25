@@ -30,10 +30,10 @@ export default async function CommentsPage({ searchParams }: CommentsPageProps) 
       </div>
 
       <div className="border-b border-gray-200 pb-4">
-        <h2 className="text-2xl md:text-3xl font-extrabold text-slate-950 flex items-center gap-2">
-          <MessageSquare className="w-7 h-7 text-blue-600" />
+        <h1 className="text-2xl md:text-3xl font-extrabold text-slate-950 flex items-center gap-2">
+          <MessageSquare aria-hidden="true" className="w-7 h-7 text-blue-600" />
           <span>Public Citizen Comments</span>
-        </h2>
+        </h1>
         <p className="text-slate-500 text-sm mt-1">
           Read sample public feedback about search, status tracking, and appointment requests.
         </p>

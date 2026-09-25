@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   return (
-    <main className="bg-slate-50 px-4 py-12">
+    <section className="bg-slate-50 px-4 py-12">
       <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-5">
           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">
@@ -59,6 +59,6 @@ export default function LoginPage() {
           </Link>
         </div>
       </div>
-    </main>
+    </section>
   );
 }

@@ -30,7 +30,7 @@ export default async function RequestCopyPage({
   }
 
   return (
-    <main className="bg-slate-50 px-4 py-10">
+    <section className="bg-slate-50 px-4 py-10">
       <div className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-6">
           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">
@@ -134,6 +134,6 @@ export default async function RequestCopyPage({
           </Link>
         </div>
       </div>
-    </main>
+    </section>
   );
 }

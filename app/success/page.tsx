@@ -81,7 +81,7 @@ export default async function SuccessPage({
   }
 
   return (
-    <main className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 font-sans" id="main-content">
+    <section className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 font-sans">
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-md">
         {/* Banner */}
         <div className="bg-slate-50 border-b border-gray-100 p-8 text-center flex flex-col items-center">
@@ -165,6 +165,6 @@ export default async function SuccessPage({
           </div>
         </div>
       </div>
-    </main>
+    </section>
   );
 }

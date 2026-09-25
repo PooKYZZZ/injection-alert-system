@@ -1,7 +1,8 @@
 import "./globals.css";
 import React from "react";
 import Link from "next/link";
-import { Landmark, Search, ShieldCheck, Ticket, CalendarDays } from "lucide-react";
+import { Landmark } from "lucide-react";
+import PrimaryNavigation from "@/components/PrimaryNavigation";
 
 export const metadata = {
   title: "Land Records Demo Portal",
@@ -16,6 +17,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col bg-[#fcfcfc] text-[#1b1f24] antialiased hover:cursor-default">
+        <a className="skip-link" href="#main-content">
+          Skip to main content
+        </a>
         <header className="border-b border-slate-800 bg-[#0f172a] text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <Link href="/" className="flex min-w-0 items-center gap-2.5 group">
@@ -32,49 +36,13 @@ export default function RootLayout({
               </div>
             </Link>
 
-            <nav className="flex flex-wrap items-center gap-2 lg:justify-center">
-              <Link
-                href="/records/search"
-                className="text-xs font-semibold text-slate-200 hover:text-white transition-colors flex min-h-9 items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md py-1.5 px-2.5"
-              >
-                <Search className="h-3.5 w-3.5 text-slate-400" />
-                Search Records
-              </Link>
-              <Link
-                href="/transactions/status"
-                className="text-xs font-semibold text-slate-200 hover:text-white transition-colors flex min-h-9 items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md py-1.5 px-2.5"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-slate-400" />
-                Track Status
-              </Link>
-              <Link
-                href="/appointments"
-                className="text-xs font-semibold text-slate-200 hover:text-white transition-colors flex min-h-9 items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md py-1.5 px-2.5"
-              >
-                <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                Book Appointment
-              </Link>
-              <Link
-                href="/support"
-                className="text-xs font-semibold text-slate-200 hover:text-white transition-colors flex min-h-9 items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md py-1.5 px-2.5"
-              >
-                <Ticket className="h-3.5 w-3.5 text-slate-400" />
-                Support Desk
-              </Link>
-            </nav>
-
-            <div className="flex items-center gap-3">
-              <Link
-                href="/login"
-                className="min-h-9 inline-flex items-center px-3.5 py-1.5 rounded-md border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Demo Login
-              </Link>
-            </div>
+            <PrimaryNavigation />
           </div>
         </header>
 
-        <main className="flex-1" id="main-content">{children}</main>
+        <main className="flex-1" id="main-content" tabIndex={-1}>
+          {children}
+        </main>
 
         <footer className="border-t border-gray-200 bg-slate-50 py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500">
