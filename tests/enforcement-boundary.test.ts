@@ -18,6 +18,7 @@ test("page throttle boundary returns HTTP 429 with Retry-After", async () => {
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "7");
   assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html(?:;|$)/i);
   const body = await response.text();
   assert.match(body, /Too Many Requests/);
   assert.match(body, /Retry after 7 seconds/);
@@ -34,6 +35,7 @@ test("page block boundary returns HTTP 403 without exposing policy details", asy
   assert.ok(response);
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("retry-after"), null);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html(?:;|$)/i);
   const body = await response.text();
   assert.match(body, /Access Restricted/);
   assert.match(body, /Land Records Portal/);
