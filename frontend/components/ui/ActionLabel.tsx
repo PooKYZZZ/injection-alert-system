@@ -5,11 +5,13 @@ import {
   getAlertActionLabel,
   type AlertAction,
   type AlertConfidenceTier,
+  type AlertPrediction,
 } from '@/features/alerts/contract'
 
 interface ActionLabelProps {
   action: AlertAction | null
   confidenceTier?: AlertConfidenceTier | null
+  prediction?: AlertPrediction | null
   bordered?: boolean
 }
 
@@ -25,7 +27,12 @@ const borderedStyles: Record<AlertAction, string> = {
   ALLOWED: 'border border-severity-safe-border/30',
 }
 
-export function ActionLabel({ action, confidenceTier, bordered = true }: ActionLabelProps) {
+export function ActionLabel({
+  action,
+  confidenceTier,
+  prediction,
+  bordered = true,
+}: ActionLabelProps) {
   if (action === null) {
     return (
       <span className="inline-flex items-center rounded-full border border-surface-border bg-surface-inset px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
@@ -42,7 +49,7 @@ export function ActionLabel({ action, confidenceTier, bordered = true }: ActionL
         bordered && borderedStyles[action]
       )}
     >
-      {getAlertActionLabel(action, confidenceTier)}
+      {getAlertActionLabel(action, confidenceTier, prediction)}
     </span>
   )
 }
