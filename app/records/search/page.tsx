@@ -24,12 +24,25 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const evidenceId = (await headers()).get("x-pr7-evidence-id");
+  const incomingHeaders = await headers();
+  const evidenceId = incomingHeaders.get("x-pr7-evidence-id");
   await recordPr7PortalStage({
     evidenceId,
     stage: "request_received",
   });
-  const enforcement = await checkRecordSearchEnforcementFromRuntime();
+  const middlewareDecision = incomingHeaders.get(
+    "x-cybertrace-enforcement-decision",
+  );
+  const enforcement =
+    middlewareDecision === "ALLOW"
+      ? { decision: "ALLOW" as const, status: "checked" as const }
+      : middlewareDecision === "CHALLENGE"
+        ? {
+            decision: "CHALLENGE" as const,
+            status: "checked" as const,
+            tier: "MEDIUM" as const,
+          }
+        : await checkRecordSearchEnforcementFromRuntime();
   const protectedSearch = await runRecordSearchProtectedWork(
     enforcement,
     async () => {

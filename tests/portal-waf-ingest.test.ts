@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NextRequest } from "next/server";
 
-import { ingestAndEnforcePortalPost } from "../lib/portal-waf-ingest";
+import {
+  ingestAndEnforcePortalPost,
+  ingestAndEnforcePortalRequest,
+} from "../lib/portal-waf-ingest";
 import type { EnforcementCheckResult, EnforcementScope } from "../lib/enforcement-check";
 
 const config = {
@@ -27,6 +30,15 @@ function request(
 ) {
   return new NextRequest(`https://target.cybertracesystems.com${path}`, {
     method: "POST",
+    headers,
+  });
+}
+
+function getRequest(
+  path: string,
+  headers: Record<string, string> = { "cf-connecting-ip": "203.0.113.25" },
+) {
+  return new NextRequest(`https://target.cybertracesystems.com${path}`, {
     headers,
   });
 }
@@ -99,6 +111,148 @@ test("ingests only allowlisted support text with verified Cloudflare source", as
     sentHeaders?.get("X-CyberTrace-WAF-Audit-Key"),
     "test-audit-evidence-key",
   );
+});
+
+test("inspects the current Search Records GET query before page work", async () => {
+  const query = "' OR 1=1 --";
+  let sentPayload: Record<string, unknown> | undefined;
+  const sequence: string[] = [];
+  const result = await ingestAndEnforcePortalRequest(
+    {
+      request: getRequest("/records/search?query=%27+OR+1%3D1+--", {
+        "cf-connecting-ip": "203.0.113.25",
+        "x-cybertrace-edge-request-id": "0123456789abcdef0123456789abcdef",
+      }),
+      requestPath: "/records/search",
+      scope: "RECORD_SEARCH",
+      fields: { query },
+    },
+    {
+      config,
+      fetchImpl: async (_input, init) => {
+        sequence.push("inference");
+        sentPayload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return response();
+      },
+      checkEnforcement: async (scope, headers) => {
+        sequence.push("policy-check");
+        assert.equal(scope, "RECORD_SEARCH");
+        assert.equal(headers.get("cf-connecting-ip"), "203.0.113.25");
+        return { decision: "ALLOW", status: "checked" };
+      },
+    },
+  );
+
+  assert.equal(result, null);
+  assert.deepEqual(sequence, ["inference", "policy-check"]);
+  assert.equal(sentPayload?.request_method, "GET");
+  assert.equal(sentPayload?.request_path, "/records/search");
+  assert.equal(sentPayload?.source_ip, "203.0.113.25");
+  assert.equal(sentPayload?.source_provenance, "CLOUDFLARE_CONNECTING_IP");
+  assert.equal(sentPayload?.cf_connecting_ip_matches_client_ip, true);
+  assert.equal(sentPayload?.query_string, undefined);
+  assert.equal(sentPayload?.request_headers, undefined);
+  assert.equal(sentPayload?.crs_score, 0);
+  assert.deepEqual(sentPayload?.crs_rule_ids, ["no-crs-match"]);
+  assert.equal(
+    new URLSearchParams(String(sentPayload?.sanitized_body)).get("query"),
+    query,
+  );
+});
+
+test("inspects the Track Status reference before protected database reads", async () => {
+  const reference = "TXN-100201";
+  let sentPayload: Record<string, unknown> | undefined;
+  const result = await ingestAndEnforcePortalRequest(
+    {
+      request: getRequest("/transactions/status?ref=TXN-100201", {
+        "cf-connecting-ip": "203.0.113.25",
+        "x-cybertrace-edge-request-id": "1123456789abcdef0123456789abcdef",
+      }),
+      requestPath: "/transactions/status",
+      scope: "TRACK_STATUS",
+      fields: { ref: reference },
+    },
+    {
+      config,
+      fetchImpl: async (_input, init) => {
+        sentPayload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return response();
+      },
+      checkEnforcement: async (scope) => {
+        assert.equal(scope, "TRACK_STATUS");
+        return { decision: "ALLOW", status: "checked" };
+      },
+    },
+  );
+
+  assert.equal(result, null);
+  assert.equal(sentPayload?.request_method, "GET");
+  assert.equal(sentPayload?.request_path, "/transactions/status");
+  assert.equal(sentPayload?.query_string, undefined);
+  assert.equal(
+    new URLSearchParams(String(sentPayload?.sanitized_body)).get("ref"),
+    reference,
+  );
+});
+
+test("Search Records returns actual policy 429/403 before protected work", async () => {
+  for (const [decision, expectedStatus] of [
+    ["THROTTLE", 429],
+    ["BLOCK", 403],
+  ] as const) {
+    const result = await ingestAndEnforcePortalRequest(
+      {
+        request: getRequest("/records/search?query=policy-test"),
+        requestPath: "/records/search",
+        scope: "RECORD_SEARCH",
+        fields: { query: "policy-test" },
+      },
+      {
+        config,
+        fetchImpl: async () => response(),
+        checkEnforcement: async () =>
+          decision === "THROTTLE"
+            ? {
+                decision,
+                status: "checked",
+                retryAfterSeconds: 30,
+                decisionReason: "REPEATED_SUSPICIOUS_ACTIVITY",
+              }
+            : { decision, status: "checked", decisionReason: "STRONG_CRS_EVIDENCE" },
+      },
+    );
+
+    assert.ok(result);
+    assert.equal(result.status, expectedStatus);
+    if (expectedStatus === 429) {
+      assert.equal(result.headers.get("retry-after"), "30");
+    }
+  }
+});
+
+test("does not permit GET inspection on routes outside the allowlist", async () => {
+  let ingestionCalled = false;
+  const result = await ingestAndEnforcePortalRequest(
+    {
+      request: getRequest("/support/submit"),
+      requestPath: "/support/submit",
+      scope: "SUPPORT_SUBMIT",
+      fields: { message: "not a GET route" },
+    },
+    {
+      config,
+      fetchImpl: async () => {
+        ingestionCalled = true;
+        return response();
+      },
+      checkEnforcement: async () => ({ decision: "ALLOW", status: "checked" }),
+    },
+  );
+
+  assert.equal(ingestionCalled, false);
+  assert.ok(result);
+  assert.equal(result.status, 500);
 });
 
 test("uses the reverse-proxy request id for portal-ingest correlation", async () => {
