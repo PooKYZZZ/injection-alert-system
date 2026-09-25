@@ -5,6 +5,7 @@ import { validateSupportForm } from "../../../lib/validation";
 import { generateReferenceNumber } from "../../../lib/reference-number";
 import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
 import { enforcementRouteResponse } from "../../../lib/enforcement-boundary";
+import { ingestAndEnforcePortalPost } from "../../../lib/portal-waf-ingest";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,14 @@ export async function POST(request: NextRequest) {
     const email = (formData.get("email") as string) || "";
     const referenceNo = (formData.get("referenceNo") as string) || "";
     const message = (formData.get("message") as string) || "";
+
+    const inspection = await ingestAndEnforcePortalPost({
+      request,
+      requestPath: "/support/submit",
+      scope: "SUPPORT_SUBMIT",
+      fields: { subject, category, message },
+    });
+    if (inspection) return inspection;
 
     // Server-side validation
     const validation = validateSupportForm({ email, category, subject, message });

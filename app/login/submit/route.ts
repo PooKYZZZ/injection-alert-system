@@ -4,6 +4,7 @@ import { browserRedirect } from '@/lib/redirect';
 import { z } from 'zod';
 import { checkEnforcementFromRuntime } from '../../../lib/enforcement-check-runtime';
 import { enforcementRouteResponse } from '../../../lib/enforcement-boundary';
+import { ingestAndEnforcePortalPost } from '../../../lib/portal-waf-ingest';
 
 const formSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -21,6 +22,14 @@ export async function POST(req: NextRequest) {
       username: formData.get('username') as string,
       password: formData.get('password') as string,
     };
+
+    const inspection = await ingestAndEnforcePortalPost({
+      request: req,
+      requestPath: "/login/submit",
+      scope: "LOGIN_SUBMIT",
+      fields: { username: data.username || "" },
+    });
+    if (inspection) return inspection;
 
     const parsed = formSchema.safeParse(data);
     if (!parsed.success) {

@@ -4,6 +4,7 @@ import { browserRedirect } from "@/lib/redirect";
 import { z } from "zod";
 import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
 import { enforcementRouteResponse } from "../../../lib/enforcement-boundary";
+import { ingestAndEnforcePortalPost } from "../../../lib/portal-waf-ingest";
 
 const commentSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
@@ -23,6 +24,14 @@ export async function POST(request: NextRequest) {
       displayName: formData.get("displayName") as string,
       message: formData.get("message") as string,
     };
+
+    const inspection = await ingestAndEnforcePortalPost({
+      request,
+      requestPath: "/comments/submit",
+      scope: "COMMENTS_SUBMIT",
+      fields: { message: data.message || "" },
+    });
+    if (inspection) return inspection;
 
     const parsed = commentSchema.safeParse(data);
     if (!parsed.success) {

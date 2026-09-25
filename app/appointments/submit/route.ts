@@ -5,6 +5,7 @@ import { validateAppointmentForm } from "../../../lib/validation";
 import { generateReferenceNumber } from "../../../lib/reference-number";
 import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
 import { enforcementRouteResponse } from "../../../lib/enforcement-boundary";
+import { ingestAndEnforcePortalPost } from "../../../lib/portal-waf-ingest";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,14 @@ export async function POST(request: NextRequest) {
     const serviceType = (formData.get("serviceType") as string) || "";
     const preferredDate = (formData.get("preferredDate") as string) || "";
     const notes = (formData.get("notes") as string) || "";
+
+    const inspection = await ingestAndEnforcePortalPost({
+      request,
+      requestPath: "/appointments/submit",
+      scope: "APPOINTMENT_SUBMIT",
+      fields: { branch, serviceType, notes },
+    });
+    if (inspection) return inspection;
 
     // Server-side validation
     const validation = validateAppointmentForm({ fullName, email, branch, serviceType, preferredDate });

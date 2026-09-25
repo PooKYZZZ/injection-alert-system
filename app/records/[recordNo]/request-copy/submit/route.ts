@@ -5,6 +5,7 @@ import { z } from "zod";
 import { generateReferenceNumber } from "@/lib/reference-number";
 import { checkEnforcementFromRuntime } from "../../../../../lib/enforcement-check-runtime";
 import { enforcementRouteResponse } from "../../../../../lib/enforcement-boundary";
+import { ingestAndEnforcePortalPost } from "../../../../../lib/portal-waf-ingest";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full legal name is required"),
@@ -25,15 +26,6 @@ export async function POST(
   try {
     const { recordNo } = await params;
 
-    // Verify record exists first
-    const record = await prisma.record.findUnique({
-      where: { recordNo },
-    });
-
-    if (!record) {
-      return new NextResponse("Registry file record not found", { status: 404 });
-    }
-
     // Parse URL-encoded body (the traditional HTML form content-type)
     const formData = await req.formData();
     const data = {
@@ -43,6 +35,28 @@ export async function POST(
       deliveryOption: formData.get("deliveryOption") as string,
       remarks: (formData.get("remarks") as string) || "",
     };
+
+    const inspection = await ingestAndEnforcePortalPost({
+      request: req,
+      requestPath: req.nextUrl.pathname,
+      scope: "REQUEST_COPY_SUBMIT",
+      fields: {
+        purpose: data.purpose || "",
+        deliveryOption: data.deliveryOption || "",
+        remarks: data.remarks,
+      },
+    });
+    if (inspection) return inspection;
+
+    // Inspect the submitted fields before database lookups or other business
+    // operations so unknown record numbers cannot bypass the WAF-ML bridge.
+    const record = await prisma.record.findUnique({
+      where: { recordNo },
+    });
+
+    if (!record) {
+      return new NextResponse("Registry file record not found", { status: 404 });
+    }
 
     // Zod validation
     const parsed = formSchema.safeParse(data);
