@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { EnforcementCheckResult } from "./enforcement-check";
+import { httpErrorPageDocument } from "./http-error-page";
 
 /**
  * Return a real HTTP response for page-level enforcement decisions.
@@ -14,12 +15,6 @@ export function enforcementPageResponse(
 
   const throttled = result.decision === "THROTTLE";
   const status = throttled ? 429 : 403;
-  const title = throttled
-    ? "Search temporarily limited"
-    : "Access temporarily blocked";
-  const message = throttled
-    ? `Please wait ${result.retryAfterSeconds} seconds before trying again.`
-    : "Access to this request is temporarily blocked.";
   const headers = new Headers({
     "cache-control": "no-store",
     "content-type": "text/html; charset=utf-8",
@@ -30,7 +25,7 @@ export function enforcementPageResponse(
   }
 
   return new NextResponse(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1><p>${message}</p><p><a href="/">Return to the demo portal</a></p></main></body></html>`,
+    httpErrorPageDocument(status, throttled ? result.retryAfterSeconds : undefined),
     { status, headers },
   );
 }
