@@ -151,7 +151,7 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
                 EnforcementRecommendationRow.enforcement_mode == "ENFORCE",
                 EnforcementRecommendationRow.policy_version == policy_version,
                 EnforcementRecommendationRow.enforcement_tier.in_(
-                    ["LOW", "MEDIUM", "HIGH"]
+                    ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
                 ),
                 or_(
                     and_(

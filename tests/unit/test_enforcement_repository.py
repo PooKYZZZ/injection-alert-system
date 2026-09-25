@@ -259,7 +259,7 @@ async def test_active_lookup_applies_source_eligibility_before_tier_precedence(
 
 
 @pytest.mark.asyncio
-async def test_active_lookup_selects_high_over_lower_tiers_but_never_critical(
+async def test_active_lookup_selects_critical_over_lower_tiers_when_eligible(
     repository,
 ) -> None:
     now = datetime.now(timezone.utc).replace(microsecond=0)
@@ -327,8 +327,8 @@ async def test_active_lookup_selects_high_over_lower_tiers_but_never_critical(
     )
 
     assert selected is not None
-    assert selected.tier is EnforcementTier.HIGH
-    assert selected.action is RecommendedAction.APPLICATION_BLOCK
+    assert selected.tier is EnforcementTier.CRITICAL
+    assert selected.action is RecommendedAction.WAF_BLOCK
     assert unrelated_source is None
     assert expired is None
 

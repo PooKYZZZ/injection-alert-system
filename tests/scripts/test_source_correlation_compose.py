@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -469,6 +470,8 @@ def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
         ROOT / "config" / "modsecurity" / "target-cloudflare-realip.conf.template"
     ).read_text(encoding="utf-8")
     assert "172.30.20.2/32" in template
+    assert "map $realip_remote_addr $cybertrace_cloudflare_peer_verified" in template
+    assert "172.30.20.2 1;" in template
     assert "0.0.0.0/0" not in template
     assert "10.0.0.0/8" not in template
     assert "172.16.0.0/12" not in template
@@ -487,6 +490,10 @@ def test_normal_access_logging_is_allowlisted_and_omits_request_content() -> Non
     ).read_text(encoding="utf-8")
 
     assert '"$uri"' in template
+    assert (
+        "proxy_set_header X-CyberTrace-Cloudflare-Peer-Verified "
+        "$cybertrace_cloudflare_peer_verified;"
+    ) in proxy
     assert "$arg__rsc" in template
     assert '"$http_cf_connecting_ip"' in template
     assert '"$request"' not in template
@@ -509,8 +516,14 @@ def test_synchronously_inspected_get_routes_are_not_ingested_twice() -> None:
         if line.strip().startswith("~^true")
     )
 
-    assert "/records/search" not in allowlist
-    assert "/transactions/status" not in allowlist
+    route_pattern = re.compile(allowlist.split(maxsplit=1)[0].removeprefix("~"))
+    assert route_pattern.fullmatch("true|GET|/records/search|200|") is None
+    assert route_pattern.fullmatch("true|GET|/transactions/status|200|") is None
+    assert route_pattern.fullmatch("true|GET|/records/LND-2026-0001|200|")
+    assert route_pattern.fullmatch(
+        "true|GET|/records/LND-2026-0001/request-copy|200|"
+    )
+    assert route_pattern.fullmatch("true|GET|/appointments|200|")
 
     compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
     assert (
