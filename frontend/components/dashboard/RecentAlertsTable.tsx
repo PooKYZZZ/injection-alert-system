@@ -86,7 +86,12 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                     <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
                   </td>
                   <td className="p-2">
-                    <ActionLabel action={alert.action_taken} bordered={false} />
+                    <ActionLabel
+                      action={alert.action_taken}
+                      confidenceTier={alert.confidence_level}
+                      prediction={alert.prediction}
+                      bordered={false}
+                    />
                   </td>
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</td>
                   <td className="p-2">

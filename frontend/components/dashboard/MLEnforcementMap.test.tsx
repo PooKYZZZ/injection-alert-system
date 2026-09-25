@@ -30,7 +30,7 @@ describe('MLEnforcementMap', () => {
     expect(within(criticalRow as HTMLElement).getByText('BLOCKED')).toBeInTheDocument()
     expect(within(highRow as HTMLElement).getByText('BLOCKED')).toBeInTheDocument()
     expect(within(mediumRow as HTMLElement).getByText('THROTTLED')).toBeInTheDocument()
-    expect(within(lowRow as HTMLElement).getByText('ALLOWED')).toBeInTheDocument()
+    expect(within(lowRow as HTMLElement).getByText('MONITOR ONLY')).toBeInTheDocument()
     expect(screen.queryByText(/strictly bound/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/CRITICAL always BLOCKED/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/CRITICAL confidence always maps to BLOCKED/i)).not.toBeInTheDocument()
