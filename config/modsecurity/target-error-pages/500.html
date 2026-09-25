@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="referrer" content="no-referrer">
+    <title>Server Error</title>
+    <link rel="stylesheet" href="/cybertrace-error-page.css">
+  </head>
+  <body>
+    <main class="error-screen">
+      <article class="error-card" aria-labelledby="error-title">
+        <header class="error-header">
+          <a class="error-brand" href="/" aria-label="Land Records Portal home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.3 8.2-8 10-4.7-1.8-8-5-8-10V6l8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>Land Records Portal</span>
+          </a>
+          <span class="error-status" aria-label="HTTP 500">500</span>
+        </header>
+        <section class="error-content">
+          <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01M12 10v4m0 3h.01"/></svg>
+          <h1 id="error-title">Server Error</h1>
+          <p class="error-message">We're having trouble processing your request right now. Please try again later.</p>
+          <form action="" method="get"><button class="error-action" type="submit">Try Again</button></form>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

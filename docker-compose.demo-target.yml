@@ -62,6 +62,8 @@ services:
     volumes:
       - ./logs/modsecurity/demo-target:/var/log/modsecurity
       - ./config/modsecurity/source-correlation-proxy-backend.conf.template:/etc/nginx/templates/includes/proxy_backend.conf.template:ro
+      - ./config/modsecurity/target-error-pages-location-common.conf.template:/etc/nginx/templates/includes/location_common.conf.template:ro
+      - ./config/modsecurity/target-error-pages:/usr/share/nginx/html/cybertrace-errors:ro
       - ./config/modsecurity/normal-access-logging.conf.template:/etc/nginx/templates/conf.d/00-normal-access-logging.conf.template:ro
       - target_normal_access_socket:/run/cybertrace-normal
     depends_on:

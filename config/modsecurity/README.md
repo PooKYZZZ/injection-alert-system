@@ -61,6 +61,24 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
   its independent CRS blocks continue through the existing audit bridge. The
   two sources remain distinguishable by `ingest_source`.
 
+## Target HTTP error pages
+
+The demo-target NGINX template maps ModSecurity 403 responses and NGINX-generated
+500/502/503/504 failures to small, static documents under
+`/cybertrace-errors/`. Those locations are `internal`, mounted read-only, and
+use `no-store`, `no-referrer`, `nosniff`, and the existing transaction ID
+header. The no-referrer policy also prevents a blocked URL query from being
+sent with the stylesheet request. Error-asset access logs are suppressed; the
+original blocked request continues through the existing ModSecurity audit
+logging and bridge path.
+
+The portal owns its 403/429 middleware responses and 404/500 page errors.
+`Retry-After` is preserved for 429 and only its actual valid integer value is
+shown. `proxy_intercept_errors` remains off so upstream API responses, bodies,
+and headers keep their existing contracts. Local screenshots and response
+checks are in `docs/evidence/http-error-pages/`; they do not establish hosted or
+production readiness.
+
 ## Architectural Role
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
 

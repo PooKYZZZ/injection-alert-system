@@ -1,0 +1,158 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #f8fafc;
+  background: #0c141e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #0c141e;
+  color: #f8fafc;
+}
+
+.error-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.error-card {
+  width: min(100%, 760px);
+  overflow: hidden;
+  border: 1px solid #293747;
+  border-radius: 12px;
+  background: #151e28;
+  box-shadow: 0 18px 50px #0004;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #2b3949;
+}
+
+.error-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #f1f5f9;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.error-brand svg {
+  width: 16px;
+  height: 16px;
+  color: #8bd4ff;
+}
+
+.error-status {
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: #2b3644;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.error-content {
+  padding: 28px 20px 34px;
+  text-align: center;
+}
+
+.error-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 12px;
+  color: #f3ad28;
+}
+
+.error-icon--info {
+  color: #79c9f6;
+}
+
+.error-content h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: clamp(22px, 4vw, 28px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.error-message {
+  margin: 10px auto 18px;
+  color: #cbd5e1;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.error-support {
+  margin: 16px 0 0;
+  color: #93a4b8;
+  font-size: 13px;
+}
+
+.error-support a {
+  color: #a8dfff;
+}
+
+.error-action {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eaf2ff;
+  padding: 8px 14px;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.error-action:hover {
+  background: #dbeafe;
+}
+
+.error-action:focus-visible {
+  outline: 3px solid #7dd3fc;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .error-screen {
+    padding: 12px;
+  }
+
+  .error-header {
+    padding: 12px;
+  }
+
+  .error-content {
+    padding: 24px 16px 28px;
+  }
+
+  .error-message {
+    font-size: 14px;
+  }
+}
