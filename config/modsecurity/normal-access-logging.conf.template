@@ -1,9 +1,12 @@
 # Successful target workflows are triaged separately because ModSecurity's
 # RelevantOnly audit log intentionally omits ordinary 2xx/3xx transactions.
-# Keep the allowlist aligned with lib/routes.ts; exclude Next.js RSC prefetches.
+# Search Records and Track Status inputs are inspected synchronously by the
+# portal before protected reads; do not ingest those same request IDs again
+# after the response. Bare page loads have no user input to classify.
+# Exclude Next.js RSC prefetches from the remaining allowlisted GETs.
 map "${CYBERTRACE_NORMAL_ACCESS_TELEMETRY}|$request_method|$uri|$status|$arg__rsc" $cybertrace_normal_access_loggable {
     default 0;
-    ~^true\|GET\|/(?:records/search|records/[A-Za-z0-9-]+|transactions/status|appointments|support|login|comments|records/[A-Za-z0-9-]+/request-copy)\|[23][0-9][0-9]\|$ 1;
+    ~^true\|GET\|/(?:records/[A-Za-z0-9-]+|appointments|support|login|comments|records/[A-Za-z0-9-]+/request-copy)\|[23][0-9][0-9]\|$ 1;
 }
 
 log_format cybertrace_normal escape=json

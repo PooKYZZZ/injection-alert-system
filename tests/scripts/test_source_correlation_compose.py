@@ -439,16 +439,16 @@ def test_app_cloudflare_overlay_adds_least_privilege_frontend_network(
     ]["networks"]
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
-    ] == "unverified"
+    ] == "cloudflare_tunnel"
     assert config["services"]["backend"]["environment"][
         "CLOUDFLARE_TARGET_ISOLATION_ENABLED"
     ] == "true"
     assert config["services"]["backend"]["environment"][
         "CLOUDFLARE_TARGET_VERIFIED_PROOF"
-    ] == "false"
+    ] == "true"
     assert config["services"]["demo-target-bridge"]["environment"][
         "WAF_SOURCE_PROVENANCE_MODE"
-    ] == "direct_remote_addr"
+    ] == "cloudflare_connecting_ip"
     healthcheck = config["services"]["cloudflared"]["healthcheck"]
     assert healthcheck["test"] == [
         "CMD",
@@ -497,6 +497,20 @@ def test_normal_access_logging_is_allowlisted_and_omits_request_content() -> Non
     assert "access_log /dev/null combined;" in proxy
     assert "syslog:server=unix:/run/cybertrace-normal/normal.sock" in proxy
     assert "target_normal.jsonl" not in proxy
+
+
+def test_synchronously_inspected_get_routes_are_not_ingested_twice() -> None:
+    template = (
+        ROOT / "config" / "modsecurity" / "normal-access-logging.conf.template"
+    ).read_text(encoding="utf-8")
+    allowlist = next(
+        line.strip()
+        for line in template.splitlines()
+        if line.strip().startswith("~^true")
+    )
+
+    assert "/records/search" not in allowlist
+    assert "/transactions/status" not in allowlist
 
     compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
     assert (

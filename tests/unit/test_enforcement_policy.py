@@ -92,26 +92,32 @@ def test_approved_dynamic_routes_map_to_explicit_scopes() -> None:
     assert scope_for_request_path("/health") is None
 
 
-def test_high_and_critical_require_explicit_strong_crs_evidence() -> None:
-    evidence = EnforcementEvidence(
+def test_high_and_critical_require_class_matched_crs_evidence() -> None:
+    sql_evidence = EnforcementEvidence(
         source_verification_status="VERIFIED",
         crs_score=8,
         crs_rule_ids=("942100",),
         matched_rule_tags=("attack-sqli",),
+    )
+    code_evidence = EnforcementEvidence(
+        source_verification_status="VERIFIED",
+        crs_score=8,
+        crs_rule_ids=("933100",),
+        matched_rule_tags=("attack-injection-php",),
     )
     high = EnforcementPolicy.recommend(
         prediction="SQL Injection",
         confidence_level="HIGH",
         request_path="/support/submit",
         mode=EnforcementMode.ENFORCE,
-        evidence=evidence,
+        evidence=sql_evidence,
     )
     critical = EnforcementPolicy.recommend(
         prediction="Code Injection",
         confidence_level="CRITICAL",
         request_path="/records/REC-100",
         mode=EnforcementMode.ENFORCE,
-        evidence=evidence,
+        evidence=code_evidence,
     )
     assert high is not None
     assert high.action is RecommendedAction.APPLICATION_BLOCK
@@ -119,6 +125,52 @@ def test_high_and_critical_require_explicit_strong_crs_evidence() -> None:
     assert critical.action is RecommendedAction.WAF_BLOCK
     assert high.evidence_context is not None
     assert high.evidence_context["strong_waf_evidence"] is True
+    assert high.evidence_context["strong_waf_evidence_for_prediction"] is True
+    assert critical.evidence_context is not None
+    assert critical.evidence_context["strong_waf_evidence_for_prediction"] is True
+
+
+def test_crs_evidence_for_a_different_attack_class_cannot_support_blocking() -> None:
+    evidence = EnforcementEvidence(
+        source_verification_status="VERIFIED",
+        crs_score=8,
+        crs_rule_ids=("942100",),
+        matched_rule_tags=("attack-sqli",),
+    )
+
+    recommendation = EnforcementPolicy.recommend(
+        prediction="Code Injection",
+        confidence_level="HIGH",
+        request_path="/records/search",
+        mode=EnforcementMode.ENFORCE,
+        evidence=evidence,
+    )
+
+    assert recommendation is not None
+    assert recommendation.action is RecommendedAction.MONITOR
+    assert recommendation.decision_reason == "STRONG_CRS_EVIDENCE_REQUIRED"
+    assert recommendation.evidence_context is not None
+    assert recommendation.evidence_context["strong_waf_evidence"] is True
+    assert (
+        recommendation.evidence_context["strong_waf_evidence_for_prediction"]
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("prediction", "rule_id", "tag"),
+    [
+        ("SQL Injection", "942100", "attack-sqli"),
+        ("Code Injection", "932100", "attack-rce"),
+        ("Code Injection", "933100", "attack-injection-php"),
+        ("Code Injection", "934100", "attack-injection-nodejs"),
+    ],
+)
+def test_supported_crs_rule_families_match_expected_attack_class(
+    prediction: str, rule_id: str, tag: str
+) -> None:
+    assert EnforcementEvidence(crs_rule_ids=(rule_id,)).strongly_supports(prediction)
+    assert EnforcementEvidence(matched_rule_tags=(tag,)).strongly_supports(prediction)
 
 
 @pytest.mark.parametrize(

@@ -1341,6 +1341,124 @@ def test_marked_portal_route_event_can_verify_source_server_side(
     assert lookup.json()["source_verification_status"] == "VERIFIED"
 
 
+def test_marked_portal_search_get_is_inferred_and_source_verified(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "ingest_source": "portal_route_bridge",
+            "transaction_id": "waf-portal-search-get",
+            "source_ip": "198.51.100.24",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "query_string": None,
+            "request_headers": None,
+            "sanitized_body": "query=Maple+Street",
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "matched_rule_messages": None,
+            "matched_rule_tags": None,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers={
+            **WAF_HEADERS,
+            "X-CyberTrace-WAF-Audit": "portal_route",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
+        },
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-portal-search-get",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["found"] is True
+    assert lookup.json()["request_path"] == "/records/search"
+    assert lookup.json()["query_string"] is None
+    assert lookup.json()["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert lookup.json()["source_verification_status"] == "VERIFIED"
+    assert lookup.json()["crs_score"] == 0
+    assert lookup.json()["crs_rule_ids"] == ["no-crs-match"]
+
+
+def test_marked_portal_track_status_get_is_inferred_and_source_verified(
+    waf_api_client, monkeypatch
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    settings = routes_module.get_settings().model_copy(
+        update={
+            "waf_source_verification_mode": "cloudflare_tunnel",
+            "waf_audit_evidence_key": "test-audit-evidence-key",
+        }
+    )
+    monkeypatch.setattr(routes_module, "get_settings", lambda: settings)
+    payload = _waf_payload()
+    payload.update(
+        {
+            "ingest_source": "portal_route_bridge",
+            "transaction_id": "waf-portal-track-status-get",
+            "source_ip": "198.51.100.25",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+            "request_method": "GET",
+            "request_path": "/transactions/status",
+            "query_string": None,
+            "request_headers": None,
+            "sanitized_body": "ref=TXN-100201",
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "matched_rule_messages": None,
+            "matched_rule_tags": None,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers={
+            **WAF_HEADERS,
+            "X-CyberTrace-WAF-Audit": "portal_route",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
+        },
+    )
+
+    assert response.status_code == 200
+    lookup = client.get(
+        "/api/internal/waf-events/waf-portal-track-status-get",
+        headers=INTERNAL_HEADERS,
+    )
+    assert lookup.status_code == 200
+    assert lookup.json()["found"] is True
+    assert lookup.json()["request_path"] == "/transactions/status"
+    assert lookup.json()["query_string"] is None
+    assert lookup.json()["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert lookup.json()["source_verification_status"] == "VERIFIED"
+    assert lookup.json()["crs_score"] == 0
+    assert lookup.json()["crs_rule_ids"] == ["no-crs-match"]
+
+
 def test_portal_route_event_cannot_assert_modsecurity_evidence(
     waf_api_client, monkeypatch
 ):

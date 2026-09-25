@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from web_app.domain.classification_scope import ACTIONABLE_ATTACK_CLASSES
 from web_app.domain.enforcement import (
+    ACTIVE_POLICY_VERSION,
     ChallengeGrant,
     CounterKind,
     EffectiveRecommendation,
@@ -226,12 +227,14 @@ class EnforcementRecommendationRepository(IEnforcementRecommendationRepository):
             )
             .where(
                 TrafficLog.source_ip == source_ip,
+                TrafficLog.source_verification_status == "VERIFIED",
                 TrafficLog.status == "COMPLETED",
                 TrafficLog.prediction.in_(tuple(ACTIONABLE_ATTACK_CLASSES)),
                 TrafficLog.timestamp >= lower_bound,
                 TrafficLog.timestamp <= now,
                 EnforcementRecommendationRow.scope == scope.value,
                 EnforcementRecommendationRow.enforcement_mode == "ENFORCE",
+                EnforcementRecommendationRow.policy_version == ACTIVE_POLICY_VERSION,
                 EnforcementRecommendationRow.recommended_action.in_(
                     ["THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
                 ),

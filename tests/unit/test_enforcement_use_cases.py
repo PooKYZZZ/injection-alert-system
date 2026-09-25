@@ -121,7 +121,11 @@ class ExpiringActiveRepository(ActiveRepository):
 
 
 def _active_recommendation(
-    tier: EnforcementTier, *, source_status="VERIFIED", strong_evidence=False
+    tier: EnforcementTier,
+    *,
+    source_status="VERIFIED",
+    strong_evidence=False,
+    created_at=datetime(2026, 7, 21, 0, 0, 30, tzinfo=timezone.utc),
 ):
     return EffectiveRecommendation(
         trigger_traffic_log_id=42,
@@ -139,13 +143,16 @@ def _active_recommendation(
         ),
         mode=EnforcementMode.ENFORCE,
         policy_version=ACTIVE_POLICY_VERSION,
-        created_at=datetime(2026, 7, 21, tzinfo=timezone.utc),
+        created_at=created_at,
         expires_at=datetime(2026, 7, 21, 0, 15, tzinfo=timezone.utc),
         source_verification_status=source_status,
         decision_reason=(
             "STRONG_CRS_EVIDENCE" if strong_evidence else "STRONG_CRS_EVIDENCE_REQUIRED"
         ),
-        evidence_context={"strong_waf_evidence": strong_evidence},
+        evidence_context={
+            "strong_waf_evidence": strong_evidence,
+            "strong_waf_evidence_for_prediction": strong_evidence,
+        },
     )
 
 
@@ -431,7 +438,53 @@ async def test_medium_throttles_after_three_persisted_suspicious_events():
     assert first.decision_reason == "MEDIUM_EVIDENCE_PENDING"
     assert throttled.decision == "THROTTLE"
     assert throttled.decision_reason == "REPEATED_SUSPICIOUS_ACTIVITY"
-    assert throttled.retry_after_seconds == 60
+    assert throttled.retry_after_seconds == 30
+
+
+@pytest.mark.asyncio
+async def test_medium_throttle_expires_after_its_configured_window():
+    now = datetime(2026, 7, 21, 0, 1, 30, tzinfo=timezone.utc)
+    repo = ActiveRepository(_active_recommendation(EnforcementTier.MEDIUM))
+    repo.suspicious_event_count = 3
+
+    result = await EvaluateEnforcementUseCase(
+        repository=repo,
+        mode=EnforcementMode.ENFORCE,
+        low_window_seconds=60,
+        low_max_unchallenged_requests=5,
+        medium_window_seconds=60,
+        medium_max_requests=10,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH)
+
+    assert result.decision == "ALLOW"
+    assert result.matched is True
+    assert result.decision_reason == "MEDIUM_THROTTLE_EXPIRED"
+    assert result.retry_after_seconds is None
+
+
+@pytest.mark.asyncio
+async def test_medium_matching_crs_evidence_triggers_a_bounded_throttle():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    repo = ActiveRepository(
+        _active_recommendation(EnforcementTier.MEDIUM, strong_evidence=True)
+    )
+
+    result = await EvaluateEnforcementUseCase(
+        repository=repo,
+        mode=EnforcementMode.ENFORCE,
+        low_window_seconds=60,
+        low_max_unchallenged_requests=5,
+        medium_window_seconds=60,
+        medium_max_requests=10,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH)
+
+    assert result.decision == "THROTTLE"
+    assert result.decision_reason == "STRONG_CRS_EVIDENCE"
+    assert result.retry_after_seconds == 30
 
 
 @pytest.mark.asyncio
@@ -467,6 +520,29 @@ async def test_high_enforcement_requires_application_block_policy_action():
     malformed = replace(
         _active_recommendation(EnforcementTier.HIGH),
         action=RecommendedAction.THROTTLE,
+    )
+
+    result = await EvaluateEnforcementUseCase(
+        repository=ActiveRepository(malformed),
+        mode=EnforcementMode.ENFORCE,
+        low_window_seconds=60,
+        low_max_unchallenged_requests=5,
+        medium_window_seconds=60,
+        medium_max_requests=10,
+        allow_unverified_source_for_tests=False,
+        clock=lambda: now,
+    ).execute(source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH)
+
+    assert result.decision == "ALLOW"
+    assert result.matched is False
+
+
+@pytest.mark.asyncio
+async def test_high_enforcement_requires_class_matched_evidence_context():
+    now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
+    malformed = replace(
+        _active_recommendation(EnforcementTier.HIGH, strong_evidence=True),
+        evidence_context={"strong_waf_evidence": True},
     )
 
     result = await EvaluateEnforcementUseCase(
