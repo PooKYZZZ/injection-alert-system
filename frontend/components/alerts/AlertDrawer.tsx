@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { describeEvidenceRelationship } from '@/features/alerts/evidence'
+import { getActionLabelText } from '@/components/ui/ActionLabel'
 
 interface AlertDrawerProps {
   role?: unknown
@@ -202,7 +203,9 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                                 : 'border-surface-border text-[var(--color-text-secondary)]'
                         )}
                       >
-                        {displayAction ? ALERT_DISPLAY_ACTION_ALIASES[displayAction] : 'No Action'}
+                        {displayAction
+                          ? getActionLabelText(displayAction, alert.confidence_level, alert.prediction)
+                          : 'No Action'}
                       </span>
                     </div>
                     {isError && (
