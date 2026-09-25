@@ -120,6 +120,12 @@ view, Normal rows remain traffic records: they retain their stored classificatio
 and action, have no analyst triage or action-update workflow, and do not create
 operational alerts. The default API response is unchanged.
 
+The authenticated single-alert detail includes a separately stored, redacted
+WAF query string when the ingest source retains one. The alert-list projection
+does not include query data. Sensitive query parameter values are redacted at
+ingest; ordinary successful-access telemetry intentionally does not persist its
+query string, and no missing request data is reconstructed from model input.
+
 The same policy is applied in the repository boundary for alert detail,
 statistics, activity buckets, recent operational traffic, triage/action
 updates, enforcement recommendation lookups, and direct threat notification

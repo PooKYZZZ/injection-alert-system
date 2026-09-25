@@ -312,6 +312,24 @@ def test_alert_detail_response_supports_optional_crs_and_review_fields():
     assert alert.labeled_by == "analyst@example.com"
 
 
+def test_alert_detail_response_exposes_only_the_redacted_query_string():
+    alert = AlertDetailResponse(
+        id=1,
+        timestamp="2026-03-15T10:00:00Z",
+        request_path="/records/search",
+        request_method="GET",
+        payload_snippet="GET /records/search HTTP/1.1",
+        query_string="query=parcel%20lookup&token=%5BREDACTED%5D",
+        prediction="Code Injection",
+        confidence=0.71,
+        confidence_level="MEDIUM",
+    )
+
+    assert alert.model_dump(mode="json")["query_string"] == (
+        "query=parcel%20lookup&token=%5BREDACTED%5D"
+    )
+
+
 def test_alert_detail_response_serializes_labeled_at_as_utc_rfc3339():
     alert = AlertDetailResponse(
         id=1,
