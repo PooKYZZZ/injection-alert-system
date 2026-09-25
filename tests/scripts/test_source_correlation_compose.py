@@ -71,6 +71,9 @@ def _compose_config_result(
             "COMPOSE_DISABLE_ENV_FILE": "1",
             "WAF_INGEST_API_KEY": "compose-test-waf-key-not-a-runtime-secret",
             "WAF_AUDIT_EVIDENCE_KEY": "compose-test-audit-evidence-key",
+            "CLOUDFLARE_TARGET_VERIFIED_PROOF": "false",
+            "CYBERTRACE_NORMAL_ACCESS_TELEMETRY": "true",
+            "WAF_TRUSTED_TUNNEL_PEER": "172.30.20.2",
             "SOURCE_TEST_API_SECRET_KEY": "compose-test-internal-key",
             "SOURCE_TEST_WAF_INGEST_API_KEY": "compose-test-waf-key",
             "CLOUDFLARED_TARGET_TOKEN_FILE": token_file,
@@ -219,6 +222,33 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "CYBERTRACE_NORMAL_ACCESS_TELEMETRY"
+    ] == "true"
+    assert config["services"]["demo-target-bridge"]["environment"][
+        "CYBERTRACE_NORMAL_ACCESS_TELEMETRY"
+    ] == "true"
+    assert config["services"]["demo-target-bridge"]["environment"][
+        "WAF_TRUSTED_TUNNEL_PEER"
+    ] == "172.30.20.2"
+    assert "--normal-access-socket" in " ".join(
+        config["services"]["demo-target-bridge"]["command"]
+    )
+    bridge_socket_mount = next(
+        mount
+        for mount in config["services"]["demo-target-bridge"]["volumes"]
+        if mount["target"] == "/run/cybertrace-normal"
+    )
+    waf_socket_mount = next(
+        mount
+        for mount in config["services"]["demo-target-modsecurity"]["volumes"]
+        if mount["target"] == "/run/cybertrace-normal"
+    )
+    assert bridge_socket_mount["source"] == waf_socket_mount["source"]
+    assert config["services"]["demo-target-bridge"]["healthcheck"]
+    assert config["services"]["demo-target-modsecurity"]["depends_on"][
+        "demo-target-bridge"
+    ]["condition"] == "service_healthy"
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
     ] == "unverified"
@@ -411,6 +441,50 @@ def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
     assert "10.0.0.0/8" not in template
     assert "172.16.0.0/12" not in template
     assert "192.168.0.0/16" not in template
+
+
+def test_normal_access_logging_is_allowlisted_and_omits_request_content() -> None:
+    template = (
+        ROOT / "config" / "modsecurity" / "normal-access-logging.conf.template"
+    ).read_text(encoding="utf-8")
+    proxy = (
+        ROOT
+        / "config"
+        / "modsecurity"
+        / "source-correlation-proxy-backend.conf.template"
+    ).read_text(encoding="utf-8")
+
+    assert '"$uri"' in template
+    assert "$arg__rsc" in template
+    assert '"$http_cf_connecting_ip"' in template
+    assert '"$request"' not in template
+    assert '"query_string":"$args"' in template
+    assert '"$request_body"' not in template
+    assert "[23][0-9][0-9]" in template
+    assert "[0-9]{2}" not in template
+    assert "access_log /dev/null combined;" in proxy
+    assert "syslog:server=unix:/run/cybertrace-normal/normal.sock" in proxy
+    assert "target_normal.jsonl" not in proxy
+
+    compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
+    assert (
+        "/etc/nginx/templates/conf.d/00-normal-access-logging.conf.template"
+        in compose
+    )
+
+
+def test_cloudflare_target_launcher_keeps_verification_opt_in_and_shadowed() -> None:
+    launcher = (
+        ROOT / "scripts" / "start_full_cloudflare_target.ps1"
+    ).read_text(encoding="utf-8")
+
+    assert "[switch]$VerifyCloudflareSourceProof" in launcher
+    assert '$env:ENFORCEMENT_MODE = "shadow"' in launcher
+    assert '$env:ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS = "false"' in launcher
+    assert '$env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"' in launcher
+    assert '$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"' in launcher
+    assert '$env:WAF_SOURCE_VERIFICATION_MODE = "unverified"' in launcher
+    assert '$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "false"' in launcher
 
 
 def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None:

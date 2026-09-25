@@ -115,6 +115,57 @@ async def test_ingest_builds_http_request_from_structured_fields():
 
 
 @pytest.mark.asyncio
+async def test_normal_access_uses_search_query_for_inference_without_retaining_it():
+    classifier = Mock()
+    classifier.loaded = True
+    classifier.model_version = "test"
+    classifier.predict.return_value = {
+        "prediction": "Normal",
+        "confidence": 0.75,
+        "confidence_level": "MEDIUM",
+    }
+    repository = AsyncMock()
+
+    async def _claim(entity, *, owner_token, **_kwargs):
+        entity.id = 1
+        entity.processing_owner_token = owner_token
+        return entity
+
+    repository.claim_or_reclaim_processing.side_effect = _claim
+    repository.complete_processing.return_value = _completed(
+        id=1,
+        prediction="Normal",
+        confidence=0.75,
+        confidence_level="MEDIUM",
+        action_taken="ALLOWED",
+        model_version="test",
+    )
+    use_case = WafIngestUseCase(classifier=classifier, repository=repository)
+
+    await use_case.execute(
+        transaction_id="tx-normal-query",
+        timestamp=None,
+        ingest_source="nginx_access_bridge",
+        source_ip="198.51.100.24",
+        request_method="GET",
+        request_path="/records/search",
+        request_headers={},
+        sanitized_body=None,
+        crs_score=0,
+        crs_rule_ids=["no-crs-match"],
+        query_string="query=LND-2026-0001",
+    )
+
+    classifier_input = classifier.predict.call_args.args[0]
+    assert "lnd-2026-0001" in classifier_input
+    saved_entity = repository.claim_or_reclaim_processing.call_args.args[0]
+    assert saved_entity.query_string is None
+    assert "LND-2026-0001" not in saved_entity.http_request
+    assert repository.complete_processing.call_args.kwargs["model_input_text"] is None
+    assert repository.complete_processing.call_args.kwargs["model_input_hash"]
+
+
+@pytest.mark.asyncio
 async def test_ingest_rejects_model_not_ready():
     classifier = Mock()
     classifier.loaded = False

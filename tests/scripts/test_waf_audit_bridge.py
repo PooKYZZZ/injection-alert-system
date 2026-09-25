@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 from email.message import Message
 from io import StringIO
@@ -10,6 +11,7 @@ import scripts.waf_audit_bridge as waf_audit_bridge
 from scripts.waf_audit_bridge import (
     _TransactionDedupCache,
     follow_bridge,
+    follow_normal_access_socket,
     main,
     normalize_event,
     post_event,
@@ -213,7 +215,10 @@ def test_direct_mode_uses_canonical_client_ip_and_ignores_forged_cf_header():
     assert normalized["cf_connecting_ip_matches_client_ip"] is None
 
 
-def test_cloudflare_mode_uses_transaction_client_ip_as_authoritative_source():
+def test_cloudflare_mode_uses_transaction_client_ip_as_authoritative_source(
+    monkeypatch,
+):
+    monkeypatch.setenv("WAF_TRUSTED_TUNNEL_PEER", "172.30.20.2")
     normalized = normalize_event(
         {
             "transaction": {
@@ -234,7 +239,8 @@ def test_cloudflare_mode_uses_transaction_client_ip_as_authoritative_source():
     assert normalized["cf_connecting_ip_matches_client_ip"] is True
 
 
-def test_cloudflare_audit_uses_transaction_client_ip_without_raw_header():
+def test_cloudflare_audit_uses_transaction_client_ip_without_raw_header(monkeypatch):
+    monkeypatch.setenv("WAF_TRUSTED_TUNNEL_PEER", "172.30.20.2")
     normalized = normalize_event(
         {
             "transaction": {
@@ -252,6 +258,7 @@ def test_cloudflare_audit_uses_transaction_client_ip_without_raw_header():
 
 
 def test_cloudflare_audit_post_marks_only_modsecurity_audit_evidence(monkeypatch):
+    monkeypatch.setenv("WAF_TRUSTED_TUNNEL_PEER", "172.30.20.2")
     posted = {}
 
     def fake_post_event(
@@ -418,7 +425,10 @@ def test_generic_cloudflare_payload_stays_direct_and_unverified():
     assert normalized["cf_connecting_ip_matches_client_ip"] is None
 
 
-def test_cloudflare_mode_ignores_raw_header_comparison():
+def test_cloudflare_mode_rejects_mismatched_or_ambiguous_forwarded_header(
+    monkeypatch,
+):
+    monkeypatch.setenv("WAF_TRUSTED_TUNNEL_PEER", "172.30.20.2")
     mismatch = normalize_event(
         {
             "transaction": {
@@ -449,9 +459,262 @@ def test_cloudflare_mode_ignores_raw_header_comparison():
     )
 
     assert mismatch["source_ip"] == "192.0.2.10"
-    assert mismatch["cf_connecting_ip_matches_client_ip"] is True
+    assert mismatch["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert mismatch["cf_connecting_ip_matches_client_ip"] is None
+    assert "CF-Connecting-IP" not in mismatch["request_headers"]
     assert invalid["source_ip"] == "192.0.2.10"
-    assert invalid["cf_connecting_ip_matches_client_ip"] is True
+    assert invalid["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert invalid["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_cloudflare_access_source_requires_matching_ip_and_trusted_tunnel_peer(
+    monkeypatch,
+):
+    monkeypatch.setenv("WAF_TRUSTED_TUNNEL_PEER", "172.30.20.2")
+    event = {
+        "transaction_id": "normal-request-01",
+        "timestamp": "2026-09-24T12:30:00+08:00",
+        "source_ip": "198.51.100.24",
+        "cf_connecting_ip": "198.51.100.24",
+        "proxy_peer_ip": "172.30.20.2",
+        "request_method": "GET",
+        "request_path": "/records/search",
+        "status": 200,
+    }
+
+    payload = normalize_event(
+        event,
+        provenance_mode="cloudflare_connecting_ip",
+        ingest_source="nginx_access_bridge",
+    )
+
+    assert payload["source_ip"] == "198.51.100.24"
+    assert payload["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert payload["cf_connecting_ip_matches_client_ip"] is True
+    assert payload["ingest_source"] == "nginx_access_bridge"
+    assert payload["transaction_id"] == "normal-request-01"
+    assert payload["timestamp"] == "2026-09-24T04:30:00Z"
+    assert payload["query_string"] is None
+    assert payload["request_headers"] is None
+    assert payload["sanitized_body"] is None
+    assert payload["crs_score"] == 0
+    assert payload["crs_rule_ids"] == ["no-crs-match"]
+
+    forged = normalize_event(
+        {**event, "cf_connecting_ip": "203.0.113.99"},
+        provenance_mode="cloudflare_connecting_ip",
+        ingest_source="nginx_access_bridge",
+    )
+    wrong_peer = normalize_event(
+        {**event, "proxy_peer_ip": "172.30.20.9"},
+        provenance_mode="cloudflare_connecting_ip",
+        ingest_source="nginx_access_bridge",
+    )
+    assert forged["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert forged["cf_connecting_ip_matches_client_ip"] is None
+    assert wrong_peer["source_provenance"] == "DIRECT_REMOTE_ADDR"
+    assert wrong_peer["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_normal_access_ingest_rejects_non_allowlisted_route_and_status():
+    base = {
+        "transaction_id": "normal-request-invalid",
+        "request_method": "GET",
+        "request_path": "/api/internal/alerts",
+        "status": 200,
+    }
+
+    with pytest.raises(ValueError, match="outside the ingest allowlist"):
+        normalize_event(base, ingest_source="nginx_access_bridge")
+    with pytest.raises(ValueError, match="outside the ingest allowlist"):
+        normalize_event(
+            {**base, "request_path": "/records/search", "status": 403},
+            ingest_source="nginx_access_bridge",
+        )
+
+
+def test_normal_access_ingest_rejects_oversized_query_string():
+    with pytest.raises(ValueError, match="query is invalid or exceeds its limit"):
+        normalize_event(
+            {
+                "request_method": "GET",
+                "request_path": "/records/search",
+                "query_string": "q=" + ("x" * 4096),
+                "status": 200,
+            },
+            ingest_source="nginx_access_bridge",
+        )
+
+
+def test_decode_normal_access_syslog_json_record():
+    event = {"transaction_id": "tx-normal", "query_string": "query=demo"}
+    message = b"<14>Sep 24 12:30:00 nginx: target_normal: " + json.dumps(
+        event
+    ).encode()
+
+    assert waf_audit_bridge._decode_normal_access_syslog(message) == event
+
+    with pytest.raises(ValueError, match="trailing data"):
+        waf_audit_bridge._decode_normal_access_syslog(message + b" extra")
+
+
+def test_normal_access_socket_forwards_datagram_without_persisting_payload(
+    tmp_path, monkeypatch
+):
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("Unix-domain sockets are unavailable")
+
+    socket_path = tmp_path / "normal.sock"
+    ready = threading.Event()
+    received = threading.Event()
+    stop = threading.Event()
+    forwarded = {}
+    original_log_event = waf_audit_bridge._log_event
+
+    def signal_ready(event, message, level="INFO", **fields):
+        if event == "bridge.normal_access_listening":
+            ready.set()
+        original_log_event(event, message, level=level, **fields)
+
+    def receive_event(line, **kwargs):
+        forwarded["event"] = json.loads(line)
+        forwarded["kwargs"] = kwargs
+        received.set()
+        return True, True
+
+    monkeypatch.setattr(waf_audit_bridge, "_log_event", signal_ready)
+    monkeypatch.setattr(waf_audit_bridge, "_process_event_line", receive_event)
+    worker = threading.Thread(
+        target=follow_normal_access_socket,
+        kwargs={
+            "socket_path": socket_path,
+            "endpoint": "http://backend/api/internal/waf-events",
+            "api_secret": "test-key",
+            "timeout": 1,
+            "max_retries": 0,
+            "stop_event": stop,
+        },
+        daemon=True,
+    )
+    worker.start()
+
+    try:
+        assert ready.wait(2)
+        event = {
+            "transaction_id": "tx-normal-socket",
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "query_string": "query=LND-2026-0001",
+            "status": 200,
+        }
+        sender = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        try:
+            sender.sendto(
+                b"<14>nginx: target_normal: " + json.dumps(event).encode(),
+                str(socket_path),
+            )
+        finally:
+            sender.close()
+
+        assert received.wait(2)
+        assert forwarded["event"] == event
+        assert forwarded["kwargs"]["ingest_source"] == "nginx_access_bridge"
+        assert not list(tmp_path.glob("*.jsonl"))
+    finally:
+        stop.set()
+        worker.join(timeout=2)
+
+
+def test_normal_access_socket_cli_starts_listener_with_supported_arguments(
+    monkeypatch, tmp_path
+):
+    started = {}
+
+    class FakeThread:
+        def __init__(self, *, target, kwargs, name, daemon):
+            started.update(
+                target=target,
+                kwargs=kwargs,
+                name=name,
+                daemon=daemon,
+            )
+
+        def start(self):
+            started["started"] = True
+
+    monkeypatch.setattr(
+        waf_audit_bridge.sys,
+        "argv",
+        [
+            "waf_audit_bridge",
+            "--input",
+            str(tmp_path / "audit.jsonl"),
+            "--normal-access-socket",
+            str(tmp_path / "normal.sock"),
+            "--follow",
+        ],
+    )
+    monkeypatch.setenv("WAF_INGEST_API_KEY", "test-key")
+    monkeypatch.setenv("WAF_SOURCE_PROVENANCE_MODE", "direct_remote_addr")
+    monkeypatch.setattr(waf_audit_bridge.threading, "Thread", FakeThread)
+    monkeypatch.setattr(waf_audit_bridge, "follow_bridge", lambda **_kwargs: (0, 0, 0))
+
+    assert waf_audit_bridge.main() == 0
+    assert started["target"] is follow_normal_access_socket
+    assert "socket_path" in started["kwargs"]
+    assert "start_at_end" not in started["kwargs"]
+    assert "ingest_source" not in started["kwargs"]
+    assert started["started"] is True
+
+
+def test_cloudflare_normal_access_posts_distinct_authenticated_marker(monkeypatch):
+    monkeypatch.setenv("WAF_TRUSTED_TUNNEL_PEER", "172.30.20.2")
+    posted = {}
+
+    def fake_post_event(
+        payload,
+        *,
+        endpoint,
+        api_secret,
+        timeout,
+        audit_evidence=False,
+        audit_marker_value="modsecurity",
+    ):
+        posted["payload"] = payload
+        posted["audit_evidence"] = audit_evidence
+        posted["audit_marker_value"] = audit_marker_value
+        return 200
+
+    monkeypatch.setattr(waf_audit_bridge, "post_event", fake_post_event)
+    raw_event = {
+        "transaction_id": "normal-request-02",
+        "timestamp": "2026-09-24T12:31:00+08:00",
+        "source_ip": "198.51.100.24",
+        "cf_connecting_ip": "198.51.100.24",
+        "proxy_peer_ip": "172.30.20.2",
+        "request_method": "GET",
+        "request_path": "/transactions/status",
+        "query_string": "reference=TX-2026-001",
+        "status": 200,
+    }
+
+    result = run_bridge(
+        input_stream=StringIO(json.dumps(raw_event) + "\n"),
+        endpoint="http://backend/api/internal/waf-events",
+        api_secret="test-key",
+        timeout=1,
+        max_retries=0,
+        provenance_mode="cloudflare_connecting_ip",
+        ingest_source="nginx_access_bridge",
+    )
+
+    assert result == (1, 1, 0)
+    assert posted["audit_evidence"] is True
+    assert posted["audit_marker_value"] == "nginx_access"
+    assert posted["payload"]["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
+    assert posted["payload"]["query_string"] == "reference=TX-2026-001"
+    assert "cf_connecting_ip" not in posted["payload"]
+    assert "proxy_peer_ip" not in posted["payload"]
 
 
 def test_missing_source_and_source_timestamp_remain_null():

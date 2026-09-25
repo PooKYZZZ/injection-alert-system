@@ -23,7 +23,7 @@ def assign_server_source_provenance(
     mode: VerificationMode,
     audit_evidence_header: str | None,
 ) -> SourceProvenance:
-    """Assign trusted provenance only for marked ModSecurity audit evidence."""
+    """Assign trusted provenance only for authenticated WAF telemetry."""
     if (
         mode == "cloudflare_tunnel"
         and requested_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP

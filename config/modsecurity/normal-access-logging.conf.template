@@ -1,0 +1,20 @@
+# Successful target workflows are triaged separately because ModSecurity's
+# RelevantOnly audit log intentionally omits ordinary 2xx/3xx transactions.
+# Keep the allowlist aligned with lib/routes.ts; exclude Next.js RSC prefetches.
+map "${CYBERTRACE_NORMAL_ACCESS_TELEMETRY}|$request_method|$uri|$status|$arg__rsc" $cybertrace_normal_access_loggable {
+    default 0;
+    ~^true\|(?:GET|POST)\|/(?:records/search|records/[A-Za-z0-9-]+|transactions/status|appointments(?:/submit)?|support(?:/submit)?|login(?:/submit)?|comments(?:/submit)?|records/[A-Za-z0-9-]+/request-copy(?:/submit)?)\|[23][0-9][0-9]\|$ 1;
+}
+
+log_format cybertrace_normal escape=json
+    '{'
+        '"transaction_id":"$request_id",'
+        '"timestamp":"$time_iso8601",'
+        '"source_ip":"$remote_addr",'
+        '"cf_connecting_ip":"$http_cf_connecting_ip",'
+        '"proxy_peer_ip":"$realip_remote_addr",'
+        '"request_method":"$request_method",'
+        '"request_path":"$uri",'
+        '"query_string":"$args",'
+        '"status":$status'
+    '}';

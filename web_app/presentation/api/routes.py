@@ -300,11 +300,16 @@ async def ingest_waf_event(
     audit_key = request.headers.get("X-CyberTrace-WAF-Audit-Key")
     expected_audit_key = settings.waf_audit_evidence_key
     authenticated_audit_marker = None
+    expected_audit_marker = {
+        "modsec_audit_bridge": "modsecurity",
+        "nginx_access_bridge": "nginx_access",
+    }.get(payload.ingest_source)
     if (
         audit_key
         and expected_audit_key
         and hmac.compare_digest(audit_key, expected_audit_key)
-        and request.headers.get(WAF_AUDIT_EVIDENCE_HEADER) == "modsecurity"
+        and expected_audit_marker
+        and request.headers.get(WAF_AUDIT_EVIDENCE_HEADER) == expected_audit_marker
     ):
         authenticated_audit_marker = "authenticated"
 
