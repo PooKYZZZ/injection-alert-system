@@ -78,9 +78,15 @@ export const ALERT_DISPLAY_ACTION_ALIASES: Record<AlertAction, string> = {
 
 export function getAlertActionLabel(
   action: AlertAction,
-  confidenceTier?: AlertConfidenceTier | null
+  confidenceTier?: AlertConfidenceTier | null,
+  prediction?: AlertPrediction | null
 ): string {
-  if (action === 'ALLOWED' && confidenceTier === 'LOW') {
+  if (
+    action === 'ALLOWED' &&
+    confidenceTier === 'LOW' &&
+    prediction != null &&
+    isActionableAttackClass(prediction)
+  ) {
     return 'Monitor Only'
   }
   return ALERT_DISPLAY_ACTION_ALIASES[action]

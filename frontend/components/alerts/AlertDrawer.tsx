@@ -214,7 +214,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         )}
                       >
                         {displayAction
-                          ? getAlertActionLabel(displayAction, alert.confidence_level)
+                          ? getAlertActionLabel(displayAction, alert.confidence_level, alert.prediction)
                           : 'No Action'}
                       </span>
                     </div>
