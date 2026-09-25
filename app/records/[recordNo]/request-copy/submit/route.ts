@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { browserRedirect } from "@/lib/redirect";
 import { z } from "zod";
 import { generateReferenceNumber } from "@/lib/reference-number";
+import { checkEnforcementFromRuntime } from "../../../../../lib/enforcement-check-runtime";
+import { enforcementRouteResponse } from "../../../../../lib/enforcement-boundary";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full legal name is required"),
@@ -16,6 +18,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ recordNo: string }> }
 ) {
+  const enforcement = await checkEnforcementFromRuntime("REQUEST_COPY_SUBMIT");
+  const enforcementResponse = enforcementRouteResponse(enforcement);
+  if (enforcementResponse) return enforcementResponse;
+
   try {
     const { recordNo } = await params;
 

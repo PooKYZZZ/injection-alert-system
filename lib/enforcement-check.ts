@@ -1,6 +1,15 @@
 import { isIP } from "node:net";
 
 export type EnforcementMode = "off" | "shadow" | "enforce";
+export type EnforcementScope =
+  | "RECORD_SEARCH"
+  | "RECORD_DETAIL"
+  | "TRACK_STATUS"
+  | "SUPPORT_SUBMIT"
+  | "APPOINTMENT_SUBMIT"
+  | "COMMENTS_SUBMIT"
+  | "LOGIN_SUBMIT"
+  | "REQUEST_COPY_SUBMIT";
 export type AppEnv =
   | "development"
   | "testing"
@@ -29,10 +38,20 @@ export type ShadowEnforcementConfig = Omit<EnforcementConfig, "mode"> & {
 
 export type EnforcementCheckResult =
   | { decision: "ALLOW"; status: "skipped"; reason: "MODE_OFF" | "NO_SOURCE_IP" }
-  | { decision: "ALLOW"; status: "checked" }
-  | { decision: "CHALLENGE"; status: "checked"; tier: "LOW" | "MEDIUM" }
-  | { decision: "THROTTLE"; status: "checked"; retryAfterSeconds: number }
-  | { decision: "BLOCK"; status: "checked" }
+  | { decision: "ALLOW"; status: "checked"; decisionReason?: string }
+  | {
+      decision: "CHALLENGE";
+      status: "checked";
+      tier: "LOW" | "MEDIUM";
+      decisionReason?: string;
+    }
+  | {
+      decision: "THROTTLE";
+      status: "checked";
+      retryAfterSeconds: number;
+      decisionReason?: string;
+    }
+  | { decision: "BLOCK"; status: "checked"; decisionReason?: string }
   | {
       decision: "ALLOW";
       status: "degraded";
@@ -127,53 +146,93 @@ export function requestSourceIp(
   return firstForwardedAddress(requestHeaders.get("x-forwarded-for"));
 }
 
-function exactAllowResponse(value: unknown): value is { decision: "ALLOW" } {
+function validDecisionReason(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= 128;
+}
+
+function exactAllowResponse(
+  value: unknown,
+): value is { decision: "ALLOW"; decision_reason?: string } {
   if (value === null || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
-  return Object.keys(record).length === 1 && record.decision === "ALLOW";
+  const keys = Object.keys(record);
+  return (
+    (keys.length === 1 || keys.length === 2) &&
+    record.decision === "ALLOW" &&
+    (keys.length === 1 || validDecisionReason(record.decision_reason))
+  );
 }
 
 function parseActiveResponse(value: unknown):
-  | { decision: "ALLOW" }
-  | { decision: "CHALLENGE"; tier: "LOW" | "MEDIUM" }
-  | { decision: "THROTTLE"; retryAfterSeconds: number }
-  | { decision: "BLOCK" }
+  | { decision: "ALLOW"; decisionReason?: string }
+  | { decision: "CHALLENGE"; tier: "LOW" | "MEDIUM"; decisionReason?: string }
+  | { decision: "THROTTLE"; retryAfterSeconds: number; decisionReason?: string }
+  | { decision: "BLOCK"; decisionReason?: string }
   | null {
   if (value === null || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  if (exactAllowResponse(value)) return { decision: "ALLOW" };
-  if (Object.keys(record).length === 1 && record.decision === "BLOCK") {
-    return { decision: "BLOCK" };
+  if (exactAllowResponse(value)) {
+    return {
+      decision: "ALLOW",
+      ...(validDecisionReason(record.decision_reason)
+        ? { decisionReason: record.decision_reason }
+        : {}),
+    };
   }
   if (
-    Object.keys(record).length === 2 &&
-    record.decision === "CHALLENGE" &&
-    (record.enforcement_tier === "LOW" || record.enforcement_tier === "MEDIUM")
+    (Object.keys(record).length === 1 || Object.keys(record).length === 2) &&
+    record.decision === "BLOCK" &&
+    (Object.keys(record).length === 1 || validDecisionReason(record.decision_reason))
   ) {
-    return { decision: "CHALLENGE", tier: record.enforcement_tier };
+    return {
+      decision: "BLOCK",
+      ...(validDecisionReason(record.decision_reason)
+        ? { decisionReason: record.decision_reason }
+        : {}),
+    };
   }
   if (
-    Object.keys(record).length === 2 &&
+    (Object.keys(record).length === 2 || Object.keys(record).length === 3) &&
+    record.decision === "CHALLENGE" &&
+    (record.enforcement_tier === "LOW" || record.enforcement_tier === "MEDIUM") &&
+    (Object.keys(record).length === 2 || validDecisionReason(record.decision_reason))
+  ) {
+    return {
+      decision: "CHALLENGE",
+      tier: record.enforcement_tier,
+      ...(validDecisionReason(record.decision_reason)
+        ? { decisionReason: record.decision_reason }
+        : {}),
+    };
+  }
+  if (
+    (Object.keys(record).length === 2 || Object.keys(record).length === 3) &&
     record.decision === "THROTTLE" &&
     typeof record.retry_after_seconds === "number" &&
     Number.isInteger(record.retry_after_seconds) &&
-    record.retry_after_seconds >= 1
+    record.retry_after_seconds >= 1 &&
+    (Object.keys(record).length === 2 || validDecisionReason(record.decision_reason))
   ) {
     return {
       decision: "THROTTLE",
       retryAfterSeconds: record.retry_after_seconds,
+      ...(validDecisionReason(record.decision_reason)
+        ? { decisionReason: record.decision_reason }
+        : {}),
     };
   }
   return null;
 }
 
-export async function checkRecordSearchEnforcement({
+export async function checkEnforcement({
   requestHeaders,
   config,
+  scope,
   fetchImpl = fetch,
 }: {
   requestHeaders: Pick<Headers, "get">;
   config: EnforcementConfig;
+  scope: EnforcementScope;
   fetchImpl?: FetchLike;
 }): Promise<EnforcementCheckResult> {
   if (config.mode === "off") {
@@ -207,7 +266,7 @@ export async function checkRecordSearchEnforcement({
         authorization: `Bearer ${config.apiKey}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ scope: "RECORD_SEARCH", source_ip: sourceIp }),
+      body: JSON.stringify({ scope, source_ip: sourceIp }),
       cache: "no-store",
       signal: controller.signal,
     });
@@ -223,24 +282,59 @@ export async function checkRecordSearchEnforcement({
     }
     if (!active) {
       return exactAllowResponse(body)
-        ? { decision: "ALLOW", status: "checked" }
+        ? {
+            decision: "ALLOW",
+            status: "checked",
+            ...(validDecisionReason(
+              (body as Record<string, unknown>).decision_reason,
+            )
+              ? {
+                  decisionReason: (body as Record<string, unknown>)
+                    .decision_reason as string,
+                }
+              : {}),
+          }
         : { decision: "ALLOW", status: "degraded", reason: "INVALID_RESPONSE" };
     }
     const parsed = parseActiveResponse(body);
     if (!parsed) {
       return { decision: "ALLOW", status: "degraded", reason: "INVALID_RESPONSE" };
     }
-    if (parsed.decision === "ALLOW") return { decision: "ALLOW", status: "checked" };
+    if (parsed.decision === "ALLOW") {
+      return {
+        decision: "ALLOW",
+        status: "checked",
+        ...(parsed.decisionReason
+          ? { decisionReason: parsed.decisionReason }
+          : {}),
+      };
+    }
     if (parsed.decision === "CHALLENGE") {
-      return { decision: "CHALLENGE", status: "checked", tier: parsed.tier };
+      return {
+        decision: "CHALLENGE",
+        status: "checked",
+        tier: parsed.tier,
+        ...(parsed.decisionReason
+          ? { decisionReason: parsed.decisionReason }
+          : {}),
+      };
     }
     if (parsed.decision === "BLOCK") {
-      return { decision: "BLOCK", status: "checked" };
+      return {
+        decision: "BLOCK",
+        status: "checked",
+        ...(parsed.decisionReason
+          ? { decisionReason: parsed.decisionReason }
+          : {}),
+      };
     }
     return {
       decision: "THROTTLE",
       status: "checked",
       retryAfterSeconds: parsed.retryAfterSeconds,
+      ...(parsed.decisionReason
+        ? { decisionReason: parsed.decisionReason }
+        : {}),
     };
   } catch {
     return {
@@ -251,6 +345,23 @@ export async function checkRecordSearchEnforcement({
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function checkRecordSearchEnforcement({
+  requestHeaders,
+  config,
+  fetchImpl = fetch,
+}: {
+  requestHeaders: Pick<Headers, "get">;
+  config: EnforcementConfig;
+  fetchImpl?: FetchLike;
+}): Promise<EnforcementCheckResult> {
+  return checkEnforcement({
+    requestHeaders,
+    config,
+    scope: "RECORD_SEARCH",
+    fetchImpl,
+  });
 }
 
 export function enforcementRuntimeLogEvent(result: EnforcementCheckResult) {
@@ -264,10 +375,12 @@ export function enforcementRuntimeLogEvent(result: EnforcementCheckResult) {
   return null;
 }
 
-export function applicationBlockAppliedLogEvent() {
+export function applicationBlockAppliedLogEvent(
+  scope: EnforcementScope = "RECORD_SEARCH",
+) {
   return {
     event: "enforcement.application_block_applied",
-    scope: "RECORD_SEARCH",
+    scope,
     actual_decision: "BLOCK",
   } as const;
 }
@@ -288,14 +401,16 @@ export async function checkRecordSearchShadowEnforcement({
   }) as Promise<ShadowCheckResult>;
 }
 
-export async function verifyRecordSearchEnforcementChallenge({
+export async function verifyEnforcementChallenge({
   requestHeaders,
   config,
+  scope,
   token,
   fetchImpl = fetch,
 }: {
   requestHeaders: Pick<Headers, "get">;
   config: EnforcementConfig;
+  scope: EnforcementScope;
   token: string;
   fetchImpl?: FetchLike;
 }): Promise<ChallengeVerificationResult> {
@@ -331,7 +446,7 @@ export async function verifyRecordSearchEnforcementChallenge({
         authorization: `Bearer ${config.apiKey}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ scope: "RECORD_SEARCH", source_ip: sourceIp, token }),
+      body: JSON.stringify({ scope, source_ip: sourceIp, token }),
       cache: "no-store",
       signal: controller.signal,
     });
@@ -360,6 +475,26 @@ export async function verifyRecordSearchEnforcementChallenge({
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function verifyRecordSearchEnforcementChallenge({
+  requestHeaders,
+  config,
+  token,
+  fetchImpl = fetch,
+}: {
+  requestHeaders: Pick<Headers, "get">;
+  config: EnforcementConfig;
+  token: string;
+  fetchImpl?: FetchLike;
+}): Promise<ChallengeVerificationResult> {
+  return verifyEnforcementChallenge({
+    requestHeaders,
+    config,
+    scope: "RECORD_SEARCH",
+    token,
+    fetchImpl,
+  });
 }
 
 export function normalizeBrowserChallengeResult(

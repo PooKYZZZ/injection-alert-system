@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   checkRecordSearchShadowEnforcement,
+  checkEnforcement,
   checkRecordSearchEnforcement,
   applicationBlockAppliedLogEvent,
   enforcementRuntimeLogEvent,
@@ -82,6 +83,37 @@ test("accepts only the exact ALLOW response", async () => {
   });
 
   assert.deepEqual(result, { decision: "ALLOW", status: "checked" });
+});
+
+test("sends the selected route scope and preserves a safe decision reason", async () => {
+  let requestBody = "";
+  const result = await checkEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: activeConfig,
+    scope: "SUPPORT_SUBMIT",
+    fetchImpl: async (_input, init) => {
+      requestBody = String(init?.body);
+      return new Response(
+        JSON.stringify({
+          decision: "THROTTLE",
+          retry_after_seconds: 4,
+          decision_reason: "REPEATED_SUSPICIOUS_ACTIVITY",
+        }),
+        { status: 200 },
+      );
+    },
+  });
+
+  assert.deepEqual(result, {
+    decision: "THROTTLE",
+    status: "checked",
+    retryAfterSeconds: 4,
+    decisionReason: "REPEATED_SUSPICIOUS_ACTIVITY",
+  });
+  assert.deepEqual(JSON.parse(requestBody), {
+    scope: "SUPPORT_SUBMIT",
+    source_ip: "203.0.113.10",
+  });
 });
 
 test("fails open when the backend returns 503", async () => {
@@ -208,6 +240,28 @@ test("parses only the exact active block decision", async () => {
   });
 });
 
+test("accepts a bounded reason on an active block", async () => {
+  const result = await checkEnforcement({
+    requestHeaders: new Headers({ "cf-connecting-ip": "203.0.113.10" }),
+    config: activeConfig,
+    scope: "RECORD_DETAIL",
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          decision: "BLOCK",
+          decision_reason: "STRONG_CRS_EVIDENCE",
+        }),
+        { status: 200 },
+      ),
+  });
+
+  assert.deepEqual(result, {
+    decision: "BLOCK",
+    status: "checked",
+    decisionReason: "STRONG_CRS_EVIDENCE",
+  });
+});
+
 test("labels an applied HIGH application block distinctly in safe logs", () => {
   assert.equal(
     enforcementRuntimeLogEvent({ decision: "BLOCK", status: "checked" }),
@@ -219,6 +273,11 @@ test("formats application block logging at the enforcement point", () => {
   assert.deepEqual(applicationBlockAppliedLogEvent(), {
     event: "enforcement.application_block_applied",
     scope: "RECORD_SEARCH",
+    actual_decision: "BLOCK",
+  });
+  assert.deepEqual(applicationBlockAppliedLogEvent("SUPPORT_SUBMIT"), {
+    event: "enforcement.application_block_applied",
+    scope: "SUPPORT_SUBMIT",
     actual_decision: "BLOCK",
   });
 });

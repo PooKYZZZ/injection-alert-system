@@ -1,12 +1,13 @@
 import "server-only";
 
 import {
-  checkRecordSearchEnforcement,
+  checkEnforcement,
   enforcementRuntimeLogEvent,
-  verifyRecordSearchEnforcementChallenge,
+  verifyEnforcementChallenge,
   type ChallengeVerificationResult,
   type EnforcementCheckResult,
   type EnforcementConfig,
+  type EnforcementScope,
   type AppEnv,
 } from "./enforcement-check";
 
@@ -70,17 +71,24 @@ export function enforcementRuntimeConfig(): EnforcementConfig {
   return runtimeConfig();
 }
 
-export async function checkRecordSearchEnforcementFromRuntime(): Promise<EnforcementCheckResult> {
+export async function checkEnforcementFromRuntime(
+  scope: EnforcementScope,
+): Promise<EnforcementCheckResult> {
   const { headers } = await import("next/headers");
-  const result = await checkRecordSearchEnforcement({
+  const result = await checkEnforcement({
     requestHeaders: await headers(),
     config: runtimeConfig(),
+    scope,
   });
   const logEntry = enforcementRuntimeLogEvent(result);
   if (logEntry) {
     console.warn(JSON.stringify(logEntry));
   }
   return result;
+}
+
+export async function checkRecordSearchEnforcementFromRuntime(): Promise<EnforcementCheckResult> {
+  return checkEnforcementFromRuntime("RECORD_SEARCH");
 }
 
 export async function checkRecordSearchShadowEnforcementFromRuntime(): Promise<EnforcementCheckResult> {
@@ -90,10 +98,18 @@ export async function checkRecordSearchShadowEnforcementFromRuntime(): Promise<E
 export async function verifyRecordSearchEnforcementChallengeFromRuntime(
   token: string,
 ): Promise<ChallengeVerificationResult> {
+  return verifyEnforcementChallengeFromRuntime("RECORD_SEARCH", token);
+}
+
+export async function verifyEnforcementChallengeFromRuntime(
+  scope: EnforcementScope,
+  token: string,
+): Promise<ChallengeVerificationResult> {
   const { headers } = await import("next/headers");
-  return verifyRecordSearchEnforcementChallenge({
+  return verifyEnforcementChallenge({
     requestHeaders: await headers(),
     config: runtimeConfig(),
+    scope,
     token,
   });
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { browserRedirect } from '@/lib/redirect';
 import { z } from 'zod';
+import { checkEnforcementFromRuntime } from '../../../lib/enforcement-check-runtime';
+import { enforcementRouteResponse } from '../../../lib/enforcement-boundary';
 
 const formSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -9,6 +11,10 @@ const formSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const enforcement = await checkEnforcementFromRuntime("LOGIN_SUBMIT");
+  const enforcementResponse = enforcementRouteResponse(enforcement);
+  if (enforcementResponse) return enforcementResponse;
+
   try {
     const formData = await req.formData();
     const data = {

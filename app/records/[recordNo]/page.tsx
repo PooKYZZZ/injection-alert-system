@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { MOCK_RECORDS } from "../../../lib/db";
 import { Landmark, FileText, ArrowLeft, ShieldCheck, MapPin, Layers, LayoutGrid, Eye, ArrowRight } from "lucide-react";
 import { SITE_CONFIG } from "../../../lib/demo-config";
+import { EnforcementDecisionPage } from "../../../components/EnforcementDecisionPage";
+import { checkEnforcementFromRuntime } from "../../../lib/enforcement-check-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,15 @@ export default async function RecordDetailPage({
 }: {
   params: Promise<RouteParams>;
 }) {
+  const enforcement = await checkEnforcementFromRuntime("RECORD_DETAIL");
+  if (enforcement.decision !== "ALLOW") {
+    return (
+      <EnforcementDecisionPage
+        result={enforcement}
+        resourceLabel="Record detail"
+      />
+    );
+  }
   const { recordNo } = await params;
   const record = MOCK_RECORDS.find(
     (r) => r.recordNo.toUpperCase() === recordNo.toUpperCase()
