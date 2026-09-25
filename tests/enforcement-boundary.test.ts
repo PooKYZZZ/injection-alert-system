@@ -18,7 +18,10 @@ test("page throttle boundary returns HTTP 429 with Retry-After", async () => {
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "7");
   assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.match(await response.text(), /Search temporarily limited/);
+  const body = await response.text();
+  assert.match(body, /Too Many Requests/);
+  assert.match(body, /Retry after 7 seconds/);
+  assert.match(body, /Land Records Portal/);
 });
 
 test("page block boundary returns HTTP 403 without exposing policy details", async () => {
@@ -32,7 +35,8 @@ test("page block boundary returns HTTP 403 without exposing policy details", asy
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("retry-after"), null);
   const body = await response.text();
-  assert.match(body, /Access temporarily blocked/);
+  assert.match(body, /Access Restricted/);
+  assert.match(body, /Land Records Portal/);
   assert.doesNotMatch(body, /STRONG_CRS_EVIDENCE/);
 });
 
@@ -58,6 +62,7 @@ test("route boundary returns a bounded 429 with Retry-After", async () => {
   assert.ok(response);
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "7");
+  assert.match(response.headers.get("content-type") ?? "", /application\/json/i);
   assert.deepEqual(await response.json(), { error: "request_throttled" });
 });
 
@@ -70,6 +75,7 @@ test("route boundary blocks before business work for BLOCK and CHALLENGE", async
     );
     assert.ok(response);
     assert.equal(response.status, 403);
+    assert.match(response.headers.get("content-type") ?? "", /application\/json/i);
   }
 });
 
