@@ -12,6 +12,15 @@ SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
 HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
 TARGET_CLOUDFLARE_OVERLAY = "docker-compose.target-cloudflare.yml"
 APP_CLOUDFLARE_OVERLAY = "docker-compose.app-cloudflare.yml"
+PROXY_BACKEND_TEMPLATE = ROOT / "config" / "modsecurity" / "source-correlation-proxy-backend.conf.template"
+
+
+def test_modsecurity_proxy_generates_and_returns_edge_request_correlation_id() -> None:
+    config = PROXY_BACKEND_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "proxy_set_header X-CyberTrace-Edge-Request-ID $request_id;" in config
+    assert "add_header X-CyberTrace-Transaction-ID $request_id always;" in config
+    assert "proxy_set_header X-Forwarded-Host $http_host;" in config
 
 
 def _run_hosted_launcher(env_file: Path) -> subprocess.CompletedProcess[str]:
@@ -50,6 +59,7 @@ def _compose_config_result(
     *files: str,
     profile: str | list[str] | None = None,
     hosted_peer: str | None = "172.30.20.2/32",
+    source_provenance_mode: str | None = None,
     token_file: str = "C:/Users/REDACTED/CyberTrace-Secrets/cloudflared-target.token",
 ) -> subprocess.CompletedProcess[str]:
     command = ["docker", "compose"]
@@ -84,6 +94,8 @@ def _compose_config_result(
     else:
         env["HOSTED_WAF_TRUSTED_PEER"] = hosted_peer
     env["WAF_SOURCE_VERIFICATION_MODE"] = "unverified"
+    if source_provenance_mode is not None:
+        env["WAF_SOURCE_PROVENANCE_MODE"] = source_provenance_mode
     return subprocess.run(
         command,
         cwd=ROOT,
@@ -91,6 +103,23 @@ def _compose_config_result(
         capture_output=True,
         text=True,
     )
+
+
+def test_search_records_local_test_overlay_does_not_inherit_cloudflare_trust() -> None:
+    result = _compose_config_result(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        TARGET_CLOUDFLARE_OVERLAY,
+        "docker-compose.search-records-test.yml",
+        profile=["demo-target", "target-cloudflare"],
+        source_provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result.returncode == 0, result.stderr
+    config = json.loads(result.stdout)
+    bridge = config["services"]["demo-target-bridge"]["environment"]
+    assert bridge["WAF_SOURCE_PROVENANCE_MODE"] == "direct_remote_addr"
+    assert bridge["WAF_TRUSTED_TUNNEL_PEER"] == ""
 
 
 def _base_config_without_profile() -> dict:
@@ -365,7 +394,10 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
     }
     assert set(config["services"]["demo-portal"]["networks"]) == {
         "target_application",
+        "target_enforcement_api",
     }
+    assert "target_enforcement_api" in config["services"]["backend"]["networks"]
+    assert config["networks"]["target_enforcement_api"]["internal"] is True
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"
@@ -473,13 +505,18 @@ def test_normal_access_logging_is_allowlisted_and_omits_request_content() -> Non
     )
 
 
-def test_cloudflare_target_launcher_keeps_verification_opt_in_and_shadowed() -> None:
+def test_cloudflare_target_launcher_defaults_to_shadow_and_guards_enforce_mode() -> None:
     launcher = (
         ROOT / "scripts" / "start_full_cloudflare_target.ps1"
     ).read_text(encoding="utf-8")
 
-    assert "[switch]$VerifyCloudflareSourceProof" in launcher
-    assert '$env:ENFORCEMENT_MODE = "shadow"' in launcher
+    assert '[ValidateSet("off", "shadow", "enforce")]' in launcher
+    assert '[string]$EnforcementMode = "shadow"' in launcher
+    assert (
+        'if ($EnforcementMode -eq "enforce" -and -not $VerifyCloudflareSourceProof)'
+        in launcher
+    )
+    assert "$env:ENFORCEMENT_MODE = $EnforcementMode" in launcher
     assert '$env:ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS = "false"' in launcher
     assert '$env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"' in launcher
     assert '$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"' in launcher

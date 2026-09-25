@@ -17,6 +17,11 @@ services:
       - ./logs/modsecurity/search-records-test:/var/log/modsecurity
 
   demo-target-bridge:
+    environment:
+      # This overlay sends requests directly from a local container to the WAF,
+      # not through Cloudflare. Keep that test source explicitly unverified.
+      WAF_SOURCE_PROVENANCE_MODE: direct_remote_addr
+      WAF_TRUSTED_TUNNEL_PEER: ""
     networks:
       default: {}
       target_waf_ingress:

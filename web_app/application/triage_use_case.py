@@ -246,7 +246,8 @@ class TriageUseCase:
         )
         prediction = await self._predict(
             model_request,
-            persist_model_input_text=command.ingest_source != "nginx_access_bridge",
+            persist_model_input_text=command.ingest_source
+            not in {"nginx_access_bridge", "portal_route_bridge"},
         )
         action_taken = self._action_for(
             prediction=prediction["prediction"],
@@ -459,7 +460,10 @@ class TriageUseCase:
         parts = [request_line]
         if header_lines:
             parts.append(f"\nHeaders:\n{redact_sensitive_text(header_lines)}")
-        if command.request_body:
+        if (
+            command.request_body
+            and command.ingest_source != "portal_route_bridge"
+        ):
             parts.append(f"\nBody:\n{redact_sensitive_text(command.request_body)}")
         return "".join(parts)
 
