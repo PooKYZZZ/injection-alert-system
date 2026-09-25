@@ -2,7 +2,7 @@ name: Portal CI
 
 on:
   pull_request:
-    branches: [stable/portal-pre-waf]
+    branches: [stable/cybertrace-target]
 
 permissions:
   contents: read
