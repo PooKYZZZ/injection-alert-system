@@ -228,7 +228,11 @@ class EnforcementRecommendationRow(Base):
     __tablename__ = "enforcement_recommendations"
     __table_args__ = (
         CheckConstraint(
-            "scope = 'RECORD_SEARCH'",
+            "scope IN ("
+            "'RECORD_SEARCH', 'RECORD_DETAIL', 'TRACK_STATUS', "
+            "'SUPPORT_SUBMIT', 'APPOINTMENT_SUBMIT', 'COMMENTS_SUBMIT', "
+            "'LOGIN_SUBMIT', 'REQUEST_COPY_SUBMIT'"
+            ")",
             name="enforcement_recommendations_scope_allowed",
         ),
         CheckConstraint(
@@ -276,6 +280,10 @@ class EnforcementRecommendationRow(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     expires_at = Column(DateTime(timezone=True), nullable=False)
+    decision_reason = Column(
+        String(128), nullable=False, server_default="LEGACY_POLICY"
+    )
+    evidence_context = Column(JSON, nullable=True)
 
 
 class EnforcementRequestWindowRow(Base):
@@ -284,7 +292,11 @@ class EnforcementRequestWindowRow(Base):
     __tablename__ = "enforcement_request_windows"
     __table_args__ = (
         CheckConstraint(
-            "scope = 'RECORD_SEARCH'",
+            "scope IN ("
+            "'RECORD_SEARCH', 'RECORD_DETAIL', 'TRACK_STATUS', "
+            "'SUPPORT_SUBMIT', 'APPOINTMENT_SUBMIT', 'COMMENTS_SUBMIT', "
+            "'LOGIN_SUBMIT', 'REQUEST_COPY_SUBMIT'"
+            ")",
             name="enforcement_request_windows_scope_allowed",
         ),
         CheckConstraint(
@@ -335,7 +347,11 @@ class EnforcementChallengeGrantRow(Base):
     __tablename__ = "enforcement_challenge_grants"
     __table_args__ = (
         CheckConstraint(
-            "scope = 'RECORD_SEARCH'",
+            "scope IN ("
+            "'RECORD_SEARCH', 'RECORD_DETAIL', 'TRACK_STATUS', "
+            "'SUPPORT_SUBMIT', 'APPOINTMENT_SUBMIT', 'COMMENTS_SUBMIT', "
+            "'LOGIN_SUBMIT', 'REQUEST_COPY_SUBMIT'"
+            ")",
             name="enforcement_challenge_grants_scope_allowed",
         ),
         CheckConstraint(

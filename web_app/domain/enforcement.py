@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
+from urllib.parse import urlsplit
 
 from web_app.domain.classification_scope import is_actionable_attack_class
 
@@ -13,6 +15,13 @@ ACTIVE_POLICY_VERSION = "confidence-enforcement-v2"
 
 class EnforcementScope(StrEnum):
     RECORD_SEARCH = "RECORD_SEARCH"
+    RECORD_DETAIL = "RECORD_DETAIL"
+    TRACK_STATUS = "TRACK_STATUS"
+    SUPPORT_SUBMIT = "SUPPORT_SUBMIT"
+    APPOINTMENT_SUBMIT = "APPOINTMENT_SUBMIT"
+    COMMENTS_SUBMIT = "COMMENTS_SUBMIT"
+    LOGIN_SUBMIT = "LOGIN_SUBMIT"
+    REQUEST_COPY_SUBMIT = "REQUEST_COPY_SUBMIT"
 
 
 class EnforcementTier(StrEnum):
@@ -50,12 +59,106 @@ class CounterKind(StrEnum):
     MEDIUM_HARD = "MEDIUM_HARD"
 
 
+# These are deliberately narrow CRS signals.  A generic anomaly score or an
+# evaluation rule such as 949110 is not sufficient evidence for an application
+# block.  The bridge currently emits tags like ``attack-sqli`` and numeric CRS
+# rule IDs, so keep both representations in the policy boundary.
+STRONG_CRS_TAGS = frozenset(
+    {
+        "attack-sqli",
+        "attack-rce",
+        "attack-command-injection",
+    }
+)
+STRONG_CRS_RULE_PREFIXES = ("932", "942")
+_NUMERIC_RULE_ID = re.compile(r"^[0-9]{3,}$")
+
+
+@dataclass(frozen=True, slots=True)
+class EnforcementEvidence:
+    """Redacted WAF context used to decide whether ML state may enforce."""
+
+    source_verification_status: str | None = None
+    crs_score: int | None = None
+    crs_rule_ids: tuple[str, ...] = ()
+    matched_rule_tags: tuple[str, ...] = ()
+
+    @property
+    def source_verified(self) -> bool:
+        return self.source_verification_status == "VERIFIED"
+
+    @property
+    def has_strong_waf_evidence(self) -> bool:
+        tags = {tag.strip().lower() for tag in self.matched_rule_tags if tag.strip()}
+        if tags.intersection(STRONG_CRS_TAGS):
+            return True
+        return any(
+            _NUMERIC_RULE_ID.fullmatch(rule_id.strip())
+            and rule_id.strip().startswith(STRONG_CRS_RULE_PREFIXES)
+            for rule_id in self.crs_rule_ids
+        )
+
+    def to_context(self) -> dict[str, object]:
+        """Return bounded, non-payload evidence suitable for JSON persistence."""
+
+        return {
+            "source_verification_status": self.source_verification_status,
+            "crs_score": self.crs_score,
+            "crs_rule_ids": list(self.crs_rule_ids[:32]),
+            "matched_rule_tags": list(self.matched_rule_tags[:32]),
+            "strong_waf_evidence": self.has_strong_waf_evidence,
+        }
+
+
+def evidence_from_waf_fields(
+    *,
+    source_verification_status: str | object | None,
+    crs_score: int | None,
+    crs_rule_ids: list[str] | tuple[str, ...] | None,
+    matched_rule_tags: list[str] | tuple[str, ...] | None,
+) -> EnforcementEvidence:
+    """Build policy evidence from already-redacted WAF fields."""
+
+    status = getattr(source_verification_status, "value", source_verification_status)
+    return EnforcementEvidence(
+        source_verification_status=str(status) if status is not None else None,
+        crs_score=crs_score,
+        crs_rule_ids=tuple(str(value)[:64] for value in (crs_rule_ids or ())),
+        matched_rule_tags=tuple(
+            str(value)[:128] for value in (matched_rule_tags or ())
+        ),
+    )
+
+
+def scope_for_request_path(request_path: str) -> EnforcementScope | None:
+    """Map the portal's public dynamic routes to the shared policy scope."""
+
+    path = urlsplit(request_path or "").path
+    exact = {
+        "/records/search": EnforcementScope.RECORD_SEARCH,
+        "/transactions/status": EnforcementScope.TRACK_STATUS,
+        "/support/submit": EnforcementScope.SUPPORT_SUBMIT,
+        "/appointments/submit": EnforcementScope.APPOINTMENT_SUBMIT,
+        "/comments/submit": EnforcementScope.COMMENTS_SUBMIT,
+        "/login/submit": EnforcementScope.LOGIN_SUBMIT,
+    }
+    if path in exact:
+        return exact[path]
+    if re.fullmatch(r"/records/[^/]+/request-copy(?:/submit)?", path):
+        return EnforcementScope.REQUEST_COPY_SUBMIT
+    if re.fullmatch(r"/records/[^/]+", path):
+        return EnforcementScope.RECORD_DETAIL
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class PolicyRecommendation:
     scope: EnforcementScope
     tier: EnforcementTier
     action: RecommendedAction
     policy_version: str = POLICY_VERSION
+    decision_reason: str = ""
+    evidence_context: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +171,8 @@ class NewEnforcementRecommendation:
     policy_version: str
     created_at: datetime
     expires_at: datetime
+    decision_reason: str = ""
+    evidence_context: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +186,8 @@ class EffectiveRecommendation:
     created_at: datetime
     expires_at: datetime
     source_verification_status: str
+    decision_reason: str = ""
+    evidence_context: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +251,15 @@ class IEnforcementRecommendationRepository(Protocol):
         window_seconds: int,
     ) -> RequestWindowState: ...
 
+    async def count_recent_suspicious_events(
+        self,
+        *,
+        source_ip: str,
+        scope: EnforcementScope,
+        now: datetime,
+        window_seconds: int,
+    ) -> int: ...
+
     async def find_valid_challenge_grant(
         self,
         *,
@@ -175,6 +291,7 @@ class EnforcementPolicy:
         confidence_level: str,
         request_path: str,
         mode: EnforcementMode | str = EnforcementMode.SHADOW,
+        evidence: EnforcementEvidence | None = None,
     ) -> PolicyRecommendation | None:
         if not prediction:
             raise ValueError("prediction is required")
@@ -186,9 +303,8 @@ class EnforcementPolicy:
         except ValueError:
             raise ValueError(f"Unknown confidence_level: {confidence_level}") from None
 
-        if request_path != "/records/search" or not is_actionable_attack_class(
-            prediction
-        ):
+        scope = scope_for_request_path(request_path)
+        if scope is None or not is_actionable_attack_class(prediction):
             return None
 
         selected_mode = EnforcementMode(mode)
@@ -198,9 +314,24 @@ class EnforcementPolicy:
             else POLICY_VERSION
         )
 
+        selected_evidence = evidence or EnforcementEvidence()
+        action = cls._ACTIONS[tier]
+        if tier in {EnforcementTier.HIGH, EnforcementTier.CRITICAL}:
+            if selected_evidence.has_strong_waf_evidence:
+                decision_reason = "STRONG_CRS_EVIDENCE"
+            else:
+                action = RecommendedAction.MONITOR
+                decision_reason = "STRONG_CRS_EVIDENCE_REQUIRED"
+        elif tier is EnforcementTier.MEDIUM:
+            decision_reason = "REPEAT_OR_STRONG_CRS_EVIDENCE_REQUIRED"
+        else:
+            decision_reason = "LOW_MONITOR_ONLY"
+
         return PolicyRecommendation(
-            scope=EnforcementScope.RECORD_SEARCH,
+            scope=scope,
             tier=tier,
-            action=cls._ACTIONS[tier],
+            action=action,
             policy_version=policy_version,
+            decision_reason=decision_reason,
+            evidence_context=selected_evidence.to_context(),
         )

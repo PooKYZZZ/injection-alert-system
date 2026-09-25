@@ -53,6 +53,7 @@ from web_app.application.post_triage_enforcement import (
 from web_app.application.source_verification import (
     WAF_AUDIT_EVIDENCE_HEADER,
     assign_server_source_provenance,
+    derive_source_verification_status,
 )
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
@@ -72,7 +73,11 @@ from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.authorization import Permission
 from web_app.domain.classification_scope import is_actionable_attack_class
-from web_app.domain.enforcement import EnforcementMode, EnforcementScope
+from web_app.domain.enforcement import (
+    EnforcementMode,
+    EnforcementScope,
+    evidence_from_waf_fields,
+)
 from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.domain.source_address import SourceProvenance
 from web_app.infrastructure.database import AsyncSessionLocal, get_db
@@ -317,6 +322,18 @@ async def ingest_waf_event(
         if source_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
         else None
     )
+    source_verification_status = derive_source_verification_status(
+        source_ip=payload.source_ip,
+        provenance=source_provenance,
+        cf_connecting_ip_matches_client_ip=cf_connecting_ip_matches_client_ip,
+        mode=settings.waf_source_verification_mode,
+    )
+    enforcement_evidence = evidence_from_waf_fields(
+        source_verification_status=source_verification_status,
+        crs_score=payload.crs_score,
+        crs_rule_ids=payload.crs_rule_ids,
+        matched_rule_tags=payload.matched_rule_tags,
+    )
     use_case = WafIngestUseCase(
         classifier=model_service,
         repository=repository,
@@ -431,6 +448,7 @@ async def ingest_waf_event(
                 confidence_level=result.confidence_level,
                 request_path=payload.request_path,
                 occurred_at=result.occurred_at,
+                evidence=enforcement_evidence,
             )
             log_event(
                 logger,
@@ -855,6 +873,14 @@ async def check_shadow_enforcement(
             ),
             medium_window_seconds=settings.enforcement_medium_window_seconds,
             medium_max_requests=settings.enforcement_medium_max_requests,
+            suspicious_event_window_seconds=getattr(
+                settings,
+                "enforcement_repeated_event_window_seconds",
+                settings.enforcement_medium_window_seconds,
+            ),
+            suspicious_event_threshold=getattr(
+                settings, "enforcement_repeated_event_threshold", 3
+            ),
             allow_unverified_source_for_tests=(
                 settings.enforcement_allow_unverified_source_for_tests
             ),
@@ -871,6 +897,7 @@ async def check_shadow_enforcement(
             decision=result.decision,
             enforcement_tier=result.challenge_tier,
             retry_after_seconds=result.retry_after_seconds,
+            decision_reason=result.decision_reason,
         )
 
     result = await CheckShadowEnforcementUseCase(
@@ -885,7 +912,10 @@ async def check_shadow_enforcement(
             status_code=503,
             detail="Shadow enforcement lookup unavailable",
         )
-    return EnforcementCheckResponse(decision=result.decision)
+    return EnforcementCheckResponse(
+        decision=result.decision,
+        decision_reason=result.decision_reason,
+    )
 
 
 @enforcement_check_router.post(

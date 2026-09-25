@@ -180,11 +180,14 @@ def test_active_enforcement_keeps_low_source_monitor_only(monkeypatch):
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {"decision": "ALLOW"}
+    assert response.json() == {
+        "decision": "ALLOW",
+        "decision_reason": "LOW_MONITOR_ONLY",
+    }
     assert repository.count == 0
 
 
-def test_active_enforcement_serializes_exact_high_block_contract(monkeypatch):
+def test_active_enforcement_serializes_high_block_reason(monkeypatch):
     key = "enforcement-key-for-integration-tests-32chars"
     settings = SimpleNamespace(
         enforcement_check_api_key=key,
@@ -215,7 +218,10 @@ def test_active_enforcement_serializes_exact_high_block_contract(monkeypatch):
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {"decision": "BLOCK"}
+    assert response.json() == {
+        "decision": "BLOCK",
+        "decision_reason": "STRONG_CRS_EVIDENCE",
+    }
 
 
 def test_active_low_challenge_is_rejected_without_a_grant(monkeypatch):
