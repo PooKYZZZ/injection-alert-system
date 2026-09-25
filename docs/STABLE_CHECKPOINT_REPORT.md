@@ -78,7 +78,7 @@ https://github.com/PooKYZZZ/injection-alert-system.git
 ## Rollback Commands
 ```powershell
 git checkout portal-v0.1.0-pre-waf
-git checkout stable/portal-pre-waf
+git checkout stable/cybertrace-target
 docker compose up -d --build
 ```
 
