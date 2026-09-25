@@ -35,6 +35,14 @@ test("429 page displays only the supplied retry interval", () => {
   assert.doesNotMatch(httpErrorPageMarkup(429), /Retry after/);
 });
 
+test("embedded error pages replace the portal shell with a full-screen surface", () => {
+  const markup = httpErrorPageMarkup(404);
+
+  assert.match(markup, /body:has\(\.http-error-screen\) > header/);
+  assert.match(markup, /body:has\(\.http-error-screen\) > footer \{ display: none; \}/);
+  assert.match(markup, /\.http-error-screen \{\s*position: fixed;\s*z-index: 1000;\s*inset: 0;/);
+});
+
 test("service errors offer a same-URL retry action", () => {
   const markup = httpErrorPageMarkup(503);
 

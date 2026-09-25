@@ -75,15 +75,21 @@ const ERROR_PAGE_STYLES = `
 * { box-sizing: border-box; }
 html, body { min-height: 100%; margin: 0; }
 body { background: #0c141e; color: #f8fafc; }
+body:has(.http-error-screen) { overflow: hidden; }
+body:has(.http-error-screen) > header,
+body:has(.http-error-screen) > footer { display: none; }
 .http-error-screen {
-  min-height: 70vh;
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  min-height: 100vh;
+  overflow: auto;
   display: grid;
   place-items: center;
   padding: 20px;
   background: #0c141e;
   color: #f8fafc;
 }
-body.http-error-standalone .http-error-screen { min-height: 100vh; }
 .http-error-card {
   width: min(100%, 760px);
   overflow: hidden;
