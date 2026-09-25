@@ -30,7 +30,10 @@ function request(
 ) {
   return new NextRequest(`https://target.cybertracesystems.com${path}`, {
     method: "POST",
-    headers,
+    headers: {
+      "x-cybertrace-cloudflare-peer-verified": "1",
+      ...headers,
+    },
   });
 }
 
@@ -39,7 +42,10 @@ function getRequest(
   headers: Record<string, string> = { "cf-connecting-ip": "203.0.113.25" },
 ) {
   return new NextRequest(`https://target.cybertracesystems.com${path}`, {
-    headers,
+    headers: {
+      "x-cybertrace-cloudflare-peer-verified": "1",
+      ...headers,
+    },
   });
 }
 
@@ -353,6 +359,7 @@ test("fails closed when only untrusted X-Forwarded-For is present", async () => 
     {
       request: request("/login/submit", {
         "x-forwarded-for": "198.51.100.77",
+        "x-cybertrace-cloudflare-peer-verified": "0",
       }),
       requestPath: "/login/submit",
       scope: "LOGIN_SUBMIT",

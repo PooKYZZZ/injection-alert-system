@@ -95,6 +95,9 @@ const TURNSTILE_TEST_SITE_KEYS = new Set([
   "3x00000000000000000000FF",
 ]);
 
+const CLOUDFLARE_PEER_VERIFIED_HEADER =
+  "x-cybertrace-cloudflare-peer-verified";
+
 export function validateActiveEnforcementConfig(
   config: EnforcementConfig,
 ): boolean {
@@ -141,8 +144,15 @@ export function requestSourceIp(
   options: { active?: boolean; allowUnverifiedSourceForTests?: boolean } = {},
 ) {
   const cloudflareIp = validIp(requestHeaders.get("cf-connecting-ip"));
+  if (options.active && !options.allowUnverifiedSourceForTests) {
+    // The reverse proxy overwrites this assertion only for its trusted tunnel peer.
+    // A syntactically valid CF-Connecting-IP header by itself is not provenance.
+    if (requestHeaders.get(CLOUDFLARE_PEER_VERIFIED_HEADER) !== "1") {
+      return null;
+    }
+    return cloudflareIp;
+  }
   if (cloudflareIp) return cloudflareIp;
-  if (options.active && !options.allowUnverifiedSourceForTests) return null;
   return firstForwardedAddress(requestHeaders.get("x-forwarded-for"));
 }
 
