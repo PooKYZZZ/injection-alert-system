@@ -44,6 +44,10 @@ export default async function RequestCopyPage({
           </p>
         </div>
 
+        <p className="px-4 pt-5 text-sm text-slate-700 sm:px-6">
+          Test submissions may be visible to other visitors. Use synthetic values only.
+        </p>
+
         <form
           action={`/records/${record.recordNo}/request-copy/submit`}
           method="post"

@@ -199,7 +199,7 @@ export default async function RecordDetailPage({
               Demo Notice
             </h2>
             <p className="text-[10px] text-amber-800 mt-1 leading-relaxed">
-              This is a demo portal. All records, submissions, and reference numbers are mock data for local testing only.
+              This CyberTrace demo is not an official registry. Requests may be visible to other visitors; use synthetic details only.
             </p>
           </div>
         </div>

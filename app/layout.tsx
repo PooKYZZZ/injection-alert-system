@@ -48,7 +48,7 @@ export default function RootLayout({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500">
             <div className="flex min-w-0 items-start gap-2">
               <Landmark className="h-4 w-4 text-gray-400 shrink-0" />
-              <span>&copy; {new Date().getFullYear()} Land Records Demo Portal. CyberTrace test demo, not an official registry. Use synthetic details only.</span>
+              <span>&copy; {new Date().getFullYear()} Land Records Demo Portal. CyberTrace test demo, not an official registry. Test submissions may be visible to other visitors; use synthetic details only.</span>
             </div>
             
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">

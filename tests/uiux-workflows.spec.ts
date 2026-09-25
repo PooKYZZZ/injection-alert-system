@@ -162,6 +162,7 @@ test("Support accepts synthetic input and confirms no email reply is sent", asyn
 test("Request a Copy preserves its payload and reaches the local status result", async ({ page }) => {
   await page.goto("/records/LND-2026-0001/request-copy");
   const form = page.locator("form");
+  await expect(page.getByText("Test submissions may be visible to other visitors. Use synthetic values only.", { exact: true })).toBeVisible();
   await expect(form.getByText("Delivery choices are test inputs only; no document is produced or delivered.", { exact: true })).toBeVisible();
   await form.getByLabel("Printed copy (sample test value)").check();
   await expect(form.locator('[name="deliveryOption"]:checked')).toHaveValue("Printed certified copy");
