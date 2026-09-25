@@ -21,11 +21,11 @@ export function EnforcementDecisionPage({
       : "Access to this request is temporarily blocked.";
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
+    <section className="mx-auto max-w-2xl px-4 py-20 text-center font-sans">
       <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
         {title}
       </h1>
       <p className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
-    </main>
+    </section>
   );
 }

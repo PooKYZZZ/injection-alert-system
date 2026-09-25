@@ -54,3 +54,54 @@ test("all user-controlled WAF routes use the shared backend scope contract", () 
     );
   }
 });
+
+test("baseline form workflows retain their method, route, and payload fields", () => {
+  const expected = [
+    {
+      path: "/records/search",
+      method: "GET",
+      fields: ["query"],
+    },
+    {
+      path: "/transactions/status",
+      method: "GET",
+      fields: ["ref"],
+    },
+    {
+      path: "/appointments/submit",
+      method: "POST",
+      fields: ["fullName", "email", "branch", "serviceType", "preferredDate", "notes"],
+    },
+    {
+      path: "/support/submit",
+      method: "POST",
+      fields: ["email", "category", "subject", "referenceNo", "message"],
+    },
+    {
+      path: "/records/[recordNo]/request-copy/submit",
+      method: "POST",
+      fields: ["fullName", "email", "purpose", "deliveryOption", "remarks"],
+    },
+    {
+      path: "/login/submit",
+      method: "POST",
+      fields: ["username", "password"],
+    },
+    {
+      path: "/comments/submit",
+      method: "POST",
+      fields: ["displayName", "message"],
+    },
+  ];
+
+  for (const contract of expected) {
+    const actual = WAF_ROUTES.find((route) => route.path === contract.path);
+    assert.ok(actual, `Missing WAF route contract for ${contract.path}`);
+    assert.equal(actual.method, contract.method, `${contract.path} method`);
+    assert.deepEqual(
+      actual.expectedParams.map((parameter) => parameter.name).sort(),
+      [...contract.fields].sort(),
+      `${contract.path} payload fields`,
+    );
+  }
+});

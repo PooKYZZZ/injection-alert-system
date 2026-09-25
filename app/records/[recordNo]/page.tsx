@@ -73,7 +73,7 @@ export default async function RecordDetailPage({
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg shadow-xs cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[44px]"
             >
               <FileText className="h-4 w-4" aria-hidden="true" />
-              Request Certified Copy
+              Request a sample copy
             </Link>
           </div>
         </div>
@@ -199,7 +199,7 @@ export default async function RecordDetailPage({
               Demo Notice
             </h2>
             <p className="text-[10px] text-amber-800 mt-1 leading-relaxed">
-              This is a demo portal. All records, submissions, and reference numbers are mock data for local testing only.
+              This CyberTrace demo is not an official registry. Requests may be visible to other visitors; use synthetic details only.
             </p>
           </div>
         </div>

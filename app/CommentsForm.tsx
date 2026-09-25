@@ -3,8 +3,10 @@
 import React, { useState, useRef } from "react";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 
+type FormIssue = { field: string; message: string };
+
 export default function CommentsForm() {
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<FormIssue[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -14,23 +16,23 @@ export default function CommentsForm() {
     const displayName = (formData.get("displayName") as string || "").trim();
     const message = (formData.get("message") as string || "").trim();
 
-    const newErrors: string[] = [];
+    const newErrors: FormIssue[] = [];
     const newFieldErrors: Record<string, string> = {};
+    const addError = (field: string, message: string) => {
+      newErrors.push({ field, message });
+      newFieldErrors[field] = message;
+    };
 
     if (!displayName) {
-      newErrors.push("Display Name is required.");
-      newFieldErrors.displayName = "Please enter your display name.";
+      addError("displayName", "Enter a display name for the demo.");
     } else if (displayName.length < 2) {
-      newErrors.push("Display Name must be at least 2 characters long.");
-      newFieldErrors.displayName = "Display Name is too short (minimum 2 characters).";
+      addError("displayName", "Display name must be at least 2 characters.");
     }
 
     if (!message) {
-      newErrors.push("Your Message is required.");
-      newFieldErrors.message = "Please enter your message.";
+      addError("message", "Enter a comment.");
     } else if (message.length < 5) {
-      newErrors.push("Message must be at least 5 characters long.");
-      newFieldErrors.message = "Message is too short (minimum 5 characters).";
+      addError("message", "Comment must be at least 5 characters.");
     }
 
     if (newErrors.length > 0) {
@@ -48,17 +50,21 @@ export default function CommentsForm() {
   };
 
   return (
-    <div className="border-t border-gray-200 pt-6 font-sans">
+    <div className="font-sans">
       <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-2" id="comments-form-title">
-        Post a Citizen Comment
+        Post demo feedback
       </h3>
       <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
         A red asterisk (<span className="text-red-600 font-bold" aria-hidden="true">*</span>) indicates a required field.
+      </p>
+      <p className="text-xs leading-relaxed text-slate-600 mb-4">
+        Use synthetic details only. Comments may be visible to other users of this demo.
       </p>
 
       {errors.length > 0 && (
         <div
           ref={summaryRef}
+          id="comments-errors-summary"
           tabIndex={-1}
           className="mb-5 p-4 bg-red-50 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
           aria-labelledby="comment-error-heading"
@@ -67,11 +73,15 @@ export default function CommentsForm() {
             <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <h4 id="comment-error-heading" className="text-xs font-bold text-red-950 uppercase tracking-wider">
-                Please check the required fields below before submitting
+                Please correct these fields before submitting
               </h4>
               <ul className="list-disc pl-4 mt-2 space-y-1 text-xs text-red-800">
-                {errors.map((error, idx) => (
-                  <li key={idx}>{error}</li>
+                {errors.map(({ field, message }) => (
+                  <li key={field}>
+                    <a className="underline underline-offset-2 hover:text-red-950 focus:outline-none focus:ring-2 focus:ring-red-500" href={`#comments-input-${field}`}>
+                      {message}
+                    </a>
+                  </li>
                 ))}
               </ul>
             </div>
@@ -97,7 +107,7 @@ export default function CommentsForm() {
               id="comments-input-displayName"
               type="text"
               name="displayName"
-              placeholder="e.g., Maria Santos"
+              placeholder="e.g., Demo Tester"
               required
               aria-required="true"
               aria-invalid={!!fieldErrors.displayName}
@@ -122,7 +132,7 @@ export default function CommentsForm() {
             id="comments-input-message"
             name="message"
             rows={3}
-            placeholder="e.g., The lookup database index matches and updates instantly..."
+            placeholder="Share feedback about testing this demo portal."
             required
             aria-required="true"
             aria-invalid={!!fieldErrors.message}
@@ -139,16 +149,16 @@ export default function CommentsForm() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-          <span className="text-[10px] text-gray-400 flex items-center gap-1">
+          <span className="text-[10px] text-slate-600 flex items-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
-            Public and searchable registry
+            Visible on the demo comments page
           </span>
           <button
             id="submit-comment-btn"
             type="submit"
             className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 transition-colors text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[44px] flex items-center justify-center"
           >
-            Submit comment
+            Post comment
           </button>
         </div>
       </form>

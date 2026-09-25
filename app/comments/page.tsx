@@ -2,10 +2,11 @@ import React from 'react';
 import Link from 'next/link';
 import type { Comment } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { MessageSquare, Send, User, MessageCircleCode, CheckCircle2, AlertCircle } from 'lucide-react';
+import { MessageSquare, User, CheckCircle2, AlertCircle } from 'lucide-react';
 import Container from '@/components/Container';
 import Card from '@/components/Card';
 import NoticeBanner from '@/components/NoticeBanner';
+import CommentsForm from '../CommentsForm';
 
 interface CommentsPageProps {
   searchParams: Promise<{ success?: string; posted?: string }>;
@@ -30,12 +31,12 @@ export default async function CommentsPage({ searchParams }: CommentsPageProps) 
       </div>
 
       <div className="border-b border-gray-200 pb-4">
-        <h2 className="text-2xl md:text-3xl font-extrabold text-slate-950 flex items-center gap-2">
-          <MessageSquare className="w-7 h-7 text-blue-600" />
-          <span>Public Citizen Comments</span>
-        </h2>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-slate-950 flex items-center gap-2">
+          <MessageSquare aria-hidden="true" className="w-7 h-7 text-blue-600" />
+          <span>Demo Comments</span>
+        </h1>
         <p className="text-slate-500 text-sm mt-1">
-          Read sample public feedback about search, status tracking, and appointment requests.
+          Read feedback about testing these mock workflows.
         </p>
       </div>
 
@@ -43,10 +44,10 @@ export default async function CommentsPage({ searchParams }: CommentsPageProps) 
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-5 space-y-1">
           <h3 className="font-bold text-base flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            <span>Comment Published Successfully!</span>
+            <span>Comment added to the demo page</span>
           </h3>
           <p className="text-xs">
-            Your comment is now visible on this demo feedback page.
+            Your comment was added to this mock feedback page.
           </p>
         </div>
       )}
@@ -60,7 +61,7 @@ export default async function CommentsPage({ searchParams }: CommentsPageProps) 
         {/* Left Column: Comments List */}
         <div className="lg:col-span-2 space-y-4">
           <h3 className="text-sm font-bold text-slate-550 flex items-center gap-1.5 uppercase tracking-wider">
-            <span>Citizen Comments ({commentsList.length})</span>
+            <span>Comments ({commentsList.length})</span>
           </h3>
 
           <div className="space-y-4">
@@ -83,7 +84,7 @@ export default async function CommentsPage({ searchParams }: CommentsPageProps) 
 
             {commentsList.length === 0 && (
               <Card className="p-12 text-center text-slate-400 font-medium">
-                No comments exist yet. Be the first to lodge a message!
+              No comments yet. Add the first demo comment.
               </Card>
             )}
           </div>
@@ -91,52 +92,8 @@ export default async function CommentsPage({ searchParams }: CommentsPageProps) 
 
         {/* Right Column: Add Comment Form */}
         <div>
-          <Card className="p-6 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 border-b border-gray-100 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
-              <MessageCircleCode className="w-5 h-5 text-blue-600" />
-              <span>Leave a Comment</span>
-            </h3>
-
-            <form method="POST" action="/comments/submit" className="space-y-4">
-              <div className="space-y-1">
-                <label htmlFor="displayName" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Your Identifier Name <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
-                    id="displayName"
-                    type="text"
-                    name="displayName"
-                    required
-                    placeholder="Enter name or alias..."
-                    className="w-full min-h-11 pl-9 pr-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="message" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Comment Message <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  required
-                  rows={4}
-                    placeholder="Share your experience with this demo portal..."
-                  className="w-full p-3 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                ></textarea>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full min-h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-2.5 px-4 rounded shadow-sm transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Publish Comment</span>
-              </button>
-            </form>
+          <Card className="p-6">
+            <CommentsForm />
           </Card>
         </div>
       </div>
