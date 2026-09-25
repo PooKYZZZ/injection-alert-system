@@ -94,11 +94,13 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
   const currentAction = asFilterValue(searchParams.get('action'), ACTION_CYCLE, 'ALL')
   const currentTriage = asFilterValue(searchParams.get('triage_status'), TRIAGE_CYCLE, 'ALL')
   const currentWindow = asFilterValue(searchParams.get('window'), WINDOW_CYCLE, 'ALL')
+  const includeNormal = searchParams.get('include_normal') === 'true'
   const activeFilterCount = [
     currentConfidenceTier !== 'ALL',
     currentAction !== 'ALL',
     currentTriage !== 'ALL',
     currentWindow !== 'ALL',
+    includeNormal,
   ].filter(Boolean).length
 
   const hasActiveFilters = activeFilterCount > 0
@@ -153,6 +155,16 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
     })
   }
 
+  function handleIncludeNormalChange(checked: boolean) {
+    replaceWithParams((params) => {
+      if (checked) {
+        params.set('include_normal', 'true')
+      } else {
+        params.delete('include_normal')
+      }
+    })
+  }
+
   function handleClearAll() {
     replaceWithParams((params) => {
       params.delete('confidence_tier')
@@ -160,6 +172,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
       params.delete('action')
       params.delete('triage_status')
       params.delete('window')
+      params.delete('include_normal')
     })
   }
 
@@ -196,6 +209,18 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             options={CONFIDENCE_TIER_CYCLE}
             onChange={handleConfidenceTierChange}
           />
+          <label className="flex min-h-[44px] items-center gap-2 rounded-md border border-surface-border bg-surface-card px-3 py-2 text-[11px] font-medium text-[var(--color-text-primary)]">
+            <input
+              type="checkbox"
+              checked={includeNormal}
+              onChange={(event) => handleIncludeNormalChange(event.target.checked)}
+              className="h-4 w-4 cursor-pointer rounded border-surface-border text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
+              style={{ accentColor: 'var(--color-action-accent)' }}
+              aria-label="Include Normal Traffic"
+              aria-describedby={includeNormal ? 'include-normal-traffic-help' : undefined}
+            />
+            Include Normal Traffic
+          </label>
         </div>
 
         <div className="flex items-center gap-3">
@@ -224,6 +249,14 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           )}
         </div>
       </div>
+      {includeNormal && (
+        <p
+          id="include-normal-traffic-help"
+          className="text-[10px] text-[var(--color-text-secondary)]"
+        >
+          Normal traffic has no triage status; selecting a triage status shows matching security alerts only.
+        </p>
+      )}
     </motion.div>
   )
 }

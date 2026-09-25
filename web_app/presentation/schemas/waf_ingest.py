@@ -10,7 +10,11 @@ from web_app.domain.source_address import (
 )
 from web_app.observability.structured_logging import log_event
 
-IngestSource = Literal["modsec_audit_bridge"]
+IngestSource = Literal[
+    "modsec_audit_bridge",
+    "nginx_access_bridge",
+    "portal_route_bridge",
+]
 logger = logging.getLogger(__name__)
 
 

@@ -1,4 +1,4 @@
-"""In-process alert-change publication for the single-process thesis runtime."""
+"""In-process visibility-change publication for the single-process runtime."""
 
 from __future__ import annotations
 
@@ -8,19 +8,23 @@ from contextlib import asynccontextmanager
 from typing import Protocol
 
 
-AlertChangedSignal = dict[str, bool]
+AlertChangedSignal = dict[str, bool | str]
 
 
 class IAlertEventPublisher(Protocol):
-    """Narrow application seam used after a visible alert is persisted."""
+    """Narrow application seam used after a visible record is persisted."""
 
     def publish_alert_created(self) -> None:
         """Notify current subscribers without waiting for network consumers."""
         ...
 
+    def publish_traffic_changed(self) -> None:
+        """Notify subscribers that non-alert operational traffic changed."""
+        ...
+
 
 class AlertEventBroadcaster:
-    """Fan out coalesced alert-change signals to bounded subscriber queues."""
+    """Fan out coalesced visibility signals to bounded subscriber queues."""
 
     def __init__(self) -> None:
         self._subscribers: set[asyncio.Queue[AlertChangedSignal]] = set()
@@ -39,9 +43,15 @@ class AlertEventBroadcaster:
             self._subscribers.discard(queue)
 
     def publish_alert_created(self) -> None:
+        self._publish({"changed": True})
+
+    def publish_traffic_changed(self) -> None:
+        self._publish({"changed": True, "event": "traffic.changed"})
+
+    def _publish(self, signal: AlertChangedSignal) -> None:
         for queue in tuple(self._subscribers):
             try:
-                queue.put_nowait({"changed": True})
+                queue.put_nowait(signal)
             except asyncio.QueueFull:
                 # The unread signal already tells this subscriber to refetch.
                 continue

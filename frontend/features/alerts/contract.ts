@@ -24,10 +24,30 @@ export const ALERT_ACTION_TAKEN_VALUES = [
 ] as const
 
 export const ALERT_CONFIDENCE_TIER_VALUES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
+export const ALERT_POLICY_DECISION_VALUES = [
+  'MONITOR',
+  'CHALLENGE',
+  'THROTTLE',
+  'APPLICATION_BLOCK',
+  'WAF_BLOCK',
+] as const
+export const ALERT_NOTIFICATION_CHANNEL_VALUES = ['email', 'telegram'] as const
+export const ALERT_NOTIFICATION_STATUS_VALUES = [
+  'pending',
+  'leased',
+  'retry_wait',
+  'sent',
+  'permanent_failure',
+  'cancelled',
+  'expired',
+] as const
 
 export type AlertPrediction = (typeof ALERT_PREDICTION_VALUES)[number]
 export type AlertAction = (typeof ALERT_ACTION_TAKEN_VALUES)[number]
 export type AlertConfidenceTier = (typeof ALERT_CONFIDENCE_TIER_VALUES)[number]
+export type AlertPolicyDecision = (typeof ALERT_POLICY_DECISION_VALUES)[number]
+export type AlertNotificationChannel = (typeof ALERT_NOTIFICATION_CHANNEL_VALUES)[number]
+export type AlertNotificationStatus = (typeof ALERT_NOTIFICATION_STATUS_VALUES)[number]
 export const ALERT_SEVERITY_VALUES = ALERT_CONFIDENCE_TIER_VALUES
 export type AlertSeverity = AlertConfidenceTier
 
@@ -66,4 +86,20 @@ export const ALERT_DISPLAY_ACTION_ALIASES: Record<AlertAction, string> = {
   BLOCKED: 'Blocked',
   THROTTLED: 'Throttled',
   ALLOWED: 'Allowed',
+}
+
+export function getAlertActionLabel(
+  action: AlertAction,
+  confidenceTier?: AlertConfidenceTier | null,
+  prediction?: AlertPrediction | null
+): string {
+  if (
+    action === 'ALLOWED' &&
+    confidenceTier === 'LOW' &&
+    prediction != null &&
+    isActionableAttackClass(prediction)
+  ) {
+    return 'Monitor Only'
+  }
+  return ALERT_DISPLAY_ACTION_ALIASES[action]
 }

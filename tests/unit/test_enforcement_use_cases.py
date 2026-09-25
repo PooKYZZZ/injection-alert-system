@@ -14,6 +14,7 @@ from web_app.domain.enforcement import (
     ACTIVE_POLICY_VERSION,
     ChallengeGrant,
     EffectiveRecommendation,
+    EnforcementEvidence,
     EnforcementMode,
     EnforcementScope,
     EnforcementTier,
@@ -46,6 +47,7 @@ class ActiveRepository(RecordingRepository):
         super().__init__(effective, fail=fail)
         self.grants = {}
         self.counts = {}
+        self.suspicious_event_count = 0
 
     async def find_effective_enforceable(
         self, *, source_ip, scope, now, policy_version, require_verified
@@ -82,6 +84,13 @@ class ActiveRepository(RecordingRepository):
             request_count=self.counts[key],
         )
 
+    async def count_recent_suspicious_events(
+        self, *, source_ip, scope, now, window_seconds
+    ):
+        if self.fail:
+            raise RuntimeError("database unavailable")
+        return self.suspicious_event_count
+
     async def upsert_challenge_grant(self, grant):
         self.grants[(grant.source_ip, grant.tier, grant.policy_version)] = grant
         return grant
@@ -111,22 +120,32 @@ class ExpiringActiveRepository(ActiveRepository):
         return result if result is not None and result.expires_at > now else None
 
 
-def _active_recommendation(tier: EnforcementTier, *, source_status="VERIFIED"):
+def _active_recommendation(
+    tier: EnforcementTier, *, source_status="VERIFIED", strong_evidence=False
+):
     return EffectiveRecommendation(
         trigger_traffic_log_id=42,
         scope=EnforcementScope.RECORD_SEARCH,
         tier=tier,
-        action={
-            EnforcementTier.LOW: RecommendedAction.MONITOR,
-            EnforcementTier.MEDIUM: RecommendedAction.THROTTLE,
-            EnforcementTier.HIGH: RecommendedAction.APPLICATION_BLOCK,
-            EnforcementTier.CRITICAL: RecommendedAction.WAF_BLOCK,
-        }[tier],
+        action=(
+            {
+                EnforcementTier.LOW: RecommendedAction.MONITOR,
+                EnforcementTier.MEDIUM: RecommendedAction.THROTTLE,
+                EnforcementTier.HIGH: RecommendedAction.APPLICATION_BLOCK,
+                EnforcementTier.CRITICAL: RecommendedAction.WAF_BLOCK,
+            }[tier]
+            if strong_evidence or tier in {EnforcementTier.LOW, EnforcementTier.MEDIUM}
+            else RecommendedAction.MONITOR
+        ),
         mode=EnforcementMode.ENFORCE,
         policy_version=ACTIVE_POLICY_VERSION,
         created_at=datetime(2026, 7, 21, tzinfo=timezone.utc),
         expires_at=datetime(2026, 7, 21, 0, 15, tzinfo=timezone.utc),
         source_verification_status=source_status,
+        decision_reason=(
+            "STRONG_CRS_EVIDENCE" if strong_evidence else "STRONG_CRS_EVIDENCE_REQUIRED"
+        ),
+        evidence_context={"strong_waf_evidence": strong_evidence},
     )
 
 
@@ -143,6 +162,11 @@ async def test_record_shadow_recommendation_persists_expiring_policy():
         prediction="SQL Injection",
         confidence_level="HIGH",
         request_path="/records/search",
+        evidence=EnforcementEvidence(
+            source_verification_status="VERIFIED",
+            crs_rule_ids=("942100",),
+            matched_rule_tags=("attack-sqli",),
+        ),
     )
 
     assert recorded is True
@@ -381,7 +405,7 @@ async def test_low_valid_grant_allows_without_incrementing_counter():
 
 
 @pytest.mark.asyncio
-async def test_medium_requires_grant_then_throttles_after_authoritative_limit():
+async def test_medium_throttles_after_three_persisted_suspicious_events():
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
     repo = ActiveRepository(_active_recommendation(EnforcementTier.MEDIUM))
     use_case = EvaluateEnforcementUseCase(
@@ -390,39 +414,32 @@ async def test_medium_requires_grant_then_throttles_after_authoritative_limit():
         low_window_seconds=60,
         low_max_unchallenged_requests=5,
         medium_window_seconds=60,
-        medium_max_requests=2,
+        medium_max_requests=10,
         allow_unverified_source_for_tests=False,
         clock=lambda: now,
     )
+    repo.suspicious_event_count = 2
     first = await use_case.execute(
         source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH
     )
-    repo.grants[("203.0.113.22", EnforcementTier.MEDIUM, ACTIVE_POLICY_VERSION)] = (
-        ChallengeGrant(
-            source_ip="203.0.113.22",
-            scope=EnforcementScope.RECORD_SEARCH,
-            tier=EnforcementTier.MEDIUM,
-            policy_version=ACTIVE_POLICY_VERSION,
-            verified_at=now,
-            expires_at=now + timedelta(minutes=5),
-        )
+    repo.suspicious_event_count = 3
+    throttled = await use_case.execute(
+        source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH
     )
-    results = [
-        await use_case.execute(
-            source_ip="203.0.113.22", scope=EnforcementScope.RECORD_SEARCH
-        )
-        for _ in range(3)
-    ]
 
-    assert first.decision == "CHALLENGE"
-    assert [result.decision for result in results] == ["ALLOW", "ALLOW", "THROTTLE"]
-    assert results[-1].retry_after_seconds == 60
+    assert first.decision == "ALLOW"
+    assert first.decision_reason == "MEDIUM_EVIDENCE_PENDING"
+    assert throttled.decision == "THROTTLE"
+    assert throttled.decision_reason == "REPEATED_SUSPICIOUS_ACTIVITY"
+    assert throttled.retry_after_seconds == 60
 
 
 @pytest.mark.asyncio
 async def test_high_enforcement_blocks_without_challenge_or_counter_state():
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
-    repo = ActiveRepository(_active_recommendation(EnforcementTier.HIGH))
+    repo = ActiveRepository(
+        _active_recommendation(EnforcementTier.HIGH, strong_evidence=True)
+    )
 
     result = await EvaluateEnforcementUseCase(
         repository=repo,
@@ -492,7 +509,7 @@ async def test_challenge_verification_does_not_verify_or_write_for_high():
 
 
 @pytest.mark.asyncio
-async def test_unsupported_active_tier_fails_open_without_challenge_or_counter():
+async def test_critical_without_strong_evidence_fails_open_without_blocking():
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
     repo = ActiveRepository(_active_recommendation(EnforcementTier.CRITICAL))
 
@@ -549,7 +566,7 @@ async def test_active_evaluation_fails_open_for_ineligible_source_and_repo_failu
 
 
 @pytest.mark.asyncio
-async def test_successful_medium_challenge_creates_tier_bound_grant_capped_by_recommendation():
+async def test_medium_challenge_creates_bound_grant() -> None:
     now = datetime(2026, 7, 21, 0, 1, tzinfo=timezone.utc)
     repo = ActiveRepository(_active_recommendation(EnforcementTier.MEDIUM))
     result = await VerifyEnforcementChallengeUseCase(
@@ -682,10 +699,10 @@ async def test_active_decision_and_challenge_success_emit_safe_structured_events
             token="must-not-appear-in-logs",
         )
 
-    assert decision.decision == "CHALLENGE"
+    assert decision.decision == "ALLOW"
     assert challenge.verified is True
     messages = "\n".join(record.getMessage() for record in caplog.records)
     assert '"event":"enforcement.evaluated"' in messages
-    assert '"actual_decision":"CHALLENGE"' in messages
+    assert '"actual_decision":"ALLOW"' in messages
     assert '"event":"enforcement.challenge_verification_succeeded"' in messages
     assert "must-not-appear-in-logs" not in messages

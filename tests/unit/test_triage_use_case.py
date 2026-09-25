@@ -167,12 +167,18 @@ async def test_triage_low_confidence_is_allowed(mock_classifier, mock_repository
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("prediction", "expected_alert_id", "publishes", "expected_action"),
+    (
+        "prediction",
+        "expected_alert_id",
+        "publishes_alert",
+        "publishes_traffic",
+        "expected_action",
+    ),
     [
-        ("Normal", None, False, "ALLOWED"),
-        ("SQL Injection", 1, True, "BLOCKED"),
-        ("Code Injection", 1, True, "BLOCKED"),
-        ("Other Attacks", None, False, None),
+        ("Normal", None, False, True, "ALLOWED"),
+        ("SQL Injection", 1, True, False, "BLOCKED"),
+        ("Code Injection", 1, True, False, "BLOCKED"),
+        ("Other Attacks", None, False, False, None),
     ],
 )
 async def test_classification_scope_controls_alert_side_effects(
@@ -180,7 +186,8 @@ async def test_classification_scope_controls_alert_side_effects(
     mock_repository,
     prediction,
     expected_alert_id,
-    publishes,
+    publishes_alert,
+    publishes_traffic,
     expected_action,
 ):
     mock_classifier.predict.return_value = {
@@ -203,7 +210,8 @@ async def test_classification_scope_controls_alert_side_effects(
     assert result.prediction == prediction
     assert result.alert_id == expected_alert_id
     assert result.action_taken == expected_action
-    assert publisher.publish_alert_created.called is publishes
+    assert publisher.publish_alert_created.called is publishes_alert
+    assert publisher.publish_traffic_changed.called is publishes_traffic
     saved = mock_repository.save.call_args.args[0]
     assert saved.prediction == prediction
     assert saved.action_taken == expected_action

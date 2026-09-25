@@ -12,6 +12,7 @@ from web_app.domain.classification_scope import (
     ACTIONABLE_ATTACK_CLASSES,
     is_actionable_attack_class,
 )
+from web_app.domain.enforcement import evidence_from_waf_fields
 from web_app.domain.waf_state import (
     PR7_DEFAULT_CAPACITY,
     PR7_ENFORCEMENT_MODE,
@@ -151,6 +152,9 @@ class WafStateRepository:
                         TrafficLog.source_verification_status,
                         TrafficLog.source_provenance,
                         TrafficLog.source_ip,
+                        TrafficLog.crs_score,
+                        TrafficLog.crs_rule_ids,
+                        TrafficLog.matched_rule_tags,
                     ).where(TrafficLog.id == trigger_traffic_log_id)
                 )
             ).one_or_none()
@@ -165,6 +169,12 @@ class WafStateRepository:
             if existing_id is None and recommendation_expires_at <= now:
                 revision = self._finalize_revision(control, now, changed_rows)
                 return WafMutationResult("EXPIRED_CANDIDATE", 0, revision, cleaned)
+            authoritative_evidence = evidence_from_waf_fields(
+                source_verification_status=traffic.source_verification_status,
+                crs_score=traffic.crs_score,
+                crs_rule_ids=traffic.crs_rule_ids,
+                matched_rule_tags=traffic.matched_rule_tags,
+            )
             values = {
                 "trigger_traffic_log_id": trigger_traffic_log_id,
                 "scope": PR7_SCOPE,
@@ -174,6 +184,8 @@ class WafStateRepository:
                 "policy_version": PR7_POLICY_VERSION,
                 "created_at": now,
                 "expires_at": recommendation_expires_at,
+                "decision_reason": "STRONG_CRS_EVIDENCE",
+                "evidence_context": authoritative_evidence.to_context(),
             }
             statement = insert(EnforcementRecommendationRow).values(**values)
             result = await self.session.execute(

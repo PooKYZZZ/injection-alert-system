@@ -43,7 +43,7 @@ describe('AlertStreamSync', () => {
     vi.useRealTimers()
   })
 
-  it('uses one stream and coalesces alert/open invalidations', async () => {
+  it('uses one stream and coalesces alert, traffic, and open invalidations', async () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue()
 
@@ -59,6 +59,7 @@ describe('AlertStreamSync', () => {
     act(() => {
       FakeEventSource.instances[0].emit('open')
       FakeEventSource.instances[0].emit('alert.created')
+      FakeEventSource.instances[0].emit('traffic.changed')
       FakeEventSource.instances[0].emit('alert.created')
       vi.advanceTimersByTime(200)
     })

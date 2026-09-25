@@ -12,6 +12,15 @@ SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
 HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
 TARGET_CLOUDFLARE_OVERLAY = "docker-compose.target-cloudflare.yml"
 APP_CLOUDFLARE_OVERLAY = "docker-compose.app-cloudflare.yml"
+PROXY_BACKEND_TEMPLATE = ROOT / "config" / "modsecurity" / "source-correlation-proxy-backend.conf.template"
+
+
+def test_modsecurity_proxy_generates_and_returns_edge_request_correlation_id() -> None:
+    config = PROXY_BACKEND_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "proxy_set_header X-CyberTrace-Edge-Request-ID $request_id;" in config
+    assert "add_header X-CyberTrace-Transaction-ID $request_id always;" in config
+    assert "proxy_set_header X-Forwarded-Host $http_host;" in config
 
 
 def _run_hosted_launcher(env_file: Path) -> subprocess.CompletedProcess[str]:
@@ -50,6 +59,7 @@ def _compose_config_result(
     *files: str,
     profile: str | list[str] | None = None,
     hosted_peer: str | None = "172.30.20.2/32",
+    source_provenance_mode: str | None = None,
     token_file: str = "C:/Users/REDACTED/CyberTrace-Secrets/cloudflared-target.token",
 ) -> subprocess.CompletedProcess[str]:
     command = ["docker", "compose"]
@@ -71,6 +81,9 @@ def _compose_config_result(
             "COMPOSE_DISABLE_ENV_FILE": "1",
             "WAF_INGEST_API_KEY": "compose-test-waf-key-not-a-runtime-secret",
             "WAF_AUDIT_EVIDENCE_KEY": "compose-test-audit-evidence-key",
+            "CLOUDFLARE_TARGET_VERIFIED_PROOF": "false",
+            "CYBERTRACE_NORMAL_ACCESS_TELEMETRY": "true",
+            "WAF_TRUSTED_TUNNEL_PEER": "172.30.20.2",
             "SOURCE_TEST_API_SECRET_KEY": "compose-test-internal-key",
             "SOURCE_TEST_WAF_INGEST_API_KEY": "compose-test-waf-key",
             "CLOUDFLARED_TARGET_TOKEN_FILE": token_file,
@@ -81,6 +94,8 @@ def _compose_config_result(
     else:
         env["HOSTED_WAF_TRUSTED_PEER"] = hosted_peer
     env["WAF_SOURCE_VERIFICATION_MODE"] = "unverified"
+    if source_provenance_mode is not None:
+        env["WAF_SOURCE_PROVENANCE_MODE"] = source_provenance_mode
     return subprocess.run(
         command,
         cwd=ROOT,
@@ -88,6 +103,23 @@ def _compose_config_result(
         capture_output=True,
         text=True,
     )
+
+
+def test_search_records_local_test_overlay_does_not_inherit_cloudflare_trust() -> None:
+    result = _compose_config_result(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        TARGET_CLOUDFLARE_OVERLAY,
+        "docker-compose.search-records-test.yml",
+        profile=["demo-target", "target-cloudflare"],
+        source_provenance_mode="cloudflare_connecting_ip",
+    )
+
+    assert result.returncode == 0, result.stderr
+    config = json.loads(result.stdout)
+    bridge = config["services"]["demo-target-bridge"]["environment"]
+    assert bridge["WAF_SOURCE_PROVENANCE_MODE"] == "direct_remote_addr"
+    assert bridge["WAF_TRUSTED_TUNNEL_PEER"] == ""
 
 
 def _base_config_without_profile() -> dict:
@@ -219,6 +251,33 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"
+    assert config["services"]["demo-target-modsecurity"]["environment"][
+        "CYBERTRACE_NORMAL_ACCESS_TELEMETRY"
+    ] == "true"
+    assert config["services"]["demo-target-bridge"]["environment"][
+        "CYBERTRACE_NORMAL_ACCESS_TELEMETRY"
+    ] == "true"
+    assert config["services"]["demo-target-bridge"]["environment"][
+        "WAF_TRUSTED_TUNNEL_PEER"
+    ] == "172.30.20.2"
+    assert "--normal-access-socket" in " ".join(
+        config["services"]["demo-target-bridge"]["command"]
+    )
+    bridge_socket_mount = next(
+        mount
+        for mount in config["services"]["demo-target-bridge"]["volumes"]
+        if mount["target"] == "/run/cybertrace-normal"
+    )
+    waf_socket_mount = next(
+        mount
+        for mount in config["services"]["demo-target-modsecurity"]["volumes"]
+        if mount["target"] == "/run/cybertrace-normal"
+    )
+    assert bridge_socket_mount["source"] == waf_socket_mount["source"]
+    assert config["services"]["demo-target-bridge"]["healthcheck"]
+    assert config["services"]["demo-target-modsecurity"]["depends_on"][
+        "demo-target-bridge"
+    ]["condition"] == "service_healthy"
     assert config["services"]["backend"]["environment"][
         "WAF_SOURCE_VERIFICATION_MODE"
     ] == "unverified"
@@ -335,7 +394,10 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
     }
     assert set(config["services"]["demo-portal"]["networks"]) == {
         "target_application",
+        "target_enforcement_api",
     }
+    assert "target_enforcement_api" in config["services"]["backend"]["networks"]
+    assert config["networks"]["target_enforcement_api"]["internal"] is True
     assert config["services"]["demo-target-modsecurity"]["environment"][
         "SET_REAL_IP_FROM"
     ] == "172.30.20.2/32"
@@ -411,6 +473,55 @@ def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
     assert "10.0.0.0/8" not in template
     assert "172.16.0.0/12" not in template
     assert "192.168.0.0/16" not in template
+
+
+def test_normal_access_logging_is_allowlisted_and_omits_request_content() -> None:
+    template = (
+        ROOT / "config" / "modsecurity" / "normal-access-logging.conf.template"
+    ).read_text(encoding="utf-8")
+    proxy = (
+        ROOT
+        / "config"
+        / "modsecurity"
+        / "source-correlation-proxy-backend.conf.template"
+    ).read_text(encoding="utf-8")
+
+    assert '"$uri"' in template
+    assert "$arg__rsc" in template
+    assert '"$http_cf_connecting_ip"' in template
+    assert '"$request"' not in template
+    assert '"query_string":"$args"' in template
+    assert '"$request_body"' not in template
+    assert "[23][0-9][0-9]" in template
+    assert "[0-9]{2}" not in template
+    assert "access_log /dev/null combined;" in proxy
+    assert "syslog:server=unix:/run/cybertrace-normal/normal.sock" in proxy
+    assert "target_normal.jsonl" not in proxy
+
+    compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
+    assert (
+        "/etc/nginx/templates/conf.d/00-normal-access-logging.conf.template"
+        in compose
+    )
+
+
+def test_cloudflare_target_launcher_defaults_to_shadow_and_guards_enforce_mode() -> None:
+    launcher = (
+        ROOT / "scripts" / "start_full_cloudflare_target.ps1"
+    ).read_text(encoding="utf-8")
+
+    assert '[ValidateSet("off", "shadow", "enforce")]' in launcher
+    assert '[string]$EnforcementMode = "shadow"' in launcher
+    assert (
+        'if ($EnforcementMode -eq "enforce" -and -not $VerifyCloudflareSourceProof)'
+        in launcher
+    )
+    assert "$env:ENFORCEMENT_MODE = $EnforcementMode" in launcher
+    assert '$env:ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS = "false"' in launcher
+    assert '$env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"' in launcher
+    assert '$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"' in launcher
+    assert '$env:WAF_SOURCE_VERIFICATION_MODE = "unverified"' in launcher
+    assert '$env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "false"' in launcher
 
 
 def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None:

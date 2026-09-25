@@ -20,6 +20,13 @@ describe('normalizeAlertSearchParams', () => {
   it('returns default filters for empty params', () => {
     const result = normalizeAlertSearchParams({})
     expect(result).toEqual(DEFAULT_ALERT_FILTERS)
+    expect(result.include_normal).toBe(false)
+  })
+
+  it('accepts only an explicit true query value for Normal traffic', () => {
+    expect(normalizeAlertSearchParams({ include_normal: 'true' }).include_normal).toBe(true)
+    expect(normalizeAlertSearchParams({ include_normal: 'false' }).include_normal).toBe(false)
+    expect(normalizeAlertSearchParams({ include_normal: 'yes' }).include_normal).toBe(false)
   })
 
   it('normalizes single confidence_level string to array', () => {
@@ -157,6 +164,15 @@ describe('toAlertQueryString', () => {
     expect(result).toContain('pageSize=20')
     expect(result).toContain('sort_by=timestamp')
     expect(result).toContain('sort_dir=desc')
+    expect(result).not.toContain('include_normal')
+  })
+
+  it('serializes the opt-in while omitting the default off value', () => {
+    const enabled = toAlertQueryString({ ...DEFAULT_ALERT_FILTERS, include_normal: true })
+    const disabled = toAlertQueryString({ ...DEFAULT_ALERT_FILTERS, include_normal: false })
+
+    expect(enabled).toContain('include_normal=true')
+    expect(disabled).not.toContain('include_normal')
   })
 
   it('serializes single confidence_level value', () => {
@@ -203,6 +219,7 @@ describe('toAlertQueryString', () => {
     const result = toAlertQueryString({
       page: 2,
       pageSize: 10,
+      include_normal: false,
       confidence_tier: 'CRITICAL',
       confidence_level: ['CRITICAL', 'HIGH', 'LOW'],
       action: 'BLOCKED',

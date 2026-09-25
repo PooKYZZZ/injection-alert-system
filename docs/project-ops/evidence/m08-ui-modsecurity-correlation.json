@@ -1,0 +1,30 @@
+{
+  "test_id": "m08-ui-171e8422-c317-4d81-bd30-0d6923112147",
+  "edge_request_id": "e18fc31d9c118e25c3e7d6b6ef7ede17",
+  "modsecurity_transaction_id": "179026171871.125691",
+  "route": "/records/search",
+  "method": "GET",
+  "http_status": 403,
+  "actual_effect": "ModSecurity returned HTTP 403 before the portal route.",
+  "crs_rule_ids": [
+    "920350",
+    "942100",
+    "949110"
+  ],
+  "ingest_source": "modsec_audit_bridge",
+  "backend_status": "COMPLETED",
+  "prediction": "SQL Injection",
+  "confidence": 0.999276,
+  "confidence_level": "CRITICAL",
+  "model_version": "distilbert_v3_907k_cleaned_20260312_133755",
+  "source_verification_status": "UNVERIFIED",
+  "policy_decision": "WAF_BLOCK",
+  "policy_decision_reason": "STRONG_CRS_EVIDENCE",
+  "alert_id": 54,
+  "alert_visible_in_api": true,
+  "alerts_returned": 11,
+  "screenshots": [
+    "m08-support-form.png",
+    "m08-modsecurity-search-blocked.png"
+  ]
+}

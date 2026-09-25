@@ -2,8 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import {
-  ALERT_DISPLAY_ACTION_ALIASES,
-  isActionableAttackClass,
+  getAlertActionLabel,
   type AlertAction,
   type AlertConfidenceTier,
   type AlertPrediction,
@@ -28,23 +27,6 @@ const borderedStyles: Record<AlertAction, string> = {
   ALLOWED: 'border border-severity-safe-border/30',
 }
 
-export function getActionLabelText(
-  action: AlertAction,
-  confidenceTier?: AlertConfidenceTier | null,
-  prediction?: AlertPrediction | null
-): string {
-  if (
-    action === 'ALLOWED' &&
-    confidenceTier === 'LOW' &&
-    prediction != null &&
-    isActionableAttackClass(prediction)
-  ) {
-    return 'Monitor Only'
-  }
-
-  return ALERT_DISPLAY_ACTION_ALIASES[action]
-}
-
 export function ActionLabel({
   action,
   confidenceTier,
@@ -67,7 +49,7 @@ export function ActionLabel({
         bordered && borderedStyles[action]
       )}
     >
-      {getActionLabelText(action, confidenceTier, prediction)}
+      {getAlertActionLabel(action, confidenceTier, prediction)}
     </span>
   )
 }

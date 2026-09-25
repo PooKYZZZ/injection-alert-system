@@ -50,6 +50,64 @@ describe('FilterBar', () => {
     expect(screen.getByLabelText('Action Taken')).toHaveValue('ALL')
   })
 
+  it('keeps Normal traffic disabled until explicitly enabled', () => {
+    render(<FilterBar />)
+
+    expect(screen.getByRole('checkbox', { name: 'Include Normal Traffic' })).not.toBeChecked()
+  })
+
+  it('enables Normal traffic while preserving other filters and resetting pagination', async () => {
+    const user = userEvent.setup()
+    mockSearchParams = new URLSearchParams('search=demo&page=3&action=ALLOWED')
+    window.history.replaceState({}, '', '/alerts?search=demo&page=3&action=ALLOWED')
+
+    const view = render(<FilterBar />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Include Normal Traffic' }))
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/alerts?search=demo&page=1&action=ALLOWED&include_normal=true',
+      { scroll: false }
+    )
+    mockSearchParams = new URLSearchParams('search=demo&page=1&action=ALLOWED&include_normal=true')
+    window.history.replaceState(
+      {},
+      '',
+      '/alerts?search=demo&page=1&action=ALLOWED&include_normal=true'
+    )
+    view.rerender(<FilterBar />)
+    expect(
+      screen.getByText(/Normal traffic has no triage status/)
+    ).toBeInTheDocument()
+  })
+
+  it('disables Normal traffic without clearing other selected filters', async () => {
+    const user = userEvent.setup()
+    mockSearchParams = new URLSearchParams('include_normal=true&page=4&triage_status=new')
+    window.history.replaceState({}, '', '/alerts?include_normal=true&page=4&triage_status=new')
+
+    render(<FilterBar />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Include Normal Traffic' }))
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/alerts?page=1&triage_status=new',
+      { scroll: false }
+    )
+  })
+
+  it('clears the Normal traffic scope with Clear all', async () => {
+    const user = userEvent.setup()
+    mockSearchParams = new URLSearchParams('include_normal=true&window=24h')
+    window.history.replaceState({}, '', '/alerts?include_normal=true&window=24h')
+
+    render(<FilterBar />)
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    expect(mockReplace).toHaveBeenCalledWith('/alerts?page=1', { scroll: false })
+  })
+
   it('uses operator-friendly labels while keeping canonical filter values', () => {
     render(<FilterBar />)
 

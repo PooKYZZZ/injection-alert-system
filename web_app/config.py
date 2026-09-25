@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     enforcement_medium_window_seconds: int = Field(default=60, ge=1, le=3600)
     enforcement_low_max_unchallenged_requests: int = Field(default=5, ge=1, le=10000)
     enforcement_medium_max_requests: int = Field(default=10, ge=1, le=10000)
+    enforcement_repeated_event_window_seconds: int = Field(
+        default=60, ge=1, le=3600
+    )
+    enforcement_repeated_event_threshold: int = Field(default=3, ge=1, le=100)
     enforcement_challenge_grant_ttl_seconds: int = Field(default=300, ge=1, le=3600)
     enforcement_turnstile_secret_key: str = ""
     enforcement_turnstile_expected_hostname: str = ""

@@ -5,6 +5,9 @@ import { AlertSchema, LabelReviewSchema, PaginatedAlertsSchema } from '@/feature
 import {
   ACTIONABLE_ATTACK_CLASSES,
   ALERT_ACTION_TAKEN_VALUES,
+  ALERT_NOTIFICATION_CHANNEL_VALUES,
+  ALERT_NOTIFICATION_STATUS_VALUES,
+  ALERT_POLICY_DECISION_VALUES,
   isActionableAttackClass,
   type AlertAction,
 } from '@/features/alerts/contract'
@@ -62,6 +65,14 @@ const BackendAlertSchema = z.object({
   confidence: z.number().min(0).max(1),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
+  policy_decision: z.enum(ALERT_POLICY_DECISION_VALUES).nullable().optional(),
+  policy_decision_reason: z.string().max(128).nullable().optional(),
+  policy_version: z.string().max(64).nullable().optional(),
+  policy_evidence_context: z.record(z.string(), z.unknown()).nullable().optional(),
+  notification_status: z
+    .partialRecord(z.enum(ALERT_NOTIFICATION_CHANNEL_VALUES), z.enum(ALERT_NOTIFICATION_STATUS_VALUES))
+    .nullable()
+    .optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
@@ -403,8 +414,14 @@ function validateMockData<T>(
   }
 }
 
-function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Alert> {
-  if (!isActionableAttackClass(alert.prediction)) {
+function normalizeAlert(
+  alert: z.infer<typeof BackendAlertSchema>,
+  includeNormal = false
+): BffResult<Alert> {
+  if (
+    !isActionableAttackClass(alert.prediction) &&
+    !(includeNormal && alert.prediction === 'Normal')
+  ) {
     return err(
       502,
       'UPSTREAM_ERROR',
@@ -417,6 +434,13 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     if (!parsedReview.ok) return parsedReview
     labelReview = parsedReview.data
   }
+  const hasAlertContext = [
+    alert.policy_decision,
+    alert.policy_decision_reason,
+    alert.policy_version,
+    alert.policy_evidence_context,
+    alert.notification_status,
+  ].some((value) => value != null)
 
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
@@ -430,6 +454,15 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
     action_taken: alert.action_taken ?? null,
+    ...(hasAlertContext
+      ? {
+          policy_decision: alert.policy_decision ?? null,
+          policy_decision_reason: alert.policy_decision_reason ?? null,
+          policy_version: alert.policy_version ?? null,
+          policy_evidence_context: alert.policy_evidence_context ?? null,
+          notification_status: alert.notification_status ?? null,
+        }
+      : {}),
     crs_score: alert.crs_score ?? null,
     crs_rule_ids: alert.crs_rule_ids ?? null,
     ingest_source: alert.ingest_source ?? null,
@@ -446,11 +479,12 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
 }
 
 function normalizeAlertList(
-  payload: z.infer<typeof BackendPaginatedAlertsSchema>
+  payload: z.infer<typeof BackendPaginatedAlertsSchema>,
+  includeNormal = false
 ): BffResult<PaginatedAlerts> {
   const normalizedItems: Alert[] = []
   for (const item of payload.items) {
-    const normalizedAlert = normalizeAlert(item)
+    const normalizedAlert = normalizeAlert(item, includeNormal)
     if (!normalizedAlert.ok) {
       return normalizedAlert
     }
@@ -964,6 +998,7 @@ export async function rollbackRetrainingRun(
 const PARAM_MAP: Record<string, string> = {
   page: 'page',
   pageSize: 'page_size',
+  include_normal: 'include_normal',
   severity: 'severity',
   confidence_tier: 'confidence_tier',
   action: 'action',
@@ -1007,7 +1042,10 @@ export async function getAlerts(
     return upstream
   }
 
-  return normalizeAlertList(upstream.data)
+  return normalizeAlertList(
+    upstream.data,
+    searchParams.get('include_normal') === 'true'
+  )
 }
 
 export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>> {

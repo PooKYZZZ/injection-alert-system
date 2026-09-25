@@ -4,8 +4,18 @@ proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection $connection_upgrade;
 proxy_set_header CF-Connecting-IP $remote_addr;
 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Host $http_host;
 proxy_set_header X-Forwarded-Port $server_port;
 proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-CyberTrace-Edge-Request-ID $request_id;
+add_header X-CyberTrace-Transaction-ID $request_id always;
+
+# Do not send the stock combined log (which contains the full request target)
+# to container stdout. Allowlisted successful requests are sent to the bridge
+# over a shared Unix datagram socket; raw query/body data is not written to disk.
+access_log /dev/null combined;
+access_log syslog:server=unix:/run/cybertrace-normal/normal.sock,nohostname,tag=target_normal cybertrace_normal
+    if=$cybertrace_normal_access_loggable;
 
 proxy_http_version 1.1;
 proxy_buffering off;

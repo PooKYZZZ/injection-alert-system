@@ -18,12 +18,20 @@ services:
     environment:
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
       WAF_SOURCE_VERIFICATION_MODE: ${WAF_SOURCE_VERIFICATION_MODE:-unverified}
+      # The target portal asks FastAPI for the active policy decision. Keep
+      # that trust mode aligned with the Cloudflare-only ingress path.
+      ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified
       CLOUDFLARE_TARGET_ISOLATION_ENABLED: "true"
       CLOUDFLARE_TARGET_VERIFIED_PROOF: ${CLOUDFLARE_TARGET_VERIFIED_PROOF:-false}
+    networks:
+      default: {}
+      target_enforcement_api: {}
 
   demo-target-bridge:
     environment:
       WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
+      WAF_TRUSTED_TUNNEL_PEER: 172.30.20.2
+      CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-true}
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
 
   cloudflared:
@@ -65,6 +73,7 @@ services:
   demo-target-modsecurity:
     ports: !override []
     environment:
+      CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-true}
       REAL_IP_HEADER: CF-Connecting-IP
       REAL_IP_PROXY_HEADER: CF-Connecting-IP
       REAL_IP_RECURSIVE: "off"
@@ -77,14 +86,23 @@ services:
         ipv4_address: 172.30.20.3
 
   demo-portal:
+    environment:
+      ENFORCEMENT_SOURCE_TRUST_MODE: cloudflare_verified
+      WAF_INGEST_URL: http://backend:8000/api/internal/waf-events
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY outside the repository}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY outside the repository}
+      WAF_INGEST_TIMEOUT_MS: ${WAF_INGEST_TIMEOUT_MS:-10000}
     networks:
       target_application: {}
+      target_enforcement_api: {}
 
 secrets:
   cloudflared_target_token:
     file: ${CLOUDFLARED_TARGET_TOKEN_FILE:?Set CLOUDFLARED_TARGET_TOKEN_FILE to a token file outside the repository}
 
 networks:
+  target_enforcement_api:
+    internal: true
   target_application:
     internal: true
   target_cloudflare_egress:

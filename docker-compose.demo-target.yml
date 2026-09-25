@@ -18,7 +18,7 @@ services:
       ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
       ENFORCEMENT_CHALLENGE_URL: http://backend:8000/api/internal/enforcement/challenge
       ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:-}
-      ENFORCEMENT_CHECK_TIMEOUT_MS: ${ENFORCEMENT_CHECK_TIMEOUT_MS:-1000}
+      ENFORCEMENT_CHECK_TIMEOUT_MS: ${ENFORCEMENT_CHECK_TIMEOUT_MS:-3000}
       ENFORCEMENT_CHALLENGE_TIMEOUT_MS: ${ENFORCEMENT_CHALLENGE_TIMEOUT_MS:-5000}
       ENFORCEMENT_TURNSTILE_SITE_KEY: ${ENFORCEMENT_TURNSTILE_SITE_KEY:-}
       ENFORCEMENT_SOURCE_TRUST_MODE: ${ENFORCEMENT_SOURCE_TRUST_MODE:-unverified}
@@ -58,11 +58,16 @@ services:
       MODSEC_AUDIT_LOG: /var/log/modsecurity/modsec_audit.jsonl
       MODSEC_AUDIT_LOG_PARTS: AIJDEFHZ
       MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^(?:5|4(?!04))"
+      CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-false}
     volumes:
       - ./logs/modsecurity/demo-target:/var/log/modsecurity
       - ./config/modsecurity/source-correlation-proxy-backend.conf.template:/etc/nginx/templates/includes/proxy_backend.conf.template:ro
+      - ./config/modsecurity/normal-access-logging.conf.template:/etc/nginx/templates/conf.d/00-normal-access-logging.conf.template:ro
+      - target_normal_access_socket:/run/cybertrace-normal
     depends_on:
       demo-portal:
+        condition: service_healthy
+      demo-target-bridge:
         condition: service_healthy
 
   demo-target-bridge:
@@ -75,6 +80,8 @@ services:
       WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:-}
       WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:-}
       WAF_SOURCE_PROVENANCE_MODE: ${WAF_SOURCE_PROVENANCE_MODE:-direct_remote_addr}
+      WAF_TRUSTED_TUNNEL_PEER: ${WAF_TRUSTED_TUNNEL_PEER:-}
+      CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-false}
       WAF_INGEST_TIMEOUT_SECONDS: ${WAF_INGEST_TIMEOUT_SECONDS:-30}
       WAF_INGEST_MAX_RETRIES: ${WAF_INGEST_MAX_RETRIES:-20}
       WAF_INGEST_RETRY_DELAY_SECONDS: ${WAF_INGEST_RETRY_DELAY_SECONDS:-2}
@@ -82,12 +89,26 @@ services:
       [
         "sh",
         "-c",
-        "echo 'waiting for demo-target ModSecurity audit log'; while [ ! -f /var/log/modsecurity/modsec_audit.jsonl ]; do sleep 1; done; python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --follow --endpoint http://backend:8000/api/internal/waf-events --timeout \"$$WAF_INGEST_TIMEOUT_SECONDS\" --max-retries \"$$WAF_INGEST_MAX_RETRIES\" --retry-delay \"$$WAF_INGEST_RETRY_DELAY_SECONDS\"",
+        "exec python -u -m scripts.waf_audit_bridge --input /var/log/modsecurity/modsec_audit.jsonl --normal-access-socket /run/cybertrace-normal/normal.sock --follow --endpoint http://backend:8000/api/internal/waf-events --timeout \"$$WAF_INGEST_TIMEOUT_SECONDS\" --max-retries \"$$WAF_INGEST_MAX_RETRIES\" --retry-delay \"$$WAF_INGEST_RETRY_DELAY_SECONDS\"",
       ]
     volumes:
       - ./logs/modsecurity/demo-target:/var/log/modsecurity:ro
+      - target_normal_access_socket:/run/cybertrace-normal
     depends_on:
       backend:
         condition: service_healthy
-      demo-target-modsecurity:
-        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,stat,sys; p='/run/cybertrace-normal/normal.sock'; sys.exit(0 if stat.S_ISSOCK(os.stat(p).st_mode) else 1)",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+
+volumes:
+  target_normal_access_socket:

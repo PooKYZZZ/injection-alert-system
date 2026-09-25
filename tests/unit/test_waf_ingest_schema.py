@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
+from web_app.domain.source_address import SourceProvenance
 from web_app.presentation.schemas import WafIngestRequest
 
 
@@ -26,6 +27,26 @@ def test_accepts_minimal_valid_waf_event():
     assert parsed.timestamp.isoformat() == "2026-03-24T10:00:00+00:00"
     assert parsed.crs_rule_ids == ["942100"]
     assert parsed.crs_score == 8
+
+
+def test_accepts_normal_access_bridge_event_without_payload_fields():
+    parsed = WafIngestRequest.model_validate(
+        {
+            "ingest_source": "nginx_access_bridge",
+            "transaction_id": "normal-req-123",
+            "timestamp": "2026-09-24T18:00:00+08:00",
+            "source_ip": "198.51.100.24",
+            "source_provenance": "DIRECT_REMOTE_ADDR",
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+        }
+    )
+
+    assert parsed.ingest_source == "nginx_access_bridge"
+    assert parsed.query_string is None
+    assert parsed.sanitized_body is None
 
 
 def test_malformed_source_timestamp_becomes_null():
@@ -289,3 +310,31 @@ def test_rejects_client_supplied_or_unknown_fields(forbidden_field: str) -> None
 
     with pytest.raises(ValidationError):
         WafIngestRequest.model_validate(payload)
+
+
+def test_accepts_portal_route_bridge_post_event():
+    parsed = WafIngestRequest.model_validate(
+        {
+            "ingest_source": "portal_route_bridge",
+            "transaction_id": "portal-post-123",
+            "timestamp": "2026-09-24T18:00:00+08:00",
+            "source_ip": "198.51.100.24",
+            "source_provenance": "CLOUDFLARE_CONNECTING_IP",
+            "cf_connecting_ip_matches_client_ip": True,
+            "request_method": "POST",
+            "request_path": "/support/submit",
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "sanitized_body": (
+                "subject=Records+question&message=Please+check+the+title."
+            ),
+        }
+    )
+
+    assert parsed.ingest_source == "portal_route_bridge"
+    assert parsed.request_method == "POST"
+    assert parsed.request_path == "/support/submit"
+    assert parsed.source_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
+    assert parsed.sanitized_body == (
+        "subject=Records+question&message=Please+check+the+title."
+    )

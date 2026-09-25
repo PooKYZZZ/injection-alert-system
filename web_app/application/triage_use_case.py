@@ -14,9 +14,9 @@ Dependency rule:
 """
 
 import logging
-from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from typing import Protocol
 from uuid import uuid4
 
@@ -33,7 +33,10 @@ from web_app.application.waf_event_sanitizer import (
     redact_query_string,
     redact_sensitive_text,
 )
-from web_app.domain.classification_scope import is_actionable_attack_class
+from web_app.domain.classification_scope import (
+    is_actionable_attack_class,
+    is_operational_traffic_class,
+)
 from web_app.domain.interfaces import ITrafficLogRepository, TrafficLogEntity
 from web_app.domain.source_address import (
     SourceProvenance,
@@ -173,7 +176,7 @@ class TriageUseCase:
                 action_taken=action_taken,
             )
         )
-        self._publish_alert_created_safely(saved.prediction)
+        self._publish_visibility_change_safely(saved.prediction)
         return self._result_from_entity(saved)
 
     async def ingest(self, command: TriageIngestCommand) -> TriageResult:
@@ -192,7 +195,11 @@ class TriageUseCase:
                 source_verification_status=command.source_verification_status,
                 ingest_fingerprint_sha256=command.ingest_fingerprint_sha256,
                 request_path=command.request_uri,
-                query_string=redact_query_string(command.query_string),
+                query_string=(
+                    None
+                    if command.ingest_source == "nginx_access_bridge"
+                    else redact_query_string(command.query_string)
+                ),
                 request_method=command.request_method,
                 http_request=self._build_persisted_http_request(command),
                 crs_score=command.crs_score,
@@ -212,7 +219,8 @@ class TriageUseCase:
             )
             if existing is None:
                 raise RuntimeError(
-                    "transaction_id claim was lost but the existing row could not be loaded"
+                    "transaction_id claim was lost but the existing row "
+                    "could not be loaded"
                 )
             self._require_matching_fingerprint(existing, command)
             self._log_verification_context_change(existing, command)
@@ -223,7 +231,8 @@ class TriageUseCase:
                     "Triage ingest is already processing for this transaction_id"
                 )
             raise RuntimeError(
-                f"Unsupported triage reservation status '{existing.status}' for transaction_id"
+                f"Unsupported triage reservation status '{existing.status}' "
+                "for transaction_id"
             )
 
         if authoritative.status == "COMPLETED":
@@ -238,7 +247,11 @@ class TriageUseCase:
             if self._enable_preprocessing
             else command.http_request
         )
-        prediction = await self._predict(model_request)
+        prediction = await self._predict(
+            model_request,
+            persist_model_input_text=command.ingest_source
+            not in {"nginx_access_bridge", "portal_route_bridge"},
+        )
         action_taken = self._action_for(
             prediction=prediction["prediction"],
             confidence_level=prediction["confidence_level"],
@@ -266,22 +279,32 @@ class TriageUseCase:
                     f"Unsupported triage completion status '{saved.status}'"
                 )
         else:
-            self._publish_alert_created_safely(saved.prediction)
+            self._publish_visibility_change_safely(saved.prediction)
         return self._result_from_entity(saved)
 
-    def _publish_alert_created_safely(self, prediction: str | None) -> None:
-        """Publish post-commit invalidation without changing write success."""
-        if not is_actionable_attack_class(prediction):
+    def _publish_visibility_change_safely(self, prediction: str | None) -> None:
+        """Publish a post-commit visibility event without changing write success."""
+        if not is_operational_traffic_class(prediction):
             return
         if self._alert_event_publisher is None:
             return
+        is_alert = is_actionable_attack_class(prediction)
         try:
-            self._alert_event_publisher.publish_alert_created()
+            if is_alert:
+                self._alert_event_publisher.publish_alert_created()
+            else:
+                self._alert_event_publisher.publish_traffic_changed()
         except Exception as exc:
             log_event(
                 logger,
-                "alert_event.publish_failed",
-                "Persisted alert invalidation could not be published",
+                (
+                    "alert_event.publish_failed"
+                    if is_alert
+                    else "traffic_event.publish_failed"
+                ),
+                "Persisted alert invalidation could not be published"
+                if is_alert
+                else "Persisted traffic visibility change could not be published",
                 level="WARNING",
                 error_type=type(exc).__name__,
             )
@@ -332,13 +355,18 @@ class TriageUseCase:
             incoming_verification_status=command.source_verification_status.value,
         )
 
-    async def _predict(self, http_request: str) -> dict:
+    async def _predict(
+        self,
+        http_request: str,
+        *,
+        persist_model_input_text: bool = True,
+    ) -> dict:
         if self._classifier is None or not getattr(self._classifier, "loaded", True):
             raise ModelNotReadyError("Model service is unavailable or not ready")
 
-        # Preprocess HTTP request for model input (training-serving consistency)
-        # The raw http_request is still persisted verbatim; this only affects
-        # the text passed to the ML model.
+        # Preprocess HTTP request for model input (training-serving consistency).
+        # Normal-access telemetry may use query text for inference, but its raw
+        # query and normalized model input are intentionally not retained.
         if self._enable_preprocessing:
             preprocessing_contract = getattr(
                 self._classifier, "model_input_version", MODEL_INPUT_VERSION
@@ -355,7 +383,8 @@ class TriageUseCase:
 
         persisted_model_input = (
             model_input
-            if preprocessing_version
+            if persist_model_input_text
+            and preprocessing_version
             in {MODEL_INPUT_VERSION, MODEL_INPUT_FALLBACK_VERSION}
             else None
         )
@@ -444,7 +473,10 @@ class TriageUseCase:
         parts = [request_line]
         if header_lines:
             parts.append(f"\nHeaders:\n{redact_sensitive_text(header_lines)}")
-        if command.request_body:
+        if (
+            command.request_body
+            and command.ingest_source != "portal_route_bridge"
+        ):
             parts.append(f"\nBody:\n{redact_sensitive_text(command.request_body)}")
         return "".join(parts)
 

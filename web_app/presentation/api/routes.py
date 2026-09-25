@@ -53,6 +53,7 @@ from web_app.application.post_triage_enforcement import (
 from web_app.application.source_verification import (
     WAF_AUDIT_EVIDENCE_HEADER,
     assign_server_source_provenance,
+    derive_source_verification_status,
 )
 from web_app.application.triage_use_case import (
     ModelNotReadyError,
@@ -72,7 +73,12 @@ from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.authorization import Permission
 from web_app.domain.classification_scope import is_actionable_attack_class
-from web_app.domain.enforcement import EnforcementMode, EnforcementScope
+from web_app.domain.enforcement import (
+    EnforcementMode,
+    EnforcementScope,
+    evidence_from_waf_fields,
+    scope_for_request_path,
+)
 from web_app.domain.interfaces import ReviewNotEligibleError
 from web_app.domain.source_address import SourceProvenance
 from web_app.infrastructure.database import AsyncSessionLocal, get_db
@@ -295,11 +301,32 @@ async def ingest_waf_event(
     audit_key = request.headers.get("X-CyberTrace-WAF-Audit-Key")
     expected_audit_key = settings.waf_audit_evidence_key
     authenticated_audit_marker = None
+    expected_audit_marker = {
+        "modsec_audit_bridge": "modsecurity",
+        "nginx_access_bridge": "nginx_access",
+        "portal_route_bridge": "portal_route",
+    }.get(payload.ingest_source)
+    if payload.ingest_source == "portal_route_bridge":
+        if (
+            payload.request_method != "POST"
+            or scope_for_request_path(payload.request_path) is None
+            or payload.crs_score != 0
+            or payload.crs_rule_ids != ["no-crs-match"]
+            or payload.matched_rule_messages
+            or payload.matched_rule_tags
+            or payload.query_string
+            or payload.request_headers
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid portal route telemetry",
+            )
     if (
         audit_key
         and expected_audit_key
         and hmac.compare_digest(audit_key, expected_audit_key)
-        and request.headers.get(WAF_AUDIT_EVIDENCE_HEADER) == "modsecurity"
+        and expected_audit_marker
+        and request.headers.get(WAF_AUDIT_EVIDENCE_HEADER) == expected_audit_marker
     ):
         authenticated_audit_marker = "authenticated"
 
@@ -316,6 +343,18 @@ async def ingest_waf_event(
         payload.cf_connecting_ip_matches_client_ip
         if source_provenance is SourceProvenance.CLOUDFLARE_CONNECTING_IP
         else None
+    )
+    source_verification_status = derive_source_verification_status(
+        source_ip=payload.source_ip,
+        provenance=source_provenance,
+        cf_connecting_ip_matches_client_ip=cf_connecting_ip_matches_client_ip,
+        mode=settings.waf_source_verification_mode,
+    )
+    enforcement_evidence = evidence_from_waf_fields(
+        source_verification_status=source_verification_status,
+        crs_score=payload.crs_score,
+        crs_rule_ids=payload.crs_rule_ids,
+        matched_rule_tags=payload.matched_rule_tags,
     )
     use_case = WafIngestUseCase(
         classifier=model_service,
@@ -431,6 +470,7 @@ async def ingest_waf_event(
                 confidence_level=result.confidence_level,
                 request_path=payload.request_path,
                 occurred_at=result.occurred_at,
+                evidence=enforcement_evidence,
             )
             log_event(
                 logger,
@@ -525,7 +565,13 @@ async def get_waf_ingest_by_transaction_id(
         prediction=entity.prediction,
         confidence=entity.confidence,
         confidence_level=entity.confidence_level,
+        model_version=entity.model_version,
         action_taken=entity.action_taken,
+        policy_decision=entity.policy_decision,
+        policy_decision_reason=entity.policy_decision_reason,
+        policy_version=entity.policy_version,
+        policy_evidence_context=entity.policy_evidence_context,
+        notification_status=entity.notification_status,
         ingest_source=entity.ingest_source,
         source_ip=entity.source_ip,
         source_provenance=entity.source_provenance,
@@ -701,7 +747,10 @@ async def stream_alert_events(
                 signal = await asyncio.wait_for(events.get(), timeout=remaining_seconds)
             except TimeoutError:
                 return
-            yield ServerSentEvent(event="alert.created", data=signal)
+            yield ServerSentEvent(
+                event=signal.get("event", "alert.created"),
+                data=signal,
+            )
 
 
 @internal_router.get("/alerts/{alert_id}", response_model=AlertDetailResponse)
@@ -738,6 +787,7 @@ async def get_alerts(
         sort_by=query.sort_by,
         sort_dir=query.sort_dir,
         reference_time=reference_time,
+        include_normal=query.include_normal,
     )
     return AlertListResponse(
         items=[
@@ -855,6 +905,14 @@ async def check_shadow_enforcement(
             ),
             medium_window_seconds=settings.enforcement_medium_window_seconds,
             medium_max_requests=settings.enforcement_medium_max_requests,
+            suspicious_event_window_seconds=getattr(
+                settings,
+                "enforcement_repeated_event_window_seconds",
+                settings.enforcement_medium_window_seconds,
+            ),
+            suspicious_event_threshold=getattr(
+                settings, "enforcement_repeated_event_threshold", 3
+            ),
             allow_unverified_source_for_tests=(
                 settings.enforcement_allow_unverified_source_for_tests
             ),
@@ -871,6 +929,7 @@ async def check_shadow_enforcement(
             decision=result.decision,
             enforcement_tier=result.challenge_tier,
             retry_after_seconds=result.retry_after_seconds,
+            decision_reason=result.decision_reason,
         )
 
     result = await CheckShadowEnforcementUseCase(
@@ -885,7 +944,10 @@ async def check_shadow_enforcement(
             status_code=503,
             detail="Shadow enforcement lookup unavailable",
         )
-    return EnforcementCheckResponse(decision=result.decision)
+    return EnforcementCheckResponse(
+        decision=result.decision,
+        decision_reason=result.decision_reason,
+    )
 
 
 @enforcement_check_router.post(

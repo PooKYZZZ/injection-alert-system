@@ -71,6 +71,17 @@ const alertFixture = {
 }
 
 describe('AlertDrawer', () => {
+  it('clarifies the saved action label is not the observed WAF or origin response', () => {
+    render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: 'Recorded action' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('keeps opening read-only and offers an explicit Start Review action for new alerts', () => {
     render(
       <AlertDrawer
@@ -110,6 +121,11 @@ describe('AlertDrawer', () => {
           triage_status: 'in_review',
           crs_score: 11,
           crs_rule_ids: ['942100'],
+          policy_decision: 'APPLICATION_BLOCK',
+          policy_decision_reason: 'STRONG_CRS_EVIDENCE',
+          policy_version: 'confidence-enforcement-v2',
+          policy_evidence_context: { strong_waf_evidence: true },
+          notification_status: { email: 'sent', telegram: 'retry_wait' },
           ingest_source: 'modsec_audit_bridge',
           source_provenance: 'DIRECT_REMOTE_ADDR',
           source_verification_status: 'VERIFIED',
@@ -128,6 +144,11 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
     expect(screen.getByText('SQL Injection Attack Detected')).toBeInTheDocument()
     expect(screen.getByText('attack-sqli')).toBeInTheDocument()
+    expect(screen.getByText('Policy decision').nextElementSibling).toHaveTextContent('APPLICATION_BLOCK')
+    expect(screen.getByText('Decision reason').nextElementSibling).toHaveTextContent('STRONG CRS EVIDENCE')
+    expect(screen.getByText('Notifications').nextElementSibling).toHaveTextContent(
+      'email: sent, telegram: retry wait'
+    )
     expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
 
     const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured Request' })
@@ -348,4 +369,37 @@ describe('AlertDrawer', () => {
       expect(labelReviewMutateMock).not.toHaveBeenCalled()
     }
   )
+
+  it('shows Normal records as read-only traffic with the stored action and no alert controls', () => {
+    render(
+      <AlertDrawer
+        role="OWNER"
+        alert={{
+          ...alertFixture,
+          alert_id: 'traffic-record-18',
+          prediction: 'Normal',
+          confidence: 0.82,
+          confidence_level: 'MEDIUM',
+          action_taken: 'ALLOWED',
+          triage_status: null,
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Traffic summary')).toBeInTheDocument()
+    expect(screen.getByText('Traffic record ID').nextElementSibling).toHaveTextContent(
+      'traffic-record-18'
+    )
+    expect(screen.getByText('Normal').closest('span')).toHaveClass('border-severity-safe-border')
+    expect(screen.getByText('Normal traffic has no analyst triage workflow.')).toBeInTheDocument()
+    expect(screen.getByText('Recorded action: Allowed.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start Review' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Update action label')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Training feedback' })).not.toBeInTheDocument()
+    expect(triageMutateMock).not.toHaveBeenCalled()
+    expect(actionMutateMock).not.toHaveBeenCalled()
+    expect(labelReviewMutateMock).not.toHaveBeenCalled()
+  })
 })

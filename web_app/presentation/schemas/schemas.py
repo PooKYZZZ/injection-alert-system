@@ -14,6 +14,16 @@ PredictionLabel = Literal[
 ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
+NotificationDeliveryStatus = Literal[
+    "pending",
+    "leased",
+    "retry_wait",
+    "sent",
+    "permanent_failure",
+    "cancelled",
+    "expired",
+]
+NotificationChannel = Literal["email", "telegram"]
 
 
 def _serialize_utc_timestamp(value: Optional[datetime]) -> Optional[str]:
@@ -337,6 +347,15 @@ class AlertDetailResponse(BaseModel):
     confidence: float
     confidence_level: ConfidenceLevel
     action_taken: Optional[ActionTaken] = None
+    policy_decision: Optional[
+        Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
+    ] = None
+    policy_decision_reason: Optional[str] = Field(default=None, max_length=128)
+    policy_version: Optional[str] = Field(default=None, max_length=64)
+    policy_evidence_context: Optional[dict[str, object]] = None
+    notification_status: Optional[
+        dict[NotificationChannel, NotificationDeliveryStatus]
+    ] = None
     crs_score: Optional[int] = None
     crs_rule_ids: Optional[list[str]] = None
     ingest_source: Optional[str] = None
@@ -388,7 +407,17 @@ class WafIngestLookupResponse(BaseModel):
     prediction: str | None = None
     confidence: float | None = None
     confidence_level: ConfidenceLevel | None = None
+    model_version: str | None = None
     action_taken: ActionTaken | None = None
+    policy_decision: Optional[
+        Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
+    ] = None
+    policy_decision_reason: Optional[str] = Field(default=None, max_length=128)
+    policy_version: Optional[str] = Field(default=None, max_length=64)
+    policy_evidence_context: Optional[dict[str, object]] = None
+    notification_status: Optional[
+        dict[NotificationChannel, NotificationDeliveryStatus]
+    ] = None
     ingest_source: str | None = None
     source_ip: str | None = None
     source_provenance: str | None = None
@@ -420,6 +449,10 @@ class AlertQueryParams(BaseModel):
 
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    include_normal: bool = Field(
+        default=False,
+        description="Include stored Normal traffic alongside supported attacks",
+    )
     severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(
         default=None, description="Legacy compatibility alias for confidence tier"
     )

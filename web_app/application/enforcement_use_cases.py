@@ -14,6 +14,7 @@ from web_app.domain.enforcement import (
     CounterKind,
     EffectiveRecommendation,
     EnforcementDecision,
+    EnforcementEvidence,
     EnforcementMode,
     EnforcementPolicy,
     EnforcementScope,
@@ -33,6 +34,7 @@ class ShadowCheckResult:
     decision: str = "ALLOW"
     matched: bool = False
     recommendation: EffectiveRecommendation | None = None
+    decision_reason: str | None = None
     degraded: bool = False
 
 
@@ -43,6 +45,7 @@ class ActiveEnforcementResult:
     recommendation: EffectiveRecommendation | None = None
     retry_after_seconds: int | None = None
     challenge_tier: str | None = None
+    decision_reason: str | None = None
     degraded: bool = False
 
 
@@ -238,6 +241,8 @@ class EvaluateEnforcementUseCase:
         medium_window_seconds: int,
         medium_max_requests: int,
         allow_unverified_source_for_tests: bool,
+        suspicious_event_window_seconds: int | None = None,
+        suspicious_event_threshold: int = 3,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
@@ -246,6 +251,10 @@ class EvaluateEnforcementUseCase:
         self._low_max_unchallenged_requests = low_max_unchallenged_requests
         self._medium_window_seconds = medium_window_seconds
         self._medium_max_requests = medium_max_requests
+        self._suspicious_event_window_seconds = (
+            suspicious_event_window_seconds or medium_window_seconds
+        )
+        self._suspicious_event_threshold = suspicious_event_threshold
         self._allow_unverified_source_for_tests = allow_unverified_source_for_tests
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -315,13 +324,21 @@ class EvaluateEnforcementUseCase:
                 )
                 return finish(ActiveEnforcementResult())
 
-            if recommendation.tier is EnforcementTier.HIGH:
-                if recommendation.action is not RecommendedAction.APPLICATION_BLOCK:
+            if recommendation.tier in {
+                EnforcementTier.HIGH,
+                EnforcementTier.CRITICAL,
+            }:
+                expected_action = (
+                    RecommendedAction.APPLICATION_BLOCK
+                    if recommendation.tier is EnforcementTier.HIGH
+                    else RecommendedAction.WAF_BLOCK
+                )
+                if recommendation.action is not expected_action:
                     log_event(
                         logger,
-                        "enforcement.invalid_high_recommendation",
+                        "enforcement.invalid_evidence_recommendation",
                         (
-                            "HIGH recommendation action is invalid; "
+                            "High-confidence recommendation lacks the required "
                             "request remains allowed"
                         ),
                         level="WARNING",
@@ -329,12 +346,22 @@ class EvaluateEnforcementUseCase:
                         recommended_action=recommendation.action.value,
                         policy_version=recommendation.policy_version,
                     )
-                    return finish(ActiveEnforcementResult())
+                    return finish(
+                        ActiveEnforcementResult(
+                            decision_reason=(
+                                recommendation.decision_reason
+                                or "STRONG_CRS_EVIDENCE_REQUIRED"
+                            )
+                        )
+                    )
                 return finish(
                     ActiveEnforcementResult(
                         decision=EnforcementDecision.BLOCK.value,
                         matched=True,
                         recommendation=recommendation,
+                        decision_reason=(
+                            recommendation.decision_reason or "STRONG_CRS_EVIDENCE"
+                        ),
                     )
                 )
 
@@ -346,55 +373,66 @@ class EvaluateEnforcementUseCase:
                     ActiveEnforcementResult(
                         matched=True,
                         recommendation=recommendation,
+                        decision_reason=(
+                            recommendation.decision_reason or "LOW_MONITOR_ONLY"
+                        ),
                     ),
                     counter_kind=CounterKind.LOW_LIGHT,
                 )
 
             if recommendation.tier is EnforcementTier.MEDIUM:
-                grant = await self._repository.find_valid_challenge_grant(
-                    source_ip=canonical_ip,
-                    scope=scope,
-                    tier=EnforcementTier.MEDIUM,
-                    policy_version=ACTIVE_POLICY_VERSION,
-                    now=now,
-                )
-                if grant is None:
+                if recommendation.action is not RecommendedAction.THROTTLE:
                     return finish(
                         ActiveEnforcementResult(
-                            decision=EnforcementDecision.CHALLENGE.value,
-                            matched=True,
-                            recommendation=recommendation,
-                            challenge_tier=EnforcementTier.MEDIUM.value,
+                            decision_reason="INVALID_MEDIUM_RECOMMENDATION"
                         )
                     )
-                state = await self._repository.increment_request_window(
-                    source_ip=canonical_ip,
-                    scope=scope,
-                    counter_kind=CounterKind.MEDIUM_HARD,
-                    policy_version=ACTIVE_POLICY_VERSION,
-                    now=now,
-                    window_seconds=self._medium_window_seconds,
-                )
-                if state.request_count > self._medium_max_requests:
-                    retry_after = max(
-                        1, math.ceil((state.window_end - now).total_seconds())
+                suspicious_event_count = (
+                    await self._repository.count_recent_suspicious_events(
+                        source_ip=canonical_ip,
+                        scope=scope,
+                        now=now,
+                        window_seconds=self._suspicious_event_window_seconds,
                     )
+                )
+                evidence_context = recommendation.evidence_context or {}
+                has_strong_evidence = bool(
+                    evidence_context.get("strong_waf_evidence")
+                )
+                if not has_strong_evidence and (
+                    suspicious_event_count < self._suspicious_event_threshold
+                ):
                     return finish(
                         ActiveEnforcementResult(
-                            decision=EnforcementDecision.THROTTLE.value,
                             matched=True,
                             recommendation=recommendation,
-                            retry_after_seconds=retry_after,
+                            decision_reason="MEDIUM_EVIDENCE_PENDING",
                         ),
                         counter_kind=CounterKind.MEDIUM_HARD,
-                        threshold_crossed=True,
                     )
+
+                window_end_epoch = (
+                    int(now.timestamp()) // self._suspicious_event_window_seconds + 1
+                ) * self._suspicious_event_window_seconds
+                window_end = datetime.fromtimestamp(
+                    window_end_epoch, tz=timezone.utc
+                )
+                retry_after = max(1, math.ceil((window_end - now).total_seconds()))
+                reason = (
+                    "STRONG_CRS_EVIDENCE"
+                    if has_strong_evidence
+                    else "REPEATED_SUSPICIOUS_ACTIVITY"
+                )
                 return finish(
                     ActiveEnforcementResult(
+                        decision=EnforcementDecision.THROTTLE.value,
                         matched=True,
                         recommendation=recommendation,
+                        retry_after_seconds=retry_after,
+                        decision_reason=reason,
                     ),
                     counter_kind=CounterKind.MEDIUM_HARD,
+                    threshold_crossed=True,
                 )
 
             log_event(
@@ -406,7 +444,9 @@ class EvaluateEnforcementUseCase:
                 tier=recommendation.tier.value,
                 policy_version=recommendation.policy_version,
             )
-            return finish(ActiveEnforcementResult())
+            return finish(
+                ActiveEnforcementResult()
+            )
         except Exception as exc:  # protected request path is fail-open
             log_event(
                 logger,
@@ -443,6 +483,7 @@ class RecordShadowRecommendationUseCase:
         confidence_level: str,
         request_path: str,
         occurred_at: datetime | None = None,
+        evidence: EnforcementEvidence | None = None,
     ) -> bool:
         if (
             self._mode is EnforcementMode.OFF
@@ -456,6 +497,7 @@ class RecordShadowRecommendationUseCase:
                 confidence_level=confidence_level,
                 request_path=request_path,
                 mode=self._mode,
+                evidence=evidence,
             )
         except (TypeError, ValueError):
             return False
@@ -478,6 +520,8 @@ class RecordShadowRecommendationUseCase:
             policy_version=recommendation.policy_version,
             created_at=created_at,
             expires_at=expires_at,
+            decision_reason=recommendation.decision_reason,
+            evidence_context=recommendation.evidence_context,
         )
         try:
             inserted = await self._repository.insert_if_absent(row)
@@ -569,4 +613,8 @@ class CheckShadowEnforcementUseCase:
             source_verification_status=recommendation.source_verification_status,
             actual_decision="ALLOW",
         )
-        return ShadowCheckResult(matched=True, recommendation=recommendation)
+        return ShadowCheckResult(
+            matched=True,
+            recommendation=recommendation,
+            decision_reason="SHADOW_ONLY",
+        )

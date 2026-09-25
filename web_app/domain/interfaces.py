@@ -106,6 +106,17 @@ class TrafficLogEntity:
     labeled_by: Optional[str] = None
     triage_status: Optional[str] = None
     label_review: Optional["TrafficLabelReview"] = None
+    # Persisted policy context is joined from the recommendation row for
+    # analyst-facing alert views. It remains separate from action_taken,
+    # which is the observed transport outcome.
+    policy_decision: Optional[str] = None
+    policy_decision_reason: Optional[str] = None
+    policy_version: Optional[str] = None
+    policy_evidence_context: Optional[dict[str, object]] = None
+    # Read-only lifecycle summary from the existing notification outbox. It
+    # intentionally contains channel/status only; recipients and payloads stay
+    # behind the notification boundary.
+    notification_status: Optional[dict[str, str]] = None
 
     @property
     def payload_snippet(self) -> str:

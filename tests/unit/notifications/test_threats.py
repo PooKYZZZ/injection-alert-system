@@ -102,12 +102,12 @@ async def test_high_confidence_tiers_enqueue_email_and_telegram(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("confidence_tier", ["LOW", "MEDIUM"])
-async def test_lower_confidence_tiers_never_enqueue_telegram(
+async def test_lower_confidence_tiers_never_enqueue_notifications(
     confidence_tier: str,
 ) -> None:
     repository = CapturingRepository()
 
-    await threats.enqueue_threat_notifications_safely(
+    queued = await threats.enqueue_threat_notifications_safely(
         repository=repository,
         settings=ThreatSettings(),
         alert_id=42,
@@ -120,7 +120,8 @@ async def test_lower_confidence_tiers_never_enqueue_telegram(
         request_path="/records/search",
     )
 
-    assert [item.channel for item in repository.notifications] == ["email"]
+    assert queued is False
+    assert repository.notifications == []
 
 
 class EmailFailingRepository(CapturingRepository):

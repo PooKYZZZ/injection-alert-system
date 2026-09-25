@@ -2,6 +2,9 @@ import { z } from 'zod'
 import {
   ALERT_ACTION_TAKEN_VALUES,
   ALERT_CONFIDENCE_TIER_VALUES,
+  ALERT_NOTIFICATION_CHANNEL_VALUES,
+  ALERT_NOTIFICATION_STATUS_VALUES,
+  ALERT_POLICY_DECISION_VALUES,
   ALERT_PREDICTION_VALUES,
   LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES,
   VERIFIED_LABEL_VALUES,
@@ -58,6 +61,7 @@ export const SourceIntelSchema = z.object({
 export const AlertFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().default(20),
+  include_normal: z.boolean().default(false),
   confidence_tier: z.enum(['ALL', ...ALERT_CONFIDENCE_TIER_VALUES]).optional(),
   severity: z.enum(['ALL', ...ALERT_CONFIDENCE_TIER_VALUES]).optional(),
   confidence_level: z.array(z.enum(ALERT_CONFIDENCE_TIER_VALUES)).optional(),
@@ -86,6 +90,14 @@ export const AlertSchema = z.object({
   confidence: z.number().min(0).max(1),
   confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable(),
+  policy_decision: z.enum(ALERT_POLICY_DECISION_VALUES).nullable().optional(),
+  policy_decision_reason: z.string().max(128).nullable().optional(),
+  policy_version: z.string().max(64).nullable().optional(),
+  policy_evidence_context: z.record(z.string(), z.unknown()).nullable().optional(),
+  notification_status: z
+    .partialRecord(z.enum(ALERT_NOTIFICATION_CHANNEL_VALUES), z.enum(ALERT_NOTIFICATION_STATUS_VALUES))
+    .nullable()
+    .optional(),
   triage_status: TriageStatusSchema.nullable().optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),

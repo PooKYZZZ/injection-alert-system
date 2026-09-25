@@ -334,7 +334,7 @@ describe('bff-client', () => {
     )
 
     const { getAlerts } = await loadClient()
-    const result = await getAlerts(new URLSearchParams())
+    const result = await getAlerts(new URLSearchParams({ include_normal: 'true' }))
 
     expect(result).toEqual({
       ok: false,
@@ -344,6 +344,68 @@ describe('bff-client', () => {
         message: 'Upstream response contained a non-actionable classification in an alert view.',
       },
     })
+  })
+
+  it('allows stored Normal traffic only when the opt-in scope is requested', async () => {
+    const normalPayload = {
+      items: [
+        {
+          id: 18,
+          timestamp: '2026-03-15T00:00:00Z',
+          source_ip: '203.0.113.18',
+          request_path: '/records/track',
+          request_method: 'GET',
+          payload_snippet: 'id=demo-18',
+          prediction: 'Normal',
+          confidence: 0.82,
+          confidence_level: 'MEDIUM',
+          action_taken: 'ALLOWED',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    }
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify(normalPayload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify(normalPayload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const { getAlerts } = await loadClient()
+    const defaultView = await getAlerts(new URLSearchParams())
+    const includedView = await getAlerts(
+      new URLSearchParams({ include_normal: 'true' })
+    )
+
+    expect(defaultView).toMatchObject({ ok: false, status: 502 })
+    expect(includedView).toMatchObject({
+      ok: true,
+      data: {
+        items: [
+          expect.objectContaining({
+            alert_id: '18',
+            prediction: 'Normal',
+            confidence: 0.82,
+            confidence_level: 'MEDIUM',
+            action_taken: 'ALLOWED',
+          }),
+        ],
+        total: 1,
+      },
+    })
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/alerts?include_normal=true',
+      expect.any(Object)
+    )
   })
 
   it('prefers confidence_tier when forwarding the alerts filter to FastAPI', async () => {
@@ -390,6 +452,17 @@ describe('bff-client', () => {
               confidence: 0.97,
               confidence_level: 'CRITICAL',
               action_taken: 'BLOCKED',
+              policy_decision: 'WAF_BLOCK',
+              policy_decision_reason: 'STRONG_CRS_EVIDENCE',
+              policy_version: 'confidence-enforcement-v2',
+              policy_evidence_context: {
+                source_verified: true,
+                strong_waf_evidence: true,
+              },
+              notification_status: {
+                email: 'sent',
+                telegram: 'retry_wait',
+              },
             },
           ],
           total: 1,
@@ -409,6 +482,51 @@ describe('bff-client', () => {
     }
 
     expect(result.data.items[0]?.confidence_level).toBe('CRITICAL')
+    expect(result.data.items[0]?.policy_decision).toBe('WAF_BLOCK')
+    expect(result.data.items[0]?.policy_decision_reason).toBe('STRONG_CRS_EVIDENCE')
+    expect(result.data.items[0]?.policy_evidence_context).toEqual({
+      source_verified: true,
+      strong_waf_evidence: true,
+    })
+    expect(result.data.items[0]?.notification_status).toEqual({
+      email: 'sent',
+      telegram: 'retry_wait',
+    })
+  })
+
+  it('accepts notification status for only the channel present in the outbox', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 8,
+              timestamp: '2026-03-15T00:00:00Z',
+              payload_snippet: 'safe test alert',
+              prediction: 'Code Injection',
+              confidence: 0.72,
+              confidence_level: 'MEDIUM',
+              action_taken: 'ALLOWED',
+              notification_status: { telegram: 'sent' },
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.items[0]?.notification_status).toEqual({ telegram: 'sent' })
   })
 
   it('rejects alert timestamps without an explicit timezone', async () => {

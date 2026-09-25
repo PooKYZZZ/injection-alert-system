@@ -2,7 +2,10 @@
 param(
     [string]$PortalContext = "E:\AI\land-records-portal",
     [string]$CloudflaredTokenFile,
+    [ValidateSet("off", "shadow", "enforce")]
+    [string]$EnforcementMode = "shadow",
     [switch]$Collection,
+    [switch]$VerifyCloudflareSourceProof,
     [switch]$Reset,
     [switch]$NoBuild,
     [switch]$ValidateOnly
@@ -69,7 +72,21 @@ if (-not (Test-Path -LiteralPath $configuredTokenFile -PathType Leaf)) {
 # and in the token file outside the repository.
 $env:DEMO_PORTAL_CONTEXT = $PortalContext
 $env:CLOUDFLARED_TARGET_TOKEN_FILE = $configuredTokenFile
-$env:WAF_SOURCE_VERIFICATION_MODE = "unverified"
+if ($EnforcementMode -eq "enforce" -and -not $VerifyCloudflareSourceProof) {
+    throw "ENFORCE requires -VerifyCloudflareSourceProof for the Cloudflare-only target path."
+}
+
+$env:ENFORCEMENT_MODE = $EnforcementMode
+$env:ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS = "false"
+if ($VerifyCloudflareSourceProof) {
+    $env:WAF_SOURCE_VERIFICATION_MODE = "cloudflare_tunnel"
+    $env:WAF_SOURCE_PROVENANCE_MODE = "cloudflare_connecting_ip"
+    $env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "true"
+} else {
+    $env:WAF_SOURCE_VERIFICATION_MODE = "unverified"
+    $env:WAF_SOURCE_PROVENANCE_MODE = "direct_remote_addr"
+    $env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "false"
+}
 
 Push-Location $repoRoot
 try {

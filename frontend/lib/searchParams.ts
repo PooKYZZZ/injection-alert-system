@@ -63,6 +63,7 @@ export function toAlertQueryString(filters: AlertFilters): string {
 
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined || value === null) continue
+    if (key === 'include_normal' && value === false) continue
 
     if (key === 'confidence_level' && Array.isArray(value)) {
       for (const entry of value) params.append(key, String(entry))
@@ -78,6 +79,7 @@ export function toAlertQueryString(filters: AlertFilters): string {
 export const DEFAULT_ALERT_FILTERS: AlertFilters = {
   page: 1,
   pageSize: 20,
+  include_normal: false,
   sort_by: 'timestamp',
   sort_dir: 'desc',
 }
@@ -98,9 +100,17 @@ export function getCurrentSearchParams(
 export function normalizeAlertSearchParams(
   params: Record<string, string | string[] | undefined>
 ): AlertFilters {
-  const normalized: Record<string, string | string[]> = {}
+  const normalized: Record<string, string | string[] | boolean> = {}
 
   for (const [key, value] of Object.entries(params)) {
+    if (key === 'include_normal') {
+      const valueToParse = Array.isArray(value) ? value[0] : value
+      if (valueToParse === 'true' || valueToParse === 'false') {
+        normalized[key] = valueToParse === 'true'
+      }
+      continue
+    }
+
     if (key === 'confidence_level') {
       if (typeof value === 'string') normalized[key] = [value]
       else if (Array.isArray(value) && value.length > 0) {

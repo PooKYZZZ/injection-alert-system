@@ -2,6 +2,9 @@
 # Use this overlay with docker-compose.target-cloudflare.yml.
 services:
   frontend:
+    # The dashboard origin must not remain reachable through a host-published
+    # port when its public hostname is routed through cloudflared.
+    ports: !override []
     networks:
       # Keep the existing frontend -> backend service-discovery path.
       default: {}
