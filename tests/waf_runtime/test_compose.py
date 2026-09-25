@@ -88,6 +88,19 @@ def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
         )
 
 
+def test_app_cloudflare_compose_removes_frontend_host_port():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+        "docker-compose.app-cloudflare.yml",
+    )
+
+    assert config["services"]["frontend"].get("ports", []) == []
+    assert "app_cloudflare_ingress" in config["services"]["frontend"]["networks"]
+    assert "app_cloudflare_ingress" in config["services"]["cloudflared"]["networks"]
+
+
 def test_backend_persists_controlled_retraining_state_without_mounting_production():
     config = _merged_compose("docker-compose.yml")
 
