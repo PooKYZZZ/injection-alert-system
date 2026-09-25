@@ -6,7 +6,7 @@
 # Exclude Next.js RSC prefetches from the remaining allowlisted GETs.
 map "${CYBERTRACE_NORMAL_ACCESS_TELEMETRY}|$request_method|$uri|$status|$arg__rsc" $cybertrace_normal_access_loggable {
     default 0;
-    ~^true\|GET\|/(?:records/[A-Za-z0-9-]+|appointments|support|login|comments|records/[A-Za-z0-9-]+/request-copy)\|[23][0-9][0-9]\|$ 1;
+    ~^true\|GET\|/(?:records/(?!search(?:/|\|))[A-Za-z0-9-]+|appointments|support|login|comments|records/[A-Za-z0-9-]+/request-copy)\|[23][0-9][0-9]\|$ 1;
 }
 
 log_format cybertrace_normal escape=json
