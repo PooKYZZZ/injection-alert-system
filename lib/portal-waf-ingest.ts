@@ -20,6 +20,8 @@ const EDGE_REQUEST_ID_HEADER = "x-cybertrace-edge-request-id";
 const EDGE_REQUEST_ID_PATTERN = /^[a-f0-9]{32}$/i;
 
 const SAFE_FIELDS_BY_SCOPE: Partial<Record<EnforcementScope, readonly string[]>> = {
+  RECORD_SEARCH: ["query"],
+  TRACK_STATUS: ["ref"],
   SUPPORT_SUBMIT: ["subject", "category", "message"],
   APPOINTMENT_SUBMIT: ["branch", "serviceType", "notes"],
   COMMENTS_SUBMIT: ["message"],
@@ -74,7 +76,18 @@ function requestTransactionId(request: NextRequest): string {
   return EDGE_REQUEST_ID_PATTERN.test(edgeRequestId) ? edgeRequestId : randomUUID();
 }
 
-function pathMatchesScope(path: string, scope: EnforcementScope): boolean {
+function requestMatchesScope(
+  method: string,
+  path: string,
+  scope: EnforcementScope,
+): boolean {
+  if (scope === "RECORD_SEARCH" || scope === "TRACK_STATUS") {
+    const expectedPath =
+      scope === "RECORD_SEARCH" ? "/records/search" : "/transactions/status";
+    return method.toUpperCase() === "GET" && path === expectedPath;
+  }
+  if (method.toUpperCase() !== "POST") return false;
+
   switch (scope) {
     case "SUPPORT_SUBMIT":
       return path === "/support/submit";
@@ -153,13 +166,29 @@ export async function ingestAndEnforcePortalPost(
   },
   dependencies: IngestAndCheckDependencies = {},
 ): Promise<NextResponse | null> {
+  return ingestAndEnforcePortalRequest(input, dependencies);
+}
+
+/**
+ * Inspect Search Records and Track Status GET inputs before their pages
+ * perform protected reads. Other user-submitted portal inputs use POST.
+ */
+export async function ingestAndEnforcePortalRequest(
+  input: {
+    request: NextRequest;
+    requestPath: string;
+    scope: EnforcementScope;
+    fields: Record<string, string>;
+  },
+  dependencies: IngestAndCheckDependencies = {},
+): Promise<NextResponse | null> {
   const config = dependencies.config ?? runtimeIngestConfig();
   const transactionId =
     dependencies.transactionId ?? requestTransactionId(input.request);
   const timestamp = dependencies.timestamp ?? new Date().toISOString();
   const { request, requestPath, scope, fields } = input;
 
-  if (request.method.toUpperCase() !== "POST" || !pathMatchesScope(requestPath, scope)) {
+  if (!requestMatchesScope(request.method, requestPath, scope)) {
     console.error(
       JSON.stringify({
         event: "waf.portal_post_scope_mismatch",
@@ -199,7 +228,7 @@ export async function ingestAndEnforcePortalPost(
       ? "CLOUDFLARE_CONNECTING_IP"
       : "DIRECT_REMOTE_ADDR",
     cf_connecting_ip_matches_client_ip: trustedSourceIp ? true : null,
-    request_method: "POST",
+    request_method: request.method.toUpperCase(),
     request_path: requestPath,
     crs_score: 0,
     crs_rule_ids: ["no-crs-match"],

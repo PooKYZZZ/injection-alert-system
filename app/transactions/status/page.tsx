@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { headers } from "next/headers";
 import type { Appointment, SupportTicket, Transaction } from "@prisma/client";
 import { 
   Search, 
@@ -44,7 +45,20 @@ export default async function TransactionStatusPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const enforcement = await checkEnforcementFromRuntime("TRACK_STATUS");
+  const requestHeaders = await headers();
+  const middlewareDecision = requestHeaders.get(
+    "x-cybertrace-enforcement-decision",
+  );
+  const enforcement =
+    middlewareDecision === "ALLOW"
+      ? { decision: "ALLOW" as const, status: "checked" as const }
+      : middlewareDecision === "CHALLENGE"
+        ? {
+            decision: "CHALLENGE" as const,
+            status: "checked" as const,
+            tier: "MEDIUM" as const,
+          }
+        : await checkEnforcementFromRuntime("TRACK_STATUS");
   if (enforcement.decision !== "ALLOW") {
     return (
       <EnforcementDecisionPage
