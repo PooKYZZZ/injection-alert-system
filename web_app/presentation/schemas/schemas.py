@@ -14,6 +14,16 @@ PredictionLabel = Literal[
 ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
+NotificationDeliveryStatus = Literal[
+    "pending",
+    "leased",
+    "retry_wait",
+    "sent",
+    "permanent_failure",
+    "cancelled",
+    "expired",
+]
+NotificationChannel = Literal["email", "telegram"]
 
 
 def _serialize_utc_timestamp(value: Optional[datetime]) -> Optional[str]:
@@ -343,6 +353,9 @@ class AlertDetailResponse(BaseModel):
     policy_decision_reason: Optional[str] = Field(default=None, max_length=128)
     policy_version: Optional[str] = Field(default=None, max_length=64)
     policy_evidence_context: Optional[dict[str, object]] = None
+    notification_status: Optional[
+        dict[NotificationChannel, NotificationDeliveryStatus]
+    ] = None
     crs_score: Optional[int] = None
     crs_rule_ids: Optional[list[str]] = None
     ingest_source: Optional[str] = None
@@ -401,6 +414,9 @@ class WafIngestLookupResponse(BaseModel):
     policy_decision_reason: Optional[str] = Field(default=None, max_length=128)
     policy_version: Optional[str] = Field(default=None, max_length=64)
     policy_evidence_context: Optional[dict[str, object]] = None
+    notification_status: Optional[
+        dict[NotificationChannel, NotificationDeliveryStatus]
+    ] = None
     ingest_source: str | None = None
     source_ip: str | None = None
     source_provenance: str | None = None

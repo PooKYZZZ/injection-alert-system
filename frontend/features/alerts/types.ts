@@ -2,6 +2,8 @@ import { z } from 'zod'
 import type {
   AlertAction,
   AlertConfidenceTier,
+  AlertNotificationChannel,
+  AlertNotificationStatus,
   AlertPolicyDecision,
   AlertPrediction,
   AlertSeverity,
@@ -13,6 +15,8 @@ import type { TriageStatus, AlertFilters, LabelReviewSchema } from './schemas'
 export type {
   AlertAction,
   AlertConfidenceTier,
+  AlertNotificationChannel,
+  AlertNotificationStatus,
   AlertPolicyDecision,
   AlertPrediction,
   AlertSeverity,
@@ -51,6 +55,7 @@ export interface Alert {
   policy_decision_reason?: string | null
   policy_version?: string | null
   policy_evidence_context?: Record<string, unknown> | null
+  notification_status?: Partial<Record<AlertNotificationChannel, AlertNotificationStatus>> | null
   triage_status?: TriageStatus | null
   crs_score?: number | null
   crs_rule_ids?: string[] | null

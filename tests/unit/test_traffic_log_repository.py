@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -409,6 +410,56 @@ async def test_alert_views_include_persisted_policy_context(
     detail = await repository.get_operational_alert_by_id(saved.id)
     assert detail is not None
     assert detail.policy_decision == "WAF_BLOCK"
+
+
+@pytest.mark.asyncio
+async def test_notification_status_lookup_uses_dedupe_keys_without_payload_access():
+    class FakeResult:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [
+                {
+                    "dedupe_key": "threat/42/telegram",
+                    "channel": "telegram",
+                    "status": "retry_wait",
+                },
+                {
+                    "dedupe_key": "threat/42",
+                    "channel": "email",
+                    "status": "sent",
+                },
+                {
+                    "dedupe_key": "threat/not-an-id",
+                    "channel": "email",
+                    "status": "sent",
+                },
+            ]
+
+    class FakeSession:
+        def __init__(self):
+            self.params = None
+            self.statement = None
+
+        def get_bind(self):
+            return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+        async def execute(self, statement, params):
+            self.statement = statement
+            self.params = params
+            return FakeResult()
+
+    session = FakeSession()
+    repository = TrafficLogRepository(session)  # type: ignore[arg-type]
+
+    status = await repository._notification_status_by_traffic_ids([42])
+
+    assert status == {42: {"telegram": "retry_wait", "email": "sent"}}
+    assert session.params == {
+        "dedupe_keys": ["threat/42", "threat/42/telegram"]
+    }
+    assert "payload_safe_json" not in str(session.statement)
 
 
 @pytest.mark.asyncio

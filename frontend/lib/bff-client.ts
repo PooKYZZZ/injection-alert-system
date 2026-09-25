@@ -4,8 +4,10 @@ import { z } from 'zod'
 import { AlertSchema, LabelReviewSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
 import {
   ACTIONABLE_ATTACK_CLASSES,
-  ALERT_POLICY_DECISION_VALUES,
   ALERT_ACTION_TAKEN_VALUES,
+  ALERT_NOTIFICATION_CHANNEL_VALUES,
+  ALERT_NOTIFICATION_STATUS_VALUES,
+  ALERT_POLICY_DECISION_VALUES,
   isActionableAttackClass,
   type AlertAction,
 } from '@/features/alerts/contract'
@@ -67,6 +69,10 @@ const BackendAlertSchema = z.object({
   policy_decision_reason: z.string().max(128).nullable().optional(),
   policy_version: z.string().max(64).nullable().optional(),
   policy_evidence_context: z.record(z.string(), z.unknown()).nullable().optional(),
+  notification_status: z
+    .partialRecord(z.enum(ALERT_NOTIFICATION_CHANNEL_VALUES), z.enum(ALERT_NOTIFICATION_STATUS_VALUES))
+    .nullable()
+    .optional(),
   crs_score: z.number().nullable().optional(),
   crs_rule_ids: z.array(z.string()).nullable().optional(),
   ingest_source: z.string().nullable().optional(),
@@ -422,11 +428,12 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     if (!parsedReview.ok) return parsedReview
     labelReview = parsedReview.data
   }
-  const hasPolicyContext = [
+  const hasAlertContext = [
     alert.policy_decision,
     alert.policy_decision_reason,
     alert.policy_version,
     alert.policy_evidence_context,
+    alert.notification_status,
   ].some((value) => value != null)
 
   return normalizeWithSchema(AlertSchema, {
@@ -441,12 +448,13 @@ function normalizeAlert(alert: z.infer<typeof BackendAlertSchema>): BffResult<Al
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
     action_taken: alert.action_taken ?? null,
-    ...(hasPolicyContext
+    ...(hasAlertContext
       ? {
           policy_decision: alert.policy_decision ?? null,
           policy_decision_reason: alert.policy_decision_reason ?? null,
           policy_version: alert.policy_version ?? null,
           policy_evidence_context: alert.policy_evidence_context ?? null,
+          notification_status: alert.notification_status ?? null,
         }
       : {}),
     crs_score: alert.crs_score ?? null,

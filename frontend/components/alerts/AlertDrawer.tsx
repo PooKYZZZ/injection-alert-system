@@ -60,6 +60,21 @@ function formatPolicyEvidence(context: Record<string, unknown> | null | undefine
   return 'Recorded evidence context'
 }
 
+function formatNotificationStatus(
+  status: Alert['notification_status'],
+  confidenceTier: Alert['confidence_level']
+): string {
+  const entries = Object.entries(status ?? {})
+  if (entries.length === 0) {
+    return confidenceTier === 'LOW' || confidenceTier === 'MEDIUM'
+      ? 'Not applicable'
+      : 'No outbox record'
+  }
+  return entries
+    .map(([channel, value]) => `${channel}: ${value.replaceAll('_', ' ')}`)
+    .join(', ')
+}
+
 function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated }: AlertDrawerProps) {
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
@@ -325,6 +340,12 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.policy_version ?? '—'}
                       </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Notifications
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {formatNotificationStatus(alert.notification_status, alert.confidence_level)}
+                      </dd>
                     </dl>
                   </section>
 
@@ -577,15 +598,15 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
 
                       <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          System Outcome
+                          Recorded action
                         </h3>
                         <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                          Recorded result of the original request.
+                          This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.
                         </p>
                         {canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
                       <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
-                        Update recorded outcome
+                        Update action label
                       </p>
                       <button
                         type="button"

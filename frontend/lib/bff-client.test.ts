@@ -397,6 +397,10 @@ describe('bff-client', () => {
                 source_verified: true,
                 strong_waf_evidence: true,
               },
+              notification_status: {
+                email: 'sent',
+                telegram: 'retry_wait',
+              },
             },
           ],
           total: 1,
@@ -422,6 +426,45 @@ describe('bff-client', () => {
       source_verified: true,
       strong_waf_evidence: true,
     })
+    expect(result.data.items[0]?.notification_status).toEqual({
+      email: 'sent',
+      telegram: 'retry_wait',
+    })
+  })
+
+  it('accepts notification status for only the channel present in the outbox', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: 8,
+              timestamp: '2026-03-15T00:00:00Z',
+              payload_snippet: 'safe test alert',
+              prediction: 'Code Injection',
+              confidence: 0.72,
+              confidence_level: 'MEDIUM',
+              action_taken: 'ALLOWED',
+              notification_status: { telegram: 'sent' },
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { getAlerts } = await loadClient()
+    const result = await getAlerts(new URLSearchParams())
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.items[0]?.notification_status).toEqual({ telegram: 'sent' })
   })
 
   it('rejects alert timestamps without an explicit timezone', async () => {
