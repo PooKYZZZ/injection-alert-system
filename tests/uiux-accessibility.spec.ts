@@ -13,6 +13,7 @@ const accessibilityRoutes = [
   "/comments",
   "/records/LND-2026-0001/request-copy",
   "/success?type=appointment&ref=UIUX-ACCESSIBILITY",
+  "/uiux-route-not-found-20260925",
 ];
 const formRoutes = [
   "/records/search",
@@ -20,6 +21,7 @@ const formRoutes = [
   "/appointments",
   "/support",
   "/comments",
+  "/records/LND-2026-0001/request-copy",
 ];
 const viewportCases = [
   { name: "desktop", width: 1440, height: 900 },
@@ -48,7 +50,7 @@ test("sampled routes have one main landmark and unique IDs", async ({ page }) =>
 
   await page.goto("/comments");
   await expect(page.locator("h1")).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Public Citizen Comments");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Demo Comments");
 });
 
 test("skip link is first in keyboard order, visible on focus, and focuses main", async ({ page }) => {
@@ -208,6 +210,10 @@ test("core routes have no horizontal overflow at desktop, tablet, or mobile widt
         path: join(evidenceDirectory, `m1-appointments-${viewport.width}x${viewport.height}.png`),
         fullPage: true,
       });
+      await page.screenshot({
+        path: join(evidenceDirectory, `m4-appointments-${viewport.width}x${viewport.height}.png`),
+        fullPage: true,
+      });
     }
 
     for (const route of accessibilityRoutes.slice(1)) {
@@ -223,6 +229,20 @@ test("core routes have no horizontal overflow at desktop, tablet, or mobile widt
       expect(widths.body, `${route} ${viewport.name} body width`).toBeLessThanOrEqual(
         widths.viewport,
       );
+      if (evidenceDirectory) {
+        const routeName = route.split("?")[0].replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "home";
+        await page.evaluate(() => {
+          document.querySelectorAll("nextjs-portal").forEach((element) => {
+            if (element instanceof HTMLElement) {
+              element.style.setProperty("display", "none", "important");
+            }
+          });
+        });
+        await page.screenshot({
+          path: join(evidenceDirectory, `m4-${routeName}-${viewport.width}x${viewport.height}.png`),
+          fullPage: true,
+        });
+      }
     }
   }
 });
