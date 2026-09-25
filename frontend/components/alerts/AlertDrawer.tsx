@@ -90,6 +90,14 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   const additionalPayload = payloadSnippet && payloadSnippet !== capturedRequestLine
     ? payloadSnippet
     : ''
+  const missingRequestDetailsMessage =
+    alert?.ingest_source === 'portal_route_bridge'
+      ? 'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+      : alert?.ingest_source === 'nginx_access_bridge'
+        ? 'Access-log events do not retain query strings, so the original input is unavailable here.'
+        : payloadSnippet
+          ? 'No additional request data captured.'
+          : 'No payload captured.'
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
     role,
@@ -489,7 +497,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             {'\n'}
                             {'\n'}
                             <span className="text-[var(--color-text-soft)]">
-                              {payloadSnippet ? 'No additional request data captured.' : 'No payload captured.'}
+                              {missingRequestDetailsMessage}
                             </span>
                           </>
                         ) : null}

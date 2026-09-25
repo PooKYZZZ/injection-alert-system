@@ -376,7 +376,7 @@ class _AlertResponseBase(BaseModel):
 
 class AlertDetailResponse(_AlertResponseBase):
     # Query data is stored separately after sensitive values are redacted and
-    # is exposed only through the authenticated single-alert detail endpoint.
+    # is included only in authenticated detail-shaped alert responses.
     query_string: Optional[str] = Field(default=None, max_length=4096)
 
 
