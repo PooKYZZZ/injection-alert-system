@@ -16,7 +16,7 @@ include = ["ml_model*", "web_app*", "waf_runtime*"]
 dev = [
     "pytest",
     "pytest-cov",
-    "httpx2",
+    "httpx2>=2.13.1,<3",
     "black",
     "ruff",
     "mypy",
