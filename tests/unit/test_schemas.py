@@ -280,6 +280,10 @@ def test_alert_detail_response_supports_optional_crs_and_review_fields():
         confidence=0.92,
         confidence_level="HIGH",
         action_taken="BLOCKED",
+        policy_decision="APPLICATION_BLOCK",
+        policy_decision_reason="STRONG_CRS_EVIDENCE",
+        policy_version="confidence-enforcement-v2",
+        policy_evidence_context={"strong_waf_evidence": True},
         crs_score=9,
         crs_rule_ids=["942100", "942110"],
         ingest_source="modsec_audit_bridge",
@@ -296,6 +300,10 @@ def test_alert_detail_response_supports_optional_crs_and_review_fields():
     assert alert.ingest_source == "modsec_audit_bridge"
     assert alert.source_provenance == "DIRECT_REMOTE_ADDR"
     assert alert.source_verification_status == "VERIFIED"
+    assert alert.policy_decision == "APPLICATION_BLOCK"
+    assert alert.policy_decision_reason == "STRONG_CRS_EVIDENCE"
+    assert alert.policy_version == "confidence-enforcement-v2"
+    assert alert.policy_evidence_context == {"strong_waf_evidence": True}
     assert alert.matched_rule_messages == ["SQL Injection Attack Detected"]
     assert alert.matched_rule_tags == ["attack-sqli", "paranoia-level/1"]
     assert alert.analyst_label == "Normal"

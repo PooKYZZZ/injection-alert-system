@@ -42,7 +42,7 @@ export function MLEnforcementMap({
         Action policy for actionable attacks
       </div>
       <div className="break-words text-[11px] leading-tight text-[var(--color-text-muted)]">
-        Normal predictions remain ALLOWED; out-of-scope labels do not enter this policy.
+        Normal predictions remain ALLOWED; LOW actionable attacks are MONITOR ONLY; out-of-scope labels do not enter this policy.
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
@@ -53,7 +53,7 @@ export function MLEnforcementMap({
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{critical}</span>
           <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
-            BLOCKED
+            BLOCK WITH EVIDENCE
           </span>
         </div>
       </div>
@@ -69,7 +69,7 @@ export function MLEnforcementMap({
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{high}</span>
           <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
-            BLOCKED
+            BLOCK WITH EVIDENCE
           </span>
         </div>
       </div>
@@ -85,7 +85,7 @@ export function MLEnforcementMap({
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{medium}</span>
           <span className="rounded border border-severity-blocked-border bg-severity-blocked-bg px-1 py-0.5 text-[10px] font-bold text-severity-blocked-text">
-            THROTTLED
+            THROTTLE WITH EVIDENCE
           </span>
         </div>
       </div>

@@ -1,16 +1,37 @@
-import { describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 
-import { getActionLabelText } from './ActionLabel'
+import { ActionLabel } from './ActionLabel'
 
-describe('getActionLabelText', () => {
-  it('labels LOW actionable ALLOWED traffic as monitor-only', () => {
-    expect(getActionLabelText('ALLOWED', 'LOW', 'SQL Injection')).toBe('Monitor Only')
-    expect(getActionLabelText('ALLOWED', 'LOW', 'Code Injection')).toBe('Monitor Only')
+afterEach(() => {
+  cleanup()
+})
+
+describe('ActionLabel', () => {
+  it('labels LOW allowed actionable attacks as monitor-only', () => {
+    for (const prediction of ['SQL Injection', 'Code Injection'] as const) {
+      const { unmount } = render(
+        <ActionLabel action="ALLOWED" confidenceTier="LOW" prediction={prediction} />
+      )
+
+      expect(screen.getByText('Monitor Only')).toBeInTheDocument()
+      unmount()
+    }
   })
 
-  it('keeps ordinary allowed and out-of-scope traffic distinct', () => {
-    expect(getActionLabelText('ALLOWED', 'LOW', 'Normal')).toBe('Allowed')
-    expect(getActionLabelText('ALLOWED', 'LOW', 'Other Attacks')).toBe('Allowed')
-    expect(getActionLabelText('ALLOWED', 'MEDIUM', 'SQL Injection')).toBe('Allowed')
+  it('keeps Normal, out-of-scope, and non-LOW allowed outcomes as allowed', () => {
+    const cases = [
+      { confidenceTier: 'LOW', prediction: 'Normal' },
+      { confidenceTier: 'LOW', prediction: 'Other Attacks' },
+      { confidenceTier: 'MEDIUM', prediction: 'SQL Injection' },
+    ] as const
+
+    for (const props of cases) {
+      const { unmount } = render(<ActionLabel action="ALLOWED" {...props} />)
+
+      expect(screen.getByText('Allowed')).toBeInTheDocument()
+      expect(screen.queryByText('Monitor Only')).not.toBeInTheDocument()
+      unmount()
+    }
   })
 })

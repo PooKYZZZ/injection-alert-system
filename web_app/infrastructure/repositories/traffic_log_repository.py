@@ -42,6 +42,9 @@ from web_app.domain.interfaces import (
 )
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
 from web_app.infrastructure.database.database import TrafficLabelReview as ReviewRow
+from web_app.infrastructure.database.database import (
+    EnforcementRecommendationRow,
+)
 from web_app.infrastructure.database.database import TrafficLog
 from web_app.infrastructure.database.database import AsyncSessionLocal
 
@@ -303,6 +306,7 @@ class TrafficLogRepository(ITrafficLogRepository):
     def _orm_to_entity(
         orm_obj: TrafficLog,
         label_review: TrafficLabelReview | None = None,
+        policy_context: dict[str, object] | None = None,
     ) -> TrafficLogEntity:
         """Convert an ORM model instance to a domain entity."""
         return TrafficLogEntity(
@@ -343,7 +347,75 @@ class TrafficLogRepository(ITrafficLogRepository):
             labeled_by=orm_obj.labeled_by,
             triage_status=orm_obj.triage_status,
             label_review=label_review,
+            policy_decision=(
+                str(policy_context["decision"])
+                if policy_context and policy_context.get("decision") is not None
+                else None
+            ),
+            policy_decision_reason=(
+                str(policy_context["reason"])
+                if policy_context and policy_context.get("reason") is not None
+                else None
+            ),
+            policy_version=(
+                str(policy_context["version"])
+                if policy_context and policy_context.get("version") is not None
+                else None
+            ),
+            policy_evidence_context=(
+                dict(policy_context["evidence"])
+                if policy_context
+                and isinstance(policy_context.get("evidence"), dict)
+                else None
+            ),
         )
+
+    async def _policy_context_by_traffic_ids(
+        self, traffic_ids: list[int]
+    ) -> dict[int, dict[str, object]]:
+        if not traffic_ids:
+            return {}
+        result = await self._session.execute(
+            select(
+                EnforcementRecommendationRow.trigger_traffic_log_id,
+                EnforcementRecommendationRow.recommended_action,
+                EnforcementRecommendationRow.decision_reason,
+                EnforcementRecommendationRow.policy_version,
+                EnforcementRecommendationRow.evidence_context,
+            ).where(
+                EnforcementRecommendationRow.trigger_traffic_log_id.in_(traffic_ids)
+            )
+        )
+        return {
+            int(row.trigger_traffic_log_id): {
+                "decision": row.recommended_action,
+                "reason": row.decision_reason,
+                "version": row.policy_version,
+                "evidence": row.evidence_context,
+            }
+            for row in result.all()
+        }
+
+    async def _attach_policy_context(
+        self, entities: list[TrafficLogEntity]
+    ) -> list[TrafficLogEntity]:
+        contexts = await self._policy_context_by_traffic_ids(
+            [int(entity.id) for entity in entities if entity.id is not None]
+        )
+        for entity in entities:
+            if entity.id is None:
+                continue
+            context = contexts.get(int(entity.id))
+            if context is None:
+                continue
+            entity.policy_decision = context.get("decision")  # type: ignore[assignment]
+            entity.policy_decision_reason = context.get("reason")  # type: ignore[assignment]
+            entity.policy_version = context.get("version")  # type: ignore[assignment]
+            evidence = context.get("evidence")
+            entity.policy_evidence_context = (
+                dict(evidence) if isinstance(evidence, dict) else None
+            )
+        return entities
 
     @staticmethod
     def _review_to_entity(row: ReviewRow) -> TrafficLabelReview:
@@ -663,7 +735,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         if orm_obj is None:
             return None
         reviews = await self._latest_reviews([orm_obj.id])
-        return self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
+        entity = self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
+        attached = await self._attach_policy_context([entity])
+        return attached[0]
 
     async def get_operational_alert_by_id(
         self, alert_id: int
@@ -681,7 +755,9 @@ class TrafficLogRepository(ITrafficLogRepository):
         if orm_obj is None:
             return None
         reviews = await self._latest_reviews([orm_obj.id])
-        return self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
+        entity = self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
+        attached = await self._attach_policy_context([entity])
+        return attached[0]
 
     async def get_by_transaction_id(
         self,
@@ -694,7 +770,8 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj = result.scalars().first()
         if orm_obj is None:
             return None
-        return self._orm_to_entity(orm_obj)
+        attached = await self._attach_policy_context([self._orm_to_entity(orm_obj)])
+        return attached[0]
 
     async def _get_summary_row(
         self,
@@ -1521,6 +1598,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         rows = result.scalars().all()
         reviews = await self._latest_reviews([row.id for row in rows])
         items = [self._orm_to_entity(row, reviews.get(row.id)) for row in rows]
+        items = await self._attach_policy_context(items)
         return TrafficLogPage(
             items=items,
             total=total,
@@ -1540,7 +1618,8 @@ class TrafficLogRepository(ITrafficLogRepository):
             .offset(skip)
             .limit(limit)
         )
-        return [self._orm_to_entity(row) for row in result.scalars().all()]
+        items = [self._orm_to_entity(row) for row in result.scalars().all()]
+        return await self._attach_policy_context(items)
 
     async def update_feedback(
         self,
@@ -1562,7 +1641,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.labeled_at = labeled_at
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return self._orm_to_entity(orm_obj)
+        return (await self._attach_policy_context([self._orm_to_entity(orm_obj)]))[0]
 
     async def update_triage_status(
         self,
@@ -1583,7 +1662,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.triage_status = triage_status
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return self._orm_to_entity(orm_obj)
+        return (await self._attach_policy_context([self._orm_to_entity(orm_obj)]))[0]
 
     async def update_action_taken(
         self,
@@ -1604,4 +1683,4 @@ class TrafficLogRepository(ITrafficLogRepository):
         orm_obj.action_taken = action_taken
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return self._orm_to_entity(orm_obj)
+        return (await self._attach_policy_context([self._orm_to_entity(orm_obj)]))[0]

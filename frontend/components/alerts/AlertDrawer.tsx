@@ -4,14 +4,13 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState } from 'react'
 import type { Alert, LabelReview, TriageStatus } from '@/features/alerts/types'
-import { ALERT_DISPLAY_ACTION_ALIASES, VERIFIED_LABEL_VALUES } from '@/features/alerts/contract'
+import { ALERT_DISPLAY_ACTION_ALIASES, getAlertActionLabel, VERIFIED_LABEL_VALUES } from '@/features/alerts/contract'
 import type { AlertAction, VerifiedLabel } from '@/features/alerts/contract'
 import { useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
 import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { describeEvidenceRelationship } from '@/features/alerts/evidence'
-import { getActionLabelText } from '@/components/ui/ActionLabel'
 
 interface AlertDrawerProps {
   role?: unknown
@@ -48,6 +47,17 @@ function isNewTriageStatus(status: TriageStatus | null | undefined): boolean {
 function formatCrsScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
   return score.toFixed(2)
+}
+
+function formatPolicyReason(reason: string | null | undefined): string {
+  return reason ? reason.replaceAll('_', ' ') : '—'
+}
+
+function formatPolicyEvidence(context: Record<string, unknown> | null | undefined): string {
+  if (!context) return '—'
+  if (context.strong_waf_evidence === true) return 'Strong CRS evidence'
+  if (context.source_verified === true) return 'Verified source context'
+  return 'Recorded evidence context'
 }
 
 function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated }: AlertDrawerProps) {
@@ -204,7 +214,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         )}
                       >
                         {displayAction
-                          ? getActionLabelText(displayAction, alert.confidence_level, alert.prediction)
+                          ? getAlertActionLabel(displayAction, alert.confidence_level, alert.prediction)
                           : 'No Action'}
                       </span>
                     </div>
@@ -290,6 +300,30 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         <span className="mt-0.5 block text-[10px] text-[var(--color-text-secondary)]">
                           Model certainty, not attack severity.
                         </span>
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Policy decision
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {alert.policy_decision ?? 'No recommendation'}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Decision reason
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {formatPolicyReason(alert.policy_decision_reason)}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Evidence basis
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {formatPolicyEvidence(alert.policy_evidence_context)}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Policy version
+                      </dt>
+                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
+                        {alert.policy_version ?? '—'}
                       </dd>
                     </dl>
                   </section>

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type {
   AlertAction,
   AlertConfidenceTier,
+  AlertPolicyDecision,
   AlertPrediction,
   AlertSeverity,
   LabelReviewApprovalState,
@@ -12,6 +13,7 @@ import type { TriageStatus, AlertFilters, LabelReviewSchema } from './schemas'
 export type {
   AlertAction,
   AlertConfidenceTier,
+  AlertPolicyDecision,
   AlertPrediction,
   AlertSeverity,
   TriageStatus,
@@ -45,6 +47,10 @@ export interface Alert {
   confidence: number
   confidence_level: AlertConfidenceTier
   action_taken: AlertAction | null
+  policy_decision?: AlertPolicyDecision | null
+  policy_decision_reason?: string | null
+  policy_version?: string | null
+  policy_evidence_context?: Record<string, unknown> | null
   triage_status?: TriageStatus | null
   crs_score?: number | null
   crs_rule_ids?: string[] | null
