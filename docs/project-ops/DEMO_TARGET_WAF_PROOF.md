@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the local WAF proof path for the separate portal demo target from this repository's `stable/portal-pre-waf` branch.
+This document defines the local WAF proof path for the separate portal demo target from this repository's `stable/cybertrace-target` branch.
 
 This is separate from the default CyberTrace WAF proof path.
 
@@ -22,7 +22,7 @@ The demo-target Compose profile is optional for normal developer startup. It is 
 
 The demo-target profile builds and starts the protected demo website as `demo-portal`.
 
-The portal source stays separate. Do not merge the portal branch into this checkout. Create a sibling checkout of this repository's `stable/portal-pre-waf` branch; by default, Compose uses `../injection-alert-system-portal-pre-waf` as its build context. Override `DEMO_PORTAL_CONTEXT` if your portal checkout is elsewhere.
+The portal source stays separate. Do not merge the portal branch into this checkout. Create a sibling checkout of this repository's `stable/cybertrace-target` branch; by default, Compose uses `../injection-alert-system-portal-pre-waf` as its build context. Keep that directory name to preserve existing Compose configuration. Override `DEMO_PORTAL_CONTEXT` if your portal checkout is elsewhere.
 
 The demo-target WAF route proxies to:
 

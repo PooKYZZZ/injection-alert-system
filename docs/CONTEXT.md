@@ -42,7 +42,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 
 ### Realistic demo-target WAF proof (2026-06-27)
 
-- The portal source stays separate. The demo-target Compose profile builds and runs a sibling checkout of `stable/portal-pre-waf` as `demo-portal`, with the production standalone server bound to `0.0.0.0:3010` inside the Compose network.
+- The portal source stays separate. The demo-target Compose profile builds and runs a sibling checkout of `stable/cybertrace-target` as `demo-portal`, with the production standalone server bound to `0.0.0.0:3010` inside the Compose network.
 - `localhost:8089` returned HTTP 200 for the demo-target home request.
 - Fresh SQLi marker `SMOKE002945` against `/records/search` returned HTTP 403.
 - Demo-target audit log path: `logs/modsecurity/demo-target/modsec_audit.jsonl`.
@@ -56,7 +56,7 @@ Evidence file: `reports/modsecurity-live-proof/e2e-proof.md`
 Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 - PR4 is merged and frozen: backend PR #88 merged into `master`; portal PR #89
-  merged into `stable/portal-pre-waf`.
+  merged into `stable/cybertrace-target` (branch name updated by the later rename).
 - Fresh single-stack validation passed the maintained demo-target smoke:
   ModSecurity/CRS returned HTTP 403 for the controlled SQLi, audit and backend
   transaction correlation passed, and a later `/records/search` request
