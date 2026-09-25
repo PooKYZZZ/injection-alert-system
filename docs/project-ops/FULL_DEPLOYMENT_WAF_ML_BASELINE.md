@@ -22,9 +22,9 @@ The plan is still marked as planning-only. It must not be treated as proof that 
 | Repository | Current branch and commit | Working-tree state | Milestone branch status |
 |---|---|---|---|
 | Main WAF-ML application (`E:\AI\PDDDD\injection-alert-system`) | `master` at `2e7dfb3` before this milestone | Pre-existing `.gitignore` modification preserved; it ignores the local copy of the full-deployment plan | `codex/waf-ml-m00-architecture-baseline` created for this document |
-| Target portal (`E:\AI\land-records-portal`) | `stable/portal-pre-waf` at `f011b9f` | Pre-existing `.dockerignore` modification preserved (`.pytest_cache`, `.serena`) | Confirmed target base; no milestone branch created yet |
+| Target portal (`E:\AI\land-records-portal`) | `stable/portal-pre-waf` at `f011b9f` (renamed on 2026-09-25 to `stable/cybertrace-target`) | Pre-existing `.dockerignore` modification preserved (`.pytest_cache`, `.serena`) | Confirmed target base; no milestone branch created yet |
 
-Both working directories intentionally point at the same GitHub repository, `PooKYZZZ/injection-alert-system`. The target portal is coordinated through the `stable/portal-pre-waf` branch; future portal milestone branches and PRs should use that branch as their target base, while main-application PRs use `master` unless a stacked dependency is explicitly documented.
+Both working directories intentionally point at the same GitHub repository, `PooKYZZZ/injection-alert-system`. The target portal is coordinated through `stable/cybertrace-target` (renamed from `stable/portal-pre-waf` without rewriting history); future portal milestone branches and PRs should use that branch as their target base, while main-application PRs use `master` unless a stacked dependency is explicitly documented.
 
 ## Live architecture map
 
@@ -94,7 +94,7 @@ The research was limited to sources relevant to this project. Findings were trea
 | Finding | Application | Decision |
 |---|---|---|
 | OpenAI harness guidance favors depth-first repository-local context and versioned instructions for long-running coding work. | Keep this baseline and the ignored progress handoff concise and evidence-based; reload them at milestone boundaries. | ADOPTED |
-| GitHub pull requests are reviewable change units with explicit base/head branches and review history. | Use one open PR per independently reviewable milestone, use `master` and `stable/portal-pre-waf` as the confirmed bases, and cross-link coordinated PRs. | ADOPTED |
+| GitHub pull requests are reviewable change units with explicit base/head branches and review history. | Use one open PR per independently reviewable milestone, use `master` and `stable/cybertrace-target` as the current bases, and cross-link coordinated PRs. | ADOPTED |
 | OWASP API guidance treats unrestricted resource consumption as a bounded rate-limit and resource-isolation concern. | Use route-specific, source-verified, expiring restrictions; do not add an unbounded global throttle. | ADOPTED |
 | OWASP logging guidance emphasizes interaction identifiers, source context, consistent event fields, redaction, and failure handling. | Preserve correlation IDs, provenance, policy reason, notification status, and redacted evidence without restoring raw secrets or headers. | ADOPTED |
 | ModSecurity's transaction variables and disruptive actions must remain distinguishable from application policy decisions. | Keep CRS blocking, ML evidence, and application enforcement as separate evidence/action fields; do not switch the entire WAF to DetectionOnly to make a test pass. | ADOPTED |
