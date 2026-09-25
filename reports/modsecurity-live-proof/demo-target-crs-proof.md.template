@@ -17,7 +17,7 @@ Do not add invented HTTP statuses, transaction IDs, CRS rule IDs, or matched mes
 | --- | --- |
 | Date/time | `TBD` |
 | Git commit | `TBD` |
-| Portal source | `stable/portal-pre-waf` |
+| Portal source | `stable/cybertrace-target` |
 | Portal host port | `3010` |
 | WAF host port | `8089` |
 | Audit log path | `logs/modsecurity/demo-target/modsec_audit.jsonl` |

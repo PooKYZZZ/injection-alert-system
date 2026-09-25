@@ -685,15 +685,15 @@ Compose and is never a web-app write target.
 For normal developer startup, the demo-target profile is not required. For the final realistic WAF demonstration, first create or update a sibling checkout of the target branch:
 
 ```powershell
-git clone --branch stable/portal-pre-waf --single-branch https://github.com/PooKYZZZ/injection-alert-system.git ..\injection-alert-system-portal-pre-waf
+git clone --branch stable/cybertrace-target --single-branch https://github.com/PooKYZZZ/injection-alert-system.git ..\injection-alert-system-portal-pre-waf
 ```
 
 If that sibling checkout already exists, update it without changing its branch:
 
 ```powershell
 git -C ..\injection-alert-system-portal-pre-waf fetch origin --prune
-git -C ..\injection-alert-system-portal-pre-waf switch stable/portal-pre-waf
-git -C ..\injection-alert-system-portal-pre-waf pull --ff-only origin stable/portal-pre-waf
+git -C ..\injection-alert-system-portal-pre-waf switch stable/cybertrace-target
+git -C ..\injection-alert-system-portal-pre-waf pull --ff-only origin stable/cybertrace-target
 ```
 
 Initialize the portal's local SQLite database once. Run the Prisma CLI from
@@ -723,7 +723,7 @@ The collection overlay changes only the local ModSecurity audit engine from
 `RelevantOnly` to `On`, so benign requests are persisted for thesis data
 collection. The base and hosted Compose paths remain `RelevantOnly` by default.
 
-By default, the profile builds the protected demo website from `../injection-alert-system-portal-pre-waf`, the sibling checkout of the `stable/portal-pre-waf` branch. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` in the ignored root `.env` or in the PowerShell session before running Compose.
+By default, the profile builds the protected demo website from `../injection-alert-system-portal-pre-waf`, the sibling checkout of the `stable/cybertrace-target` branch. The checkout directory keeps its existing name for compatibility. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` in the ignored root `.env` or in the PowerShell session before running Compose.
 
 Expected path:
 
@@ -738,7 +738,7 @@ localhost:8089
 -> dashboard/backend lookup
 ```
 
-The portal source stays separate from this repository checkout. This repo's Compose override references the `stable/portal-pre-waf` checkout as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
+The portal source stays separate from this repository checkout. This repo's Compose override references the `stable/cybertrace-target` checkout as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
 
 Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 

@@ -204,7 +204,7 @@ CI-safe proof is the mocked script suite and TestClient abuse suite:
 Those tests require neither Docker nor the sibling portal checkout. The three
 CLI modes require a running target; `waf-8088` and `demo-target-8089` are
 explicit local Docker checks, not always-on CI jobs. The `demo-target-8089`
-stack additionally requires a sibling checkout of the `stable/portal-pre-waf`
+stack additionally requires a sibling checkout of the `stable/cybertrace-target`
 branch or an explicit `DEMO_PORTAL_CONTEXT`.
 
 Docker-internal backend transaction lookup is automated only when
@@ -356,7 +356,7 @@ Expected lookup fields:
 
 ## Step 5A — Final Realistic Demo-Target Smoke
 
-Use this section for the final realistic WAF demonstration. The portal source stays separate from this repo. The demo-target profile builds and starts it as `demo-portal` from a sibling checkout of the `stable/portal-pre-waf` branch at `../injection-alert-system-portal-pre-waf`; set `DEMO_PORTAL_CONTEXT` if your portal checkout lives elsewhere. The portal runs as a production Next.js standalone container on internal Compose port `3010`; no manual `npm run dev` is required.
+Use this section for the final realistic WAF demonstration. The portal source stays separate from this repo. The demo-target profile builds and starts it as `demo-portal` from a sibling checkout of the `stable/cybertrace-target` branch at `../injection-alert-system-portal-pre-waf`; the directory name remains unchanged for compatibility. Set `DEMO_PORTAL_CONTEXT` if your portal checkout lives elsewhere. The portal runs as a production Next.js standalone container on internal Compose port `3010`; no manual `npm run dev` is required.
 
 Start the compose stack with the demo-target profile:
 
