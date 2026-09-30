@@ -55,19 +55,28 @@ class PredictionResponse(BaseModel):
             "example": {
                 "class_label": "SQL Injection",
                 "confidence": 0.92,
-                "confidence_level": "HIGH",
+                "confidence_level": "CRITICAL",
                 "action_taken": "BLOCKED",
             }
         }
     )
     class_label: PredictionLabel = Field(..., description="Predicted class label")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Model confidence score (0–1); not attack severity or proof of enforcement",
+    )
     confidence_level: ConfidenceLevel = Field(
-        ..., description="Confidence level (LOW, MEDIUM, HIGH, CRITICAL)"
+        ...,
+        description="Model-confidence tier (LOW, MEDIUM, HIGH, CRITICAL), derived from serving thresholds",
     )
     action_taken: ActionTaken | None = Field(
         default=None,
-        description="Action taken; null when the classification is out of operational scope",
+        description=(
+            "Policy action recommendation; this legacy field does not prove an HTTP response or enforcement occurred. "
+            "Null when the classification is out of operational scope."
+        ),
     )
 
 
@@ -96,7 +105,10 @@ class TriageIngestResponse(BaseModel):
     confidence_level: ConfidenceLevel
     action_taken: ActionTaken | None = Field(
         default=None,
-        description="Action taken; null for Normal or out-of-scope classifications",
+        description=(
+            "Recorded policy action label; not proof of an HTTP response or enforcement. "
+            "Null for Normal or out-of-scope classifications."
+        ),
     )
     model_version: str | None = None
 
@@ -172,7 +184,10 @@ class AlertResponse(BaseModel):
     prediction: PredictionLabel
     confidence: float
     confidence_level: ConfidenceLevel
-    action_taken: Optional[ActionTaken] = None
+    action_taken: Optional[ActionTaken] = Field(
+        default=None,
+        description="Recorded action label; it may be a policy recommendation and does not prove the HTTP outcome.",
+    )
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
@@ -346,7 +361,10 @@ class AlertDetailResponse(BaseModel):
     prediction: PredictionLabel
     confidence: float
     confidence_level: ConfidenceLevel
-    action_taken: Optional[ActionTaken] = None
+    action_taken: Optional[ActionTaken] = Field(
+        default=None,
+        description="Recorded action label; it may be a policy recommendation and does not prove the HTTP outcome.",
+    )
     policy_decision: Optional[
         Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
     ] = None
@@ -394,9 +412,12 @@ class TriageUpdateRequest(BaseModel):
 
 
 class ActionUpdateRequest(BaseModel):
-    """Request schema for updating alert action_taken."""
+    """Request schema for updating the recorded alert action label."""
 
-    action_taken: ActionTaken = Field(..., description="Action to set on the alert")
+    action_taken: ActionTaken = Field(
+        ...,
+        description="Recorded action label to save; this does not issue an enforcement command.",
+    )
 
 
 class WafIngestLookupResponse(BaseModel):
@@ -408,7 +429,10 @@ class WafIngestLookupResponse(BaseModel):
     confidence: float | None = None
     confidence_level: ConfidenceLevel | None = None
     model_version: str | None = None
-    action_taken: ActionTaken | None = None
+    action_taken: ActionTaken | None = Field(
+        default=None,
+        description="Recorded policy action label; not proof of an HTTP response or enforcement.",
+    )
     policy_decision: Optional[
         Literal["MONITOR", "CHALLENGE", "THROTTLE", "APPLICATION_BLOCK", "WAF_BLOCK"]
     ] = None

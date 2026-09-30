@@ -245,8 +245,8 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         )}
                       >
                         {displayAction
-                          ? getAlertActionLabel(displayAction, alert.confidence_level, alert.prediction)
-                          : 'No Action'}
+                          ? `Recorded: ${getAlertActionLabel(displayAction, alert.confidence_level, alert.prediction)}`
+                          : 'No recorded action'}
                       </span>
                     </div>
                     {isError && (
@@ -618,10 +618,10 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
 
                       <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          Recorded action
+                          Recorded action label
                         </h3>
                         <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                          This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.
+                          This label may come from the confidence policy or a manual update. Saving it changes the alert record only; it does not send a WAF command or confirm the HTTP response.
                         </p>
                         {isActionableAlert && canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
@@ -642,12 +642,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       >
                         {isActionPending && displayAction === 'BLOCKED' ? (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
-                            <span>Applying...</span>
+                            <span>Saving…</span>
                           </>
                         ) : (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
+                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
                             <span>→</span>
                           </>
                         )}
@@ -667,12 +666,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       >
                         {isActionPending && displayAction === 'THROTTLED' ? (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
-                            <span>Applying...</span>
+                            <span>Saving…</span>
                           </>
                         ) : (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
+                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
                             <span>→</span>
                           </>
                         )}
@@ -692,12 +690,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       >
                         {isActionPending && displayAction === 'ALLOWED' ? (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
-                            <span>Applying...</span>
+                            <span>Saving…</span>
                           </>
                         ) : (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
+                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
                             <span>→</span>
                           </>
                         )}
@@ -708,8 +705,13 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             {isActionableAlert
                               ? 'Action updates require Admin.'
                               : displayAction
-                                ? `Recorded action: ${getAlertActionLabel(displayAction, alert.confidence_level)}.`
+                                ? `Recorded action label: ${getAlertActionLabel(displayAction, alert.confidence_level)}.`
                                 : 'No action was recorded.'}
+                          </p>
+                        )}
+                        {isActionError && (
+                          <p role="alert" className="mt-2 text-[11px] text-severity-high-text">
+                            Action label could not be saved. Please retry.
                           </p>
                         )}
                       </div>

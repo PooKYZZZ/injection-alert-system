@@ -43,7 +43,7 @@ const ALERT_TABLE_COLUMNS = [
   { key: 'target_path', label: 'Request', sortable: false },
   { key: 'attack_type', label: 'Prediction', sortable: false },
   { key: 'confidence', label: 'Confidence', sortable: true },
-  { key: 'action', label: 'Action Taken', sortable: true },
+  { key: 'action', label: 'Recorded action', sortable: true },
   { key: 'crs_score', label: 'CRS Score', sortable: false },
 ] as const
 

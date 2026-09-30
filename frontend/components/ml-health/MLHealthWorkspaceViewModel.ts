@@ -2,11 +2,11 @@ import type { CalibrationBin, MLHealthData } from '@/features/ml-health/types'
 import { formatStableDateTime } from '@/lib/date-time'
 
 export type HealthTone = 'healthy' | 'warning' | 'critical' | 'unknown'
-export type PolicyBandAction = 'allow' | 'throttle' | 'block'
+export type PolicyBandIntent = 'Monitor' | 'Throttle' | 'Application block' | 'WAF block'
 
 export type PolicyBandView = {
   label: string
-  action: PolicyBandAction
+  intent: PolicyBandIntent
   rangeLabel: string
 }
 
@@ -162,10 +162,10 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
 
   if (low == null || high == null || critical == null || low >= high || high >= critical) {
     return [
-      { label: 'Low', action: 'allow', rangeLabel: 'Not configured' },
-      { label: 'Medium', action: 'throttle', rangeLabel: 'Not configured' },
-      { label: 'High', action: 'block', rangeLabel: 'Not configured' },
-      { label: 'Critical', action: 'block', rangeLabel: 'Not configured' },
+      { label: 'Low', intent: 'Monitor', rangeLabel: 'Not configured' },
+      { label: 'Medium', intent: 'Throttle', rangeLabel: 'Not configured' },
+      { label: 'High', intent: 'Application block', rangeLabel: 'Not configured' },
+      { label: 'Critical', intent: 'WAF block', rangeLabel: 'Not configured' },
     ]
   }
 
@@ -174,10 +174,10 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
   const criticalPct = Math.round(critical * 100)
 
   return [
-    { label: 'Low', action: 'allow', rangeLabel: `< ${lowPct}%` },
-    { label: 'Medium', action: 'throttle', rangeLabel: `${lowPct}% – ≤ ${highPct}%` },
-    { label: 'High', action: 'block', rangeLabel: `> ${highPct}% – < ${criticalPct}%` },
-    { label: 'Critical', action: 'block', rangeLabel: `≥ ${criticalPct}%` },
+    { label: 'Low', intent: 'Monitor', rangeLabel: `< ${lowPct}%` },
+    { label: 'Medium', intent: 'Throttle', rangeLabel: `${lowPct}% – ≤ ${highPct}%` },
+    { label: 'High', intent: 'Application block', rangeLabel: `> ${highPct}% – < ${criticalPct}%` },
+    { label: 'Critical', intent: 'WAF block', rangeLabel: `≥ ${criticalPct}%` },
   ]
 }
 

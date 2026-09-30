@@ -43,6 +43,14 @@ def test_prediction_response_structure():
     assert response.action_taken == "BLOCKED"
 
 
+def test_prediction_response_example_matches_model_confidence_thresholds():
+    example = PredictionResponse.model_config["json_schema_extra"]["example"]
+
+    assert example["confidence"] == 0.92
+    assert example["confidence_level"] == "CRITICAL"
+    assert "does not prove" in PredictionResponse.model_fields["action_taken"].description
+
+
 def test_prediction_response_represents_out_of_scope_without_an_action():
     response = PredictionResponse(
         class_label="Other Attacks",

@@ -198,7 +198,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             onChange={handleWindowChange}
           />
           <FilterSelect
-            label="Action Taken"
+            label="Recorded action"
             value={currentAction as ActionValue}
             options={ACTION_CYCLE}
             onChange={handleActionChange}

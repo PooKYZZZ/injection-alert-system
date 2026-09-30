@@ -74,10 +74,10 @@ describe('AlertDrawer', () => {
   it('clarifies the saved action label is not the observed WAF or origin response', () => {
     render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
 
-    expect(screen.getByRole('heading', { name: 'Recorded action' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Recorded action label' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        'This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.'
+        'This label may come from the confidence policy or a manual update. Saving it changes the alert record only; it does not send a WAF command or confirm the HTTP response.'
       )
     ).toBeInTheDocument()
   })
@@ -192,7 +192,7 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
-  it('forwards a changed recorded outcome so the open drawer stays current', () => {
+  it('labels manual action updates as record-only changes and keeps the drawer current', () => {
     const onActionUpdated = vi.fn()
     const updatedAlert = { ...alertFixture, action_taken: 'BLOCKED' as const }
 
@@ -205,7 +205,12 @@ describe('AlertDrawer', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Blocked/i }))
+    expect(screen.getByText('Recorded: Throttled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save as Blocked/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save as Throttled/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save as Allowed/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Save as Blocked/ }))
 
     expect(actionMutateMock).toHaveBeenCalledWith(
       { id: alertFixture.alert_id, action: 'BLOCKED' },
@@ -393,7 +398,7 @@ describe('AlertDrawer', () => {
     )
     expect(screen.getByText('Normal').closest('span')).toHaveClass('border-severity-safe-border')
     expect(screen.getByText('Normal traffic has no analyst triage workflow.')).toBeInTheDocument()
-    expect(screen.getByText('Recorded action: Allowed.')).toBeInTheDocument()
+    expect(screen.getByText('Recorded action label: Allowed.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start Review' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument()
     expect(screen.queryByText('Update action label')).not.toBeInTheDocument()
