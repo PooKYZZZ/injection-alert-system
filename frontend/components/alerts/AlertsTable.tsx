@@ -11,6 +11,7 @@ import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/search
 import { formatAlertDateTime, formatConfidenceLabel, formatRelativeTime } from '@/lib/date-time'
 import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
+import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
 interface AlertsTableProps {
   role?: unknown
@@ -44,7 +45,7 @@ const ALERT_TABLE_COLUMNS = [
   { key: 'attack_type', label: 'Prediction', sortable: false },
   { key: 'confidence', label: 'Confidence', sortable: true },
   { key: 'action', label: 'Recorded action', sortable: true },
-  { key: 'crs_score', label: 'CRS Score', sortable: false },
+  { key: 'crs_score', label: 'CRS score', sortable: false },
 ] as const
 
 function formatCrsScore(score: number | null | undefined): string {
@@ -171,7 +172,14 @@ function SortHeader({
   if (!column.sortable) {
     return (
       <th scope="col" className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-        {column.label}
+        <span className="inline-flex items-center gap-1.5">
+          {column.label}
+          {column.key === 'crs_score' ? (
+            <InfoDisclosure label="CRS score">
+              A score recorded with a ModSecurity Core Rule Set record. It summarizes the associated WAF rule evidence; it does not prove the request was blocked.
+            </InfoDisclosure>
+          ) : null}
+        </span>
       </th>
     )
   }
@@ -181,19 +189,30 @@ function SortHeader({
 
   return (
     <th scope="col" className="p-3 text-left">
-      <button
-        type="button"
-        onClick={() => onSort(column.key as SortColumn)}
-        aria-label={`${column.label}, ${isActive ? (isAsc ? 'ascending' : 'descending') : 'not sorted'}`}
-        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-      >
-        {column.label}
-        {isActive ? (
-          <span className="text-action-accent">{isAsc ? '↑' : '↓'}</span>
-        ) : (
-          <span className="text-[var(--color-text-muted)]">↕</span>
-        )}
-      </button>
+      <span className="inline-flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onSort(column.key as SortColumn)}
+          aria-label={`${column.label}, ${isActive ? (isAsc ? 'ascending' : 'descending') : 'not sorted'}`}
+          className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+        >
+          {column.label}
+          {isActive ? (
+            <span className="text-action-accent">{isAsc ? '↑' : '↓'}</span>
+          ) : (
+            <span className="text-[var(--color-text-muted)]">↕</span>
+          )}
+        </button>
+        {column.key === 'confidence' ? (
+          <InfoDisclosure label="Confidence">
+            Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+          </InfoDisclosure>
+        ) : column.key === 'action' ? (
+          <InfoDisclosure label="Recorded action">
+            This is the action label saved on the record. It does not confirm a WAF command or observed HTTP response.
+          </InfoDisclosure>
+        ) : null}
+      </span>
     </th>
   )
 }

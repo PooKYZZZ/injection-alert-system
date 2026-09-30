@@ -108,28 +108,30 @@ describe('DashboardPage metric definitions', () => {
     useAlerts.mockReturnValue({ data: { items: [] }, isPending: false })
   })
 
-  it('labels the traffic false-positive KPI as an operational proxy', () => {
+  it('shows four overview metrics and keeps detailed panels behind a disclosure', () => {
     render(<DashboardPage />)
 
-    expect(screen.getByText('Allowed actionable attack rate (proxy)')).toBeInTheDocument()
-    expect(screen.getByText('Not ground-truth FPR')).toBeInTheDocument()
-    expect(screen.queryByText('Allowed non-Normal rate')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('stat-card')).toHaveLength(4)
+    expect(screen.getByText('Actionable detections')).toBeInTheDocument()
+    expect(screen.getByText('Recorded blocked')).toBeInTheDocument()
+    expect(screen.getByText('Recorded throttled')).toBeInTheDocument()
+    expect(screen.getByText('Traffic records')).toBeInTheDocument()
+    expect(screen.queryByText('Allowed actionable attack rate (proxy)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Average model confidence')).not.toBeInTheDocument()
+    expect(screen.getByText('Recorded actions over time')).toBeInTheDocument()
+    expect(screen.getByText('Detailed analytics').closest('details')).not.toHaveAttribute('open')
   })
 
-  it('keeps the complete KPI set and enforcement panel visible', () => {
+  it('explains persisted counts and keeps secondary analytics reachable', async () => {
+    const user = userEvent.setup()
     render(<DashboardPage />)
 
-    expect(screen.getAllByTestId('stat-card')).toHaveLength(6)
-    expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
-    expect(screen.getByText('Allowed actionable attack rate (proxy)')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'About Recorded actions' }))
+    expect(screen.getByRole('region', { name: 'Recorded actions explanation' })).toHaveTextContent(/do not prove the HTTP outcome/i)
+
+    await user.click(screen.getByText('Detailed analytics'))
     expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map: 5/6/7/8')
-  })
-
-  it('distinguishes model confidence from attack severity and names the window semantics', () => {
-    render(<DashboardPage />)
-
-    expect(screen.getAllByText('Average model confidence')).toHaveLength(1)
-    expect(screen.getByText('Average model certainty; not attack severity')).toBeInTheDocument()
+    expect(screen.getByText('Confidence by tier')).toBeInTheDocument()
     expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
   })
 
@@ -199,7 +201,7 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.queryByText('Confidence bands: 0/0/0/0')).not.toBeInTheDocument()
   })
 
-  it('collapses lower analytics into one neutral empty state when the window has no activity', () => {
+  it('keeps an empty-state explanation in the detailed disclosure when the window has no activity', async () => {
     useDashboardStats.mockReturnValue({
       data: {
         ...stats,
@@ -218,7 +220,9 @@ describe('DashboardPage metric definitions', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByRole('heading', { name: 'Window detail' })).toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(screen.getByText('Detailed analytics'))
+    expect(screen.getByRole('heading', { name: 'No detailed activity' })).toBeInTheDocument()
     expect(screen.getByText(/No traffic was reported in this window/i)).toBeInTheDocument()
     expect(screen.queryByTestId('attack-type-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('confidence-bands')).not.toBeInTheDocument()
@@ -238,7 +242,7 @@ describe('DashboardPage metric definitions', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Dashboard metrics are unavailable')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.getByText('Actionable attacks')).toBeInTheDocument()
+    expect(screen.getByText('Actionable detections')).toBeInTheDocument()
     expect(screen.getByText('Timeline unavailable')).toBeInTheDocument()
     expect(screen.queryByTestId('timeline-chart')).not.toBeInTheDocument()
     expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
@@ -271,7 +275,7 @@ describe('DashboardPage metric definitions', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByText('Actionable attacks')).toBeInTheDocument()
+    expect(screen.getByText('Actionable detections')).toBeInTheDocument()
     expect(screen.getByTestId('timeline-chart')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/showing the last successful data/i)
   })

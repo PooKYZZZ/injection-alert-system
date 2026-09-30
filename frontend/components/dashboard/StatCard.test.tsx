@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { StatCard } from './StatCard'
+import userEvent from '@testing-library/user-event'
 
 describe('StatCard', () => {
   it('uses quiet metric chrome inside the shared summary strip', () => {
@@ -41,5 +42,22 @@ describe('StatCard', () => {
     const card = labelEl.closest('div')?.parentElement
 
     expect(card).toHaveClass('min-w-0')
+  })
+
+  it('provides keyboard-operable help for a technical metric', async () => {
+    const user = userEvent.setup()
+    render(
+      <StatCard
+        label="Traffic records"
+        info="Counts stored rows, not unique requests."
+        value={42}
+      />
+    )
+
+    const control = screen.getByRole('button', { name: 'About Traffic records' })
+    control.focus()
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByRole('region', { name: 'Traffic records explanation' })).toHaveTextContent('not unique requests')
   })
 })

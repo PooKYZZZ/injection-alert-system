@@ -94,9 +94,7 @@ export function formatCompactConfidencePercent(confidence: number | null | undef
   if (confidence == null || !Number.isFinite(confidence)) return '—'
 
   const percentage = Math.min(Math.max(confidence, 0), 1) * 100
-  const roundedToTenth = Math.round(percentage * 10) / 10
-  const display = roundedToTenth >= 100 ? percentage.toFixed(2) : roundedToTenth.toFixed(1)
-  return `${display.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}%`
+  return `${percentage.toFixed(2)}%`
 }
 
 export function formatConfidenceTierLabel(confidenceTier: AlertConfidenceTier | string): string {
@@ -108,5 +106,5 @@ export function formatConfidenceLabel(
   confidence: number | null | undefined,
   confidenceTier: AlertConfidenceTier | string
 ): string {
-  return `${formatConfidencePercent(confidence)} (${formatConfidenceTierLabel(confidenceTier)} confidence)`
+  return `${formatCompactConfidencePercent(confidence)} · ${confidenceTier ? confidenceTier.toUpperCase() : 'UNKNOWN'}`
 }

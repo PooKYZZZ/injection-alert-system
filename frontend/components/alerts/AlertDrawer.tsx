@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { describeEvidenceRelationship } from '@/features/alerts/evidence'
+import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
 interface AlertDrawerProps {
   role?: unknown
@@ -57,6 +58,27 @@ function isNewTriageStatus(status: TriageStatus | null | undefined): boolean {
 function formatCrsScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
   return score.toFixed(2)
+}
+
+function formatSourceOrigin(value: string | null | undefined): string {
+  if (!value) return 'Not recorded'
+  const labels: Record<string, string> = {
+    CLOUDFLARE_CONNECTING_IP: 'Cloudflare connecting IP',
+    DIRECT_REMOTE_ADDR: 'Direct remote address',
+    LEGACY_UNKNOWN: 'Unknown (legacy)',
+  }
+  return labels[value] ?? value
+}
+
+function formatSourceVerification(value: string | null | undefined): string {
+  if (!value) return 'Not recorded'
+  const labels: Record<string, string> = {
+    VERIFIED: 'Verified',
+    UNVERIFIED: 'Unverified',
+    INVALID: 'Invalid',
+    LEGACY_UNKNOWN: 'Unknown (legacy)',
+  }
+  return labels[value] ?? value
 }
 
 function hasCrsEvidence(record: Pick<Alert, 'crs_score' | 'crs_rule_ids' | 'matched_rule_tags'> | CorrelatedEvidenceRecord): boolean {
@@ -224,7 +246,14 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
             </Dialog.Overlay>
 
             {/* Drawer panel */}
-            <Dialog.Content asChild>
+            <Dialog.Content
+              asChild
+              onEscapeKeyDown={(event) => {
+                if (event.target instanceof Element && event.target.closest('[data-info-disclosure-open="true"]')) {
+                  event.preventDefault()
+                }
+              }}
+            >
               <motion.div
                 className="fixed top-0 right-0 z-30 flex h-full w-full max-w-[420px] flex-col border-l border-surface-border bg-surface-card shadow-2xl"
                 initial={{ x: '100%' }}
@@ -358,20 +387,34 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)]">
                         {alert.source_ip ?? '—'}
                       </dd>
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Source IP origin</span>
+                        <InfoDisclosure label="Source IP origin">
+                          This identifies the address source accepted by the backend, such as a verified Cloudflare connecting IP or the direct remote address. It does not identify a person behind the address.
+                        </InfoDisclosure>
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">{formatSourceOrigin(alert.source_provenance)}</dd>
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Source IP verification</span>
+                        <InfoDisclosure label="Source IP verification">
+                          Verified means the configured Cloudflare tunnel checks accepted the connecting-IP evidence. Unverified means those checks did not establish trusted Cloudflare provenance; invalid means no valid source IP was accepted. Older records may have unknown metadata.
+                        </InfoDisclosure>
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">{formatSourceVerification(alert.source_verification_status)}</dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Request
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)] break-all">
                         {requestLine}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Model confidence
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Confidence</span>
+                        <InfoDisclosure label="Confidence">
+                          Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+                        </InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {confidenceLabel}
-                        <span className="mt-0.5 block text-[10px] text-[var(--color-text-secondary)]">
-                          Model certainty, not attack severity.
-                        </span>
                       </dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Model version
@@ -385,8 +428,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.preprocessing_version ?? 'Not recorded'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Policy decision
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Policy decision</span>
+                        <InfoDisclosure label="Policy decision">
+                          This is the policy recommendation recorded for the event. Compare it with the saved action and observed HTTP status to review the available evidence.
+                        </InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {alert.policy_decision ?? 'No recommendation'}
@@ -485,9 +531,14 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   </section>
 
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                      WAF Evidence
-                    </h3>
+                    <div className="mb-3 flex items-center gap-1.5">
+                      <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        WAF Evidence
+                      </h3>
+                      <InfoDisclosure label="WAF evidence">
+                        Correlated ModSecurity/CRS records can include matching rule IDs and a score. No CRS match does not by itself invalidate the model evidence.
+                      </InfoDisclosure>
+                    </div>
                     {evidenceRelationship ? (
                       <div className="mb-3 rounded-md border border-surface-border bg-surface-inset p-2">
                         <p className="text-[11px] font-medium text-[var(--color-text-primary)]">
@@ -516,16 +567,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             Ingest source
                           </dt>
                           <dd className="text-[var(--color-text-primary)]">{alert.ingest_source ?? '—'}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                            Provenance
-                          </dt>
-                          <dd className="text-[var(--color-text-primary)]">{alert.source_provenance ?? '—'}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                            Verification
-                          </dt>
-                          <dd className="text-[var(--color-text-primary)]">{alert.source_verification_status ?? '—'}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                            CRS anomaly score
+                          <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                            <span>CRS score</span>
+                            <InfoDisclosure label="CRS score">
+                              The score reported with the correlated Core Rule Set record summarizes its WAF rule evidence. It does not prove the request was blocked.
+                            </InfoDisclosure>
                           </dt>
                           <dd className="text-severity-blocked-text">{formatCrsScore(alert.crs_score)}</dd>
                           <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
@@ -585,7 +631,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
 
                   <section>
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                      Captured Request
+                      Request details
                     </h3>
                     <div className="max-h-44 overflow-auto rounded-lg border border-surface-border bg-surface-inset">
                       <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-[10px]">
@@ -700,7 +746,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          Analyst Workflow
+                          Review &amp; triage
                         </h3>
                         {!isActionableAlert ? (
                           <p className="text-[11px] leading-4 text-[var(--color-text-secondary)]">

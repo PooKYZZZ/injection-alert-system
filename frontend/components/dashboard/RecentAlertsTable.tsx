@@ -13,11 +13,6 @@ interface RecentAlertsTableProps {
   isPending?: boolean
 }
 
-function formatCrsScore(score: number | null | undefined): string {
-  if (score === null || score === undefined) return '—'
-  return score.toFixed(2)
-}
-
 export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
   if (isPending) {
     return (
@@ -61,8 +56,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Request</th>
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Prediction</th>
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Confidence</th>
-              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Action Taken</th>
-              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">CRS Score</th>
+              <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Recorded action</th>
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">View</th>
             </tr>
           </thead>
@@ -83,7 +77,11 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
                   <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-2">
-                    <ConfidenceBar confidence={alert.confidence} prediction={alert.prediction} />
+                    <ConfidenceBar
+                      confidence={alert.confidence}
+                      confidenceTier={alert.confidence_level}
+                      prediction={alert.prediction}
+                    />
                   </td>
                   <td className="p-2">
                     <ActionLabel
@@ -93,7 +91,6 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                       bordered={false}
                     />
                   </td>
-                  <td className="p-2 font-mono text-[var(--color-text-secondary)]">{formatCrsScore(alert.crs_score)}</td>
                   <td className="p-2">
                     <Link
                       href={`/alerts?alert_id=${encodeURIComponent(alert.alert_id)}`}
@@ -107,7 +104,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
               ))
             ) : (
               <tr>
-                <td colSpan={9} className="px-2 py-8 text-center text-xs text-text-muted">
+                <td colSpan={8} className="px-2 py-8 text-center text-xs text-text-muted">
                   No recent alerts in this window.
                 </td>
               </tr>
