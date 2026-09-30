@@ -21,6 +21,7 @@ from web_app.application.triage_use_case import (
 from web_app.application.waf_event_fingerprint import build_waf_event_fingerprint
 from web_app.application.waf_event_sanitizer import sanitize_waf_event
 from web_app.domain.interfaces import ITrafficLogRepository
+from web_app.domain.request_correlation import normalize_request_correlation_id
 from web_app.domain.source_address import (
     SourceProvenance,
     canonicalize_source_ip,
@@ -56,6 +57,8 @@ class WafIngestUseCase:
         *,
         transaction_id: str,
         timestamp: datetime | None,
+        request_correlation_id: str | None = None,
+        observed_http_status: int | None = None,
         ingest_source: str = "modsec_audit_bridge",
         source_ip: str | None,
         source_provenance: SourceProvenance = SourceProvenance.DIRECT_REMOTE_ADDR,
@@ -110,6 +113,14 @@ class WafIngestUseCase:
             ),
             mode=self._source_verification_mode,
         )
+        correlation_id = normalize_request_correlation_id(request_correlation_id)
+        if correlation_id is None and ingest_source in {
+            "nginx_access_bridge",
+            "portal_route_bridge",
+        }:
+            # These producers use the trusted reverse-proxy ID (or a
+            # server-generated UUID) as their transaction_id.
+            correlation_id = normalize_request_correlation_id(transaction_id)
         ingest_fingerprint_sha256 = build_waf_event_fingerprint(
             source_event_timestamp=timestamp,
             source_ip=source_ip,
@@ -131,6 +142,8 @@ class WafIngestUseCase:
 
         command = TriageIngestCommand(
             transaction_id=transaction_id,
+            request_correlation_id=correlation_id,
+            observed_http_status=observed_http_status,
             timestamp=timestamp,
             source_ip=source_ip,
             request_method=request_method,

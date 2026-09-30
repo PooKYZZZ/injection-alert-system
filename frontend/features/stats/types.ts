@@ -27,6 +27,7 @@ export interface ConfidenceBandCounts {
   high: number
   medium: number
   low: number
+  informational: number
 }
 
 export interface DashboardStats {

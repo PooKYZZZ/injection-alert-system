@@ -53,9 +53,9 @@ vi.mock('@/components/dashboard/MLConfidenceBands', () => ({
   ),
 }))
 vi.mock('@/components/dashboard/MLEnforcementMap', () => ({
-  MLEnforcementMap: ({ nonNormalCounts, unavailable }: { nonNormalCounts: { critical: number; high: number; medium: number; low: number }; unavailable?: boolean }) => (
+  MLEnforcementMap: ({ nonNormalCounts, unavailable }: { nonNormalCounts: { critical: number; high: number; medium: number; low: number; informational: number }; unavailable?: boolean }) => (
     <div data-testid="enforcement-map">
-      {unavailable ? 'Enforcement map unavailable' : `Enforcement map: ${nonNormalCounts.critical}/${nonNormalCounts.high}/${nonNormalCounts.medium}/${nonNormalCounts.low}`}
+      {unavailable ? 'Enforcement map unavailable' : `Enforcement map: ${nonNormalCounts.critical}/${nonNormalCounts.high}/${nonNormalCounts.medium}/${nonNormalCounts.low}/${nonNormalCounts.informational}`}
     </div>
   ),
 }))
@@ -89,8 +89,8 @@ const stats: DashboardStats = {
   prev_throttled_count: null,
   activity_buckets: [],
   attack_distribution: { 'SQL Injection': 7 },
-  counts_by_confidence_tier: { critical: 1, high: 2, medium: 3, low: 4 },
-  non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8 },
+  counts_by_confidence_tier: { critical: 1, high: 2, medium: 3, low: 4, informational: 0 },
+  non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8, informational: 0 },
   top_source_ips: [],
   top_targeted_paths: [],
 }
@@ -209,7 +209,7 @@ describe('DashboardPage metric definitions', () => {
         throttled_count: 0,
         high_alert_count: 0,
         attack_distribution: {},
-        counts_by_confidence_tier: { critical: 0, high: 0, medium: 0, low: 0 },
+        counts_by_confidence_tier: { critical: 0, high: 0, medium: 0, low: 0, informational: 0 },
         top_source_ips: [],
         top_targeted_paths: [],
       },

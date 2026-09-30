@@ -179,7 +179,7 @@ export function MLHealthOverviewSection({ health, viewModel, onNavigateToDiagnos
           />
           <EvidenceLink
             label="Confidence policy"
-            value="4 bands · configured action mapping"
+            value="5 bands · configured action mapping"
             ariaLabel="Open Confidence policy diagnostics"
             onClick={() => onNavigateToDiagnostics('policy')}
           />

@@ -18,6 +18,7 @@ const alerts: FixtureAlert[] = [
   { prediction: 'SQL Injection', confidence: 0.7, confidence_level: 'MEDIUM', action_taken: 'THROTTLED' },
   { prediction: 'Code Injection', confidence: 0.3, confidence_level: 'LOW', action_taken: 'ALLOWED' },
   { prediction: 'SQL Injection', confidence: 0.95, confidence_level: 'MEDIUM', action_taken: 'THROTTLED' },
+  { prediction: 'Code Injection', confidence: 0, confidence_level: 'INFORMATIONAL', action_taken: 'ALLOWED' },
 ]
 
 describe('countAlertsByConfidenceTier', () => {
@@ -27,6 +28,7 @@ describe('countAlertsByConfidenceTier', () => {
       high: 2,
       medium: 2,
       low: 1,
+      informational: 1,
     })
   })
 
@@ -36,6 +38,7 @@ describe('countAlertsByConfidenceTier', () => {
       high: 0,
       medium: 2,
       low: 1,
+      informational: 1,
     })
   })
 
@@ -45,6 +48,7 @@ describe('countAlertsByConfidenceTier', () => {
       high: 0,
       medium: 0,
       low: 0,
+      informational: 0,
     })
   })
 })

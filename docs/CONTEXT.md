@@ -20,7 +20,7 @@ The repository currently contains:
 
 This is not yet a fully production-validated deployment. The codebase includes Dockerfiles and a `docker-compose.yml`; the technical CyberTrace backend WAF proof path uses `localhost:8088`, the protected demo website WAF path uses profile port `localhost:8089`, and the dashboard browser path remains the Next.js BFF path.
 
-Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. They include secure login, RBAC, strong account security with 2FA, timely threat alerts, email notification after detection, and a `CRITICAL >=90%` confidence tier.
+Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. They include secure login, RBAC, strong account security with 2FA, timely threat alerts, email notification after detection, and the project's `CRITICAL >=90%` model-confidence tier.
 
 ## Verified Status
 
@@ -122,7 +122,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 - PR7 Block 1 effective WAF state and authenticated snapshot boundary were
   implemented and validated at the prior migration point `20260728_000025`;
-  the current repository head is `20260905_000029`.
+  the current repository head is `20260930_000031`.
 - PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
   rendering, persistent selection/latch state, reload and worker-generation
   confirmation, candidate-specific source/path probes, and empty-first
@@ -291,7 +291,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - The repo has a verified local WAF ingest proof. It is not a production-grade WAF deployment.
 - Stale `PROCESSING` reservations are automatically reclaimed via lease expiry (`lease_expires_at`). A later request can claim ownership when the lease has expired.
 - `action_taken` remains the existing alert metadata (`BLOCKED`, `THROTTLED`, or `ALLOWED`). PR4 `recommended_action` is a versioned, expiring future intent; `actual_decision` is always `ALLOW` and is not proof of live block/throttle enforcement.
-- Current confidence tiers are LOW, MEDIUM, HIGH, and CRITICAL. CRITICAL is a confidence tier for model confidence `>=90%`, not business/security severity. This contract change required no retraining, recalibration, or model artifact update; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
+- Current branch confidence tiers are INFORMATIONAL at exactly zero, LOW for positive scores below `0.40`, MEDIUM from `0.40` to below `0.70`, HIGH from `0.70` to below `0.90`, and CRITICAL from `0.90` through `1.0`. They categorize model-confidence scores, not attack severity; the project adopts AWS Security Hub's normalized severity band boundaries as a reference, not as AWS ML guidance or calibration evidence. No retraining or recalibration occurred; historical rows are not retroactively reclassified, and legacy `severity` remains a query compatibility alias.
 - Verified label reviews and the controlled-local retraining lifecycle are
   implemented. Reviews are revisioned, alert responses project the latest
   revision, and the run-local exporter selects only `approved_for_training`.

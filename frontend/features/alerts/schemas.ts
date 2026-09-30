@@ -23,6 +23,34 @@ export type TriageStatus = z.infer<typeof TriageStatusSchema>
 
 export const LabelReviewApprovalStateSchema = z.enum(LABEL_REVIEW_STORED_APPROVAL_STATE_VALUES)
 export const VerifiedLabelSchema = z.enum(VERIFIED_LABEL_VALUES)
+export const EvidenceRelationshipSchema = z.enum([
+  'CORROBORATED',
+  'ML_ONLY',
+  'WAF_ONLY',
+  'CONFLICTING',
+  'INCOMPLETE',
+])
+export const CorrelatedEvidenceRecordSchema = z.object({
+  id: z.number().int().positive(),
+  ingest_source: z.string().nullable().optional(),
+  transaction_id: z.string().nullable().optional(),
+  prediction: z.enum(ALERT_PREDICTION_VALUES).nullable().optional(),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES).nullable().optional(),
+  crs_score: z.number().nullable().optional(),
+  crs_rule_ids: z.array(z.string()).nullable().optional(),
+  matched_rule_tags: z.array(z.string()).nullable().optional(),
+  observed_http_status: z.number().int().min(100).max(599).nullable().optional(),
+})
+export const AlertActionHistorySchema = z.object({
+  id: z.number().int().positive(),
+  traffic_log_id: z.number().int().positive(),
+  previous_action: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
+  new_action: z.enum(ALERT_ACTION_TAKEN_VALUES),
+  actor_id: z.string().min(1).max(128),
+  changed_at: z.string().datetime({ offset: true }),
+  reason: z.string().max(1000).nullable().optional(),
+})
 export const LabelReviewSchema = z.object({
   id: z.number(),
   traffic_log_id: z.number(),
@@ -80,16 +108,24 @@ export type AlertFilters = z.infer<typeof AlertFiltersSchema>
 export const AlertSchema = z.object({
   alert_id: z.string(),
   transaction_id: z.string().nullable().optional(),
+  request_correlation_id: z.string().max(36).nullable().optional(),
   timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable(),
   request_path: z.string().nullable(),
   request_method: z.string().nullable(),
   user_agent: z.string().optional(),
   payload_snippet: z.string(),
+  query_string: z.string().max(4096).nullable().optional(),
   prediction: z.enum(ALERT_PREDICTION_VALUES),
   confidence: z.number().min(0).max(1),
   confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),
+  model_version: z.string().nullable().optional(),
+  preprocessing_version: z.string().nullable().optional(),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable(),
+  observed_http_status: z.number().int().min(100).max(599).nullable().optional(),
+  evidence_relationship: EvidenceRelationshipSchema.optional(),
+  correlated_records: z.array(CorrelatedEvidenceRecordSchema).optional(),
+  action_history: z.array(AlertActionHistorySchema).optional(),
   policy_decision: z.enum(ALERT_POLICY_DECISION_VALUES).nullable().optional(),
   policy_decision_reason: z.string().max(128).nullable().optional(),
   policy_version: z.string().max(64).nullable().optional(),

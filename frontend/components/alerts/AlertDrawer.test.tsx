@@ -1,12 +1,21 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Alert } from '@/features/alerts/types'
 
 import { AlertDrawer } from './AlertDrawer'
 
-const labelReviewMutateMock = vi.fn()
-const triageMutateMock = vi.fn()
-const actionMutateMock = vi.fn()
+const {
+  labelReviewMutateMock,
+  triageMutateMock,
+  actionMutateMock,
+  useAlertMock,
+} = vi.hoisted(() => ({
+  labelReviewMutateMock: vi.fn(),
+  triageMutateMock: vi.fn(),
+  actionMutateMock: vi.fn(),
+  useAlertMock: vi.fn(),
+}))
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -30,6 +39,7 @@ vi.mock('@radix-ui/react-dialog', () => ({
 }))
 
 vi.mock('@/features/alerts/queries', () => ({
+  useAlert: useAlertMock,
   useTriageMutation: () => ({
     mutate: triageMutateMock,
     isPending: false,
@@ -52,6 +62,12 @@ afterEach(() => {
   labelReviewMutateMock.mockReset()
   triageMutateMock.mockReset()
   actionMutateMock.mockReset()
+  useAlertMock.mockReset()
+  useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: false })
+})
+
+beforeEach(() => {
+  useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: false })
 })
 
 const alertFixture = {
@@ -71,13 +87,66 @@ const alertFixture = {
 }
 
 describe('AlertDrawer', () => {
+  it('loads and displays detail-only correlation, response, relationship, and action history fields', () => {
+    useAlertMock.mockReturnValue({
+      data: {
+        ...alertFixture,
+        request_correlation_id: 'a'.repeat(32),
+        observed_http_status: 403,
+        evidence_relationship: 'CORROBORATED',
+        correlated_records: [
+          {
+            id: 22,
+            ingest_source: 'modsec_audit_bridge',
+            transaction_id: 'modsec-22',
+            prediction: 'SQL Injection',
+            observed_http_status: 403,
+            crs_rule_ids: ['942100'],
+          },
+        ],
+        action_history: [
+          {
+            id: 4,
+            traffic_log_id: 19,
+            previous_action: 'ALLOWED',
+            new_action: 'BLOCKED',
+            actor_id: 'analyst-1',
+            changed_at: '2026-09-30T02:00:00Z',
+            reason: null,
+          },
+        ],
+      } as Alert,
+      isPending: false,
+      isError: false,
+    })
+
+    render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByText('Correlation ID').nextElementSibling).toHaveTextContent('a'.repeat(32))
+    expect(screen.getByText('Observed HTTP status').nextElementSibling).toHaveTextContent('403')
+    expect(screen.getByText('Record #22 · modsec_audit_bridge')).toBeInTheDocument()
+    expect(screen.queryByText('Evidence relationship incomplete')).not.toBeInTheDocument()
+    expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Action change history'))
+    expect(screen.getByText('ALLOWED → BLOCKED')).toBeInTheDocument()
+    expect(screen.getByText(/analyst-1/)).toBeInTheDocument()
+  })
+
+  it('shows an explicit loading and failure state for alert detail requests', () => {
+    useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: true })
+    render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByText(/Request investigation details could not be loaded/)).toBeInTheDocument()
+  })
+
   it('clarifies the saved action label is not the observed WAF or origin response', () => {
     render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
 
-    expect(screen.getByRole('heading', { name: 'Recorded action' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Recorded action label' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        'This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.'
+        'This label may come from the confidence policy or a manual update. Saving it changes the alert record only; it does not send a WAF command or confirm the HTTP response.'
       )
     ).toBeInTheDocument()
   })
@@ -131,6 +200,7 @@ describe('AlertDrawer', () => {
           source_verification_status: 'VERIFIED',
           matched_rule_messages: ['SQL Injection Attack Detected'],
           matched_rule_tags: ['attack-sqli'],
+          evidence_relationship: 'CORROBORATED',
         }}
         onClose={vi.fn()}
       />
@@ -192,7 +262,69 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('95% (Critical confidence)')).toBeInTheDocument()
   })
 
-  it('forwards a changed recorded outcome so the open drawer stays current', () => {
+  it('shows the separately captured query string without duplicating the request line', () => {
+    const queryString = 'query=LND-2026-0001&order=latest%20first'
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          query_string: queryString,
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Captured query string (sensitive values redacted):')).toBeInTheDocument()
+    expect(screen.getByText(queryString)).toBeInTheDocument()
+    expect(screen.queryByText('GET /records/search HTTP/1.1')).not.toBeInTheDocument()
+  })
+
+  it('explains why synchronous portal input is not included in alert details', () => {
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          ingest_source: 'portal_route_bridge',
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('explains that access-log events do not retain query strings', () => {
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          request_path: '/records/search',
+          request_method: 'GET',
+          payload_snippet: 'GET /records/search HTTP/1.1',
+          ingest_source: 'nginx_access_bridge',
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Access-log events do not retain query strings, so the original input is unavailable here.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('labels manual action updates as record-only changes and keeps the drawer current', () => {
     const onActionUpdated = vi.fn()
     const updatedAlert = { ...alertFixture, action_taken: 'BLOCKED' as const }
 
@@ -205,7 +337,12 @@ describe('AlertDrawer', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Blocked/i }))
+    expect(screen.getByText('Recorded: Throttled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save as Blocked/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save as Throttled/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save as Allowed/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Save as Blocked/ }))
 
     expect(actionMutateMock).toHaveBeenCalledWith(
       { id: alertFixture.alert_id, action: 'BLOCKED' },
@@ -393,7 +530,7 @@ describe('AlertDrawer', () => {
     )
     expect(screen.getByText('Normal').closest('span')).toHaveClass('border-severity-safe-border')
     expect(screen.getByText('Normal traffic has no analyst triage workflow.')).toBeInTheDocument()
-    expect(screen.getByText('Recorded action: Allowed.')).toBeInTheDocument()
+    expect(screen.getByText('Recorded action label: Allowed.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start Review' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument()
     expect(screen.queryByText('Update action label')).not.toBeInTheDocument()

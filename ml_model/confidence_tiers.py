@@ -1,13 +1,15 @@
 from dataclasses import dataclass
 from typing import Literal
 
-ConfidenceTier = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+ConfidenceTier = Literal[
+    "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"
+]
 
 
 @dataclass(frozen=True)
 class ConfidenceThresholds:
-    low: float = 0.50
-    high: float = 0.80
+    low: float = 0.40
+    high: float = 0.70
     critical: float = 0.90
 
     def __post_init__(self) -> None:
@@ -28,9 +30,11 @@ def classify_confidence(
     if not 0.0 <= confidence <= 1.0:
         raise ValueError("confidence must be within 0.0..1.0")
 
+    if confidence == 0.0:
+        return "INFORMATIONAL"
     if confidence < thresholds.low:
         return "LOW"
-    if confidence <= thresholds.high:
+    if confidence < thresholds.high:
         return "MEDIUM"
     if confidence < thresholds.critical:
         return "HIGH"

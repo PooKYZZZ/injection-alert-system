@@ -3,7 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState } from 'react'
-import type { Alert, LabelReview, TriageStatus } from '@/features/alerts/types'
+import type { Alert, CorrelatedEvidenceRecord, LabelReview, TriageStatus } from '@/features/alerts/types'
 import {
   ALERT_DISPLAY_ACTION_ALIASES,
   getAlertActionLabel,
@@ -11,7 +11,7 @@ import {
   VERIFIED_LABEL_VALUES,
 } from '@/features/alerts/contract'
 import type { AlertAction, VerifiedLabel } from '@/features/alerts/contract'
-import { useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
+import { useAlert, useTriageMutation, useActionMutation, useLabelReviewMutation } from '@/features/alerts/queries'
 import { cn } from '@/lib/utils'
 import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
@@ -24,6 +24,11 @@ interface AlertDrawerProps {
   onTriageUpdated?: (alert: Alert) => void
   onActionUpdated?: (alert: Alert) => void
   onReviewUpdated?: (alertId: string, review: LabelReview) => void
+}
+
+interface AlertDrawerContentProps extends AlertDrawerProps {
+  detailLoading?: boolean
+  detailError?: boolean
 }
 
 function formatTriageLabel(status: TriageStatus | null | undefined): string {
@@ -54,6 +59,14 @@ function formatCrsScore(score: number | null | undefined): string {
   return score.toFixed(2)
 }
 
+function hasCrsEvidence(record: Pick<Alert, 'crs_score' | 'crs_rule_ids' | 'matched_rule_tags'> | CorrelatedEvidenceRecord): boolean {
+  return Boolean(
+    (typeof record.crs_score === 'number' && record.crs_score > 0) ||
+      record.crs_rule_ids?.some((ruleId) => ruleId.trim() && !['no-crs-match', 'unknown-rule'].includes(ruleId.trim().toLowerCase())) ||
+      record.matched_rule_tags?.some((tag) => tag.trim())
+  )
+}
+
 function formatPolicyReason(reason: string | null | undefined): string {
   return reason ? reason.replaceAll('_', ' ') : '—'
 }
@@ -71,7 +84,7 @@ function formatNotificationStatus(
 ): string {
   const entries = Object.entries(status ?? {})
   if (entries.length === 0) {
-    return confidenceTier === 'LOW' || confidenceTier === 'MEDIUM'
+    return confidenceTier === 'INFORMATIONAL' || confidenceTier === 'LOW' || confidenceTier === 'MEDIUM'
       ? 'Not applicable'
       : 'No outbox record'
   }
@@ -80,8 +93,24 @@ function formatNotificationStatus(
     .join(', ')
 }
 
-function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated }: AlertDrawerProps) {
+function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated, detailLoading, detailError }: AlertDrawerContentProps) {
   const isActionableAlert = alert !== null && isActionableAttackClass(alert.prediction)
+  const capturedRequestLine = alert
+    ? `${alert.request_method ?? '—'} ${alert.request_path ?? '—'} HTTP/1.1`
+    : ''
+  const queryString = alert?.query_string?.trim() ?? ''
+  const payloadSnippet = alert?.payload_snippet?.trim() ?? ''
+  const additionalPayload = payloadSnippet && payloadSnippet !== capturedRequestLine
+    ? payloadSnippet
+    : ''
+  const missingRequestDetailsMessage =
+    alert?.ingest_source === 'portal_route_bridge'
+      ? 'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+      : alert?.ingest_source === 'nginx_access_bridge'
+        ? 'Access-log events do not retain query strings, so the original input is unavailable here.'
+        : payloadSnippet
+          ? 'No additional request data captured.'
+          : 'No payload captured.'
   const canTriage = roleHasPermission(role, PERMISSIONS.ALERTS_TRIAGE)
   const canUpdateAction = roleHasPermission(
     role,
@@ -173,9 +202,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
   const evidenceRelationship = alert
     ? describeEvidenceRelationship(alert)
     : null
-  const hasCorrelatedCrsEvidence = Boolean(
-    evidenceRelationship && evidenceRelationship.kind !== 'ml_only'
+  const hasOwnCrsEvidence = alert?.ingest_source === 'modsec_audit_bridge' && hasCrsEvidence(alert)
+  const relatedWafRecords = (alert?.correlated_records ?? []).filter(
+    (record) => record.ingest_source === 'modsec_audit_bridge' && hasCrsEvidence(record)
   )
+  const hasCorrelatedCrsEvidence = hasOwnCrsEvidence || relatedWafRecords.length > 0
 
   return (
     <Dialog.Root open={!!alert} onOpenChange={(open) => !open && onClose()}>
@@ -245,8 +276,8 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         )}
                       >
                         {displayAction
-                          ? getAlertActionLabel(displayAction, alert.confidence_level, alert.prediction)
-                          : 'No Action'}
+                          ? `Recorded: ${getAlertActionLabel(displayAction, alert.confidence_level, alert.prediction)}`
+                          : 'No recorded action'}
                       </span>
                     </div>
                     {isError && (
@@ -294,6 +325,16 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   className="min-h-0 flex-1 overflow-y-auto p-3"
                 >
                   <div className="grid content-start gap-3">
+                  {detailLoading ? (
+                    <p role="status" className="rounded-md border border-surface-border bg-surface-inset p-2 text-[11px] text-[var(--color-text-secondary)]">
+                      Loading request investigation details…
+                    </p>
+                  ) : null}
+                  {detailError ? (
+                    <p role="status" className="rounded-md border border-severity-blocked-border bg-severity-blocked-bg p-2 text-[11px] text-severity-blocked-text">
+                      Request investigation details could not be loaded. The list summary remains available.
+                    </p>
+                  ) : null}
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Core Details
@@ -333,6 +374,18 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         </span>
                       </dd>
                       <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Model version
+                      </dt>
+                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
+                        {alert.model_version ?? 'Not recorded'}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Preprocessing
+                      </dt>
+                      <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
+                        {alert.preprocessing_version ?? 'Not recorded'}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         Policy decision
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
@@ -366,6 +419,72 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   </section>
 
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
+                    <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      Request correlation and observed outcome
+                    </h3>
+                    <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Correlation ID
+                      </dt>
+                      <dd className="break-all font-mono text-[11px] text-[var(--color-text-primary)]">
+                        {alert.request_correlation_id ?? 'Not recorded'}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Observed HTTP status
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        {alert.observed_http_status ?? 'Not recorded'}
+                      </dd>
+                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        Enforcement source
+                      </dt>
+                      <dd className="text-[var(--color-text-primary)]">
+                        Not recorded
+                      </dd>
+                    </dl>
+                    <p className="mt-2 text-[10px] leading-4 text-[var(--color-text-secondary)]">
+                      An observed HTTP status records the response seen by the producer; it does not by itself identify which layer enforced it.
+                    </p>
+                    {alert.request_correlation_id ? (
+                      <div className="mt-3 border-t border-surface-border pt-2">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          Other records with this request ID (up to 20 shown)
+                        </p>
+                        {alert.correlated_records?.length ? (
+                          <ul className="mt-2 space-y-2">
+                            {alert.correlated_records.map((record) => (
+                              <li key={record.id} className="rounded-md border border-surface-border bg-surface-inset p-2 text-[10px] leading-4">
+                                <p className="font-medium text-[var(--color-text-primary)]">
+                                  Record #{record.id} · {record.ingest_source ?? 'Unknown source'}
+                                </p>
+                                <p className="mt-1 break-all font-mono text-[var(--color-text-secondary)]">
+                                  Transaction: {record.transaction_id ?? 'Not recorded'}
+                                </p>
+                                <p className="text-[var(--color-text-secondary)]">
+                                  Classification: {record.prediction ?? 'Not recorded'} · HTTP status: {record.observed_http_status ?? 'Not recorded'}
+                                </p>
+                                {record.crs_rule_ids?.length ? (
+                                  <p className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    CRS rules: {record.crs_rule_ids.join(', ')}
+                                  </p>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-1 text-[10px] text-[var(--color-text-secondary)]">
+                            No other matching records were returned.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+                        No request correlation ID was recorded; no cross-record join is asserted.
+                      </p>
+                    )}
+                  </section>
+
+                  <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       WAF Evidence
                     </h3>
@@ -385,6 +504,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       </p>
                     ) : (
                       <>
+                        {hasOwnCrsEvidence ? (
                         <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
                           <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                             Transaction ID
@@ -413,7 +533,8 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           </dt>
                           <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">{crsRuleIds}</dd>
                         </dl>
-                        {alert.matched_rule_messages?.length ? (
+                        ) : null}
+                        {hasOwnCrsEvidence && alert.matched_rule_messages?.length ? (
                           <div className="mt-3 border-t border-surface-border pt-2">
                             <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                               Rule messages
@@ -425,7 +546,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </ul>
                           </div>
                         ) : null}
-                        {alert.matched_rule_tags?.length ? (
+                        {hasOwnCrsEvidence && alert.matched_rule_tags?.length ? (
                           <div className="mt-3 border-t border-surface-border pt-2">
                             <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                               Rule tags
@@ -435,6 +556,29 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </p>
                           </div>
                         ) : null}
+                        {relatedWafRecords.map((record) => (
+                          <div key={record.id} className="mt-3 border-t border-surface-border pt-2 text-[10px] leading-4">
+                            <p className="font-semibold text-[var(--color-text-primary)]">
+                              Correlated ModSecurity record #{record.id}
+                            </p>
+                            <p className="mt-1 break-all font-mono text-[var(--color-text-secondary)]">
+                              Transaction: {record.transaction_id ?? 'Not recorded'}
+                            </p>
+                            <p className="text-[var(--color-text-secondary)]">
+                              CRS score: {formatCrsScore(record.crs_score)} · HTTP status: {record.observed_http_status ?? 'Not recorded'}
+                            </p>
+                            {record.crs_rule_ids?.length ? (
+                              <p className="break-all font-mono text-[var(--color-text-secondary)]">
+                                Rule IDs: {record.crs_rule_ids.join(', ')}
+                              </p>
+                            ) : null}
+                            {record.matched_rule_tags?.length ? (
+                              <p className="break-all font-mono text-[var(--color-text-secondary)]">
+                                Rule tags: {record.matched_rule_tags.join(', ')}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
                       </>
                     )}
                   </section>
@@ -458,11 +602,33 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
                         <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
                         <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
-                        {'\n'}
-                        {'\n'}
-                        <span className="text-[var(--color-text-primary)]">
-                          {alert.payload_snippet?.trim() || 'No payload captured.'}
-                        </span>
+                        {queryString ? (
+                          <>
+                            {'\n'}
+                            {'\n'}
+                            <span className="text-[var(--color-text-soft)]">
+                              Captured query string (sensitive values redacted):
+                            </span>
+                            {'\n'}
+                            <span className="text-[var(--color-text-primary)]">{queryString}</span>
+                          </>
+                        ) : null}
+                        {additionalPayload ? (
+                          <>
+                            {'\n'}
+                            {'\n'}
+                            <span className="text-[var(--color-text-primary)]">{additionalPayload}</span>
+                          </>
+                        ) : null}
+                        {!queryString && !additionalPayload ? (
+                          <>
+                            {'\n'}
+                            {'\n'}
+                            <span className="text-[var(--color-text-soft)]">
+                              {missingRequestDetailsMessage}
+                            </span>
+                          </>
+                        ) : null}
                       </pre>
                     </div>
                   </section>
@@ -618,10 +784,10 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
 
                       <div className="rounded-lg border border-surface-border bg-surface-panel p-3">
                         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          Recorded action
+                          Recorded action label
                         </h3>
                         <p className="mb-2 text-[11px] leading-4 text-[var(--color-text-secondary)]">
-                          This saved action label reflects the ML confidence mapping; it does not confirm the WAF or origin HTTP response.
+                          This label may come from the confidence policy or a manual update. Saving it changes the alert record only; it does not send a WAF command or confirm the HTTP response.
                         </p>
                         {isActionableAlert && canUpdateAction ? (
                         <div className="flex flex-col gap-1.5">
@@ -642,12 +808,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       >
                         {isActionPending && displayAction === 'BLOCKED' ? (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
-                            <span>Applying...</span>
+                            <span>Saving…</span>
                           </>
                         ) : (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
+                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
                             <span>→</span>
                           </>
                         )}
@@ -667,12 +832,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       >
                         {isActionPending && displayAction === 'THROTTLED' ? (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
-                            <span>Applying...</span>
+                            <span>Saving…</span>
                           </>
                         ) : (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
+                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
                             <span>→</span>
                           </>
                         )}
@@ -692,12 +856,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       >
                         {isActionPending && displayAction === 'ALLOWED' ? (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
-                            <span>Applying...</span>
+                            <span>Saving…</span>
                           </>
                         ) : (
                           <>
-                            <span>{ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
+                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
                             <span>→</span>
                           </>
                         )}
@@ -708,10 +871,39 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             {isActionableAlert
                               ? 'Action updates require Admin.'
                               : displayAction
-                                ? `Recorded action: ${getAlertActionLabel(displayAction, alert.confidence_level)}.`
+                                ? `Recorded action label: ${getAlertActionLabel(displayAction, alert.confidence_level)}.`
                                 : 'No action was recorded.'}
                           </p>
                         )}
+                        {isActionError && (
+                          <p role="alert" className="mt-2 text-[11px] text-severity-high-text">
+                            Action label could not be saved. Please retry.
+                          </p>
+                        )}
+                        <details className="mt-3 border-t border-surface-border pt-2">
+                          <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                            Action change history
+                          </summary>
+                          {alert.action_history?.length ? (
+                            <ol className="mt-2 space-y-2">
+                              {alert.action_history.map((entry) => (
+                                <li key={entry.id} className="rounded-md border border-surface-border bg-surface-inset p-2 text-[10px] leading-4">
+                                  <p className="font-medium text-[var(--color-text-primary)]">
+                                    {entry.previous_action ?? 'No previous action'} → {entry.new_action}
+                                  </p>
+                                  <p className="mt-1 text-[var(--color-text-secondary)]">
+                                    {entry.actor_id} · {formatAlertDateTime(entry.changed_at)}
+                                  </p>
+                                  {entry.reason ? <p className="mt-1 text-[var(--color-text-secondary)]">{entry.reason}</p> : null}
+                                </li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+                              No history entries are available. Changes made before action history was introduced may not be recorded here.
+                            </p>
+                          )}
+                        </details>
                       </div>
                     </div>
                   </section>
@@ -727,5 +919,20 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
 }
 
 export function AlertDrawer(props: AlertDrawerProps) {
-  return <AlertDrawerContent key={props.alert?.alert_id ?? 'closed'} {...props} />
+  const detailId = props.alert && isActionableAttackClass(props.alert.prediction)
+    ? props.alert.alert_id
+    : null
+  const { data: detailAlert, isPending, isError } = useAlert(detailId)
+  const alert = props.alert && detailAlert?.alert_id === props.alert.alert_id
+    ? { ...props.alert, ...detailAlert }
+    : props.alert
+  return (
+    <AlertDrawerContent
+      key={props.alert?.alert_id ?? 'closed'}
+      {...props}
+      alert={alert}
+      detailLoading={detailId !== null && isPending}
+      detailError={detailId !== null && isError}
+    />
+  )
 }

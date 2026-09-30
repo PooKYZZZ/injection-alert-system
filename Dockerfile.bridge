@@ -6,5 +6,6 @@ COPY scripts/waf_audit_bridge.py ./scripts/waf_audit_bridge.py
 COPY web_app/__init__.py ./web_app/__init__.py
 COPY web_app/domain/__init__.py ./web_app/domain/__init__.py
 COPY web_app/domain/source_address.py ./web_app/domain/source_address.py
+COPY web_app/domain/request_correlation.py ./web_app/domain/request_correlation.py
 
 CMD ["python", "-m", "scripts.waf_audit_bridge", "--help"]

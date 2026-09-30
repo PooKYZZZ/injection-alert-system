@@ -127,8 +127,8 @@ def test_report_contains_required_fields_without_raw_request():
             "checkpoint_digest": "c" * 64,
             "preprocessing_version": "model-input-v2-redacted",
             "model_temperature": 0.596868,
-            "threshold_low": "0.50",
-            "threshold_high": "0.80",
+            "threshold_low": "0.40",
+            "threshold_high": "0.70",
             "threshold_critical": "0.90",
         },
     )

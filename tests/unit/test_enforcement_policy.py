@@ -38,7 +38,9 @@ def test_non_normal_predictions_map_to_shadow_policy_intent(
     assert recommendation.policy_version == POLICY_VERSION
 
 
-@pytest.mark.parametrize("tier", ["LOW", "MEDIUM", "HIGH", "CRITICAL"])
+@pytest.mark.parametrize(
+    "tier", ["INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+)
 def test_normal_prediction_produces_no_recommendation(tier: str) -> None:
     assert (
         EnforcementPolicy.recommend(
@@ -48,6 +50,21 @@ def test_normal_prediction_produces_no_recommendation(tier: str) -> None:
         )
         is None
     )
+
+
+def test_informational_attack_uses_the_existing_low_monitor_only_path() -> None:
+    recommendation = EnforcementPolicy.recommend(
+        prediction="SQL Injection",
+        confidence_level="INFORMATIONAL",
+        request_path="/records/search",
+        mode=EnforcementMode.ENFORCE,
+    )
+
+    assert recommendation is not None
+    assert recommendation.tier.value == "LOW"
+    assert recommendation.action is RecommendedAction.MONITOR
+    assert recommendation.decision_reason == "INFORMATIONAL_MONITOR_ONLY"
+    assert recommendation.policy_version == ACTIVE_POLICY_VERSION
 
 
 @pytest.mark.parametrize("prediction", ["Other Attacks", "Future Attack"])

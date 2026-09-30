@@ -153,7 +153,10 @@ async def test_historical_out_of_scope_rows_stay_internal_and_cannot_enter_alert
     assert (await repository.get_by_id(unknown.id)).prediction == "Future Attack"
     assert await repository.get_operational_alert_by_id(other.id) is None
     assert await repository.update_triage_status(other.id, "in_review") is None
-    assert await repository.update_action_taken(other.id, "ALLOWED") is None
+    assert (
+        await repository.update_action_taken(other.id, "ALLOWED", "analyst-42")
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -1216,12 +1219,14 @@ async def test_windowed_summary_filters_are_strictly_bounded(
         "HIGH": 2,
         "MEDIUM": 0,
         "LOW": 0,
+        "INFORMATIONAL": 0,
     }
     assert summary.non_normal_counts_by_confidence_tier == {
         "CRITICAL": 0,
         "HIGH": 2,
         "MEDIUM": 0,
         "LOW": 0,
+        "INFORMATIONAL": 0,
     }
     assert summary.counts_by_label["SQL Injection"] == 1
     assert summary.counts_by_label["Code Injection"] == 1
@@ -1506,6 +1511,21 @@ async def test_get_alert_list_sorts_by_confidence_tier_rank(
             action_taken="THROTTLED",
         )
     )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-confidence-tier-informational",
+            timestamp=now,
+            source_ip="198.51.100.53",
+            request_path="/informational",
+            request_method="GET",
+            http_request="GET /informational",
+            prediction="SQL Injection",
+            confidence=0.0,
+            confidence_level="INFORMATIONAL",
+            inference_latency_ms=2.0,
+            action_taken="ALLOWED",
+        )
+    )
 
     page = await repository.get_alert_list(
         page=1,
@@ -1520,6 +1540,7 @@ async def test_get_alert_list_sorts_by_confidence_tier_rank(
         "HIGH",
         "MEDIUM",
         "LOW",
+        "INFORMATIONAL",
     ]
 
 
@@ -1695,3 +1716,74 @@ async def test_get_alert_list_triage_non_new_filters_by_exact_status(
     assert [item.transaction_id for item in page.items] == [
         "txn-triage2-investigating"
     ]
+
+
+@pytest.mark.asyncio
+async def test_correlated_evidence_and_action_history_are_persisted(
+    repository: TrafficLogRepository,
+):
+    correlation_id = "a" * 32
+    alert = await repository.save(
+        TrafficLogEntity(
+            transaction_id="modsec-transaction-1",
+            request_correlation_id=correlation_id,
+            observed_http_status=403,
+            ingest_source="modsec_audit_bridge",
+            source_ip="192.0.2.20",
+            request_path="/support/submit",
+            request_method="POST",
+            http_request="POST /support/submit",
+            crs_score=8,
+            crs_rule_ids=["942100"],
+            matched_rule_tags=["attack-sqli"],
+            prediction="SQL Injection",
+            confidence=0.97,
+            confidence_level="CRITICAL",
+            action_taken="ALLOWED",
+        )
+    )
+    portal_event = await repository.save(
+        TrafficLogEntity(
+            transaction_id=correlation_id,
+            request_correlation_id=correlation_id,
+            ingest_source="portal_route_bridge",
+            source_ip="192.0.2.20",
+            request_path="/support/submit",
+            request_method="POST",
+            http_request="POST /support/submit",
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="CRITICAL",
+            action_taken="BLOCKED",
+        )
+    )
+
+    related = await repository.get_correlated_records(
+        correlation_id,
+        exclude_traffic_id=alert.id,
+    )
+    assert [record.id for record in related] == [portal_event.id]
+    persisted = await repository.get_operational_alert_by_id(alert.id)
+    assert persisted is not None
+    assert persisted.request_correlation_id == correlation_id
+    assert persisted.observed_http_status == 403
+    assert persisted.action_history == []
+
+    changed = await repository.update_action_taken(
+        alert.id,
+        "BLOCKED",
+        "analyst-42",
+    )
+    unchanged = await repository.update_action_taken(
+        alert.id,
+        "BLOCKED",
+        "analyst-42",
+    )
+    history = await repository.list_action_history(alert.id)
+
+    assert changed is not None and changed.action_taken == "BLOCKED"
+    assert unchanged is not None and unchanged.action_taken == "BLOCKED"
+    assert len(history) == 1
+    assert history[0].previous_action == "ALLOWED"
+    assert history[0].new_action == "BLOCKED"
+    assert history[0].actor_id == "analyst-42"

@@ -33,6 +33,7 @@ const FILTER_OPTION_LABELS: Record<string, string> = {
   BLOCKED: 'Blocked',
   THROTTLED: 'Throttled',
   ALLOWED: 'Allowed',
+  INFORMATIONAL: 'Informational (0 score)',
   LOW: 'Low confidence',
   MEDIUM: 'Medium confidence',
   HIGH: 'High confidence',
@@ -198,7 +199,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             onChange={handleWindowChange}
           />
           <FilterSelect
-            label="Action Taken"
+            label="Recorded action"
             value={currentAction as ActionValue}
             options={ACTION_CYCLE}
             onChange={handleActionChange}

@@ -77,9 +77,9 @@ beforeEach(() => {
       drift_status: 'NORMAL',
       traffic_processed: 1440,
       thresholds: {
-        low: 0.5,
-        medium: 0.65,
-        high: 0.8,
+        low: 0.4,
+        medium: 0.55,
+        high: 0.7,
       },
       macro_f1: 0.91,
       ece: 0.04,
@@ -118,7 +118,7 @@ describe('MLHealthPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Confidence policy diagnostics' }))
     expect(screen.getByRole('tab', { name: 'Diagnostics' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Policy' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Model-confidence policy' })).toBeInTheDocument()
     expect(screen.getByText('Normal predictions remain allowed for all valid confidence tiers.')).toBeInTheDocument()
     expect(screen.queryByText('Recent Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Policy Outcomes by Window')).not.toBeInTheDocument()
@@ -137,8 +137,8 @@ describe('MLHealthPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Policy' }))
 
-    expect(screen.getByRole('table', { name: 'Confidence policy' })).toBeInTheDocument()
-    expect(screen.getAllByText('Automatic response bands for in-scope actionable attacks.').length).toBeGreaterThan(0)
+    expect(screen.getByRole('table', { name: 'Model-confidence policy' })).toBeInTheDocument()
+    expect(screen.getByText('Tier intent for actionable predictions; this is not attack severity or proof of enforcement.')).toBeInTheDocument()
   })
 
   it('renders loading and error states from the workspace component', async () => {

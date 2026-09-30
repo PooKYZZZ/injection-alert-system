@@ -23,6 +23,7 @@ from web_app.domain.source_address import (
     SourceProvenance,
     canonicalize_source_ip,
 )
+from web_app.domain.request_correlation import normalize_request_correlation_id
 
 _SENSITIVE_HEADERS = {
     "authorization",
@@ -44,6 +45,7 @@ _SOURCE_PROVENANCE_MODES = {
     "cloudflare_connecting_ip",
 }
 _NORMAL_ACCESS_INGEST_SOURCE = "nginx_access_bridge"
+_REQUEST_CORRELATION_RESPONSE_HEADER = "x-cybertrace-transaction-id"
 _NORMAL_ACCESS_PATH_RE = re.compile(
     r"^/(?:records/search|records/[A-Za-z0-9-]+|transactions/status|"
     r"appointments(?:/submit)?|support(?:/submit)?|login(?:/submit)?|"
@@ -430,10 +432,15 @@ def normalize_event(
             not isinstance(query_string, str) or len(query_string) > 4096
         ):
             raise ValueError("normal access query is invalid or exceeds its limit")
+        timestamp = normalize_timestamp(raw_event.get("timestamp"))
         return {
             "ingest_source": _NORMAL_ACCESS_INGEST_SOURCE,
             "transaction_id": str(raw_event.get("transaction_id") or uuid4().hex),
-            "timestamp": normalize_timestamp(raw_event.get("timestamp")),
+            "request_correlation_id": normalize_request_correlation_id(
+                raw_event.get("transaction_id")
+            ),
+            "observed_http_status": status,
+            "timestamp": timestamp,
             "source_ip": source_ip,
             "source_provenance": source_provenance,
             "cf_connecting_ip_matches_client_ip": cf_matches,
@@ -478,6 +485,14 @@ def normalize_event(
             if isinstance(transaction.get("messages"), list)
             else []
         )
+        response = transaction.get("response")
+        response = response if isinstance(response, dict) else {}
+        observed_http_status = _parse_http_status(response.get("http_code"))
+        timestamp = normalize_timestamp(
+            transaction.get("time")
+            or transaction.get("time_stamp")
+            or raw_event.get("timestamp")
+        )
 
         return {
             "ingest_source": "modsec_audit_bridge",
@@ -487,11 +502,11 @@ def normalize_event(
                 or raw_event.get("transaction_id")
                 or uuid4().hex
             ),
-            "timestamp": normalize_timestamp(
-                transaction.get("time")
-                or transaction.get("time_stamp")
-                or raw_event.get("timestamp")
+            "request_correlation_id": _response_correlation_id(
+                response.get("headers")
             ),
+            "observed_http_status": observed_http_status,
+            "timestamp": timestamp,
             "source_ip": source_ip,
             "source_provenance": source_provenance,
             "cf_connecting_ip_matches_client_ip": cf_matches,
@@ -575,6 +590,36 @@ def normalize_event(
         "matched_rule_messages": matched_rule_messages,
         "matched_rule_tags": matched_rule_tags,
     }
+
+
+def _parse_http_status(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        status = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        status = int(value.strip())
+    else:
+        return None
+    return status if 100 <= status <= 599 else None
+
+
+def _response_correlation_id(headers: Any) -> str | None:
+    if not isinstance(headers, dict):
+        return None
+    matches = [
+        value
+        for name, value in headers.items()
+        if str(name).lower() == _REQUEST_CORRELATION_RESPONSE_HEADER
+    ]
+    if len(matches) != 1:
+        return None
+    value = matches[0]
+    if isinstance(value, list):
+        if len(value) != 1:
+            return None
+        value = value[0]
+    return normalize_request_correlation_id(value)
 
 
 def post_event(

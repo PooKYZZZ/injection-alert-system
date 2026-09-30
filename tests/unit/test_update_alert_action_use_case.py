@@ -38,7 +38,9 @@ async def test_execute_updates_action_taken_entity(mock_repository, use_case):
         action_taken="BLOCKED",
     )
 
-    result = await use_case.execute(alert_id=1, action_taken="BLOCKED")
+    result = await use_case.execute(
+        alert_id=1, action_taken="BLOCKED", actor_id="analyst-42"
+    )
 
     assert result.success is True
     assert result.alert is not None
@@ -46,20 +48,31 @@ async def test_execute_updates_action_taken_entity(mock_repository, use_case):
     mock_repository.update_action_taken.assert_called_once_with(
         traffic_id=1,
         action_taken="BLOCKED",
+        actor_id="analyst-42",
     )
 
 
 @pytest.mark.asyncio
 async def test_execute_raises_for_invalid_action(use_case):
     with pytest.raises(InvalidAlertActionError):
-        await use_case.execute(alert_id=1, action_taken="INVALID")
+        await use_case.execute(
+            alert_id=1, action_taken="INVALID", actor_id="analyst-42"
+        )
 
 
 @pytest.mark.asyncio
 async def test_execute_returns_not_found_result_when_alert_missing(mock_repository, use_case):
     mock_repository.update_action_taken.return_value = None
 
-    result = await use_case.execute(alert_id=999, action_taken="THROTTLED")
+    result = await use_case.execute(
+        alert_id=999, action_taken="THROTTLED", actor_id="analyst-42"
+    )
 
     assert result.success is False
     assert "not found" in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_execute_rejects_missing_authenticated_actor(use_case):
+    with pytest.raises(ValueError, match="authenticated user ID"):
+        await use_case.execute(alert_id=1, action_taken="BLOCKED", actor_id=" ")

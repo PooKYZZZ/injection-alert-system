@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/utils'
+import { cn, getConfidenceLevel } from '@/lib/utils'
 import type { AlertConfidenceTier, AlertPrediction } from '@/features/alerts/contract'
 import { formatConfidencePercent } from '@/lib/date-time'
 
@@ -14,20 +14,18 @@ export function getConfidenceColors(
   confidence: number,
   confidenceTier?: AlertConfidenceTier
 ): { text: string; bg: string } {
-  if (confidenceTier === 'CRITICAL' || confidenceTier === 'HIGH') {
+  const tier = confidenceTier ?? getConfidenceLevel(confidence)
+  if (tier === 'CRITICAL' || tier === 'HIGH') {
     return { text: 'text-severity-high-text', bg: 'bg-severity-high-accent' }
   }
-  if (confidenceTier === 'MEDIUM') {
+  if (tier === 'MEDIUM') {
     return { text: 'text-severity-blocked-text', bg: 'bg-severity-blocked-accent' }
   }
-  if (confidenceTier === 'LOW') {
+  if (tier === 'LOW') {
     return { text: 'text-severity-safe-text', bg: 'bg-severity-safe-accent' }
   }
 
-  const value = Math.round(confidence * 100)
-  if (value >= 80) return { text: 'text-severity-high-text', bg: 'bg-severity-high-accent' }
-  if (value >= 50) return { text: 'text-severity-blocked-text', bg: 'bg-severity-blocked-accent' }
-  return { text: 'text-severity-safe-text', bg: 'bg-severity-safe-accent' }
+  return { text: 'text-text-secondary', bg: 'bg-surface-border' }
 }
 
 export function ConfidenceBar({

@@ -72,6 +72,8 @@ class TriageIngestCommand:
     crs_score: int
     crs_rule_ids: list[str]
     ingest_source: str | None = None
+    request_correlation_id: str | None = None
+    observed_http_status: int | None = None
     matched_rule_messages: list[str] | None = None
     matched_rule_tags: list[str] | None = None
     query_string: str | None = None
@@ -114,7 +116,9 @@ class TriageMetadataConflictError(RuntimeError):
 class TriageUseCase:
     """Coordinates deduplication, ML inference, action policy, and persistence."""
 
-    _VALID_CONFIDENCE_LEVELS = frozenset({"LOW", "MEDIUM", "HIGH", "CRITICAL"})
+    _VALID_CONFIDENCE_LEVELS = frozenset(
+        {"INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"}
+    )
     VALID_PREDICTIONS = frozenset(
         {"Normal", "SQL Injection", "Code Injection", "Other Attacks"}
     )
@@ -189,6 +193,7 @@ class TriageUseCase:
         authoritative = await self._repository.claim_or_reclaim_processing(
             TrafficLogEntity(
                 transaction_id=command.transaction_id,
+                request_correlation_id=command.request_correlation_id,
                 timestamp=command.timestamp or now,
                 source_ip=command.source_ip,
                 source_provenance=command.source_provenance,
@@ -207,6 +212,7 @@ class TriageUseCase:
                 ingest_source=command.ingest_source,
                 matched_rule_messages=command.matched_rule_messages,
                 matched_rule_tags=command.matched_rule_tags,
+                observed_http_status=command.observed_http_status,
                 status="PROCESSING",
             ),
             owner_token=owner_token,
@@ -319,9 +325,20 @@ class TriageUseCase:
         # The legacy /api/triage path predates WAF fingerprints. Preserve its
         # existing idempotency behavior while requiring any fingerprinted WAF
         # retry to match exactly (including against historical null rows).
-        if stored is None and incoming is None:
-            return
-        if stored is not None and incoming is not None and stored == incoming:
+        fingerprint_matches = stored == incoming
+
+        # Newly captured correlation/outcome fields are deliberately outside
+        # the legacy fingerprint so existing rows retain idempotent retries.
+        # Once a row has either value, require future retries to agree without
+        # backfilling values that historical producers did not record.
+        evidence_matches = (
+            existing.request_correlation_id is None
+            or existing.request_correlation_id == command.request_correlation_id
+        ) and (
+            existing.observed_http_status is None
+            or existing.observed_http_status == command.observed_http_status
+        )
+        if fingerprint_matches and evidence_matches:
             return
 
         log_event(
@@ -332,6 +349,15 @@ class TriageUseCase:
             transaction_id=command.transaction_id,
             stored_fingerprint_prefix=(stored or "")[:8],
             incoming_fingerprint_prefix=(incoming or "")[:8],
+            fingerprint_matches=fingerprint_matches,
+            request_correlation_matches=(
+                existing.request_correlation_id is None
+                or existing.request_correlation_id == command.request_correlation_id
+            ),
+            observed_status_matches=(
+                existing.observed_http_status is None
+                or existing.observed_http_status == command.observed_http_status
+            ),
             transaction_status=existing.status,
         )
         raise TriageMetadataConflictError(
@@ -456,7 +482,7 @@ class TriageUseCase:
             return "BLOCKED"
         if confidence_level == "MEDIUM":
             return "THROTTLED"
-        if confidence_level == "LOW":
+        if confidence_level in {"INFORMATIONAL", "LOW"}:
             return "ALLOWED"
         raise AssertionError("validated confidence_level was not mapped")
 

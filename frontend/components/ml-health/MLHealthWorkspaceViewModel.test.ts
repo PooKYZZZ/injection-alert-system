@@ -12,9 +12,9 @@ const baseHealth: MLHealthData = {
   drift_status: 'NORMAL',
   traffic_processed: 1440,
   thresholds: {
-    low: 0.5,
-    medium: 0.65,
-    high: 0.8,
+    low: 0.4,
+    medium: 0.55,
+    high: 0.7,
     critical: 0.9,
   },
   macro_f1: 0.91,
@@ -49,11 +49,12 @@ describe('MLHealthWorkspace.view-model', () => {
     }
     const bands = buildPolicyBands(health)
 
-    expect(bands).toHaveLength(4)
-    expect(bands[0]).toMatchObject({ label: 'Low', action: 'allow', rangeLabel: '< 40%' })
-    expect(bands[1]).toMatchObject({ label: 'Medium', action: 'throttle', rangeLabel: '40% – ≤ 70%' })
-    expect(bands[2]).toMatchObject({ label: 'High', action: 'block', rangeLabel: '> 70% – < 85%' })
-    expect(bands[3]).toMatchObject({ label: 'Critical', action: 'block', rangeLabel: '≥ 85%' })
+    expect(bands).toHaveLength(5)
+    expect(bands[0]).toMatchObject({ label: 'Informational', intent: 'Monitor', rangeLabel: '= 0%' })
+    expect(bands[1]).toMatchObject({ label: 'Low', intent: 'Monitor', rangeLabel: '> 0% – < 40%' })
+    expect(bands[2]).toMatchObject({ label: 'Medium', intent: 'Throttle', rangeLabel: '≥ 40% – < 70%' })
+    expect(bands[3]).toMatchObject({ label: 'High', intent: 'Application block', rangeLabel: '≥ 70% – < 85%' })
+    expect(bands[4]).toMatchObject({ label: 'Critical', intent: 'WAF block', rangeLabel: '≥ 85%' })
     expect(buildMLHealthViewModel(health).normalPolicyException).toBe(
       'Normal predictions remain allowed for all valid confidence tiers.'
     )
@@ -156,11 +157,8 @@ describe('MLHealthWorkspace.view-model', () => {
       },
     })
 
-    expect(bands[0]?.rangeLabel).toBe('Not configured')
-    expect(bands[1]?.rangeLabel).toBe('Not configured')
-    expect(bands[2]?.rangeLabel).toBe('Not configured')
-    expect(bands[3]?.rangeLabel).toBe('Not configured')
-    expect(bands.map((band) => band.label)).toEqual(['Low', 'Medium', 'High', 'Critical'])
+    expect(bands.every((band) => band.rangeLabel === 'Not configured')).toBe(true)
+    expect(bands.map((band) => band.label)).toEqual(['Informational', 'Low', 'Medium', 'High', 'Critical'])
   })
 
   it('orders known prediction classes for an operator-readable comparison', () => {

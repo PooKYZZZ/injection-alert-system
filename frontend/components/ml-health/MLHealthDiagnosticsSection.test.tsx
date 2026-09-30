@@ -15,7 +15,7 @@ const health: MLHealthData = {
   drift_score: null,
   drift_status: null,
   traffic_processed: 0,
-  thresholds: { low: 0.5, medium: 0.65, high: 0.8, critical: 0.9 },
+  thresholds: { low: 0.4, medium: 0.55, high: 0.7, critical: 0.9 },
 }
 
 describe('MLHealthDiagnosticsSection', () => {
@@ -73,6 +73,24 @@ describe('MLHealthDiagnosticsSection', () => {
 
     expect(policy).toHaveAttribute('aria-selected', 'true')
     expect(document.activeElement).toBe(policy)
+  })
+
+  it('explains policy intents separately from enforcement outcomes', () => {
+    render(
+      <MLHealthDiagnosticsSection
+        health={health}
+        viewModel={buildMLHealthViewModel(health)}
+        activeTab="policy"
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: 'Model-confidence policy' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Model-confidence policy' })).toHaveTextContent('Monitor')
+    expect(screen.getByRole('table', { name: 'Model-confidence policy' })).toHaveTextContent('Throttle')
+    expect(screen.getByRole('table', { name: 'Model-confidence policy' })).toHaveTextContent('Application block')
+    expect(screen.getByRole('table', { name: 'Model-confidence policy' })).toHaveTextContent('WAF block')
+    expect(screen.getByText(/Shadow mode records recommendations without applying them/i)).toBeInTheDocument()
+    expect(screen.getByText(/do not prove an HTTP response occurred/i)).toBeInTheDocument()
   })
 
   it('puts evaluation provenance before reported scores and labels their scope', () => {

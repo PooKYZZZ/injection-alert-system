@@ -47,7 +47,7 @@ describe('FilterBar', () => {
     render(<FilterBar />)
 
     expect(screen.getByLabelText('Time Window')).toHaveValue('ALL')
-    expect(screen.getByLabelText('Action Taken')).toHaveValue('ALL')
+    expect(screen.getByLabelText('Recorded action')).toHaveValue('ALL')
   })
 
   it('keeps Normal traffic disabled until explicitly enabled', () => {

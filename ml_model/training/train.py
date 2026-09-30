@@ -18,6 +18,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 
+from ml_model.confidence_tiers import DEFAULT_CONFIDENCE_THRESHOLDS
 from ml_model.preprocessing.dataset_io import (
     build_split_hygiene_evidence,
     build_split_summaries,
@@ -587,7 +588,11 @@ def build_runner_context(
         log_every_steps=200,
         heartbeat_every_steps=200,
         ece_n_bins=15,
-        confidence_thresholds=[0.5, 0.7, 0.8, 0.9],
+        confidence_thresholds=[
+            DEFAULT_CONFIDENCE_THRESHOLDS.low,
+            DEFAULT_CONFIDENCE_THRESHOLDS.high,
+            DEFAULT_CONFIDENCE_THRESHOLDS.critical,
+        ],
         dataloader_num_workers=options.num_workers,
         checkpoint_interval_epochs=options.checkpoint_interval_epochs,
         dataloader_prefetch_factor=2,

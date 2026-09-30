@@ -33,6 +33,7 @@ from web_app.domain.classification_scope import (
 )
 from web_app.domain.interfaces import (
     ITrafficLogRepository,
+    TrafficLogActionHistoryEntity,
     TrafficLogEntity,
     TrafficLogPage,
     TrafficLabelReview,
@@ -43,7 +44,10 @@ from web_app.domain.interfaces import (
     TargetPathSummary,
 )
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
-from web_app.infrastructure.database.database import TrafficLabelReview as ReviewRow
+from web_app.infrastructure.database.database import (
+    TrafficLabelReview as ReviewRow,
+    TrafficLogActionHistory as ActionHistoryRow,
+)
 from web_app.infrastructure.database.database import (
     EnforcementRecommendationRow,
 )
@@ -57,7 +61,13 @@ CANONICAL_PREDICTION_LABELS = (
     "Normal",
 )
 
-CONFIDENCE_TIER_VALUES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+CONFIDENCE_TIER_VALUES = (
+    "CRITICAL",
+    "HIGH",
+    "MEDIUM",
+    "LOW",
+    "INFORMATIONAL",
+)
 
 _STATS_CACHE_TTL_SECONDS = 10
 
@@ -266,6 +276,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         """Convert a domain entity to an ORM model instance."""
         kwargs = {
             "transaction_id": entity.transaction_id,
+            "request_correlation_id": entity.request_correlation_id,
             "source_ip": entity.source_ip,
             "source_provenance": entity.source_provenance.value,
             "source_verification_status": entity.source_verification_status.value,
@@ -291,6 +302,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             "processing_owner_token": entity.processing_owner_token,
             "processing_attempt": entity.processing_attempt,
             "action_taken": entity.action_taken,
+            "observed_http_status": entity.observed_http_status,
             "analyst_label": entity.analyst_label,
             "labeled_at": entity.labeled_at,
             "labeled_by": entity.labeled_by,
@@ -316,6 +328,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         return TrafficLogEntity(
             id=orm_obj.id,
             transaction_id=orm_obj.transaction_id,
+            request_correlation_id=orm_obj.request_correlation_id,
             created_at=orm_obj.created_at,
             timestamp=orm_obj.timestamp,
             source_ip=orm_obj.source_ip,
@@ -346,6 +359,7 @@ class TrafficLogRepository(ITrafficLogRepository):
             processing_owner_token=orm_obj.processing_owner_token,
             processing_attempt=orm_obj.processing_attempt,
             action_taken=orm_obj.action_taken,
+            observed_http_status=orm_obj.observed_http_status,
             analyst_label=orm_obj.analyst_label,
             labeled_at=orm_obj.labeled_at,
             labeled_by=orm_obj.labeled_by,
@@ -557,6 +571,7 @@ ORDER BY created_at DESC, id DESC
 
         values = {
             "transaction_id": entity.transaction_id,
+            "request_correlation_id": entity.request_correlation_id,
             "timestamp": entity.timestamp,
             "source_ip": entity.source_ip,
             "source_provenance": entity.source_provenance.value,
@@ -581,6 +596,7 @@ ORDER BY created_at DESC, id DESC
             "model_input_text": entity.model_input_text,
             "preprocessing_version": entity.preprocessing_version,
             "action_taken": entity.action_taken,
+            "observed_http_status": entity.observed_http_status,
             "analyst_label": entity.analyst_label,
             "labeled_at": entity.labeled_at,
             "labeled_by": entity.labeled_by,
@@ -621,6 +637,7 @@ ORDER BY created_at DESC, id DESC
 
         values = {
             "transaction_id": entity.transaction_id,
+            "request_correlation_id": entity.request_correlation_id,
             "timestamp": entity.timestamp,
             "source_ip": entity.source_ip,
             "source_provenance": entity.source_provenance.value,
@@ -635,6 +652,7 @@ ORDER BY created_at DESC, id DESC
             "ingest_source": entity.ingest_source,
             "matched_rule_messages": entity.matched_rule_messages,
             "matched_rule_tags": entity.matched_rule_tags,
+            "observed_http_status": entity.observed_http_status,
             "status": "PROCESSING",
         }
 
@@ -666,6 +684,7 @@ ORDER BY created_at DESC, id DESC
 
         values = {
             "transaction_id": entity.transaction_id,
+            "request_correlation_id": entity.request_correlation_id,
             "timestamp": entity.timestamp,
             "source_ip": entity.source_ip,
             "source_provenance": entity.source_provenance.value,
@@ -680,6 +699,7 @@ ORDER BY created_at DESC, id DESC
             "ingest_source": entity.ingest_source,
             "matched_rule_messages": entity.matched_rule_messages,
             "matched_rule_tags": entity.matched_rule_tags,
+            "observed_http_status": entity.observed_http_status,
             "status": "PROCESSING",
             "lease_expires_at": lease_expires_at,
             "processing_owner_token": owner_token,
@@ -822,7 +842,50 @@ ORDER BY created_at DESC, id DESC
         reviews = await self._latest_reviews([orm_obj.id])
         entity = self._orm_to_entity(orm_obj, reviews.get(orm_obj.id))
         attached = await self._attach_alert_context([entity])
+        attached[0].action_history = await self.list_action_history(alert_id)
         return attached[0]
+
+    async def get_correlated_records(
+        self,
+        request_correlation_id: str,
+        *,
+        exclude_traffic_id: int,
+        limit: int = 20,
+    ) -> list[TrafficLogEntity]:
+        """Load other completed records linked by the trusted request ID."""
+        bounded_limit = min(max(int(limit), 1), 50)
+        result = await self._session.execute(
+            select(TrafficLog)
+            .where(
+                TrafficLog.request_correlation_id == request_correlation_id,
+                TrafficLog.id != exclude_traffic_id,
+                self._completed_or_legacy_clause(),
+            )
+            .order_by(TrafficLog.timestamp.asc(), TrafficLog.id.asc())
+            .limit(bounded_limit)
+        )
+        return [self._orm_to_entity(row) for row in result.scalars().all()]
+
+    async def list_action_history(
+        self, traffic_id: int
+    ) -> list[TrafficLogActionHistoryEntity]:
+        result = await self._session.execute(
+            select(ActionHistoryRow)
+            .where(ActionHistoryRow.traffic_log_id == traffic_id)
+            .order_by(ActionHistoryRow.changed_at.asc(), ActionHistoryRow.id.asc())
+        )
+        return [
+            TrafficLogActionHistoryEntity(
+                id=row.id,
+                traffic_log_id=row.traffic_log_id,
+                previous_action=row.previous_action,
+                new_action=row.new_action,
+                actor_id=row.actor_id,
+                changed_at=row.changed_at,
+                reason=row.reason,
+            )
+            for row in result.scalars().all()
+        ]
 
     async def get_by_transaction_id(
         self,
@@ -1641,12 +1704,13 @@ ORDER BY created_at DESC, id DESC
             sort_column = TrafficLog.confidence
         elif sort_by in ("severity", "confidence_tier"):
             # Rank confidence tiers explicitly so CRITICAL sorts ahead of HIGH,
-            # then MEDIUM and LOW.
+            # then MEDIUM, LOW, and INFORMATIONAL.
             sort_column = case(
-                (TrafficLog.confidence_level == "CRITICAL", 4),
-                (TrafficLog.confidence_level == "HIGH", 3),
-                (TrafficLog.confidence_level == "MEDIUM", 2),
-                (TrafficLog.confidence_level == "LOW", 1),
+                (TrafficLog.confidence_level == "CRITICAL", 5),
+                (TrafficLog.confidence_level == "HIGH", 4),
+                (TrafficLog.confidence_level == "MEDIUM", 3),
+                (TrafficLog.confidence_level == "LOW", 2),
+                (TrafficLog.confidence_level == "INFORMATIONAL", 1),
                 else_=0,
             )
         elif sort_by == "action":
@@ -1738,19 +1802,33 @@ ORDER BY created_at DESC, id DESC
         self,
         traffic_id: int,
         action_taken: str,
+        actor_id: str,
     ) -> Optional[TrafficLogEntity]:
-        """Update action_taken on a traffic log. Returns None if not found."""
+        """Append an analyst change and update the current action atomically."""
         result = await self._session.execute(
             select(TrafficLog).filter(
                 TrafficLog.id == traffic_id,
                 self._actionable_alert_clause(),
-            )
+            ).with_for_update()
         )
         orm_obj = result.scalars().first()
         if orm_obj is None:
             return None
 
-        orm_obj.action_taken = action_taken
+        if orm_obj.action_taken != action_taken:
+            self._session.add(
+                ActionHistoryRow(
+                    traffic_log_id=traffic_id,
+                    previous_action=orm_obj.action_taken,
+                    new_action=action_taken,
+                    actor_id=actor_id,
+                    changed_at=datetime.now(timezone.utc),
+                )
+            )
+            orm_obj.action_taken = action_taken
         await self._session.commit()
         await self._session.refresh(orm_obj)
-        return (await self._attach_alert_context([self._orm_to_entity(orm_obj)]))[0]
+        entity = (await self._attach_alert_context([self._orm_to_entity(orm_obj)]))[0]
+        entity.action_history = await self.list_action_history(traffic_id)
+        _stats_cache.clear()
+        return entity

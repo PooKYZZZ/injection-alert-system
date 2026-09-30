@@ -20,10 +20,22 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
+from ml_model.confidence_tiers import DEFAULT_CONFIDENCE_THRESHOLDS
+
 CONFIDENCE_BANDS = (
-    ("LOW", 0.0, 0.5),
-    ("MEDIUM", 0.5, 0.8),
-    ("HIGH", 0.8, 1.0000001),
+    ("INFORMATIONAL", 0.0, 0.0),
+    ("LOW", 0.0, DEFAULT_CONFIDENCE_THRESHOLDS.low),
+    (
+        "MEDIUM",
+        DEFAULT_CONFIDENCE_THRESHOLDS.low,
+        DEFAULT_CONFIDENCE_THRESHOLDS.high,
+    ),
+    (
+        "HIGH",
+        DEFAULT_CONFIDENCE_THRESHOLDS.high,
+        DEFAULT_CONFIDENCE_THRESHOLDS.critical,
+    ),
+    ("CRITICAL", DEFAULT_CONFIDENCE_THRESHOLDS.critical, 1.0),
 )
 
 DEFAULT_ROBUSTNESS_PERTURBATIONS = {
@@ -634,7 +646,11 @@ def confidence_band_summary_frame(
     total_count = max(int(labels.shape[0]), 1)
 
     for band_name, lower, upper in bands:
-        if upper >= 1.0:
+        if band_name == "INFORMATIONAL":
+            mask = confidences == 0.0
+        elif lower == 0.0:
+            mask = (confidences > lower) & (confidences < upper)
+        elif upper == 1.0:
             mask = (confidences >= lower) & (confidences <= upper)
         else:
             mask = (confidences >= lower) & (confidences < upper)
@@ -687,7 +703,11 @@ def per_class_recall_at_threshold_frame(
     preds: np.ndarray,
     probs: np.ndarray,
     label_names: Sequence[str],
-    thresholds: Iterable[float] = (0.5, 0.7, 0.8, 0.9),
+    thresholds: Iterable[float] = (
+        DEFAULT_CONFIDENCE_THRESHOLDS.low,
+        DEFAULT_CONFIDENCE_THRESHOLDS.high,
+        DEFAULT_CONFIDENCE_THRESHOLDS.critical,
+    ),
 ) -> pd.DataFrame:
     confidences = probs.max(axis=1)
     rows = []

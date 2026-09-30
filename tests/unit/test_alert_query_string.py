@@ -84,8 +84,15 @@ class TestAlertQueryParams:
 
     def test_valid_confidence_level_filter(self):
         """Test valid confidence_level filter values."""
-        params = AlertQueryParams(confidence_level=["HIGH", "MEDIUM", "CRITICAL"])
-        assert params.confidence_level == ["HIGH", "MEDIUM", "CRITICAL"]
+        params = AlertQueryParams(
+            confidence_level=["INFORMATIONAL", "HIGH", "MEDIUM", "CRITICAL"]
+        )
+        assert params.confidence_level == [
+            "INFORMATIONAL",
+            "HIGH",
+            "MEDIUM",
+            "CRITICAL",
+        ]
 
     def test_valid_pagination_params(self):
         """Test valid pagination parameters."""
@@ -129,6 +136,13 @@ class TestAlertQueryParamsCombinations:
         )
         assert params.severity == "CRITICAL"
         assert params.confidence_tier == "CRITICAL"
+
+    def test_informational_tier_works_with_legacy_alias(self):
+        params = AlertQueryParams(
+            severity="INFORMATIONAL",
+            confidence_tier="INFORMATIONAL",
+        )
+        assert params.effective_confidence_tier == "INFORMATIONAL"
 
     def test_time_range_and_triage_status_combination(self):
         """Test combining time_range and triage_status filters."""

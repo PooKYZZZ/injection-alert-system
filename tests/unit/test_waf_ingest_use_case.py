@@ -192,6 +192,102 @@ async def test_ingest_rejects_model_not_ready():
 
 
 @pytest.mark.asyncio
+async def test_ingest_persists_separate_correlation_and_observed_outcome():
+    classifier = Mock()
+    classifier.loaded = True
+    classifier.model_version = "test"
+    classifier.predict.return_value = {
+        "prediction": "SQL Injection",
+        "confidence": 0.91,
+        "confidence_level": "HIGH",
+    }
+    repository = AsyncMock()
+
+    async def _claim(entity, *, owner_token, **_kwargs):
+        entity.id = 1
+        entity.processing_owner_token = owner_token
+        return entity
+
+    repository.claim_or_reclaim_processing.side_effect = _claim
+    repository.complete_processing.return_value = _completed(
+        id=1,
+        status="COMPLETED",
+        prediction="SQL Injection",
+        confidence=0.91,
+        confidence_level="HIGH",
+        action_taken="BLOCKED",
+        model_version="test",
+    )
+    use_case = WafIngestUseCase(classifier=classifier, repository=repository)
+    timestamp = datetime(2026, 9, 30, 10, 0, tzinfo=timezone.utc)
+
+    await use_case.execute(
+        transaction_id="modsec-transaction-1",
+        request_correlation_id="A" * 32,
+        observed_http_status=403,
+        timestamp=timestamp,
+        ingest_source="modsec_audit_bridge",
+        source_ip="203.0.113.10",
+        request_method="POST",
+        request_path="/support/submit",
+        crs_score=8,
+        crs_rule_ids=["942100"],
+    )
+
+    entity = repository.claim_or_reclaim_processing.call_args.args[0]
+    assert entity.transaction_id == "modsec-transaction-1"
+    assert entity.request_correlation_id == "a" * 32
+    assert entity.observed_http_status == 403
+
+
+@pytest.mark.asyncio
+async def test_portal_transaction_uuid_is_used_as_correlation_without_backfill():
+    classifier = Mock()
+    classifier.loaded = True
+    classifier.model_version = "test"
+    classifier.predict.return_value = {
+        "prediction": "Normal",
+        "confidence": 0.8,
+        "confidence_level": "HIGH",
+    }
+    repository = AsyncMock()
+
+    async def _claim(entity, *, owner_token, **_kwargs):
+        entity.id = 1
+        entity.processing_owner_token = owner_token
+        return entity
+
+    repository.claim_or_reclaim_processing.side_effect = _claim
+    repository.complete_processing.return_value = _completed(
+        id=1,
+        status="COMPLETED",
+        prediction="Normal",
+        confidence=0.8,
+        confidence_level="HIGH",
+        action_taken="ALLOWED",
+        model_version="test",
+    )
+    use_case = WafIngestUseCase(classifier=classifier, repository=repository)
+    request_id = "00000000-0000-4000-8000-000000000001"
+
+    await use_case.execute(
+        transaction_id=request_id,
+        timestamp=None,
+        ingest_source="portal_route_bridge",
+        source_ip=None,
+        request_method="POST",
+        request_path="/support/submit",
+        crs_score=0,
+        crs_rule_ids=["no-crs-match"],
+    )
+
+    entity = repository.claim_or_reclaim_processing.call_args.args[0]
+    assert entity.transaction_id == request_id
+    assert entity.request_correlation_id == request_id
+    assert entity.observed_http_status is None
+
+
+@pytest.mark.asyncio
 async def test_ingest_applies_action_policy():
     classifier = Mock()
     classifier.loaded = True

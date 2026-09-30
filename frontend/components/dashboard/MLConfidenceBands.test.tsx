@@ -9,12 +9,13 @@ afterEach(() => {
 
 describe('MLConfidenceBands', () => {
   it('labels backend-emitted tiers without hard-coded threshold ranges', () => {
-    render(<MLConfidenceBands critical={1} high={2} medium={3} low={4} />)
+    render(<MLConfidenceBands critical={1} high={2} medium={3} low={4} informational={5} />)
 
     expect(screen.getByText('Critical confidence tier')).toBeInTheDocument()
     expect(screen.getByText('High confidence tier')).toBeInTheDocument()
     expect(screen.getByText('Medium confidence tier')).toBeInTheDocument()
     expect(screen.getByText('Low confidence tier')).toBeInTheDocument()
+    expect(screen.getByText('Informational confidence tier')).toBeInTheDocument()
     expect(screen.queryByText(/90%|80%|50%/)).not.toBeInTheDocument()
   })
 })

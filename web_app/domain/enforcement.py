@@ -333,10 +333,15 @@ class EnforcementPolicy:
         if not confidence_level:
             raise ValueError("confidence_level is required")
 
-        try:
-            tier = EnforcementTier(confidence_level)
-        except ValueError:
-            raise ValueError(f"Unknown confidence_level: {confidence_level}") from None
+        if confidence_level == "INFORMATIONAL":
+            # Preserve the established LOW monitor-only policy path for the
+            # newly explicit zero-score tier. No new enforcement action is added.
+            tier = EnforcementTier.LOW
+        else:
+            try:
+                tier = EnforcementTier(confidence_level)
+            except ValueError:
+                raise ValueError(f"Unknown confidence_level: {confidence_level}") from None
 
         scope = scope_for_request_path(request_path)
         if scope is None or not is_actionable_attack_class(prediction):
@@ -360,7 +365,11 @@ class EnforcementPolicy:
         elif tier is EnforcementTier.MEDIUM:
             decision_reason = "REPEAT_OR_STRONG_CRS_EVIDENCE_REQUIRED"
         else:
-            decision_reason = "LOW_MONITOR_ONLY"
+            decision_reason = (
+                "INFORMATIONAL_MONITOR_ONLY"
+                if confidence_level == "INFORMATIONAL"
+                else "LOW_MONITOR_ONLY"
+            )
 
         return PolicyRecommendation(
             scope=scope,

@@ -23,7 +23,13 @@ export const ALERT_ACTION_TAKEN_VALUES = [
   'ALLOWED',
 ] as const
 
-export const ALERT_CONFIDENCE_TIER_VALUES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
+export const ALERT_CONFIDENCE_TIER_VALUES = [
+  'INFORMATIONAL',
+  'LOW',
+  'MEDIUM',
+  'HIGH',
+  'CRITICAL',
+] as const
 export const ALERT_POLICY_DECISION_VALUES = [
   'MONITOR',
   'CHALLENGE',
@@ -95,7 +101,7 @@ export function getAlertActionLabel(
 ): string {
   if (
     action === 'ALLOWED' &&
-    confidenceTier === 'LOW' &&
+    (confidenceTier === 'INFORMATIONAL' || confidenceTier === 'LOW') &&
     prediction != null &&
     isActionableAttackClass(prediction)
   ) {

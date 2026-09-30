@@ -45,12 +45,13 @@ flowchart LR
 | Request/trace context | Implemented | request middleware preserves or generates safe IDs, returns `X-Request-ID` on handled and generic unhandled `500` responses, and preserves valid W3C version-00 `traceparent` IDs |
 | Structured observability logs | Implemented | request/WAF/prediction boundaries and bridge operational/configuration events emit JSON; recursive variant-aware redaction and correlation behavior are covered by targeted tests |
 | Real-time dashboard alerts | Implemented and manually verified in the tested hosted deployment | post-commit in-process broadcaster -> native FastAPI SSE -> authenticated Next.js streaming BFF -> one dashboard EventSource -> TanStack Query alert/stats invalidation; no-refresh, browser reconnect, and named-domain hosted SSE proof passed; no durable replay or multi-worker fan-out |
-| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260905_000029`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted in-scope HIGH/CRITICAL alerts |
+| Notification outbox and worker | Implemented locally; current provider evidence is tracked in `STATUS.md` | notification schema/workflow introduced through `20260720_000022`; current repository migration head is `20260930_000031`; versioned PostgreSQL claim/transition functions, protected email credential payloads, deadline/cancellation/terminal scrubbing, batch-one worker, Resend delivery, and Telegram `sendMessage` delivery for persisted in-scope HIGH/CRITICAL alerts |
 | RBAC secure login | Implemented | Auth.js Credentials login reads `auth_accounts`; the `OWNER`/`ADMIN`/`ANALYST`/`VIEWER` role claim and `authz_version` are rechecked against the current DB row by all protected BFF routes; centralized permissions make ML Health, ML Deployment, and Training Feedback Owner-only |
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
-| `CRITICAL >=90%` confidence tier | Implemented | current contracts expose LOW/MEDIUM/HIGH/CRITICAL with legacy severity compatibility |
+| Project model-confidence tiers | Implemented; isolated local database and WAF request path verified | exact zero is INFORMATIONAL; positive scores use LOW `(0, 0.40)`, MEDIUM `[0.40, 0.70)`, HIGH `[0.70, 0.90)`, and CRITICAL `[0.90, 1.0]`. The project adopts AWS Security Hub's normalized severity band boundaries as the reference for categorizing model-confidence scores; this is not AWS ML guidance or calibration evidence. Hosted migration remains a reviewed operator task. |
+| Request evidence and action history | Implemented; isolated local WAF-to-database-to-detail path verified | separate producer transaction IDs and request correlation IDs, observed HTTP status, source-aware evidence relationships, append-only action history, and BFF-validated alert detail; missing historical values remain unknown. |
 | Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 and Block 2 controlled-local WAF runtime implemented and E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Active `confidence-enforcement-v3` recommendations use class-matched CRS attack-family evidence; HIGH requires matching evidence, and MEDIUM throttling is limited to verified-source repeated events or matching CRS evidence, with a 60-second maximum from the latest recommendation. Repeat counts ignore unverified sources and stale policy versions. `/api/internal/enforcement/check` is route-scoped; user-input GETs on Search Records and Track Status are now synchronously inspected before their reads, alongside the existing protected POST flows. The portal's synchronous bridge currently supplies `no-crs-match`; same-request HIGH/CRITICAL ML blocking therefore remains a monitor fallback until trusted ModSecurity evidence is handed into that synchronous path. CRS-originated blocks are separate and may preempt ML inference. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`. PR7 adds durable revisioned effective WAF state, an authenticated snapshot boundary, deterministic candidate rendering, reload/generation confirmation, candidate-specific probing, and rollback. The controlled PostgreSQL-to-backend-to-WAF path passes; Block 3 still owns full attack-to-ML creation, external ingress/source identity, PR6/PR7 integrated regression, and portal no-upstream evidence. Hosted active enforcement remains disabled. |
 | Verified label review workflow | Implemented locally; export and retraining lifecycle implemented in controlled local mode | Owners with `TRAINING_FEEDBACK_MANAGE` append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Non-Owners retain alert read access but cannot see or mutate Training Feedback. Alert responses project only the latest revision. Only `approved_for_training` enters the retraining snapshot. The Owner-only ML Deployment control plane, worker lifecycle, evidence gates, explicit local staging promotion, rollback, and scheduled trigger are implemented; hosted/production promotion remains disabled and unverified. |
 | Training/evaluation source organization | Implemented for controlled-local execution | Canonical benchmark helpers and script-first entrypoints live under `ml_model/training/`, `ml_model/preprocessing/`, and `ml_model/evaluation/`; the dashboard native adapter reuses those entrypoints rather than duplicating a training loop. Native laptop quality proof remains separate evidence. |
@@ -119,6 +120,16 @@ allowlist (`Normal`, `SQL Injection`, and `Code Injection`). In that opt-in
 view, Normal rows remain traffic records: they retain their stored classification
 and action, have no analyst triage or action-update workflow, and do not create
 operational alerts. The default API response is unchanged.
+
+Authenticated detail-shaped alert responses include a separately stored,
+redacted WAF query string when the ingest source retains one. This schema is
+used by single-alert detail and triage/action update responses; the paginated
+alert-list projection does not include query data. Sensitive query parameter
+values are redacted at ingest. Ordinary successful-access telemetry
+intentionally does not persist its query string. Synchronous portal-route
+inputs are used for inference but are not retained in alert details. The drawer
+explains these omissions; no missing request data is reconstructed from model
+input.
 
 The same policy is applied in the repository boundary for alert detail,
 statistics, activity buckets, recent operational traffic, triage/action
@@ -204,6 +215,10 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
   identity and role from the current session and confirms the Owner-only
   `TRAINING_FEEDBACK_MANAGE` permission. The browser cannot submit an email
   address or reviewer identity.
+- The action PATCH route derives the history actor from the authenticated
+  session and ignores any actor identity in the browser request body. FastAPI
+  updates the current action and appends the corresponding history row in one
+  database transaction.
 - The BFF proxies that request to internal FastAPI
   `POST /api/alerts/{alert_id}/label-review`. Label review state is separate
   from triage `action_taken` and is not an enforcement decision.
@@ -261,12 +276,30 @@ the client-facing behavior for disabled or unauthorized pages.
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- Repository Alembic head: `20260905_000029`. Latest hosted Supabase revision with recorded evidence: `20260712_000020`.
+- Repository Alembic head: `20260930_000031`. The running local database was
+  observed at `20260924_000030` before this migration was applied. Latest
+  hosted Supabase revision with recorded evidence: `20260712_000020`.
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
 - Notification outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, and lease reconciliation. Email retains AES-GCM protection for active credential-equivalent payloads; Telegram is database-restricted to safe `threat_detected` payloads. Terminal payloads are scrubbed.
 - New auth/security tables use the current `public` schema convention with RLS and no anon/authenticated policies. RLS is defense-in-depth only because service-role access bypasses it; server-only credential isolation is the actual boundary
 - `AUTH_USERS_JSON` is not read by runtime auth. Supabase query or configuration failure denies login and protected BFF access without an env fallback
+
+### Request correlation, observed status, and action history
+
+- `request_correlation_id` links producer records for one request while each
+  producer keeps its own `transaction_id`. Correlation joins evidence in alert
+  detail; it does not merge or delete traffic rows.
+- The WAF audit bridge stores `response.http_code`; the access-log bridge stores
+  the emitted HTTP status. Historical rows remain null when the sources did not
+  record a status, and the event timestamp is not presented as a response time.
+- The current sources do not reliably identify which layer enforced a response.
+  The drawer therefore shows the enforcement source as not recorded;
+  neither an HTTP status nor the recorded action is used to infer that source.
+- Manual action changes append `traffic_log_action_history` rows with the
+  previous/current action, authenticated user ID, and server change time. The
+  current action remains on `traffic_logs` for filtering. History before this
+  feature was introduced is unavailable.
 
 ### Verified label reviews
 
@@ -299,7 +332,7 @@ kept for compatibility; new exporter code must use `model_input_hash` and
 - Staged artifacts live under `ml_model/model_registry/staging/`
 - Evaluation outputs live under `ml_model/model_registry/eval/`
 - Model configs live under `config/models/`
-- Current runtime defaults align with the DistilBERT staging path and the locked confidence thresholds
+- Current runtime defaults align with the DistilBERT staging path and the owner-approved confidence-tier boundaries
 
 ## What Is Present But Not Yet The Primary Runtime Path
 
@@ -343,11 +376,11 @@ and hosted deployment gates remain separately tracked there.
 
 - `PROCESSING` placeholder rows are hidden from normal alerts and stats reads. Expired leases are automatically reclaimed via the `lease_expires_at` field when a later request finds the lease stale.
 - The dashboard still relies on BFF-derived display fields for some stats and ML-health cards because the backend payloads intentionally stay narrower than the frontend contract.
-- Current confidence tiers are `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
-- `CRITICAL >=90%` is implemented as the top confidence threshold, and historical rows are not retroactively reclassified.
+- Current branch confidence tiers are `INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, and `CRITICAL`. Preferred filter/query naming is `confidence_tier`, the persisted backend field remains `confidence_level`, and the legacy `severity` query alias remains for compatibility.
+- Exact `0.0` is INFORMATIONAL; positive scores below `0.40` are LOW; `0.40` through below `0.70` are MEDIUM; `0.70` through below `0.90` are HIGH; and `0.90` through `1.0` are CRITICAL. Historical rows are not retroactively reclassified.
 - Persisted-alert dashboard aggregations use backend-emitted `confidence_level`; the frontend does not reclassify stored alerts from raw confidence or current ML-health thresholds.
 - Confidence distributions include all operational traffic labels, while enforcement-policy counts include only the explicit in-scope attack classes. Normal predictions remain `ALLOWED` at every valid confidence tier; out-of-scope classifications are excluded from operational counts.
-- Confidence-tier badges always display `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`; prediction labels such as Normal/benign remain separate UI concepts.
+- Confidence-tier badges always display the backend-emitted tier, including `INFORMATIONAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.
 - ADMIN MFA break glass is isolated behind the NOLOGIN `cybertrace_break_glass` role and one `SECURITY DEFINER` function. The runtime `service_role` cannot execute either the restricted or legacy operator function; hosted login membership remains approval-gated.

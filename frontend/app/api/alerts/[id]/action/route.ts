@@ -18,6 +18,13 @@ export async function PATCH(
     if (!authorization.ok) {
       return authorization.response
     }
+    const actorId = session?.user?.id?.trim()
+    if (!actorId) {
+      return NextResponse.json(
+        { error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } },
+        { status: 401 }
+      )
+    }
 
     const { id } = await params
     const numericId = Number(id)
@@ -59,7 +66,7 @@ export async function PATCH(
       )
     }
 
-    const result = await updateAlertAction(id, actionTaken as AlertAction)
+    const result = await updateAlertAction(id, actionTaken as AlertAction, actorId)
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }

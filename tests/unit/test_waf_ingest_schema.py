@@ -338,3 +338,48 @@ def test_accepts_portal_route_bridge_post_event():
     assert parsed.sanitized_body == (
         "subject=Records+question&message=Please+check+the+title."
     )
+
+
+def test_accepts_trusted_request_correlation_and_observed_status():
+    request_id = "A" * 32
+    parsed = WafIngestRequest.model_validate(
+        {
+            "ingest_source": "modsec_audit_bridge",
+            "transaction_id": "modsec-transaction-1",
+            "request_correlation_id": request_id,
+            "observed_http_status": 403,
+            "source_provenance": "DIRECT_REMOTE_ADDR",
+            "request_method": "GET",
+            "request_path": "/records/search",
+            "crs_score": 5,
+            "crs_rule_ids": ["942100"],
+        }
+    )
+
+    assert parsed.transaction_id == "modsec-transaction-1"
+    assert parsed.request_correlation_id == request_id.lower()
+    assert parsed.observed_http_status == 403
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("request_correlation_id", "client-controlled"),
+        ("observed_http_status", 99),
+        ("observed_http_status", 600),
+    ],
+)
+def test_rejects_invalid_correlation_or_observed_status(field, value):
+    payload = {
+        "ingest_source": "modsec_audit_bridge",
+        "transaction_id": "modsec-transaction-1",
+        "source_provenance": "DIRECT_REMOTE_ADDR",
+        "request_method": "GET",
+        "request_path": "/records/search",
+        "crs_score": 5,
+        "crs_rule_ids": ["942100"],
+        field: value,
+    }
+
+    with pytest.raises(ValidationError):
+        WafIngestRequest.model_validate(payload)

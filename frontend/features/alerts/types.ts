@@ -10,7 +10,14 @@ import type {
   LabelReviewApprovalState,
   VerifiedLabel,
 } from './contract'
-import type { TriageStatus, AlertFilters, LabelReviewSchema } from './schemas'
+import type {
+  TriageStatus,
+  AlertFilters,
+  LabelReviewSchema,
+  AlertActionHistorySchema,
+  CorrelatedEvidenceRecordSchema,
+  EvidenceRelationshipSchema,
+} from './schemas'
 
 export type {
   AlertAction,
@@ -41,16 +48,24 @@ export interface SourceIntel {
 export interface Alert {
   alert_id: string
   transaction_id?: string | null
+  request_correlation_id?: string | null
   timestamp: string
   source_ip: string | null
   request_path: string | null
   request_method: string | null
   user_agent?: string
   payload_snippet: string
+  query_string?: string | null
   prediction: AlertPrediction
   confidence: number
   confidence_level: AlertConfidenceTier
+  model_version?: string | null
+  preprocessing_version?: string | null
   action_taken: AlertAction | null
+  observed_http_status?: number | null
+  evidence_relationship?: EvidenceRelationship
+  correlated_records?: CorrelatedEvidenceRecord[]
+  action_history?: AlertActionHistory[]
   policy_decision?: AlertPolicyDecision | null
   policy_decision_reason?: string | null
   policy_version?: string | null
@@ -73,6 +88,9 @@ export interface Alert {
 }
 
 export type LabelReview = z.infer<typeof LabelReviewSchema>
+export type EvidenceRelationship = z.infer<typeof EvidenceRelationshipSchema>
+export type CorrelatedEvidenceRecord = z.infer<typeof CorrelatedEvidenceRecordSchema>
+export type AlertActionHistory = z.infer<typeof AlertActionHistorySchema>
 
 export interface PaginatedAlerts {
   items: Alert[]

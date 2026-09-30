@@ -73,13 +73,14 @@ from web_app.application.waf_ingest_use_case import WafIngestUseCase
 from web_app.config import get_settings
 from web_app.domain.authorization import Permission
 from web_app.domain.classification_scope import is_actionable_attack_class
+from web_app.domain.evidence_relationship import classify_evidence_relationship
 from web_app.domain.enforcement import (
     EnforcementMode,
     EnforcementScope,
     evidence_from_waf_fields,
     scope_for_request_path,
 )
-from web_app.domain.interfaces import ReviewNotEligibleError
+from web_app.domain.interfaces import ReviewNotEligibleError, TrafficLogEntity
 from web_app.domain.source_address import SourceProvenance
 from web_app.infrastructure.database import AsyncSessionLocal, get_db
 from web_app.infrastructure.repositories.enforcement_recommendation_repository import (
@@ -105,6 +106,7 @@ from web_app.presentation.dependencies.authorization import (
 )
 from web_app.presentation.schemas import (
     ActionUpdateRequest,
+    CorrelatedEvidenceRecordResponse,
     ActivityBucketSchema,
     AlertDetailResponse,
     AlertListResponse,
@@ -394,6 +396,7 @@ async def ingest_waf_event(
         "waf_ingest.received",
         "WAF ingest received",
         transaction_id=payload.transaction_id,
+        request_correlation_id=payload.request_correlation_id,
         request_path=payload.request_path,
         request_method=payload.request_method,
         source_ip=payload.source_ip,
@@ -407,6 +410,8 @@ async def ingest_waf_event(
             lambda: use_case.execute(
                 transaction_id=payload.transaction_id,
                 timestamp=payload.timestamp,
+                request_correlation_id=payload.request_correlation_id,
+                observed_http_status=payload.observed_http_status,
                 ingest_source=payload.ingest_source,
                 source_ip=payload.source_ip,
                 source_provenance=source_provenance,
@@ -774,7 +779,29 @@ async def get_alert_by_id(
     entity = await repository.get_operational_alert_by_id(alert_id)
     if entity is None:
         raise HTTPException(status_code=404, detail="Alert not found")
-    return AlertDetailResponse.model_validate(entity)
+    return await _build_alert_detail_response(entity, repository)
+
+
+async def _build_alert_detail_response(
+    entity: TrafficLogEntity,
+    repository: TrafficLogRepository,
+) -> AlertDetailResponse:
+    response = AlertDetailResponse.model_validate(entity)
+    correlated = []
+    if entity.id is not None and entity.request_correlation_id:
+        correlated = await repository.get_correlated_records(
+            entity.request_correlation_id,
+            exclude_traffic_id=entity.id,
+        )
+    response.correlated_records = [
+        CorrelatedEvidenceRecordResponse.model_validate(record)
+        for record in correlated
+    ]
+    response.evidence_relationship = classify_evidence_relationship(
+        [entity, *correlated],
+        request_correlation_available=bool(entity.request_correlation_id),
+    ).value
+    return response
 
 
 @internal_router.get("/alerts", response_model=AlertListResponse)
@@ -892,7 +919,7 @@ async def update_alert_triage(
     if not result.success:
         raise HTTPException(status_code=404, detail=result.message)
 
-    return AlertDetailResponse.model_validate(result.alert)
+    return await _build_alert_detail_response(result.alert, repository)
 
 
 @enforcement_check_router.post(
@@ -1007,6 +1034,7 @@ async def update_alert_action(
         result = await use_case.execute(
             alert_id=alert_id,
             action_taken=request.action_taken,
+            actor_id=request.actor_id,
         )
     except InvalidAlertActionError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1014,7 +1042,7 @@ async def update_alert_action(
     if not result.success:
         raise HTTPException(status_code=404, detail=result.message)
 
-    return AlertDetailResponse.model_validate(result.alert)
+    return await _build_alert_detail_response(result.alert, repository)
 
 
 router.include_router(internal_router)

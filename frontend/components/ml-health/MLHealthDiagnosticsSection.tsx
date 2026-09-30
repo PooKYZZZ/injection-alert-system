@@ -4,7 +4,7 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 import type { MLHealthData } from '@/features/ml-health/types'
 
-import type { DiagnosticTab, MLHealthViewModel, PolicyBandAction } from './MLHealthWorkspaceViewModel'
+import type { DiagnosticTab, MLHealthViewModel, PolicyBandIntent } from './MLHealthWorkspaceViewModel'
 import styles from './MLHealthWorkspace.module.css'
 
 type Props = {
@@ -16,9 +16,9 @@ type Props = {
 
 type ViewProps = Pick<Props, 'viewModel'>
 
-function policyClass(action: PolicyBandAction): string {
-  if (action === 'allow') return styles.policyAllow
-  if (action === 'throttle') return styles.policyThrottle
+function policyClass(intent: PolicyBandIntent): string {
+  if (intent === 'Monitor') return styles.policyAllow
+  if (intent === 'Throttle') return styles.policyThrottle
   return styles.policyBlock
 }
 
@@ -223,25 +223,28 @@ function PolicyTab({ viewModel }: ViewProps) {
       <section className={styles.diagnosticPanel} aria-labelledby="policy-heading">
         <div className={styles.panelHeader}>
           <div>
-            <h2 id="policy-heading">Confidence policy</h2>
-            <p className={styles.panelDescription}>Automatic response bands for in-scope actionable attacks.</p>
+            <h2 id="policy-heading">Model-confidence policy</h2>
+            <p className={styles.panelDescription}>Tier intent for actionable predictions; this is not attack severity or proof of enforcement.</p>
           </div>
         </div>
-        <DiagnosticsTable label="Confidence policy">
+        <DiagnosticsTable label="Model-confidence policy">
           <thead>
-            <tr><th scope="col">Confidence band</th><th scope="col">Range</th><th scope="col">Action</th></tr>
+            <tr><th scope="col">Model-confidence tier</th><th scope="col">Score range</th><th scope="col">Policy intent</th></tr>
           </thead>
           <tbody>
             {viewModel.policyBands.map((band) => (
               <tr key={band.label}>
                 <td>{band.label}</td>
                 <td className={styles.mono}>{band.rangeLabel}</td>
-                <td><span className={policyClass(band.action)}>{band.action}</span></td>
+                <td><span className={policyClass(band.intent)}>{band.intent}</span></td>
               </tr>
             ))}
           </tbody>
         </DiagnosticsTable>
         <p className={styles.panelNote}>{viewModel.normalPolicyException}</p>
+        <p className={styles.panelNote}>
+          Shadow mode records recommendations without applying them. In enforce mode, restrictions require a verified source, an in-scope endpoint, and a current recommendation. High/Critical require matching CRS evidence; Medium requires matching evidence or the configured repeat-activity threshold. ModSecurity can block independently. These policy intents do not prove an HTTP response occurred.
+        </p>
       </section>
     </div>
   )
