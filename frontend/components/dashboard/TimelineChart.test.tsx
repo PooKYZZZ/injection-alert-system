@@ -285,9 +285,9 @@ describe('TimelineChart', () => {
   it('provides an accessible text summary of each action series', () => {
     render(<TimelineChart buckets={buckets} timeWindow="24h" />)
 
-    expect(screen.getAllByRole('img', { name: /Request activity for the last 24h/ })[0]).toHaveAttribute(
+    expect(screen.getAllByRole('img', { name: /Recorded actions for the last 24h/ })[0]).toHaveAttribute(
       'aria-label',
-      expect.stringContaining('Blocked 53, Throttled 12, Allowed 23')
+      expect.stringContaining('Recorded blocked 53, recorded throttled 12, recorded allowed 23')
     )
   })
 

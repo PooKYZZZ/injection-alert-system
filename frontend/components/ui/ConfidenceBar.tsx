@@ -2,7 +2,7 @@
 
 import { cn, getConfidenceLevel } from '@/lib/utils'
 import type { AlertConfidenceTier, AlertPrediction } from '@/features/alerts/contract'
-import { formatConfidencePercent } from '@/lib/date-time'
+import { formatConfidenceLabel } from '@/lib/date-time'
 
 interface ConfidenceBarProps {
   confidence: number
@@ -40,7 +40,7 @@ export function ConfidenceBar({
   return (
     <div className="flex items-center gap-2">
       <span className={cn('min-w-[32px] font-medium', colors.text)}>
-        {formatConfidencePercent(confidence)}
+        {formatConfidenceLabel(confidence, confidenceTier ?? getConfidenceLevel(confidence))}
       </span>
       <div className="h-1 w-12 overflow-hidden rounded-full bg-surface-inset">
         <div

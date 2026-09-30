@@ -176,11 +176,11 @@ describe('MLModelWorkspace', () => {
   it('renders loading, error, and empty-run states honestly', () => {
     setHarness({ isPending: true, summaryData: undefined as never })
     const { rerender } = render(<MLModelWorkspace role={ROLES.VIEWER} />)
-    expect(screen.getByText('Loading ML Deployment')).toBeInTheDocument()
+    expect(screen.getByText('Loading Model Lifecycle')).toBeInTheDocument()
 
     setHarness({ isError: true, summaryData: undefined as never })
     rerender(<MLModelWorkspace role={ROLES.VIEWER} />)
-    expect(screen.getByText('Failed to load ML Deployment')).toBeInTheDocument()
+    expect(screen.getByText('Failed to load Model Lifecycle')).toBeInTheDocument()
 
     setHarness({ runs: [] })
     rerender(<MLModelWorkspace role={ROLES.VIEWER} />)
@@ -188,7 +188,7 @@ describe('MLModelWorkspace', () => {
     expect(screen.getByRole('button', { name: 'Request retraining' })).toBeInTheDocument()
   })
 
-  it('explains when local ML Deployment is deliberately unavailable', () => {
+  it('explains when local Model Lifecycle is deliberately unavailable', () => {
     setHarness({
       isError: true,
       summaryData: undefined as never,
@@ -197,10 +197,10 @@ describe('MLModelWorkspace', () => {
 
     render(<MLModelWorkspace role={ROLES.VIEWER} />)
 
-    expect(screen.getByRole('heading', { name: 'ML Deployment unavailable' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Model Lifecycle unavailable' })).toBeInTheDocument()
     expect(screen.getByText(/local retraining controls are disabled or unavailable/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry ML Deployment' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open ML Health' })).toHaveAttribute('href', '/ml-health')
+    expect(screen.getByRole('button', { name: 'Retry Model Lifecycle' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Model Health' })).toHaveAttribute('href', '/ml-health')
   })
 
   it('shows the overview, queued stage, and unavailable evidence without inventing metrics', () => {

@@ -272,7 +272,7 @@ export function TimelineChart({
       ? { top: 5, right: 5, left: 8, bottom: 0 }
       : { top: 5, right: 5, left: 8, bottom: 0 }
   const chartTotal = actionTotals.blocked + actionTotals.throttled + actionTotals.allowed
-  const actionSummary = `Blocked ${actionTotals.blocked}, Throttled ${actionTotals.throttled}, Allowed ${actionTotals.allowed}`
+  const actionSummary = `Recorded blocked ${actionTotals.blocked}, recorded throttled ${actionTotals.throttled}, recorded allowed ${actionTotals.allowed}`
   const chartHeight = isEmpty ? 'h-[96px]' : 'h-[140px]'
 
   return (
@@ -281,8 +281,8 @@ export function TimelineChart({
       role="img"
       aria-label={
         isEmpty
-          ? `Request activity for the last ${timeWindow}. No events in this window.`
-          : `Request activity for the last ${timeWindow}. ${chartTotal} total events. ${actionSummary}.`
+          ? `Recorded actions for the last ${timeWindow}. No events in this window.`
+          : `Recorded actions for the last ${timeWindow}. ${chartTotal} total records. ${actionSummary}.`
       }
     >
       {!isEmpty ? (
@@ -374,7 +374,7 @@ export function TimelineChart({
                 stroke="transparent"
                 fill="url(#gradBlocked)"
                 fillOpacity={1}
-                name="blocked"
+                name="Recorded blocked"
                 dot={false}
                 isAnimationActive
                 animationDuration={550}
@@ -387,7 +387,7 @@ export function TimelineChart({
                 stroke="transparent"
                 fill="url(#gradThrottled)"
                 fillOpacity={1}
-                name="throttled"
+                name="Recorded throttled"
                 dot={false}
                 isAnimationActive
                 animationDuration={550}
@@ -400,7 +400,7 @@ export function TimelineChart({
                 stroke="transparent"
                 fill="url(#gradAllowed)"
                 fillOpacity={1}
-                name="allowed"
+                name="Recorded allowed"
                 dot={false}
                 isAnimationActive
                 animationDuration={550}

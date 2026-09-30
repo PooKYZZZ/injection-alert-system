@@ -144,6 +144,24 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
+  it('retains CRS context and explains confidence, action, and CRS labels', async () => {
+    const user = userEvent.setup()
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('columnheader', { name: /CRS score/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'About CRS score' }))
+
+    expect(screen.getByRole('region', { name: 'CRS score explanation' })).toHaveTextContent(/does not prove the request was blocked/i)
+    expect(screen.getByRole('button', { name: 'About Confidence' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'About Recorded action' })).toBeInTheDocument()
+  })
+
   it('explains how to reach the horizontally scrollable fields on mobile', async () => {
     render(
       <AlertsTable
@@ -203,13 +221,13 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('95% (Critical confidence)')).toBeInTheDocument()
+    expect(await screen.findByText('95.00% · CRITICAL')).toBeInTheDocument()
   })
 
   it.each([
-    [0.8, 'MEDIUM', '80% (Medium confidence)', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95% (Medium confidence)', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70% (Critical confidence)', 'text-severity-high-text'],
+    [0.8, 'MEDIUM', '80.00% · MEDIUM', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95.00% · MEDIUM', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70.00% · CRITICAL', 'text-severity-high-text'],
   ] as const)(
     'styles confidence %s from canonical tier %s',
     async (confidence, confidenceLevel, expectedText, expectedClass) => {

@@ -34,13 +34,65 @@ describe('password recovery routes', () => {
     harness.resetMfa.mockResolvedValue({ status: 'reset' })
   })
 
-  it('keeps forgot-password responses generic', async () => {
+  it('returns a success state for an eligible account', async () => {
+    const { POST } = await import('./auth/forgot-password/route')
+    const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'owner@example.test' }),
+    }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      status: 'sent',
+      message: 'Reset instructions were queued for this account. Check your inbox.',
+    })
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(harness.request).toHaveBeenCalledWith('owner@example.test')
+  })
+
+  it('returns a visible not-found response for an unknown account', async () => {
+    harness.request.mockResolvedValue({ status: 'not_found' })
     const { POST } = await import('./auth/forgot-password/route')
     const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
       method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'unknown@example.test' }),
     }))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ status: 'sent', message: expect.any(String) })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      status: 'not_found',
+      message: 'No eligible account was found for this email address.',
+    })
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('rejects malformed email without querying account state', async () => {
+    const { POST } = await import('./auth/forgot-password/route')
+    const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'not-an-email' }),
+    }))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ status: 'invalid_request' })
+    expect(harness.request).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic unavailable response when reset is disabled or unavailable', async () => {
+    const { POST } = await import('./auth/forgot-password/route')
+    process.env.AUTH_PASSWORD_RESET_ENABLED = 'false'
+    const disabledResponse = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'owner@example.test' }),
+    }))
+    expect(disabledResponse.status).toBe(503)
+    expect(harness.request).not.toHaveBeenCalled()
+
+    process.env.AUTH_PASSWORD_RESET_ENABLED = 'true'
+    harness.request.mockRejectedValue(new Error('database detail must not escape'))
+    const unavailableResponse = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'owner@example.test' }),
+    }))
+    expect(unavailableResponse.status).toBe(503)
+    expect(await unavailableResponse.json()).toEqual({
+      status: 'unavailable',
+      message: 'Password reset is unavailable right now. Please try again later.',
+    })
   })
 
   it('consumes reset only on deliberate POST', async () => {

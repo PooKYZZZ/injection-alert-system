@@ -30,9 +30,13 @@ function key(kind: string): string {
   return `${kind}/${randomUUID()}`
 }
 
-export async function requestPasswordReset(email: string): Promise<{ status: 'sent' }> {
-  const normalized = EMAIL.safeParse(email.trim().toLowerCase())
-  if (!normalized.success) return { status: 'sent' }
+export async function requestPasswordReset(
+  email: string
+): Promise<{ status: 'sent' } | { status: 'not_found' }> {
+  const normalized = EMAIL.safeParse(
+    typeof email === 'string' ? email.trim().toLowerCase() : email
+  )
+  if (!normalized.success) throw new PasswordRecoveryError('INVALID_REQUEST')
   const client = getSupabaseServerClient()
   const { data, error } = await client
     .from('auth_accounts')
@@ -41,7 +45,9 @@ export async function requestPasswordReset(email: string): Promise<{ status: 'se
     .is('disabled_at', null)
     .not('email_verified_at', 'is', null)
     .maybeSingle()
-  if (error || !data || typeof data.id !== 'string') return { status: 'sent' }
+  if (error) throw new PasswordRecoveryError('UNAVAILABLE')
+  if (!data) return { status: 'not_found' }
+  if (!UUID.safeParse(data.id).success) throw new PasswordRecoveryError('UNAVAILABLE')
   const token = generateOpaqueToken()
   const dedupe = key('password-reset')
   const resetUrl = buildTrustedActionUrl(

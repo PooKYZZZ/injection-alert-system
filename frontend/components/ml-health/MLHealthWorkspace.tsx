@@ -79,7 +79,7 @@ export function MLHealthWorkspace() {
   return (
     <div className={styles.page}>
       <PageHeader
-        title="ML Health"
+        title="Model Health"
         description="A current snapshot of serving availability, monitoring coverage, and reported evaluation evidence."
         className={styles.pageHeader}
       >
@@ -93,7 +93,7 @@ export function MLHealthWorkspace() {
           <p className={styles.snapshotMeta} aria-label="ML health snapshot freshness">
             {viewModel.sourceFreshnessDisplay} · Retrieved {viewModel.retrievedAtDisplay}
           </p>
-          <Link href="/ml-model" className={styles.secondaryLink}>Open ML Deployment</Link>
+          <Link href="/ml-model" className={styles.secondaryLink}>Open Model Lifecycle</Link>
           <button
             type="button"
             className={styles.refreshButton}

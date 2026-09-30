@@ -10,11 +10,11 @@ afterEach(() => {
 })
 
 describe('password recovery forms', () => {
-  it('uses generic forgot-password copy', () => {
+  it('explains the forgot-password request without promising delivery', () => {
     render(<ForgotPasswordForm />)
     expect(screen.getByRole('heading', { name: /forgot password/i })).toBeInTheDocument()
     expect(screen.getByText('Account recovery')).toBeInTheDocument()
-    expect(screen.getByText(/if the account is eligible/i)).toBeInTheDocument()
+    expect(screen.getByText(/request password reset instructions/i)).toBeInTheDocument()
   })
 
   it('does not auto-login after reset', () => {
@@ -22,8 +22,15 @@ describe('password recovery forms', () => {
     expect(screen.getByText(/will not be signed in automatically/i)).toBeInTheDocument()
   })
 
-  it('submits forgot-password as a labeled form and keeps the generic response', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+  it('shows a success state when the server queues a reset for an eligible account', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'sent',
+        message: 'Reset instructions were queued for this account. Check your inbox.',
+      }),
+    })
     vi.stubGlobal('fetch', fetchMock)
     render(<ForgotPasswordForm />)
 
@@ -35,7 +42,27 @@ describe('password recovery forms', () => {
       '/api/auth/forgot-password',
       expect.objectContaining({ method: 'POST' }),
     ))
-    expect(await screen.findByRole('status')).toHaveTextContent(/if the account is eligible/i)
+    expect(await screen.findByRole('status')).toHaveTextContent(/reset instructions were queued for this account/i)
+  })
+
+  it('shows an error for an unknown account without showing success', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({
+        status: 'not_found',
+        message: 'No eligible account was found for this email address.',
+      }),
+    }))
+    render(<ForgotPasswordForm />)
+
+    const input = screen.getByLabelText('Email address')
+    fireEvent.change(input, { target: { value: 'unknown@example.test' } })
+    fireEvent.submit(screen.getByRole('form', { name: /forgot password/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no eligible account was found/i)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('shows a recoverable service error without clearing the entered email', async () => {

@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import CountUp from 'react-countup'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
+import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
 interface StatCardProps {
   label: string
+  info?: string
   value: string | number
   valueColor?: string
   valueFlashColor?: string
@@ -29,6 +31,7 @@ function computeDelta(current: number, previous: number | null | undefined) {
 
 export function StatCard({
   label,
+  info,
   value,
   valueColor,
   valueFlashColor,
@@ -75,9 +78,16 @@ export function StatCard({
         onClick && 'cursor-pointer hover:bg-surface-inset'
       )}
     >
-      <div className="break-words text-[11px] font-medium text-[var(--color-text-secondary)]">
-        {label}
-      </div>
+      {info ? (
+        <div className="flex min-w-0 items-center gap-1.5 break-words text-[11px] font-medium text-[var(--color-text-secondary)]">
+          <span>{label}</span>
+          <InfoDisclosure label={label}>{info}</InfoDisclosure>
+        </div>
+      ) : (
+        <div className="break-words text-[11px] font-medium text-[var(--color-text-secondary)]">
+          {label}
+        </div>
+      )}
       <div
         className={cn(
           'text-[28px] font-semibold tracking-tight leading-none transition-colors duration-300',

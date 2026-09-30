@@ -17,7 +17,7 @@ export default function MLHealthError({
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-20">
       <h2 className="text-xl font-semibold text-destructive">
-        Something went wrong loading ML Health
+        Something went wrong loading Model Health
       </h2>
       <p className="text-sm text-muted-foreground">{error.message}</p>
       <button

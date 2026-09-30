@@ -9,11 +9,11 @@ afterEach(() => {
 
 describe('ConfidenceBar', () => {
   it.each([
-    [0.8, 'MEDIUM', '80%', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95%', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70%', 'text-severity-high-text'],
-    [0.39, 'LOW', '39%', 'text-severity-safe-text'],
-    [0, 'INFORMATIONAL', '0%', 'text-text-secondary'],
+    [0.8, 'MEDIUM', '80.00% · MEDIUM', 'text-severity-blocked-text'],
+    [0.95, 'MEDIUM', '95.00% · MEDIUM', 'text-severity-blocked-text'],
+    [0.7, 'CRITICAL', '70.00% · CRITICAL', 'text-severity-high-text'],
+    [0.39, 'LOW', '39.00% · LOW', 'text-severity-safe-text'],
+    [0, 'INFORMATIONAL', '0.00% · INFORMATIONAL', 'text-text-secondary'],
   ] as const)(
     'styles %s using backend tier %s',
     (confidence, confidenceTier, expectedText, expectedClass) => {
@@ -29,7 +29,7 @@ describe('ConfidenceBar', () => {
     }
   )
 
-  it('preserves useful precision for very high confidence values', () => {
+  it('shows compact confidence precision and the canonical tier', () => {
     render(
       <ConfidenceBar
         confidence={0.999999}
@@ -38,7 +38,7 @@ describe('ConfidenceBar', () => {
       />
     )
 
-    expect(screen.getByText('99.9999%')).toBeInTheDocument()
+    expect(screen.getByText('100.00% · CRITICAL')).toBeInTheDocument()
   })
 
   it('uses the unrounded score when deriving a missing tier', () => {
@@ -49,6 +49,6 @@ describe('ConfidenceBar', () => {
       />
     )
 
-    expect(screen.getByText('39.99%')).toHaveClass('text-severity-safe-text')
+    expect(screen.getByText('39.99% · LOW')).toHaveClass('text-severity-safe-text')
   })
 })

@@ -154,8 +154,8 @@ export function DashboardTopBar() {
   const routeSegment = pathname.split('/').filter(Boolean).at(-1) ?? 'dashboard'
   const routeTitles: Record<string, string> = {
     dashboard: 'Dashboard',
-    'ml-health': 'ML Health',
-    'ml-model': 'ML Deployment',
+    'ml-health': 'Model Health',
+    'ml-model': 'Model Lifecycle',
     mfa: 'MFA',
   }
 

@@ -214,14 +214,14 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
     expect(screen.getByText('SQL Injection Attack Detected')).toBeInTheDocument()
     expect(screen.getByText('attack-sqli')).toBeInTheDocument()
-    expect(screen.getByText('Policy decision').nextElementSibling).toHaveTextContent('APPLICATION_BLOCK')
+    expect(screen.getByText('Policy decision').closest('dt')?.nextElementSibling).toHaveTextContent('APPLICATION_BLOCK')
     expect(screen.getByText('Decision reason').nextElementSibling).toHaveTextContent('STRONG CRS EVIDENCE')
     expect(screen.getByText('Notifications').nextElementSibling).toHaveTextContent(
       'email: sent, telegram: retry wait'
     )
     expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
 
-    const capturedRequestHeading = screen.getByRole('heading', { name: 'Captured Request' })
+    const capturedRequestHeading = screen.getByRole('heading', { name: 'Request details' })
     const evidenceShell = capturedRequestHeading.nextElementSibling
 
     expect(evidenceShell).not.toBeNull()
@@ -259,7 +259,7 @@ describe('AlertDrawer', () => {
       />
     )
 
-    expect(screen.getByText('95% (Critical confidence)')).toBeInTheDocument()
+    expect(screen.getByText('95.00% · CRITICAL')).toBeInTheDocument()
   })
 
   it('shows the separately captured query string without duplicating the request line', () => {
@@ -280,6 +280,33 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('Captured query string (sensitive values redacted):')).toBeInTheDocument()
     expect(screen.getByText(queryString)).toBeInTheDocument()
     expect(screen.queryByText('GET /records/search HTTP/1.1')).not.toBeInTheDocument()
+  })
+
+  it('explains source verification and uses the revised detail section labels', () => {
+    const onClose = vi.fn()
+    render(
+      <AlertDrawer
+        alert={{
+          ...alertFixture,
+          source_provenance: 'CLOUDFLARE_CONNECTING_IP',
+          source_verification_status: 'VERIFIED',
+        }}
+        onClose={onClose}
+      />
+    )
+
+    expect(screen.getByText('Source IP origin').closest('dt')?.nextElementSibling).toHaveTextContent('Cloudflare connecting IP')
+    expect(screen.getByText('Source IP verification').closest('dt')?.nextElementSibling).toHaveTextContent('Verified')
+    expect(screen.getByRole('heading', { name: 'Request details' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Review & triage' })).toBeInTheDocument()
+
+    const sourceHelp = screen.getByRole('button', { name: 'About Source IP verification' })
+    fireEvent.click(sourceHelp)
+    expect(screen.getByRole('region', { name: 'Source IP verification explanation' })).toHaveTextContent(/configured Cloudflare tunnel checks/i)
+
+    fireEvent.keyDown(sourceHelp, { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Source IP verification explanation' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('explains why synchronous portal input is not included in alert details', () => {

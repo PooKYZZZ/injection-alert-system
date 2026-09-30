@@ -387,6 +387,18 @@ and hosted deployment gates remain separately tracked there.
 - Browser-level authentication proof is automated by the managed disposable harness and the required `auth-e2e` CI job; it intentionally covers Chromium only.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
+### Project-Specific Forgot Password Response
+
+The same-origin Forgot Password route returns a queued confirmation for an
+eligible account and a not-found response when no eligible account matches, as
+required by the CyberTrace UI/UX revision plan. Invalid input returns `400`,
+while disabled recovery and service failures return a generic `503`. The
+unknown path is token-free and does not invoke the token-creation RPC. This
+deliberately exposes reset eligibility for this project requirement; it is an
+exception to the generic account-enumeration response recorded in the auth
+hardening ADR, not a general production recommendation. No schema change is
+needed.
+
 ## Architecture Notes For Future Edits
 
 - Do not document planned infrastructure as shipped behavior.

@@ -61,10 +61,10 @@ describe('API date and confidence formatting', () => {
 
   it('keeps source precision available while offering compact operator display', () => {
     expect(formatConfidencePercent(0.519262)).toBe('51.9262%')
-    expect(formatCompactConfidencePercent(0.519262)).toBe('51.9%')
+    expect(formatCompactConfidencePercent(0.519262)).toBe('51.93%')
     expect(formatConfidencePercent(0.9998)).toBe('99.98%')
     expect(formatConfidenceLabel(0.9998, 'CRITICAL')).toBe(
-      '99.98% (Critical confidence)'
+      '99.98% · CRITICAL'
     )
     expect(formatCompactConfidencePercent(0.9998)).toBe('99.98%')
   })

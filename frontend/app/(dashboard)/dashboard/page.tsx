@@ -14,12 +14,12 @@ import { TopTargetedPaths } from '@/components/dashboard/TopTargetedPaths'
 import { RecentAlertsTable } from '@/components/dashboard/RecentAlertsTable'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { ErrorState } from '@/components/ui/StateViews'
+import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
 import { emptyConfidenceBandCounts } from '@/features/alerts/confidenceBands'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
-import { formatConfidencePercent } from '@/lib/date-time'
 import { getCurrentSearchParams } from '@/lib/searchParams'
 
 // Lazy-load TimelineChart to avoid SSR hydration issues and reduce initial bundle
@@ -147,9 +147,23 @@ export default function DashboardPage() {
     (stats?.top_targeted_paths.length ?? 0) > 0
 
   // Stat card values with honest fallback
-  const statCards = [
+  const statCards: Array<{
+    label: string
+    info?: string
+    value: string | number
+    valueColor?: string
+    valueFlashColor?: string
+    secondary?: string
+    secondaryColor?: string
+    previousValue?: number | null
+    deltaInverted?: boolean
+    progressBar?: number
+    hideDeltaWhenValueZero?: boolean
+    delay?: number
+  }> = [
     {
-      label: 'Actionable attacks',
+      label: 'Actionable detections',
+      info: 'Counts persisted records with an actionable attack classification in this window. It is a record count, not a confirmed incident count.',
       value: stats?.high_alert_count ?? '—',
       valueColor: 'text-text-primary',
       valueFlashColor: 'text-red-200',
@@ -157,9 +171,7 @@ export default function DashboardPage() {
         statsUnavailable
           ? 'Unavailable'
           : stats?.high_alert_count === 0
-            ? timeWindow
-              ? 'No threats in this window'
-              : 'No threats detected'
+            ? 'No actionable detections in this window'
             : undefined,
       secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_high_alert_count ?? null,
@@ -167,26 +179,18 @@ export default function DashboardPage() {
       delay: 0,
     },
     {
-      label: 'Blocked',
+      label: 'Recorded blocked',
+      info: 'Counts records whose stored action label is BLOCKED. This does not confirm that a WAF blocked the request or establish the observed HTTP outcome.',
       value: stats?.blocked_count ?? '—',
       valueColor: 'text-red-500',
       valueFlashColor: 'text-red-200',
-      secondary:
-        statsUnavailable
-          ? 'Unavailable'
-          : stats?.blocked_count != null && stats?.total_requests
-            ? `${Math.round((stats.blocked_count / stats.total_requests) * 100)}% block rate`
-            : 'No traffic in window',
+      secondary: statsUnavailable ? 'Unavailable' : undefined,
       secondaryColor: 'text-violet-400',
       previousValue: stats?.prev_blocked_count ?? null,
-      progressBar:
-        stats?.total_requests && stats.total_requests > 0
-          ? (stats.blocked_count / stats.total_requests) * 100
-          : undefined,
       delay: 0.05,
     },
     {
-      label: 'Throttled',
+      label: 'Recorded throttled',
       value: stats?.throttled_count ?? '—',
       valueColor: 'text-amber-400',
       valueFlashColor: 'text-amber-200',
@@ -195,37 +199,13 @@ export default function DashboardPage() {
       delay: 0.1,
     },
     {
-      label: 'Allowed',
-      value: stats?.allowed_count ?? '—',
-      secondary: statsUnavailable ? 'Unavailable' : 'Normal or LOW-confidence requests',
-      secondaryColor: 'text-emerald-400',
-      previousValue: stats?.prev_allowed_count ?? null,
-      deltaInverted: true,
-      delay: 0.15,
-    },
-    {
-      label: 'Average model confidence',
-      value: formatConfidencePercent(stats?.avg_confidence),
-      secondary:
-        statsUnavailable
-          ? 'Unavailable'
-          : stats?.avg_confidence != null
-            ? 'Average model certainty; not attack severity'
-            : 'No traffic in window',
-      secondaryColor: 'text-emerald-400',
-      delay: 0.2,
-    },
-    {
-      label: 'Allowed actionable attack rate (proxy)',
-      value: stats?.false_positive_rate != null ? `${stats.false_positive_rate}%` : '—',
-      secondary:
-        statsUnavailable
-          ? 'Unavailable'
-          : stats?.false_positive_rate == null
-            ? 'No telemetry in window'
-            : 'Not ground-truth FPR',
+      label: 'Traffic records',
+      info: 'Counts stored traffic-log rows for this window. A single request may produce multiple related records.',
+      value: stats?.total_requests ?? '—',
+      secondary: statsUnavailable ? 'Unavailable' : undefined,
       secondaryColor: 'text-text-secondary',
-      delay: 0.25,
+      previousValue: stats?.prev_total_requests ?? null,
+      delay: 0.15,
     },
   ]
 
@@ -238,15 +218,16 @@ export default function DashboardPage() {
     >
       <PageHeader
         title="Dashboard"
-        description="Review request activity, detection volume, and enforcement outcomes for the selected window."
+        description="Overview of recent security activity for the selected window."
       />
 
       {/* Summary metrics */}
-      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3 lg:divide-x lg:divide-y-0 xl:grid-cols-6">
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
         {statCards.map((card) => (
           <StatCard
             key={card.label}
             label={card.label}
+            info={card.info}
             value={card.value}
             valueColor={card.valueColor}
             valueFlashColor={card.valueFlashColor}
@@ -270,7 +251,12 @@ export default function DashboardPage() {
       >
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-            <h2 className="min-w-0 text-base font-semibold text-text-primary">Request activity</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="min-w-0 text-base font-semibold text-text-primary">Recorded actions over time</h2>
+              <InfoDisclosure label="Recorded actions">
+                These series count stored BLOCKED, THROTTLED, and ALLOWED action labels. They do not prove the HTTP outcome or identify which system enforced a request.
+              </InfoDisclosure>
+            </div>
             <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
               {TIME_WINDOWS.map((win) => (
                 <button
@@ -316,9 +302,9 @@ export default function DashboardPage() {
             className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary"
           >
             {[
-              ['Blocked', 'bg-severity-high-accent'],
-              ['Throttled', 'bg-severity-blocked-accent'],
-              ['Allowed', 'bg-severity-safe-accent'],
+              ['Recorded blocked', 'bg-severity-high-accent'],
+              ['Recorded throttled', 'bg-severity-blocked-accent'],
+              ['Recorded allowed', 'bg-severity-safe-accent'],
             ].map(([label, colorClass]) => (
               <span key={label} role="listitem" className="inline-flex items-center gap-1.5">
                 <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', colorClass)} />
@@ -367,7 +353,14 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {/* Window detail */}
+      {/* Secondary analytics stay available without crowding the overview. */}
+      {!statsUnavailable ? (
+        <details className="min-w-0 rounded-lg border border-border-light bg-surface-panel">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 [&::-webkit-details-marker]:hidden">
+            <span>Detailed analytics</span>
+            <span className="text-xs font-normal text-text-secondary">Confidence, response policy, sources, paths</span>
+          </summary>
+          <div className="border-t border-border-light">
       {!statsUnavailable && hasDistributionData ? (
         <div className="grid min-w-0 grid-cols-1 divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-surface-panel md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
           <motion.div
@@ -386,7 +379,12 @@ export default function DashboardPage() {
             transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
             className="min-w-0 flex flex-col gap-2 p-4"
           >
-            <h2 className="mb-2 text-sm font-semibold text-text-primary">Model confidence</h2>
+            <div className="mb-2 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-primary">Confidence by tier</h2>
+              <InfoDisclosure label="Confidence">
+                Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+              </InfoDisclosure>
+            </div>
             <MLConfidenceBands
               critical={allConfidenceBands?.critical ?? 0}
               high={allConfidenceBands?.high ?? 0}
@@ -397,7 +395,7 @@ export default function DashboardPage() {
               unavailable={allConfidenceBands == null}
             />
             <div className="mt-4 min-w-0 border-t border-border-light pt-3 flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-text-secondary">ML Enforcement Map</h3>
+              <h3 className="text-sm font-medium text-text-secondary">Response policy by confidence tier</h3>
               <MLEnforcementMap
                 nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
                 isPending={statsPending}
@@ -405,7 +403,7 @@ export default function DashboardPage() {
               />
             </div>
             <p className="mt-3 text-xs leading-5 text-text-muted">
-              Enforcement thresholds are maintained with the active model.
+              Policy labels describe configured decisions; they do not confirm a WAF action or HTTP outcome.
             </p>
           </motion.div>
 
@@ -429,17 +427,20 @@ export default function DashboardPage() {
             <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
           </motion.div>
         </div>
-      ) : !statsUnavailable && statsPending ? (
-        <section className="rounded-lg border border-border-light bg-surface-panel p-4" aria-label="Window detail loading">
-          <p className="text-sm text-text-secondary">Loading window detail…</p>
+      ) : statsPending ? (
+        <section className="px-4 py-5" aria-label="Detailed analytics loading">
+          <p className="text-sm text-text-secondary">Loading detailed analytics…</p>
         </section>
       ) : !statsUnavailable ? (
-        <section className="rounded-lg border border-border-light bg-surface-panel px-4 py-5" aria-label="Window detail">
-          <h2 className="text-sm font-semibold text-text-primary">Window detail</h2>
+        <section className="px-4 py-5" aria-label="Detailed analytics">
+          <h2 className="text-sm font-semibold text-text-primary">No detailed activity</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
             No traffic was reported in this window. Detailed distributions will appear when activity is available.
           </p>
         </section>
+      ) : null}
+          </div>
+        </details>
       ) : null}
 
       {alertsError ? (

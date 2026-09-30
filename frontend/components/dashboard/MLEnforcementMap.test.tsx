@@ -15,15 +15,15 @@ describe('MLEnforcementMap', () => {
       />
     )
 
-    expect(screen.getByText('Action policy for actionable attacks')).toBeInTheDocument()
+    expect(screen.getByText('Configured response policy')).toBeInTheDocument()
     expect(
-      screen.getByText('Normal predictions remain ALLOWED; INFORMATIONAL and LOW actionable attacks are ALLOWED with MONITOR ONLY intent; out-of-scope labels do not enter this policy.')
+      screen.getByText('Normal predictions remain ALLOWED; INFORMATIONAL and LOW actionable detections are ALLOWED with MONITOR ONLY intent; out-of-scope labels do not enter this policy.')
     ).toBeInTheDocument()
-    const criticalRow = screen.getByText('CRITICAL actionable attacks').closest('div')?.parentElement
-    const highRow = screen.getByText('HIGH actionable attacks').closest('div')?.parentElement
-    const mediumRow = screen.getByText('MEDIUM actionable attacks').closest('div')?.parentElement
-    const lowRow = screen.getByText('LOW actionable attacks').closest('div')?.parentElement
-    const informationalRow = screen.getByText('INFORMATIONAL actionable attacks').closest('div')?.parentElement
+    const criticalRow = screen.getByText('CRITICAL actionable detections').closest('div')?.parentElement
+    const highRow = screen.getByText('HIGH actionable detections').closest('div')?.parentElement
+    const mediumRow = screen.getByText('MEDIUM actionable detections').closest('div')?.parentElement
+    const lowRow = screen.getByText('LOW actionable detections').closest('div')?.parentElement
+    const informationalRow = screen.getByText('INFORMATIONAL actionable detections').closest('div')?.parentElement
     expect(criticalRow).not.toBeNull()
     expect(highRow).not.toBeNull()
     expect(mediumRow).not.toBeNull()

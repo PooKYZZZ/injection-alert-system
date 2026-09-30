@@ -59,11 +59,17 @@ describe('TopBar', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('preserves product acronyms in route-derived section labels', () => {
+  it('uses the approved user-facing model page name', () => {
     pathname = '/ml-health'
     render(<DashboardTopBar />)
 
-    expect(screen.getByText('ML Health')).toBeInTheDocument()
+    expect(screen.getByText('Model Health')).toBeInTheDocument()
+
+    cleanup()
+    pathname = '/ml-model'
+    render(<DashboardTopBar />)
+
+    expect(screen.getByText('Model Lifecycle')).toBeInTheDocument()
   })
 
   it('routes Dashboard searches to the Alerts page', () => {
