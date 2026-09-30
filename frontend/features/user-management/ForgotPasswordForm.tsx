@@ -32,7 +32,19 @@ export function ForgotPasswordForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email }),
       })
-      if (!response.ok) throw new Error('request_failed')
+      const result = await response.json().catch(() => null) as {
+        status?: string
+        message?: string
+      } | null
+      if (response.status === 404 && result?.status === 'not_found') {
+        setError(result.message ?? 'No eligible account was found for this email address.')
+        return
+      }
+      if (response.status === 400 && result?.status === 'invalid_request') {
+        setError(result.message ?? 'Enter a valid email address.')
+        return
+      }
+      if (!response.ok || result?.status !== 'sent') throw new Error('request_failed')
       setSent(true)
     } catch {
       setError('Unable to send a reset link right now. Try again without leaving this page.')
@@ -46,7 +58,7 @@ export function ForgotPasswordForm() {
       <div className="space-y-3">
         <p className={authEyebrowClass}>Account recovery</p>
         <h1 id="forgot-password-heading" className={authHeadingClass}>Forgot password</h1>
-        <p className={authDescriptionClass}>Enter your email address and we’ll send a reset link if the account is eligible.</p>
+        <p className={authDescriptionClass}>Enter your email address to request password reset instructions.</p>
       </div>
       <form aria-busy={pending || undefined} aria-describedby={error ? 'forgot-password-error' : undefined} aria-labelledby="forgot-password-heading" onSubmit={submit} className={authFormClass}>
         <div className={authFieldGroupClass}>
@@ -61,6 +73,7 @@ export function ForgotPasswordForm() {
             aria-describedby={error ? 'forgot-password-error' : undefined}
             onChange={(event) => {
               setEmail(event.target.value)
+              setSent(false)
               if (error) setError(null)
             }}
             className={`${authFieldClass}${error ? ' border-status-danger focus:border-status-danger focus-visible:ring-status-danger/35' : ''}`}
@@ -71,7 +84,7 @@ export function ForgotPasswordForm() {
           {pending ? 'Sending…' : 'Send reset link'}
         </button>
       </form>
-      {sent ? <p role="status" className="mt-4 text-sm leading-5 text-status-success">If the account is eligible, a reset link has been sent.</p> : null}
+      {sent ? <p role="status" className="mt-4 text-sm leading-5 text-status-success">Reset instructions were queued for this account. Check your inbox.</p> : null}
       <div className={authFooterClass}>
         <a href="/login" className={'inline-flex ' + authLinkClass}>Return to sign in</a>
       </div>

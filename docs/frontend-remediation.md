@@ -574,3 +574,12 @@ The implementation will append a dated entry for each focused group below with t
 - **Validation:** Focused alert/date-time suites **PASS**, 5 files / 50 tests; full frontend suite **PASS**, 100 files / 625 tests; `npm run lint` **PASS**; `npm run typecheck` **PASS**; `npm run build` **PASS**; `git diff --check` **PASS**.
 - **Browser evidence:** The branch-specific server is running from this worktree. Direct `/alerts` inspection in the available browser session redirected to `/login` because no authenticated session was available; no authenticated table/drawer screenshot is claimed.
 - **Commit:** `3b12fc0` — `fix(alerts): restore pre-remediation experience`.
+
+### 2026-10-01 — Approved UI/UX revision follow-up
+
+- **Status:** Implemented; full frontend suite, lint, typecheck, and production build pass. Stable-branch deployment checks remain pending.
+- **Forgot Password decision:** The revision plan requires a not-found error for an address with no eligible account. The route now returns a queued confirmation for an eligible account, `404` for no eligible match, `400` for invalid input, and a generic `503` for disabled recovery or service failure. The unknown-account path is token-free. This intentionally departs from the earlier generic, enumeration-safe recovery copy recorded in AUTH-012; the implementation is limited to this project requirement and documented in the auth decision records.
+- **Preserved:** Same-origin protection, current account eligibility rules, existing token/outbox flow, one-time token behavior, and no automatic login after reset. No migration was added.
+- **Verification:** Full frontend suite **PASS**, 105 files / 713 tests; `npm run lint` **PASS**; `npm run typecheck` **PASS**; `npm run build` **PASS**. Focused route/service/form tests passed (3 files / 21 tests).
+- **Browser evidence:** The local production build rendered the styled Forgot Password form at 1280×720. A synthetic `.test` address displayed the generic inline service error because local recovery was disabled or unavailable; the live browser path did not reach the `404` branch, which is covered by route/service tests. No credentials, account writes, or reset email were used.
+- **Browser limitation:** No authorized authenticated Dashboard/Alerts session is available. The current in-app browser does not expose a viewport-size control, so desktop visuals were inspected but mobile visual layout was not manually confirmed; mobile navigation and focus behavior are covered by component tests.

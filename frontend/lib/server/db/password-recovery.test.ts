@@ -39,14 +39,32 @@ describe('password recovery database boundary', () => {
     harness.rpc.mockResolvedValue({ data: accountId, error: null })
   })
 
-  it('returns a generic reset result for unknown accounts', async () => {
+  it('returns not_found for unknown accounts without creating a token', async () => {
     const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
     const query = { eq: vi.fn(), is: vi.fn(), not: vi.fn(), maybeSingle }
     query.eq.mockReturnValue(query)
     query.is.mockReturnValue(query)
     query.not.mockReturnValue(query)
     harness.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) })
-    await expect(requestPasswordReset('unknown@example.test')).resolves.toEqual({ status: 'sent' })
+    await expect(requestPasswordReset('unknown@example.test')).resolves.toEqual({ status: 'not_found' })
+    expect(harness.rpc).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed email before account lookup', async () => {
+    await expect(requestPasswordReset('not-an-email')).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    expect(harness.from).not.toHaveBeenCalled()
+    expect(harness.rpc).not.toHaveBeenCalled()
+  })
+
+  it('treats account lookup failures as unavailable instead of not_found', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: { message: 'database detail' } })
+    const query = { eq: vi.fn(), is: vi.fn(), not: vi.fn(), maybeSingle }
+    query.eq.mockReturnValue(query)
+    query.is.mockReturnValue(query)
+    query.not.mockReturnValue(query)
+    harness.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) })
+
+    await expect(requestPasswordReset('owner@example.test')).rejects.toMatchObject({ code: 'UNAVAILABLE' })
     expect(harness.rpc).not.toHaveBeenCalled()
   })
 

@@ -95,3 +95,19 @@ fail closed; temporary PR 3 demo accounts must explicitly use
 
 MFA enforcement, email OTP, Resend, Telegram, Turnstile, password reset, and
 administrator UI remain planned for later PRs.
+
+## 2026-10-01 Project-Specific Forgot Password Exception
+
+The CyberTrace UI/UX revision plan requires a visible not-found response when
+there is no eligible account for a Forgot Password request. The implementation
+therefore returns `200` when reset instructions are queued for an eligible
+account, `404` when no eligible account matches, `400` for invalid input, and a
+generic `503` when recovery is disabled or unavailable. This is a narrow,
+deliberate exception to the generic account-enumeration response in the threat
+table above; the historical decision is retained for context. The unknown path
+creates no token and invokes no token-creation RPC. Existing same-origin checks,
+eligibility filters, token hashing, one-time expiry/consumption, protected
+outbox, and no-auto-login behavior remain in place. The response intentionally
+reveals reset eligibility for this project requirement and should not be
+generalized as a production security recommendation. No database migration was
+required.

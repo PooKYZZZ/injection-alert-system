@@ -280,3 +280,12 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 - Convention decision: preserve Auth.js Credentials, App Router POST handlers, Zod, server-only Supabase, and existing fresh-account guard; use framework cookie APIs with explicit secure flags.
 - Validation depth: claim/guard/cookie/route unit tests, disposable-PostgreSQL completion-token concurrency tests, Node 24 lint/typecheck/Vitest/build, and affected backend migration suite.
 - Escalation: none; recovery-level sessions remain restricted to enrollment/recovery paths and do not enter the dashboard.
+
+## 2026-10-01 Project-Specific Forgot Password Response Exception
+
+- The UI/UX revision plan explicitly requires different visible results for a registered eligible address and an unknown address. This is a project-specific exception to Unit 6's historical generic-response invariant; the earlier Unit 6 record above remains unchanged.
+- A valid eligible account receives `200` with a queued-reset confirmation. No eligible account match receives `404` with the requested not-found message. Invalid input receives `400`; disabled recovery and service failures return a generic `503` response.
+- Unknown/ineligible addresses return before token creation and do not call the token-creation RPC. Eligible requests continue through the existing hashed, one-time 30-minute reset token and protected outbox/RPC path.
+- The endpoint remains same-origin and keeps existing account eligibility filters, token hashing, protected payload handling, one-time consumption, and no-auto-login behavior. No schema or migration change was needed.
+- Security trade-off: the requested `404` intentionally reveals reset eligibility to a caller. This exception is limited to the Forgot Password endpoint and is not a general production recommendation. Service failures remain generic and do not expose internal errors.
+- Verification: focused route, server-service, and form suites passed (3 files / 21 tests); later complete-suite and deployed checks are tracked in the UI/UX revision plan.
