@@ -120,6 +120,16 @@ view, Normal rows remain traffic records: they retain their stored classificatio
 and action, have no analyst triage or action-update workflow, and do not create
 operational alerts. The default API response is unchanged.
 
+Authenticated detail-shaped alert responses include a separately stored,
+redacted WAF query string when the ingest source retains one. This schema is
+used by single-alert detail and triage/action update responses; the paginated
+alert-list projection does not include query data. Sensitive query parameter
+values are redacted at ingest. Ordinary successful-access telemetry
+intentionally does not persist its query string. Synchronous portal-route
+inputs are used for inference but are not retained in alert details. The drawer
+explains these omissions; no missing request data is reconstructed from model
+input.
+
 The same policy is applied in the repository boundary for alert detail,
 statistics, activity buckets, recent operational traffic, triage/action
 updates, enforcement recommendation lookups, and direct threat notification

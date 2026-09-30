@@ -47,6 +47,7 @@ export interface Alert {
   request_method: string | null
   user_agent?: string
   payload_snippet: string
+  query_string?: string | null
   prediction: AlertPrediction
   confidence: number
   confidence_level: AlertConfidenceTier

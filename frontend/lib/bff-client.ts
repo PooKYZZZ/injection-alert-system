@@ -61,6 +61,7 @@ const BackendAlertSchema = z.object({
   request_path: z.string().nullable().optional(),
   request_method: z.string().nullable().optional(),
   payload_snippet: z.string(),
+  query_string: z.string().max(4096).nullable().optional(),
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
   confidence: z.number().min(0).max(1),
   confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
@@ -90,7 +91,7 @@ const BackendAlertSchema = z.object({
 })
 
 const BackendPaginatedAlertsSchema = z.object({
-  items: z.array(BackendAlertSchema),
+  items: z.array(BackendAlertSchema.omit({ query_string: true })),
   total: z.number(),
   page: z.number(),
   page_size: z.number(),
@@ -450,6 +451,7 @@ function normalizeAlert(
     request_path: alert.request_path ?? null,
     request_method: alert.request_method ?? null,
     payload_snippet: alert.payload_snippet,
+    ...(alert.query_string != null ? { query_string: alert.query_string } : {}),
     prediction: alert.prediction,
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
