@@ -9,14 +9,14 @@ afterEach(() => {
 
 describe('ConfidenceBar', () => {
   it.each([
-    [0.8, 'MEDIUM', '80.00% · MEDIUM', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95.00% · MEDIUM', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70.00% · CRITICAL', 'text-severity-high-text'],
-    [0.39, 'LOW', '39.00% · LOW', 'text-severity-safe-text'],
-    [0, 'INFORMATIONAL', '0.00% · INFORMATIONAL', 'text-text-secondary'],
+    [0.8, 'MEDIUM', '80.00% · MEDIUM'],
+    [0.95, 'MEDIUM', '95.00% · MEDIUM'],
+    [0.7, 'CRITICAL', '70.00% · CRITICAL'],
+    [0.39, 'LOW', '39.00% · LOW'],
+    [0, 'INFORMATIONAL', '0.00% · INFORMATIONAL'],
   ] as const)(
-    'styles %s using backend tier %s',
-    (confidence, confidenceTier, expectedText, expectedClass) => {
+    'presents %s using backend tier %s without severity coloring',
+    (confidence, confidenceTier, expectedLabel) => {
       render(
         <ConfidenceBar
           confidence={confidence}
@@ -25,7 +25,10 @@ describe('ConfidenceBar', () => {
         />
       )
 
-      expect(screen.getByText(expectedText)).toHaveClass(expectedClass)
+      expect(screen.getByRole('group', { name: `Confidence ${expectedLabel}` })).toBeInTheDocument()
+      expect(screen.getByText(confidenceTier)).toHaveClass('text-text-secondary', 'bg-surface-inset')
+      expect(screen.getByText(expectedLabel.split(' · ')[0])).toHaveClass('text-text-primary')
+      expect(screen.getByRole('group', { name: `Confidence ${expectedLabel}` }).querySelector('[aria-hidden="true"] > div')).toHaveClass('bg-accent-analytic')
     }
   )
 
@@ -38,7 +41,7 @@ describe('ConfidenceBar', () => {
       />
     )
 
-    expect(screen.getByText('100.00% · CRITICAL')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Confidence 100.00% · CRITICAL' })).toBeInTheDocument()
   })
 
   it('uses the unrounded score when deriving a missing tier', () => {
@@ -49,6 +52,7 @@ describe('ConfidenceBar', () => {
       />
     )
 
-    expect(screen.getByText('39.99% · LOW')).toHaveClass('text-severity-safe-text')
+    expect(screen.getByRole('group', { name: 'Confidence 39.99% · LOW' })).toBeInTheDocument()
+    expect(screen.getByText('LOW')).toHaveClass('text-text-secondary', 'bg-surface-inset')
   })
 })

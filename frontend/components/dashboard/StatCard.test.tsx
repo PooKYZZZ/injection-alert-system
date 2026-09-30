@@ -17,7 +17,7 @@ describe('StatCard', () => {
     expect(card).not.toHaveClass('border')
   })
 
-  it('uses semantic danger colors for an unfavorable delta', () => {
+  it('keeps volume deltas neutral so an increase does not imply severity', () => {
     render(
       <StatCard
         label="Blocked"
@@ -30,9 +30,10 @@ describe('StatCard', () => {
     const valueEl = labelEl.nextElementSibling as HTMLElement | null
 
     expect(valueEl).not.toBeNull()
-    expect(valueEl).toHaveClass('text-severity-high-text')
+    expect(valueEl).toHaveClass('text-text-primary')
+    expect(valueEl).not.toHaveClass('text-severity-high-text')
     expect(valueEl).not.toHaveClass('text-severity-safe-text')
-    expect(screen.getByText('↑ 20 vs prev')).toHaveClass('text-severity-high-text/80')
+    expect(screen.getByText('↑ 20 vs previous')).toHaveClass('text-text-muted')
   })
 
   it('allows long metric labels to shrink inside responsive grids', () => {

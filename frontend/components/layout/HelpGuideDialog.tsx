@@ -18,9 +18,9 @@ export function HelpGuideDialog({ open, onOpenChange, returnFocusRef }: HelpGuid
             event.preventDefault()
             returnFocusRef.current?.focus()
           }}
-          className="fixed inset-y-0 right-0 z-[70] flex w-[min(94vw,440px)] flex-col overflow-y-auto border-l border-border-light bg-surface-panel shadow-2xl focus:outline-none"
+          className="fixed inset-y-0 right-0 z-[70] flex h-dvh w-[min(94vw,440px)] flex-col overflow-hidden border-l border-border-light bg-surface-panel shadow-2xl focus:outline-none"
         >
-          <header className="flex items-start justify-between gap-4 border-b border-border-light px-5 py-5 sm:px-6">
+          <header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b border-border-light bg-surface-panel px-5 py-5 sm:px-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-action">CyberTrace guide</p>
               <Dialog.Title className="mt-1 text-xl font-semibold text-text-primary">Help &amp; Guide</Dialog.Title>
@@ -39,7 +39,7 @@ export function HelpGuideDialog({ open, onOpenChange, returnFocusRef }: HelpGuid
             </Dialog.Close>
           </header>
 
-          <div className="space-y-6 px-5 py-5 sm:px-6">
+          <div role="region" aria-label="Help topics" tabIndex={0} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-action/85 sm:px-6">
             <section aria-labelledby="help-start-heading">
               <h2 id="help-start-heading" className="text-sm font-semibold text-text-primary">Getting started</h2>
               <p className="mt-1 text-sm leading-5 text-text-secondary">
