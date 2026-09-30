@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from ml_model.confidence_tiers import DEFAULT_CONFIDENCE_THRESHOLDS
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from ml_model.confidence_tiers import DEFAULT_CONFIDENCE_THRESHOLDS
 
 TURNSTILE_TEST_SECRETS = {
     "1x0000000000000000000000000000000AA",
