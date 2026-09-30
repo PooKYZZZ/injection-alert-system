@@ -221,16 +221,16 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('95.00% · CRITICAL')).toBeInTheDocument()
+    expect(await screen.findByRole('group', { name: 'Confidence 95.00% · CRITICAL' })).toBeInTheDocument()
   })
 
   it.each([
-    [0.8, 'MEDIUM', '80.00% · MEDIUM', 'text-severity-blocked-text'],
-    [0.95, 'MEDIUM', '95.00% · MEDIUM', 'text-severity-blocked-text'],
-    [0.7, 'CRITICAL', '70.00% · CRITICAL', 'text-severity-high-text'],
+    [0.8, 'MEDIUM', '80.00% · MEDIUM'],
+    [0.95, 'MEDIUM', '95.00% · MEDIUM'],
+    [0.7, 'CRITICAL', '70.00% · CRITICAL'],
   ] as const)(
-    'styles confidence %s from canonical tier %s',
-    async (confidence, confidenceLevel, expectedText, expectedClass) => {
+    'keeps confidence %s neutral while preserving canonical tier %s',
+    async (confidence, confidenceLevel, expectedLabel) => {
       mockedUseAlertsFromFilters.mockReturnValue({
         ...buildQueryResult(),
         data: {
@@ -264,7 +264,8 @@ describe('AlertsTable', () => {
         />
       )
 
-      expect(await screen.findByText(expectedText)).toHaveClass(expectedClass)
+      expect(await screen.findByRole('group', { name: `Confidence ${expectedLabel}` })).toBeInTheDocument()
+      expect(screen.getByText(confidenceLevel)).toHaveClass('text-text-secondary', 'bg-surface-inset')
     }
   )
 

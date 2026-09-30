@@ -151,12 +151,9 @@ export default function DashboardPage() {
     label: string
     info?: string
     value: string | number
-    valueColor?: string
-    valueFlashColor?: string
     secondary?: string
     secondaryColor?: string
     previousValue?: number | null
-    deltaInverted?: boolean
     progressBar?: number
     hideDeltaWhenValueZero?: boolean
     delay?: number
@@ -165,8 +162,6 @@ export default function DashboardPage() {
       label: 'Actionable detections',
       info: 'Counts persisted records with an actionable attack classification in this window. It is a record count, not a confirmed incident count.',
       value: stats?.high_alert_count ?? '—',
-      valueColor: 'text-text-primary',
-      valueFlashColor: 'text-red-200',
       secondary:
         statsUnavailable
           ? 'Unavailable'
@@ -182,19 +177,15 @@ export default function DashboardPage() {
       label: 'Recorded blocked',
       info: 'Counts records whose stored action label is BLOCKED. This does not confirm that a WAF blocked the request or establish the observed HTTP outcome.',
       value: stats?.blocked_count ?? '—',
-      valueColor: 'text-red-500',
-      valueFlashColor: 'text-red-200',
       secondary: statsUnavailable ? 'Unavailable' : undefined,
-      secondaryColor: 'text-violet-400',
+      secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_blocked_count ?? null,
       delay: 0.05,
     },
     {
       label: 'Recorded throttled',
       value: stats?.throttled_count ?? '—',
-      valueColor: 'text-amber-400',
-      valueFlashColor: 'text-amber-200',
-      secondaryColor: 'text-amber-400',
+      secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_throttled_count ?? null,
       delay: 0.1,
     },
@@ -222,19 +213,16 @@ export default function DashboardPage() {
       />
 
       {/* Summary metrics */}
-      <div className="grid min-w-0 grid-cols-1 divide-y divide-surface-border overflow-hidden rounded-lg border border-border-light bg-surface-panel sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+      <div className="grid min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-border-light bg-surface-panel [&>*:nth-child(odd)]:border-r [&>*:nth-child(odd)]:border-surface-border [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(-n+2)]:border-surface-border xl:grid-cols-4 xl:[&>*:nth-child(-n+3)]:border-r xl:[&>*:nth-child(-n+3)]:border-surface-border xl:[&>*:nth-child(-n+2)]:border-b-0">
         {statCards.map((card) => (
           <StatCard
             key={card.label}
             label={card.label}
             info={card.info}
             value={card.value}
-            valueColor={card.valueColor}
-            valueFlashColor={card.valueFlashColor}
             secondary={card.secondary ?? undefined}
             secondaryColor={card.secondaryColor}
             previousValue={card.previousValue}
-            deltaInverted={card.deltaInverted}
             progressBar={card.progressBar}
             hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
             delay={card.delay}
@@ -269,7 +257,7 @@ export default function DashboardPage() {
                     'rounded px-2.5 py-1 text-xs font-medium transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg-panel)]',
                     timeWindow === win
-                      ? 'bg-violet-500/10 text-violet-400 ring-1 ring-inset ring-violet-500/30'
+                      ? 'bg-action-bg text-action-accent ring-1 ring-inset ring-action-border'
                       : 'text-text-muted hover:bg-surface-inset hover:text-text-primary'
                   )}
                 >

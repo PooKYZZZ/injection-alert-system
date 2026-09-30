@@ -8,8 +8,8 @@ import { isActionableAttackClass } from '@/features/alerts/contract'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
-import { formatAlertDateTime, formatConfidenceLabel, formatRelativeTime } from '@/lib/date-time'
-import { getConfidenceColors } from '@/components/ui/ConfidenceBar'
+import { formatAlertDateTime, formatRelativeTime } from '@/lib/date-time'
+import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
@@ -171,7 +171,7 @@ function SortHeader({
 }) {
   if (!column.sortable) {
     return (
-      <th scope="col" className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+      <th scope="col" className="p-3 text-left text-xs font-semibold tracking-normal text-[var(--color-text-secondary)]">
         <span className="inline-flex items-center gap-1.5">
           {column.label}
           {column.key === 'crs_score' ? (
@@ -194,7 +194,7 @@ function SortHeader({
           type="button"
           onClick={() => onSort(column.key as SortColumn)}
           aria-label={`${column.label}, ${isActive ? (isAsc ? 'ascending' : 'descending') : 'not sorted'}`}
-          className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+          className="flex items-center gap-1 text-xs font-semibold tracking-normal text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
         >
           {column.label}
           {isActive ? (
@@ -316,7 +316,7 @@ function AlertsTableContent({
       <div
         role="region"
         aria-label="Scrollable security alerts table"
-        className="max-h-[500px] overflow-x-auto overflow-y-auto"
+        className="max-h-none overflow-x-auto overflow-y-clip lg:max-h-[500px] lg:overflow-y-auto"
       >
         <table className="w-full text-sm">
           <caption className="sr-only">
@@ -324,7 +324,7 @@ function AlertsTableContent({
               ? 'Traffic records and security alerts matching the current filters'
               : 'Security alerts matching the current filters'}
           </caption>
-          <thead className="sticky top-0 z-10 bg-surface-panel">
+          <thead className="bg-surface-panel lg:sticky lg:top-0 lg:z-10">
             <tr className="border-b border-surface-border">
               <th scope="col" className="w-10 p-3">
                 {canTriage && selectableAlerts.length > 0 && (
@@ -400,7 +400,7 @@ function AlertsTableContent({
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap p-3 font-mono text-[10px] text-[var(--color-text-primary)]">
+                  <td className="whitespace-nowrap p-3 font-mono text-[11px] text-[var(--color-text-primary)]">
                     <time dateTime={alert.timestamp}>{formatAlertDateTime(alert.timestamp)}</time>
                     <div className="text-xs text-[var(--color-text-muted)]">
                       {formatRelativeTime(alert.timestamp)}
@@ -435,9 +435,11 @@ function AlertsTableContent({
                     )}
                   </td>
                   <td className="p-3">
-                    <span className={`font-mono text-xs ${getConfidenceColors(alert.confidence, alert.confidence_level).text}`}>
-                      {formatConfidenceLabel(alert.confidence, alert.confidence_level)}
-                    </span>
+                    <ConfidenceBar
+                      confidence={alert.confidence}
+                      confidenceTier={alert.confidence_level}
+                      prediction={alert.prediction}
+                    />
                   </td>
                   <td className="p-3">
                     <ActionLabel
@@ -561,10 +563,10 @@ export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick
     <Suspense
       fallback={
         <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
-          <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
+          <div className="max-h-none overflow-x-auto overflow-y-clip lg:max-h-[500px] lg:overflow-y-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Security alerts matching the current filters</caption>
-              <thead className="sticky top-0 z-10 bg-surface-panel">
+              <thead className="bg-surface-panel lg:sticky lg:top-0 lg:z-10">
                 <tr className="border-b border-surface-border">
                   <th scope="col" className="w-10 p-3">
                     <div className="h-4 w-4 rounded bg-surface-inset [animation:skeleton-pulse_1.5s_ease-in-out_infinite]" />
@@ -573,7 +575,7 @@ export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick
                     <th
                       key={column.key}
                       scope="col"
-                      className="p-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]"
+                      className="p-3 text-left text-xs font-semibold tracking-normal text-[var(--color-text-secondary)]"
                     >
                       {column.label}
                     </th>

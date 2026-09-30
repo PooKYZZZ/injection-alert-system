@@ -66,11 +66,11 @@ function FilterSelect<T extends string>({
 }) {
   return (
     <label className="flex min-w-0 flex-col gap-1 rounded-md border border-surface-border bg-surface-card px-2 py-1.5">
-      <span className="text-[10px] leading-none text-[var(--color-text-secondary)]">{label}</span>
+      <span className="text-[11px] leading-none text-[var(--color-text-secondary)]">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as T)}
-        className="w-[96px] min-w-0 bg-transparent text-[11px] font-medium text-[var(--color-text-primary)] outline-none"
+        className="w-[96px] min-w-0 bg-transparent text-xs font-medium text-[var(--color-text-primary)] outline-none"
       >
         {options.map((option) => (
           <option key={option} value={option} className="bg-surface-card text-[var(--color-text-primary)]">
@@ -183,9 +183,9 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-3"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="pt-2 text-[11px] font-medium text-[var(--color-text-secondary)]">Filters:</span>
+          <span className="pt-2 text-xs font-medium text-[var(--color-text-secondary)]">Filters:</span>
           <FilterSelect
             label="Triage"
             value={currentTriage as TriageValue}
@@ -210,7 +210,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             options={CONFIDENCE_TIER_CYCLE}
             onChange={handleConfidenceTierChange}
           />
-          <label className="flex min-h-[44px] items-center gap-2 rounded-md border border-surface-border bg-surface-card px-3 py-2 text-[11px] font-medium text-[var(--color-text-primary)]">
+          <label className="flex min-h-[44px] items-center gap-2 rounded-md border border-surface-border bg-surface-card px-3 py-2 text-xs font-medium text-[var(--color-text-primary)]">
             <input
               type="checkbox"
               checked={includeNormal}
@@ -224,7 +224,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           </label>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3 sm:justify-start">
           {activeFilterCount > 0 && (
             <motion.span
               key={activeFilterCount}
@@ -238,13 +238,13 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
             <button
               type="button"
               onClick={handleClearAll}
-              className="text-[11px] text-action-accent hover:text-action-accent"
+              className="text-xs text-action-accent hover:text-action-accent"
             >
               Clear all
             </button>
           )}
           {filteredCount !== undefined && (
-            <span className="text-[11px] text-[var(--color-text-secondary)]">
+            <span className="text-xs text-[var(--color-text-secondary)]">
               {filteredCount} results
             </span>
           )}

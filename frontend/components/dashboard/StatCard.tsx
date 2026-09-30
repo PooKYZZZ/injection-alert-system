@@ -10,12 +10,9 @@ interface StatCardProps {
   label: string
   info?: string
   value: string | number
-  valueColor?: string
-  valueFlashColor?: string
   secondary?: string
   secondaryColor?: string
   previousValue?: number | null
-  deltaInverted?: boolean
   progressBar?: number
   hideDeltaWhenValueZero?: boolean
   delay?: number
@@ -33,12 +30,9 @@ export function StatCard({
   label,
   info,
   value,
-  valueColor,
-  valueFlashColor,
   secondary,
   secondaryColor = 'text-text-secondary',
   previousValue,
-  deltaInverted = false,
   progressBar,
   hideDeltaWhenValueZero = false,
   delay = 0,
@@ -47,10 +41,6 @@ export function StatCard({
   const delta = typeof value === 'number' ? computeDelta(value, previousValue) : null
   const showDelta = !(hideDeltaWhenValueZero && typeof value === 'number' && value === 0)
   const isZeroValue = typeof value === 'number' && value === 0
-  const deltaIsGood =
-    delta != null &&
-    ((delta.direction === 'down' && !deltaInverted) ||
-      (delta.direction === 'up' && deltaInverted))
   const [flash, setFlash] = useState(false)
   const prevValueRef = useRef(value)
 
@@ -79,27 +69,19 @@ export function StatCard({
       )}
     >
       {info ? (
-        <div className="flex min-w-0 items-center gap-1.5 break-words text-[11px] font-medium text-[var(--color-text-secondary)]">
-          <span>{label}</span>
+        <div className="flex min-w-0 items-center gap-1.5 break-words text-xs font-medium text-[var(--color-text-secondary)]">
+          <span className="min-w-0 break-words">{label}</span>
           <InfoDisclosure label={label}>{info}</InfoDisclosure>
         </div>
       ) : (
-        <div className="break-words text-[11px] font-medium text-[var(--color-text-secondary)]">
+        <div className="break-words text-xs font-medium text-[var(--color-text-secondary)]">
           {label}
         </div>
       )}
       <div
         className={cn(
           'text-[28px] font-semibold tracking-tight leading-none transition-colors duration-300',
-          isZeroValue
-            ? 'text-text-primary'
-            : flash
-            ? (valueFlashColor ?? valueColor ?? (deltaIsGood ? 'text-severity-safe-text/80' : 'text-severity-high-text/80'))
-            : (valueColor ?? (deltaIsGood
-                ? 'text-severity-safe-text'
-                : delta
-                  ? 'text-severity-high-text'
-                  : 'text-text-primary'))
+          isZeroValue || !flash ? 'text-text-primary' : 'text-accent-action'
         )}
       >
         {typeof value === 'number' ? (
@@ -111,15 +93,14 @@ export function StatCard({
       {delta && showDelta ? (
         <div
           className={cn(
-            'text-[10px] font-medium whitespace-nowrap overflow-hidden text-ellipsis',
-            deltaIsGood ? 'text-severity-safe-text/80' : 'text-severity-high-text/80'
+            'overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-text-muted'
           )}
         >
-          {delta.direction === 'up' ? '↑' : '↓'} {delta.diff} vs prev
+          {delta.direction === 'up' ? '↑' : '↓'} {delta.diff} vs previous
         </div>
       ) : null}
       {secondary && (
-        <div className={cn('mt-0.5 break-words text-[10px] font-medium', secondaryColor)}>
+        <div className={cn('mt-0.5 break-words text-[11px] font-medium', secondaryColor)}>
           {secondary}
         </div>
       )}
