@@ -40,8 +40,8 @@ describe('MLHealthWidget', () => {
         drift_status: 'NORMAL',
         traffic_processed: 44,
         thresholds: {
-          low: 0.5,
-          high: 0.8,
+          low: 0.4,
+          high: 0.7,
         },
       },
       isPending: false,

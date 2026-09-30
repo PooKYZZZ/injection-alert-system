@@ -633,8 +633,8 @@ def collect_local_model_metadata() -> dict[str, Any]:
         "checkpoint_digest": "",
         "preprocessing_version": "",
         "model_temperature": "",
-        "threshold_low": load_env_value("CONFIDENCE_LOW_THRESHOLD") or "0.50",
-        "threshold_high": load_env_value("CONFIDENCE_HIGH_THRESHOLD") or "0.80",
+        "threshold_low": load_env_value("CONFIDENCE_LOW_THRESHOLD") or "0.40",
+        "threshold_high": load_env_value("CONFIDENCE_HIGH_THRESHOLD") or "0.70",
         "threshold_critical": load_env_value("CONFIDENCE_CRITICAL_THRESHOLD") or "0.90",
     }
     model_dir = _resolve_model_directory()

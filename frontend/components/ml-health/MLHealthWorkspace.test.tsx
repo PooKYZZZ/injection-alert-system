@@ -19,7 +19,7 @@ const health: MLHealthData = {
   drift_score: null,
   drift_status: null,
   traffic_processed: 0,
-  thresholds: { low: 0.5, medium: 0.65, high: 0.8, critical: 0.9 },
+  thresholds: { low: 0.4, medium: 0.55, high: 0.7, critical: 0.9 },
 }
 
 beforeEach(() => {

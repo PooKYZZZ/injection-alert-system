@@ -255,8 +255,8 @@ def test_ml_health_exposes_critical_threshold(client):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["confidence_thresholds"]["low"] == 0.5
-    assert data["confidence_thresholds"]["high"] == 0.8
+    assert data["confidence_thresholds"]["low"] == 0.4
+    assert data["confidence_thresholds"]["high"] == 0.7
     assert data["confidence_thresholds"]["critical"] == 0.9
 
 
@@ -440,7 +440,7 @@ def test_update_alert_action_returns_404_for_missing_alert(client):
     """PATCH action route should map missing alert result to HTTP 404."""
     response = client.patch(
         "/api/alerts/999999/action",
-        json={"action_taken": "BLOCKED"},
+        json={"action_taken": "BLOCKED", "actor_id": "test-analyst"},
         headers=INTERNAL_HEADERS,
     )
 
@@ -459,7 +459,7 @@ def test_update_alert_action_rejects_invalid_action_value(client):
 
     response = client.patch(
         f"/api/alerts/{alert_id}/action",
-        json={"action_taken": "INVALID_ACTION"},
+        json={"action_taken": "INVALID_ACTION", "actor_id": "test-analyst"},
         headers=INTERNAL_HEADERS,
     )
 
@@ -475,14 +475,17 @@ def test_update_alert_action_updates_existing_alert(client):
     )
     alerts_response = client.get("/api/alerts", headers=INTERNAL_HEADERS)
     alert_id = alerts_response.json()["items"][0]["id"]
+    current_action = alerts_response.json()["items"][0]["action_taken"]
+    next_action = "ALLOWED" if current_action == "BLOCKED" else "BLOCKED"
 
     response = client.patch(
         f"/api/alerts/{alert_id}/action",
-        json={"action_taken": "ALLOWED"},
+        json={"action_taken": next_action, "actor_id": "test-analyst"},
         headers=INTERNAL_HEADERS,
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["id"] == alert_id
-    assert payload["action_taken"] == "ALLOWED"
+    assert payload["action_taken"] == next_action
+    assert payload["action_history"][-1]["actor_id"] == "test-analyst"

@@ -37,9 +37,11 @@ def test_mock_model_confidence_levels():
 
     # Test that confidence level matches confidence value
     result = model.predict("UNION SELECT password FROM admin")
-    if result["confidence"] < 0.5:
+    if result["confidence"] == 0.0:
+        assert result["confidence_level"] == "INFORMATIONAL"
+    elif result["confidence"] < 0.4:
         assert result["confidence_level"] == "LOW"
-    elif result["confidence"] <= 0.8:
+    elif result["confidence"] < 0.7:
         assert result["confidence_level"] == "MEDIUM"
     elif result["confidence"] < 0.9:
         assert result["confidence_level"] == "HIGH"
@@ -54,6 +56,7 @@ def test_mock_model_critical_boundary_is_classified_as_critical():
     assert critical_level is not None
     assert model._get_confidence_level(0.90) == critical_level
     assert model._get_confidence_level(1.0) == critical_level
+    assert model._get_confidence_level(0.0) == ConfidenceLevel.INFORMATIONAL
 
 
 def test_mock_model_empty_input_hits_critical_band():

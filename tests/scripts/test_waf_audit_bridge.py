@@ -164,6 +164,50 @@ def test_normalize_event_supports_modsecurity_style_payload():
     assert normalized["matched_rule_tags"] == ["attack-sqli", "paranoia-level/1"]
 
 
+def test_modsecurity_response_status_and_trusted_request_id_stay_separate():
+    request_id = "A" * 32
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "unique_id": "modsec-producer-transaction",
+                "time_stamp": "Tue Jun 23 12:34:56 2026",
+                "client_ip": "203.0.113.10",
+                "request": {"method": "POST", "uri": "/support/submit"},
+                "response": {
+                    "http_code": 403,
+                    "headers": {"X-CyberTrace-Transaction-ID": request_id},
+                },
+                "messages": [],
+            }
+        }
+    )
+
+    assert normalized["transaction_id"] == "modsec-producer-transaction"
+    assert normalized["request_correlation_id"] == request_id.lower()
+    assert normalized["observed_http_status"] == 403
+
+
+@pytest.mark.parametrize("http_code", ["not-a-status", 403.5, True])
+def test_modsecurity_invalid_response_id_and_status_remain_unknown(http_code):
+    normalized = normalize_event(
+        {
+            "transaction": {
+                "unique_id": "modsec-producer-transaction",
+                "request": {"method": "GET", "uri": "/records/1"},
+                "response": {
+                    "http_code": http_code,
+                    "headers": {"X-CyberTrace-Transaction-ID": "client-controlled"},
+                },
+                "messages": [],
+            }
+        }
+    )
+
+    assert normalized["transaction_id"] == "modsec-producer-transaction"
+    assert normalized["request_correlation_id"] is None
+    assert normalized["observed_http_status"] is None
+
+
 def test_normalize_event_accepts_modsecurity_audit_without_request_headers():
     normalized = normalize_event(
         {
@@ -499,6 +543,8 @@ def test_cloudflare_access_source_requires_matching_ip_and_trusted_tunnel_peer(
     assert payload["sanitized_body"] is None
     assert payload["crs_score"] == 0
     assert payload["crs_rule_ids"] == ["no-crs-match"]
+    assert payload["observed_http_status"] == 200
+    assert payload["request_correlation_id"] is None
 
     forged = normalize_event(
         {**event, "cf_connecting_ip": "203.0.113.99"},
@@ -514,6 +560,24 @@ def test_cloudflare_access_source_requires_matching_ip_and_trusted_tunnel_peer(
     assert forged["cf_connecting_ip_matches_client_ip"] is None
     assert wrong_peer["source_provenance"] == "DIRECT_REMOTE_ADDR"
     assert wrong_peer["cf_connecting_ip_matches_client_ip"] is None
+
+
+def test_normal_access_uses_only_valid_proxy_request_ids_for_correlation():
+    request_id = "b" * 32
+    payload = normalize_event(
+        {
+            "transaction_id": request_id,
+            "timestamp": "2026-09-24T12:30:00Z",
+            "request_method": "GET",
+            "request_path": "/records/record-1",
+            "status": 302,
+        },
+        ingest_source="nginx_access_bridge",
+    )
+
+    assert payload["transaction_id"] == request_id
+    assert payload["request_correlation_id"] == request_id
+    assert payload["observed_http_status"] == 302
 
 
 def test_normal_access_ingest_rejects_non_allowlisted_route_and_status():

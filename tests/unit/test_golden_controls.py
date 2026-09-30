@@ -226,6 +226,34 @@ def test_evaluator_uses_contract_thresholds_and_actions(tmp_path: Path):
     assert result.cases[0]["predicted_action"] == "THROTTLED"
 
 
+def test_informational_confidence_preserves_the_existing_low_action(tmp_path: Path):
+    controls = load_golden_controls(
+        _write_locked_golden(
+            tmp_path,
+            [
+                _case(
+                    "zero-confidence-sqli",
+                    "GET /items?id=1 UNION SELECT password FROM users",
+                    "SQL Injection",
+                    "ALLOWED",
+                    "sql_injection",
+                )
+            ],
+        )
+    )
+
+    result = evaluate_golden_controls(
+        controls,
+        lambda text: {"label": "SQL Injection", "confidence": 0.0},
+        confidence_thresholds=THRESHOLDS,
+        response_actions=ACTIONS,
+    )
+
+    assert result.passed is True
+    assert result.cases[0]["confidence_tier"] == "INFORMATIONAL"
+    assert result.cases[0]["predicted_action"] == "ALLOWED"
+
+
 def test_evaluator_ignores_untrusted_model_supplied_confidence_tier(tmp_path: Path):
     controls = load_golden_controls(
         _write_locked_golden(

@@ -336,7 +336,7 @@ def test_waf_ingest_scope_boundary_covers_all_classifier_outcomes(
         assert detail_response.json()["prediction"] == prediction
         action_response = client.patch(
             f"/api/alerts/{alert_id}/action",
-            json={"action_taken": "ALLOWED"},
+            json={"action_taken": "ALLOWED", "actor_id": "test-analyst"},
             headers=INTERNAL_HEADERS,
         )
         assert action_response.status_code == 200
@@ -344,7 +344,7 @@ def test_waf_ingest_scope_boundary_covers_all_classifier_outcomes(
     assert (
         client.patch(
             "/api/alerts/4/action",
-            json={"action_taken": "ALLOWED"},
+            json={"action_taken": "ALLOWED", "actor_id": "test-analyst"},
             headers=INTERNAL_HEADERS,
         ).status_code
         == 404

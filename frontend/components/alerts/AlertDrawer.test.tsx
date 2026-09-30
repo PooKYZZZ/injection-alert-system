@@ -1,12 +1,21 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Alert } from '@/features/alerts/types'
 
 import { AlertDrawer } from './AlertDrawer'
 
-const labelReviewMutateMock = vi.fn()
-const triageMutateMock = vi.fn()
-const actionMutateMock = vi.fn()
+const {
+  labelReviewMutateMock,
+  triageMutateMock,
+  actionMutateMock,
+  useAlertMock,
+} = vi.hoisted(() => ({
+  labelReviewMutateMock: vi.fn(),
+  triageMutateMock: vi.fn(),
+  actionMutateMock: vi.fn(),
+  useAlertMock: vi.fn(),
+}))
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -30,6 +39,7 @@ vi.mock('@radix-ui/react-dialog', () => ({
 }))
 
 vi.mock('@/features/alerts/queries', () => ({
+  useAlert: useAlertMock,
   useTriageMutation: () => ({
     mutate: triageMutateMock,
     isPending: false,
@@ -52,6 +62,12 @@ afterEach(() => {
   labelReviewMutateMock.mockReset()
   triageMutateMock.mockReset()
   actionMutateMock.mockReset()
+  useAlertMock.mockReset()
+  useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: false })
+})
+
+beforeEach(() => {
+  useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: false })
 })
 
 const alertFixture = {
@@ -71,6 +87,59 @@ const alertFixture = {
 }
 
 describe('AlertDrawer', () => {
+  it('loads and displays detail-only correlation, response, relationship, and action history fields', () => {
+    useAlertMock.mockReturnValue({
+      data: {
+        ...alertFixture,
+        request_correlation_id: 'a'.repeat(32),
+        observed_http_status: 403,
+        evidence_relationship: 'CORROBORATED',
+        correlated_records: [
+          {
+            id: 22,
+            ingest_source: 'modsec_audit_bridge',
+            transaction_id: 'modsec-22',
+            prediction: 'SQL Injection',
+            observed_http_status: 403,
+            crs_rule_ids: ['942100'],
+          },
+        ],
+        action_history: [
+          {
+            id: 4,
+            traffic_log_id: 19,
+            previous_action: 'ALLOWED',
+            new_action: 'BLOCKED',
+            actor_id: 'analyst-1',
+            changed_at: '2026-09-30T02:00:00Z',
+            reason: null,
+          },
+        ],
+      } as Alert,
+      isPending: false,
+      isError: false,
+    })
+
+    render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByText('Correlation ID').nextElementSibling).toHaveTextContent('a'.repeat(32))
+    expect(screen.getByText('Observed HTTP status').nextElementSibling).toHaveTextContent('403')
+    expect(screen.getByText('Record #22 · modsec_audit_bridge')).toBeInTheDocument()
+    expect(screen.queryByText('Evidence relationship incomplete')).not.toBeInTheDocument()
+    expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Action change history'))
+    expect(screen.getByText('ALLOWED → BLOCKED')).toBeInTheDocument()
+    expect(screen.getByText(/analyst-1/)).toBeInTheDocument()
+  })
+
+  it('shows an explicit loading and failure state for alert detail requests', () => {
+    useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: true })
+    render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
+
+    expect(screen.getByText(/Request investigation details could not be loaded/)).toBeInTheDocument()
+  })
+
   it('clarifies the saved action label is not the observed WAF or origin response', () => {
     render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
 
@@ -131,6 +200,7 @@ describe('AlertDrawer', () => {
           source_verification_status: 'VERIFIED',
           matched_rule_messages: ['SQL Injection Attack Detected'],
           matched_rule_tags: ['attack-sqli'],
+          evidence_relationship: 'CORROBORATED',
         }}
         onClose={vi.fn()}
       />

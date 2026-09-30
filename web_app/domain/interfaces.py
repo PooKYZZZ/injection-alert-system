@@ -68,6 +68,7 @@ class TrafficLogEntity:
 
     id: Optional[int] = None
     transaction_id: Optional[str] = None
+    request_correlation_id: Optional[str] = None
     created_at: Optional[datetime] = None
     timestamp: Optional[datetime] = None
     source_ip: Optional[str] = None
@@ -101,6 +102,7 @@ class TrafficLogEntity:
     processing_owner_token: Optional[str] = None
     processing_attempt: Optional[int] = None
     action_taken: Optional[str] = None
+    observed_http_status: Optional[int] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
@@ -117,12 +119,24 @@ class TrafficLogEntity:
     # intentionally contains channel/status only; recipients and payloads stay
     # behind the notification boundary.
     notification_status: Optional[dict[str, str]] = None
+    action_history: list["TrafficLogActionHistoryEntity"] = field(default_factory=list)
 
     @property
     def payload_snippet(self) -> str:
         if not self.http_request:
             return ""
         return self.http_request[:250]
+
+
+@dataclass(frozen=True)
+class TrafficLogActionHistoryEntity:
+    id: int
+    traffic_log_id: int
+    previous_action: Optional[str]
+    new_action: str
+    actor_id: str
+    changed_at: datetime
+    reason: Optional[str] = None
 
 
 @dataclass
@@ -462,6 +476,25 @@ class ITrafficLogRepository(ABC):
         self,
         traffic_id: int,
         action_taken: str,
+        actor_id: str,
     ) -> Optional[TrafficLogEntity]:
         """Update action_taken on a traffic log. Returns None if not found."""
+        ...
+
+    @abstractmethod
+    async def get_correlated_records(
+        self,
+        request_correlation_id: str,
+        *,
+        exclude_traffic_id: int,
+        limit: int = 20,
+    ) -> list[TrafficLogEntity]:
+        """Return other completed evidence records for one request ID."""
+        ...
+
+    @abstractmethod
+    async def list_action_history(
+        self, traffic_id: int
+    ) -> list[TrafficLogActionHistoryEntity]:
+        """Return append-only analyst action changes in timestamp order."""
         ...

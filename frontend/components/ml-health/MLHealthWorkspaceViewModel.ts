@@ -162,6 +162,7 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
 
   if (low == null || high == null || critical == null || low >= high || high >= critical) {
     return [
+      { label: 'Informational', intent: 'Monitor', rangeLabel: 'Not configured' },
       { label: 'Low', intent: 'Monitor', rangeLabel: 'Not configured' },
       { label: 'Medium', intent: 'Throttle', rangeLabel: 'Not configured' },
       { label: 'High', intent: 'Application block', rangeLabel: 'Not configured' },
@@ -169,14 +170,17 @@ export function buildPolicyBands(health: MLHealthData): PolicyBandView[] {
     ]
   }
 
-  const lowPct = Math.round(low * 100)
-  const highPct = Math.round(high * 100)
-  const criticalPct = Math.round(critical * 100)
+  const formatPercent = (value: number) =>
+    new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value * 100)
+  const lowPct = formatPercent(low)
+  const highPct = formatPercent(high)
+  const criticalPct = formatPercent(critical)
 
   return [
-    { label: 'Low', intent: 'Monitor', rangeLabel: `< ${lowPct}%` },
-    { label: 'Medium', intent: 'Throttle', rangeLabel: `${lowPct}% – ≤ ${highPct}%` },
-    { label: 'High', intent: 'Application block', rangeLabel: `> ${highPct}% – < ${criticalPct}%` },
+    { label: 'Informational', intent: 'Monitor', rangeLabel: '= 0%' },
+    { label: 'Low', intent: 'Monitor', rangeLabel: `> 0% – < ${lowPct}%` },
+    { label: 'Medium', intent: 'Throttle', rangeLabel: `≥ ${lowPct}% – < ${highPct}%` },
+    { label: 'High', intent: 'Application block', rangeLabel: `≥ ${highPct}% – < ${criticalPct}%` },
     { label: 'Critical', intent: 'WAF block', rangeLabel: `≥ ${criticalPct}%` },
   ]
 }

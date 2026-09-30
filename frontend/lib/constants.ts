@@ -33,10 +33,10 @@ export const NAV_ITEMS = [
 export const SYSTEM_NAV_ITEMS = [] as const
 
 export const CONFIDENCE_THRESHOLDS = {
-  LOW: 0.5,
-  HIGH: 0.8,
+  LOW: 0.4,
+  HIGH: 0.7,
   CRITICAL: 0.9,
 } as const
 
-// Confidence tiers per AGENTS.md:
-// CRITICAL: >= 90%, HIGH: > 80%, MEDIUM: 50-80%, LOW: < 50%
+// The project adopts AWS Security Hub's normalized severity band boundaries
+// as a reference for model-confidence categories; they do not imply calibration.

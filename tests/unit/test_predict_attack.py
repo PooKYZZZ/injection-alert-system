@@ -273,7 +273,7 @@ def test_predict_attack_builds_payload_from_model_logits():
 @pytest.mark.parametrize(
     ("max_probability", "expected_tier"),
     [
-        (0.80, "MEDIUM"),
+        (0.80, "HIGH"),
         (0.90, "CRITICAL"),
     ],
 )

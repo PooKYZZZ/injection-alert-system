@@ -38,15 +38,23 @@ class UpdateAlertActionUseCase:
     def __init__(self, repository: ITrafficLogRepository):
         self._repository = repository
 
-    async def execute(self, alert_id: int, action_taken: str) -> UpdateAlertActionResult:
+    async def execute(
+        self,
+        alert_id: int,
+        action_taken: str,
+        actor_id: str,
+    ) -> UpdateAlertActionResult:
         if action_taken not in VALID_ALERT_ACTIONS:
             raise InvalidAlertActionError(
                 f"Invalid action_taken: {action_taken}. Must be one of: {', '.join(sorted(VALID_ALERT_ACTIONS))}"
             )
+        if not actor_id.strip() or len(actor_id) > 128:
+            raise ValueError("actor_id must be a non-empty authenticated user ID")
 
         updated = await self._repository.update_action_taken(
             traffic_id=alert_id,
             action_taken=action_taken,
+            actor_id=actor_id,
         )
 
         if updated is None:

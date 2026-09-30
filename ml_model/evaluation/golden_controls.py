@@ -330,7 +330,13 @@ def _action_for(
             critical=float(confidence_thresholds["critical"]),
         ),
     )
-    action_key = "normal" if label == "Normal" else tier.lower()
+    action_key = (
+        "normal"
+        if label == "Normal"
+        else "low"
+        if tier == "INFORMATIONAL"
+        else tier.lower()
+    )
     return tier, str(response_actions[action_key])
 
 

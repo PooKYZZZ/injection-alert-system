@@ -287,6 +287,8 @@ describe('bff-client', () => {
             prediction: 'SQL Injection',
             confidence: 0.91,
             confidence_level: 'HIGH',
+            model_version: null,
+            preprocessing_version: null,
             action_taken: 'BLOCKED',
             crs_score: 9,
             crs_rule_ids: ['942100', '942110'],
@@ -681,6 +683,8 @@ describe('bff-client', () => {
             prediction: 'SQL Injection',
             confidence: 0.12,
             confidence_level: 'LOW',
+            model_version: null,
+            preprocessing_version: null,
             action_taken: null,
               crs_score: null,
             crs_rule_ids: null,
@@ -796,7 +800,7 @@ describe('bff-client', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
 
     const { updateAlertAction } = await loadClient()
-    const result = await updateAlertAction('99', 'BLOCKED')
+    const result = await updateAlertAction('99', 'BLOCKED', 'analyst-1')
 
     expect(result).toEqual({
       ok: false,
@@ -825,7 +829,7 @@ describe('bff-client', () => {
     )
 
     const { updateAlertAction } = await loadClient()
-    const result = await updateAlertAction('1', 'BLOCKED')
+    const result = await updateAlertAction('1', 'BLOCKED', 'analyst-1')
 
     expect(result).toEqual({
       ok: false,
@@ -835,6 +839,65 @@ describe('bff-client', () => {
         message: 'Upstream response did not match expected shape.',
       },
     })
+  })
+
+  it('forwards the authenticated actor and maps investigation evidence', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: 1,
+          transaction_id: 'modsec-transaction-1',
+          request_correlation_id: 'a'.repeat(32),
+          timestamp: '2026-09-30T00:00:00Z',
+          source_ip: '203.0.113.10',
+          request_path: '/support/submit',
+          request_method: 'POST',
+          payload_snippet: 'POST /support/submit',
+          prediction: 'SQL Injection',
+          confidence: 0.97,
+          confidence_level: 'CRITICAL',
+          action_taken: 'BLOCKED',
+          observed_http_status: 403,
+          evidence_relationship: 'CORROBORATED',
+          correlated_records: [
+            {
+              id: 2,
+              ingest_source: 'portal_route_bridge',
+              transaction_id: 'a'.repeat(32),
+              prediction: 'SQL Injection',
+            },
+          ],
+          action_history: [
+            {
+              id: 3,
+              traffic_log_id: 1,
+              previous_action: 'ALLOWED',
+              new_action: 'BLOCKED',
+              actor_id: 'analyst-1',
+              changed_at: '2026-09-30T00:01:00Z',
+              reason: null,
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const { updateAlertAction } = await loadClient()
+    const result = await updateAlertAction('1', 'BLOCKED', 'analyst-1')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      action_taken: 'BLOCKED',
+      actor_id: 'analyst-1',
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.request_correlation_id).toBe('a'.repeat(32))
+      expect(result.data.observed_http_status).toBe(403)
+      expect(result.data.evidence_relationship).toBe('CORROBORATED')
+      expect(result.data.action_history?.[0]?.actor_id).toBe('analyst-1')
+    }
   })
 
   it('maps stats and preserves total_requests', async () => {
@@ -883,8 +946,8 @@ describe('bff-client', () => {
         allowed_count: 2,
         throttled_count: 0,
         avg_confidence: 0.82,
-        counts_by_confidence_tier: { critical: 1, high: 2, medium: 3, low: 4 },
-        non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8 },
+        counts_by_confidence_tier: { critical: 1, high: 2, medium: 3, low: 4, informational: 0 },
+        non_normal_counts_by_confidence_tier: { critical: 5, high: 6, medium: 7, low: 8, informational: 0 },
         false_positive_rate: 0,
         false_positive_count: 0,
         high_alert_count: 3,
@@ -1239,8 +1302,8 @@ describe('bff-client', () => {
           drift_detected: false,
           drift_score: 0.05, // Real drift data available
           confidence_thresholds: {
-            low: 0.5,
-            high: 0.8,
+            low: 0.4,
+            high: 0.7,
             critical: 0.9,
           },
           queue: {
@@ -1277,9 +1340,9 @@ describe('bff-client', () => {
         drift_status: 'NORMAL', // With real drift data, false = NORMAL
         traffic_processed: 42,
         thresholds: {
-          low: 0.5,
-          medium: 0.65,
-          high: 0.8,
+          low: 0.4,
+          medium: null,
+          high: 0.7,
           critical: 0.9,
         },
         // Optional eval metadata defaults when not provided
@@ -1428,7 +1491,7 @@ describe('bff-client', () => {
         { id: 'analyst-1', role: 'ANALYST' }
       ),
       await updateAlertTriage('7', 'in_review'),
-      await updateAlertAction('7', 'BLOCKED'),
+      await updateAlertAction('7', 'BLOCKED', 'analyst-1'),
     ]
 
     expect(results.every((result) => !result.ok && result.status === 503)).toBe(true)
@@ -1469,7 +1532,7 @@ describe('bff-client', () => {
         { id: 'analyst-1', role: 'ANALYST' }
       ),
       await updateAlertTriage('7', 'in_review'),
-      await updateAlertAction('7', 'BLOCKED'),
+      await updateAlertAction('7', 'BLOCKED', 'analyst-1'),
     ]
 
     expect(results).toEqual(

@@ -1,10 +1,18 @@
 import 'server-only'
 
 import { z } from 'zod'
-import { AlertSchema, LabelReviewSchema, PaginatedAlertsSchema } from '@/features/alerts/schemas'
+import {
+  AlertActionHistorySchema,
+  AlertSchema,
+  CorrelatedEvidenceRecordSchema,
+  EvidenceRelationshipSchema,
+  LabelReviewSchema,
+  PaginatedAlertsSchema,
+} from '@/features/alerts/schemas'
 import {
   ACTIONABLE_ATTACK_CLASSES,
   ALERT_ACTION_TAKEN_VALUES,
+  ALERT_CONFIDENCE_TIER_VALUES,
   ALERT_NOTIFICATION_CHANNEL_VALUES,
   ALERT_NOTIFICATION_STATUS_VALUES,
   ALERT_POLICY_DECISION_VALUES,
@@ -56,6 +64,7 @@ export type BffResult<T> =
 const BackendAlertSchema = z.object({
   id: z.number(),
   transaction_id: z.string().nullable().optional(),
+  request_correlation_id: z.string().max(36).nullable().optional(),
   timestamp: z.string().datetime({ offset: true }),
   source_ip: z.string().nullable().optional(),
   request_path: z.string().nullable().optional(),
@@ -64,8 +73,14 @@ const BackendAlertSchema = z.object({
   query_string: z.string().max(4096).nullable().optional(),
   prediction: z.enum(['SQL Injection', 'Code Injection', 'Other Attacks', 'Normal']),
   confidence: z.number().min(0).max(1),
-  confidence_level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  confidence_level: z.enum(ALERT_CONFIDENCE_TIER_VALUES),
+  model_version: z.string().nullable().optional(),
+  preprocessing_version: z.string().nullable().optional(),
   action_taken: z.enum(ALERT_ACTION_TAKEN_VALUES).nullable().optional(),
+  observed_http_status: z.number().int().min(100).max(599).nullable().optional(),
+  evidence_relationship: EvidenceRelationshipSchema.optional(),
+  correlated_records: z.array(CorrelatedEvidenceRecordSchema).optional(),
+  action_history: z.array(AlertActionHistorySchema).optional(),
   policy_decision: z.enum(ALERT_POLICY_DECISION_VALUES).nullable().optional(),
   policy_decision_reason: z.string().max(128).nullable().optional(),
   policy_version: z.string().max(64).nullable().optional(),
@@ -91,7 +106,16 @@ const BackendAlertSchema = z.object({
 })
 
 const BackendPaginatedAlertsSchema = z.object({
-  items: z.array(BackendAlertSchema.omit({ query_string: true })),
+  items: z.array(
+    BackendAlertSchema.omit({
+      query_string: true,
+      request_correlation_id: true,
+      observed_http_status: true,
+      evidence_relationship: true,
+      correlated_records: true,
+      action_history: true,
+    })
+  ),
   total: z.number(),
   page: z.number(),
   page_size: z.number(),
@@ -417,7 +441,8 @@ function validateMockData<T>(
 
 function normalizeAlert(
   alert: z.infer<typeof BackendAlertSchema>,
-  includeNormal = false
+  includeNormal = false,
+  includeInvestigationDetails = false
 ): BffResult<Alert> {
   if (
     !isActionableAttackClass(alert.prediction) &&
@@ -446,6 +471,9 @@ function normalizeAlert(
   return normalizeWithSchema(AlertSchema, {
     alert_id: String(alert.id),
     transaction_id: alert.transaction_id ?? null,
+    ...(includeInvestigationDetails
+      ? { request_correlation_id: alert.request_correlation_id ?? null }
+      : {}),
     timestamp: alert.timestamp,
     source_ip: alert.source_ip ?? null,
     request_path: alert.request_path ?? null,
@@ -455,7 +483,17 @@ function normalizeAlert(
     prediction: alert.prediction,
     confidence: alert.confidence,
     confidence_level: alert.confidence_level,
+    model_version: alert.model_version ?? null,
+    preprocessing_version: alert.preprocessing_version ?? null,
     action_taken: alert.action_taken ?? null,
+    ...(includeInvestigationDetails
+      ? {
+          observed_http_status: alert.observed_http_status ?? null,
+          evidence_relationship: alert.evidence_relationship ?? 'INCOMPLETE',
+          correlated_records: alert.correlated_records ?? [],
+          action_history: alert.action_history ?? [],
+        }
+      : {}),
     ...(hasAlertContext
       ? {
           policy_decision: alert.policy_decision ?? null,
@@ -526,6 +564,7 @@ function normalizeConfidenceBandCounts(
     high: value?.HIGH ?? value?.high ?? 0,
     medium: value?.MEDIUM ?? value?.medium ?? 0,
     low: value?.LOW ?? value?.low ?? 0,
+    informational: value?.INFORMATIONAL ?? value?.informational ?? 0,
   }
 }
 
@@ -638,7 +677,6 @@ function normalizeMlHealth(
   const low = payload.confidence_thresholds.low
   const high = payload.confidence_thresholds.high
   const critical = payload.confidence_thresholds.critical
-  let medium: number | null = null
   let normalizedCritical: number | null = null
 
   if (typeof low === 'number' && typeof high === 'number') {
@@ -651,9 +689,6 @@ function normalizeMlHealth(
     // BFF check: ensure low < high
     if (normalizedLow >= normalizedHigh || (normalizedCritical !== null && normalizedHigh >= normalizedCritical)) {
       console.warn('[BFF] Invalid thresholds: low >= high, using defaults')
-    } else {
-      // BFF transform: derive medium from low/high range
-      medium = (normalizedLow + normalizedHigh) / 2
     }
   }
 
@@ -706,7 +741,8 @@ function normalizeMlHealth(
     traffic_processed: payload.total_processed,
     thresholds: {
       low: low ?? null,
-      medium: medium ?? null,
+      // No separate medium boundary is configured by the backend.
+      medium: null,
       high: high ?? null,
       critical: normalizedCritical,
     },
@@ -1070,7 +1106,7 @@ export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>>
     return upstream
   }
 
-  return normalizeAlert(upstream.data)
+  return normalizeAlert(upstream.data, false, true)
 }
 
 export async function submitAlertLabelReview(
@@ -1258,7 +1294,8 @@ export async function updateAlertTriage(
 
 export async function updateAlertAction(
   alertId: string,
-  action: AlertAction
+  action: AlertAction,
+  actorId: string
 ): Promise<BffResult<Alert>> {
   if (isMockMode()) {
     const match = MOCK_ALERTS.items.find((item) => item.alert_id === alertId)
@@ -1289,7 +1326,7 @@ export async function updateAlertAction(
           Authorization: `Bearer ${config.data.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action_taken: action }),
+        body: JSON.stringify({ action_taken: action, actor_id: actorId }),
         signal: upstreamRequestSignal(),
       }
     )
@@ -1339,5 +1376,5 @@ export async function updateAlertAction(
     )
   }
 
-  return normalizeAlert(parsed.data)
+  return normalizeAlert(parsed.data, false, true)
 }

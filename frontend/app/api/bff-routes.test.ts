@@ -447,9 +447,9 @@ describe('BFF route handlers', () => {
         drift_status: 'NORMAL',
         traffic_processed: 44,
         thresholds: {
-          low: 0.5,
+          low: 0.4,
           medium: null,
-          high: 0.8,
+          high: 0.7,
         },
       },
     })
@@ -461,7 +461,7 @@ describe('BFF route handlers', () => {
     expect(response.status).toBe(200)
     expect(body.status).toBe('HEALTHY')
     expect(body.thresholds.medium).toBeNull()
-    expect(body.thresholds.high).toBe(0.8)
+    expect(body.thresholds.high).toBe(0.7)
   })
 
   it('alerts route propagates upstream 502 (invalid payload) as UPSTREAM_ERROR', async () => {
@@ -898,7 +898,7 @@ describe('BFF route handlers', () => {
 
     expect(response.status).toBe(200)
     expect(body.action_taken).toBe('BLOCKED')
-    expect(updateAlertActionMock).toHaveBeenCalledWith('1', 'BLOCKED')
+    expect(updateAlertActionMock).toHaveBeenCalledWith('1', 'BLOCKED', accountId)
   })
 
   it('action PATCH rejects invalid action_taken with 400', async () => {

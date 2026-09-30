@@ -392,6 +392,7 @@ export default function DashboardPage() {
               high={allConfidenceBands?.high ?? 0}
               medium={allConfidenceBands?.medium ?? 0}
               low={allConfidenceBands?.low ?? 0}
+              informational={allConfidenceBands?.informational ?? 0}
               isPending={statsPending}
               unavailable={allConfidenceBands == null}
             />

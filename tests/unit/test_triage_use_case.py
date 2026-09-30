@@ -220,6 +220,9 @@ async def test_classification_scope_controls_alert_side_effects(
 @pytest.mark.parametrize(
     ("prediction", "confidence_level", "expected_action"),
     [
+        ("SQL Injection", "INFORMATIONAL", "ALLOWED"),
+        ("Code Injection", "INFORMATIONAL", "ALLOWED"),
+        ("Other Attacks", "INFORMATIONAL", None),
         ("SQL Injection", "CRITICAL", "BLOCKED"),
         ("Code Injection", "CRITICAL", "BLOCKED"),
         ("Other Attacks", "CRITICAL", None),
@@ -684,10 +687,97 @@ async def test_ingest_rejects_duplicate_with_mismatching_fingerprint(
             "transaction_id": "txn-conflict",
             "stored_fingerprint_prefix": "aaaaaaaa",
             "incoming_fingerprint_prefix": "bbbbbbbb",
+            "fingerprint_matches": False,
+            "request_correlation_matches": True,
+            "observed_status_matches": True,
             "transaction_status": status,
             "event": "ingest_metadata_mismatch",
         }
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stored_correlation", "incoming_correlation", "stored_status", "incoming_status"),
+    [
+        ("a" * 32, "b" * 32, 403, 403),
+        ("a" * 32, "a" * 32, 403, 200),
+    ],
+)
+async def test_ingest_rejects_duplicate_with_mismatching_observed_evidence(
+    mock_classifier,
+    mock_repository,
+    stored_correlation,
+    incoming_correlation,
+    stored_status,
+    incoming_status,
+):
+    existing = TrafficLogEntity(
+        id=20,
+        transaction_id="txn-observed-conflict",
+        status="COMPLETED",
+        ingest_fingerprint_sha256="d" * 64,
+        request_correlation_id=stored_correlation,
+        observed_http_status=stored_status,
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = existing
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    with pytest.raises(TriageMetadataConflictError):
+        await use_case.ingest(
+            TriageIngestCommand(
+                transaction_id="txn-observed-conflict",
+                timestamp=datetime.now(timezone.utc),
+                source_ip="203.0.113.20",
+                request_method="GET",
+                request_uri="/",
+                request_headers={},
+                request_body="",
+                http_request="GET / HTTP/1.1",
+                crs_score=0,
+                crs_rule_ids=[],
+                request_correlation_id=incoming_correlation,
+                observed_http_status=incoming_status,
+                ingest_fingerprint_sha256="d" * 64,
+            )
+        )
+
+    mock_classifier.predict.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ingest_checks_observed_evidence_when_legacy_fingerprints_are_missing(
+    mock_classifier,
+    mock_repository,
+):
+    existing = TrafficLogEntity(
+        id=21,
+        transaction_id="txn-observed-legacy-conflict",
+        status="COMPLETED",
+        request_correlation_id="a" * 32,
+        observed_http_status=403,
+    )
+    mock_repository.claim_or_reclaim_processing.return_value = existing
+    use_case = TriageUseCase(classifier=mock_classifier, repository=mock_repository)
+
+    with pytest.raises(TriageMetadataConflictError):
+        await use_case.ingest(
+            TriageIngestCommand(
+                transaction_id="txn-observed-legacy-conflict",
+                timestamp=datetime.now(timezone.utc),
+                source_ip="203.0.113.21",
+                request_method="GET",
+                request_uri="/",
+                request_headers={},
+                request_body="",
+                http_request="GET / HTTP/1.1",
+                crs_score=0,
+                crs_rule_ids=[],
+                observed_http_status=403,
+            )
+        )
+
+    mock_classifier.predict.assert_not_called()
 
 
 @pytest.mark.asyncio

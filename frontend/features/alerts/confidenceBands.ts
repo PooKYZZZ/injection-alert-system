@@ -13,7 +13,7 @@ type CountableAlert = {
 }
 
 export function emptyConfidenceBandCounts(): ConfidenceBandCounts {
-  return { critical: 0, high: 0, medium: 0, low: 0 }
+  return { critical: 0, high: 0, medium: 0, low: 0, informational: 0 }
 }
 
 export function countAlertsByConfidenceTier(
@@ -37,6 +37,9 @@ export function countAlertsByConfidenceTier(
         break
       case 'LOW':
         counts.low += 1
+        break
+      case 'INFORMATIONAL':
+        counts.informational += 1
         break
     }
   }

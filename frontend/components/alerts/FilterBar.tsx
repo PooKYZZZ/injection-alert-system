@@ -33,6 +33,7 @@ const FILTER_OPTION_LABELS: Record<string, string> = {
   BLOCKED: 'Blocked',
   THROTTLED: 'Throttled',
   ALLOWED: 'Allowed',
+  INFORMATIONAL: 'Informational (0 score)',
   LOW: 'Low confidence',
   MEDIUM: 'Medium confidence',
   HIGH: 'High confidence',

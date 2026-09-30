@@ -21,7 +21,7 @@ class FakeModelHealthService:
     is_mock = True
     avg_inference_latency_ms = 12.5
     total_processed = 7
-    confidence_thresholds = {"low": 0.5, "high": 0.8}
+    confidence_thresholds = {"low": 0.4, "high": 0.7}
     eval_metadata = {}
 
 

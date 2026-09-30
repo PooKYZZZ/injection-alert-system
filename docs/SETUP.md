@@ -80,8 +80,9 @@ ENFORCEMENT_CHECK_API_KEY=<different-generated-secret>
 ENFORCEMENT_RECOMMENDATION_TTL_SECONDS=900
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
-CONFIDENCE_LOW_THRESHOLD=0.50
-CONFIDENCE_HIGH_THRESHOLD=0.80
+CONFIDENCE_LOW_THRESHOLD=0.40
+CONFIDENCE_HIGH_THRESHOLD=0.70
+CONFIDENCE_CRITICAL_THRESHOLD=0.90
 STALE_PROCESSING_TIMEOUT_SECONDS=30
 MAX_SEQ_LEN=128
 TEMPERATURE=0.596868
@@ -199,7 +200,8 @@ Notes:
 - `MODEL_PATH` still exists in config for compatibility.
 - `MODEL_REGISTRY_PATH` controls the real runtime model service.
 - If `MODEL_REGISTRY_PATH` is empty or missing in development, startup falls back to the mock model service with a warning.
-- `CONFIDENCE_LOW_THRESHOLD`, `CONFIDENCE_HIGH_THRESHOLD`, and `STALE_PROCESSING_TIMEOUT_SECONDS` are supported env overrides with locked current defaults.
+- Confidence tiers use exactly `0.0 = INFORMATIONAL`, `(0.0, 0.40) = LOW`, `[0.40, 0.70) = MEDIUM`, `[0.70, 0.90) = HIGH`, and `[0.90, 1.0] = CRITICAL`. The project adopts AWS Security Hub's normalized severity band boundaries as the reference for categorizing model-confidence scores; AWS does not define these as ML thresholds, and the bands do not establish model calibration.
+- `CONFIDENCE_LOW_THRESHOLD`, `CONFIDENCE_HIGH_THRESHOLD`, `CONFIDENCE_CRITICAL_THRESHOLD`, and `STALE_PROCESSING_TIMEOUT_SECONDS` are supported environment settings; the confidence values default to the owner-approved boundaries above.
 - `MAX_SEQ_LEN`, `TEMPERATURE`, `LABEL_NAMES`, and `MODEL_VERSION` are also accepted by settings, but the repo currently relies on their defaults unless you are doing targeted backend or artifact validation work.
 - SQLite is still fine for isolated local testing, but it is no longer the primary runtime path documented for the app.
 - If you want the real staged model, use an explicit run directory such as:
@@ -366,7 +368,7 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current repository migration head is `20260905_000029`. The latest hosted Supabase
+- The current repository migration head is `20260930_000031`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
 - Hosted migration state is only confirmed through `20260712_000020`; the
@@ -456,7 +458,7 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260905_000029`. Use
+The repository has exactly one current head, `20260930_000031`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).

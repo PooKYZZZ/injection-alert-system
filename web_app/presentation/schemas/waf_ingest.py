@@ -8,6 +8,7 @@ from web_app.domain.source_address import (
     SourceProvenance,
     canonicalize_source_ip,
 )
+from web_app.domain.request_correlation import normalize_request_correlation_id
 from web_app.observability.structured_logging import log_event
 
 IngestSource = Literal[
@@ -26,6 +27,18 @@ class WafIngestRequest(BaseModel):
     )
     transaction_id: str = Field(
         ..., min_length=1, max_length=128, description="Unique transaction ID for dedup"
+    )
+    request_correlation_id: str | None = Field(
+        default=None,
+        min_length=32,
+        max_length=36,
+        description="Trusted request ID shared by producer evidence when available",
+    )
+    observed_http_status: int | None = Field(
+        default=None,
+        ge=100,
+        le=599,
+        description="HTTP response status captured by the source",
     )
     timestamp: datetime | None = Field(
         default=None, description="ISO 8601 source timestamp of the event"
@@ -87,6 +100,16 @@ class WafIngestRequest(BaseModel):
     @classmethod
     def canonicalize_source(cls, value):
         return canonicalize_source_ip(value)
+
+    @field_validator("request_correlation_id", mode="before")
+    @classmethod
+    def validate_request_correlation_id(cls, value):
+        if value is None:
+            return None
+        normalized = normalize_request_correlation_id(value)
+        if normalized is None:
+            raise ValueError("request_correlation_id must be a trusted request ID or UUID")
+        return normalized
 
     @model_validator(mode="after")
     def validate_source_evidence(self) -> "WafIngestRequest":

@@ -73,3 +73,49 @@ async def test_alert_detail_returns_the_persisted_redacted_query_string() -> Non
 
     assert response.query_string == "query=synthetic%20lookup&token=%5BREDACTED%5D"
     repository.get_operational_alert_by_id.assert_awaited_once_with(18)
+
+
+@pytest.mark.asyncio
+async def test_alert_detail_returns_correlation_and_observed_status_without_inference() -> None:
+    entity = TrafficLogEntity(
+        id=21,
+        transaction_id="modsec-transaction-21",
+        request_correlation_id="a" * 32,
+        timestamp=datetime(2026, 9, 30, tzinfo=timezone.utc),
+        request_method="POST",
+        request_path="/support/submit",
+        http_request="POST /support/submit HTTP/1.1",
+        prediction="SQL Injection",
+        confidence=0.97,
+        confidence_level="CRITICAL",
+        ingest_source="modsec_audit_bridge",
+        crs_score=10,
+        crs_rule_ids=["942100"],
+        matched_rule_tags=["attack-sqli"],
+        observed_http_status=403,
+    )
+    related = TrafficLogEntity(
+        id=22,
+        transaction_id="portal-request-21",
+        request_correlation_id="a" * 32,
+        timestamp=datetime(2026, 9, 30, tzinfo=timezone.utc),
+        http_request="POST /support/submit HTTP/1.1",
+        prediction="SQL Injection",
+        confidence=0.97,
+        confidence_level="CRITICAL",
+        ingest_source="portal_route_bridge",
+    )
+    repository = MagicMock()
+    repository.get_operational_alert_by_id = AsyncMock(return_value=entity)
+    repository.get_correlated_records = AsyncMock(return_value=[related])
+
+    response = await get_alert_by_id(alert_id=21, repository=repository)
+
+    assert response.request_correlation_id == "a" * 32
+    assert response.observed_http_status == 403
+    assert response.evidence_relationship == "CORROBORATED"
+    assert [record.id for record in response.correlated_records] == [22]
+    repository.get_correlated_records.assert_awaited_once_with(
+        "a" * 32,
+        exclude_traffic_id=21,
+    )

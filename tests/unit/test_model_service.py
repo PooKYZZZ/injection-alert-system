@@ -43,16 +43,16 @@ def _make_packaged_dir(base_dir: Path, name: str = "distillbert") -> Path:
 
 
 def test_confidence_tier_boundaries_are_locked():
-    assert ModelService._confidence_tier_for(0.49) == "LOW"
-    assert ModelService._confidence_tier_for(0.50) == "MEDIUM"
-    assert ModelService._confidence_tier_for(0.799999) == "MEDIUM"
-    assert ModelService._confidence_tier_for(0.80) == "MEDIUM"
-    assert ModelService._confidence_tier_for(0.800001) == "HIGH"
+    assert ModelService._confidence_tier_for(0.0) == "INFORMATIONAL"
+    assert ModelService._confidence_tier_for(0.000001) == "LOW"
+    assert ModelService._confidence_tier_for(0.3999) == "LOW"
+    assert ModelService._confidence_tier_for(0.40) == "MEDIUM"
+    assert ModelService._confidence_tier_for(0.6999) == "MEDIUM"
+    assert ModelService._confidence_tier_for(0.70) == "HIGH"
 
 
 def test_confidence_tier_boundaries_extend_to_critical():
-    assert ModelService._confidence_tier_for(0.899999) == "HIGH"
-    assert ModelService._confidence_tier_for(0.8999999999999999) == "HIGH"
+    assert ModelService._confidence_tier_for(0.8999) == "HIGH"
     assert ModelService._confidence_tier_for(0.90) == "CRITICAL"
     assert ModelService._confidence_tier_for(1.0) == "CRITICAL"
 
@@ -61,8 +61,8 @@ def test_confidence_thresholds_include_critical_band():
     service = ModelService.create_mock()
 
     assert service.confidence_thresholds == {
-        "low": 0.50,
-        "high": 0.80,
+        "low": 0.40,
+        "high": 0.70,
         "critical": 0.90,
     }
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from ml_model.confidence_tiers import DEFAULT_CONFIDENCE_THRESHOLDS
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -72,9 +73,9 @@ class Settings(BaseSettings):
     )
     is_development: bool = False
     enable_api_docs: bool = True
-    confidence_low_threshold: float = 0.50
-    confidence_high_threshold: float = 0.80
-    confidence_critical_threshold: float = 0.90
+    confidence_low_threshold: float = DEFAULT_CONFIDENCE_THRESHOLDS.low
+    confidence_high_threshold: float = DEFAULT_CONFIDENCE_THRESHOLDS.high
+    confidence_critical_threshold: float = DEFAULT_CONFIDENCE_THRESHOLDS.critical
     stale_processing_timeout_seconds: int = 30
     inference_queue_maxsize: int = Field(default=100, ge=1)
     notification_worker_enabled: bool = False

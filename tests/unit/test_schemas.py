@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from web_app.presentation.schemas import (
+    ActionUpdateRequest,
     AlertDetailResponse,
     AlertResponse,
     FeedbackRequest,
@@ -70,6 +71,17 @@ def test_prediction_response_accepts_critical_confidence_level():
     )
 
     assert response.confidence_level == "CRITICAL"
+
+
+def test_prediction_response_accepts_informational_confidence_level():
+    response = PredictionResponse(
+        class_label="SQL Injection",
+        confidence=0.0,
+        confidence_level="INFORMATIONAL",
+        action_taken="ALLOWED",
+    )
+
+    assert response.confidence_level == "INFORMATIONAL"
 
 
 def test_prediction_response_confidence_range():
@@ -141,6 +153,21 @@ def test_alert_response_accepts_critical_confidence_level():
         action_taken="BLOCKED",
     )
     assert alert.confidence_level == "CRITICAL"
+
+
+def test_alert_response_accepts_informational_confidence_level():
+    alert = AlertResponse(
+        id=2,
+        timestamp=datetime.now(),
+        source_ip="192.168.1.2",
+        http_request="GET /search",
+        prediction="SQL Injection",
+        confidence=0.0,
+        confidence_level="INFORMATIONAL",
+        action_taken="ALLOWED",
+    )
+
+    assert alert.confidence_level == "INFORMATIONAL"
 
 
 def test_health_response():
@@ -390,3 +417,11 @@ def test_alert_detail_response_converts_aware_labeled_at_to_utc_rfc3339():
     )
 
     assert alert.model_dump(mode="json")["labeled_at"] == "2026-03-15T10:05:00Z"
+
+
+def test_action_update_request_requires_a_non_blank_actor_id():
+    request = ActionUpdateRequest(action_taken="BLOCKED", actor_id=" analyst-1 ")
+    assert request.actor_id == "analyst-1"
+
+    with pytest.raises(ValidationError):
+        ActionUpdateRequest(action_taken="BLOCKED", actor_id="   ")

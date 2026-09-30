@@ -51,6 +51,15 @@ def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
         assert PYTHON_314_DIGEST in lock_file.read_text(encoding="utf-8")
 
 
+def test_bridge_runtime_copies_imported_request_correlation_helper() -> None:
+    dockerfile = (PROJECT_ROOT / "Dockerfile.bridge").read_text(encoding="utf-8")
+
+    assert (
+        "COPY web_app/domain/request_correlation.py "
+        "./web_app/domain/request_correlation.py"
+    ) in dockerfile
+
+
 def test_backend_uses_cpu_torch_index_for_container_runtime() -> None:
     dockerfile = PROJECT_ROOT / "Dockerfile"
 

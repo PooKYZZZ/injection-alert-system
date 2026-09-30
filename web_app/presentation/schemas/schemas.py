@@ -1,7 +1,14 @@
 from datetime import datetime, timezone
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_serializer,
+    field_validator,
+)
 
 from web_app.application.update_alert_action_use_case import AlertAction
 
@@ -11,7 +18,9 @@ PredictionLabel = Literal[
     "Other Attacks",
     "Normal",
 ]
-ConfidenceLevel = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+ConfidenceLevel = Literal[
+    "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"
+]
 ActionTaken = AlertAction
 TriageStatus = Literal["new", "in_review", "escalated", "resolved", "false_positive"]
 NotificationDeliveryStatus = Literal[
@@ -69,7 +78,10 @@ class PredictionResponse(BaseModel):
     )
     confidence_level: ConfidenceLevel = Field(
         ...,
-        description="Model-confidence tier (LOW, MEDIUM, HIGH, CRITICAL), derived from serving thresholds",
+        description=(
+            "Project model-confidence tier (INFORMATIONAL, LOW, MEDIUM, HIGH, "
+            "CRITICAL), derived from serving thresholds"
+        ),
     )
     action_taken: ActionTaken | None = Field(
         default=None,
@@ -188,6 +200,8 @@ class AlertResponse(BaseModel):
         default=None,
         description="Recorded action label; it may be a policy recommendation and does not prove the HTTP outcome.",
     )
+    model_version: Optional[str] = None
+    preprocessing_version: Optional[str] = None
     analyst_label: Optional[str] = None
     labeled_at: Optional[datetime] = None
     labeled_by: Optional[str] = None
@@ -396,6 +410,48 @@ class AlertDetailResponse(_AlertResponseBase):
     # Query data is stored separately after sensitive values are redacted and
     # is included only in authenticated detail-shaped alert responses.
     query_string: Optional[str] = Field(default=None, max_length=4096)
+    request_correlation_id: Optional[str] = Field(default=None, max_length=36)
+    observed_http_status: Optional[int] = Field(default=None, ge=100, le=599)
+    evidence_relationship: Literal[
+        "CORROBORATED", "ML_ONLY", "WAF_ONLY", "CONFLICTING", "INCOMPLETE"
+    ] = "INCOMPLETE"
+    correlated_records: list["CorrelatedEvidenceRecordResponse"] = Field(
+        default_factory=list
+    )
+    action_history: list["AlertActionHistoryResponse"] = Field(default_factory=list)
+
+class CorrelatedEvidenceRecordResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ingest_source: Optional[str] = None
+    transaction_id: Optional[str] = None
+    prediction: Optional[PredictionLabel] = None
+    confidence: Optional[float] = None
+    confidence_level: Optional[ConfidenceLevel] = None
+    crs_score: Optional[int] = None
+    crs_rule_ids: Optional[list[str]] = None
+    matched_rule_tags: Optional[list[str]] = None
+    observed_http_status: Optional[int] = Field(default=None, ge=100, le=599)
+
+
+class AlertActionHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    traffic_log_id: int
+    previous_action: Optional[ActionTaken] = None
+    new_action: ActionTaken
+    actor_id: str
+    changed_at: datetime
+    reason: Optional[str] = None
+
+    @field_serializer("changed_at", when_used="json")
+    def serialize_changed_at(self, value: datetime) -> str:
+        return _serialize_utc_timestamp(value) or ""
+
+
+AlertDetailResponse.model_rebuild()
 
 
 class AlertListItemResponse(_AlertResponseBase):
@@ -428,6 +484,20 @@ class ActionUpdateRequest(BaseModel):
         ...,
         description="Recorded action label to save; this does not issue an enforcement command.",
     )
+    actor_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="Authenticated dashboard user ID forwarded by the server-side BFF",
+    )
+
+    @field_validator("actor_id")
+    @classmethod
+    def validate_actor_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("actor_id must be a non-empty authenticated user ID")
+        return normalized
 
 
 class WafIngestLookupResponse(BaseModel):
@@ -487,10 +557,14 @@ class AlertQueryParams(BaseModel):
         default=False,
         description="Include stored Normal traffic alongside supported attacks",
     )
-    severity: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(
+    severity: Optional[
+        Literal["ALL", "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    ] = Field(
         default=None, description="Legacy compatibility alias for confidence tier"
     )
-    confidence_tier: Optional[Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(
+    confidence_tier: Optional[
+        Literal["ALL", "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    ] = Field(
         default=None, description="Filter by confidence tier"
     )
     time_range: Optional[Literal["1h", "6h", "24h", "7d"]] = Field(
@@ -539,7 +613,7 @@ class AlertQueryParams(BaseModel):
 
     @property
     def effective_confidence_tier(self) -> Optional[
-        Literal["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        Literal["ALL", "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
     ]:
         self.ensure_compatible_confidence_tier_aliases()
         return self.confidence_tier or self.severity

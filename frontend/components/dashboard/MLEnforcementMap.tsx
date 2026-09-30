@@ -15,7 +15,7 @@ export function MLEnforcementMap({
   isPending = false,
   unavailable = false,
 }: MLEnforcementMapProps) {
-  const { critical, high, medium, low } = nonNormalCounts
+  const { critical, high, medium, low, informational } = nonNormalCounts
   if (isPending) {
     return <LoadingSkeleton rows={4} />
   }
@@ -29,7 +29,7 @@ export function MLEnforcementMap({
     )
   }
 
-  const total = critical + high + medium + low
+  const total = critical + high + medium + low + informational
 
   return (
     <motion.div
@@ -42,7 +42,7 @@ export function MLEnforcementMap({
         Action policy for actionable attacks
       </div>
       <div className="break-words text-[11px] leading-tight text-[var(--color-text-muted)]">
-        Normal predictions remain ALLOWED; LOW actionable attacks are MONITOR ONLY; out-of-scope labels do not enter this policy.
+        Normal predictions remain ALLOWED; INFORMATIONAL and LOW actionable attacks are ALLOWED with MONITOR ONLY intent; out-of-scope labels do not enter this policy.
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
@@ -107,6 +107,22 @@ export function MLEnforcementMap({
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-surface-border">
         <div className="h-full bg-severity-safe-accent" style={{ width: `${total > 0 ? (low / total) * 100 : 0}%` }} />
+      </div>
+
+      <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[10px]">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-text-muted)]" />
+          <span className="truncate text-[var(--color-accent-analytic)]">INFORMATIONAL actionable attacks</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-[var(--color-text-primary)]">{informational}</span>
+          <span className="rounded border border-surface-border bg-surface-inset px-1 py-0.5 text-[10px] font-bold text-text-secondary">
+            MONITOR ONLY
+          </span>
+        </div>
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-surface-border">
+        <div className="h-full bg-[var(--color-text-muted)]" style={{ width: `${total > 0 ? (informational / total) * 100 : 0}%` }} />
       </div>
 
       <div className="mt-1 break-words text-[11px] leading-tight text-[var(--color-text-muted)] italic">

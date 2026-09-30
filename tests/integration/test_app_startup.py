@@ -49,8 +49,8 @@ class FakeModelHealthService:
         self.avg_inference_latency_ms = avg_inference_latency_ms
         self.total_processed = total_processed
         self.confidence_thresholds = confidence_thresholds or {
-            "low": 0.5,
-            "high": 0.8,
+            "low": 0.4,
+            "high": 0.7,
         }
         self.eval_metadata = eval_metadata or {}
 
@@ -292,8 +292,8 @@ def test_ml_health_returns_degraded_when_mock_model_active(api_client):
         "drift_detected": False,
         "drift_score": None,  # Drift unavailable when DB not initialized
         "confidence_thresholds": {
-            "low": 0.5,
-            "high": 0.8,
+            "low": 0.4,
+            "high": 0.7,
         },
         # Optional eval metadata defaults when not available
         "macro_f1": None,

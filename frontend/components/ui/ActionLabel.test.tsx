@@ -19,6 +19,18 @@ describe('ActionLabel', () => {
     }
   })
 
+  it('preserves monitor-only labeling for informational actionable attacks', () => {
+    render(
+      <ActionLabel
+        action="ALLOWED"
+        confidenceTier="INFORMATIONAL"
+        prediction="SQL Injection"
+      />
+    )
+
+    expect(screen.getByText('Monitor Only')).toBeInTheDocument()
+  })
+
   it('keeps Normal, out-of-scope, and non-LOW allowed outcomes as allowed', () => {
     const cases = [
       { confidenceTier: 'LOW', prediction: 'Normal' },

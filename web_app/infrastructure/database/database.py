@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -123,10 +124,20 @@ class TrafficLog(Base):
             "ingest_fingerprint_sha256 IS NULL OR length(ingest_fingerprint_sha256) = 64",
             name="ingest_fingerprint_length",
         ),
+        CheckConstraint(
+            "request_correlation_id IS NULL OR length(request_correlation_id) BETWEEN 1 AND 64",
+            name="request_correlation_id_length",
+        ),
+        CheckConstraint(
+            "observed_http_status IS NULL OR observed_http_status BETWEEN 100 AND 599",
+            name="observed_http_status_range",
+        ),
+        Index("ix_traffic_logs_request_correlation_id", "request_correlation_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     transaction_id = Column(String(128), unique=True, nullable=True)
+    request_correlation_id = Column(String(64), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -153,7 +164,7 @@ class TrafficLog(Base):
     matched_rule_tags = Column(JSON, nullable=True)
     prediction = Column(String(50), index=True, nullable=True)
     confidence = Column(Float, nullable=True)
-    confidence_level = Column(String(10), nullable=True)
+    confidence_level = Column(String(13), nullable=True)
     inference_latency_ms = Column(Float, nullable=True)
     status = Column(String(16), nullable=False, server_default="COMPLETED")
     model_version = Column(String(50), nullable=True)
@@ -161,10 +172,44 @@ class TrafficLog(Base):
     processing_owner_token = Column(String(64), nullable=True)
     processing_attempt = Column(Integer, nullable=False, server_default="0")
     action_taken = Column(String(50), nullable=True)
+    observed_http_status = Column(SmallInteger, nullable=True)
     analyst_label = Column(String(50), nullable=True)
     labeled_at = Column(DateTime(timezone=True), nullable=True)
     labeled_by = Column(String(100), nullable=True)
     triage_status = Column(String(32), nullable=True)
+
+
+class TrafficLogActionHistory(Base):
+    """Append-only application history for analyst-recorded action changes."""
+
+    __tablename__ = "traffic_log_action_history"
+    __table_args__ = (
+        CheckConstraint(
+            "previous_action IS NULL OR previous_action IN ('BLOCKED', 'THROTTLED', 'ALLOWED')",
+            name="previous_action_allowed",
+        ),
+        CheckConstraint(
+            "new_action IN ('BLOCKED', 'THROTTLED', 'ALLOWED')",
+            name="new_action_allowed",
+        ),
+        Index(
+            "ix_traffic_log_action_history_alert_changed_at",
+            "traffic_log_id",
+            "changed_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    traffic_log_id = Column(
+        Integer,
+        ForeignKey("traffic_logs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    previous_action = Column(String(50), nullable=True)
+    new_action = Column(String(50), nullable=False)
+    actor_id = Column(String(128), nullable=False)
+    changed_at = Column(DateTime(timezone=True), nullable=False)
+    reason = Column(String(1000), nullable=True)
 
 
 class TrafficLabelReview(Base):
@@ -207,7 +252,7 @@ class TrafficLabelReview(Base):
     reviewed_at = Column(DateTime(timezone=True), nullable=False)
     model_version = Column(String(100), nullable=True)
     prediction_confidence = Column(Float, nullable=True)
-    prediction_confidence_level = Column(String(10), nullable=True)
+    prediction_confidence_level = Column(String(13), nullable=True)
     model_input_hash = Column(String(64), nullable=True)
     model_input_text = Column(Text, nullable=True)
     preprocessing_version = Column(String(64), nullable=True)

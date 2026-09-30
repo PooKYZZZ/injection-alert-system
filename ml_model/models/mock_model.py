@@ -6,6 +6,7 @@ from ml_model.confidence_tiers import classify_confidence
 
 
 class ConfidenceLevel(str, Enum):
+    INFORMATIONAL = "INFORMATIONAL"
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -62,7 +63,7 @@ class MockInjectionClassifier:
             Dictionary with keys:
             - class: "Normal" | "SQL Injection" | "Code Injection" | "Other Attacks"
             - confidence: float between 0.0 and 1.0
-            - confidence_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+            - confidence_level: "INFORMATIONAL" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
         """
         if not http_request or not http_request.strip():
             confidence = 0.9
