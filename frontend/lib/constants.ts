@@ -11,13 +11,13 @@ export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
   { label: 'Alerts', href: '/alerts', icon: 'notifications' },
   {
-    label: 'ML Health',
+    label: 'Model Health',
     href: '/ml-health',
     icon: 'monitor_heart',
     requiredPermission: PERMISSIONS.ML_HEALTH_READ,
   },
   {
-    label: 'ML Deployment',
+    label: 'Model Lifecycle',
     href: '/ml-model',
     icon: 'model_training',
     requiredPermission: PERMISSIONS.ML_MODEL_READ,

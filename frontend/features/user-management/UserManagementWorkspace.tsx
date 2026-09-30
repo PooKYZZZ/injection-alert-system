@@ -52,7 +52,7 @@ const roleGuidance: Record<UserRole, string> = {
   VIEWER: 'Viewers can review security activity without changing analyst or account settings.',
   ANALYST: 'Analysts can investigate alerts and update triage work without managing accounts.',
   ADMIN: 'Admins can manage accounts and access settings; MFA enrollment is required.',
-  OWNER: 'Owners have the highest privilege level, including ML Deployment and ML Health access.',
+  OWNER: 'Owners have the highest privilege level, including Model Lifecycle and Model Health access.',
 }
 
 const fieldClass =

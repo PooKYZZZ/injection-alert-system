@@ -268,7 +268,7 @@ export function MLModelDecisionPanel({
             className={styles.dangerButton}
             onClick={() => {
               if (window.confirm('Roll back local staging to the previous known-good version?')) {
-                void onRollback('Owner requested rollback from ML Deployment.').catch(() => undefined)
+                void onRollback('Owner requested rollback from Model Lifecycle.').catch(() => undefined)
               }
             }}
             disabled={actionsDisabled || rollbackPending}

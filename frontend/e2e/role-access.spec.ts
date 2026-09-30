@@ -41,11 +41,11 @@ test.describe('role authorization matrix', () => {
       const allowed = role === 'owner'
 
       const mlHealthLinks = page.getByRole('link', {
-        name: 'ML Health',
+        name: 'Model Health',
         exact: true,
       })
       const mlDeploymentLinks = page.getByRole('link', {
-        name: 'ML Deployment',
+        name: 'Model Lifecycle',
         exact: true,
       })
       await expect(mlHealthLinks).toHaveCount(allowed ? 1 : 0)
@@ -75,7 +75,7 @@ test.describe('role authorization matrix', () => {
         if (allowed) {
           await expect(
             page.getByRole('heading', {
-              name: route === '/ml-health' ? 'ML Health' : /ML Deployment/,
+              name: route === '/ml-health' ? 'Model Health' : /Model Lifecycle/,
             })
           ).toBeVisible()
         } else {

@@ -9,6 +9,7 @@ interface SidebarNavItemProps {
   icon: string
   label: string
   badge?: number
+  collapsed?: boolean
   onNavigate?: () => void
 }
 
@@ -81,12 +82,20 @@ export function SidebarIcon({ icon }: { icon: string }) {
           <line x1="8" y1="17" x2="13" y2="17" />
         </svg>
       )
+    case 'help':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M9.6 9a2.5 2.5 0 1 1 4.4 1.6c-1.1 1-2 1.3-2 2.9" />
+          <path d="M12 17h.01" />
+        </svg>
+      )
     default:
       return null
   }
 }
 
-export function SidebarNavItem({ href, icon, label, badge, onNavigate }: SidebarNavItemProps) {
+export function SidebarNavItem({ href, icon, label, badge, collapsed = false, onNavigate }: SidebarNavItemProps) {
   const pathname = usePathname()
   const isActive =
     href === '/dashboard' ? pathname === href : pathname.startsWith(href)
@@ -96,14 +105,16 @@ export function SidebarNavItem({ href, icon, label, badge, onNavigate }: Sidebar
       href={href}
       onClick={onNavigate}
       aria-current={isActive ? 'page' : undefined}
-      className={
-        isActive
-          ? 'group flex h-[40px] items-center gap-3 border-l-[3px] border-accent-action bg-surface-card px-6 text-text-primary'
-          : 'group flex h-[40px] items-center gap-3 border-l-[3px] border-transparent px-6 text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary'
-      }
-      >
+      aria-label={collapsed ? (badge === undefined ? label : label + ', ' + badge + ' alerts') : undefined}
+      title={collapsed ? label : undefined}
+      className={[
+        'group relative flex h-[40px] items-center border-l-[3px] transition-colors',
+        isActive ? 'border-accent-action bg-surface-card text-text-primary' : 'border-transparent text-text-secondary hover:bg-surface-inset hover:text-text-primary',
+        collapsed ? 'justify-center px-0' : 'gap-3 px-6',
+      ].join(' ')}
+    >
         <SidebarIcon icon={icon} />
-        <span className="text-sm font-medium flex-1">{label}</span>
+        <span className={collapsed ? 'sr-only' : 'flex-1 text-sm font-medium'}>{label}</span>
         {badge !== undefined && (
           <AnimatePresence mode="wait">
             <motion.span
@@ -111,12 +122,20 @@ export function SidebarNavItem({ href, icon, label, badge, onNavigate }: Sidebar
               initial={{ scale: 1.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-              className="rounded-full bg-severity-high-accent px-1.5 py-0.5 text-[10px] font-bold text-white"
+              aria-label={badge + ' alerts'}
+              className={collapsed
+                ? 'absolute right-1 top-0 rounded-full bg-severity-high-accent px-1 py-0.5 text-[9px] font-bold text-white'
+                : 'rounded-full bg-severity-high-accent px-1.5 py-0.5 text-[10px] font-bold text-white'}
             >
               {badge}
             </motion.span>
           </AnimatePresence>
         )}
+        {collapsed ? (
+          <span aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-border-light bg-surface-panel px-2 py-1 text-xs text-text-primary shadow-lg group-hover:block group-focus-visible:block">
+            {label}
+          </span>
+        ) : null}
     </Link>
   )
 }
