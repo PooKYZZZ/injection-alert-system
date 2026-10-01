@@ -84,12 +84,7 @@ function safeUpstreamErrorCode(error: unknown): string | undefined {
     : undefined
 }
 
-function safeUpstreamStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null || !('status' in error)) {
-    return undefined
-  }
-
-  const status = error.status
+function safeUpstreamStatus(status: unknown): number | undefined {
   return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599
     ? status
     : undefined
@@ -124,21 +119,36 @@ function reportLookupFailure(
 }
 
 function classifyRequestFailure(error: unknown): AuthAccountLookupDiagnostic {
-  if (
-    error instanceof Error &&
-    (error.name === 'TimeoutError' || error.name === 'AbortError')
-  ) {
+  const errorName =
+    error instanceof Error
+      ? error.name
+      : typeof error === 'object' && error !== null && 'message' in error &&
+          typeof error.message === 'string'
+        ? /^(AbortError|TimeoutError|TypeError):/.exec(error.message)?.[1]
+        : undefined
+
+  if (errorName === 'TimeoutError' || errorName === 'AbortError') {
     return { failureClass: 'request_timeout' }
   }
-  if (error instanceof TypeError) {
+  if (error instanceof TypeError || errorName === 'TypeError') {
     return { failureClass: 'transport_error' }
   }
   return { failureClass: 'unexpected' }
 }
 
-function classifyDataApiFailure(error: unknown): AuthAccountLookupDiagnostic {
+function classifyDataApiFailure(
+  error: unknown,
+  responseStatus: number
+): AuthAccountLookupDiagnostic {
+  if (responseStatus === 0) {
+    const requestFailure = classifyRequestFailure(error)
+    return requestFailure.failureClass === 'unexpected'
+      ? { failureClass: 'transport_error' }
+      : requestFailure
+  }
+
   const upstreamErrorCode = safeUpstreamErrorCode(error)
-  const upstreamStatus = safeUpstreamStatus(error)
+  const upstreamStatus = safeUpstreamStatus(responseStatus)
 
   return {
     failureClass: 'data_api_error',
@@ -165,16 +175,19 @@ async function selectAccount(
   }
 
   try {
-    const { data, error } = await supabaseClient
+    const response = await supabaseClient
       .from('auth_accounts')
       .select(fields)
       .eq(column, value)
       .maybeSingle()
 
-    if (error) {
-      throw reportLookupFailure(source, classifyDataApiFailure(error))
+    if (response.error) {
+      throw reportLookupFailure(
+        source,
+        classifyDataApiFailure(response.error, response.status)
+      )
     }
-    return data ?? undefined
+    return response.data ?? undefined
   } catch (error) {
     if (error instanceof AuthAccountLookupError) {
       throw error
