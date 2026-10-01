@@ -38,7 +38,7 @@ def job(*, attempt_count: int = 1) -> OutboxJob:
             "confidence_tier": "HIGH",
             "action_taken": "BLOCKED",
             "route_path": "/records/search",
-            "dashboard_url": "https://dashboard.example.test/alerts/42",
+            "dashboard_url": "https://dashboard.example.test/traffic-history?alert_id=42",
         },
         template_version=1,
         dedupe_key="threat/alert-42",
@@ -204,7 +204,7 @@ async def test_worker_logs_safe_delivery_retry_without_recipient_or_payload(
             "confidence": 0.91,
             "request_method": "POST",
             "route_path": "/records/search",
-            "dashboard_url": "https://dashboard.example.test/alerts/42",
+            "dashboard_url": "https://dashboard.example.test/traffic-history?alert_id=42",
         },
     )
     repository = RepositoryStub([claimed])

@@ -24,7 +24,7 @@ def payload() -> dict[str, object]:
         "confidence": 0.961,
         "request_method": "POST",
         "route_path": "/records/search",
-        "dashboard_url": "https://app.example.test/alerts/1849",
+        "dashboard_url": "https://app.example.test/traffic-history?alert_id=1849",
         "display_timezone": "Asia/Manila",
     }
 
