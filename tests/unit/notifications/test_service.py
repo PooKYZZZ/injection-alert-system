@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 import pytest
 
-from web_app.notifications.providers import FakeEmailProvider
 from web_app.notifications import service as notification_service
+from web_app.notifications.providers import FakeEmailProvider
 from web_app.notifications.service import NotificationWorkerService
 
 
@@ -92,8 +93,15 @@ async def test_notification_service_stays_disabled_by_default() -> None:
 
 
 @pytest.mark.asyncio
-async def test_required_worker_performs_a_startup_probe() -> None:
-    repository = EmptyRepository()
+async def test_required_worker_stays_alive_and_retries_after_database_error() -> None:
+    class RecoveringRepository(EmptyRepository):
+        async def claim_batch(self, _worker_id, _batch_size, _lease_seconds):
+            self.claims += 1
+            if self.claims == 1:
+                raise RuntimeError("database unavailable")
+            return []
+
+    repository = RecoveringRepository()
     service = NotificationWorkerService(
         settings=RequiredSettings(),
         repository=repository,
@@ -102,7 +110,18 @@ async def test_required_worker_performs_a_startup_probe() -> None:
     )
 
     await service.start()
-    await service.stop()
+    try:
+        await service.wait_until_polled()
+        assert service.running is True
+        assert service.last_error_class == "RuntimeError"
 
-    assert repository.claims >= 1
-    assert service.last_poll_at is not None
+        for _ in range(20):
+            if repository.claims >= 2 and service.last_error_class is None:
+                break
+            await asyncio.sleep(0.01)
+
+        assert repository.claims >= 2
+        assert service.last_error_class is None
+        assert service.last_poll_at is not None
+    finally:
+        await service.stop()

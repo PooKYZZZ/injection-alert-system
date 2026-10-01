@@ -1,5 +1,7 @@
 services:
   backend:
+    # Restart after unexpected exits while honoring an intentional operator stop.
+    restart: unless-stopped
     # Hosted target startup uses an explicitly reviewed migration workflow.
     # Do not run the local-only migration guard against the hosted database.
     command:

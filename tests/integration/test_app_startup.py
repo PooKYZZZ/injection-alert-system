@@ -17,9 +17,13 @@ from web_app.presentation.app import create_app
 INTERNAL_HEADERS = {"Authorization": "Bearer test-secret-key"}
 
 
-def _make_settings(model_registry_path: Path, app_env: str) -> Settings:
+def _make_settings(
+    model_registry_path: Path,
+    app_env: str,
+    database_url: str = "sqlite+aiosqlite://",
+) -> Settings:
     return Settings(
-        database_url="sqlite+aiosqlite://",
+        database_url=database_url,
         app_env=app_env,
         model_path="unused",
         model_registry_path=str(model_registry_path),
@@ -268,6 +272,81 @@ def test_startup_skips_init_db_in_production_like_environments(
 
     with TestClient(app_module.create_app()):
         pass
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "postgresql+asyncpg://db.example.test/cybertrace",
+        "postgresql+asyncpg://aws-1.pooler.supabase.com:6543/cybertrace",
+    ],
+)
+def test_development_startup_never_auto_creates_schema_on_remote_postgres(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: str,
+):
+    class FakeModelService:
+        def __init__(self, settings):
+            self.settings = settings
+
+    async def fail_init_db() -> None:
+        raise AssertionError("remote PostgreSQL schema must not be auto-created")
+
+    monkeypatch.setattr(
+        app_module,
+        "get_settings",
+        lambda: _make_settings(
+            tmp_path / "unused-run",
+            "development",
+            database_url=database_url,
+        ),
+    )
+    monkeypatch.setattr(app_module, "init_db", fail_init_db)
+    monkeypatch.setattr(app_module, "ModelService", FakeModelService)
+
+    with TestClient(app_module.create_app()):
+        pass
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "sqlite+aiosqlite://",
+        "postgresql+asyncpg://127.0.0.1:5432/cybertrace",
+        "postgresql+asyncpg://postgres:5432/cybertrace",
+    ],
+)
+def test_development_startup_keeps_schema_initialization_for_local_databases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: str,
+):
+    initialized = []
+
+    class FakeModelService:
+        def __init__(self, settings):
+            self.settings = settings
+
+    async def record_init_db() -> None:
+        initialized.append(True)
+
+    monkeypatch.setattr(
+        app_module,
+        "get_settings",
+        lambda: _make_settings(
+            tmp_path / "unused-run",
+            "development",
+            database_url=database_url,
+        ),
+    )
+    monkeypatch.setattr(app_module, "init_db", record_init_db)
+    monkeypatch.setattr(app_module, "ModelService", FakeModelService)
+
+    with TestClient(app_module.create_app()):
+        pass
+
+    assert initialized == [True]
 
 
 def test_ml_health_returns_degraded_when_mock_model_active(api_client):
