@@ -304,6 +304,34 @@ describe('Auth.js credential login', () => {
     expect(token.exp).toBe(Math.floor(Date.parse('2030-01-01T00:10:00.000Z') / 1_000))
   })
 
+  it('does not report an MFA challenge storage failure as invalid credentials', async () => {
+    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH, mfaRequired: true })
+    )
+    authHarness.beginMfaChallenge.mockRejectedValue(
+      new Error('raw database connection details')
+    )
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize({
+        identifier: 'admin@example.test',
+        password: 'correct horse battery staple',
+      })
+    ).rejects.toThrow('Authentication account store unavailable')
+    expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'auth.account_lookup_failed',
+        level: 'error',
+        reasonCode: 'ACCOUNT_LOOKUP_FAILED',
+      })
+    )
+    expect(JSON.stringify(authHarness.writeLoginAudit.mock.calls)).not.toContain(
+      'raw database connection details'
+    )
+  })
+
   it('uses the dummy-verification contract when the DB account is missing', async () => {
     authHarness.findAccount.mockResolvedValue(undefined)
     await import('@/auth')
@@ -366,7 +394,7 @@ describe('Auth.js credential login', () => {
     }
   )
 
-  it('fails closed on account query or client configuration failure', async () => {
+  it('fails safely when account storage is unavailable', async () => {
     authHarness.findAccount.mockRejectedValue(
       new Error('raw database URL and service-role secret')
     )
@@ -377,7 +405,7 @@ describe('Auth.js credential login', () => {
         identifier: 'admin@example.test',
         password: 'password',
       })
-    ).resolves.toBeNull()
+    ).rejects.toThrow('Authentication account store unavailable')
     expect(authHarness.writeLoginAudit).toHaveBeenCalledWith({
       event: 'auth.account_lookup_failed',
       level: 'error',

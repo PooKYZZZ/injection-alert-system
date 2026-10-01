@@ -85,7 +85,11 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('Password'), 'pw')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Unable to sign in right now')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Sign-in service is temporarily unavailable. Please try again shortly.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('button is re-enabled after thrown non-redirect error', async () => {

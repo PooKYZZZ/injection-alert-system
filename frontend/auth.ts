@@ -109,7 +109,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             identifierHash: attempt.identifierHash,
             reasonCode: 'ACCOUNT_LOOKUP_FAILED',
           })
-          return null
+          throw new Error('Authentication account store unavailable')
         }
 
         const verification = await passwordHashConcurrencyGate.run(() =>
@@ -152,13 +152,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             mfaChallengeExpiresAt = challenge.expires_at
           } catch {
             writeLoginAudit({
-              event: 'auth.login_failed',
-              level: 'warn',
+              event: 'auth.account_lookup_failed',
+              level: 'error',
               outcome: 'failure',
               identifierHash: attempt.identifierHash,
               reasonCode: 'ACCOUNT_LOOKUP_FAILED',
             })
-            return null
+            throw new Error('Authentication account store unavailable')
           }
         }
         loginThrottle.recordSuccess(attempt.identifierHash)

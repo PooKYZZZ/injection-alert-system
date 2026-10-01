@@ -252,7 +252,16 @@ describe('requirePermission', () => {
       PERMISSIONS.ALERTS_READ
     )
 
-    await expectGenericUnauthorized(result)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(503)
+      await expect(result.response.json()).resolves.toEqual({
+        error: {
+          code: 'AUTHORIZATION_UNAVAILABLE',
+          message: 'Authorization is temporarily unavailable.',
+        },
+      })
+    }
     expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
       event: 'auth.account_lookup_failed',
       outcome: 'denied',

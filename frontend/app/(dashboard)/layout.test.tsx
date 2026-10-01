@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
 
 import { PERMISSIONS } from '@/lib/auth/roles'
 import DashboardLayout from './layout'
@@ -65,5 +66,29 @@ describe('DashboardLayout', () => {
       DashboardLayout({ children: <div>dashboard</div> })
     ).rejects.toThrow('NEXT_REDIRECT')
     expect(layoutHarness.redirect).toHaveBeenCalledWith('/login')
+  })
+
+  it('keeps the dashboard route and explains when session verification is unavailable', async () => {
+    layoutHarness.getSession.mockResolvedValue(session)
+    layoutHarness.requirePermission.mockResolvedValue({
+      ok: false,
+      response: new Response(null, { status: 503 }),
+    })
+
+    render(await DashboardLayout({ children: <div>dashboard</div> }))
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Dashboard temporarily unavailable',
+      })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'We can’t verify your session right now.'
+    )
+    expect(screen.getByRole('link', { name: 'Try again' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    )
+    expect(layoutHarness.redirect).not.toHaveBeenCalled()
   })
 })

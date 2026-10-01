@@ -28,6 +28,11 @@ DatabaseSession = AsyncSession
 
 settings = get_settings()
 
+_DATABASE_POOL_SIZE = 5
+_DATABASE_MAX_OVERFLOW = 5
+_DATABASE_POOL_TIMEOUT_SECONDS = 10
+_DATABASE_CONNECT_TIMEOUT_SECONDS = 10
+
 if "postgresql://" in settings.database_url and not settings.database_url.startswith(
     "postgresql+asyncpg://"
 ):
@@ -41,29 +46,32 @@ elif settings.database_url.startswith(
 else:
     database_url = settings.database_url
 
-_pool_kwargs = {}
-if "sqlite" not in database_url:
-    _pool_kwargs = {
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_timeout": 30,
+def _database_engine_options(url: str) -> tuple[dict[str, object], dict[str, object]]:
+    if "sqlite" in url:
+        return {"pool_pre_ping": True}, {}
+
+    pool_kwargs: dict[str, object] = {
+        "pool_size": _DATABASE_POOL_SIZE,
+        "max_overflow": _DATABASE_MAX_OVERFLOW,
+        "pool_timeout": _DATABASE_POOL_TIMEOUT_SECONDS,
         "pool_recycle": 3600,
         "pool_pre_ping": True,
     }
-else:
-    _pool_kwargs = {"pool_pre_ping": True}
+    connect_args: dict[str, object] = {"timeout": _DATABASE_CONNECT_TIMEOUT_SECONDS}
+    # Supabase transaction pooler (PgBouncer) is incompatible with asyncpg
+    # prepared statement caching. Disable it when using pooler endpoints.
+    if "pooler.supabase.com" in url or ":6543/" in url:
+        connect_args["statement_cache_size"] = 0
+    return pool_kwargs, connect_args
+
+
+_pool_kwargs, _connect_args = _database_engine_options(database_url)
 
 engine = create_async_engine(
     database_url,
     echo=settings.is_development,
     **_pool_kwargs,
-    # Supabase transaction pooler (PgBouncer) is incompatible with asyncpg
-    # prepared statement caching. Disable it when using pooler endpoints.
-    connect_args=(
-        {"statement_cache_size": 0}
-        if ("pooler.supabase.com" in database_url or ":6543/" in database_url)
-        else {}
-    ),
+    connect_args=_connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(
