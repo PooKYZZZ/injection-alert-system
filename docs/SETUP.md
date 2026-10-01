@@ -65,6 +65,15 @@ use a local or disposable PostgreSQL database (or SQLite where supported); do
 not point `DATABASE_URL` at hosted Supabase. Hosted Supabase is for explicitly
 authorized operator work documented in the runbooks. A minimal local development file looks like this:
 
+Development and test startup only auto-create schema for SQLite and known local
+PostgreSQL hosts. Remote PostgreSQL remains migration-managed and is never
+auto-created by application startup.
+
+The notification worker starts polling in the background. If PostgreSQL is
+unavailable, the API process remains available while readiness reports the
+database/required worker as unhealthy; the worker retries on its configured
+poll interval and readiness recovers after a successful poll.
+
 ```dotenv
 DATABASE_URL=postgresql+asyncpg://postgres:<password>@127.0.0.1:<port>/<database>
 APP_ENV=development

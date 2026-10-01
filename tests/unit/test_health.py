@@ -63,6 +63,27 @@ async def test_required_unhealthy_worker_fails_readiness(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_required_starting_worker_fails_readiness(monkeypatch) -> None:
+    monkeypatch.setattr(
+        health_module,
+        "get_settings",
+        lambda: SettingsStub(True, True),
+    )
+    response = Response()
+
+    result = await health_module.health_check(
+        RequestStub(WorkerStub(last_poll_at=None)),
+        response,
+        DatabaseStub(),
+    )
+
+    assert response.status_code == 503
+    assert result.status == "unhealthy"
+    assert result.database == "connected"
+    assert result.notification_worker == "starting"
+
+
+@pytest.mark.asyncio
 async def test_optional_unhealthy_worker_is_reported_without_failing_readiness(
     monkeypatch,
 ) -> None:

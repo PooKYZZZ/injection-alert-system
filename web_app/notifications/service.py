@@ -16,8 +16,8 @@ from web_app.notifications.providers import (
     FakeEmailProvider,
     ResendEmailProvider,
 )
-from web_app.notifications.worker import OutboxRepository, OutboxWorker
 from web_app.notifications.telegram import TelegramProvider
+from web_app.notifications.worker import OutboxRepository, OutboxWorker
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +118,6 @@ class NotificationWorkerService:
             return
         self._stop.clear()
         self._polled.clear()
-        if getattr(self._settings, "notification_worker_required", False):
-            result = await self._worker.run_once()
-            self._last_sent = result.sent
-            self._last_failed = result.failed
-            self._last_ambiguous = result.ambiguous
-            self._last_poll_at = time.time()
         self._task = asyncio.create_task(
             self._run(), name="notification-outbox-worker"
         )

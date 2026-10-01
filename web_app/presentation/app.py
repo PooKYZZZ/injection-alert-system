@@ -19,6 +19,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from web_app.application.alert_events import AlertEventBroadcaster
 from web_app.application.inference_queue import InferenceQueueService
@@ -46,13 +48,35 @@ from web_app.services.model_service import ModelService
 logger = logging.getLogger(__name__)
 
 
+def _is_local_database_url(database_url: str) -> bool:
+    try:
+        parsed_url = make_url(database_url)
+    except ArgumentError:
+        return False
+
+    if parsed_url.get_backend_name() == "sqlite":
+        return True
+    return parsed_url.host in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "postgres",
+        "host.docker.internal",
+    }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     settings = get_settings()
 
     if settings.is_development or settings.is_testing:
-        await init_db()
+        if _is_local_database_url(settings.database_url):
+            await init_db()
+        else:
+            logger.info(
+                "Skipping automatic schema initialization for a non-local database"
+            )
 
     # ── Startup: Load model with fallback to mock mode ─────────────────────────
     # In production mode, fail fast on model load errors (convert to RuntimeError).
