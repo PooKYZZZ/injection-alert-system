@@ -53,6 +53,17 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
   datagram socket to the bridge instead of writing the query to a log file.
   Location-level access logging sends the stock full-request format to
   `/dev/null` for the target proxy location.
+- The demo target mounts `target-rsc-prefetch-exclusions.conf` before CRS rules.
+  It removes only `REQUEST_HEADERS:Referer` from CRS rule 942100 when a GET is
+  a Next.js RSC prefetch (`_rsc`, `RSC: 1`, and `Next-Router-Prefetch: 1`)
+  whose Referer is a Search Records URL. This avoids a second finding for a
+  search query already inspected on its original request; other CRS rules and
+  all other request targets remain in scope.
+- The live target forwards Search Records and Track Status GET inputs through
+  `portal_route_bridge` before the protected read. The backend accepts only one
+  `query` field on `/records/search` or one `ref` field on
+  `/transactions/status`; this is separate from CRS inspection and preserves
+  the request input for triage while persisting its redacted form.
 - `nginx_access_bridge` sends accepted 2xx/3xx workflow events through the same
   FastAPI model-triage and persistence path, so safe search query text is
   available to inference. The raw query and normalized model-input text are

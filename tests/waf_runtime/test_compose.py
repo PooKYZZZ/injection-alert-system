@@ -128,6 +128,36 @@ def test_normal_access_telemetry_does_not_duplicate_portal_post_ingest():
     assert "/submit" not in template
 
 
+def test_demo_target_scopes_sqli_referer_exclusion_to_search_rsc_prefetches():
+    config = _merged_compose(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        "docker-compose.target-cloudflare.yml",
+    )
+    mounts = config["services"]["demo-target-modsecurity"]["volumes"]
+    expected_source = str(
+        (ROOT / "config" / "modsecurity" / "target-rsc-prefetch-exclusions.conf").resolve()
+    )
+    assert any(
+        mount.get("type") == "bind"
+        and mount.get("source") == expected_source
+        and mount.get("target")
+        == "/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf"
+        and mount.get("read_only") is True
+        for mount in mounts
+    )
+
+    rules = (ROOT / "config" / "modsecurity" / "target-rsc-prefetch-exclusions.conf").read_text(
+        encoding="utf-8"
+    )
+    assert 'SecRule REQUEST_METHOD "@streq GET"' in rules
+    assert 'SecRule ARGS_NAMES "@streq _rsc"' in rules
+    assert 'SecRule REQUEST_HEADERS:RSC "@streq 1"' in rules
+    assert 'SecRule REQUEST_HEADERS:Next-Router-Prefetch "@streq 1"' in rules
+    assert 'REQUEST_HEADERS:Referer "@rx ^https?://[^/]+/records/search\\?query="' in rules
+    assert "ctl:ruleRemoveTargetById=942100;REQUEST_HEADERS:Referer" in rules
+
+
 def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
     config = _merged_compose(
         "docker-compose.yml",

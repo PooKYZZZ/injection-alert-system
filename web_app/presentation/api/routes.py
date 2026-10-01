@@ -20,6 +20,7 @@ import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Literal
+from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
@@ -214,6 +215,41 @@ def _queue_log_fields(inference_queue: object) -> dict[str, object]:
     return {"queue_depth": depth} if isinstance(depth, int) else {}
 
 
+def _portal_query_string_matches_path(payload: WafIngestRequest) -> bool:
+    """Validate the one GET input the target portal sends for each workflow."""
+    if payload.query_string is None:
+        return True
+
+    expected_field = {
+        "/records/search": "query",
+        "/transactions/status": "ref",
+    }.get(payload.request_path)
+    if (
+        payload.request_method.upper() != "GET"
+        or expected_field is None
+        or payload.sanitized_body is not None
+    ):
+        return False
+
+    try:
+        fields = parse_qsl(
+            payload.query_string,
+            keep_blank_values=True,
+            strict_parsing=True,
+            max_num_fields=1,
+            encoding="utf-8",
+            errors="strict",
+        )
+    except (UnicodeError, ValueError):
+        return False
+
+    return (
+        len(fields) == 1
+        and fields[0][0] == expected_field
+        and 0 < len(fields[0][1]) <= 512
+    )
+
+
 def get_alert_query_params(query: AlertQueryParams = Depends()) -> AlertQueryParams:
     try:
         query.ensure_compatible_confidence_tier_aliases()
@@ -328,7 +364,7 @@ async def ingest_waf_event(
             or payload.crs_rule_ids != ["no-crs-match"]
             or payload.matched_rule_messages
             or payload.matched_rule_tags
-            or payload.query_string
+            or not _portal_query_string_matches_path(payload)
             or payload.request_headers
         ):
             raise HTTPException(

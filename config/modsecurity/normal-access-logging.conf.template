@@ -1,8 +1,9 @@
 # Successful target workflows are triaged separately because ModSecurity's
 # RelevantOnly audit log intentionally omits ordinary 2xx/3xx transactions.
 # Search Records and Track Status inputs are inspected synchronously by the
-# portal before protected reads; do not ingest those same request IDs again
-# after the response. Bare page loads have no user input to classify.
+# portal before protected reads and sent to portal_route_bridge as one
+# route-specific GET query field (`query` or `ref`). Do not ingest those same
+# request IDs again after the response. Bare page loads have no input to classify.
 # Exclude Next.js RSC prefetches from the remaining allowlisted GETs.
 map "${CYBERTRACE_NORMAL_ACCESS_TELEMETRY}|$request_method|$uri|$status|$arg__rsc" $cybertrace_normal_access_loggable {
     default 0;

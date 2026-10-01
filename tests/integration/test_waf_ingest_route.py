@@ -1365,9 +1365,9 @@ def test_marked_portal_search_get_is_inferred_and_source_verified(
             "cf_connecting_ip_matches_client_ip": True,
             "request_method": "GET",
             "request_path": "/records/search",
-            "query_string": None,
+            "query_string": "query=Maple+Street",
             "request_headers": None,
-            "sanitized_body": "query=Maple+Street",
+            "sanitized_body": None,
             "crs_score": 0,
             "crs_rule_ids": ["no-crs-match"],
             "matched_rule_messages": None,
@@ -1393,7 +1393,7 @@ def test_marked_portal_search_get_is_inferred_and_source_verified(
     assert lookup.status_code == 200
     assert lookup.json()["found"] is True
     assert lookup.json()["request_path"] == "/records/search"
-    assert lookup.json()["query_string"] is None
+    assert lookup.json()["query_string"] == "query=Maple+Street"
     assert lookup.json()["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
     assert lookup.json()["source_verification_status"] == "VERIFIED"
     assert lookup.json()["crs_score"] == 0
@@ -1424,9 +1424,9 @@ def test_marked_portal_track_status_get_is_inferred_and_source_verified(
             "cf_connecting_ip_matches_client_ip": True,
             "request_method": "GET",
             "request_path": "/transactions/status",
-            "query_string": None,
+            "query_string": "ref=TXN-100201",
             "request_headers": None,
-            "sanitized_body": "ref=TXN-100201",
+            "sanitized_body": None,
             "crs_score": 0,
             "crs_rule_ids": ["no-crs-match"],
             "matched_rule_messages": None,
@@ -1452,11 +1452,63 @@ def test_marked_portal_track_status_get_is_inferred_and_source_verified(
     assert lookup.status_code == 200
     assert lookup.json()["found"] is True
     assert lookup.json()["request_path"] == "/transactions/status"
-    assert lookup.json()["query_string"] is None
+    assert lookup.json()["query_string"] == "ref=TXN-100201"
     assert lookup.json()["source_provenance"] == "CLOUDFLARE_CONNECTING_IP"
     assert lookup.json()["source_verification_status"] == "VERIFIED"
     assert lookup.json()["crs_score"] == 0
     assert lookup.json()["crs_rule_ids"] == ["no-crs-match"]
+
+
+@pytest.mark.parametrize(
+    ("request_method", "request_path", "query_string", "sanitized_body"),
+    [
+        ("GET", "/records/search", "ref=TXN-100201", None),
+        ("GET", "/transactions/status", "query=Maple+Street", None),
+        ("GET", "/records/search", "query=one&query=two", None),
+        ("GET", "/records/search", "query=one", "query=one"),
+        ("POST", "/support/submit", "query=one", None),
+    ],
+)
+def test_portal_route_query_string_is_limited_to_one_matching_get_field(
+    waf_api_client,
+    request_method: str,
+    request_path: str,
+    query_string: str,
+    sanitized_body: str | None,
+):
+    client, init_tables = waf_api_client
+    import asyncio
+
+    asyncio.run(init_tables())
+    payload = _waf_payload()
+    payload.update(
+        {
+            "ingest_source": "portal_route_bridge",
+            "transaction_id": "waf-portal-invalid-query-field",
+            "request_method": request_method,
+            "request_path": request_path,
+            "query_string": query_string,
+            "request_headers": None,
+            "sanitized_body": sanitized_body,
+            "crs_score": 0,
+            "crs_rule_ids": ["no-crs-match"],
+            "matched_rule_messages": None,
+            "matched_rule_tags": None,
+        }
+    )
+
+    response = client.post(
+        "/api/internal/waf-events",
+        json=payload,
+        headers={
+            **WAF_HEADERS,
+            "X-CyberTrace-WAF-Audit": "portal_route",
+            "X-CyberTrace-WAF-Audit-Key": "test-audit-evidence-key",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid portal route telemetry"
 
 
 def test_portal_route_event_cannot_assert_modsecurity_evidence(
