@@ -16,7 +16,11 @@ describe('proxy middleware', () => {
   it('adds the shared security headers to proxy-generated responses', async () => {
     authMock.mockReturnValueOnce(async () => new Response(null, { status: 302 }))
 
-    const { default: middleware } = await import('./proxy')
+    const { default: middleware, config } = await import('./proxy')
+
+    expect(config.matcher).toContain(
+      '/(dashboard|alerts|traffic-history|ml-health|ml-model|user-management)/:path*'
+    )
 
     const response = await middleware({} as never, {} as never)
 

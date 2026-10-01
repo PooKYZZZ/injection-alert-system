@@ -346,14 +346,14 @@ export default function DashboardPage() {
         <DashboardQueryError
           message={
             alertsUnavailable
-              ? 'Alert data is unavailable. Try again.'
-              : 'Alert data refresh failed. Showing the last successful data.'
+              ? 'Detection data is unavailable. Try again.'
+              : 'Detection data refresh failed. Showing the last successful data.'
           }
           onRetry={() => void refetchAlerts()}
         />
       ) : null}
 
-      {/* Recent Alerts Table (Preview) */}
+      {/* Recent detection preview */}
       {alertsUnavailable ? null : <RecentAlertsTable alerts={alerts} isPending={alertsPending} />}
 
       {/* Secondary analytics follow the recent-event preview in the scan order. */}

@@ -127,7 +127,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
     : ''
   const missingRequestDetailsMessage =
     alert?.ingest_source === 'portal_route_bridge'
-      ? 'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+      ? 'This portal request was inspected, but its submitted input is intentionally not saved with this traffic record.'
       : alert?.ingest_source === 'nginx_access_bridge'
         ? 'Access-log events do not retain query strings, so the original input is unavailable here.'
         : payloadSnippet
@@ -263,12 +263,12 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
               >
                 {/* Visually hidden title for screen readers */}
                 <Dialog.Title className="sr-only">
-                  {isActionableAlert ? 'Alert detail' : 'Traffic record detail'} for {alert.prediction}
+                  Traffic details for {alert.prediction}
                 </Dialog.Title>
                 {/* Hidden description to satisfy Radix accessibility warnings */}
                 <Dialog.Description className="sr-only">
                   Details for {alert.prediction} — {formatAlertDateTime(alert.timestamp)}. {isActionableAlert
-                    ? 'Contains summary details, WAF evidence, captured request data, and role-appropriate review controls.'
+                    ? 'Contains request details, WAF evidence, model classification, and role-appropriate detection review controls.'
                     : 'Contains the stored request and classification. Normal traffic has no analyst triage status.'}
                 </Dialog.Description>
 
@@ -276,7 +276,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                 <div className="sticky top-0 z-10 flex items-start justify-between border-b border-surface-border bg-surface-card p-4">
                   <div className="min-w-0 space-y-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
-                      {isActionableAlert ? 'Alert summary' : 'Traffic summary'}
+                      Traffic Details
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={cn(
@@ -328,7 +328,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   <Dialog.Close asChild>
                     <button
                       type="button"
-                      aria-label="Close alert detail"
+                      aria-label="Close Traffic Details"
                       className="ml-2 flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-[var(--color-text-secondary)] transition-colors hover:bg-surface-inset hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
                     >
                       <svg
@@ -356,12 +356,12 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   <div className="grid content-start gap-3">
                   {detailLoading ? (
                     <p role="status" className="rounded-md border border-surface-border bg-surface-inset p-2 text-[11px] text-[var(--color-text-secondary)]">
-                      Loading request investigation details…
+                      Loading additional traffic details…
                     </p>
                   ) : null}
                   {detailError ? (
                     <p role="status" className="rounded-md border border-severity-blocked-border bg-severity-blocked-bg p-2 text-[11px] text-severity-blocked-text">
-                      Request investigation details could not be loaded. The list summary remains available.
+                      Additional traffic details could not be loaded. The record remains available.
                     </p>
                   ) : null}
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">

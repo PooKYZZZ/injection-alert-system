@@ -15,7 +15,7 @@ const path = require('path');
 
   const shots = [
     { name: 'dashboard-full-real.png', url: '/dashboard' },
-    { name: 'dashboard-alerts-real.png', url: '/alerts' },
+    { name: 'dashboard-traffic-history-real.png', url: '/traffic-history' },
     { name: 'dashboard-ml-health-real.png', url: '/ml-health' },
   ];
 

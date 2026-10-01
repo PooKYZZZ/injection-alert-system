@@ -1,17 +1,10 @@
-import { Suspense } from 'react'
-import { FilterBar } from '@/components/alerts/FilterBar'
-import { AlertsPageClientOnly } from '@/components/alerts/AlertsPageClientOnly'
-import { getSession } from '@/lib/auth-session'
+import { redirect } from 'next/navigation'
+import { buildTrafficHistoryHref, type PageSearchParams } from '@/lib/traffic-history-route'
 
-export default async function AlertsPage() {
-  const session = await getSession()
-
-  return (
-    <main className="flex flex-col gap-4" style={{ height: 'auto' }}>
-      <Suspense fallback={null}>
-        <FilterBar />
-      </Suspense>
-      <AlertsPageClientOnly role={session?.user?.role} />
-    </main>
-  )
+export default async function LegacyAlertsPage({
+  searchParams,
+}: {
+  searchParams: Promise<PageSearchParams>
+}) {
+  redirect(buildTrafficHistoryHref(await searchParams))
 }

@@ -1,8 +1,8 @@
-# Alert-state reset runbook
+# Traffic-history reset runbook
 
-This runbook resets the local demonstration alert state while preserving the
+This runbook resets the local demonstration traffic history while preserving the
 application, authentication, model, datasets, training results, and portal
-data. It is intentionally narrow: it removes threat/detection history and
+data. It is intentionally narrow: it removes persisted traffic history and
 resets the in-memory services, but it does not destroy Docker volumes or run a
 full database reset.
 
@@ -10,7 +10,7 @@ full database reset.
 
 | State | Store | Used by | Reset treatment |
 | --- | --- | --- | --- |
-| Detection and alert history | Supabase `traffic_logs` | Alerts, dashboard totals/charts, triage, ML statistics derived from live traffic | Delete all rows |
+| Persisted traffic history | Supabase `traffic_logs` | Traffic History, dashboard totals/charts, actionable-detection triage, ML statistics derived from live traffic | Delete all rows |
 | Reviewer labels | Supabase `traffic_label_reviews` | Triage and retraining evidence | Delete all rows; it is tied to `traffic_logs` |
 | Enforcement recommendations | Supabase `enforcement_recommendations` | Enforcement state and audit views | Delete all rows |
 | Active enforcement windows/grants | Supabase `enforcement_request_windows`, `enforcement_challenge_grants` | LOW/MEDIUM/HIGH enforcement decisions | Delete all rows |
@@ -19,7 +19,7 @@ full database reset.
 | Telegram delivery and dedupe state | Supabase `notification_outbox` rows where `kind = 'threat_detected'` | Notification worker retry/deduplication and delivery status | Delete threat rows only |
 | Authentication/security history | Supabase `security_events`, `auth_*`, and non-threat outbox rows | Login, MFA, account recovery, and account notifications | Preserve |
 | Backend statistics cache/counters | Backend process memory | `/api/stats`, notification-worker status, SSE alert stream | Recreate the backend container |
-| Browser alert/stat cache | Next.js/React Query process memory | Dashboard and Alerts pages | Reload the page; no persisted alert cache was found |
+| Browser traffic/stat cache | Next.js/React Query process memory | Dashboard and Traffic History pages | Reload the page; no persisted traffic cache was found |
 | WAF audit history | `logs/modsecurity/**` JSONL/access-log files | ModSecurity bridge correlation and local proof | Archive, then empty the exact runtime files |
 
 The demo portal's Prisma SQLite database (`E:\AI\land-records-portal\prisma`)
@@ -177,7 +177,7 @@ $resetFiles = Get-ChildItem -LiteralPath 'logs' -File -Recurse
 'LOG_TOTAL_BYTES=' + [int64](@($resetFiles | Measure-Object Length -Sum).Sum)
 ```
 
-Then reload Dashboard and Alerts. The backend APIs must report:
+Then reload Dashboard and Traffic History. The backend APIs must report:
 
 ```text
 total_requests=0
@@ -207,19 +207,19 @@ For the known local stack, the expected chain is:
 
 1. Search Records returns `403` from ModSecurity.
 2. The audit bridge forwards the event to FastAPI.
-3. Alerts contains exactly one `SQL Injection` event with a `BLOCKED` action.
+3. Traffic History contains exactly one `SQL Injection` detection with a `BLOCKED` action.
 4. `notification_outbox` contains one `threat_detected`/`telegram` row with
    `status = 'sent'` after the worker delivers it.
 
 This validation request is deliberately outside the clean baseline. Run the
-reset procedure again afterward if the environment must finish with zero
-alerts.
+reset procedure again afterward if the environment must finish with empty
+Traffic History.
 
 ## Current-run evidence
 
 On 2026-09-06 the procedure was executed against the current Supabase project.
 The post-reset database/API checks reported zero detection rows, zero threat
-outbox rows, empty Alerts, and zero dashboard counters. One controlled
+outbox rows, empty Traffic History, and zero dashboard counters. One controlled
 Search Records SQL-injection request was then verified as `403`, `SQL
 Injection`, `CRITICAL`, `BLOCKED`, and a sent Telegram outbox event. That
 validation event was archived and removed by a second reset, after which the

@@ -58,7 +58,7 @@ async def test_router_delivers_telegram_through_telegram_renderer() -> None:
             "confidence": 0.874,
             "request_method": "GET",
             "route_path": "/records/search",
-            "dashboard_url": "https://app.example.test/alerts/42",
+            "dashboard_url": "https://app.example.test/traffic-history?alert_id=42",
         },
     )
 

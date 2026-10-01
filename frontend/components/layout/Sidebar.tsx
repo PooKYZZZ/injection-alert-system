@@ -122,7 +122,7 @@ function SidebarNavigation({
           !item.requiredPermission ||
           roleHasPermission(role, item.requiredPermission)
       ).map((item) =>
-        item.href === '/alerts' ? (
+        item.href === '/traffic-history' ? (
           <AlertsNavItem
             key={item.href}
             href={item.href}

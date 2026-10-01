@@ -16,7 +16,7 @@ def test_threat_template_allows_only_safe_fields_and_escapes_html() -> None:
             "confidence_tier": "CRITICAL",
             "action_taken": "BLOCKED",
             "route_path": "/records/<script>",
-            "dashboard_url": "https://dashboard.example.test/alerts/42",
+            "dashboard_url": "https://dashboard.example.test/traffic-history?alert_id=42",
         },
         template_version=1,
         idempotency_key="threat/alert-42",
@@ -37,7 +37,7 @@ def test_threat_template_rejects_query_strings_and_unknown_payload_fields() -> N
         "confidence_tier": "HIGH",
         "action_taken": "BLOCKED",
         "route_path": "/records/search?password=secret",
-        "dashboard_url": "https://dashboard.example.test/alerts/42",
+        "dashboard_url": "https://dashboard.example.test/traffic-history?alert_id=42",
         "query_string": "password=secret",
     }
 

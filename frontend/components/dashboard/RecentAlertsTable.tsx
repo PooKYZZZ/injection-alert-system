@@ -17,7 +17,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
   if (isPending) {
     return (
       <section
-        aria-label="Recent alerts table"
+        aria-label="Recent detections table"
         className="min-w-0 rounded-lg border border-surface-border bg-surface-card p-4"
       >
         <LoadingSkeleton rows={4} />
@@ -29,15 +29,15 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
 
   return (
     <section
-      aria-label="Recent alerts table"
+      aria-label="Recent detections table"
       className="min-w-0 rounded-lg border border-surface-border bg-surface-card p-4"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 id="recent-alerts-title" className="text-sm font-semibold text-text-primary">
-          Recent alerts
+        <h2 id="recent-detections-title" className="text-sm font-semibold text-text-primary">
+          Recent detections
         </h2>
-        <Link href="/alerts" className="text-[11px] text-[var(--color-accent-analytic)] hover:underline">
-          View all →
+        <Link href="/traffic-history" className="text-[11px] text-[var(--color-accent-analytic)] hover:underline">
+          View traffic history →
         </Link>
       </div>
       <div className="space-y-3 xl:hidden" data-testid="recent-alerts-mobile">
@@ -45,7 +45,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
           displayAlerts.map((alert) => (
             <article
               key={alert.alert_id}
-              aria-label={`${alert.prediction} alert`}
+              aria-label={`${alert.prediction} detection`}
               className="rounded-md border border-surface-border bg-surface-panel p-3"
             >
               <div className="flex min-w-0 items-start justify-between gap-3">
@@ -79,8 +79,8 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                   {alert.request_method ? `${alert.request_method.toUpperCase()} ` : ''}{alert.request_path ?? '—'}
                 </span>
                 <Link
-                  href={`/alerts?alert_id=${encodeURIComponent(alert.alert_id)}`}
-                  aria-label={`View details for ${alert.alert_id}`}
+                  href={`/traffic-history?alert_id=${encodeURIComponent(alert.alert_id)}`}
+                  aria-label={`View Traffic Details for detection ${alert.alert_id}`}
                   className="shrink-0 rounded px-1.5 py-1 text-xs font-medium text-[var(--color-accent-analytic)] hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85"
                 >
                   View details
@@ -90,18 +90,18 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
           ))
         ) : (
           <p className="rounded-md border border-dashed border-surface-border px-3 py-6 text-center text-xs text-text-muted">
-            No recent alerts in this window.
+            No recent detections in this window.
           </p>
         )}
       </div>
       <div
         data-testid="recent-alerts-scroll"
         role="region"
-        aria-label="Recent alerts data"
+        aria-label="Recent detections data"
         tabIndex={0}
         className="hidden min-w-0 overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card xl:block"
       >
-        <table aria-labelledby="recent-alerts-title" className="min-w-[780px] w-full border-collapse text-xs">
+        <table aria-labelledby="recent-detections-title" className="min-w-[780px] w-full border-collapse text-xs">
           <thead>
             <tr className="text-[var(--color-text-secondary)] text-xs">
               <th scope="col" className="whitespace-nowrap px-2 pb-2 text-left">Triage</th>
@@ -146,8 +146,8 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                   </td>
                   <td className="p-2">
                     <Link
-                      href={`/alerts?alert_id=${encodeURIComponent(alert.alert_id)}`}
-                      aria-label={`View details for ${alert.alert_id}`}
+                      href={`/traffic-history?alert_id=${encodeURIComponent(alert.alert_id)}`}
+                      aria-label={`View Traffic Details for detection ${alert.alert_id}`}
                       className="text-[var(--color-accent-analytic)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85"
                     >
                       View
@@ -158,7 +158,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
             ) : (
               <tr>
                 <td colSpan={8} className="px-2 py-8 text-center text-xs text-text-muted">
-                  No recent alerts in this window.
+                  No recent detections in this window.
                 </td>
               </tr>
             )}

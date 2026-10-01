@@ -63,10 +63,10 @@ test('a committed WAF alert appears through authenticated SSE without reload', a
     return url.pathname === '/api/alerts/stream' && response.status() === 200
   })
 
-  await page.goto('/alerts')
-  await expect(page).toHaveURL(/\/alerts$/)
+  await page.goto('/traffic-history')
+  await expect(page).toHaveURL(/\/traffic-history$/)
   expect(navigationRequestUrls).toEqual([
-    `${process.env.PLAYWRIGHT_BASE_URL}/alerts`,
+    `${process.env.PLAYWRIGHT_BASE_URL}/traffic-history`,
   ])
   const navigationRequestBaseline = navigationRequestUrls.length
 

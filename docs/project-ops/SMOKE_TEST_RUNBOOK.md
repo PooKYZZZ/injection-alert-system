@@ -661,42 +661,42 @@ If the login button appears unresponsive or the dashboard remains on skeletons, 
 **What to check:**
 
 - [ ] Page loads without a blank screen or error overlay.
-- [ ] Six stat cards are visible at the top (High alerts, Blocked, Throttled, Allowed, Avg ML confidence, False Positive Rate).
-- [ ] The timeline chart panel renders (may show "No events" if no data yet, but the panel itself should be visible).
-- [ ] Attack type distribution panel renders.
-- [ ] ML confidence bands panel renders.
-- [ ] Top source IPs panel renders.
-- [ ] Top targeted paths panel renders.
-- [ ] Recent alerts table renders at the bottom.
+- [ ] Four summary cards are visible: Actionable detections, Recorded blocked, Recorded throttled, and Traffic records.
+- [ ] The Recorded actions over time chart and its time-window controls render.
+- [ ] Recent detections renders, and View traffic history opens `/traffic-history`.
+- [ ] Attack and model breakdown can be expanded to review traffic patterns and model context.
 
 If stat cards show `—`, the backend may not be responding. Check `docker compose -f docker-compose.yml -f docker-compose.local.yml logs backend`.
 
 ---
 
-## Step 8 — Verify Alerts Page Loads
+## Step 8 — Verify Traffic History Loads
 
-**URL:** `http://localhost:3000/alerts`
+**URL:** `http://localhost:3000/traffic-history`
 
 **What to check:**
 
-- [ ] Page loads without errors.
+- [ ] The navigation item and page title say Traffic History, and the page loads without errors.
 - [ ] Filter bar is visible at the top.
-- [ ] Alert rows are listed (should show seeded demo data).
-- [ ] Each row shows prediction label, confidence, action taken, and timestamp.
+- [ ] Security detections are listed by default (the local demo should show seeded data).
+- [ ] Include Normal Traffic adds persisted Normal records when available; Normal rows have no triage or selection controls.
+- [ ] Search and filters update the traffic records, and pagination changes the visible page.
+- [ ] Opening a row shows Traffic Details, including its request context, prediction, confidence, and recorded action; WAF evidence appears when available.
+- [ ] Triage controls are available only for actionable security detections and remain hidden for Normal records.
 
 ---
 
 ## Step 8a — Verify Real-Time Alerts Without Refresh
 
-Manual status as of 2026-07-19: PASS. The Alerts page received new persisted
-alerts without refresh, the hosted browser connected to
+Manual status as of 2026-07-19: PASS. The Traffic History page received new persisted
+detections without refresh, the hosted browser connected to
 `https://app.cybertracesystems.com/api/alerts/stream` with
 `Accept: text/event-stream`, and the offline/online catch-up test reconnected
 EventSource, refetched canonical REST state, and displayed the missed alert
 without a page reload. The procedure below remains the repeatable operator
 check.
 
-Keep `http://localhost:3000/alerts` open and do not reload the page. In another
+Keep `http://localhost:3000/traffic-history` open and do not reload the page. In another
 PowerShell window, create a fresh marker through the realistic WAF path:
 
 ```powershell
@@ -752,7 +752,7 @@ authorized operator is intentionally testing the hosted environment.
 
 ### 9a. Find an alert to triage
 
-Go to `http://localhost:3000/alerts` and note the ID of any alert row (e.g., click on it to open the detail view, or copy the ID from the row).
+Go to `http://localhost:3000/traffic-history` and note the ID of a security detection row (e.g., click on it to open Traffic Details, or copy the ID from the row).
 
 ### 9b. PATCH the triage status
 
@@ -779,7 +779,7 @@ Query the same alert to confirm the triage status changed:
 
 ### 9d. Verify in the dashboard UI
 
-Refresh `http://localhost:3000/alerts` and confirm the updated alert reflects the new triage status in the table.
+Refresh `http://localhost:3000/traffic-history` and confirm the updated detection reflects the new triage status in the table.
 
 ---
 
@@ -839,7 +839,7 @@ curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/
 
 # 8. Verify pages
 #    - http://localhost:3000/dashboard
-#    - http://localhost:3000/alerts
+#    - http://localhost:3000/traffic-history
 #    - http://localhost:3000/ml-health
 
 # 9. Triage update (replace <ALERT_ID>)

@@ -108,24 +108,18 @@ function AlertsTableSkeletonRows({ rowCount = 5 }: { rowCount?: number }) {
 
 function EmptyState({
   hasFilters,
-  includeNormal,
   onClearFilters,
 }: {
   hasFilters: boolean
-  includeNormal: boolean
   onClearFilters?: () => void
 }) {
   return (
     <tr>
       <td colSpan={10} className="p-8 text-center">
         <p className="text-sm text-[var(--color-text-secondary)]">
-          {includeNormal
-            ? hasFilters
-              ? 'No traffic records match the current filters.'
-              : 'No traffic records in the current window.'
-            : hasFilters
-              ? 'No alerts match the current filters.'
-              : 'No alerts in the current window.'}
+          {hasFilters
+            ? 'No traffic records match the current filters.'
+            : 'No traffic records in the current window.'}
         </p>
         {hasFilters && onClearFilters && (
           <button
@@ -145,7 +139,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <tr>
       <td colSpan={10} className="p-8 text-center">
-        <p className="text-sm font-medium text-red-400">Unable to load alerts.</p>
+        <p className="text-sm font-medium text-red-400">Unable to load Traffic History.</p>
         <button
           type="button"
           onClick={onRetry}
@@ -311,18 +305,16 @@ function AlertsTableContent({
   return (
     <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
       <p className="border-b border-surface-border px-3 py-2 text-[10px] text-[var(--color-text-secondary)] sm:hidden">
-        Swipe horizontally to view all alert fields.
+        Swipe horizontally to view all traffic record fields.
       </p>
       <div
         role="region"
-        aria-label="Scrollable security alerts table"
+        aria-label="Scrollable Traffic History table"
         className="max-h-none overflow-x-auto overflow-y-clip lg:max-h-[500px] lg:overflow-y-auto"
       >
         <table className="w-full text-sm">
           <caption className="sr-only">
-            {params.include_normal
-              ? 'Traffic records and security alerts matching the current filters'
-              : 'Security alerts matching the current filters'}
+            Traffic records matching the current filters
           </caption>
           <thead className="bg-surface-panel lg:sticky lg:top-0 lg:z-10">
             <tr className="border-b border-surface-border">
@@ -336,7 +328,7 @@ function AlertsTableContent({
                     onChange={(e) => handleSelectAll(e.target.checked)}
                     className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
                     style={{ accentColor: 'var(--color-action-accent)' }}
-                    aria-label="Select all security alerts"
+                    aria-label="Select all security detections"
                   />
                 )}
               </th>
@@ -360,7 +352,6 @@ function AlertsTableContent({
             ) : alerts.length === 0 ? (
               <EmptyState
                 hasFilters={hasFilters}
-                includeNormal={params.include_normal}
                 onClearFilters={handleClearFilters}
               />
             ) : (
@@ -383,7 +374,7 @@ function AlertsTableContent({
                         onChange={() => handleSelectOne(alert.alert_id)}
                         className="h-4 w-4 cursor-pointer rounded border-surface-border bg-surface-card text-action-accent focus:ring-2 focus:ring-action-border focus:ring-offset-0"
                         style={{ accentColor: 'var(--color-action-accent)' }}
-                        aria-label={`Select alert ${alert.alert_id}`}
+                        aria-label={`Select security detection ${alert.alert_id}`}
                       />
                     )}
                   </td>
@@ -455,7 +446,7 @@ function AlertsTableContent({
                     <button
                       type="button"
                       className="flex h-6 w-6 items-center justify-center rounded text-[var(--color-text-secondary)] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-surface-border hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
-                      aria-label={`View details for ${alert.prediction === 'Normal' ? 'traffic record' : 'alert'} ${alert.alert_id}`}
+                      aria-label={`View Traffic Details for ${alert.prediction === 'Normal' ? 'traffic record' : 'security detection'} ${alert.alert_id}`}
                     >
                       <svg
                         width="14"
@@ -503,12 +494,12 @@ function AlertsTableContent({
         <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
           <p className="text-xs text-[var(--color-text-secondary)]">
             {data?.total === 0 ? (
-              params.include_normal ? 'Showing 0 traffic records' : 'Showing 0 alerts'
+              'Showing 0 traffic records'
             ) : data ? (
               <>
                 Showing {(params.page - 1) * params.pageSize + 1}–
                 {Math.min(params.page * params.pageSize, data.total)} of {data.total}{' '}
-                {params.include_normal ? 'traffic records' : 'alerts'}
+                traffic records
               </>
             ) : (
               'Loading...'
@@ -564,7 +555,7 @@ export function AlertsTable({ role, selectedIds, onSelectionChange, onAlertClick
         <div className="overflow-hidden rounded-lg border border-surface-border bg-surface-card">
           <div className="max-h-none overflow-x-auto overflow-y-clip lg:max-h-[500px] lg:overflow-y-auto">
             <table className="w-full text-sm">
-              <caption className="sr-only">Security alerts matching the current filters</caption>
+              <caption className="sr-only">Traffic records matching the current filters</caption>
               <thead className="bg-surface-panel lg:sticky lg:top-0 lg:z-10">
                 <tr className="border-b border-surface-border">
                   <th scope="col" className="w-10 p-3">

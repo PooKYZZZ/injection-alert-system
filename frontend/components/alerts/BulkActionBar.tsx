@@ -56,7 +56,7 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
 
     const summaryMessage =
       failed === 0
-        ? `${succeeded} alert${succeeded !== 1 ? 's' : ''} updated`
+        ? `${succeeded} detection${succeeded !== 1 ? 's' : ''} updated`
         : `${succeeded} updated, ${failed} failed`
 
     setSummary(summaryMessage)
@@ -146,5 +146,4 @@ export function BulkActionBar({ selectedIds, onClearSelection }: BulkActionBarPr
     </AnimatePresence>
   )
 }
-
 

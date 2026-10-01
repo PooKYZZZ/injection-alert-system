@@ -107,7 +107,7 @@ def test_build_threat_notification_excludes_query_and_raw_request_data() -> None
 
     assert notification.safe_payload["route_path"] == "/records/search"
     assert notification.safe_payload["dashboard_url"] == (
-        "https://dashboard.example.test/alerts?alert_id=42"
+        "https://dashboard.example.test/traffic-history?alert_id=42"
     )
     assert "query_string" not in notification.safe_payload
     assert "raw" not in notification.safe_payload
@@ -142,7 +142,7 @@ def test_build_telegram_threat_notification_is_channel_specific_and_short_lived(
         "confidence": 0.961,
         "request_method": "POST",
         "route_path": "/records/search",
-        "dashboard_url": "https://dashboard.example.test/alerts?alert_id=42",
+        "dashboard_url": "https://dashboard.example.test/traffic-history?alert_id=42",
         "display_timezone": "Asia/Manila",
     }
     assert notification.template_version == 2

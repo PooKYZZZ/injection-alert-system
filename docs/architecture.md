@@ -137,7 +137,7 @@ updates, enforcement recommendation lookups, and direct threat notification
 helpers. Consequently, historical `Other Attacks` rows remain available to
 raw/internal review, drift, model-health, and retraining/evaluation paths but
 cannot contribute to current operational alert views, dashboard attack
-aggregates, Alert Summary/detail, realtime alert invalidation, Telegram/email
+aggregates, Traffic Details, realtime alert invalidation, Telegram/email
 threat jobs, or enforcement actions. No schema migration or duplicated scope
 column is required because the decision is derived from the persisted label.
 
@@ -222,7 +222,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
 - The BFF proxies that request to internal FastAPI
   `POST /api/alerts/{alert_id}/label-review`. Label review state is separate
   from triage `action_taken` and is not an enforcement decision.
-- The alerts table and alert drawer preserve read-only alert information for all
+- Traffic History and the Traffic Details panel preserve read-only record information for all
   readable roles, keep triage/action visibility according to the current role,
   and render Training Feedback only for Owners.
 - `frontend/proxy.ts` is the active edge entrypoint for protected dashboard routes, including `/ml-model`.
@@ -239,9 +239,13 @@ families. Initial connection and native EventSource reconnection both emit
 created while disconnected.
 
 Persisted Normal traffic emits a separate `traffic.changed` visibility signal
-that invalidates the same canonical queries. Normal rows appear in the Alerts
-table only for an opted-in `include_normal=true` list request; the traffic
+that invalidates the same canonical queries. Normal rows appear in Traffic
+History only for an opted-in `include_normal=true` list request; the traffic
 signal does not publish `alert.created` or invoke alert notifications.
+
+The user-facing page is `/traffic-history`; the prior `/alerts` page URL redirects
+there while preserving query parameters such as `alert_id` and active filters.
+The `/api/alerts` BFF and backend contracts retain their existing names.
 
 Each backend stream ends after five minutes. Native EventSource reconnection
 therefore re-enters the authenticated BFF and re-runs current account and RBAC

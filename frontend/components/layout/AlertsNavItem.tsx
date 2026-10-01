@@ -21,6 +21,7 @@ export function AlertsNavItem({ href, icon, label, collapsed = false, onNavigate
       icon={icon}
       label={label}
       badge={typeof data?.total === 'number' ? data.total : undefined}
+      badgeLabel="actionable detections"
       collapsed={collapsed}
       onNavigate={onNavigate}
     />

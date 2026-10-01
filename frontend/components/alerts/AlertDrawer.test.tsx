@@ -137,7 +137,7 @@ describe('AlertDrawer', () => {
     useAlertMock.mockReturnValue({ data: undefined, isPending: false, isError: true })
     render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
 
-    expect(screen.getByText(/Request investigation details could not be loaded/)).toBeInTheDocument()
+    expect(screen.getByText(/Additional traffic details could not be loaded/)).toBeInTheDocument()
   })
 
   it('clarifies the saved action label is not the observed WAF or origin response', () => {
@@ -309,7 +309,7 @@ describe('AlertDrawer', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('explains why synchronous portal input is not included in alert details', () => {
+  it('explains why synchronous portal input is not included in Traffic Details', () => {
     render(
       <AlertDrawer
         alert={{
@@ -325,7 +325,7 @@ describe('AlertDrawer', () => {
 
     expect(
       screen.getByText(
-        'This portal request was inspected, but its submitted input is intentionally not saved in alert details.'
+        'This portal request was inspected, but its submitted input is intentionally not saved with this traffic record.'
       )
     ).toBeInTheDocument()
   })
@@ -551,7 +551,7 @@ describe('AlertDrawer', () => {
       />
     )
 
-    expect(screen.getByText('Traffic summary')).toBeInTheDocument()
+    expect(screen.getByText('Traffic Details')).toBeInTheDocument()
     expect(screen.getByText('Traffic record ID').nextElementSibling).toHaveTextContent(
       'traffic-record-18'
     )
