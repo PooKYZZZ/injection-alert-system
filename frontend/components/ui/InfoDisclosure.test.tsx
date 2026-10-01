@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { getInfoPopoverPosition, InfoDisclosure } from './InfoDisclosure'
@@ -58,6 +58,29 @@ describe('InfoDisclosure', () => {
     await user.click(screen.getByRole('button', { name: 'Other control' }))
 
     expect(screen.queryByRole('region', { name: 'Recorded action explanation' })).not.toBeInTheDocument()
+  })
+
+  it('closes a portaled explanation when its containing disclosure collapses', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <details open>
+        <summary>Breakdown</summary>
+        <InfoDisclosure label="Confidence">Confidence description.</InfoDisclosure>
+      </details>
+    )
+    const disclosure = container.querySelector('details')
+    const trigger = screen.getByRole('button', { name: 'About Confidence' })
+
+    await user.click(trigger)
+    expect(screen.getByRole('region', { name: 'Confidence explanation' })).toBeInTheDocument()
+
+    await user.click(screen.getByText('Breakdown'))
+
+    expect(disclosure?.open).toBe(false)
+    await waitFor(() => {
+      expect(screen.queryByRole('region', { name: 'Confidence explanation' })).not.toBeInTheDocument()
+    })
+    expect(trigger).not.toHaveFocus()
   })
 
   it('places and clamps explanations at all viewport edges', () => {
