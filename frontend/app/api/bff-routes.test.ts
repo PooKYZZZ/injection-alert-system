@@ -559,9 +559,12 @@ describe('BFF route handlers', () => {
       new NextRequest('http://localhost:3000/api/alerts')
     )
 
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
-      error: { code: 'UNAUTHORIZED', message: 'Unauthorized.' },
+      error: {
+        code: 'AUTHORIZATION_UNAVAILABLE',
+        message: 'Authorization is temporarily unavailable.',
+      },
     })
     expect(getAlertsMock).not.toHaveBeenCalled()
   })

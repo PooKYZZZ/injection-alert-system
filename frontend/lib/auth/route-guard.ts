@@ -33,15 +33,24 @@ type GuardResult =
   | { ok: true }
   | { ok: false; response: Response }
 
-function denied(status: 401 | 403): GuardResult {
+function denied(status: 401 | 403 | 503): GuardResult {
   const unauthorized = status === 401
+  const unavailable = status === 503
   return {
     ok: false,
     response: NextResponse.json(
       {
         error: {
-          code: unauthorized ? 'UNAUTHORIZED' : 'FORBIDDEN',
-          message: unauthorized ? 'Unauthorized.' : 'Forbidden.',
+          code: unavailable
+            ? 'AUTHORIZATION_UNAVAILABLE'
+            : unauthorized
+              ? 'UNAUTHORIZED'
+              : 'FORBIDDEN',
+          message: unavailable
+            ? 'Authorization is temporarily unavailable.'
+            : unauthorized
+              ? 'Unauthorized.'
+              : 'Forbidden.',
         },
       },
       { status }
@@ -88,7 +97,7 @@ async function requirePermissionAtLevels(
       authzVersion: authzVersion as number,
       reasonCode: 'ACCOUNT_LOOKUP_FAILED',
     })
-    return denied(401)
+    return denied(503)
   }
 
   if (!currentAccount || currentAccount.id !== id.trim().toLowerCase()) {

@@ -88,6 +88,14 @@ MAX_SEQ_LEN=128
 TEMPERATURE=0.596868
 ```
 
+The single-worker Compose backend uses a bounded database pool: five steady
+connections, five burst connections, and ten-second acquisition/connection
+deadlines. These limits reduce unnecessary pressure on the hosted pooler and
+keep database outages from holding requests open for long origin timeouts.
+Authentication account requests through Supabase REST also have an eight-second
+deadline. If the database is unavailable, sign-in and session verification show
+a temporary service error instead of misreporting the problem as invalid credentials.
+
 Generate the two bearer keys independently; never copy one into the other:
 
 ```powershell

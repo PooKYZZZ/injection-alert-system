@@ -36,7 +36,7 @@ export default function LoginPage() {
         setErrorMessage(
           result.code === 'INVALID_CREDENTIALS'
             ? 'Invalid username or password.'
-            : 'Unable to sign in right now'
+            : 'Sign-in service is temporarily unavailable. Please try again shortly.'
         )
       } else {
         router.replace('/dashboard')
