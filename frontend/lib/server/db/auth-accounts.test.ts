@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type QueryResponse = {
   data: unknown
   error: unknown
+  thrown?: unknown
 }
 
 type QueryRecord = {
@@ -42,6 +43,10 @@ function queueResponse(data: unknown, error: unknown = null): void {
   dbHarness.responses.push({ data, error })
 }
 
+function queueThrown(error: unknown): void {
+  dbHarness.responses.push({ data: null, error: null, thrown: error })
+}
+
 beforeEach(() => {
   dbHarness.queries.length = 0
   dbHarness.responses.length = 0
@@ -63,6 +68,9 @@ beforeEach(() => {
                   if (!response) {
                     throw new Error('Missing mocked database response.')
                   }
+                  if (response.thrown !== undefined) {
+                    throw response.thrown
+                  }
                   return response
                 },
               }
@@ -72,6 +80,10 @@ beforeEach(() => {
       }
     },
   })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('auth account database boundary', () => {
@@ -177,8 +189,11 @@ describe('auth account database boundary', () => {
   })
 
   it('throws a controlled failure without exposing database details', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     queueResponse(null, {
       message: 'connection secret and internal Supabase URL',
+      code: 'PGRST003',
+      status: 504,
     })
     const { findAuthAccountByIdentifier } = await import('./auth-accounts')
 
@@ -192,9 +207,41 @@ describe('auth account database boundary', () => {
     expect(message).toBe('Unable to read authentication account.')
     expect(message).not.toContain('Supabase')
     expect(message).not.toContain('secret')
+    const diagnostic = String(log.mock.calls[0][0])
+    expect(JSON.parse(diagnostic)).toMatchObject({
+      event: 'auth.account_lookup_diagnostic',
+      lookup_source: 'login',
+      failure_class: 'data_api_error',
+      upstream_error_code: 'PGRST003',
+      upstream_status: 504,
+    })
+    expect(diagnostic).not.toContain('connection secret')
+    expect(diagnostic).not.toContain('internal Supabase URL')
+    expect(diagnostic).not.toContain('admin@example.test')
+  })
+
+  it('classifies request timeouts without logging the thrown error text', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const timeout = new Error('request timeout with service-role secret')
+    timeout.name = 'TimeoutError'
+    queueThrown(timeout)
+    const { getAccountForSessionFreshness } = await import('./auth-accounts')
+
+    await expect(
+      getAccountForSessionFreshness(loginRow.id)
+    ).rejects.toThrow('Unable to read authentication account.')
+
+    const diagnostic = String(log.mock.calls[0][0])
+    expect(JSON.parse(diagnostic)).toMatchObject({
+      event: 'auth.account_lookup_diagnostic',
+      lookup_source: 'session_freshness',
+      failure_class: 'request_timeout',
+    })
+    expect(diagnostic).not.toContain('service-role secret')
   })
 
   it('converts client environment failure into the same controlled error', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     dbHarness.getClient.mockImplementation(() => {
       throw new Error('SUPABASE_SERVICE_ROLE_KEY contains a raw secret')
     })
@@ -203,6 +250,12 @@ describe('auth account database boundary', () => {
     await expect(
       getAccountForSessionFreshness(loginRow.id)
     ).rejects.toThrow('Unable to read authentication account.')
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: 'auth.account_lookup_diagnostic',
+      lookup_source: 'session_freshness',
+      failure_class: 'client_setup',
+    })
+    expect(String(log.mock.calls[0][0])).not.toContain('raw secret')
   })
 
   it('keeps runtime source free of wildcard selects and script-only imports', () => {
