@@ -401,8 +401,8 @@ export default function DashboardPage() {
                   <h2 id="dashboard-model-context" className="text-sm font-semibold text-text-primary">
                     Model and policy context
                   </h2>
-                  <div className="grid min-w-0 grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-light bg-border-light md:grid-cols-2">
-                    <div className="min-w-0 bg-surface-panel p-4">
+                  <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2">
+                    <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
                       <div className="mb-3 flex items-center gap-2">
                         <h3 className="text-sm font-medium text-text-primary">Confidence by tier</h3>
                         <InfoDisclosure label="Confidence">
@@ -419,16 +419,13 @@ export default function DashboardPage() {
                         unavailable={allConfidenceBands == null}
                       />
                     </div>
-                    <div className="min-w-0 bg-surface-panel p-4">
-                      <h3 className="mb-3 text-sm font-medium text-text-primary">Configured response policy by confidence tier</h3>
+                    <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
+                      <h3 className="mb-3 text-sm font-medium text-text-primary">Policy by confidence tier</h3>
                       <MLEnforcementMap
                         nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
                         isPending={statsPending}
                         unavailable={nonNormalEnforcementBands == null}
                       />
-                      <p className="mt-3 text-xs leading-5 text-text-muted">
-                        These labels show configured policy; they do not confirm a WAF action or HTTP outcome.
-                      </p>
                     </div>
                   </div>
                 </section>

@@ -137,7 +137,7 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByText('Confidence by tier')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Traffic patterns' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Model and policy context' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Configured response policy by confidence tier' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Policy by confidence tier' })).toBeInTheDocument()
     expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
   })
 
