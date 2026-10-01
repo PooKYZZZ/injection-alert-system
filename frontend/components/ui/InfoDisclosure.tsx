@@ -120,6 +120,20 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
     return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [open])
 
+  useEffect(() => {
+    const containingDisclosure = rootRef.current?.closest('details')
+    if (!containingDisclosure) return
+
+    const closeWhenCollapsed = () => {
+      if (containingDisclosure.open) return
+      setOpen(false)
+      setPosition(null)
+    }
+
+    containingDisclosure.addEventListener('toggle', closeWhenCollapsed)
+    return () => containingDisclosure.removeEventListener('toggle', closeWhenCollapsed)
+  }, [])
+
   useBrowserLayoutEffect(() => {
     if (!open) return
 
