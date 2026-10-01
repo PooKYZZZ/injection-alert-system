@@ -11,7 +11,7 @@ vi.mock('@/features/alerts/queries', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/alerts',
+  usePathname: () => '/traffic-history',
 }))
 
 vi.mock('next/link', () => ({
@@ -58,16 +58,17 @@ describe('AlertsNavItem', () => {
       },
     } as unknown as ReturnType<typeof useAlertsFromFilters>)
 
-    render(<AlertsNavItem href="/alerts" icon="notifications" label="Alerts" />)
+    render(<AlertsNavItem href="/traffic-history" icon="history" label="Traffic History" />)
 
     expect(mockedUseAlertsFromFilters).toHaveBeenCalledWith(DEFAULT_ALERT_FILTERS)
 
-    const link = screen.getByRole('link', { name: /alerts/i })
+    const link = screen.getByRole('link', { name: /traffic history/i })
     expect(link).toHaveClass('border-accent-action')
     expect(link).toHaveAttribute('aria-current', 'page')
 
     const badge = screen.getByText('17')
     expect(badge).toHaveClass('bg-severity-high-accent')
     expect(badge).not.toHaveClass('bg-accent-action')
+    expect(screen.getByLabelText('17 actionable detections')).toBeInTheDocument()
   })
 })

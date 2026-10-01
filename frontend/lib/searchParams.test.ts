@@ -8,7 +8,7 @@ import {
 
 describe('getCurrentSearchParams', () => {
   it('reads the browser URL at event time', () => {
-    window.history.replaceState({}, '', '/alerts?window=7d&page=2')
+    window.history.replaceState({}, '', '/traffic-history?window=7d&page=2')
 
     expect(getCurrentSearchParams(new URLSearchParams('window=1h')).toString()).toBe(
       'window=7d&page=2'

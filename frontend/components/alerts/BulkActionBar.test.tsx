@@ -43,7 +43,7 @@ describe('BulkActionBar', () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'Resolve' })[0])
       await Promise.resolve()
     })
-    expect(screen.getByText('1 alert updated')).toBeInTheDocument()
+    expect(screen.getByText('1 detection updated')).toBeInTheDocument()
     expect(vi.getTimerCount()).toBe(1)
 
     unmount()
@@ -62,13 +62,13 @@ describe('BulkActionBar', () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'Resolve' })[0])
       await Promise.resolve()
     })
-    expect(screen.getByText('1 alert updated')).toBeInTheDocument()
+    expect(screen.getByText('1 detection updated')).toBeInTheDocument()
 
     await act(async () => {
       vi.advanceTimersByTime(3000)
       await Promise.resolve()
     })
-    expect(screen.queryByText('1 alert updated')).not.toBeInTheDocument()
+    expect(screen.queryByText('1 detection updated')).not.toBeInTheDocument()
   })
 
   it('uses set1 authored selection accent and semantic action affordances', () => {

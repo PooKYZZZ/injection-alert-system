@@ -6,7 +6,7 @@ import { useTheme } from '@/app/providers'
 import { cn } from '@/lib/utils'
 import { getCurrentSearchParams } from '@/lib/searchParams'
 
-const DEFAULT_SEARCH_PLACEHOLDER = 'Search alerts'
+const DEFAULT_SEARCH_PLACEHOLDER = 'Search traffic history'
 
 interface TopBarProps {
   /** The active dashboard section shown as lightweight utility context. */
@@ -28,7 +28,7 @@ function TopBarContent({
   title,
   showSearch = true,
   searchPlaceholder = DEFAULT_SEARCH_PLACEHOLDER,
-  searchPath = '/alerts',
+  searchPath = '/traffic-history',
 }: TopBarProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -154,6 +154,8 @@ export function DashboardTopBar() {
   const routeSegment = pathname.split('/').filter(Boolean).at(-1) ?? 'dashboard'
   const routeTitles: Record<string, string> = {
     dashboard: 'Dashboard',
+    alerts: 'Traffic History',
+    'traffic-history': 'Traffic History',
     'ml-health': 'Model Health',
     'ml-model': 'Model Lifecycle',
     mfa: 'MFA',
@@ -167,9 +169,13 @@ export function DashboardTopBar() {
   return (
     <TopBar
       title={fallbackTitle}
-      showSearch={pathname === '/dashboard' || pathname.startsWith('/alerts')}
+      showSearch={
+        pathname === '/dashboard' ||
+        pathname.startsWith('/traffic-history') ||
+        pathname.startsWith('/alerts')
+      }
       searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
-      searchPath="/alerts"
+      searchPath="/traffic-history"
     />
   )
 }

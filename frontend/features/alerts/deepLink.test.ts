@@ -25,8 +25,8 @@ describe('alert deep links', () => {
   })
 
   it('removes only alert_id while preserving other navigation state', () => {
-    expect(removeAlertDeepLink('/alerts?confidence_tier=HIGH&page=2&alert_id=10591')).toBe(
-      '/alerts?confidence_tier=HIGH&page=2'
+    expect(removeAlertDeepLink('/traffic-history?confidence_tier=HIGH&page=2&alert_id=10591')).toBe(
+      '/traffic-history?confidence_tier=HIGH&page=2'
     )
   })
 })

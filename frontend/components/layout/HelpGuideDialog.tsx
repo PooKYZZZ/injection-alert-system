@@ -25,7 +25,7 @@ export function HelpGuideDialog({ open, onOpenChange, returnFocusRef }: HelpGuid
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-action">CyberTrace guide</p>
               <Dialog.Title className="mt-1 text-xl font-semibold text-text-primary">Help &amp; Guide</Dialog.Title>
               <Dialog.Description className="mt-1 text-sm leading-5 text-text-secondary">
-                A quick guide to the dashboard, alerts, and the evidence shown here.
+                A quick guide to Dashboard, Traffic History, and the evidence shown here.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -43,19 +43,19 @@ export function HelpGuideDialog({ open, onOpenChange, returnFocusRef }: HelpGuid
             <section aria-labelledby="help-start-heading">
               <h2 id="help-start-heading" className="text-sm font-semibold text-text-primary">Getting started</h2>
               <p className="mt-1 text-sm leading-5 text-text-secondary">
-                Start on Dashboard for a short overview of recent activity. Open Alerts to search, filter, investigate, and triage individual records.
+                Start on Dashboard for an overview of recent activity. Open Traffic History to search and filter past request records. Security detections can also be investigated and triaged there.
               </p>
             </section>
 
             <section aria-labelledby="help-dashboard-heading">
               <h2 id="help-dashboard-heading" className="text-sm font-semibold text-text-primary">Dashboard</h2>
               <p className="mt-1 text-sm leading-5 text-text-secondary">
-                Summary cards and the activity chart use the selected time window. Traffic records count stored records; recorded action counts describe labels saved with those records. Select an item in Recent alerts or choose View all alerts to investigate.
+                Summary cards and the activity chart use the selected time window. Traffic records count stored records; recorded action counts describe labels saved with those records. Open a recent detection or choose View traffic history to investigate a record.
               </p>
             </section>
 
             <section aria-labelledby="help-review-heading">
-              <h2 id="help-review-heading" className="text-sm font-semibold text-text-primary">Review an alert</h2>
+              <h2 id="help-review-heading" className="text-sm font-semibold text-text-primary">Review a detection</h2>
               <p className="mt-1 text-sm leading-5 text-text-secondary">
                 Open a row to read its request details, model result, related WAF evidence, and available triage controls. If your role allows it, start a review and record a triage outcome.
               </p>

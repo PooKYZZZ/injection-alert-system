@@ -81,9 +81,9 @@ export function AlertsPageClient({ role }: { role?: unknown }) {
 
   const deepLinkMessage =
     deepLink.kind === 'invalid'
-      ? 'The requested alert link is invalid.'
+      ? 'The requested traffic record link is invalid.'
       : deepLink.kind === 'valid' && deepLinkFetchError && !selectedAlert
-        ? 'The requested alert is unavailable.'
+        ? 'The requested traffic record is unavailable.'
         : null
 
   return (

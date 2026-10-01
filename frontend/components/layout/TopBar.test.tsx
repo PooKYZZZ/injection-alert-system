@@ -33,7 +33,7 @@ describe('TopBar', () => {
 
     expect(screen.getByRole('banner')).toHaveClass('min-h-14')
     expect(screen.getByRole('textbox')).toHaveClass('w-full', 'min-w-0')
-    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search alerts')
+    expect(screen.getByRole('textbox')).toHaveAttribute('aria-label', 'Search traffic history')
   })
 
   it('uses a compact theme control label that cannot overlap search on narrow screens', () => {
@@ -49,6 +49,14 @@ describe('TopBar', () => {
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.queryByText('Protected workspace')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('shows the Traffic History title and search on its canonical route', () => {
+    pathname = '/traffic-history'
+    render(<DashboardTopBar />)
+
+    expect(screen.getByText('Traffic History')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Search traffic history' })).toBeInTheDocument()
   })
 
   it('removes alert search from account administration while retaining section context', () => {
@@ -72,7 +80,7 @@ describe('TopBar', () => {
     expect(screen.getByText('Model Lifecycle')).toBeInTheDocument()
   })
 
-  it('routes Dashboard searches to the Alerts page', () => {
+  it('routes Dashboard searches to Traffic History', () => {
     vi.useFakeTimers()
     render(<DashboardTopBar />)
 
@@ -81,7 +89,7 @@ describe('TopBar', () => {
     })
     vi.advanceTimersByTime(300)
 
-    expect(mockPush).toHaveBeenCalledWith('/alerts?search=SQL+Injection', {
+    expect(mockPush).toHaveBeenCalledWith('/traffic-history?search=SQL+Injection', {
       scroll: false,
     })
   })
@@ -89,7 +97,7 @@ describe('TopBar', () => {
   it('removes static alert counts from the global utility bar', () => {
     render(
       <TopBar
-        title="Alerts"
+        title="Traffic History"
         showSearch
         showConfidenceTierControls={false}
         showNewIndicator

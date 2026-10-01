@@ -45,6 +45,13 @@ describe('Sidebar', () => {
     expect(screen.getByText('SOC Analyst')).toBeInTheDocument()
   })
 
+  it('labels the record review destination Traffic History', () => {
+    render(<Sidebar />)
+
+    const navigation = screen.getByRole('navigation', { name: 'Dashboard navigation' })
+    expect(within(navigation).getByRole('button', { name: 'Traffic History' })).toBeInTheDocument()
+  })
+
   it('renders provided identity values', () => {
     render(<Sidebar displayName="SOC Analyst" secondaryLabel="soc@example.com" />)
     expect(screen.getByText('SOC Analyst')).toBeInTheDocument()

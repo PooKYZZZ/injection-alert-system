@@ -255,7 +255,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
           id="include-normal-traffic-help"
           className="text-[10px] text-[var(--color-text-secondary)]"
         >
-          Normal traffic has no triage status; selecting a triage status shows matching security alerts only.
+          Normal traffic has no triage status; selecting a triage status limits results to matching security detections.
         </p>
       )}
     </motion.div>

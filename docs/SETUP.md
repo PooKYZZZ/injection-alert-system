@@ -408,11 +408,12 @@ Telegram is a secondary notification channel for persisted in-scope attack
 alerts. `Normal`, `Other Attacks`, and unknown labels are not eligible.
 Configure server-only values:
 
-Notification links use the dashboard-neutral alert review contract
-`/alerts?alert_id=<id>`. The existing Alerts workspace validates the identifier,
-fetches detail through the authenticated Next.js BFF, and opens the existing
-drawer without implicitly changing triage state. Closing the drawer removes
-only `alert_id` while preserving other alert filters.
+Notification links open Traffic History at `/traffic-history?alert_id=<id>`.
+The page validates the identifier, fetches detection details through the
+authenticated Next.js BFF, and opens Traffic Details without implicitly
+changing triage state. Closing the drawer removes only `alert_id` while
+preserving other traffic-history filters. The previous `/alerts` page URL
+redirects to this canonical route and preserves its query parameters.
 
 ```dotenv
 THREAT_TELEGRAM_ENABLED=false
@@ -592,7 +593,7 @@ So the current local dashboard can run fully against the backend, with optional 
 - `/login` is the public sign-in page.
 - `/` redirects to `/login` or `/dashboard` based on session state.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
-- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/ml-health`, and `/ml-model`.
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/traffic-history`, `/ml-health`, and `/ml-model`; `/alerts` is retained as a protected compatibility redirect.
 - All protected BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied. The ML handlers require Owner-only permissions.
 
 ## 5. What This Setup Does Not Cover

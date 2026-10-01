@@ -10,7 +10,7 @@ const mockedUseAlert = vi.mocked(useAlert)
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => mockedUseSearchParams(),
-  usePathname: () => '/alerts',
+  usePathname: () => '/traffic-history',
   useRouter: () => ({ replace: mockReplace }),
 }))
 
@@ -157,7 +157,7 @@ describe('AlertsPageClient deep links', () => {
     mockedUseSearchParams.mockReturnValue(new URLSearchParams('alert_id=0&alert_id=2'))
     render(<AlertsPageClient role="ANALYST" />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('The requested alert link is invalid.')
+    expect(screen.getByRole('status')).toHaveTextContent('The requested traffic record link is invalid.')
     expect(mockedUseAlert).toHaveBeenCalledWith(null)
   })
 })

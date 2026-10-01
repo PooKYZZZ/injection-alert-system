@@ -9,7 +9,7 @@ type NavItem = {
 
 export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
-  { label: 'Alerts', href: '/alerts', icon: 'notifications' },
+  { label: 'Traffic History', href: '/traffic-history', icon: 'history' },
   {
     label: 'Model Health',
     href: '/ml-health',

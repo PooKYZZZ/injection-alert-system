@@ -8,7 +8,7 @@ const mockReplace = vi.fn()
 let mockSearchParams = new URLSearchParams()
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/alerts',
+  usePathname: () => '/traffic-history',
   useRouter: () => ({ replace: mockReplace }),
   useSearchParams: () => mockSearchParams,
 }))
@@ -20,14 +20,14 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState({}, '', '/alerts')
+  window.history.replaceState({}, '', '/traffic-history')
 })
 
 describe('FilterBar', () => {
   it('exposes named filter controls and updates the URL without losing existing params', async () => {
     const user = userEvent.setup()
     mockSearchParams = new URLSearchParams('search=sql&page=3')
-    window.history.replaceState({}, '', '/alerts?search=sql&page=3')
+    window.history.replaceState({}, '', '/traffic-history?search=sql&page=3')
 
     render(<FilterBar filteredCount={40} />)
 
@@ -36,7 +36,7 @@ describe('FilterBar', () => {
     await user.selectOptions(screen.getByLabelText('Time Window'), '24h')
 
     expect(mockReplace).toHaveBeenCalledWith(
-      '/alerts?search=sql&page=1&window=24h',
+      '/traffic-history?search=sql&page=1&window=24h',
       { scroll: false }
     )
   })
@@ -59,21 +59,21 @@ describe('FilterBar', () => {
   it('enables Normal traffic while preserving other filters and resetting pagination', async () => {
     const user = userEvent.setup()
     mockSearchParams = new URLSearchParams('search=demo&page=3&action=ALLOWED')
-    window.history.replaceState({}, '', '/alerts?search=demo&page=3&action=ALLOWED')
+    window.history.replaceState({}, '', '/traffic-history?search=demo&page=3&action=ALLOWED')
 
     const view = render(<FilterBar />)
 
     await user.click(screen.getByRole('checkbox', { name: 'Include Normal Traffic' }))
 
     expect(mockReplace).toHaveBeenCalledWith(
-      '/alerts?search=demo&page=1&action=ALLOWED&include_normal=true',
+      '/traffic-history?search=demo&page=1&action=ALLOWED&include_normal=true',
       { scroll: false }
     )
     mockSearchParams = new URLSearchParams('search=demo&page=1&action=ALLOWED&include_normal=true')
     window.history.replaceState(
       {},
       '',
-      '/alerts?search=demo&page=1&action=ALLOWED&include_normal=true'
+      '/traffic-history?search=demo&page=1&action=ALLOWED&include_normal=true'
     )
     view.rerender(<FilterBar />)
     expect(
@@ -84,14 +84,14 @@ describe('FilterBar', () => {
   it('disables Normal traffic without clearing other selected filters', async () => {
     const user = userEvent.setup()
     mockSearchParams = new URLSearchParams('include_normal=true&page=4&triage_status=new')
-    window.history.replaceState({}, '', '/alerts?include_normal=true&page=4&triage_status=new')
+    window.history.replaceState({}, '', '/traffic-history?include_normal=true&page=4&triage_status=new')
 
     render(<FilterBar />)
 
     await user.click(screen.getByRole('checkbox', { name: 'Include Normal Traffic' }))
 
     expect(mockReplace).toHaveBeenCalledWith(
-      '/alerts?page=1&triage_status=new',
+      '/traffic-history?page=1&triage_status=new',
       { scroll: false }
     )
   })
@@ -99,13 +99,13 @@ describe('FilterBar', () => {
   it('clears the Normal traffic scope with Clear all', async () => {
     const user = userEvent.setup()
     mockSearchParams = new URLSearchParams('include_normal=true&window=24h')
-    window.history.replaceState({}, '', '/alerts?include_normal=true&window=24h')
+    window.history.replaceState({}, '', '/traffic-history?include_normal=true&window=24h')
 
     render(<FilterBar />)
 
     await user.click(screen.getByRole('button', { name: 'Clear all' }))
 
-    expect(mockReplace).toHaveBeenCalledWith('/alerts?page=1', { scroll: false })
+    expect(mockReplace).toHaveBeenCalledWith('/traffic-history?page=1', { scroll: false })
   })
 
   it('uses operator-friendly labels while keeping canonical filter values', () => {

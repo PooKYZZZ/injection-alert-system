@@ -28,16 +28,16 @@ describe('RecentAlertsTable', () => {
   it('renders a read-only preview without selection controls', () => {
     const { container } = render(<RecentAlertsTable alerts={[sampleAlert]} />)
 
-    expect(screen.getByText('Recent alerts')).toBeInTheDocument()
-    const viewAllLink = screen.getByRole('link', { name: /View all/i })
+    expect(screen.getByText('Recent detections')).toBeInTheDocument()
+    const viewAllLink = screen.getByRole('link', { name: /View traffic history/i })
 
-    expect(viewAllLink).toHaveAttribute('href', '/alerts')
+    expect(viewAllLink).toHaveAttribute('href', '/traffic-history')
     expect(viewAllLink).toHaveClass('text-[var(--color-accent-analytic)]')
     expect(screen.getAllByText('SQL Injection')).toHaveLength(2)
     expect(screen.getByTestId('recent-alerts-mobile')).toHaveTextContent('GET /search')
-    expect(screen.getAllByRole('link', { name: 'View details for alert-1' })).toHaveLength(2)
-    expect(screen.getAllByRole('link', { name: 'View details for alert-1' })[0]).toHaveAttribute(
-      'href', '/alerts?alert_id=alert-1'
+    expect(screen.getAllByRole('link', { name: 'View Traffic Details for detection alert-1' })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: 'View Traffic Details for detection alert-1' })[0]).toHaveAttribute(
+      'href', '/traffic-history?alert_id=alert-1'
     )
     const expectedTimestamp = formatAlertDateTime(sampleAlert.timestamp)
     expect(screen.getAllByText(expectedTimestamp)).toHaveLength(2)
@@ -58,11 +58,11 @@ describe('RecentAlertsTable', () => {
   it('keeps the empty table state understandable and horizontally contained', () => {
     const { container } = render(<RecentAlertsTable alerts={[]} />)
 
-    expect(screen.getByRole('region', { name: 'Recent alerts table' })).toBeInTheDocument()
-    const scrollRegion = screen.getByRole('region', { name: 'Recent alerts data' })
+    expect(screen.getByRole('region', { name: 'Recent detections table' })).toBeInTheDocument()
+    const scrollRegion = screen.getByRole('region', { name: 'Recent detections data' })
     expect(scrollRegion).toHaveAttribute('tabindex', '0')
-    expect(screen.getByRole('table', { name: 'Recent alerts' })).toBeInTheDocument()
-    expect(screen.getAllByText('No recent alerts in this window.')).toHaveLength(2)
+    expect(screen.getByRole('table', { name: 'Recent detections' })).toBeInTheDocument()
+    expect(screen.getAllByText('No recent detections in this window.')).toHaveLength(2)
     expect(container.querySelector('[data-testid="recent-alerts-scroll"]')).not.toBeNull()
     expect(screen.getAllByRole('columnheader')).toHaveLength(8)
     expect(screen.getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col')

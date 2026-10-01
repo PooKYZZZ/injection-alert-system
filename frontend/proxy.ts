@@ -77,6 +77,6 @@ export default async function middleware(
 
 export const config = {
   matcher: [
-    '/(dashboard|alerts|ml-health|ml-model|user-management)/:path*',
+    '/(dashboard|alerts|traffic-history|ml-health|ml-model|user-management)/:path*',
   ],
 }

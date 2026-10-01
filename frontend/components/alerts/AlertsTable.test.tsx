@@ -42,7 +42,7 @@ function buildQueryResult() {
 }
 
 beforeEach(() => {
-  mockedUsePathname.mockReturnValue('/alerts')
+  mockedUsePathname.mockReturnValue('/traffic-history')
   mockedUseRouter.mockReturnValue({
     back: vi.fn(),
     forward: vi.fn(),
@@ -88,9 +88,9 @@ describe('AlertsTable', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Showing 0 alerts')).toBeInTheDocument()
+      expect(screen.getByText('Showing 0 traffic records')).toBeInTheDocument()
     })
-    expect(screen.queryByText('Showing 1–0 of 0 alerts')).not.toBeInTheDocument()
+    expect(screen.queryByText('Showing 1–0 of 0 traffic records')).not.toBeInTheDocument()
   })
 
   it('normalizes ReadonlyURLSearchParams before requesting alerts', async () => {
@@ -171,7 +171,7 @@ describe('AlertsTable', () => {
       />
     )
 
-    expect(await screen.findByText('Swipe horizontally to view all alert fields.')).toBeInTheDocument()
+    expect(await screen.findByText('Swipe horizontally to view all traffic record fields.')).toBeInTheDocument()
   })
 
   it('does not expose triage sorting when the API does not support it', async () => {
@@ -305,7 +305,7 @@ describe('AlertsTable', () => {
       />
     )
 
-    const rowLabel = await screen.findByLabelText('Select alert 42')
+    const rowLabel = await screen.findByLabelText('Select security detection 42')
     rowLabel.closest('tr')?.click()
 
     expect(mockTriageMutate).not.toHaveBeenCalled()
@@ -353,7 +353,7 @@ describe('AlertsTable', () => {
       />
     )
 
-    const rowLabel = await screen.findByLabelText('Select alert 77')
+    const rowLabel = await screen.findByLabelText('Select security detection 77')
     rowLabel.closest('tr')?.click()
 
     expect(mockTriageMutate).not.toHaveBeenCalled()
@@ -406,8 +406,8 @@ describe('AlertsTable', () => {
       />
     )
 
-    ;(await screen.findByLabelText('Select alert first')).closest('tr')?.click()
-    screen.getByLabelText('Select alert second').closest('tr')?.click()
+    ;(await screen.findByLabelText('Select security detection first')).closest('tr')?.click()
+    screen.getByLabelText('Select security detection second').closest('tr')?.click()
 
     expect(onAlertClick).toHaveBeenCalledTimes(2)
     expect(onAlertClick).toHaveBeenLastCalledWith(
@@ -499,12 +499,12 @@ describe('AlertsTable', () => {
       )
 
       const detailsButton = await screen.findByRole('button', {
-        name: 'View details for alert role-check',
+        name: 'View Traffic Details for security detection role-check',
       })
       expect(detailsButton).toHaveClass('focus-visible:opacity-100')
       expect(detailsButton.closest('td')).not.toHaveClass('opacity-0')
       const selectionControl = screen.queryByRole('checkbox', {
-        name: 'Select alert role-check',
+        name: 'Select security detection role-check',
       })
 
       expect(Boolean(selectionControl)).toBe(canTriage)
@@ -555,7 +555,7 @@ describe('AlertsTable', () => {
     expect(await screen.findByText('Normal')).toHaveClass('rounded-full')
     expect(screen.getByLabelText('Not triaged')).toBeInTheDocument()
     expect(screen.getByText('Allowed')).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: 'Select alert traffic-18' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Select security detection traffic-18' })).not.toBeInTheDocument()
   })
 
   it('selects only actionable alerts when Normal traffic is included', async () => {
@@ -608,7 +608,7 @@ describe('AlertsTable', () => {
       />
     )
 
-    await user.click(await screen.findByRole('checkbox', { name: 'Select all security alerts' }))
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all security detections' }))
 
     expect(onSelectionChange).toHaveBeenCalledWith(['attack-18'])
   })

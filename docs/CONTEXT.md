@@ -218,9 +218,9 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - Authentication is implemented with Auth.js credentials auth
 - Supabase `auth_accounts` login, approved Argon2id PHC parameter verification, and DB-backed role/`authz_version`/`mfa_required` freshness checks are implemented in repo; hosted account invitation, setup, password, TOTP, and MFA login flows are verified
 - Client requirements call for secure login, RBAC, strong account security, and 2FA; the DB-backed Auth.js flow includes encrypted TOTP enrollment, replay-safe MFA completion, recovery-only claims, and password recovery behind fail-closed server-side availability flags
-- Alerts UI role affordances are implemented in the dashboard: viewers are read-only, analysts keep triage controls, admins keep the full alert/account control set, and Owner is the only role with ML Health, ML Deployment, and Training Feedback access
+- Traffic History role affordances are implemented in the dashboard: viewers are read-only, analysts keep detection triage controls, admins keep the full detection/account control set, and Owner is the only role with ML Health, ML Deployment, and Training Feedback access
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
-- `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/ml-health`, and `/ml-model`
+- `frontend/proxy.ts` additionally matches `/dashboard`, `/traffic-history`, the protected `/alerts` compatibility redirect, `/ml-health`, and `/ml-model`
 - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`
 - Current BFF status in the working tree:
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client

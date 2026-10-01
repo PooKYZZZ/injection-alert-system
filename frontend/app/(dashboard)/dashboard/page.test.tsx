@@ -276,7 +276,7 @@ describe('DashboardPage metric definitions', () => {
 
     render(<DashboardPage />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Alert data is unavailable')
+    expect(screen.getByRole('alert')).toHaveTextContent('Detection data is unavailable')
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('1/2/3/4')
     expect(screen.queryByTestId('recent-alerts-table')).not.toBeInTheDocument()
