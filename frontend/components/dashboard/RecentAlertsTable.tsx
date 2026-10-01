@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
 import { ActionLabel } from '@/components/ui/ActionLabel'
-import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
+import { ConfidenceSummary } from '@/components/ui/ConfidenceSummary'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import type { Alert } from '@/features/alerts/types'
 import { formatAlertDateTime } from '@/lib/date-time'
@@ -55,10 +55,9 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                 <TriageBadge triage_status={alert.triage_status ?? null} />
               </div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <ConfidenceBar
+                <ConfidenceSummary
                   confidence={alert.confidence}
                   confidenceTier={alert.confidence_level}
-                  prediction={alert.prediction}
                 />
                 <ActionLabel
                   action={alert.action_taken}
@@ -132,10 +131,9 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
                   <td className="p-2 font-mono text-[var(--color-text-secondary)]">{alert.request_path ?? '—'}</td>
                   <td className="p-2 text-[var(--color-text-primary)]">{alert.prediction}</td>
                   <td className="p-2">
-                    <ConfidenceBar
+                    <ConfidenceSummary
                       confidence={alert.confidence}
                       confidenceTier={alert.confidence_level}
-                      prediction={alert.prediction}
                     />
                   </td>
                   <td className="p-2">

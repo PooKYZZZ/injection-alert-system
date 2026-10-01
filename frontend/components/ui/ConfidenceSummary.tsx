@@ -1,22 +1,18 @@
 'use client'
 
 import { getConfidenceLevel } from '@/lib/utils'
-import type { AlertConfidenceTier, AlertPrediction } from '@/features/alerts/contract'
+import type { AlertConfidenceTier } from '@/features/alerts/contract'
 import { formatCompactConfidencePercent, formatConfidenceLabel } from '@/lib/date-time'
 
-interface ConfidenceBarProps {
+interface ConfidenceSummaryProps {
   confidence: number
   confidenceTier?: AlertConfidenceTier
-  prediction: AlertPrediction
 }
 
-export function ConfidenceBar({
+export function ConfidenceSummary({
   confidence,
   confidenceTier,
-  prediction: _prediction,
-}: ConfidenceBarProps) {
-  const normalizedConfidence = Math.min(Math.max(confidence, 0), 1)
-  const value = normalizedConfidence * 100
+}: ConfidenceSummaryProps) {
   const tier = confidenceTier ?? getConfidenceLevel(confidence)
   const accessibleLabel = formatConfidenceLabel(confidence, tier)
 
@@ -24,7 +20,7 @@ export function ConfidenceBar({
     <div
       role="group"
       aria-label={`Confidence ${accessibleLabel}`}
-      className="flex items-center gap-2"
+      className="inline-flex min-w-0 items-center"
     >
       <span className="inline-flex items-center gap-1 font-mono text-xs leading-5 tabular-nums">
         <span className="text-text-primary">{formatCompactConfidencePercent(confidence)}</span>
@@ -33,12 +29,6 @@ export function ConfidenceBar({
           {tier}
         </span>
       </span>
-      <div aria-hidden="true" className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-surface-inset">
-        <div
-          className="h-full bg-accent-analytic"
-          style={{ width: `${value}%` }}
-        />
-      </div>
     </div>
   )
 }
