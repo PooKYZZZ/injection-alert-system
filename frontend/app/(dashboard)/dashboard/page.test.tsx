@@ -23,7 +23,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams,
 }))
 vi.mock('next/dynamic', () => ({
-  default: () => () => <div data-testid="timeline-chart" />,
+  default: () => () => <div role="img" aria-label="Recorded actions visualization" data-testid="timeline-chart" />,
 }))
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -123,6 +123,17 @@ describe('DashboardPage metric definitions', () => {
 
     const overviewSections = [...container.querySelectorAll('[data-testid="recent-alerts-table"], details')]
     expect(overviewSections.map((section) => section.tagName)).toEqual(['DIV', 'DETAILS'])
+  })
+
+  it('keeps the timeline sync note outside the plotted visualization', () => {
+    const { container } = render(<DashboardPage />)
+    const note = screen.getByText('Counts may differ briefly while activity updates.')
+    const chart = screen.getByRole('img', { name: 'Recorded actions visualization' })
+
+    expect(note.closest('[role="status"]')).toBeInTheDocument()
+    expect(chart).not.toContainElement(note)
+    expect(note.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(container.querySelector('.absolute.inset-0.flex.flex-col')).not.toBeInTheDocument()
   })
 
   it('explains persisted counts and keeps secondary analytics reachable', async () => {
