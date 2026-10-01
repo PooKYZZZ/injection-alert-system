@@ -302,6 +302,11 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : null}
+        {hasWindowDataMismatch ? (
+          <p role="status" className="mb-2 text-xs leading-5 text-text-muted">
+            Counts may differ briefly while activity updates.
+          </p>
+        ) : null}
         {statsUnavailable ? (
           <div className="flex h-[140px] items-center justify-center">
             <p className="text-[11px] text-[var(--color-text-secondary)]">Timeline unavailable</p>
@@ -320,11 +325,6 @@ export default function DashboardPage() {
                 timeWindow={timeWindow}
                 isPending={statsPending}
                 hasEvents={hasTimelineEvents}
-                consistencyWarning={
-                  hasWindowDataMismatch
-                    ? 'Window totals are being recalculated. Timeline data may be briefly out of sync.'
-                    : null
-                }
               />
             </motion.div>
           </AnimatePresence>

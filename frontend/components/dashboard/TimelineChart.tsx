@@ -22,7 +22,6 @@ interface TimelineChartProps {
   timeWindow?: TimeWindow
   isPending?: boolean
   hasEvents?: boolean
-  consistencyWarning?: string | null
 }
 
 interface TooltipEntry {
@@ -166,7 +165,6 @@ export function TimelineChart({
   timeWindow = '24h',
   isPending = false,
   hasEvents,
-  consistencyWarning,
 }: TimelineChartProps) {
   const processedData = useMemo(() => {
     if (!buckets || buckets.length === 0) return []
@@ -265,7 +263,6 @@ export function TimelineChart({
   const inferredHasEvents = processedData.some(
     (point) => (point.allowed ?? 0) + (point.blocked ?? 0) + (point.throttled ?? 0) > 0
   )
-  const hasWindowDataMismatch = Boolean(consistencyWarning)
   const isEmpty = hasEvents != null ? !hasEvents : !inferredHasEvents
   const chartMargin =
     timeWindow === '7d'
@@ -448,12 +445,7 @@ export function TimelineChart({
         </ComposedChart>
         </ResponsiveContainer>
       ) : null}
-      {hasWindowDataMismatch ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <p className="text-[11px] text-[var(--color-text-secondary)]">Data sync in progress</p>
-          <p className="text-[10px] text-[var(--color-text-muted)]">{consistencyWarning}</p>
-        </div>
-      ) : isEmpty ? (
+      {isEmpty ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-text-secondary">No events in this window</p>
         </div>
