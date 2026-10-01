@@ -31,6 +31,21 @@ const FRESHNESS_FIELDS = 'id,role,authz_version,mfa_required,disabled_at'
 const LOOKUP_FAILURE_MESSAGE = 'Unable to read authentication account.'
 const MAX_IDENTIFIER_LENGTH = 320
 
+type AuthAccountLookupSource = 'login' | 'session_freshness'
+type AuthAccountLookupFailureClass =
+  | 'client_setup'
+  | 'request_timeout'
+  | 'transport_error'
+  | 'data_api_error'
+  | 'invalid_account_record'
+  | 'unexpected'
+
+type AuthAccountLookupDiagnostic = {
+  failureClass: AuthAccountLookupFailureClass
+  upstreamErrorCode?: string
+  upstreamStatus?: number
+}
+
 const loginAccountSchema = z.object({
   id: z.string().uuid(),
   email: z.string().trim().email(),
@@ -58,6 +73,80 @@ class AuthAccountLookupError extends Error {
   }
 }
 
+function safeUpstreamErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return undefined
+  }
+
+  const code = error.code
+  return typeof code === 'string' && /^(?:PGRST\d{3}|[A-Z0-9]{5})$/.test(code)
+    ? code
+    : undefined
+}
+
+function safeUpstreamStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('status' in error)) {
+    return undefined
+  }
+
+  const status = error.status
+  return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599
+    ? status
+    : undefined
+}
+
+function reportLookupFailure(
+  source: AuthAccountLookupSource,
+  diagnostic: AuthAccountLookupDiagnostic
+): AuthAccountLookupError {
+  try {
+    console.warn(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'warn',
+        event: 'auth.account_lookup_diagnostic',
+        component: 'auth',
+        lookup_source: source,
+        failure_class: diagnostic.failureClass,
+        ...(diagnostic.upstreamErrorCode
+          ? { upstream_error_code: diagnostic.upstreamErrorCode }
+          : {}),
+        ...(diagnostic.upstreamStatus
+          ? { upstream_status: diagnostic.upstreamStatus }
+          : {}),
+      })
+    )
+  } catch {
+    // Authentication must not depend on the availability of the log sink.
+  }
+
+  return new AuthAccountLookupError()
+}
+
+function classifyRequestFailure(error: unknown): AuthAccountLookupDiagnostic {
+  if (
+    error instanceof Error &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')
+  ) {
+    return { failureClass: 'request_timeout' }
+  }
+  if (error instanceof TypeError) {
+    return { failureClass: 'transport_error' }
+  }
+  return { failureClass: 'unexpected' }
+}
+
+function classifyDataApiFailure(error: unknown): AuthAccountLookupDiagnostic {
+  const upstreamErrorCode = safeUpstreamErrorCode(error)
+  const upstreamStatus = safeUpstreamStatus(error)
+
+  return {
+    failureClass: 'data_api_error',
+    ...(upstreamErrorCode ? { upstreamErrorCode } : {}),
+    ...(upstreamStatus ? { upstreamStatus } : {}),
+  }
+}
+
 function normalizeIdentifier(identifier: string): string {
   return identifier.trim().toLowerCase()
 }
@@ -65,31 +154,41 @@ function normalizeIdentifier(identifier: string): string {
 async function selectAccount(
   fields: string,
   column: 'id' | 'email' | 'username',
-  value: string
+  value: string,
+  source: AuthAccountLookupSource
 ): Promise<unknown | undefined> {
+  let supabaseClient: ReturnType<typeof getSupabaseServerClient>
   try {
-    const { data, error } = await getSupabaseServerClient()
+    supabaseClient = getSupabaseServerClient()
+  } catch {
+    throw reportLookupFailure(source, { failureClass: 'client_setup' })
+  }
+
+  try {
+    const { data, error } = await supabaseClient
       .from('auth_accounts')
       .select(fields)
       .eq(column, value)
       .maybeSingle()
 
     if (error) {
-      throw new AuthAccountLookupError()
+      throw reportLookupFailure(source, classifyDataApiFailure(error))
     }
     return data ?? undefined
   } catch (error) {
     if (error instanceof AuthAccountLookupError) {
       throw error
     }
-    throw new AuthAccountLookupError()
+    throw reportLookupFailure(source, classifyRequestFailure(error))
   }
 }
 
 function mapLoginAccount(value: unknown): AuthAccountForLogin {
   const account = loginAccountSchema.safeParse(value)
   if (!account.success) {
-    throw new AuthAccountLookupError()
+    throw reportLookupFailure('login', {
+      failureClass: 'invalid_account_record',
+    })
   }
   return {
     id: account.data.id,
@@ -113,11 +212,16 @@ export async function findAuthAccountByIdentifier(
   }
 
   if (z.string().uuid().safeParse(normalized).success) {
-    const account = await selectAccount(LOGIN_FIELDS, 'id', normalized)
+    const account = await selectAccount(LOGIN_FIELDS, 'id', normalized, 'login')
     return account === undefined ? undefined : mapLoginAccount(account)
   }
 
-  const emailAccount = await selectAccount(LOGIN_FIELDS, 'email', normalized)
+  const emailAccount = await selectAccount(
+    LOGIN_FIELDS,
+    'email',
+    normalized,
+    'login'
+  )
   if (emailAccount !== undefined) {
     return mapLoginAccount(emailAccount)
   }
@@ -125,7 +229,8 @@ export async function findAuthAccountByIdentifier(
   const usernameAccount = await selectAccount(
     LOGIN_FIELDS,
     'username',
-    normalized
+    normalized,
+    'login'
   )
   return usernameAccount === undefined
     ? undefined
@@ -140,14 +245,21 @@ export async function getAccountForSessionFreshness(
     return undefined
   }
 
-  const value = await selectAccount(FRESHNESS_FIELDS, 'id', normalized)
+  const value = await selectAccount(
+    FRESHNESS_FIELDS,
+    'id',
+    normalized,
+    'session_freshness'
+  )
   if (value === undefined) {
     return undefined
   }
 
   const account = freshnessAccountSchema.safeParse(value)
   if (!account.success) {
-    throw new AuthAccountLookupError()
+    throw reportLookupFailure('session_freshness', {
+      failureClass: 'invalid_account_record',
+    })
   }
   return {
     id: account.data.id,
