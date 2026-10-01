@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 type QueryResponse = {
   data: unknown
   error: unknown
+  status: number
   thrown?: unknown
 }
 
@@ -39,12 +40,16 @@ const loginRow = {
   disabled_at: null,
 }
 
-function queueResponse(data: unknown, error: unknown = null): void {
-  dbHarness.responses.push({ data, error })
+function queueResponse(data: unknown, error: unknown = null, status?: number): void {
+  dbHarness.responses.push({
+    data,
+    error,
+    status: status ?? (error === null ? 200 : 500),
+  })
 }
 
 function queueThrown(error: unknown): void {
-  dbHarness.responses.push({ data: null, error: null, thrown: error })
+  dbHarness.responses.push({ data: null, error: null, status: 0, thrown: error })
 }
 
 beforeEach(() => {
@@ -193,8 +198,7 @@ describe('auth account database boundary', () => {
     queueResponse(null, {
       message: 'connection secret and internal Supabase URL',
       code: 'PGRST003',
-      status: 504,
-    })
+    }, 504)
     const { findAuthAccountByIdentifier } = await import('./auth-accounts')
 
     let message = ''
@@ -218,6 +222,60 @@ describe('auth account database boundary', () => {
     expect(diagnostic).not.toContain('connection secret')
     expect(diagnostic).not.toContain('internal Supabase URL')
     expect(diagnostic).not.toContain('admin@example.test')
+  })
+
+  it('classifies an aborted Data API fetch as a timeout without logging its details', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    queueResponse(
+      null,
+      {
+        message: 'AbortError: timed out while contacting a private endpoint',
+        details: 'request body and service credential must remain hidden',
+        code: '',
+      },
+      0
+    )
+    const { getAccountForSessionFreshness } = await import('./auth-accounts')
+
+    await expect(
+      getAccountForSessionFreshness(loginRow.id)
+    ).rejects.toThrow('Unable to read authentication account.')
+
+    const diagnostic = String(log.mock.calls[0][0])
+    expect(JSON.parse(diagnostic)).toMatchObject({
+      event: 'auth.account_lookup_diagnostic',
+      lookup_source: 'session_freshness',
+      failure_class: 'request_timeout',
+    })
+    expect(diagnostic).not.toContain('private endpoint')
+    expect(diagnostic).not.toContain('service credential')
+  })
+
+  it('classifies a Data API fetch failure as transport without logging its details', async () => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    queueResponse(
+      null,
+      {
+        message: 'TypeError: fetch failed for a private Supabase endpoint',
+        details: 'DNS or socket details must remain hidden',
+        code: '',
+      },
+      0
+    )
+    const { getAccountForSessionFreshness } = await import('./auth-accounts')
+
+    await expect(
+      getAccountForSessionFreshness(loginRow.id)
+    ).rejects.toThrow('Unable to read authentication account.')
+
+    const diagnostic = String(log.mock.calls[0][0])
+    expect(JSON.parse(diagnostic)).toMatchObject({
+      event: 'auth.account_lookup_diagnostic',
+      lookup_source: 'session_freshness',
+      failure_class: 'transport_error',
+    })
+    expect(diagnostic).not.toContain('private Supabase endpoint')
+    expect(diagnostic).not.toContain('DNS or socket details')
   })
 
   it('classifies request timeouts without logging the thrown error text', async () => {
