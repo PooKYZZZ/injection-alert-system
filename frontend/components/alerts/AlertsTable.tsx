@@ -9,7 +9,7 @@ import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
 import { formatAlertDateTime, formatRelativeTime } from '@/lib/date-time'
-import { ConfidenceBar } from '@/components/ui/ConfidenceBar'
+import { ConfidenceSummary } from '@/components/ui/ConfidenceSummary'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
@@ -435,10 +435,9 @@ function AlertsTableContent({
                     )}
                   </td>
                   <td className="p-3">
-                    <ConfidenceBar
+                    <ConfidenceSummary
                       confidence={alert.confidence}
                       confidenceTier={alert.confidence_level}
-                      prediction={alert.prediction}
                     />
                   </td>
                   <td className="p-3">

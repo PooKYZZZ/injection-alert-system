@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
+import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { AttackTypePanel } from '@/components/dashboard/AttackTypePanel'
@@ -341,96 +342,6 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {/* Secondary analytics stay available without crowding the overview. */}
-      {!statsUnavailable ? (
-        <details className="min-w-0 rounded-lg border border-border-light bg-surface-panel">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 [&::-webkit-details-marker]:hidden">
-            <span>Detailed analytics</span>
-            <span className="text-xs font-normal text-text-secondary">Confidence, response policy, sources, paths</span>
-          </summary>
-          <div className="border-t border-border-light">
-      {!statsUnavailable && hasDistributionData ? (
-        <div className="grid min-w-0 grid-cols-1 divide-y divide-border-light overflow-hidden rounded-lg border border-border-light bg-surface-panel md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.05 }}
-            className="min-w-0 flex flex-col gap-2 p-4"
-          >
-            <h2 className="mb-2 text-sm font-semibold text-text-primary">Attack type distribution</h2>
-            <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-            className="min-w-0 flex flex-col gap-2 p-4"
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-text-primary">Confidence by tier</h2>
-              <InfoDisclosure label="Confidence">
-                Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
-              </InfoDisclosure>
-            </div>
-            <MLConfidenceBands
-              critical={allConfidenceBands?.critical ?? 0}
-              high={allConfidenceBands?.high ?? 0}
-              medium={allConfidenceBands?.medium ?? 0}
-              low={allConfidenceBands?.low ?? 0}
-              informational={allConfidenceBands?.informational ?? 0}
-              isPending={statsPending}
-              unavailable={allConfidenceBands == null}
-            />
-            <div className="mt-4 min-w-0 border-t border-border-light pt-3 flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-text-secondary">Response policy by confidence tier</h3>
-              <MLEnforcementMap
-                nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
-                isPending={statsPending}
-                unavailable={nonNormalEnforcementBands == null}
-              />
-            </div>
-            <p className="mt-3 text-xs leading-5 text-text-muted">
-              Policy labels describe configured decisions; they do not confirm a WAF action or HTTP outcome.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.15 }}
-            className="min-w-0 flex flex-col gap-2 p-4"
-          >
-            <h2 className="mb-2 text-sm font-semibold text-text-primary">Top source IPs</h2>
-            <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut', delay: 0.2 }}
-            className="min-w-0 flex flex-col gap-2 p-4"
-          >
-            <h2 className="mb-2 text-sm font-semibold text-text-primary">Top targeted paths</h2>
-            <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
-          </motion.div>
-        </div>
-      ) : statsPending ? (
-        <section className="px-4 py-5" aria-label="Detailed analytics loading">
-          <p className="text-sm text-text-secondary">Loading detailed analytics…</p>
-        </section>
-      ) : !statsUnavailable ? (
-        <section className="px-4 py-5" aria-label="Detailed analytics">
-          <h2 className="text-sm font-semibold text-text-primary">No detailed activity</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
-            No traffic was reported in this window. Detailed distributions will appear when activity is available.
-          </p>
-        </section>
-      ) : null}
-          </div>
-        </details>
-      ) : null}
-
       {alertsError ? (
         <DashboardQueryError
           message={
@@ -444,6 +355,99 @@ export default function DashboardPage() {
 
       {/* Recent Alerts Table (Preview) */}
       {alertsUnavailable ? null : <RecentAlertsTable alerts={alerts} isPending={alertsPending} />}
+
+      {/* Secondary analytics follow the recent-event preview in the scan order. */}
+      {!statsUnavailable ? (
+        <details className="group min-w-0 rounded-lg border border-border-light bg-surface-panel">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0">
+              <span role="heading" aria-level={2} className="block text-sm font-semibold text-text-primary">
+                Attack and model breakdown
+              </span>
+              <span className="mt-1 block text-xs font-normal leading-5 text-text-secondary">
+                Attack types, confidence, policy, top sources and paths
+              </span>
+            </span>
+            <ChevronDown
+              aria-hidden="true"
+              size={16}
+              className="shrink-0 text-text-muted transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <div className="space-y-5 border-t border-border-light p-4">
+            {!statsUnavailable && hasDistributionData ? (
+              <>
+                <section aria-labelledby="dashboard-traffic-patterns" className="min-w-0 space-y-3">
+                  <h2 id="dashboard-traffic-patterns" className="text-sm font-semibold text-text-primary">
+                    Traffic patterns
+                  </h2>
+                  <div className="grid min-w-0 grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-light bg-border-light md:grid-cols-2 xl:grid-cols-3">
+                    <section className="min-w-0 bg-surface-panel p-4">
+                      <h3 className="mb-3 text-sm font-medium text-text-primary">Attack types</h3>
+                      <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
+                    </section>
+                    <section className="min-w-0 bg-surface-panel p-4">
+                      <h3 className="mb-3 text-sm font-medium text-text-primary">Top source IPs</h3>
+                      <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
+                    </section>
+                    <section className="min-w-0 bg-surface-panel p-4">
+                      <h3 className="mb-3 text-sm font-medium text-text-primary">Top targeted paths</h3>
+                      <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
+                    </section>
+                  </div>
+                </section>
+
+                <section aria-labelledby="dashboard-model-context" className="min-w-0 space-y-3 border-t border-border-light pt-5">
+                  <h2 id="dashboard-model-context" className="text-sm font-semibold text-text-primary">
+                    Model and policy context
+                  </h2>
+                  <div className="grid min-w-0 grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-light bg-border-light md:grid-cols-2">
+                    <div className="min-w-0 bg-surface-panel p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <h3 className="text-sm font-medium text-text-primary">Confidence by tier</h3>
+                        <InfoDisclosure label="Confidence">
+                          Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+                        </InfoDisclosure>
+                      </div>
+                      <MLConfidenceBands
+                        critical={allConfidenceBands?.critical ?? 0}
+                        high={allConfidenceBands?.high ?? 0}
+                        medium={allConfidenceBands?.medium ?? 0}
+                        low={allConfidenceBands?.low ?? 0}
+                        informational={allConfidenceBands?.informational ?? 0}
+                        isPending={statsPending}
+                        unavailable={allConfidenceBands == null}
+                      />
+                    </div>
+                    <div className="min-w-0 bg-surface-panel p-4">
+                      <h3 className="mb-3 text-sm font-medium text-text-primary">Configured response policy by confidence tier</h3>
+                      <MLEnforcementMap
+                        nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
+                        isPending={statsPending}
+                        unavailable={nonNormalEnforcementBands == null}
+                      />
+                      <p className="mt-3 text-xs leading-5 text-text-muted">
+                        These labels show configured policy; they do not confirm a WAF action or HTTP outcome.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </>
+            ) : statsPending ? (
+              <section aria-label="Breakdown loading">
+                <p className="text-sm text-text-secondary">Loading activity breakdown…</p>
+              </section>
+            ) : !statsUnavailable ? (
+              <section aria-label="Activity breakdown">
+                <h2 className="text-sm font-semibold text-text-primary">No activity in this time window</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
+                  Traffic summaries will appear when activity is available for the selected window.
+                </p>
+              </section>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
     </motion.div>
   )
 }

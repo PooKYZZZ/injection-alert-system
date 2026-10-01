@@ -109,7 +109,7 @@ describe('DashboardPage metric definitions', () => {
   })
 
   it('shows four overview metrics and keeps detailed panels behind a disclosure', () => {
-    render(<DashboardPage />)
+    const { container } = render(<DashboardPage />)
 
     expect(screen.getAllByTestId('stat-card')).toHaveLength(4)
     expect(screen.getByText('Actionable detections')).toBeInTheDocument()
@@ -119,7 +119,10 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.queryByText('Allowed actionable attack rate (proxy)')).not.toBeInTheDocument()
     expect(screen.queryByText('Average model confidence')).not.toBeInTheDocument()
     expect(screen.getByText('Recorded actions over time')).toBeInTheDocument()
-    expect(screen.getByText('Detailed analytics').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('Attack and model breakdown').closest('details')).not.toHaveAttribute('open')
+
+    const overviewSections = [...container.querySelectorAll('[data-testid="recent-alerts-table"], details')]
+    expect(overviewSections.map((section) => section.tagName)).toEqual(['DIV', 'DETAILS'])
   })
 
   it('explains persisted counts and keeps secondary analytics reachable', async () => {
@@ -129,9 +132,12 @@ describe('DashboardPage metric definitions', () => {
     await user.click(screen.getByRole('button', { name: 'About Recorded actions' }))
     expect(screen.getByRole('region', { name: 'Recorded actions explanation' })).toHaveTextContent(/do not prove the HTTP outcome/i)
 
-    await user.click(screen.getByText('Detailed analytics'))
+    await user.click(screen.getByText('Attack and model breakdown'))
     expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map: 5/6/7/8')
     expect(screen.getByText('Confidence by tier')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Traffic patterns' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Model and policy context' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Configured response policy by confidence tier' })).toBeInTheDocument()
     expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
   })
 
@@ -221,9 +227,9 @@ describe('DashboardPage metric definitions', () => {
     render(<DashboardPage />)
 
     const user = userEvent.setup()
-    await user.click(screen.getByText('Detailed analytics'))
-    expect(screen.getByRole('heading', { name: 'No detailed activity' })).toBeInTheDocument()
-    expect(screen.getByText(/No traffic was reported in this window/i)).toBeInTheDocument()
+    await user.click(screen.getByText('Attack and model breakdown'))
+    expect(screen.getByRole('heading', { name: 'No activity in this time window' })).toBeInTheDocument()
+    expect(screen.getByText(/Traffic summaries will appear when activity is available/i)).toBeInTheDocument()
     expect(screen.queryByTestId('attack-type-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('confidence-bands')).not.toBeInTheDocument()
     expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
