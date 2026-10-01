@@ -63,6 +63,7 @@ services:
       CYBERTRACE_NORMAL_ACCESS_TELEMETRY: ${CYBERTRACE_NORMAL_ACCESS_TELEMETRY:-false}
     volumes:
       - ./logs/modsecurity/demo-target:/var/log/modsecurity
+      - ./config/modsecurity/target-rsc-prefetch-exclusions.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
       - ./config/modsecurity/source-correlation-proxy-backend.conf.template:/etc/nginx/templates/includes/proxy_backend.conf.template:ro
       - ./config/modsecurity/target-error-pages-location-common.conf.template:/etc/nginx/templates/includes/location_common.conf.template:ro
       - ./config/modsecurity/target-error-pages:/usr/share/nginx/html/cybertrace-errors:ro
