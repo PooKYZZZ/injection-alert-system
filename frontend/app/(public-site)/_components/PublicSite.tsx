@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import styles from '@/app/page.module.css'
-import { EugenePortraitSwitcher } from './EugenePortraitSwitcher'
+import { EugeneProfileCard } from './EugeneProfileCard'
 
 const DASHBOARD_URL = 'https://app.cybertracesystems.com/login'
 
@@ -547,48 +547,53 @@ export function AboutUsContent() {
           <ul className={styles.profileGrid} aria-label="Team 12 members">
             {teamMembers.map((member, index) => (
               <li key={member.name}>
-                <article className={styles.profileCard}>
-                  <div
-                    className={[
-                      styles.profilePhoto,
-                      member.image ? styles.profilePhotoWithImage : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    {member.image && member.alternateImage ? (
-                      <EugenePortraitSwitcher
-                        updatedImage={member.image}
-                        previousImage={member.alternateImage}
-                      />
-                    ) : member.image ? (
-                      <Image
-                        alt={`Portrait of ${member.name}`}
-                        className={styles.profilePortrait}
-                        fill
-                        sizes="(max-width: 700px) 106px, (max-width: 1100px) 28vw, 300px"
-                        src={member.image}
-                      />
-                    ) : (
-                      <div
-                        role="img"
-                        aria-label={`Formal portrait placeholder for ${member.name}`}
-                      >
-                        <span className={styles.profileMonogram} aria-hidden="true">
-                          {member.initials}
-                        </span>
-                        <span className={styles.profilePhotoLabel}>
-                          Add formal portrait
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className={styles.profileInfo}>
-                    <p className={styles.profileIndex}>
-                      TEAM MEMBER <span>{String(index + 1).padStart(2, '0')}</span>
-                    </p>
-                    <h3>{member.name}</h3>
-                    <p className={styles.profileRole}>{member.focus}</p>
-                  </div>
-                </article>
+                {member.image && member.alternateImage ? (
+                  <EugeneProfileCard
+                    focus={member.focus}
+                    index={index}
+                    name={member.name}
+                    previousImage={member.alternateImage}
+                    updatedImage={member.image}
+                  />
+                ) : (
+                  <article className={styles.profileCard}>
+                    <div
+                      className={[
+                        styles.profilePhoto,
+                        member.image ? styles.profilePhotoWithImage : '',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      {member.image ? (
+                        <Image
+                          alt={`Portrait of ${member.name}`}
+                          className={styles.profilePortrait}
+                          fill
+                          sizes="(max-width: 700px) 106px, (max-width: 1100px) 28vw, 300px"
+                          src={member.image}
+                        />
+                      ) : (
+                        <div
+                          role="img"
+                          aria-label={`Formal portrait placeholder for ${member.name}`}
+                        >
+                          <span className={styles.profileMonogram} aria-hidden="true">
+                            {member.initials}
+                          </span>
+                          <span className={styles.profilePhotoLabel}>
+                            Add formal portrait
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.profileInfo}>
+                      <p className={styles.profileIndex}>
+                        TEAM MEMBER <span>{String(index + 1).padStart(2, '0')}</span>
+                      </p>
+                      <h3>{member.name}</h3>
+                      <p className={styles.profileRole}>{member.focus}</p>
+                    </div>
+                  </article>
+                )}
               </li>
             ))}
           </ul>
