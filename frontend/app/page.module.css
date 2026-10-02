@@ -210,9 +210,9 @@
 
 .heroInner {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  grid-template-columns: minmax(0, 0.76fr) minmax(0, 1.24fr);
   align-items: center;
-  gap: clamp(42px, 6vw, 84px);
+  gap: clamp(30px, 4vw, 58px);
   padding-block: clamp(54px, 7vw, 94px) 70px;
 }
 
@@ -1196,8 +1196,8 @@
   }
 
   .heroInner {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    gap: 34px;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+    gap: 28px;
   }
 
   .profileGrid {
@@ -1210,6 +1210,23 @@
 
   .workflowStep {
     padding-inline: 15px;
+  }
+}
+
+@media (max-width: 900px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+
+  .heroCopy {
+    max-width: 720px;
+  }
+
+  .heroFigure {
+    width: 100%;
+    max-width: 900px;
+    justify-self: center;
   }
 }
 
@@ -1445,6 +1462,7 @@
 
   .heroFigure {
     padding: 9px;
+    margin-inline: -6px;
   }
 
   .figureTopline {
