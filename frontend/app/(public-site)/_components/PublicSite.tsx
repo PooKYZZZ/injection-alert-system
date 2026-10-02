@@ -11,19 +11,16 @@ const focusAreas = [
     number: '01',
     title: 'See the request clearly',
     copy: 'Bring the method, route, and available request details into one readable record.',
-    tone: 'sand',
   },
   {
     number: '02',
     title: 'Understand the signals',
     copy: 'Review the model’s suggestion alongside any firewall findings recorded for the request.',
-    tone: 'blue',
   },
   {
     number: '03',
     title: 'Keep people in control',
     copy: 'Analysts review the available context and record a decision; the system does not make the final call.',
-    tone: 'green',
   },
 ]
 
@@ -35,11 +32,11 @@ const technicalNotes = [
 ]
 
 const teamMembers = [
-  'Mark Angelo A. Aquino',
-  'Junaid Bantuas',
-  'Eugene Dela Cruz',
-  'Froilan Gayao',
-  'Faron Jabez Nonan',
+  { name: 'Mark Angelo A. Aquino', initials: 'MA' },
+  { name: 'Junaid Bantuas', initials: 'JB' },
+  { name: 'Eugene Dela Cruz', initials: 'ED' },
+  { name: 'Froilan Gayao', initials: 'FG' },
+  { name: 'Faron Jabez Nonan', initials: 'FN' },
 ]
 
 type PublicPage = 'home' | 'aboutProject' | 'howItWorks' | 'aboutUs'
@@ -312,7 +309,7 @@ export function AboutProjectContent() {
           <div className={styles.focusGrid}>
             {focusAreas.map((area) => (
               <article
-                className={[styles.focusCard, styles[area.tone]].join(' ')}
+                className={styles.focusCard}
                 key={area.number}
               >
                 <span className={styles.cardNumber}>{area.number}</span>
@@ -489,31 +486,78 @@ export function AboutUsContent() {
           <span>03</span>
           <span>About Us</span>
         </div>
-        <div className={styles.teamGrid}>
-          <div className={styles.teamCopy}>
+        <header className={styles.aboutIntro}>
+          <div>
             <h1 id="team-title">Meet Team 12.</h1>
             <p className={styles.teamLead}>
-              We are the five students behind CyberTrace, an academic project
-              exploring clearer review of suspicious web activity.
-            </p>
-            <p>
-              We started with a practical question: how can useful request
-              details be easier to find, without pretending that a model has
-              all the answers? Our project keeps context, supporting evidence,
-              and human review together.
+              We are the students behind CyberTrace, an academic project about
+              making suspicious web activity clearer to review.
             </p>
           </div>
-          <ol className={styles.teamList} aria-label="Team 12 members">
+          <p className={styles.aboutIntroCopy}>
+            We bring request context, supporting evidence, and human review
+            together—without asking a model to make the final call.
+          </p>
+        </header>
+
+        <section className={styles.teamProfiles} aria-labelledby="team-profiles-title">
+          <div className={styles.profileSectionHeading}>
+            <div>
+              <p className={styles.profileEyebrow}>TEAM 12</p>
+              <h2 id="team-profiles-title">The people behind the project</h2>
+            </div>
+            <p>Portraits and official role titles are being confirmed.</p>
+          </div>
+
+          <ul className={styles.profileGrid} aria-label="Team 12 members">
             {teamMembers.map((member, index) => (
-              <li className={styles.teamMember} key={member}>
-                <span aria-hidden="true">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-                <span>{member}</span>
+              <li key={member.name}>
+                <article className={styles.profileCard}>
+                  <div
+                    className={styles.profilePhoto}
+                    role="img"
+                    aria-label={`Formal portrait placeholder for ${member.name}`}
+                  >
+                    <span className={styles.profileMonogram} aria-hidden="true">
+                      {member.initials}
+                    </span>
+                    <span className={styles.profilePhotoLabel}>
+                      Add formal portrait
+                    </span>
+                  </div>
+                  <div className={styles.profileInfo}>
+                    <p className={styles.profileIndex}>
+                      TEAM MEMBER <span>{String(index + 1).padStart(2, '0')}</span>
+                    </p>
+                    <h3>{member.name}</h3>
+                    <p className={styles.profileRole}>Role title to be confirmed</p>
+                  </div>
+                </article>
               </li>
             ))}
-          </ol>
-        </div>
+          </ul>
+        </section>
+
+        <aside className={styles.adviserCard} aria-labelledby="adviser-title">
+          <div
+            className={[styles.profilePhoto, styles.adviserPhoto].join(' ')}
+            role="img"
+            aria-label="Formal portrait placeholder for the CyberTrace project adviser"
+          >
+            <span className={styles.profileMonogram} aria-hidden="true">AD</span>
+            <span className={styles.profilePhotoLabel}>Add adviser portrait</span>
+          </div>
+          <div className={styles.adviserCopy}>
+            <p className={styles.profileEyebrow}>PROJECT GUIDANCE</p>
+            <h2 id="adviser-title">Our project adviser</h2>
+            <p className={styles.adviserName}>Robin Valenzuela · Team Adviser</p>
+            <p>
+              This separate profile recognizes the adviser’s guidance without
+              presenting them as a member of the student team. We’ll add their
+              approved name, title, and portrait once confirmed.
+            </p>
+          </div>
+        </aside>
       </div>
     </section>
   )

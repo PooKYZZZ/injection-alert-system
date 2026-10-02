@@ -1,28 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="680" viewBox="0 0 1080 680" fill="none">
   <defs>
     <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
-      <path d="M28 0H0V28" stroke="#71847F" stroke-opacity=".13" stroke-width="1"/>
+      <path d="M28 0H0V28" stroke="#D8D0C4" stroke-opacity=".13" stroke-width="1"/>
     </pattern>
     <linearGradient id="panel" x1="90" y1="88" x2="988" y2="578" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#202F35"/>
-      <stop offset="1" stop-color="#172328"/>
+      <stop stop-color="#FFFDF9"/>
+      <stop offset="1" stop-color="#E7EDF2"/>
     </linearGradient>
     <linearGradient id="request" x1="101" y1="250" x2="301" y2="414" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F0D4AA"/>
-      <stop offset="1" stop-color="#D8A76C"/>
+      <stop stop-color="#E7EDF2"/>
+      <stop offset="1" stop-color="#E7E2DA"/>
     </linearGradient>
     <linearGradient id="review" x1="824" y1="255" x2="1014" y2="416" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#C5E4D8"/>
-      <stop offset="1" stop-color="#80C7B7"/>
+      <stop stop-color="#E7EDF2"/>
+      <stop offset="1" stop-color="#E7E2DA"/>
     </linearGradient>
     <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
-      <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#080E11" flood-opacity=".25"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1D2024" flood-opacity=".08"/>
     </filter>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M1 1 8 5 1 9" stroke="#B9C9C1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M1 1 8 5 1 9" stroke="#4F637A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
-    <marker id="arrowAmber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M1 1 8 5 1 9" stroke="#D9AD78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <marker id="arrowBrand" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M1 1 8 5 1 9" stroke="#4F637A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
     <style>
       text { font-family: Inter, Arial, sans-serif; }
@@ -30,83 +30,83 @@
     </style>
   </defs>
 
-  <rect width="1080" height="680" rx="18" fill="#111A20"/>
+  <rect width="1080" height="680" rx="18" fill="#F6F1E8"/>
   <rect width="1080" height="680" rx="18" fill="url(#grid)"/>
-  <rect x="18" y="18" width="1044" height="644" rx="12" stroke="#647771" stroke-opacity=".25"/>
+  <rect x="18" y="18" width="1044" height="644" rx="12" stroke="#D8D0C4" stroke-opacity=".25"/>
 
-  <circle cx="920" cy="96" r="142" stroke="#78C9BD" stroke-opacity=".08"/>
-  <circle cx="920" cy="96" r="108" stroke="#78C9BD" stroke-opacity=".08"/>
-  <path d="M52 540H1028" stroke="#81928A" stroke-opacity=".15"/>
-  <path d="M52 548H1028" stroke="#81928A" stroke-opacity=".08" stroke-dasharray="2 8"/>
+  <circle cx="920" cy="96" r="142" stroke="#4F637A" stroke-opacity=".08"/>
+  <circle cx="920" cy="96" r="108" stroke="#4F637A" stroke-opacity=".08"/>
+  <path d="M52 540H1028" stroke="#D8D0C4" stroke-opacity=".15"/>
+  <path d="M52 548H1028" stroke="#D8D0C4" stroke-opacity=".08" stroke-dasharray="2 8"/>
 
-  <text x="64" y="70" fill="#DAB17E" font-size="13" font-weight="600" letter-spacing="2.2" class="mono">CYBERTRACE / REVIEW FLOW</text>
-  <text x="64" y="101" fill="#F3F0E8" font-size="23" font-weight="600" letter-spacing="-.5">A clearer view before analyst review</text>
-  <text x="1015" y="72" fill="#AABAB3" font-size="11" text-anchor="end" letter-spacing="1.2" class="mono">CONCEPTUAL · NOT LIVE DATA</text>
+  <text x="64" y="70" fill="#4F637A" font-size="13" font-weight="600" letter-spacing="2.2" class="mono">CYBERTRACE / REVIEW FLOW</text>
+  <text x="64" y="101" fill="#1D2024" font-size="23" font-weight="600" letter-spacing="-.5">A clearer view before analyst review</text>
+  <text x="1015" y="72" fill="#656A72" font-size="11" text-anchor="end" letter-spacing="1.2" class="mono">CONCEPTUAL · NOT LIVE DATA</text>
 
   <!-- Incoming request context -->
   <g filter="url(#softShadow)">
     <rect x="64" y="228" width="205" height="182" rx="10" fill="url(#request)"/>
-    <rect x="78" y="242" width="177" height="154" rx="6" stroke="#6C5337" stroke-opacity=".42"/>
-    <text x="96" y="274" fill="#6E4B2B" font-size="11" font-weight="700" letter-spacing="1.4" class="mono">01 / REQUEST</text>
-    <path d="M96 298H151" stroke="#88613A" stroke-width="2" stroke-linecap="round"/>
-    <path d="M96 312H223" stroke="#88613A" stroke-opacity=".4" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M96 324H202" stroke="#88613A" stroke-opacity=".4" stroke-width="1.5" stroke-linecap="round"/>
-    <text x="96" y="365" fill="#26343A" font-size="21" font-weight="700" letter-spacing="-.6">Web request</text>
-    <text x="96" y="384" fill="#4B5653" font-size="11">Route · method · available context</text>
+    <rect x="78" y="242" width="177" height="154" rx="6" stroke="#5F748C" stroke-opacity=".42"/>
+    <text x="96" y="274" fill="#4F637A" font-size="11" font-weight="700" letter-spacing="1.4" class="mono">01 / REQUEST</text>
+    <path d="M96 298H151" stroke="#4F637A" stroke-width="2" stroke-linecap="round"/>
+    <path d="M96 312H223" stroke="#4F637A" stroke-opacity=".4" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M96 324H202" stroke="#4F637A" stroke-opacity=".4" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="96" y="365" fill="#1D2024" font-size="21" font-weight="700" letter-spacing="-.6">Web request</text>
+    <text x="96" y="384" fill="#656A72" font-size="11">Route · method · available context</text>
   </g>
 
   <!-- Signal branches: dotted connectors indicate optional, distinct evidence -->
-  <path d="M270 319H323C346 319 348 250 371 250H393" stroke="#D9AD78" stroke-width="2" stroke-dasharray="5 7" marker-end="url(#arrowAmber)"/>
-  <path d="M323 319C346 319 348 420 371 420H393" stroke="#8BA8C0" stroke-width="2" stroke-dasharray="5 7" marker-end="url(#arrow)"/>
-  <circle cx="323" cy="319" r="5" fill="#172328" stroke="#B9C9C1" stroke-width="1.5"/>
+  <path d="M270 319H323C346 319 348 250 371 250H393" stroke="#4F637A" stroke-width="2" stroke-dasharray="5 7" marker-end="url(#arrowBrand)"/>
+  <path d="M323 319C346 319 348 420 371 420H393" stroke="#4F637A" stroke-width="2" stroke-dasharray="5 7" marker-end="url(#arrow)"/>
+  <circle cx="323" cy="319" r="5" fill="#E7EDF2" stroke="#4F637A" stroke-width="1.5"/>
 
   <g filter="url(#softShadow)">
-    <rect x="400" y="173" width="250" height="155" rx="9" fill="#293940" stroke="#9E7951" stroke-opacity=".8"/>
-    <rect x="400" y="173" width="4" height="155" rx="2" fill="#D9AD78"/>
-    <text x="423" y="204" fill="#D9AD78" font-size="11" font-weight="700" letter-spacing="1.3" class="mono">02A / FIREWALL FINDINGS</text>
-    <text x="423" y="240" fill="#F2EFE7" font-size="19" font-weight="600">Firewall findings</text>
-    <text x="423" y="266" fill="#BCC8C0" font-size="12">Recorded rules · scores · messages</text>
-    <rect x="423" y="285" width="114" height="22" rx="11" fill="#D9AD78" fill-opacity=".12"/>
-    <text x="480" y="300" fill="#E7C99F" font-size="10" text-anchor="middle" class="mono">WHEN RECORDED</text>
+    <rect x="400" y="173" width="250" height="155" rx="9" fill="#E7EDF2" stroke="#5F748C" stroke-opacity=".8"/>
+    <rect x="400" y="173" width="4" height="155" rx="2" fill="#4F637A"/>
+    <text x="423" y="204" fill="#4F637A" font-size="11" font-weight="700" letter-spacing="1.3" class="mono">02A / FIREWALL FINDINGS</text>
+    <text x="423" y="240" fill="#1D2024" font-size="19" font-weight="600">Firewall findings</text>
+    <text x="423" y="266" fill="#656A72" font-size="12">Recorded rules · scores · messages</text>
+    <rect x="423" y="285" width="114" height="22" rx="11" fill="#4F637A" fill-opacity=".12"/>
+    <text x="480" y="300" fill="#4F637A" font-size="10" text-anchor="middle" class="mono">WHEN RECORDED</text>
   </g>
 
   <g filter="url(#softShadow)">
-    <rect x="400" y="351" width="250" height="155" rx="9" fill="#293940" stroke="#718FA9" stroke-opacity=".8"/>
-    <rect x="400" y="351" width="4" height="155" rx="2" fill="#91AEC6"/>
-    <text x="423" y="382" fill="#AFC3D5" font-size="11" font-weight="700" letter-spacing="1.3" class="mono">02B / MODEL SUGGESTION</text>
-    <text x="423" y="418" fill="#F2EFE7" font-size="19" font-weight="600">Suggested category</text>
-    <text x="423" y="444" fill="#BCC8C0" font-size="12">Category · confidence</text>
-    <rect x="423" y="463" width="139" height="22" rx="11" fill="#91AEC6" fill-opacity=".12"/>
-    <text x="492" y="478" fill="#C5D2DF" font-size="10" text-anchor="middle" class="mono">A SEPARATE SIGNAL</text>
+    <rect x="400" y="351" width="250" height="155" rx="9" fill="#E7EDF2" stroke="#5F748C" stroke-opacity=".8"/>
+    <rect x="400" y="351" width="4" height="155" rx="2" fill="#4F637A"/>
+    <text x="423" y="382" fill="#4F637A" font-size="11" font-weight="700" letter-spacing="1.3" class="mono">02B / MODEL SUGGESTION</text>
+    <text x="423" y="418" fill="#1D2024" font-size="19" font-weight="600">Suggested category</text>
+    <text x="423" y="444" fill="#656A72" font-size="12">Category · confidence</text>
+    <rect x="423" y="463" width="139" height="22" rx="11" fill="#4F637A" fill-opacity=".12"/>
+    <text x="492" y="478" fill="#4F637A" font-size="10" text-anchor="middle" class="mono">A SEPARATE SIGNAL</text>
   </g>
 
   <!-- Available evidence is stored for context; do not imply all requests yield all signals -->
-  <path d="M650 250H711C735 250 735 319 759 319" stroke="#B9C9C1" stroke-width="1.7" stroke-dasharray="4 7" marker-end="url(#arrow)"/>
-  <path d="M650 428H711C735 428 735 347 759 347" stroke="#B9C9C1" stroke-width="1.7" stroke-dasharray="4 7" marker-end="url(#arrow)"/>
-  <rect x="704" y="297" width="9" height="9" transform="rotate(45 704 297)" fill="#172328" stroke="#B9C9C1"/>
+  <path d="M650 250H711C735 250 735 319 759 319" stroke="#4F637A" stroke-width="1.7" stroke-dasharray="4 7" marker-end="url(#arrow)"/>
+  <path d="M650 428H711C735 428 735 347 759 347" stroke="#4F637A" stroke-width="1.7" stroke-dasharray="4 7" marker-end="url(#arrow)"/>
+  <rect x="704" y="297" width="9" height="9" transform="rotate(45 704 297)" fill="#E7EDF2" stroke="#4F637A"/>
 
   <g filter="url(#softShadow)">
-    <rect x="768" y="228" width="120" height="182" rx="9" fill="#31434A" stroke="#78918C" stroke-opacity=".72"/>
-    <path d="M794 264H862M794 279H862M794 294H843" stroke="#AABBB2" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
-    <path d="M794 319H862" stroke="#6F8581" stroke-width="1"/>
-    <text x="828" y="350" fill="#F0EEE5" font-size="14" text-anchor="middle" font-weight="600">Traffic record</text>
-    <text x="828" y="374" fill="#C0CDC5" font-size="10" text-anchor="middle">Request details</text>
-    <text x="828" y="390" fill="#C0CDC5" font-size="10" text-anchor="middle">Available context</text>
+    <rect x="768" y="228" width="120" height="182" rx="9" fill="#ECE7DE" stroke="#5F748C" stroke-opacity=".72"/>
+    <path d="M794 264H862M794 279H862M794 294H843" stroke="#656A72" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
+    <path d="M794 319H862" stroke="#D8D0C4" stroke-width="1"/>
+    <text x="828" y="350" fill="#1D2024" font-size="14" text-anchor="middle" font-weight="600">Traffic record</text>
+    <text x="828" y="374" fill="#656A72" font-size="10" text-anchor="middle">Request details</text>
+    <text x="828" y="390" fill="#656A72" font-size="10" text-anchor="middle">Available context</text>
   </g>
 
-  <path d="M888 319H915" stroke="#B9C9C1" stroke-width="1.7" stroke-dasharray="4 7" marker-end="url(#arrow)"/>
+  <path d="M888 319H915" stroke="#4F637A" stroke-width="1.7" stroke-dasharray="4 7" marker-end="url(#arrow)"/>
   <g filter="url(#softShadow)">
     <rect x="923" y="228" width="104" height="182" rx="9" fill="url(#review)"/>
-    <circle cx="975" cy="276" r="20" stroke="#3C6B61" stroke-width="1.5"/>
-    <path d="M963 276H987M975 264V288" stroke="#3C6B61" stroke-width="1.5" stroke-linecap="round"/>
-    <text x="975" y="334" fill="#213A38" font-size="14" text-anchor="middle" font-weight="700">Analyst</text>
-    <text x="975" y="352" fill="#213A38" font-size="14" text-anchor="middle" font-weight="700">review</text>
-    <text x="975" y="380" fill="#43635C" font-size="10" text-anchor="middle">Review · next</text>
-    <text x="975" y="395" fill="#43635C" font-size="10" text-anchor="middle">steps</text>
+    <circle cx="975" cy="276" r="20" stroke="#4F637A" stroke-width="1.5"/>
+    <path d="M963 276H987M975 264V288" stroke="#4F637A" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="975" y="334" fill="#1D2024" font-size="14" text-anchor="middle" font-weight="700">Analyst</text>
+    <text x="975" y="352" fill="#1D2024" font-size="14" text-anchor="middle" font-weight="700">review</text>
+    <text x="975" y="380" fill="#656A72" font-size="10" text-anchor="middle">Review · next</text>
+    <text x="975" y="395" fill="#656A72" font-size="10" text-anchor="middle">steps</text>
   </g>
 
-  <rect x="64" y="570" width="19" height="19" rx="4" fill="#D9AD78" fill-opacity=".18" stroke="#D9AD78" stroke-opacity=".65"/>
-  <path d="M69 580H78" stroke="#D9AD78" stroke-width="1.5" stroke-dasharray="2 3"/>
-  <text x="94" y="584" fill="#C2CEC7" font-size="11">Supporting details depend on what was recorded.</text>
-  <text x="1016" y="584" fill="#879A92" font-size="10" text-anchor="end" class="mono">ANALYST DECIDES</text>
+  <rect x="64" y="570" width="19" height="19" rx="4" fill="#4F637A" fill-opacity=".18" stroke="#4F637A" stroke-opacity=".65"/>
+  <path d="M69 580H78" stroke="#4F637A" stroke-width="1.5" stroke-dasharray="2 3"/>
+  <text x="94" y="584" fill="#656A72" font-size="11">Supporting details depend on what was recorded.</text>
+  <text x="1016" y="584" fill="#656A72" font-size="10" text-anchor="end" class="mono">ANALYST DECIDES</text>
 </svg>
