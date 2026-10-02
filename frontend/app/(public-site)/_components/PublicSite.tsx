@@ -226,7 +226,7 @@ export function ProjectOverviewContent() {
                 width={1080}
                 height={680}
                 priority
-                sizes="(max-width: 780px) 94vw, 56vw"
+                unoptimized
               />
             </picture>
             <figcaption className={styles.figureCaption}>
