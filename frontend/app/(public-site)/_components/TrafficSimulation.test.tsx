@@ -32,7 +32,7 @@ describe('TrafficSimulation', () => {
     const wafStep = screen.getByRole('button', { name: /WAF/ })
     fireEvent.click(wafStep)
     expect(screen.getByRole('heading', { name: 'Firewall evidence' })).toBeInTheDocument()
-    expect(screen.getByText(/no linked firewall finding/i)).toBeInTheDocument()
+    expect(screen.getByText('The web firewall checks the request; no matching rule is recorded in this example.')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Ready.')
 
     fireEvent.keyDown(wafStep, { key: 'ArrowRight' })
@@ -55,6 +55,33 @@ describe('TrafficSimulation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
     expect(screen.getByRole('status')).toHaveTextContent('Ready.')
     expect(screen.queryByRole('button', { name: /Open Traffic Details/ })).not.toBeInTheDocument()
+  })
+
+  it('explains what happens at each step in the traffic review flow', () => {
+    render(<TrafficSimulation />)
+
+    expect(screen.getByText('A web request arrives with its method, route, and submitted input.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /WAF/ }))
+    expect(screen.getByText('The web firewall finds a matching rule and records it as evidence for this request.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /ML/ }))
+    expect(screen.getByText('The ML model classifies the request as SQL Injection and returns a high confidence tier.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /History/ }))
+    expect(screen.getByText('Traffic History brings the request, model prediction, and any firewall evidence together in one reviewable record.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Details/ }))
+    expect(screen.getByText('Traffic Details shows the request context, model result, firewall evidence, and action recorded for the request.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Review/ }))
+    expect(screen.getByText('The analyst assigns a review state to track the investigation and its next steps.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Code injection pattern/ }))
+    fireEvent.click(screen.getByRole('button', { name: /WAF/ }))
+    expect(screen.getByText('The web firewall checks the request; no matching rule is recorded in this example.')).toBeInTheDocument()
+
+    expect(screen.queryByText(/display-only text|does not, by itself|not attack severity/i)).not.toBeInTheDocument()
   })
 
   it('opens synthetic Traffic Details and keeps the analyst triage state local', () => {

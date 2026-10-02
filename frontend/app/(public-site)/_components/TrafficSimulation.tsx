@@ -30,21 +30,21 @@ function stageExplanation(
 ): string {
   switch (stage) {
     case 0:
-      return 'Review the prepared method, route, and sample input. This is display-only text; the page does not send it anywhere.'
+      return 'A web request arrives with its method, route, and submitted input.'
     case 1:
       return scenario.wafFindingIncluded
-        ? 'This fictional example includes a linked firewall finding. In the real system, WAF evidence appears only when the available identifiers support that connection.'
-        : 'This example has no linked firewall finding. A missing WAF match does not, by itself, prove a request is safe.'
+        ? 'The web firewall finds a matching rule and records it as evidence for this request.'
+        : 'The web firewall checks the request; no matching rule is recorded in this example.'
     case 2:
-      return `The example model result is ${scenario.prediction} with ${scenario.confidenceTier.toLowerCase()} confidence. Confidence describes support for the classification, not attack severity.`
+      return `The ML model classifies the request as ${scenario.prediction} and returns a ${scenario.confidenceTier.toLowerCase()} confidence tier.`
     case 3:
-      return 'A sample Traffic History row brings together the request context and its separate signals. This visitor demo keeps that row in the page only.'
+      return 'Traffic History brings the request, model prediction, and any firewall evidence together in one reviewable record.'
     case 4:
-      return 'Traffic Details shows what was recorded while keeping the model result, firewall evidence, saved action, response status, and enforcement source distinct.'
+      return 'Traffic Details shows the request context, model result, firewall evidence, and action recorded for the request.'
     default:
       return scenario.isSecurityDetection
-        ? 'An analyst can record a review state for a security detection. The control below changes only this local sample; it does not update the CyberTrace dashboard.'
-        : 'Normal traffic is available for context in Traffic History, but it does not receive the security-detection triage workflow.'
+        ? 'The analyst assigns a review state to track the investigation and its next steps.'
+        : 'The analyst can inspect normal traffic for context; security triage is reserved for detections.'
   }
 }
 
@@ -366,7 +366,7 @@ export function TrafficSimulation() {
                   <div><dt>Prediction</dt><dd>{scenario.prediction}</dd></div>
                   <div><dt>Confidence tier</dt><dd>{scenario.confidenceTier}</dd></div>
                 </dl>
-                <p>Confidence supports the model’s label; it is not a measure of attack severity.</p>
+                <p>The confidence tier indicates how strongly the model supports its prediction.</p>
               </section>
               <section className={styles.simulationDetailBlock}>
                 <h3>Firewall evidence</h3>
