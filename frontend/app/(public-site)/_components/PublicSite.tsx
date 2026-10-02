@@ -31,12 +31,18 @@ const technicalNotes = [
   'Traffic History can include Normal records when a user opts in. Those records remain read-only and do not receive the security-record triage workflow.',
 ]
 
-const teamMembers = [
+type TeamMember = {
+  name: string
+  initials: string
+  image?: string
+}
+
+const teamMembers: TeamMember[] = [
   { name: 'Mark Angelo A. Aquino', initials: 'MA' },
   { name: 'Junaid Bantuas', initials: 'JB' },
-  { name: 'Eugene Dela Cruz', initials: 'ED' },
+  { name: 'Eugene Dela Cruz', initials: 'ED', image: '/team/eugene-dela-cruz.webp' },
   { name: 'Froilan Gayao', initials: 'FG' },
-  { name: 'Faron Jabez Nonan', initials: 'FN' },
+  { name: 'Faron Jabez Nonan', initials: 'FN', image: '/team/faron-jabez-nonan.webp' },
 ]
 
 type PublicPage = 'home' | 'aboutProject' | 'howItWorks' | 'aboutUs'
@@ -514,16 +520,32 @@ export function AboutUsContent() {
               <li key={member.name}>
                 <article className={styles.profileCard}>
                   <div
-                    className={styles.profilePhoto}
-                    role="img"
-                    aria-label={`Formal portrait placeholder for ${member.name}`}
+                    className={[
+                      styles.profilePhoto,
+                      member.image ? styles.profilePhotoWithImage : '',
+                    ].filter(Boolean).join(' ')}
                   >
-                    <span className={styles.profileMonogram} aria-hidden="true">
-                      {member.initials}
-                    </span>
-                    <span className={styles.profilePhotoLabel}>
-                      Add formal portrait
-                    </span>
+                    {member.image ? (
+                      <Image
+                        alt={`Portrait of ${member.name}`}
+                        className={styles.profilePortrait}
+                        fill
+                        sizes="(max-width: 700px) 106px, (max-width: 1100px) 28vw, 300px"
+                        src={member.image}
+                      />
+                    ) : (
+                      <div
+                        role="img"
+                        aria-label={`Formal portrait placeholder for ${member.name}`}
+                      >
+                        <span className={styles.profileMonogram} aria-hidden="true">
+                          {member.initials}
+                        </span>
+                        <span className={styles.profilePhotoLabel}>
+                          Add formal portrait
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className={styles.profileInfo}>
                     <p className={styles.profileIndex}>

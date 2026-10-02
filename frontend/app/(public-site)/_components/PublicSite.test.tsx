@@ -6,7 +6,7 @@ import { AboutUsContent } from './PublicSite'
 afterEach(() => cleanup())
 
 describe('AboutUsContent', () => {
-  it('shows the listed students with clearly marked photo and role placeholders', () => {
+  it('shows listed students, supplied portraits, and placeholders for unavailable portraits', () => {
     render(<AboutUsContent />)
 
     expect(screen.getByRole('heading', { name: 'Meet Team 12.' })).toBeInTheDocument()
@@ -19,6 +19,11 @@ describe('AboutUsContent', () => {
       'Faron Jabez Nonan',
     ]) {
       expect(screen.getByRole('heading', { name })).toBeInTheDocument()
+    }
+
+    expect(screen.getByRole('img', { name: 'Portrait of Eugene Dela Cruz' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Portrait of Faron Jabez Nonan' })).toBeInTheDocument()
+    for (const name of ['Mark Angelo A. Aquino', 'Junaid Bantuas', 'Froilan Gayao']) {
       expect(
         screen.getByRole('img', { name: `Formal portrait placeholder for ${name}` })
       ).toBeInTheDocument()
@@ -31,7 +36,7 @@ describe('AboutUsContent', () => {
     render(<AboutUsContent />)
 
     expect(screen.getByRole('heading', { name: 'Our project adviser' })).toBeInTheDocument()
-    expect(screen.getByText('Name and academic title to be confirmed')).toBeInTheDocument()
+    expect(screen.getByText('Robin Valenzuela · Team Adviser')).toBeInTheDocument()
     expect(
       screen.getByRole('img', {
         name: 'Formal portrait placeholder for the CyberTrace project adviser',

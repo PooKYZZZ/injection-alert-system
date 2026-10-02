@@ -844,6 +844,16 @@
   aspect-ratio: 1;
 }
 
+.profilePhotoWithImage::before,
+.profilePhotoWithImage::after {
+  display: none;
+}
+
+.profilePortrait {
+  object-fit: cover;
+  object-position: center top;
+}
+
 .profileMonogram {
   position: relative;
   z-index: 1;
