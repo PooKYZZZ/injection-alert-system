@@ -57,7 +57,12 @@ const teamMembers: TeamMember[] = [
     focus: 'Data Science',
     image: '/team/eugene-dela-cruz.webp',
   },
-  { name: 'Froilan Gayao', initials: 'FG', focus: 'Systems Administration' },
+  {
+    name: 'Froilan Gayao',
+    initials: 'FG',
+    focus: 'Systems Administration',
+    image: '/team/froilan-gayao.webp',
+  },
   {
     name: 'Faron Jabez Nonan',
     initials: 'FN',
@@ -583,22 +588,25 @@ export function AboutUsContent() {
 
         <aside className={styles.adviserCard} aria-labelledby="adviser-title">
           <div
-            className={[styles.profilePhoto, styles.adviserPhoto].join(' ')}
-            role="img"
-            aria-label="Formal portrait placeholder for the CyberTrace project adviser"
+            className={[
+              styles.profilePhoto,
+              styles.profilePhotoWithImage,
+              styles.adviserPhoto,
+            ].join(' ')}
           >
-            <span className={styles.profileMonogram} aria-hidden="true">AD</span>
-            <span className={styles.profilePhotoLabel}>Add adviser portrait</span>
+            <Image
+              alt="Portrait of Robin Valenzuela, Team Adviser"
+              className={styles.profilePortrait}
+              fill
+              sizes="(max-width: 700px) 146px, (max-width: 1100px) 125px, 180px"
+              src="/team/robin-valenzuela.webp"
+            />
           </div>
           <div className={styles.adviserCopy}>
             <p className={styles.profileEyebrow}>PROJECT GUIDANCE</p>
             <h2 id="adviser-title">Our project adviser</h2>
             <p className={styles.adviserName}>Robin Valenzuela · Team Adviser</p>
-            <p>
-              This separate profile recognizes the adviser’s guidance without
-              presenting them as a member of the student team. A portrait can
-              be added when one is available.
-            </p>
+            <p>Academic guidance for Team 12 throughout the CyberTrace project.</p>
           </div>
         </aside>
       </div>

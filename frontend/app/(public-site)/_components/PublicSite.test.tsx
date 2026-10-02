@@ -25,13 +25,11 @@ describe('AboutUsContent', () => {
       'Mark Angelo A. Aquino',
       'Junaid Bantuas',
       'Eugene Dela Cruz',
+      'Froilan Gayao',
       'Faron Jabez Nonan',
     ]) {
       expect(screen.getByRole('img', { name: `Portrait of ${name}` })).toBeInTheDocument()
     }
-    expect(
-      screen.getByRole('img', { name: 'Formal portrait placeholder for Froilan Gayao' })
-    ).toBeInTheDocument()
 
     expect(
       screen.queryByRole('img', { name: 'Formal portrait placeholder for Mark Angelo A. Aquino' })
@@ -45,16 +43,15 @@ describe('AboutUsContent', () => {
     expect(screen.getAllByText('Systems Administration')).toHaveLength(3)
   })
 
-  it('keeps the adviser distinct and avoids inventing identity details', () => {
+  it('shows the adviser portrait and a concise description of the guidance role', () => {
     render(<AboutUsContent />)
 
     expect(screen.getByRole('heading', { name: 'Our project adviser' })).toBeInTheDocument()
     expect(screen.getByText('Robin Valenzuela · Team Adviser')).toBeInTheDocument()
-    expect(screen.getByText(/A portrait can be added when one is available\./)).toBeInTheDocument()
     expect(
-      screen.getByRole('img', {
-        name: 'Formal portrait placeholder for the CyberTrace project adviser',
-      })
+      screen.getByText('Academic guidance for Team 12 throughout the CyberTrace project.')
     ).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Portrait of Robin Valenzuela, Team Adviser' }))
+      .toBeInTheDocument()
   })
 })
