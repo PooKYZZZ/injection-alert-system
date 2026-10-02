@@ -10,7 +10,10 @@ export type TrafficSimulationScenario = {
   prediction: 'Normal' | 'SQL Injection' | 'Code Injection'
   confidenceTier: 'INFORMATIONAL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   wafFindingIncluded: boolean
+  firewallEvidenceSummary: string
   recordedAction: 'ALLOWED' | 'THROTTLED' | 'BLOCKED'
+  sampleHttpResponse: string
+  sampleHandling: string
   isSecurityDetection: boolean
 }
 
@@ -31,7 +34,10 @@ export const TRAFFIC_SIMULATION_SCENARIOS: Record<
     prediction: 'Normal',
     confidenceTier: 'INFORMATIONAL',
     wafFindingIncluded: false,
+    firewallEvidenceSummary: 'No firewall rule match is recorded for this routine catalog search.',
     recordedAction: 'ALLOWED',
+    sampleHttpResponse: '200 OK',
+    sampleHandling: 'The request continues to the application.',
     isSecurityDetection: false,
   },
   'sql-injection': {
@@ -43,7 +49,10 @@ export const TRAFFIC_SIMULATION_SCENARIOS: Record<
     prediction: 'SQL Injection',
     confidenceTier: 'HIGH',
     wafFindingIncluded: true,
+    firewallEvidenceSummary: 'A firewall rule match is included for the SQL injection pattern in this sample.',
     recordedAction: 'BLOCKED',
+    sampleHttpResponse: '403 Forbidden',
+    sampleHandling: 'Access is blocked in this example.',
     isSecurityDetection: true,
   },
   'code-injection': {
@@ -56,7 +65,10 @@ export const TRAFFIC_SIMULATION_SCENARIOS: Record<
     prediction: 'Code Injection',
     confidenceTier: 'MEDIUM',
     wafFindingIncluded: false,
+    firewallEvidenceSummary: 'No firewall rule match is included; the ML model still identifies a code-injection pattern.',
     recordedAction: 'THROTTLED',
+    sampleHttpResponse: '429 Too Many Requests',
+    sampleHandling: 'The request is rate limited in this example.',
     isSecurityDetection: true,
   },
 }

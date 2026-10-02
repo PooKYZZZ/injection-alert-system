@@ -96,9 +96,9 @@ describe('TrafficSimulation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Open Traffic Details/ }))
     const dialog = screen.getByRole('dialog')
 
-    expect(within(dialog).getByText('Observed HTTP status')).toBeInTheDocument()
-    expect(within(dialog).getByText('Not established by this demo')).toBeInTheDocument()
-    expect(within(dialog).getByText(/fictional linked CRS finding/)).toBeInTheDocument()
+    expect(within(dialog).getByText('Sample HTTP response')).toBeInTheDocument()
+    expect(within(dialog).getByText('403 Forbidden')).toBeInTheDocument()
+    expect(within(dialog).getByText('A firewall rule match is included for the SQL injection pattern in this sample.')).toBeInTheDocument()
 
     const reviewState = within(dialog).getByRole('combobox', { name: 'Sample review state' })
     expect(reviewState).toBeEnabled()
@@ -120,6 +120,25 @@ describe('TrafficSimulation', () => {
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText('Normal traffic remains read-only and does not use the security triage workflow.')).toBeInTheDocument()
     expect(within(dialog).getByText('Read-only sample')).toBeInTheDocument()
+    expect(within(dialog).getByText('No firewall rule match is recorded for this routine catalog search.')).toBeInTheDocument()
+    expect(within(dialog).getByText('200 OK')).toBeInTheDocument()
     expect(within(dialog).queryByRole('combobox', { name: 'Sample review state' })).not.toBeInTheDocument()
+  })
+
+  it('shows code-injection firewall context and sample outcome in Traffic Details', () => {
+    vi.useFakeTimers()
+    render(<TrafficSimulation />)
+    fireEvent.click(screen.getByRole('button', { name: /Code injection pattern/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start walkthrough' }))
+    for (let step = 0; step < 5; step += 1) {
+      act(() => vi.advanceTimersByTime(1050))
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Traffic Details/ }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('No firewall rule match is included; the ML model still identifies a code-injection pattern.')).toBeInTheDocument()
+    expect(within(dialog).getByText('THROTTLED')).toBeInTheDocument()
+    expect(within(dialog).getByText('429 Too Many Requests')).toBeInTheDocument()
+    expect(within(dialog).getByText('The request is rate limited in this example.')).toBeInTheDocument()
   })
 })

@@ -370,21 +370,15 @@ export function TrafficSimulation() {
               </section>
               <section className={styles.simulationDetailBlock}>
                 <h3>Firewall evidence</h3>
-                <p>
-                  {scenario.wafFindingIncluded
-                    ? 'This sample includes a fictional linked CRS finding.'
-                    : 'No linked WAF finding is included in this sample.'}
-                </p>
-                <p>Real evidence is shown only when recorded details can be linked to the request.</p>
+                <p>{scenario.firewallEvidenceSummary}</p>
               </section>
               <section className={styles.simulationDetailBlock}>
                 <h3>Action and outcome</h3>
                 <dl>
                   <div><dt>Recorded action</dt><dd>{scenario.recordedAction}</dd></div>
-                  <div><dt>Observed HTTP status</dt><dd>Not measured</dd></div>
-                  <div><dt>Enforcement source</dt><dd>Not established by this demo</dd></div>
+                  <div><dt>Sample HTTP response</dt><dd>{scenario.sampleHttpResponse}</dd></div>
+                  <div><dt>Sample handling</dt><dd>{scenario.sampleHandling}</dd></div>
                 </dl>
-                <p>The stored action label does not prove the request was blocked.</p>
               </section>
             </div>
 
