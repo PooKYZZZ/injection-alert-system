@@ -12,12 +12,19 @@ test('walks a prepared detection through details and analyst review without API 
   const apiRequests: string[] = []
   const browserErrors: string[] = []
   const consoleErrors: string[] = []
+  const hostedPolicyNotices: string[] = []
   page.on('request', (request) => {
     if (/\/api\//.test(new URL(request.url()).pathname)) apiRequests.push(request.url())
   })
   page.on('pageerror', (error) => browserErrors.push(error.message))
   page.on('console', (message) => {
-    if (message.type() === 'error') consoleErrors.push(message.text())
+    if (message.type() !== 'error') return
+    const text = message.text()
+    const blockedCloudflareBeacon = Boolean(process.env.PUBLIC_SITE_BASE_URL)
+      && text.includes('static.cloudflareinsights.com/beacon.min.js')
+      && text.includes('violates the following Content Security Policy directive')
+    if (blockedCloudflareBeacon) hostedPolicyNotices.push(text)
+    else consoleErrors.push(text)
   })
 
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -57,6 +64,12 @@ test('walks a prepared detection through details and analyst review without API 
   expect(apiRequests).toEqual([])
   expect(browserErrors).toEqual([])
   expect(consoleErrors).toEqual([])
+  if (hostedPolicyNotices.length > 0) {
+    testInfo.annotations.push({
+      type: 'note',
+      description: 'Cloudflare Insights beacon is injected at the edge and denied by the site CSP; application console errors remain clear.',
+    })
+  }
 })
 
 test('fits at desktop, tablet, and mobile widths; supports keyboard use and reduced motion', async ({ page }, testInfo) => {
