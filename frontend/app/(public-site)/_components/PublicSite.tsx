@@ -34,15 +34,36 @@ const technicalNotes = [
 type TeamMember = {
   name: string
   initials: string
+  focus: string
   image?: string
 }
 
 const teamMembers: TeamMember[] = [
-  { name: 'Mark Angelo A. Aquino', initials: 'MA' },
-  { name: 'Junaid Bantuas', initials: 'JB' },
-  { name: 'Eugene Dela Cruz', initials: 'ED', image: '/team/eugene-dela-cruz.webp' },
-  { name: 'Froilan Gayao', initials: 'FG' },
-  { name: 'Faron Jabez Nonan', initials: 'FN', image: '/team/faron-jabez-nonan.webp' },
+  {
+    name: 'Mark Angelo A. Aquino',
+    initials: 'MA',
+    focus: 'Systems Administration',
+    image: '/team/mark-angelo-aquino.webp',
+  },
+  {
+    name: 'Junaid Bantuas',
+    initials: 'JB',
+    focus: 'Intelligent Systems',
+    image: '/team/junaid-bantuas.webp',
+  },
+  {
+    name: 'Eugene Dela Cruz',
+    initials: 'ED',
+    focus: 'Data Science',
+    image: '/team/eugene-dela-cruz.webp',
+  },
+  { name: 'Froilan Gayao', initials: 'FG', focus: 'Systems Administration' },
+  {
+    name: 'Faron Jabez Nonan',
+    initials: 'FN',
+    focus: 'Systems Administration',
+    image: '/team/faron-jabez-nonan.webp',
+  },
 ]
 
 type PublicPage = 'home' | 'aboutProject' | 'howItWorks' | 'aboutUs'
@@ -512,7 +533,7 @@ export function AboutUsContent() {
               <p className={styles.profileEyebrow}>TEAM 12</p>
               <h2 id="team-profiles-title">The people behind the project</h2>
             </div>
-            <p>Portraits and official role titles are being confirmed.</p>
+            <p>Meet the students and their areas of focus.</p>
           </div>
 
           <ul className={styles.profileGrid} aria-label="Team 12 members">
@@ -552,7 +573,7 @@ export function AboutUsContent() {
                       TEAM MEMBER <span>{String(index + 1).padStart(2, '0')}</span>
                     </p>
                     <h3>{member.name}</h3>
-                    <p className={styles.profileRole}>Role title to be confirmed</p>
+                    <p className={styles.profileRole}>{member.focus}</p>
                   </div>
                 </article>
               </li>
@@ -575,8 +596,8 @@ export function AboutUsContent() {
             <p className={styles.adviserName}>Robin Valenzuela · Team Adviser</p>
             <p>
               This separate profile recognizes the adviser’s guidance without
-              presenting them as a member of the student team. We’ll add their
-              approved name, title, and portrait once confirmed.
+              presenting them as a member of the student team. A portrait can
+              be added when one is available.
             </p>
           </div>
         </aside>
