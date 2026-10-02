@@ -12,6 +12,8 @@ describe('TrafficSimulation', () => {
   it('lets visitors compare fixed request examples without sending a request', () => {
     render(<TrafficSimulation />)
 
+    expect(screen.getByRole('group', { name: 'Sample request scenarios' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Prepared request preview' })).toBeInTheDocument()
     expect(screen.getByText('GET /catalog/search?q=%27%20OR%20%271%27%3D%271')).toBeInTheDocument()
     expect(screen.getByText('Prepared for this walkthrough · never transmitted')).toBeInTheDocument()
 

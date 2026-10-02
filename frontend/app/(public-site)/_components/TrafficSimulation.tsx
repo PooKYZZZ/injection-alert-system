@@ -188,7 +188,7 @@ export function TrafficSimulation() {
         <aside className={styles.simulationRequestPanel} aria-labelledby="simulation-request-title">
           <p className={styles.simulationPanelEyebrow}>01 / PICK A SAMPLE</p>
           <h3 id="simulation-request-title">Choose a request</h3>
-          <div className={styles.simulationScenarioList} aria-label="Sample request scenarios">
+          <div className={styles.simulationScenarioList} role="group" aria-label="Sample request scenarios">
             {Object.values(TRAFFIC_SIMULATION_SCENARIOS).map((sample) => (
               <button
                 aria-pressed={sample.id === scenarioId}
@@ -209,7 +209,7 @@ export function TrafficSimulation() {
             ))}
           </div>
 
-          <div className={styles.simulationRequestPreview} aria-label="Prepared request preview">
+          <div className={styles.simulationRequestPreview} role="group" aria-label="Prepared request preview">
             <div className={styles.simulationPreviewTop}>
               <span>REQUEST PREVIEW</span>
               <span>sample-store.example.test</span>
