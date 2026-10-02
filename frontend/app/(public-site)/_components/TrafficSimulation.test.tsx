@@ -32,7 +32,7 @@ describe('TrafficSimulation', () => {
     const wafStep = screen.getByRole('button', { name: /WAF/ })
     fireEvent.click(wafStep)
     expect(screen.getByRole('heading', { name: 'Firewall evidence' })).toBeInTheDocument()
-    expect(screen.getByText('The web firewall checks the request; no matching rule is recorded in this example.')).toBeInTheDocument()
+    expect(screen.getByText('ModSecurity checks the request against OWASP CRS and records the matching rule IDs and score.')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Ready.')
 
     fireEvent.keyDown(wafStep, { key: 'ArrowRight' })
@@ -63,7 +63,7 @@ describe('TrafficSimulation', () => {
     expect(screen.getByText('A web request arrives with its method, route, and submitted input.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /WAF/ }))
-    expect(screen.getByText('The web firewall finds a matching rule and records it as evidence for this request.')).toBeInTheDocument()
+    expect(screen.getByText('ModSecurity checks the request against OWASP CRS and records the matching rule IDs and score.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /ML/ }))
     expect(screen.getByText('The ML model classifies the request as SQL Injection and returns a high confidence tier.')).toBeInTheDocument()
@@ -79,7 +79,7 @@ describe('TrafficSimulation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Code injection pattern/ }))
     fireEvent.click(screen.getByRole('button', { name: /WAF/ }))
-    expect(screen.getByText('The web firewall checks the request; no matching rule is recorded in this example.')).toBeInTheDocument()
+    expect(screen.getByText('ModSecurity checks the request against OWASP CRS and records the matching rule IDs and score.')).toBeInTheDocument()
 
     expect(screen.queryByText(/display-only text|does not, by itself|not attack severity/i)).not.toBeInTheDocument()
   })
@@ -96,9 +96,14 @@ describe('TrafficSimulation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Open Traffic Details/ }))
     const dialog = screen.getByRole('dialog')
 
-    expect(within(dialog).getByText('Sample HTTP response')).toBeInTheDocument()
+    expect(within(dialog).getByText('Example HTTP response')).toBeInTheDocument()
     expect(within(dialog).getByText('403 Forbidden')).toBeInTheDocument()
-    expect(within(dialog).getByText('A firewall rule match is included for the SQL injection pattern in this sample.')).toBeInTheDocument()
+    expect(within(dialog).getByText('ModSecurity audit bridge')).toBeInTheDocument()
+    expect(within(dialog).getByText('SQL Injection Attack Detected via libinjection')).toBeInTheDocument()
+    expect(within(dialog).getByText('Inbound Anomaly Score Exceeded (Total Score: 5)')).toBeInTheDocument()
+    expect(within(dialog).getAllByText('942100')).toHaveLength(2)
+    expect(within(dialog).getAllByText('949110')).toHaveLength(2)
+    expect(within(dialog).getByText('ModSecurity returned 403 before the request reached the application.')).toBeInTheDocument()
 
     const reviewState = within(dialog).getByRole('combobox', { name: 'Sample review state' })
     expect(reviewState).toBeEnabled()
@@ -120,7 +125,10 @@ describe('TrafficSimulation', () => {
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText('Normal traffic remains read-only and does not use the security triage workflow.')).toBeInTheDocument()
     expect(within(dialog).getByText('Read-only sample')).toBeInTheDocument()
-    expect(within(dialog).getByText('No firewall rule match is recorded for this routine catalog search.')).toBeInTheDocument()
+    expect(within(dialog).getByText('No CRS rule match')).toBeInTheDocument()
+    expect(within(dialog).getByText('Not recorded')).toBeInTheDocument()
+    expect(within(dialog).getByText('No rule messages were recorded for this request.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Application')).toBeInTheDocument()
     expect(within(dialog).getByText('200 OK')).toBeInTheDocument()
     expect(within(dialog).queryByRole('combobox', { name: 'Sample review state' })).not.toBeInTheDocument()
   })
@@ -136,9 +144,12 @@ describe('TrafficSimulation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Open Traffic Details/ }))
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText('No firewall rule match is included; the ML model still identifies a code-injection pattern.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Remote Command Execution: Unix Command Injection')).toBeInTheDocument()
+    expect(within(dialog).getByText('Node.js Injection Attack')).toBeInTheDocument()
+    expect(within(dialog).getByText('Inbound Anomaly Score Exceeded (Total Score: 10)')).toBeInTheDocument()
     expect(within(dialog).getByText('THROTTLED')).toBeInTheDocument()
-    expect(within(dialog).getByText('429 Too Many Requests')).toBeInTheDocument()
-    expect(within(dialog).getByText('The request is rate limited in this example.')).toBeInTheDocument()
+    expect(within(dialog).getByText('403 Forbidden')).toBeInTheDocument()
+    expect(within(dialog).getByText('ModSecurity', { exact: true })).toBeInTheDocument()
+    expect(within(dialog).getByText('ModSecurity returned 403; the system separately recorded THROTTLED.')).toBeInTheDocument()
   })
 })

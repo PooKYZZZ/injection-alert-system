@@ -1,5 +1,17 @@
 export type TrafficSimulationScenarioId = 'normal' | 'sql-injection' | 'code-injection'
 
+export type TrafficSimulationWafRule = {
+  id: string
+  message: string
+}
+
+export type TrafficSimulationFirewallEvidence = {
+  status: 'match' | 'no-match'
+  source: 'modsec_audit_bridge' | null
+  crsScore: number | null
+  rules: TrafficSimulationWafRule[]
+}
+
 export type TrafficSimulationScenario = {
   id: TrafficSimulationScenarioId
   title: string
@@ -9,10 +21,10 @@ export type TrafficSimulationScenario = {
   body?: string
   prediction: 'Normal' | 'SQL Injection' | 'Code Injection'
   confidenceTier: 'INFORMATIONAL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-  wafFindingIncluded: boolean
-  firewallEvidenceSummary: string
+  firewallEvidence: TrafficSimulationFirewallEvidence
   recordedAction: 'ALLOWED' | 'THROTTLED' | 'BLOCKED'
   sampleHttpResponse: string
+  sampleResponseSource: 'Application' | 'ModSecurity'
   sampleHandling: string
   isSecurityDetection: boolean
 }
@@ -33,11 +45,16 @@ export const TRAFFIC_SIMULATION_SCENARIOS: Record<
     path: '/catalog/search?q=blue+shoes',
     prediction: 'Normal',
     confidenceTier: 'INFORMATIONAL',
-    wafFindingIncluded: false,
-    firewallEvidenceSummary: 'No firewall rule match is recorded for this routine catalog search.',
+    firewallEvidence: {
+      status: 'no-match',
+      source: null,
+      crsScore: null,
+      rules: [],
+    },
     recordedAction: 'ALLOWED',
     sampleHttpResponse: '200 OK',
-    sampleHandling: 'The request continues to the application.',
+    sampleResponseSource: 'Application',
+    sampleHandling: 'The request reached the application; no CRS rule matched.',
     isSecurityDetection: false,
   },
   'sql-injection': {
@@ -48,27 +65,44 @@ export const TRAFFIC_SIMULATION_SCENARIOS: Record<
     path: "/catalog/search?q=%27%20OR%20%271%27%3D%271",
     prediction: 'SQL Injection',
     confidenceTier: 'HIGH',
-    wafFindingIncluded: true,
-    firewallEvidenceSummary: 'A firewall rule match is included for the SQL injection pattern in this sample.',
+    firewallEvidence: {
+      status: 'match',
+      source: 'modsec_audit_bridge',
+      crsScore: 5,
+      rules: [
+        { id: '942100', message: 'SQL Injection Attack Detected via libinjection' },
+        { id: '949110', message: 'Inbound Anomaly Score Exceeded (Total Score: 5)' },
+      ],
+    },
     recordedAction: 'BLOCKED',
     sampleHttpResponse: '403 Forbidden',
-    sampleHandling: 'Access is blocked in this example.',
+    sampleResponseSource: 'ModSecurity',
+    sampleHandling: 'ModSecurity returned 403 before the request reached the application.',
     isSecurityDetection: true,
   },
   'code-injection': {
     id: 'code-injection',
     title: 'Code injection pattern',
-    summary: 'A prepared request with a template-like expression in its input.',
+    summary: 'A prepared input that resembles a server-side command.',
     method: 'POST',
     path: '/feedback',
-    body: '{"comment":"${7*7}"}',
+    body: '{"comment":"require(\'child_process\').exec(\'id\')"}',
     prediction: 'Code Injection',
     confidenceTier: 'MEDIUM',
-    wafFindingIncluded: false,
-    firewallEvidenceSummary: 'No firewall rule match is included; the ML model still identifies a code-injection pattern.',
+    firewallEvidence: {
+      status: 'match',
+      source: 'modsec_audit_bridge',
+      crsScore: 10,
+      rules: [
+        { id: '932100', message: 'Remote Command Execution: Unix Command Injection' },
+        { id: '934100', message: 'Node.js Injection Attack' },
+        { id: '949110', message: 'Inbound Anomaly Score Exceeded (Total Score: 10)' },
+      ],
+    },
     recordedAction: 'THROTTLED',
-    sampleHttpResponse: '429 Too Many Requests',
-    sampleHandling: 'The request is rate limited in this example.',
+    sampleHttpResponse: '403 Forbidden',
+    sampleResponseSource: 'ModSecurity',
+    sampleHandling: 'ModSecurity returned 403; the system separately recorded THROTTLED.',
     isSecurityDetection: true,
   },
 }

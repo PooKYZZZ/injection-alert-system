@@ -32,9 +32,9 @@ function stageExplanation(
     case 0:
       return 'A web request arrives with its method, route, and submitted input.'
     case 1:
-      return scenario.wafFindingIncluded
-        ? 'The web firewall finds a matching rule and records it as evidence for this request.'
-        : 'The web firewall checks the request; no matching rule is recorded in this example.'
+      return scenario.firewallEvidence.status === 'match'
+        ? 'ModSecurity checks the request against OWASP CRS and records the matching rule IDs and score.'
+        : 'ModSecurity checks the request against OWASP CRS; no rule matched this example.'
     case 2:
       return `The ML model classifies the request as ${scenario.prediction} and returns a ${scenario.confidenceTier.toLowerCase()} confidence tier.`
     case 3:
@@ -369,15 +369,66 @@ export function TrafficSimulation() {
                 <p>The confidence tier indicates how strongly the model supports its prediction.</p>
               </section>
               <section className={styles.simulationDetailBlock}>
-                <h3>Firewall evidence</h3>
-                <p>{scenario.firewallEvidenceSummary}</p>
+                <div className={styles.simulationFirewallHeader}>
+                  <h3>Firewall evidence</h3>
+                  <span className={styles.simulationFirewallSampleTag}>ILLUSTRATIVE OUTPUT</span>
+                </div>
+                <p>
+                  ModSecurity checks requests against OWASP CRS rules. A match shows which rules fired and the combined score.
+                </p>
+                <dl className={styles.simulationEvidenceFields}>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{scenario.firewallEvidence.status === 'match' ? 'CRS rules matched' : 'No CRS rule match'}</dd>
+                  </div>
+                  <div>
+                    <dt>Source</dt>
+                    <dd>
+                      {scenario.firewallEvidence.source
+                        ? <>ModSecurity audit bridge <code>(modsec_audit_bridge)</code></>
+                        : 'No ModSecurity match'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>CRS score</dt>
+                    <dd>{scenario.firewallEvidence.crsScore ?? 'Not recorded'}</dd>
+                  </div>
+                  <div>
+                    <dt>Rule IDs</dt>
+                    <dd>
+                      {scenario.firewallEvidence.rules.length > 0 ? (
+                        <span className={styles.simulationEvidenceIdList}>
+                          {scenario.firewallEvidence.rules.map((rule) => (
+                            <code key={rule.id}>{rule.id}</code>
+                          ))}
+                        </span>
+                      ) : 'None'}
+                    </dd>
+                  </div>
+                </dl>
+                {scenario.firewallEvidence.rules.length > 0 ? (
+                  <div className={styles.simulationEvidenceRules}>
+                    <h4>Matched rule messages</h4>
+                    <ul>
+                      {scenario.firewallEvidence.rules.map((rule) => (
+                        <li key={rule.id}>
+                          <code>{rule.id}</code>
+                          <span>{rule.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className={styles.simulationEvidenceEmpty}>No rule messages were recorded for this request.</p>
+                )}
               </section>
               <section className={styles.simulationDetailBlock}>
                 <h3>Action and outcome</h3>
                 <dl>
                   <div><dt>Recorded action</dt><dd>{scenario.recordedAction}</dd></div>
-                  <div><dt>Sample HTTP response</dt><dd>{scenario.sampleHttpResponse}</dd></div>
-                  <div><dt>Sample handling</dt><dd>{scenario.sampleHandling}</dd></div>
+                  <div><dt>Example HTTP response</dt><dd>{scenario.sampleHttpResponse}</dd></div>
+                  <div><dt>Response source</dt><dd>{scenario.sampleResponseSource}</dd></div>
+                  <div><dt>Result</dt><dd>{scenario.sampleHandling}</dd></div>
                 </dl>
               </section>
             </div>
