@@ -113,7 +113,7 @@ export function PublicSiteFrame({
             <span>CyberTrace</span>
           </Link>
           <p>
-            An academic cybersecurity project by Team 13. No affiliation with
+            An academic cybersecurity project by Team 12. No affiliation with
             or endorsement by a government agency or land-records authority is
             implied.
           </p>
@@ -135,7 +135,7 @@ export function ProjectOverviewContent() {
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>
               <span className={styles.eyebrowMark} aria-hidden="true" />
-              Academic cybersecurity project · Team 13
+              Academic cybersecurity project · Team 12
             </p>
             <h1 id="hero-title">
               Security review
@@ -263,9 +263,9 @@ export function ProjectOverviewContent() {
               <span className={styles.destinationIndex}>03 / THE TEAM</span>
               <h3>About Us</h3>
               <p>
-                Meet the five Team 13 members listed in the project materials.
+                Meet the five Team 12 members listed in the project materials.
               </p>
-              <span className={styles.destinationLink}>Meet Team 13 <span aria-hidden="true">↗</span></span>
+              <span className={styles.destinationLink}>Meet Team 12 <span aria-hidden="true">↗</span></span>
             </Link>
           </div>
         </div>
@@ -491,7 +491,7 @@ export function AboutUsContent() {
         </div>
         <div className={styles.teamGrid}>
           <div className={styles.teamCopy}>
-            <h1 id="team-title">Meet Team 13.</h1>
+            <h1 id="team-title">Meet Team 12.</h1>
             <p className={styles.teamLead}>
               We are the five students behind CyberTrace, an academic project
               exploring clearer review of suspicious web activity.
@@ -503,7 +503,7 @@ export function AboutUsContent() {
               and human review together.
             </p>
           </div>
-          <ol className={styles.teamList} aria-label="Team 13 members">
+          <ol className={styles.teamList} aria-label="Team 12 members">
             {teamMembers.map((member, index) => (
               <li className={styles.teamMember} key={member}>
                 <span aria-hidden="true">
