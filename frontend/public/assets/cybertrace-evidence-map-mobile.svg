@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="610" viewBox="0 0 400 610" fill="none">
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" stroke="#71847F" stroke-opacity=".13" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="request" x1="40" y1="104" x2="360" y2="184" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0D4AA"/>
+      <stop offset="1" stop-color="#D8A76C"/>
+    </linearGradient>
+    <linearGradient id="review" x1="210" y1="413" x2="368" y2="505" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C5E4D8"/>
+      <stop offset="1" stop-color="#80C7B7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M1 1 7 4.5 1 8" stroke="#B9C9C1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M1 1 7 4.5 1 8" stroke="#D9AD78" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      text { font-family: Inter, Arial, sans-serif; }
+      .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    </style>
+  </defs>
+
+  <rect width="400" height="610" rx="16" fill="#111A20"/>
+  <rect width="400" height="610" rx="16" fill="url(#grid)"/>
+  <rect x="12" y="12" width="376" height="586" rx="11" stroke="#647771" stroke-opacity=".27"/>
+  <circle cx="334" cy="88" r="80" stroke="#78C9BD" stroke-opacity=".08"/>
+  <circle cx="334" cy="88" r="58" stroke="#78C9BD" stroke-opacity=".08"/>
+
+  <text x="30" y="48" fill="#DAB17E" font-size="10" font-weight="600" letter-spacing="1.4" class="mono">CYBERTRACE / REVIEW FLOW</text>
+  <text x="30" y="75" fill="#F3F0E8" font-size="19" font-weight="600" letter-spacing="-.3">A clearer view for analyst review</text>
+  <text x="370" y="49" fill="#AABAB3" font-size="8" text-anchor="end" letter-spacing=".7" class="mono">NOT LIVE DATA</text>
+
+  <rect x="30" y="101" width="340" height="78" rx="8" fill="url(#request)"/>
+  <rect x="41" y="112" width="318" height="56" rx="5" stroke="#6C5337" stroke-opacity=".4"/>
+  <text x="55" y="133" fill="#6E4B2B" font-size="9" font-weight="700" letter-spacing="1" class="mono">01 / REQUEST</text>
+  <text x="55" y="157" fill="#26343A" font-size="17" font-weight="700">Web request</text>
+  <text x="345" y="153" fill="#4B5653" font-size="10" text-anchor="end">Route · method · available context</text>
+
+  <path d="M200 179V198M200 198H112V215M200 198H288V215" stroke="#D9AD78" stroke-width="1.8" stroke-dasharray="4 6" marker-end="url(#arrowAmber)"/>
+  <circle cx="200" cy="198" r="4" fill="#172328" stroke="#B9C9C1" stroke-width="1.3"/>
+
+  <rect x="30" y="225" width="164" height="139" rx="8" fill="#293940" stroke="#9E7951" stroke-opacity=".8"/>
+  <rect x="30" y="225" width="4" height="139" rx="2" fill="#D9AD78"/>
+  <text x="45" y="250" fill="#D9AD78" font-size="9" font-weight="700" letter-spacing=".5" class="mono">02A / FIREWALL</text>
+  <text x="45" y="278" fill="#F2EFE7" font-size="15" font-weight="600">Firewall findings</text>
+  <text x="45" y="299" fill="#BCC8C0" font-size="10">Recorded rules,</text>
+  <text x="45" y="313" fill="#BCC8C0" font-size="10">scores, messages</text>
+  <rect x="45" y="328" width="104" height="20" rx="10" fill="#D9AD78" fill-opacity=".12"/>
+  <text x="97" y="342" fill="#E7C99F" font-size="8" text-anchor="middle" class="mono">WHEN RECORDED</text>
+
+  <rect x="206" y="225" width="164" height="139" rx="8" fill="#293940" stroke="#718FA9" stroke-opacity=".8"/>
+  <rect x="206" y="225" width="4" height="139" rx="2" fill="#91AEC6"/>
+  <text x="221" y="250" fill="#AFC3D5" font-size="9" font-weight="700" letter-spacing=".35" class="mono">02B / MODEL</text>
+  <text x="221" y="278" fill="#F2EFE7" font-size="15" font-weight="600">Suggested category</text>
+  <text x="221" y="299" fill="#BCC8C0" font-size="10">Model suggestion</text>
+  <text x="221" y="313" fill="#BCC8C0" font-size="10">and confidence</text>
+  <rect x="221" y="328" width="115" height="20" rx="10" fill="#91AEC6" fill-opacity=".12"/>
+  <text x="278" y="342" fill="#C5D2DF" font-size="8" text-anchor="middle" class="mono">SEPARATE SIGNAL</text>
+
+  <path d="M112 364V384H200M288 364V384H200M200 384V399H112V413" stroke="#B9C9C1" stroke-width="1.6" stroke-dasharray="4 6" marker-end="url(#arrow)"/>
+  <rect x="30" y="419" width="164" height="91" rx="8" fill="#31434A" stroke="#78918C" stroke-opacity=".72"/>
+  <path d="M48 442H78M48 450H78M48 458H68" stroke="#AABBB2" stroke-opacity=".65" stroke-width="1.6" stroke-linecap="round"/>
+  <text x="48" y="483" fill="#F0EEE5" font-size="13" font-weight="600">Traffic record</text>
+  <text x="48" y="498" fill="#C0CDC5" font-size="9">Request details · available context</text>
+
+  <path d="M194 465H204" stroke="#B9C9C1" stroke-width="1.6" stroke-dasharray="3 4" marker-end="url(#arrow)"/>
+  <rect x="206" y="419" width="164" height="91" rx="8" fill="url(#review)"/>
+  <circle cx="232" cy="451" r="11" stroke="#3C6B61" stroke-width="1.2"/>
+  <path d="M226 451H238M232 445V457" stroke="#3C6B61" stroke-width="1.2" stroke-linecap="round"/>
+  <text x="251" y="455" fill="#213A38" font-size="13" font-weight="700">Analyst review</text>
+  <text x="222" y="484" fill="#43635C" font-size="9">Review · next steps</text>
+
+  <path d="M30 548H370" stroke="#81928A" stroke-opacity=".23"/>
+  <text x="30" y="572" fill="#C2CEC7" font-size="9">Supporting details depend on what was recorded.</text>
+  <text x="370" y="586" fill="#879A92" font-size="7" text-anchor="end" letter-spacing=".6" class="mono">ANALYST DECIDES</text>
+</svg>
