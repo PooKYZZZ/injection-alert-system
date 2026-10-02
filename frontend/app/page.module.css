@@ -852,6 +852,30 @@
 .profilePortrait {
   object-fit: cover;
   object-position: center top;
+  pointer-events: none;
+  transition:
+    opacity 260ms ease,
+    transform 340ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.profilePortraitActive {
+  z-index: 1;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.profilePortraitInactiveLeft,
+.profilePortraitInactiveRight {
+  z-index: 0;
+  opacity: 0;
+}
+
+.profilePortraitInactiveLeft {
+  transform: translate3d(-10px, 0, 0) scale(1.015);
+}
+
+.profilePortraitInactiveRight {
+  transform: translate3d(10px, 0, 0) scale(1.015);
 }
 
 .portraitSwitcher {

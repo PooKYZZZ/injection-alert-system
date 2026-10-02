@@ -26,11 +26,26 @@ export function EugeneProfileCard({
     <article className={styles.profileCard}>
       <div className={[styles.profilePhoto, styles.profilePhotoWithImage].join(' ')}>
         <Image
-          alt={`Portrait of ${name}`}
-          className={styles.profilePortrait}
+          alt={showPrevious ? '' : `Portrait of ${name}`}
+          aria-hidden={showPrevious || undefined}
+          className={[
+            styles.profilePortrait,
+            showPrevious ? styles.profilePortraitInactiveLeft : styles.profilePortraitActive,
+          ].join(' ')}
           fill
           sizes="(max-width: 700px) 106px, (max-width: 1100px) 28vw, 300px"
-          src={showPrevious ? previousImage : updatedImage}
+          src={updatedImage}
+        />
+        <Image
+          alt={showPrevious ? `Portrait of ${name}` : ''}
+          aria-hidden={!showPrevious || undefined}
+          className={[
+            styles.profilePortrait,
+            showPrevious ? styles.profilePortraitActive : styles.profilePortraitInactiveRight,
+          ].join(' ')}
+          fill
+          sizes="(max-width: 700px) 106px, (max-width: 1100px) 28vw, 300px"
+          src={previousImage}
         />
       </div>
       <div className={styles.profileInfo}>
