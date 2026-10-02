@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 
 import styles from '@/app/page.module.css'
 import { EugeneProfileCard } from './EugeneProfileCard'
+import { TrafficSimulation } from './TrafficSimulation'
 
 const DASHBOARD_URL = 'https://app.cybertracesystems.com/login'
 
@@ -375,27 +376,6 @@ export function AboutProjectContent() {
   )
 }
 
-const workflowStages = [
-  {
-    number: '01',
-    label: 'REQUEST CONTEXT',
-    title: 'Start with the details that exist.',
-    copy: 'A traffic record can show the request information that was recorded, such as its method, route, time, and available request data. Missing details remain unknown.',
-  },
-  {
-    number: '02',
-    label: 'SEPARATE SIGNALS',
-    title: 'Read each finding for what it is.',
-    copy: 'The model suggests a likely request category and gives a confidence score. Firewall findings may also be shown when they are recorded and can be linked to the request.',
-  },
-  {
-    number: '03',
-    label: 'ANALYST REVIEW',
-    title: 'Leave the decision with a person.',
-    copy: 'Analysts open the record in Traffic History, review its available context, and use the supported triage tools to record their assessment.',
-  },
-]
-
 export function HowItWorksContent() {
   return (
     <section className={styles.howPage} aria-labelledby="workflow-title">
@@ -417,66 +397,14 @@ export function HowItWorksContent() {
           </p>
         </div>
 
-        <figure className={styles.howFlow} aria-labelledby="flow-caption">
-          <div className={styles.howFlowRow}>
-            <div className={styles.howNode}>
-              <span className={styles.howNodeLabel}>01 / REQUEST CONTEXT</span>
-              <h2>Request details</h2>
-              <p>Method, route, time, and other information when recorded.</p>
-            </div>
-            <span className={styles.howArrow} aria-hidden="true">→</span>
-            <div className={[styles.howNode, styles.howRecordNode].join(' ')}>
-              <span className={styles.howNodeLabel}>TRAFFIC HISTORY</span>
-              <h2>One reviewable record</h2>
-              <p>Available request context with supporting signals kept distinct.</p>
-            </div>
-            <span className={styles.howArrow} aria-hidden="true">→</span>
-            <div className={styles.howNode}>
-              <span className={styles.howNodeLabel}>03 / HUMAN REVIEW</span>
-              <h2>Analyst assessment</h2>
-              <p>A person reviews the evidence and records a supported triage decision.</p>
-            </div>
-          </div>
-
-          <div className={styles.signalGroup}>
-            <p className={styles.signalGroupLabel}>
-              Supporting signals appear when recorded and available
-            </p>
-            <div className={styles.signalGrid}>
-              <div className={styles.signalCard}>
-                <span className={styles.signalTag}>MODEL SUGGESTION</span>
-                <p>A likely request category and its confidence score.</p>
-              </div>
-              <div className={styles.signalCard}>
-                <span className={styles.signalTag}>FIREWALL FINDING</span>
-                <p>Recorded rule evidence, when it can be linked to this request.</p>
-              </div>
-            </div>
-          </div>
-
-          <figcaption id="flow-caption">
-            A conceptual view. Not every record has all signals or complete
-            request details.
-          </figcaption>
-        </figure>
-
-        <ol className={styles.howStages}>
-          {workflowStages.map((stage) => (
-            <li className={styles.howStage} key={stage.number}>
-              <div className={styles.howStageMeta}>
-                <span>{stage.number}</span>
-                <span>{stage.label}</span>
-              </div>
-              <h2>{stage.title}</h2>
-              <p>{stage.copy}</p>
-            </li>
-          ))}
-        </ol>
+        <TrafficSimulation />
 
         <p className={styles.howBoundary}>
-          A model score is not proof of an attack, and a recorded action alone
-          does not prove the request was blocked. CyberTrace is an academic
-          prototype that supports human review.
+          Every outcome above is prepared sample data. The walkthrough sends no
+          request to a live site and creates no Traffic History or database
+          record. In CyberTrace, a model suggestion, linked firewall evidence,
+          recorded action, observed response, and actual enforcement remain
+          separate facts; analysts make the review decision.
         </p>
 
         <details className={[styles.technicalDetails, styles.howDetails].join(' ')}>

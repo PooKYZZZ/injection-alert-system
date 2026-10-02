@@ -8,7 +8,7 @@ import {
 export const metadata: Metadata = {
   title: 'How it works | CyberTrace',
   description:
-    'See how CyberTrace brings recorded request context and separate supporting signals into a human review workflow.',
+    'Explore a safe, interactive walkthrough of how CyberTrace presents request context, separate security signals, and analyst review.',
 }
 
 export default function HowItWorksPage() {

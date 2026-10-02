@@ -1909,170 +1909,805 @@
   line-height: 1.75;
 }
 
-.howFlow {
-  margin: 48px 0 0;
-  padding: clamp(18px, 3vw, 30px);
+.simulation {
+  overflow: hidden;
+  margin-top: 48px;
   border: 1px solid var(--how-line);
-  border-radius: 7px;
+  border-radius: 9px;
   background: var(--how-surface);
+  box-shadow: 0 16px 42px rgb(35 48 62 / 6%);
 }
 
-.howFlowRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 35px minmax(0, 1.1fr) 35px minmax(0, 1fr);
-  align-items: stretch;
-  gap: 9px;
+.simulationHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 26px;
+  padding: clamp(20px, 3vw, 30px);
+  border-bottom: 1px solid var(--how-line);
 }
 
-.howNode {
-  min-height: 154px;
-  padding: 18px;
-  border: 1px solid var(--how-line);
-  border-radius: 5px;
-  background: var(--how-surface);
-}
-
-.howRecordNode {
-  border-color: var(--brand);
-  background: var(--how-surface-raised);
-}
-
-.howNodeLabel {
-  display: block;
-  color: var(--how-amber);
+.simulationEyebrow,
+.simulationPanelEyebrow {
+  margin: 0;
+  color: var(--how-muted);
   font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   font-size: 9px;
-  letter-spacing: 0.08em;
+  font-weight: 500;
+  letter-spacing: 0.105em;
+  line-height: 1.6;
+}
+
+.simulationEyebrow {
+  color: var(--brand);
+}
+
+.simulationHeader h2 {
+  margin: 11px 0 7px;
+  color: var(--how-ink);
+  font-family: var(--font-inter), var(--font-sans), sans-serif;
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+
+.simulationIntroCopy {
+  max-width: 620px;
+  margin: 0;
+  color: var(--how-copy);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.simulationSafety {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin: 1px 0 0;
+  padding: 0 11px;
+  border: 1px solid var(--how-line);
+  border-radius: 999px;
+  color: var(--how-copy);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.simulationSafety span {
+  color: #4e806c;
+  font-size: 8px;
+}
+
+.simulationWorkbench {
+  display: grid;
+  grid-template-columns: minmax(270px, 0.76fr) minmax(0, 1.55fr);
+  min-height: 430px;
+}
+
+.simulationRequestPanel {
+  padding: clamp(18px, 2.8vw, 27px);
+  border-right: 1px solid var(--how-line);
+  background: #f4f5f4;
+}
+
+.simulationRequestPanel h3,
+.simulationFlowHeading h3 {
+  margin: 7px 0 0;
+  color: var(--how-ink);
+  font-family: var(--font-inter), var(--font-sans), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+}
+
+.simulationScenarioList {
+  display: grid;
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.simulationScenario {
+  display: flex;
+  width: 100%;
+  min-height: 67px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #d5dbe0;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 66%);
+  color: var(--how-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.simulationScenario:hover {
+  border-color: #9baaba;
+  background: #fff;
+}
+
+.simulationScenarioSelected {
+  border-color: var(--brand);
+  background: #fff;
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.simulationRadio {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  border: 1px solid #8f9bab;
+  border-radius: 50%;
+}
+
+.simulationScenarioSelected .simulationRadio {
+  border-color: var(--brand);
+}
+
+.simulationScenarioSelected .simulationRadio::after {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--brand);
+  content: '';
+}
+
+.simulationScenarioText {
+  display: grid;
+  gap: 3px;
+}
+
+.simulationScenarioText strong {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.simulationScenarioText > span {
+  color: var(--how-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.simulationRequestPreview {
+  margin-top: 17px;
+  padding: 13px;
+  border: 1px solid #d8dfe4;
+  border-radius: 5px;
+  background: #edf1f3;
+}
+
+.simulationPreviewTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--how-muted);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 8px;
+  letter-spacing: 0.055em;
+}
+
+.simulationPreviewTop span:first-child {
+  color: var(--brand);
+}
+
+.simulationRequestPreview > code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 13px;
+  color: #2f4052;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.simulationRequestPreview pre,
+.simulationBodyDetail pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.simulationRequestPreview pre {
+  margin: 8px 0 0;
+  color: #586778;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.simulationRequestPreview > p {
+  margin: 11px 0 0;
+  color: var(--how-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.simulationControls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.simulationPrimaryButton,
+.simulationResetButton,
+.simulationDetailsButton,
+.simulationDialogClose {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.simulationPrimaryButton {
+  min-width: 0;
+  flex: 1;
+  padding: 0 13px;
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.simulationPrimaryButton:hover {
+  border-color: #3d5065;
+  background: #3d5065;
+}
+
+.simulationControlIcon {
+  width: 12px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.simulationResetButton {
+  padding-inline: 12px;
+  border-color: #cfd6dc;
+  background: transparent;
+  color: var(--how-copy);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.simulationResetButton:hover {
+  background: #fff;
+  border-color: #aeb9c3;
+}
+
+.simulationMotionNote {
+  margin: 9px 0 0;
+  color: var(--how-muted);
+  font-size: 10px;
   line-height: 1.5;
 }
 
-.howNode h2 {
-  margin: 24px 0 8px;
-  color: var(--how-ink);
-  font-family: var(--font-inter), var(--font-sans), sans-serif;
-  font-size: clamp(16px, 1.6vw, 20px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+.simulationFlowPanel {
+  min-width: 0;
+  padding: clamp(19px, 3vw, 30px);
 }
 
-.howNode p {
-  margin: 0;
-  color: var(--how-copy);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.howArrow {
+.simulationFlowHeading {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--brand);
-  font-size: 22px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.signalGroup {
-  margin-top: 17px;
-  padding: 17px 18px 18px;
-  border: 1px solid var(--how-line);
-  border-radius: 5px;
-  background: var(--how-surface);
+.simulationFlowHeading h3 {
+  font-size: clamp(16px, 1.7vw, 20px);
 }
 
-.signalGroupLabel {
-  margin: 0 0 13px;
-  color: var(--how-muted);
-  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.075em;
-  line-height: 1.6;
-  text-transform: uppercase;
-}
-
-.signalGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.signalCard {
-  min-height: 82px;
-  padding: 14px 15px;
-  border: 1px solid var(--how-line);
-  border-radius: 4px;
-  background: var(--how-surface);
-}
-
-.signalTag {
+.simulationDemoTag,
+.simulationSyntheticTag {
   display: inline-flex;
   min-height: 24px;
+  flex: 0 0 auto;
   align-items: center;
   padding-inline: 8px;
-  border: 1px solid var(--brand);
+  border: 1px solid #bac7d1;
   border-radius: 3px;
-  color: var(--how-teal);
+  color: #4d6479;
   font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.06em;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.075em;
 }
 
-.signalCard p {
-  margin: 9px 0 0;
-  color: var(--how-copy);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.howFlow figcaption {
-  margin-top: 15px;
-  color: var(--how-muted);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-.howStages {
+.simulationTimeline {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
-  margin: 49px 0 0;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  margin: 23px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.howStage {
-  padding-top: 17px;
-  border-top: 1px solid var(--how-line);
+.simulationTimelineItem {
+  position: relative;
+  min-width: 0;
 }
 
-.howStageMeta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--how-muted);
+.simulationTimelineItem:not(:last-child)::after {
+  position: absolute;
+  z-index: 0;
+  top: 13px;
+  right: -2px;
+  left: calc(50% + 14px);
+  height: 1px;
+  background: #d6dce1;
+  content: '';
+}
+
+.simulationStageButton {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #7a8794;
+  cursor: pointer;
   font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
-  font-size: 9px;
-  letter-spacing: 0.07em;
+  font-size: 8px;
+  letter-spacing: 0.015em;
 }
 
-.howStageMeta span:first-child {
-  color: var(--how-amber);
+.simulationStageNumber {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid #c6cfd6;
+  border-radius: 50%;
+  background: var(--how-surface);
+  color: #617181;
+  font-size: 8px;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
-.howStage h2 {
-  margin: 19px 0 9px;
+.simulationStageButton:hover .simulationStageNumber {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.simulationStageSelected {
+  color: var(--how-ink);
+  font-weight: 650;
+}
+
+.simulationStageSelected .simulationStageNumber,
+.simulationStageReached .simulationStageNumber {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+}
+
+.simulationStageDetail {
+  min-height: 142px;
+  margin-top: 14px;
+  padding: 17px 18px 14px;
+  border: 1px solid var(--how-line);
+  border-radius: 5px;
+  background: #faf9f6;
+}
+
+.simulationStageDetailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.simulationStageDetail h4 {
+  margin: 5px 0 0;
   color: var(--how-ink);
   font-family: var(--font-inter), var(--font-sans), sans-serif;
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.25;
+  letter-spacing: -0.025em;
 }
 
-.howStage p {
-  margin: 0;
+.simulationStageState {
+  color: var(--how-muted);
+  font-size: 9px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.simulationStageDetail > p:not(.simulationLiveStatus) {
+  max-width: 620px;
+  margin: 10px 0 0;
   color: var(--how-copy);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.simulationLiveStatus {
+  min-height: 14px;
+  margin: 10px 0 0;
+  color: #566c7f;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.simulationRecord,
+.simulationRecordPlaceholder {
+  margin-top: 13px;
+  border: 1px solid #cfd8de;
+  border-radius: 5px;
+  background: white;
+}
+
+.simulationRecord {
+  padding: 13px 15px 12px;
+  animation: simulationAppear 240ms ease both;
+}
+
+.simulationRecordHeading,
+.simulationRecordFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.simulationRecordHeading strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--how-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.simulationSyntheticTag {
+  min-height: 22px;
+  border-color: #d3dce3;
+  color: #617386;
+}
+
+.simulationRecordSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 13px;
+  margin-top: 11px;
+  padding-block: 10px;
+  border-top: 1px solid #edf0f2;
+  border-bottom: 1px solid #edf0f2;
+}
+
+.simulationRecordSummary code {
+  min-width: 180px;
+  flex: 1 1 220px;
+  overflow-wrap: anywhere;
+  color: #43566a;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.simulationPrediction,
+.simulationConfidence,
+.simulationAction {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  padding-inline: 7px;
+  border-radius: 3px;
+  background: #edf1f4;
+  color: #42576b;
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.simulationConfidence {
+  border: 1px solid #d8dfe4;
+  background: #f8f8f6;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.simulationAction {
+  background: #edf3ef;
+  color: #4d705e;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.simulationRecordFooter p {
+  margin: 0;
+  color: var(--how-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.simulationDetailsButton {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding-inline: 9px;
+  border-color: #cbd4dc;
+  background: white;
+  color: #445b70;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.simulationDetailsButton:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.simulationRecordPlaceholder {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  border-style: dashed;
+  background: #fafaf8;
+}
+
+.simulationPlaceholderIcon {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #d8dee3;
+  border-radius: 50%;
+  color: #778696;
+}
+
+.simulationRecordPlaceholder p {
+  margin: 0;
+  color: var(--how-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.simulationDialogOverlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  background: rgb(23 31 40 / 48%);
+  animation: simulationFade 150ms ease both;
+}
+
+.simulationDialog {
+  --how-surface: #fffdf9;
+  --how-line: #d8d0c4;
+  --how-ink: #1d2024;
+  --how-copy: #42474e;
+  --how-muted: #656a72;
+  --brand: #4f637a;
+  position: fixed;
+  z-index: 81;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  width: min(800px, calc(100vw - 34px));
+  max-height: min(86dvh, 820px);
+  flex-direction: column;
+  overflow-y: auto;
+  padding: clamp(19px, 3vw, 29px);
+  transform: translate(-50%, -50%);
+  border: 1px solid #cfd6dc;
+  border-radius: 8px;
+  outline: none;
+  background: var(--how-surface);
+  box-shadow: 0 24px 80px rgb(15 25 36 / 28%);
+  animation: simulationDialogIn 170ms ease both;
+}
+
+.simulationDialog :focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px var(--how-surface);
+}
+
+.simulationDialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid var(--how-line);
+}
+
+.simulationDialogTitle {
+  overflow-wrap: anywhere;
+  margin: 7px 0 0;
+  color: var(--how-ink);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: clamp(13px, 1.7vw, 17px);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.simulationDialogDescription {
+  margin: 5px 0 0;
+  color: var(--how-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.simulationDialogClose {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  border-color: var(--how-line);
+  background: white;
+  color: var(--how-copy);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.simulationDialogClose:hover {
+  border-color: #aebac4;
+  color: var(--how-ink);
+}
+
+.simulationDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-block: 17px;
+}
+
+.simulationDetailBlock {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--how-line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.simulationDetailBlock h3,
+.simulationTriage h3 {
+  margin: 0;
+  color: var(--how-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.simulationDetailBlock > p,
+.simulationTriage p {
+  margin: 9px 0 0;
+  color: var(--how-copy);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.simulationDetailBlock dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.simulationDetailBlock dl > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.65fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+}
+
+.simulationDetailBlock dt {
+  color: var(--how-muted);
+  font-size: 9px;
+}
+
+.simulationDetailBlock dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #33475b;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.simulationDetailBlock dd code,
+.simulationDetailBlock dd pre {
+  color: inherit;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.simulationDetailBlock dd pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.simulationBodyDetail {
+  grid-template-columns: 1fr !important;
+  gap: 4px !important;
+}
+
+.simulationTriage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 14px 15px;
+  border-left: 2px solid var(--brand);
+  background: #f0f3f5;
+}
+
+.simulationTriage p {
+  max-width: 470px;
+  margin-top: 4px;
+}
+
+.simulationTriageControl {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 5px;
+  color: var(--how-muted);
+  font-size: 9px;
+}
+
+.simulationTriageControl select {
+  min-height: 36px;
+  padding: 0 29px 0 10px;
+  border: 1px solid #c7d0d8;
+  border-radius: 4px;
+  background: white;
+  color: var(--how-ink);
+  font: inherit;
+  font-size: 10px;
+}
+
+.simulationTriageControl select:disabled {
+  cursor: not-allowed;
+  color: #788491;
+}
+
+.simulationReadOnly {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 1px solid #d5dce1;
+  border-radius: 4px;
+  color: var(--how-muted);
+  font-size: 9px;
+}
+
+@keyframes simulationAppear {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes simulationFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes simulationDialogIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 5px)); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
 }
 
 .howBoundary {
@@ -2181,36 +2816,32 @@
     gap: 18px;
   }
 
-  .howFlow {
+  .simulation {
     margin-top: 31px;
   }
 
-  .howFlowRow {
-    grid-template-columns: 1fr;
-    gap: 7px;
+  .simulationHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
   }
 
-  .howNode {
-    min-height: 0;
+  .simulationWorkbench {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .howNode h2 {
-    margin-top: 15px;
+  .simulationRequestPanel {
+    border-right: 0;
+    border-bottom: 1px solid var(--how-line);
   }
 
-  .howArrow {
-    min-height: 24px;
-    transform: rotate(90deg);
+  .simulationScenarioList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .signalGrid,
-  .howStages {
-    grid-template-columns: 1fr;
-  }
-
-  .howStages {
-    gap: 19px;
-    margin-top: 33px;
+  .simulationScenario {
+    min-height: 86px;
+    padding: 10px;
   }
 
   .howBoundary {
@@ -2244,20 +2875,104 @@
     font-size: 14px;
   }
 
-  .howFlow {
+  .simulationHeader {
+    padding: 19px 16px;
+  }
+
+  .simulationRequestPanel,
+  .simulationFlowPanel {
+    padding: 17px 15px;
+  }
+
+  .simulationScenarioList {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    margin-top: 13px;
+  }
+
+  .simulationScenario {
+    min-height: 58px;
+    padding: 10px 11px;
+  }
+
+  .simulationTimeline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 7px;
+    margin-top: 16px;
+  }
+
+  .simulationTimelineItem::after {
+    display: none;
+  }
+
+  .simulationStageButton {
+    min-height: 53px;
+  }
+
+  .simulationStageDetail {
+    min-height: 0;
+    margin-top: 11px;
+    padding: 14px;
+  }
+
+  .simulationStageDetailHeader {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .simulationStageState {
+    text-align: left;
+  }
+
+  .simulationRecord {
+    padding: 12px;
+  }
+
+  .simulationRecordFooter {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .simulationDialog {
+    top: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 17px 14px;
+    transform: none;
+    border-radius: 8px;
+    animation-name: simulationDialogMobileIn;
+  }
+
+  .simulationDetailGrid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-block: 12px;
+  }
+
+  .simulationDetailBlock {
+    padding: 12px;
+  }
+
+  .simulationTriage {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
     padding: 13px;
   }
 
-  .howNode {
-    padding: 15px;
-  }
-
-  .signalGroup {
-    padding: 14px;
+  .simulationTriageControl select {
+    width: 100%;
   }
 
   .howBoundary {
     padding: 14px;
+  }
+
+  .simulationSafety {
+    white-space: normal;
   }
 
   .technicalDetails summary {
@@ -2275,6 +2990,22 @@
 
   .technicalDetails ul {
     padding-inline: 30px 15px;
+  }
+}
+
+@keyframes simulationDialogMobileIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simulation *,
+  .simulationDialog,
+  .simulationDialogOverlay {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
