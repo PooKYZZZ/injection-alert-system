@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import styles from '@/app/page.module.css'
+import { EugenePortraitSwitcher } from './EugenePortraitSwitcher'
 
 const DASHBOARD_URL = 'https://app.cybertracesystems.com/login'
 
@@ -36,6 +37,7 @@ type TeamMember = {
   initials: string
   focus: string
   image?: string
+  alternateImage?: string
 }
 
 const teamMembers: TeamMember[] = [
@@ -55,7 +57,8 @@ const teamMembers: TeamMember[] = [
     name: 'Eugene Dela Cruz',
     initials: 'ED',
     focus: 'Data Science',
-    image: '/team/eugene-dela-cruz.webp',
+    image: '/team/eugene-dela-cruz-new.webp',
+    alternateImage: '/team/eugene-dela-cruz.webp',
   },
   {
     name: 'Froilan Gayao',
@@ -551,7 +554,12 @@ export function AboutUsContent() {
                       member.image ? styles.profilePhotoWithImage : '',
                     ].filter(Boolean).join(' ')}
                   >
-                    {member.image ? (
+                    {member.image && member.alternateImage ? (
+                      <EugenePortraitSwitcher
+                        updatedImage={member.image}
+                        previousImage={member.alternateImage}
+                      />
+                    ) : member.image ? (
                       <Image
                         alt={`Portrait of ${member.name}`}
                         className={styles.profilePortrait}
