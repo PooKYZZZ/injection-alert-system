@@ -49,11 +49,17 @@ const ALERT_DETAIL_HELP = {
   saveAllowed: 'Saves Allowed as the record’s action label. It does not change a past response or prove that the request was allowed at runtime.',
 } as const
 
-const ALERT_DETAIL_LIST_CLASS =
-  'grid grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)] gap-x-2 gap-y-2 text-[12px] leading-4 ' +
+const ALERT_DETAIL_LIST_LAYOUT_CLASS =
+  'grid grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)] gap-x-2 gap-y-2 ' +
   '[&>dt]:col-span-2 [&>dt]:grid [&>dt]:min-w-0 [&>dt]:grid-cols-[minmax(0,1fr)_20px] ' +
   '[&>dt]:items-center [&>dt]:gap-x-1 [&>dt>span:first-child]:min-w-0 [&>dt>span:first-child]:break-words ' +
   '[&>dd]:col-start-3 [&>dd]:min-w-0'
+
+const ALERT_DETAIL_LIST_CLASS = `${ALERT_DETAIL_LIST_LAYOUT_CLASS} text-[12px] leading-4`
+const ALERT_DETAIL_COMPACT_LIST_CLASS = `${ALERT_DETAIL_LIST_LAYOUT_CLASS} text-[10px] leading-4`
+
+const ALERT_DETAIL_LABEL_CLASS =
+  'grid grid-cols-[minmax(0,1fr)_20px] items-center gap-x-1 uppercase tracking-[0.08em] text-[var(--color-text-soft)]'
 
 interface AlertDrawerProps {
   role?: unknown
@@ -566,9 +572,9 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </p>
                     {alert.request_correlation_id ? (
                       <div className="mt-3 border-t border-surface-border pt-2">
-                        <p className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <p className="grid grid-cols-[minmax(0,1fr)_20px] items-center gap-x-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                           <span>Other records with this request ID (up to 20 shown)</span>
-                          <InfoDisclosure label="Related records">{ALERT_DETAIL_HELP.relatedRecords}</InfoDisclosure>
+                          <InfoDisclosure label="Related records" className="shrink-0">{ALERT_DETAIL_HELP.relatedRecords}</InfoDisclosure>
                         </p>
                         {alert.correlated_records?.length ? (
                           <ul className="mt-2 space-y-2">
@@ -577,30 +583,39 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                                 <p className="font-medium text-[var(--color-text-primary)]">
                                   Record #{record.id} · {record.ingest_source ?? 'Unknown source'}
                                 </p>
-                                <p className="mt-1 break-all font-mono text-[var(--color-text-secondary)]">
-                                  <span className="inline-flex items-center gap-0.5">
-                                    Transaction:
+                                <dl className={`mt-1 ${ALERT_DETAIL_COMPACT_LIST_CLASS}`}>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Transaction</span>
                                     <InfoDisclosure label="Transaction ID">{ALERT_DETAIL_HELP.transactionId}</InfoDisclosure>
-                                  </span>{' '}
-                                  {record.transaction_id ?? 'Not recorded'}
-                                </p>
-                                <p className="flex flex-wrap items-center gap-x-1 text-[var(--color-text-secondary)]">
-                                  Classification: {record.prediction ?? 'Not recorded'} ·{' '}
-                                  <span className="inline-flex items-center gap-0.5">
-                                    HTTP status:
+                                  </dt>
+                                  <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    {record.transaction_id ?? 'Not recorded'}
+                                  </dd>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Classification</span>
+                                  </dt>
+                                  <dd className="text-[var(--color-text-secondary)]">
+                                    {record.prediction ?? 'Not recorded'}
+                                  </dd>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>HTTP status</span>
                                     <InfoDisclosure label="Observed HTTP status">{ALERT_DETAIL_HELP.observedHttpStatus}</InfoDisclosure>
-                                  </span>
-                                  {record.observed_http_status ?? 'Not recorded'}
-                                </p>
-                                {record.crs_rule_ids?.length ? (
-                                  <p className="break-all font-mono text-[var(--color-text-secondary)]">
-                                    <span className="inline-flex items-center gap-0.5">
-                                      CRS rules:
-                                      <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
-                                    </span>{' '}
-                                    {record.crs_rule_ids.join(', ')}
-                                  </p>
-                                ) : null}
+                                  </dt>
+                                  <dd className="text-[var(--color-text-secondary)]">
+                                    {record.observed_http_status ?? 'Not recorded'}
+                                  </dd>
+                                  {record.crs_rule_ids?.length ? (
+                                    <>
+                                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                        <span>CRS rules</span>
+                                        <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
+                                      </dt>
+                                      <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                        {record.crs_rule_ids.join(', ')}
+                                      </dd>
+                                    </>
+                                  ) : null}
+                                </dl>
                               </li>
                             ))}
                           </ul>
@@ -618,11 +633,11 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   </section>
 
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <div className="mb-3 flex items-center gap-1.5">
+                    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_20px] items-center gap-x-1">
                       <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         WAF Evidence
                       </h3>
-                      <InfoDisclosure label="WAF evidence">
+                      <InfoDisclosure label="WAF evidence" className="shrink-0">
                         Correlated ModSecurity/CRS records may include a transaction ID, matched rule IDs and tags, a score, and a producer-recorded HTTP status. The score and its matched rules are related WAF evidence; a missing CRS match does not by itself invalidate model evidence.
                       </InfoDisclosure>
                     </div>
@@ -667,6 +682,17 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
                           </dt>
                           <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">{crsRuleIds}</dd>
+                          {alert.matched_rule_tags?.length ? (
+                            <>
+                              <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>Rule tags</span>
+                                <InfoDisclosure label="Rule tags">{ALERT_DETAIL_HELP.ruleTags}</InfoDisclosure>
+                              </dt>
+                              <dd className="break-all font-mono text-[10px] leading-4 text-[var(--color-text-primary)]">
+                                {alert.matched_rule_tags.join(', ')}
+                              </dd>
+                            </>
+                          ) : null}
                         </dl>
                         ) : null}
                         {hasOwnCrsEvidence && alert.matched_rule_messages?.length ? (
@@ -681,59 +707,56 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </ul>
                           </div>
                         ) : null}
-                        {hasOwnCrsEvidence && alert.matched_rule_tags?.length ? (
-                          <div className="mt-3 border-t border-surface-border pt-2">
-                            <p className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                              <span>Rule tags</span>
-                              <InfoDisclosure label="Rule tags">{ALERT_DETAIL_HELP.ruleTags}</InfoDisclosure>
-                            </p>
-                            <p className="mt-1 break-words font-mono text-[10px] leading-4 text-[var(--color-text-primary)]">
-                              {alert.matched_rule_tags.join(', ')}
-                            </p>
-                          </div>
-                        ) : null}
                         {relatedWafRecords.map((record) => (
                           <div key={record.id} className="mt-3 border-t border-surface-border pt-2 text-[10px] leading-4">
                             <p className="font-semibold text-[var(--color-text-primary)]">
                               Correlated ModSecurity record #{record.id}
                             </p>
-                            <p className="mt-1 break-all font-mono text-[var(--color-text-secondary)]">
-                              <span className="inline-flex items-center gap-0.5">
-                                Transaction:
+                            <dl className={`mt-1 ${ALERT_DETAIL_COMPACT_LIST_CLASS}`}>
+                              <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>Transaction</span>
                                 <InfoDisclosure label="Transaction ID">{ALERT_DETAIL_HELP.transactionId}</InfoDisclosure>
-                              </span>{' '}
-                              {record.transaction_id ?? 'Not recorded'}
-                            </p>
-                            <p className="flex flex-wrap items-center gap-x-1 text-[var(--color-text-secondary)]">
-                              <span className="inline-flex items-center gap-0.5">
-                                CRS score:
+                              </dt>
+                              <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                {record.transaction_id ?? 'Not recorded'}
+                              </dd>
+                              <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>CRS score</span>
                                 <InfoDisclosure label="CRS score">{ALERT_DETAIL_HELP.crsScore}</InfoDisclosure>
-                              </span>
-                              {formatCrsScore(record.crs_score)} ·{' '}
-                              <span className="inline-flex items-center gap-0.5">
-                                HTTP status:
+                              </dt>
+                              <dd className="text-[var(--color-text-secondary)]">
+                                {formatCrsScore(record.crs_score)}
+                              </dd>
+                              <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>HTTP status</span>
                                 <InfoDisclosure label="Observed HTTP status">{ALERT_DETAIL_HELP.observedHttpStatus}</InfoDisclosure>
-                              </span>
-                              {record.observed_http_status ?? 'Not recorded'}
-                            </p>
-                            {record.crs_rule_ids?.length ? (
-                              <p className="break-all font-mono text-[var(--color-text-secondary)]">
-                                <span className="inline-flex items-center gap-0.5">
-                                  Rule IDs:
-                                  <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
-                                </span>{' '}
-                                {record.crs_rule_ids.join(', ')}
-                              </p>
-                            ) : null}
-                            {record.matched_rule_tags?.length ? (
-                              <p className="break-all font-mono text-[var(--color-text-secondary)]">
-                                <span className="inline-flex items-center gap-0.5">
-                                  Rule tags:
-                                  <InfoDisclosure label="Rule tags">{ALERT_DETAIL_HELP.ruleTags}</InfoDisclosure>
-                                </span>{' '}
-                                {record.matched_rule_tags.join(', ')}
-                              </p>
-                            ) : null}
+                              </dt>
+                              <dd className="text-[var(--color-text-secondary)]">
+                                {record.observed_http_status ?? 'Not recorded'}
+                              </dd>
+                              {record.crs_rule_ids?.length ? (
+                                <>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Rule IDs</span>
+                                    <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
+                                  </dt>
+                                  <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    {record.crs_rule_ids.join(', ')}
+                                  </dd>
+                                </>
+                              ) : null}
+                              {record.matched_rule_tags?.length ? (
+                                <>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Rule tags</span>
+                                    <InfoDisclosure label="Rule tags">{ALERT_DETAIL_HELP.ruleTags}</InfoDisclosure>
+                                  </dt>
+                                  <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    {record.matched_rule_tags.join(', ')}
+                                  </dd>
+                                </>
+                              ) : null}
+                            </dl>
                           </div>
                         ))}
                       </>
@@ -746,66 +769,69 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </h3>
                     <div className="max-h-44 overflow-auto rounded-lg border border-surface-border bg-surface-inset">
                       <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-[10px]">
-                        <div>
-                          <p className="flex items-center gap-1 uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
+                        <div className="min-w-0">
+                          <p className={ALERT_DETAIL_LABEL_CLASS}>
                             <span>Host</span>
-                            <InfoDisclosure label="Host">{ALERT_DETAIL_HELP.host}</InfoDisclosure>
+                            <InfoDisclosure label="Host" className="shrink-0">{ALERT_DETAIL_HELP.host}</InfoDisclosure>
                           </p>
                           <p className="font-mono text-[var(--color-text-primary)]">—</p>
                         </div>
-                        <div>
-                          <p className="flex items-center gap-1 uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
+                        <div className="min-w-0">
+                          <p className={ALERT_DETAIL_LABEL_CLASS}>
                             <span>Source-IP</span>
-                            <InfoDisclosure label="Source IP">{ALERT_DETAIL_HELP.requestSourceIp}</InfoDisclosure>
+                            <InfoDisclosure label="Source IP" className="shrink-0">{ALERT_DETAIL_HELP.requestSourceIp}</InfoDisclosure>
                           </p>
                           <p className="font-mono text-[var(--color-accent-analytic)]">{alert.source_ip ?? '—'}</p>
                         </div>
                       </div>
-                      <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.6] text-[var(--color-text-secondary)]">
-                        <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
-                        <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
-                        <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>{' '}
-                        <InfoDisclosure label="Request method/path/protocol">
-                          {ALERT_DETAIL_HELP.requestLine}
-                        </InfoDisclosure>
+                      <div className="grid gap-3 p-3 text-[10px]">
+                        <div>
+                          <p className={ALERT_DETAIL_LABEL_CLASS}>
+                            <span>Request method/path/protocol</span>
+                            <InfoDisclosure label="Request method/path/protocol" className="shrink-0">
+                              {ALERT_DETAIL_HELP.requestLine}
+                            </InfoDisclosure>
+                          </p>
+                          <pre className="mt-1 whitespace-pre-wrap break-all font-mono leading-[1.6] text-[var(--color-text-secondary)]">
+                            <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
+                            <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
+                            <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
+                          </pre>
+                        </div>
                         {queryString ? (
-                          <>
-                            {'\n'}
-                            {'\n'}
-                            <span className="inline-flex items-center gap-1 text-[var(--color-text-soft)]">
+                          <div>
+                            <p className={ALERT_DETAIL_LABEL_CLASS}>
                               <span>Captured query string (sensitive values redacted):</span>
-                              <InfoDisclosure label="Captured query string">{ALERT_DETAIL_HELP.queryString}</InfoDisclosure>
-                            </span>
-                            {'\n'}
-                            <span className="text-[var(--color-text-primary)]">{queryString}</span>
-                          </>
+                              <InfoDisclosure label="Captured query string" className="shrink-0">
+                                {ALERT_DETAIL_HELP.queryString}
+                              </InfoDisclosure>
+                            </p>
+                            <pre className="mt-1 whitespace-pre-wrap break-all font-mono leading-[1.6] text-[var(--color-text-primary)]">
+                              {queryString}
+                            </pre>
+                          </div>
                         ) : null}
                         {additionalPayload ? (
-                          <>
-                            {'\n'}
-                            {'\n'}
-                            <span className="text-[var(--color-text-primary)]">{additionalPayload}</span>
-                          </>
+                          <pre className="whitespace-pre-wrap break-all font-mono leading-[1.6] text-[var(--color-text-primary)]">
+                            {additionalPayload}
+                          </pre>
                         ) : null}
                         {!queryString ? (
-                          <>
-                            {'\n'}
-                            {'\n'}
-                            <span className="inline-flex items-center gap-1 text-[var(--color-text-soft)]">
+                          <div>
+                            <p className={ALERT_DETAIL_LABEL_CLASS}>
                               <span>Request input</span>
-                              <InfoDisclosure label="Captured query string">{ALERT_DETAIL_HELP.queryString}</InfoDisclosure>
-                            </span>
+                              <InfoDisclosure label="Captured query string" className="shrink-0">
+                                {ALERT_DETAIL_HELP.queryString}
+                              </InfoDisclosure>
+                            </p>
                             {!additionalPayload ? (
-                              <>
-                                {'\n'}
-                                <span className="text-[var(--color-text-soft)]">
-                                  {missingRequestDetailsMessage}
-                                </span>
-                              </>
+                              <p className="mt-1 leading-[1.6] text-[var(--color-text-soft)]">
+                                {missingRequestDetailsMessage}
+                              </p>
                             ) : null}
-                          </>
+                          </div>
                         ) : null}
-                      </pre>
+                      </div>
                     </div>
                   </section>
 
@@ -903,7 +929,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                                   <span>Start Review</span>
                                   {isPending ? <span>Updating...</span> : <span>→</span>}
                                 </button>
-                                <InfoDisclosure label="Start Review">{ALERT_DETAIL_HELP.startReview}</InfoDisclosure>
+                                <InfoDisclosure label="Start Review" className="shrink-0">{ALERT_DETAIL_HELP.startReview}</InfoDisclosure>
                               </div>
                             </>
                           ) : null}
@@ -923,7 +949,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                               <span>Resolve</span>
                               {isPending && displayStatus === 'resolved' ? <span>Updating...</span> : <span>→</span>}
                             </button>
-                            <InfoDisclosure label="Resolve">{ALERT_DETAIL_HELP.resolve}</InfoDisclosure>
+                            <InfoDisclosure label="Resolve" className="shrink-0">{ALERT_DETAIL_HELP.resolve}</InfoDisclosure>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <button
@@ -941,7 +967,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                               <span>False Positive</span>
                               {isPending && displayStatus === 'false_positive' ? <span>Updating...</span> : <span>→</span>}
                             </button>
-                            <InfoDisclosure label="False Positive">{ALERT_DETAIL_HELP.falsePositive}</InfoDisclosure>
+                            <InfoDisclosure label="False Positive" className="shrink-0">{ALERT_DETAIL_HELP.falsePositive}</InfoDisclosure>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <button
@@ -959,7 +985,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                               <span>Escalate</span>
                               {isPending && displayStatus === 'escalated' ? <span>Updating...</span> : <span>→</span>}
                             </button>
-                            <InfoDisclosure label="Escalate">{ALERT_DETAIL_HELP.escalate}</InfoDisclosure>
+                            <InfoDisclosure label="Escalate" className="shrink-0">{ALERT_DETAIL_HELP.escalate}</InfoDisclosure>
                           </div>
                         </div>
                         ) : (
@@ -1004,7 +1030,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </>
                           )}
                         </button>
-                        <InfoDisclosure label="Save as Blocked">{ALERT_DETAIL_HELP.saveBlocked}</InfoDisclosure>
+                        <InfoDisclosure label="Save as Blocked" className="shrink-0">{ALERT_DETAIL_HELP.saveBlocked}</InfoDisclosure>
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -1029,7 +1055,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </>
                           )}
                         </button>
-                        <InfoDisclosure label="Save as Throttled">{ALERT_DETAIL_HELP.saveThrottled}</InfoDisclosure>
+                        <InfoDisclosure label="Save as Throttled" className="shrink-0">{ALERT_DETAIL_HELP.saveThrottled}</InfoDisclosure>
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -1054,7 +1080,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </>
                           )}
                         </button>
-                        <InfoDisclosure label="Save as Allowed">{ALERT_DETAIL_HELP.saveAllowed}</InfoDisclosure>
+                        <InfoDisclosure label="Save as Allowed" className="shrink-0">{ALERT_DETAIL_HELP.saveAllowed}</InfoDisclosure>
                       </div>
                         </div>
                         ) : (

@@ -101,7 +101,9 @@ describe('AlertDrawer', () => {
             transaction_id: 'modsec-22',
             prediction: 'SQL Injection',
             observed_http_status: 403,
+            crs_score: 5,
             crs_rule_ids: ['942100'],
+            matched_rule_tags: ['application-multi', 'OWASP_CRS'],
           },
         ],
         action_history: [
@@ -130,6 +132,18 @@ describe('AlertDrawer', () => {
     expect(screen.getAllByRole('button', { name: 'About Transaction ID' })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: 'About Observed HTTP status' })).toHaveLength(3)
     expect(screen.getAllByRole('button', { name: 'About Rule IDs' })).toHaveLength(2)
+
+    const relatedRecord = screen.getByText('Record #22 · modsec_audit_bridge').closest('li')
+    const relatedRecordDetails = relatedRecord?.querySelector('dl')
+    expect(relatedRecordDetails).toHaveClass('grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)]')
+    expect(relatedRecordDetails).toHaveClass('[&>dt]:grid-cols-[minmax(0,1fr)_20px]')
+
+    const wafRecord = screen.getByText('Correlated ModSecurity record #22').parentElement
+    const wafRecordDetails = wafRecord?.querySelector('dl')
+    expect(wafRecordDetails).toHaveClass('grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)]')
+    expect(wafRecordDetails).toHaveClass('[&>dt]:grid-cols-[minmax(0,1fr)_20px]')
+    expect(within(wafRecordDetails as HTMLElement).getByText('Rule tags').closest('dt')?.nextElementSibling)
+      .toHaveTextContent('application-multi, OWASP_CRS')
 
     fireEvent.click(screen.getByText('Action change history'))
     expect(screen.getByText('ALLOWED → BLOCKED')).toBeInTheDocument()
@@ -231,6 +245,30 @@ describe('AlertDrawer', () => {
       term.querySelector('button[aria-label^="About "]')
     )
     expect(coreTermsWithHelp).toHaveLength(14)
+
+    const ownRuleTagsTerm = screen.getByText('Rule tags').closest('dt')
+    expect(ownRuleTagsTerm?.parentElement).toHaveClass('grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)]')
+    expect(ownRuleTagsTerm?.nextElementSibling).toHaveTextContent('attack-sqli')
+
+    for (const label of ['Host', 'Request method/path/protocol', 'Captured query string']) {
+      const help = screen.getByRole('button', { name: `About ${label}` })
+      expect(help.parentElement?.parentElement).toHaveClass('grid-cols-[minmax(0,1fr)_20px]')
+    }
+    expect(screen.getByRole('button', { name: 'About WAF evidence' }).parentElement?.parentElement)
+      .toHaveClass('grid-cols-[minmax(0,1fr)_20px]')
+    expect(screen.getByRole('button', { name: 'About Related records' }).parentElement?.parentElement)
+      .toHaveClass('grid-cols-[minmax(0,1fr)_20px]')
+    for (const label of [
+      'Start Review',
+      'Resolve',
+      'False Positive',
+      'Escalate',
+      'Save as Blocked',
+      'Save as Throttled',
+      'Save as Allowed',
+    ]) {
+      expect(screen.getByRole('button', { name: `About ${label}` }).parentElement).toHaveClass('shrink-0')
+    }
 
     const notificationList = within(notificationsValue as HTMLElement).getByRole('list', {
       name: 'Notification channel statuses',
