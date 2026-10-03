@@ -14,7 +14,7 @@ test("shared page template covers selected statuses and keeps their labels accur
     [429, "Too Many Requests"],
     [500, "Server Error"],
     [502, "Service Unavailable"],
-    [503, "Temporarily Unavailable"],
+    [503, "Security Check Temporarily Unavailable"],
     [504, "Request Timed Out"],
   ];
 
@@ -48,6 +48,8 @@ test("service errors offer a same-URL retry action", () => {
 
   assert.match(markup, /<form action="" method="get">/);
   assert.match(markup, /Try Again/);
+  assert.match(markup, /security checks needed to continue this request/i);
+  assert.doesNotMatch(markup, /security_inspection_unavailable|stack trace|CRS/i);
 });
 
 test("restricted access page offers support without exposing enforcement details", () => {

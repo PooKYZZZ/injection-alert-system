@@ -49,9 +49,9 @@ const ERROR_PAGE_COPY: Record<HttpErrorStatus, HttpErrorPageCopy> = {
     actionLabel: "Try Again",
   },
   503: {
-    title: "Temporarily Unavailable",
+    title: "Security Check Temporarily Unavailable",
     message:
-      "We're having trouble processing requests right now. Please try again later.",
+      "We couldn't complete the security checks needed to continue this request. Please try again shortly.",
     icon: "server",
     action: "retry",
     actionLabel: "Try Again",

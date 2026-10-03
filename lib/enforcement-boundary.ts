@@ -30,6 +30,29 @@ export function enforcementPageResponse(
   );
 }
 
+/** Return the branded page response when inspection cannot complete. */
+export function inspectionUnavailablePageResponse(
+  retryAfterSeconds?: number,
+): NextResponse {
+  const headers = new Headers({
+    "cache-control": "no-store",
+    "content-type": "text/html; charset=utf-8",
+    "x-content-type-options": "nosniff",
+  });
+  if (
+    retryAfterSeconds !== undefined &&
+    Number.isSafeInteger(retryAfterSeconds) &&
+    retryAfterSeconds >= 0
+  ) {
+    headers.set("retry-after", String(retryAfterSeconds));
+  }
+
+  return new NextResponse(httpErrorPageDocument(503), {
+    status: 503,
+    headers,
+  });
+}
+
 /**
  * Convert an enforcement decision into a small, non-sensitive route response.
  * Call this before parsing a request body or touching Prisma.

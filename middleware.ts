@@ -5,7 +5,10 @@ import {
   enforcementRuntimeConfig,
 } from "./lib/enforcement-check-runtime";
 import { applicationBlockAppliedLogEvent } from "./lib/enforcement-check";
-import { enforcementPageResponse } from "./lib/enforcement-boundary";
+import {
+  enforcementPageResponse,
+  inspectionUnavailablePageResponse,
+} from "./lib/enforcement-boundary";
 import { ingestAndEnforcePortalRequest } from "./lib/portal-waf-ingest";
 
 const DECISION_HEADER = "x-cybertrace-enforcement-decision";
@@ -26,13 +29,31 @@ function continueWithDecision(
 }
 
 function inspectionUnavailableResponse(): NextResponse {
-  return NextResponse.json(
-    { error: "security_inspection_unavailable" },
-    {
-      status: 503,
-      headers: { "cache-control": "no-store", "retry-after": "5" },
-    },
-  );
+  return inspectionUnavailablePageResponse(5);
+}
+
+async function isInspectionUnavailableResponse(
+  response: NextResponse,
+): Promise<boolean> {
+  if (response.status !== 503) return false;
+  try {
+    const body: unknown = await response.clone().json();
+    return (
+      typeof body === "object" &&
+      body !== null &&
+      "error" in body &&
+      body.error === "security_inspection_unavailable"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function retryAfterSeconds(response: NextResponse): number | undefined {
+  const value = response.headers.get("retry-after");
+  if (value === null || !/^\d+$/.test(value)) return undefined;
+  const seconds = Number(value);
+  return Number.isSafeInteger(seconds) ? seconds : undefined;
 }
 
 async function isChallengeResponse(response: NextResponse): Promise<boolean> {
@@ -69,6 +90,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       });
 
       if (enforcementResponse) {
+        if (await isInspectionUnavailableResponse(enforcementResponse)) {
+          return inspectionUnavailablePageResponse(
+            retryAfterSeconds(enforcementResponse),
+          );
+        }
         if (await isChallengeResponse(enforcementResponse)) {
           return continueWithDecision(request, "CHALLENGE");
         }
