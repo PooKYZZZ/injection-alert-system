@@ -218,7 +218,11 @@ export async function ingestAndEnforcePortalRequest(
     config.sourceTrustMode === "cloudflare_verified"
       ? requestSourceIp(request.headers, { active: true })
       : null;
-  const sanitizedBody = encodeAllowedFields(scope, fields);
+  const isGetRequest = request.method.toUpperCase() === "GET";
+  // Keep allowlisted GET inputs in the URL query, the same request component
+  // ModSecurity inspects. POST form fields remain a bounded request body.
+  const queryString = isGetRequest ? encodeAllowedFields(scope, fields) : null;
+  const sanitizedBody = isGetRequest ? null : encodeAllowedFields(scope, fields);
   const payload = {
     ingest_source: "portal_route_bridge",
     transaction_id: transactionId,
@@ -230,6 +234,7 @@ export async function ingestAndEnforcePortalRequest(
     cf_connecting_ip_matches_client_ip: trustedSourceIp ? true : null,
     request_method: request.method.toUpperCase(),
     request_path: requestPath,
+    ...(queryString ? { query_string: queryString } : {}),
     crs_score: 0,
     crs_rule_ids: ["no-crs-match"],
     sanitized_body: sanitizedBody,

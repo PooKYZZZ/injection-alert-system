@@ -156,12 +156,13 @@ test("inspects the current Search Records GET query before page work", async () 
   assert.equal(sentPayload?.source_ip, "203.0.113.25");
   assert.equal(sentPayload?.source_provenance, "CLOUDFLARE_CONNECTING_IP");
   assert.equal(sentPayload?.cf_connecting_ip_matches_client_ip, true);
-  assert.equal(sentPayload?.query_string, undefined);
+  assert.equal(sentPayload?.query_string, "query=%27+OR+1%3D1+--");
   assert.equal(sentPayload?.request_headers, undefined);
   assert.equal(sentPayload?.crs_score, 0);
   assert.deepEqual(sentPayload?.crs_rule_ids, ["no-crs-match"]);
+  assert.equal(sentPayload?.sanitized_body, null);
   assert.equal(
-    new URLSearchParams(String(sentPayload?.sanitized_body)).get("query"),
+    new URLSearchParams(String(sentPayload?.query_string)).get("query"),
     query,
   );
 });
@@ -195,11 +196,9 @@ test("inspects the Track Status reference before protected database reads", asyn
   assert.equal(result, null);
   assert.equal(sentPayload?.request_method, "GET");
   assert.equal(sentPayload?.request_path, "/transactions/status");
-  assert.equal(sentPayload?.query_string, undefined);
-  assert.equal(
-    new URLSearchParams(String(sentPayload?.sanitized_body)).get("ref"),
-    reference,
-  );
+  assert.equal(sentPayload?.query_string, "ref=TXN-100201");
+  assert.equal(sentPayload?.sanitized_body, null);
+  assert.equal(new URLSearchParams(String(sentPayload?.query_string)).get("ref"), reference);
 });
 
 test("Search Records returns actual policy 429/403 before protected work", async () => {
