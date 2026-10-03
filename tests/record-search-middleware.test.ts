@@ -92,6 +92,8 @@ test("empty protected GETs fail closed with 503 when ENFORCE checks are unavaila
       assert.equal(response.status, 503);
       assert.equal(response.headers.get("cache-control"), "no-store");
       assert.equal(response.headers.get("retry-after"), "5");
+      assert.match(response.headers.get("content-type") ?? "", /^text\/html(?:;|$)/i);
+      assert.match(await response.text(), /Security Check Temporarily Unavailable/);
     }
   } finally {
     if (previousMode === undefined) delete process.env.ENFORCEMENT_MODE;
@@ -100,5 +102,41 @@ test("empty protected GETs fail closed with 503 when ENFORCE checks are unavaila
     else process.env.APP_ENV = previousAppEnv;
     if (previousApiKey === undefined) delete process.env.ENFORCEMENT_CHECK_API_KEY;
     else process.env.ENFORCEMENT_CHECK_API_KEY = previousApiKey;
+  }
+});
+
+test("protected page requests render the branded 503 when portal inspection is unavailable", async () => {
+  const previousMode = process.env.ENFORCEMENT_MODE;
+  const previousAppEnv = process.env.APP_ENV;
+  const previousIngestKey = process.env.WAF_INGEST_API_KEY;
+  const previousEvidenceKey = process.env.WAF_AUDIT_EVIDENCE_KEY;
+  process.env.ENFORCEMENT_MODE = "enforce";
+  process.env.APP_ENV = "testing";
+  process.env.WAF_INGEST_API_KEY = "";
+  process.env.WAF_AUDIT_EVIDENCE_KEY = "";
+
+  try {
+    const response = await middleware(
+      new NextRequest(
+        "https://target.cybertracesystems.com/records/search?query=sample",
+      ),
+    );
+
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("retry-after"), "5");
+    assert.match(response.headers.get("content-type") ?? "", /^text\/html(?:;|$)/i);
+    const body = await response.text();
+    assert.match(body, /Security Check Temporarily Unavailable/);
+    assert.doesNotMatch(body, /security_inspection_unavailable|WAF_INGEST_API_KEY/i);
+  } finally {
+    if (previousMode === undefined) delete process.env.ENFORCEMENT_MODE;
+    else process.env.ENFORCEMENT_MODE = previousMode;
+    if (previousAppEnv === undefined) delete process.env.APP_ENV;
+    else process.env.APP_ENV = previousAppEnv;
+    if (previousIngestKey === undefined) delete process.env.WAF_INGEST_API_KEY;
+    else process.env.WAF_INGEST_API_KEY = previousIngestKey;
+    if (previousEvidenceKey === undefined) delete process.env.WAF_AUDIT_EVIDENCE_KEY;
+    else process.env.WAF_AUDIT_EVIDENCE_KEY = previousEvidenceKey;
   }
 });
