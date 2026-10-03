@@ -2,7 +2,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Alert, CorrelatedEvidenceRecord, LabelReview, TriageStatus } from '@/features/alerts/types'
 import {
   ALERT_DISPLAY_ACTION_ALIASES,
@@ -28,7 +28,6 @@ const ALERT_DETAIL_HELP = {
   decisionReason: 'The reason code saved with the policy recommendation, displayed with underscores replaced by spaces. A dash means no reason was recorded.',
   evidenceBasis: 'A short display summary derived from the saved policy evidence context. It may summarize only part of the available context; a dash means none was recorded.',
   policyVersion: 'The policy configuration version saved with the recommendation, when available. A dash means the version was not recorded.',
-  notifications: 'Shows recorded notification-channel status. If none is present, the UI may show “Not applicable” or “No outbox record”; neither reports whether a request was blocked, throttled, or allowed.',
   correlationId: 'Used to associate records that share this identifier. It does not prove separate requests, duplicates, a compromised source, or that records came from the same processing layer.',
   observedHttpStatus: 'The HTTP response status recorded by the producer when available. A status such as 403 does not by itself identify which component produced or enforced the response.',
   enforcementSource: 'Names the enforcing component only when that source was recorded. “Not recorded” means it is unknown here; an HTTP status alone cannot identify the enforcement layer.',
@@ -132,19 +131,31 @@ function formatPolicyEvidence(context: Record<string, unknown> | null | undefine
   return 'Recorded evidence context'
 }
 
-function formatNotificationStatus(
+function renderNotificationStatus(
   status: Alert['notification_status'],
   confidenceTier: Alert['confidence_level']
-): string {
+): ReactNode {
   const entries = Object.entries(status ?? {})
   if (entries.length === 0) {
     return confidenceTier === 'INFORMATIONAL' || confidenceTier === 'LOW' || confidenceTier === 'MEDIUM'
       ? 'Not applicable'
       : 'No outbox record'
   }
-  return entries
-    .map(([channel, value]) => `${channel}: ${value.replaceAll('_', ' ')}`)
-    .join(', ')
+  return (
+    <ul aria-label="Notification channel statuses" className="grid min-w-0 gap-1">
+      {entries.map(([channel, value]) => (
+        <li
+          key={channel}
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
+        >
+          <span className="min-w-0 capitalize text-[var(--color-text-secondary)]">{channel}</span>
+          <span className="justify-self-end rounded border border-surface-border bg-surface-inset px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-primary)]">
+            {value.replaceAll('_', ' ')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated, detailLoading, detailError }: AlertDrawerContentProps) {
@@ -400,7 +411,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Core Details
                     </h3>
-                    <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
+                    <dl className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-2 gap-y-2 text-[12px] leading-4">
                       <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         <span>{isActionableAlert ? 'Alert ID' : 'Traffic record ID'}</span>
                         <InfoDisclosure label={isActionableAlert ? 'Alert ID' : 'Traffic record ID'}>
@@ -498,12 +509,21 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.policy_version ?? '—'}
                       </dd>
-                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                      <dt className="flex min-w-0 items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         <span>Notifications</span>
-                        <InfoDisclosure label="Notifications">{ALERT_DETAIL_HELP.notifications}</InfoDisclosure>
+                        <InfoDisclosure label="Notifications" className="shrink-0">
+                          <div className="grid gap-2">
+                            <p>Shows the delivery status saved for each notification channel.</p>
+                            <ul className="grid list-disc gap-1 pl-4">
+                              <li><span className="font-semibold text-[var(--color-text-primary)]">Not applicable:</span> no notification status applies to this record.</li>
+                              <li><span className="font-semibold text-[var(--color-text-primary)]">No outbox record:</span> no saved delivery record is available.</li>
+                            </ul>
+                            <p>Notification status does not show whether the request was allowed, throttled, or blocked.</p>
+                          </div>
+                        </InfoDisclosure>
                       </dt>
-                      <dd className="text-[var(--color-text-primary)]">
-                        {formatNotificationStatus(alert.notification_status, alert.confidence_level)}
+                      <dd className="min-w-0 text-[var(--color-text-primary)]">
+                        {renderNotificationStatus(alert.notification_status, alert.confidence_level)}
                       </dd>
                     </dl>
                   </section>

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Alert } from '@/features/alerts/types'
@@ -169,7 +169,7 @@ describe('AlertDrawer', () => {
           policy_decision_reason: 'STRONG_CRS_EVIDENCE',
           policy_evidence_context: { strong_waf_evidence: true },
           policy_version: 'confidence-enforcement-v3',
-          notification_status: { email: 'sent' },
+          notification_status: { email: 'sent', telegram: 'retry_wait' },
           request_correlation_id: 'request-correlation-1',
           observed_http_status: 403,
           matched_rule_tags: ['attack-sqli'],
@@ -218,6 +218,30 @@ describe('AlertDrawer', () => {
     expect(screen.getAllByRole('button', { name: 'About Policy decision' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'About Source IP origin' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'About Source IP verification' })).toHaveLength(1)
+
+    const notificationsTerm = screen.getByText('Notifications').closest('dt')
+    const notificationsValue = notificationsTerm?.nextElementSibling
+    expect(notificationsTerm).toHaveClass('min-w-0')
+    expect(notificationsTerm?.parentElement).toHaveClass('grid-cols-[112px_minmax(0,1fr)]')
+    expect(notificationsValue).toHaveClass('min-w-0')
+
+    const notificationList = within(notificationsValue as HTMLElement).getByRole('list', {
+      name: 'Notification channel statuses',
+    })
+    const notificationRows = within(notificationList).getAllByRole('listitem')
+    expect(notificationRows).toHaveLength(2)
+    expect(within(notificationRows[0]!).getByText('email')).toBeInTheDocument()
+    expect(within(notificationRows[0]!).getByText('sent')).toBeInTheDocument()
+    expect(within(notificationRows[1]!).getByText('telegram')).toBeInTheDocument()
+    expect(within(notificationRows[1]!).getByText('retry wait')).toBeInTheDocument()
+
+    const notificationsHelp = screen.getByRole('button', { name: 'About Notifications' })
+    expect(notificationsHelp.parentElement).toHaveClass('shrink-0')
+    fireEvent.click(notificationsHelp)
+    const notificationExplanation = screen.getByRole('region', { name: 'Notifications explanation' })
+    expect(notificationExplanation).toHaveTextContent('delivery status saved for each notification channel')
+    expect(notificationExplanation).toHaveTextContent('does not show whether the request was allowed, throttled, or blocked')
+    fireEvent.keyDown(notificationsHelp, { key: 'Escape' })
 
     fireEvent.click(screen.getByRole('button', { name: 'About Enforcement source' }))
     expect(screen.getByRole('region', { name: 'Enforcement source explanation' })).toHaveTextContent(
@@ -296,9 +320,6 @@ describe('AlertDrawer', () => {
     expect(screen.getByText('attack-sqli')).toBeInTheDocument()
     expect(screen.getByText('Policy decision').closest('dt')?.nextElementSibling).toHaveTextContent('APPLICATION_BLOCK')
     expect(screen.getByText('Decision reason').closest('dt')?.nextElementSibling).toHaveTextContent('STRONG CRS EVIDENCE')
-    expect(screen.getByText('Notifications').closest('dt')?.nextElementSibling).toHaveTextContent(
-      'email: sent, telegram: retry wait'
-    )
     expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
 
     const capturedRequestHeading = screen.getByRole('heading', { name: 'Request details' })
