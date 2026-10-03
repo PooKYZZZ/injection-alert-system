@@ -216,12 +216,12 @@ export function ProjectOverviewContent() {
             <picture>
               <source
                 media="(max-width: 520px)"
-                srcSet="/assets/cybertrace-evidence-map-mobile.svg"
+                srcSet="/assets/cybertrace-evidence-map-mobile.svg?v=2"
                 type="image/svg+xml"
               />
               <Image
                 className={styles.evidenceMap}
-                src="/assets/cybertrace-evidence-map.svg"
+                src="/assets/cybertrace-evidence-map.svg?v=2"
                 alt="Concept illustration showing a web request becoming a clearer traffic record with available supporting information for an analyst to review. It is not live data."
                 width={1080}
                 height={680}
