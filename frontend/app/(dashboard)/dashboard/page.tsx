@@ -185,6 +185,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Recorded throttled',
+      info: 'Counts stored operational traffic records whose saved action label is THROTTLED in this window. It does not confirm that a request was actually slowed or identify which layer acted.',
       value: stats?.throttled_count ?? '—',
       secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_throttled_count ?? null,
@@ -383,15 +384,30 @@ export default function DashboardPage() {
                   </h2>
                   <div className="grid min-w-0 grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-light bg-border-light md:grid-cols-2 xl:grid-cols-3">
                     <section className="min-w-0 bg-surface-panel p-4">
-                      <h3 className="mb-3 text-sm font-medium text-text-primary">Attack types</h3>
+                      <div className="mb-3 flex items-center gap-1.5">
+                        <h3 className="text-sm font-medium text-text-primary">Attack types</h3>
+                        <InfoDisclosure label="Attack type counts and percentages">
+                          Counts are stored operational traffic records for the displayed actionable attack classes in this window. Each percentage is that class&apos;s share of the displayed attack-class records, not of all traffic.
+                        </InfoDisclosure>
+                      </div>
                       <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
                     </section>
                     <section className="min-w-0 bg-surface-panel p-4">
-                      <h3 className="mb-3 text-sm font-medium text-text-primary">Top source IPs</h3>
+                      <div className="mb-3 flex items-center gap-1.5">
+                        <h3 className="text-sm font-medium text-text-primary">Top source IPs</h3>
+                        <InfoDisclosure label="Top source IPs">
+                          Counts are stored operational traffic records for each address in this window, not guaranteed unique requests. When available, the action badge is that address&apos;s latest recorded action label in the window; it does not prove the runtime outcome of every request.
+                        </InfoDisclosure>
+                      </div>
                       <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
                     </section>
                     <section className="min-w-0 bg-surface-panel p-4">
-                      <h3 className="mb-3 text-sm font-medium text-text-primary">Top targeted paths</h3>
+                      <div className="mb-3 flex items-center gap-1.5">
+                        <h3 className="text-sm font-medium text-text-primary">Top targeted paths</h3>
+                        <InfoDisclosure label="Top targeted paths">
+                          Each hit counts a stored operational traffic record with this path in the selected window. Multiple records may relate to one request, so this is not necessarily a count of unique client requests.
+                        </InfoDisclosure>
+                      </div>
                       <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
                     </section>
                   </div>
@@ -420,7 +436,12 @@ export default function DashboardPage() {
                       />
                     </div>
                     <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
-                      <h3 className="mb-3 text-sm font-medium text-text-primary">Policy by confidence tier</h3>
+                      <div className="mb-3 flex items-center gap-1.5">
+                        <h3 className="text-sm font-medium text-text-primary">Policy by confidence tier</h3>
+                        <InfoDisclosure label="Policy by confidence tier">
+                          Counts show stored actionable-detection records in each model-confidence tier for the selected window. Response badges describe configured policy intent; runtime mode, request scope, source checks, evidence, and recommendation freshness can affect whether an action is applied. They are not confirmed HTTP outcomes.
+                        </InfoDisclosure>
+                      </div>
                       <MLEnforcementMap
                         nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
                         isPending={statsPending}

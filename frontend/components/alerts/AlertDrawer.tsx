@@ -2,7 +2,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'motion/react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Alert, CorrelatedEvidenceRecord, LabelReview, TriageStatus } from '@/features/alerts/types'
 import {
   ALERT_DISPLAY_ACTION_ALIASES,
@@ -17,6 +17,49 @@ import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { describeEvidenceRelationship } from '@/features/alerts/evidence'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
+
+const ALERT_DETAIL_HELP = {
+  recordId: 'The identifier assigned to this alert or traffic record. It identifies a record, not necessarily a separate client request.',
+  time: 'The event time saved with this record and formatted for display. Older or incomplete records may not include every timestamp detail.',
+  sourceIp: 'The source address saved with this record when available. Its origin and verification are shown separately; the address alone does not identify a person or prove trusted provenance.',
+  request: 'The request method and path saved with this record when available. A dash means that part was not available in the stored details.',
+  modelVersion: 'The model version captured with this classification, when recorded. “Not recorded” means CyberTrace cannot identify the historical version from this record.',
+  preprocessing: 'The preprocessing version captured for preparing model input, when recorded. “Not recorded” means that provenance is unavailable here.',
+  decisionReason: 'The reason code saved with the policy recommendation, displayed with underscores replaced by spaces. A dash means no reason was recorded.',
+  evidenceBasis: 'A short display summary derived from the saved policy evidence context. It may summarize only part of the available context; a dash means none was recorded.',
+  policyVersion: 'The policy configuration version saved with the recommendation, when available. A dash means the version was not recorded.',
+  correlationId: 'Used to associate records that share this identifier. It does not prove separate requests, duplicates, a compromised source, or that records came from the same processing layer.',
+  observedHttpStatus: 'The HTTP response status recorded by the producer when available. A status such as 403 does not by itself identify which component produced or enforced the response.',
+  enforcementSource: 'Names the enforcing component only when that source was recorded. “Not recorded” means it is unknown here; an HTTP status alone cannot identify the enforcement layer.',
+  relatedRecords: 'Lists up to 20 records returned by the correlation-ID lookup. Related rows may describe the same request or separate observations; one row does not necessarily mean one distinct client request.',
+  transactionId: 'The transaction identifier assigned by ModSecurity for its WAF event. It helps locate that WAF evidence but does not by itself prove a match to a portal record.',
+  crsScore: 'The OWASP CRS/ModSecurity score is derived from matched WAF rule evidence when available. The score and those rules are related evidence, not independent signals; the score alone does not prove a block.',
+  ruleIds: 'Identifiers of ModSecurity/OWASP CRS rules recorded as matched for this WAF event. Missing IDs mean they were not available in this record.',
+  ruleTags: 'Categories or metadata attached to matched ModSecurity/OWASP CRS rules. Tags describe those same rules; they are not separate proof of an attack.',
+  host: 'The Host value is not available in this request-detail view. The dash means CyberTrace cannot show a recorded host here.',
+  requestSourceIp: 'The source address stored for this request. Origin and verification are reported separately; an IP address alone does not establish identity or trusted provenance.',
+  requestLine: 'Shows the method and path available in the record. The displayed HTTP/1.1 text is fixed by this view, not a protocol value captured from the request; missing method or path values appear as dashes.',
+  queryString: 'Shows query input retained with the record when available; sensitive values may be redacted. If none appears, the original query may be absent or simply not retained.',
+  startReview: 'Assigns you to review this detection and updates analyst triage status. It does not change the recorded action or the HTTP response.',
+  resolve: 'Marks the analyst triage workflow as resolved. It does not show whether the request was blocked, throttled, or allowed.',
+  falsePositive: 'Records an analyst assessment that this detection is a false positive. It does not change the request outcome or the saved action label.',
+  escalate: 'Marks the detection for further analyst attention. Escalation is a workflow status, not an enforcement action.',
+  saveBlocked: 'Saves Blocked as the record’s action label. It does not issue a WAF command or prove that the HTTP request was blocked.',
+  saveThrottled: 'Saves Throttled as the record’s action label. It does not apply throttling or prove that the HTTP request was slowed.',
+  saveAllowed: 'Saves Allowed as the record’s action label. It does not change a past response or prove that the request was allowed at runtime.',
+} as const
+
+const ALERT_DETAIL_LIST_LAYOUT_CLASS =
+  'grid grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)] gap-x-2 gap-y-2 ' +
+  '[&>dt]:col-span-2 [&>dt]:grid [&>dt]:min-w-0 [&>dt]:grid-cols-[minmax(0,1fr)_20px] ' +
+  '[&>dt]:items-center [&>dt]:gap-x-1 [&>dt>span:first-child]:min-w-0 [&>dt>span:first-child]:break-words ' +
+  '[&>dd]:col-start-3 [&>dd]:min-w-0'
+
+const ALERT_DETAIL_LIST_CLASS = `${ALERT_DETAIL_LIST_LAYOUT_CLASS} text-[12px] leading-4`
+const ALERT_DETAIL_COMPACT_LIST_CLASS = `${ALERT_DETAIL_LIST_LAYOUT_CLASS} text-[10px] leading-4`
+
+const ALERT_DETAIL_LABEL_CLASS =
+  'grid grid-cols-[minmax(0,1fr)_20px] items-center gap-x-1 uppercase tracking-[0.08em] text-[var(--color-text-soft)]'
 
 interface AlertDrawerProps {
   role?: unknown
@@ -100,19 +143,31 @@ function formatPolicyEvidence(context: Record<string, unknown> | null | undefine
   return 'Recorded evidence context'
 }
 
-function formatNotificationStatus(
+function renderNotificationStatus(
   status: Alert['notification_status'],
   confidenceTier: Alert['confidence_level']
-): string {
+): ReactNode {
   const entries = Object.entries(status ?? {})
   if (entries.length === 0) {
     return confidenceTier === 'INFORMATIONAL' || confidenceTier === 'LOW' || confidenceTier === 'MEDIUM'
       ? 'Not applicable'
       : 'No outbox record'
   }
-  return entries
-    .map(([channel, value]) => `${channel}: ${value.replaceAll('_', ' ')}`)
-    .join(', ')
+  return (
+    <ul aria-label="Notification channel statuses" className="grid min-w-0 gap-1">
+      {entries.map(([channel, value]) => (
+        <li
+          key={channel}
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
+        >
+          <span className="min-w-0 capitalize text-[var(--color-text-secondary)]">{channel}</span>
+          <span className="justify-self-end rounded border border-surface-border bg-surface-inset px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-primary)]">
+            {value.replaceAll('_', ' ')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpdated, onReviewUpdated, detailLoading, detailError }: AlertDrawerContentProps) {
@@ -368,21 +423,26 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Core Details
                     </h3>
-                    <dl className="grid grid-cols-[82px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        {isActionableAlert ? 'Alert ID' : 'Traffic record ID'}
+                    <dl className={ALERT_DETAIL_LIST_CLASS}>
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>{isActionableAlert ? 'Alert ID' : 'Traffic record ID'}</span>
+                        <InfoDisclosure label={isActionableAlert ? 'Alert ID' : 'Traffic record ID'}>
+                          {ALERT_DETAIL_HELP.recordId}
+                        </InfoDisclosure>
                       </dt>
                       <dd className="font-mono text-[var(--color-text-primary)]">
                         {alert.alert_id}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Time
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Time</span>
+                        <InfoDisclosure label="Time">{ALERT_DETAIL_HELP.time}</InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {formatAlertDateTime(alert.timestamp)}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Source IP
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Source IP</span>
+                        <InfoDisclosure label="Source IP">{ALERT_DETAIL_HELP.sourceIp}</InfoDisclosure>
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)]">
                         {alert.source_ip ?? '—'}
@@ -401,8 +461,9 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                         </InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">{formatSourceVerification(alert.source_verification_status)}</dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Request
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Request</span>
+                        <InfoDisclosure label="Request">{ALERT_DETAIL_HELP.request}</InfoDisclosure>
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-accent-analytic)] break-all">
                         {requestLine}
@@ -416,14 +477,16 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dd className="text-[var(--color-text-primary)]">
                         {confidenceLabel}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Model version
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Model version</span>
+                        <InfoDisclosure label="Model version">{ALERT_DETAIL_HELP.modelVersion}</InfoDisclosure>
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.model_version ?? 'Not recorded'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Preprocessing
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Preprocessing</span>
+                        <InfoDisclosure label="Preprocessing">{ALERT_DETAIL_HELP.preprocessing}</InfoDisclosure>
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.preprocessing_version ?? 'Not recorded'}
@@ -437,29 +500,42 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dd className="text-[var(--color-text-primary)]">
                         {alert.policy_decision ?? 'No recommendation'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Decision reason
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Decision reason</span>
+                        <InfoDisclosure label="Decision reason">{ALERT_DETAIL_HELP.decisionReason}</InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {formatPolicyReason(alert.policy_decision_reason)}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Evidence basis
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Evidence basis</span>
+                        <InfoDisclosure label="Evidence basis">{ALERT_DETAIL_HELP.evidenceBasis}</InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {formatPolicyEvidence(alert.policy_evidence_context)}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Policy version
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Policy version</span>
+                        <InfoDisclosure label="Policy version">{ALERT_DETAIL_HELP.policyVersion}</InfoDisclosure>
                       </dt>
                       <dd className="font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.policy_version ?? '—'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Notifications
+                      <dt className="flex min-w-0 items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Notifications</span>
+                        <InfoDisclosure label="Notifications" className="shrink-0">
+                          <div className="grid gap-2">
+                            <p>Shows the delivery status saved for each notification channel.</p>
+                            <ul className="grid list-disc gap-1 pl-4">
+                              <li><span className="font-semibold text-[var(--color-text-primary)]">Not applicable:</span> no notification status applies to this record.</li>
+                              <li><span className="font-semibold text-[var(--color-text-primary)]">No outbox record:</span> no saved delivery record is available.</li>
+                            </ul>
+                            <p>Notification status does not show whether the request was allowed, throttled, or blocked.</p>
+                          </div>
+                        </InfoDisclosure>
                       </dt>
-                      <dd className="text-[var(--color-text-primary)]">
-                        {formatNotificationStatus(alert.notification_status, alert.confidence_level)}
+                      <dd className="min-w-0 text-[var(--color-text-primary)]">
+                        {renderNotificationStatus(alert.notification_status, alert.confidence_level)}
                       </dd>
                     </dl>
                   </section>
@@ -468,21 +544,24 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Request correlation and observed outcome
                     </h3>
-                    <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Correlation ID
+                    <dl className={ALERT_DETAIL_LIST_CLASS}>
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Correlation ID</span>
+                        <InfoDisclosure label="Correlation ID">{ALERT_DETAIL_HELP.correlationId}</InfoDisclosure>
                       </dt>
                       <dd className="break-all font-mono text-[11px] text-[var(--color-text-primary)]">
                         {alert.request_correlation_id ?? 'Not recorded'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Observed HTTP status
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Observed HTTP status</span>
+                        <InfoDisclosure label="Observed HTTP status">{ALERT_DETAIL_HELP.observedHttpStatus}</InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         {alert.observed_http_status ?? 'Not recorded'}
                       </dd>
-                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                        Enforcement source
+                      <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                        <span>Enforcement source</span>
+                        <InfoDisclosure label="Enforcement source">{ALERT_DETAIL_HELP.enforcementSource}</InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
                         Not recorded
@@ -493,8 +572,9 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </p>
                     {alert.request_correlation_id ? (
                       <div className="mt-3 border-t border-surface-border pt-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                          Other records with this request ID (up to 20 shown)
+                        <p className="grid grid-cols-[minmax(0,1fr)_20px] items-center gap-x-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                          <span>Other records with this request ID (up to 20 shown)</span>
+                          <InfoDisclosure label="Related records" className="shrink-0">{ALERT_DETAIL_HELP.relatedRecords}</InfoDisclosure>
                         </p>
                         {alert.correlated_records?.length ? (
                           <ul className="mt-2 space-y-2">
@@ -503,17 +583,39 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                                 <p className="font-medium text-[var(--color-text-primary)]">
                                   Record #{record.id} · {record.ingest_source ?? 'Unknown source'}
                                 </p>
-                                <p className="mt-1 break-all font-mono text-[var(--color-text-secondary)]">
-                                  Transaction: {record.transaction_id ?? 'Not recorded'}
-                                </p>
-                                <p className="text-[var(--color-text-secondary)]">
-                                  Classification: {record.prediction ?? 'Not recorded'} · HTTP status: {record.observed_http_status ?? 'Not recorded'}
-                                </p>
-                                {record.crs_rule_ids?.length ? (
-                                  <p className="break-all font-mono text-[var(--color-text-secondary)]">
-                                    CRS rules: {record.crs_rule_ids.join(', ')}
-                                  </p>
-                                ) : null}
+                                <dl className={`mt-1 ${ALERT_DETAIL_COMPACT_LIST_CLASS}`}>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Transaction</span>
+                                    <InfoDisclosure label="Transaction ID">{ALERT_DETAIL_HELP.transactionId}</InfoDisclosure>
+                                  </dt>
+                                  <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    {record.transaction_id ?? 'Not recorded'}
+                                  </dd>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Classification</span>
+                                  </dt>
+                                  <dd className="text-[var(--color-text-secondary)]">
+                                    {record.prediction ?? 'Not recorded'}
+                                  </dd>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>HTTP status</span>
+                                    <InfoDisclosure label="Observed HTTP status">{ALERT_DETAIL_HELP.observedHttpStatus}</InfoDisclosure>
+                                  </dt>
+                                  <dd className="text-[var(--color-text-secondary)]">
+                                    {record.observed_http_status ?? 'Not recorded'}
+                                  </dd>
+                                  {record.crs_rule_ids?.length ? (
+                                    <>
+                                      <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                        <span>CRS rules</span>
+                                        <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
+                                      </dt>
+                                      <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                        {record.crs_rule_ids.join(', ')}
+                                      </dd>
+                                    </>
+                                  ) : null}
+                                </dl>
                               </li>
                             ))}
                           </ul>
@@ -531,12 +633,12 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                   </section>
 
                   <section className="rounded-lg border border-surface-border bg-surface-panel p-3">
-                    <div className="mb-3 flex items-center gap-1.5">
+                    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_20px] items-center gap-x-1">
                       <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         WAF Evidence
                       </h3>
-                      <InfoDisclosure label="WAF evidence">
-                        Correlated ModSecurity/CRS records can include matching rule IDs and a score. No CRS match does not by itself invalidate the model evidence.
+                      <InfoDisclosure label="WAF evidence" className="shrink-0">
+                        Correlated ModSecurity/CRS records may include a transaction ID, matched rule IDs and tags, a score, and a producer-recorded HTTP status. The score and its matched rules are related WAF evidence; a missing CRS match does not by itself invalidate model evidence.
                       </InfoDisclosure>
                     </div>
                     {evidenceRelationship ? (
@@ -556,9 +658,10 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     ) : (
                       <>
                         {hasOwnCrsEvidence ? (
-                        <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                            Transaction ID
+                        <dl className={ALERT_DETAIL_LIST_CLASS}>
+                          <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                            <span>Transaction ID</span>
+                            <InfoDisclosure label="Transaction ID">{ALERT_DETAIL_HELP.transactionId}</InfoDisclosure>
                           </dt>
                           <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">
                             {alert.transaction_id ?? '—'}
@@ -570,14 +673,26 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                             <span>CRS score</span>
                             <InfoDisclosure label="CRS score">
-                              The score reported with the correlated Core Rule Set record summarizes its WAF rule evidence. It does not prove the request was blocked.
+                              {ALERT_DETAIL_HELP.crsScore}
                             </InfoDisclosure>
                           </dt>
                           <dd className="text-severity-blocked-text">{formatCrsScore(alert.crs_score)}</dd>
-                          <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                            Rule IDs
+                          <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                            <span>Rule IDs</span>
+                            <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
                           </dt>
                           <dd className="font-mono text-[11px] text-[var(--color-text-primary)] break-all">{crsRuleIds}</dd>
+                          {alert.matched_rule_tags?.length ? (
+                            <>
+                              <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>Rule tags</span>
+                                <InfoDisclosure label="Rule tags">{ALERT_DETAIL_HELP.ruleTags}</InfoDisclosure>
+                              </dt>
+                              <dd className="break-all font-mono text-[10px] leading-4 text-[var(--color-text-primary)]">
+                                {alert.matched_rule_tags.join(', ')}
+                              </dd>
+                            </>
+                          ) : null}
                         </dl>
                         ) : null}
                         {hasOwnCrsEvidence && alert.matched_rule_messages?.length ? (
@@ -592,37 +707,56 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                             </ul>
                           </div>
                         ) : null}
-                        {hasOwnCrsEvidence && alert.matched_rule_tags?.length ? (
-                          <div className="mt-3 border-t border-surface-border pt-2">
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-                              Rule tags
-                            </p>
-                            <p className="mt-1 break-words font-mono text-[10px] leading-4 text-[var(--color-text-primary)]">
-                              {alert.matched_rule_tags.join(', ')}
-                            </p>
-                          </div>
-                        ) : null}
                         {relatedWafRecords.map((record) => (
                           <div key={record.id} className="mt-3 border-t border-surface-border pt-2 text-[10px] leading-4">
                             <p className="font-semibold text-[var(--color-text-primary)]">
                               Correlated ModSecurity record #{record.id}
                             </p>
-                            <p className="mt-1 break-all font-mono text-[var(--color-text-secondary)]">
-                              Transaction: {record.transaction_id ?? 'Not recorded'}
-                            </p>
-                            <p className="text-[var(--color-text-secondary)]">
-                              CRS score: {formatCrsScore(record.crs_score)} · HTTP status: {record.observed_http_status ?? 'Not recorded'}
-                            </p>
-                            {record.crs_rule_ids?.length ? (
-                              <p className="break-all font-mono text-[var(--color-text-secondary)]">
-                                Rule IDs: {record.crs_rule_ids.join(', ')}
-                              </p>
-                            ) : null}
-                            {record.matched_rule_tags?.length ? (
-                              <p className="break-all font-mono text-[var(--color-text-secondary)]">
-                                Rule tags: {record.matched_rule_tags.join(', ')}
-                              </p>
-                            ) : null}
+                            <dl className={`mt-1 ${ALERT_DETAIL_COMPACT_LIST_CLASS}`}>
+                              <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>Transaction</span>
+                                <InfoDisclosure label="Transaction ID">{ALERT_DETAIL_HELP.transactionId}</InfoDisclosure>
+                              </dt>
+                              <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                {record.transaction_id ?? 'Not recorded'}
+                              </dd>
+                              <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>CRS score</span>
+                                <InfoDisclosure label="CRS score">{ALERT_DETAIL_HELP.crsScore}</InfoDisclosure>
+                              </dt>
+                              <dd className="text-[var(--color-text-secondary)]">
+                                {formatCrsScore(record.crs_score)}
+                              </dd>
+                              <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                <span>HTTP status</span>
+                                <InfoDisclosure label="Observed HTTP status">{ALERT_DETAIL_HELP.observedHttpStatus}</InfoDisclosure>
+                              </dt>
+                              <dd className="text-[var(--color-text-secondary)]">
+                                {record.observed_http_status ?? 'Not recorded'}
+                              </dd>
+                              {record.crs_rule_ids?.length ? (
+                                <>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Rule IDs</span>
+                                    <InfoDisclosure label="Rule IDs">{ALERT_DETAIL_HELP.ruleIds}</InfoDisclosure>
+                                  </dt>
+                                  <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    {record.crs_rule_ids.join(', ')}
+                                  </dd>
+                                </>
+                              ) : null}
+                              {record.matched_rule_tags?.length ? (
+                                <>
+                                  <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+                                    <span>Rule tags</span>
+                                    <InfoDisclosure label="Rule tags">{ALERT_DETAIL_HELP.ruleTags}</InfoDisclosure>
+                                  </dt>
+                                  <dd className="break-all font-mono text-[var(--color-text-secondary)]">
+                                    {record.matched_rule_tags.join(', ')}
+                                  </dd>
+                                </>
+                              ) : null}
+                            </dl>
                           </div>
                         ))}
                       </>
@@ -635,47 +769,69 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     </h3>
                     <div className="max-h-44 overflow-auto rounded-lg border border-surface-border bg-surface-inset">
                       <div className="grid grid-cols-2 gap-2 border-b border-surface-border px-3 py-2 text-[10px]">
-                        <div>
-                          <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Host</p>
+                        <div className="min-w-0">
+                          <p className={ALERT_DETAIL_LABEL_CLASS}>
+                            <span>Host</span>
+                            <InfoDisclosure label="Host" className="shrink-0">{ALERT_DETAIL_HELP.host}</InfoDisclosure>
+                          </p>
                           <p className="font-mono text-[var(--color-text-primary)]">—</p>
                         </div>
-                        <div>
-                          <p className="uppercase tracking-[0.08em] text-[var(--color-text-soft)]">Source-IP</p>
+                        <div className="min-w-0">
+                          <p className={ALERT_DETAIL_LABEL_CLASS}>
+                            <span>Source-IP</span>
+                            <InfoDisclosure label="Source IP" className="shrink-0">{ALERT_DETAIL_HELP.requestSourceIp}</InfoDisclosure>
+                          </p>
                           <p className="font-mono text-[var(--color-accent-analytic)]">{alert.source_ip ?? '—'}</p>
                         </div>
                       </div>
-                      <pre className="whitespace-pre-wrap break-all p-3 font-mono text-[10px] leading-[1.6] text-[var(--color-text-secondary)]">
-                        <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
-                        <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
-                        <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
+                      <div className="grid gap-3 p-3 text-[10px]">
+                        <div>
+                          <p className={ALERT_DETAIL_LABEL_CLASS}>
+                            <span>Request method/path/protocol</span>
+                            <InfoDisclosure label="Request method/path/protocol" className="shrink-0">
+                              {ALERT_DETAIL_HELP.requestLine}
+                            </InfoDisclosure>
+                          </p>
+                          <pre className="mt-1 whitespace-pre-wrap break-all font-mono leading-[1.6] text-[var(--color-text-secondary)]">
+                            <span className="text-severity-blocked-text">{alert.request_method ?? '—'}</span>{' '}
+                            <span className="text-severity-high-text">{alert.request_path ?? '—'}</span>{' '}
+                            <span className="text-[var(--color-text-secondary)]">HTTP/1.1</span>
+                          </pre>
+                        </div>
                         {queryString ? (
-                          <>
-                            {'\n'}
-                            {'\n'}
-                            <span className="text-[var(--color-text-soft)]">
-                              Captured query string (sensitive values redacted):
-                            </span>
-                            {'\n'}
-                            <span className="text-[var(--color-text-primary)]">{queryString}</span>
-                          </>
+                          <div>
+                            <p className={ALERT_DETAIL_LABEL_CLASS}>
+                              <span>Captured query string (sensitive values redacted):</span>
+                              <InfoDisclosure label="Captured query string" className="shrink-0">
+                                {ALERT_DETAIL_HELP.queryString}
+                              </InfoDisclosure>
+                            </p>
+                            <pre className="mt-1 whitespace-pre-wrap break-all font-mono leading-[1.6] text-[var(--color-text-primary)]">
+                              {queryString}
+                            </pre>
+                          </div>
                         ) : null}
                         {additionalPayload ? (
-                          <>
-                            {'\n'}
-                            {'\n'}
-                            <span className="text-[var(--color-text-primary)]">{additionalPayload}</span>
-                          </>
+                          <pre className="whitespace-pre-wrap break-all font-mono leading-[1.6] text-[var(--color-text-primary)]">
+                            {additionalPayload}
+                          </pre>
                         ) : null}
-                        {!queryString && !additionalPayload ? (
-                          <>
-                            {'\n'}
-                            {'\n'}
-                            <span className="text-[var(--color-text-soft)]">
-                              {missingRequestDetailsMessage}
-                            </span>
-                          </>
+                        {!queryString ? (
+                          <div>
+                            <p className={ALERT_DETAIL_LABEL_CLASS}>
+                              <span>Request input</span>
+                              <InfoDisclosure label="Captured query string" className="shrink-0">
+                                {ALERT_DETAIL_HELP.queryString}
+                              </InfoDisclosure>
+                            </p>
+                            {!additionalPayload ? (
+                              <p className="mt-1 leading-[1.6] text-[var(--color-text-soft)]">
+                                {missingRequestDetailsMessage}
+                              </p>
+                            ) : null}
+                          </div>
                         ) : null}
-                      </pre>
+                      </div>
                     </div>
                   </section>
 
@@ -759,66 +915,78 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                               <p className="mb-1 text-[11px] leading-4 text-[var(--color-text-secondary)]">
                                 Assign yourself to this alert before reviewing.
                               </p>
-                              <button
-                                type="button"
-                                aria-label="Start Review"
-                                disabled={isPending}
-                                onClick={handleStartReview}
-                                className={cn(
-                                  'flex w-full items-center justify-between rounded-md border border-action-border bg-action-bg px-2.5 py-1.5 text-left text-[11px] font-medium text-action-accent transition-colors hover:bg-action-bg/70',
-                                  isPending && 'cursor-not-allowed opacity-50'
-                                )}
-                              >
-                                <span>Start Review</span>
-                                {isPending ? <span>Updating...</span> : <span>→</span>}
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  aria-label="Start Review"
+                                  disabled={isPending}
+                                  onClick={handleStartReview}
+                                  className={cn(
+                                    'flex min-w-0 flex-1 items-center justify-between rounded-md border border-action-border bg-action-bg px-2.5 py-1.5 text-left text-[11px] font-medium text-action-accent transition-colors hover:bg-action-bg/70',
+                                    isPending && 'cursor-not-allowed opacity-50'
+                                  )}
+                                >
+                                  <span>Start Review</span>
+                                  {isPending ? <span>Updating...</span> : <span>→</span>}
+                                </button>
+                                <InfoDisclosure label="Start Review" className="shrink-0">{ALERT_DETAIL_HELP.startReview}</InfoDisclosure>
+                              </div>
                             </>
                           ) : null}
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleVerdictClick('resolved')}
-                            className={cn(
-                              'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
-                              displayStatus === 'resolved'
-                                ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
-                                : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
-                              isPending && 'cursor-not-allowed opacity-50'
-                            )}
-                          >
-                            <span>Resolve</span>
-                            {isPending && displayStatus === 'resolved' ? <span>Updating...</span> : <span>→</span>}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleVerdictClick('false_positive')}
-                            className={cn(
-                              'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
-                              displayStatus === 'false_positive'
-                                ? 'border-action-border bg-action-bg text-action-accent'
-                                : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
-                              isPending && 'cursor-not-allowed opacity-50'
-                            )}
-                          >
-                            <span>False Positive</span>
-                            {isPending && displayStatus === 'false_positive' ? <span>Updating...</span> : <span>→</span>}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleVerdictClick('escalated')}
-                            className={cn(
-                              'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
-                              displayStatus === 'escalated'
-                                ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
-                                : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
-                              isPending && 'cursor-not-allowed opacity-50'
-                            )}
-                          >
-                            <span>Escalate</span>
-                            {isPending && displayStatus === 'escalated' ? <span>Updating...</span> : <span>→</span>}
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleVerdictClick('resolved')}
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                                displayStatus === 'resolved'
+                                  ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
+                                  : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
+                                isPending && 'cursor-not-allowed opacity-50'
+                              )}
+                            >
+                              <span>Resolve</span>
+                              {isPending && displayStatus === 'resolved' ? <span>Updating...</span> : <span>→</span>}
+                            </button>
+                            <InfoDisclosure label="Resolve" className="shrink-0">{ALERT_DETAIL_HELP.resolve}</InfoDisclosure>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleVerdictClick('false_positive')}
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                                displayStatus === 'false_positive'
+                                  ? 'border-action-border bg-action-bg text-action-accent'
+                                  : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
+                                isPending && 'cursor-not-allowed opacity-50'
+                              )}
+                            >
+                              <span>False Positive</span>
+                              {isPending && displayStatus === 'false_positive' ? <span>Updating...</span> : <span>→</span>}
+                            </button>
+                            <InfoDisclosure label="False Positive" className="shrink-0">{ALERT_DETAIL_HELP.falsePositive}</InfoDisclosure>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleVerdictClick('escalated')}
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                                displayStatus === 'escalated'
+                                  ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
+                                  : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
+                                isPending && 'cursor-not-allowed opacity-50'
+                              )}
+                            >
+                              <span>Escalate</span>
+                              {isPending && displayStatus === 'escalated' ? <span>Updating...</span> : <span>→</span>}
+                            </button>
+                            <InfoDisclosure label="Escalate" className="shrink-0">{ALERT_DETAIL_HELP.escalate}</InfoDisclosure>
+                          </div>
                         </div>
                         ) : (
                           <div className="space-y-1 text-[11px] text-[var(--color-text-secondary)]">
@@ -840,77 +1008,80 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
                         Update action label
                       </p>
-                      <button
-                        type="button"
-                        disabled={isActionPending}
-                        onClick={() => handleActionClick('BLOCKED')}
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
-                          displayAction === 'BLOCKED'
-                            ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
-                            : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
-                          isActionPending && 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        {isActionPending && displayAction === 'BLOCKED' ? (
-                          <>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isActionPending}
+                          onClick={() => handleActionClick('BLOCKED')}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                            displayAction === 'BLOCKED'
+                              ? 'border-severity-high-border bg-severity-high-bg text-severity-high-text'
+                              : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
+                            isActionPending && 'cursor-not-allowed opacity-50'
+                          )}
+                        >
+                          {isActionPending && displayAction === 'BLOCKED' ? (
                             <span>Saving…</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
-                            <span>→</span>
-                          </>
-                        )}
-                      </button>
+                          ) : (
+                            <>
+                              <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.BLOCKED}</span>
+                              <span>→</span>
+                            </>
+                          )}
+                        </button>
+                        <InfoDisclosure label="Save as Blocked" className="shrink-0">{ALERT_DETAIL_HELP.saveBlocked}</InfoDisclosure>
+                      </div>
 
-                      <button
-                        type="button"
-                        disabled={isActionPending}
-                        onClick={() => handleActionClick('THROTTLED')}
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
-                          displayAction === 'THROTTLED'
-                            ? 'border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text'
-                            : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
-                          isActionPending && 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        {isActionPending && displayAction === 'THROTTLED' ? (
-                          <>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isActionPending}
+                          onClick={() => handleActionClick('THROTTLED')}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                            displayAction === 'THROTTLED'
+                              ? 'border-severity-blocked-border bg-severity-blocked-bg text-severity-blocked-text'
+                              : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
+                            isActionPending && 'cursor-not-allowed opacity-50'
+                          )}
+                        >
+                          {isActionPending && displayAction === 'THROTTLED' ? (
                             <span>Saving…</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
-                            <span>→</span>
-                          </>
-                        )}
-                      </button>
+                          ) : (
+                            <>
+                              <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.THROTTLED}</span>
+                              <span>→</span>
+                            </>
+                          )}
+                        </button>
+                        <InfoDisclosure label="Save as Throttled" className="shrink-0">{ALERT_DETAIL_HELP.saveThrottled}</InfoDisclosure>
+                      </div>
 
-                      <button
-                        type="button"
-                        disabled={isActionPending}
-                        onClick={() => handleActionClick('ALLOWED')}
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
-                          displayAction === 'ALLOWED'
-                            ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
-                            : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
-                          isActionPending && 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        {isActionPending && displayAction === 'ALLOWED' ? (
-                          <>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isActionPending}
+                          onClick={() => handleActionClick('ALLOWED')}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors',
+                            displayAction === 'ALLOWED'
+                              ? 'border-severity-safe-border bg-severity-safe-bg text-severity-safe-text'
+                              : 'border-surface-border bg-surface-card text-[var(--color-text-primary)] hover:bg-surface-inset',
+                            isActionPending && 'cursor-not-allowed opacity-50'
+                          )}
+                        >
+                          {isActionPending && displayAction === 'ALLOWED' ? (
                             <span>Saving…</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
-                            <span>→</span>
-                          </>
-                        )}
-                      </button>
+                          ) : (
+                            <>
+                              <span>Save as {ALERT_DISPLAY_ACTION_ALIASES.ALLOWED}</span>
+                              <span>→</span>
+                            </>
+                          )}
+                        </button>
+                        <InfoDisclosure label="Save as Allowed" className="shrink-0">{ALERT_DETAIL_HELP.saveAllowed}</InfoDisclosure>
+                      </div>
                         </div>
                         ) : (
                           <p className="text-[11px] text-[var(--color-text-secondary)]">

@@ -33,7 +33,21 @@ describe('StatCard', () => {
     expect(valueEl).toHaveClass('text-text-primary')
     expect(valueEl).not.toHaveClass('text-severity-high-text')
     expect(valueEl).not.toHaveClass('text-severity-safe-text')
-    expect(screen.getByText('↑ 20 vs previous')).toHaveClass('text-text-muted')
+    expect(screen.getByText('↑ 20 vs previous').closest('div')).toHaveClass('text-text-muted')
+  })
+
+  it('explains the equal-duration comparison and absolute delta', async () => {
+    const user = userEvent.setup()
+    render(<StatCard label="Recorded throttled" value={15} previousValue={10} />)
+
+    const help = screen.getByRole('button', { name: 'About Recorded throttled change vs previous' })
+    expect(help).toBeInTheDocument()
+    await user.click(help)
+
+    const explanation = screen.getByRole('region', { name: 'Recorded throttled change vs previous explanation' })
+    expect(explanation).toHaveTextContent(/immediately preceding window of the same length/i)
+    expect(explanation).toHaveTextContent(/absolute difference, not a percentage/i)
+    expect(explanation).toHaveTextContent(/measure of whether activity improved/i)
   })
 
   it('allows long metric labels to shrink inside responsive grids', () => {
