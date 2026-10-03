@@ -1,7 +1,7 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AttackTypePanel } from './AttackTypePanel'
 
@@ -29,6 +29,8 @@ const counts = {
 } as const
 
 describe('AttackTypePanel', () => {
+  afterEach(cleanup)
+
   it('defaults to bars and switches to the pie view without changing the shared data', async () => {
     const user = userEvent.setup()
     render(<AttackTypePanel countsByLabel={counts} />)
@@ -62,5 +64,24 @@ describe('AttackTypePanel', () => {
       minHeight: 196,
       initialDimension: { width: 0, height: 196 },
     })
+  })
+
+  it('explains both chart controls as presentation-only changes', async () => {
+    const user = userEvent.setup()
+    render(<AttackTypePanel countsByLabel={counts} />)
+
+    const barHelp = screen.getByRole('button', { name: 'About Bar chart' })
+    const pieHelp = screen.getByRole('button', { name: 'About Pie chart' })
+    expect(screen.getAllByRole('button', { name: 'About Bar chart' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'About Pie chart' })).toHaveLength(1)
+
+    await user.click(barHelp)
+    expect(screen.getByRole('region', { name: 'Bar chart explanation' })).toHaveTextContent(
+      /presentation, not the data or calculation/i
+    )
+    await user.click(pieHelp)
+    expect(screen.getByRole('region', { name: 'Pie chart explanation' })).toHaveTextContent(
+      /switching views does not change the data or calculation/i
+    )
   })
 })

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { getInfoPopoverPosition, InfoDisclosure } from './InfoDisclosure'
@@ -42,6 +42,66 @@ describe('InfoDisclosure', () => {
     await user.keyboard('{Escape}')
     expect(control).toHaveAttribute('aria-expanded', 'false')
     expect(control).toHaveFocus()
+  })
+
+  it('opens on mouse hover and stays open while the pointer moves into the portaled explanation', async () => {
+    const user = userEvent.setup()
+    render(<InfoDisclosure label="Timestamp">The timestamp saved for this record.</InfoDisclosure>)
+
+    const control = screen.getByRole('button', { name: 'About Timestamp' })
+    await user.hover(control)
+    const explanation = screen.getByRole('region', { name: 'Timestamp explanation' })
+    expect(explanation).toBeInTheDocument()
+
+    await user.hover(explanation)
+    expect(explanation).toBeInTheDocument()
+
+    await user.unhover(explanation)
+    await waitFor(() => {
+      expect(screen.queryByRole('region', { name: 'Timestamp explanation' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('opens when reached by keyboard focus and remains keyboard-dismissible', async () => {
+    const user = userEvent.setup()
+    render(<InfoDisclosure label="Request">The recorded request method and path.</InfoDisclosure>)
+
+    await user.tab()
+    const control = screen.getByRole('button', { name: 'About Request' })
+    expect(control).toHaveFocus()
+    expect(screen.getByRole('region', { name: 'Request explanation' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('region', { name: 'Request explanation' })).not.toBeInTheDocument()
+    expect(control).toHaveFocus()
+  })
+
+  it('toggles by touch without relying on hover', () => {
+    const { getByRole, queryByRole } = render(
+      <InfoDisclosure label="Policy decision">A saved recommendation.</InfoDisclosure>
+    )
+    const control = getByRole('button', { name: 'About Policy decision' })
+
+    fireEvent.pointerDown(control, { pointerType: 'touch' })
+    fireEvent.click(control)
+    expect(screen.getByRole('region', { name: 'Policy decision explanation' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(control, { pointerType: 'touch' })
+    fireEvent.click(control)
+    expect(queryByRole('region', { name: 'Policy decision explanation' })).not.toBeInTheDocument()
+  })
+
+  it('toggles a mouse-pinned explanation by clicking its trigger again', () => {
+    render(<InfoDisclosure label="Recorded action">The saved action label.</InfoDisclosure>)
+    const control = screen.getByRole('button', { name: 'About Recorded action' })
+
+    fireEvent.pointerDown(control, { pointerType: 'mouse' })
+    fireEvent.click(control)
+    expect(screen.getByRole('region', { name: 'Recorded action explanation' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(control, { pointerType: 'mouse' })
+    fireEvent.click(control)
+    expect(screen.queryByRole('region', { name: 'Recorded action explanation' })).not.toBeInTheDocument()
   })
 
   it('closes on an outside pointer interaction', async () => {

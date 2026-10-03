@@ -91,12 +91,11 @@ export function StatCard({
         )}
       </div>
       {delta && showDelta ? (
-        <div
-          className={cn(
-            'overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-text-muted'
-          )}
-        >
-          {delta.direction === 'up' ? '↑' : '↓'} {delta.diff} vs previous
+        <div className="flex min-w-0 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-text-muted">
+          <span>{delta.direction === 'up' ? '↑' : '↓'} {delta.diff} vs previous</span>
+          <InfoDisclosure label={`${label} change vs previous`}>
+            Compares this count in the selected rolling time window with the immediately preceding window of the same length. The arrow shows whether the current count is higher or lower; the number is the absolute difference, not a percentage or a measure of whether activity improved.
+          </InfoDisclosure>
         </div>
       ) : null}
       {secondary && (

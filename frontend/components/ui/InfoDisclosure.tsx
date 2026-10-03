@@ -29,6 +29,7 @@ export interface InfoPopoverPosition {
 
 const VIEWPORT_PADDING = 12
 const POPOVER_GAP = 8
+const HOVER_CLOSE_DELAY_MS = 150
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max))
@@ -96,12 +97,45 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
   const rootRef = useRef<HTMLSpanElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pointerTypeRef = useRef<string | null>(null)
+  const triggerHoveredRef = useRef(false)
+  const popoverHoveredRef = useRef(false)
+  const openSourceRef = useRef<'click' | 'focus' | 'hover' | null>(null)
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimerRef.current !== null) {
+      clearTimeout(hoverCloseTimerRef.current)
+      hoverCloseTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleHoverClose = useCallback(() => {
+    clearHoverCloseTimer()
+    hoverCloseTimerRef.current = setTimeout(() => {
+      hoverCloseTimerRef.current = null
+      if (
+        triggerHoveredRef.current ||
+        popoverHoveredRef.current ||
+        openSourceRef.current !== 'hover'
+      ) {
+        return
+      }
+      openSourceRef.current = null
+      setOpen(false)
+      setPosition(null)
+    }, HOVER_CLOSE_DELAY_MS)
+  }, [clearHoverCloseTimer])
 
   const close = useCallback(() => {
+    clearHoverCloseTimer()
+    openSourceRef.current = null
     setOpen(false)
     setPosition(null)
     buttonRef.current?.focus()
-  }, [])
+  }, [clearHoverCloseTimer])
+
+  useEffect(() => clearHoverCloseTimer, [clearHoverCloseTimer])
 
   useEffect(() => {
     if (!open) return
@@ -113,6 +147,7 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
       ) {
         return
       }
+      openSourceRef.current = null
       setOpen(false)
       setPosition(null)
     }
@@ -126,6 +161,7 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
 
     const closeWhenCollapsed = () => {
       if (containingDisclosure.open) return
+      openSourceRef.current = null
       setOpen(false)
       setPosition(null)
     }
@@ -184,6 +220,19 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
           close()
         }
       }}
+      onPointerEnter={(event) => {
+        if (event.pointerType !== 'mouse') return
+        triggerHoveredRef.current = true
+        clearHoverCloseTimer()
+        if (openSourceRef.current === 'click' || openSourceRef.current === 'focus') return
+        openSourceRef.current = 'hover'
+        setOpen(true)
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'mouse') return
+        triggerHoveredRef.current = false
+        if (openSourceRef.current === 'hover') scheduleHoverClose()
+      }}
       className={cn('group relative inline-block align-middle', className)}
     >
       <button
@@ -193,9 +242,41 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
         aria-expanded={open}
         aria-controls={contentId}
         aria-describedby={open ? contentId : undefined}
-        onClick={() => {
+        onPointerDown={(event) => {
+          pointerTypeRef.current = event.pointerType
+        }}
+        onFocus={(event) => {
+          if (!event.currentTarget.matches(':focus-visible')) return
+          clearHoverCloseTimer()
+          openSourceRef.current = 'focus'
+          setOpen(true)
+        }}
+        onBlur={() => {
+          if (openSourceRef.current !== 'focus') return
+          if (triggerHoveredRef.current || popoverHoveredRef.current) {
+            openSourceRef.current = 'hover'
+            return
+          }
+          openSourceRef.current = null
+          setOpen(false)
           setPosition(null)
-          setOpen((current) => !current)
+        }}
+        onClick={() => {
+          const pointerType = pointerTypeRef.current
+          pointerTypeRef.current = null
+          if (pointerType === 'mouse') {
+            const next = openSourceRef.current !== 'click'
+            openSourceRef.current = next ? 'click' : null
+            if (next && !open) setPosition(null)
+            if (!next) setPosition(null)
+            setOpen(next)
+            return
+          }
+          if (pointerType === null && openSourceRef.current === 'focus' && open) return
+          const next = !open
+          if (next) setPosition(null)
+          openSourceRef.current = next ? 'click' : null
+          setOpen(next)
         }}
         className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-surface-border text-[10px] font-semibold leading-none text-text-secondary transition-colors hover:border-accent-action hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-panel"
       >
@@ -213,6 +294,16 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
               role="region"
               aria-label={`${label} explanation`}
               data-side={position?.side}
+              onPointerEnter={(event) => {
+                if (event.pointerType !== 'mouse') return
+                popoverHoveredRef.current = true
+                clearHoverCloseTimer()
+              }}
+              onPointerLeave={(event) => {
+                if (event.pointerType !== 'mouse') return
+                popoverHoveredRef.current = false
+                if (openSourceRef.current === 'hover') scheduleHoverClose()
+              }}
               style={{
                 position: 'fixed',
                 left: position?.left ?? -10000,

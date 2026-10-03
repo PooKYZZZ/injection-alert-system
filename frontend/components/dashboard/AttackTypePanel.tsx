@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '@/lib/utils'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
+import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 import { type AlertPrediction } from '@/features/alerts/contract'
 
 interface AttackTypePanelProps {
@@ -64,32 +65,42 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
           aria-label="Attack type chart view"
           className="inline-flex rounded-md border border-border-light bg-surface-inset p-0.5"
         >
-          <button
-            type="button"
-            aria-pressed={view === 'bar'}
-            onClick={() => setView('bar')}
-            className={cn(
-              viewButtonClasses,
-              view === 'bar'
-                ? 'bg-surface-card text-text-primary shadow-subtle'
-                : 'text-text-muted hover:text-text-primary'
-            )}
-          >
-            Bar chart
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === 'pie'}
-            onClick={() => setView('pie')}
-            className={cn(
-              viewButtonClasses,
-              view === 'pie'
-                ? 'bg-surface-card text-text-primary shadow-subtle'
-                : 'text-text-muted hover:text-text-primary'
-            )}
-          >
-            Pie chart
-          </button>
+          <span className="inline-flex items-center gap-0.5">
+            <button
+              type="button"
+              aria-pressed={view === 'bar'}
+              onClick={() => setView('bar')}
+              className={cn(
+                viewButtonClasses,
+                view === 'bar'
+                  ? 'bg-surface-card text-text-primary shadow-subtle'
+                  : 'text-text-muted hover:text-text-primary'
+              )}
+            >
+              Bar chart
+            </button>
+            <InfoDisclosure label="Bar chart">
+              Displays the same attack-type counts as horizontal bars. This changes only the presentation, not the data or calculation.
+            </InfoDisclosure>
+          </span>
+          <span className="inline-flex items-center gap-0.5">
+            <button
+              type="button"
+              aria-pressed={view === 'pie'}
+              onClick={() => setView('pie')}
+              className={cn(
+                viewButtonClasses,
+                view === 'pie'
+                  ? 'bg-surface-card text-text-primary shadow-subtle'
+                  : 'text-text-muted hover:text-text-primary'
+              )}
+            >
+              Pie chart
+            </button>
+            <InfoDisclosure label="Pie chart">
+              Displays the same attack-type counts as a pie chart and legend. Switching views does not change the data or calculation.
+            </InfoDisclosure>
+          </span>
         </div>
       </div>
 

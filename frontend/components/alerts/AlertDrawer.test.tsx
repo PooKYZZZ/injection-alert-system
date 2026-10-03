@@ -122,11 +122,14 @@ describe('AlertDrawer', () => {
 
     render(<AlertDrawer alert={alertFixture} onClose={vi.fn()} />)
 
-    expect(screen.getByText('Correlation ID').nextElementSibling).toHaveTextContent('a'.repeat(32))
-    expect(screen.getByText('Observed HTTP status').nextElementSibling).toHaveTextContent('403')
+    expect(screen.getByText('Correlation ID').closest('dt')?.nextElementSibling).toHaveTextContent('a'.repeat(32))
+    expect(screen.getByText('Observed HTTP status').closest('dt')?.nextElementSibling).toHaveTextContent('403')
     expect(screen.getByText('Record #22 · modsec_audit_bridge')).toBeInTheDocument()
     expect(screen.queryByText('Evidence relationship incomplete')).not.toBeInTheDocument()
     expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'About Transaction ID' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'About Observed HTTP status' })).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: 'About Rule IDs' })).toHaveLength(2)
 
     fireEvent.click(screen.getByText('Action change history'))
     expect(screen.getByText('ALLOWED → BLOCKED')).toBeInTheDocument()
@@ -149,6 +152,83 @@ describe('AlertDrawer', () => {
         'This label may come from the confidence policy or a manual update. Saving it changes the alert record only; it does not send a WAF command or confirm the HTTP response.'
       )
     ).toBeInTheDocument()
+  })
+
+  it('adds contextual help to detail fields and controls without duplicating existing explanations', () => {
+    render(
+      <AlertDrawer
+        role="OWNER"
+        alert={{
+          ...alertFixture,
+          transaction_id: 'modsec-1',
+          ingest_source: 'modsec_audit_bridge',
+          query_string: 'query=example',
+          model_version: 'model-2026-09',
+          preprocessing_version: 'preprocess-v2',
+          policy_decision: 'WAF_BLOCK',
+          policy_decision_reason: 'STRONG_CRS_EVIDENCE',
+          policy_evidence_context: { strong_waf_evidence: true },
+          policy_version: 'confidence-enforcement-v3',
+          notification_status: { email: 'sent' },
+          request_correlation_id: 'request-correlation-1',
+          observed_http_status: 403,
+          matched_rule_tags: ['attack-sqli'],
+          triage_status: 'new',
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    const expectedHelp = [
+      'Alert ID',
+      'Time',
+      'Request',
+      'Model version',
+      'Preprocessing',
+      'Decision reason',
+      'Evidence basis',
+      'Policy version',
+      'Notifications',
+      'Correlation ID',
+      'Observed HTTP status',
+      'Enforcement source',
+      'Related records',
+      'WAF evidence',
+      'Transaction ID',
+      'CRS score',
+      'Rule IDs',
+      'Rule tags',
+      'Host',
+      'Request method/path/protocol',
+      'Captured query string',
+      'Start Review',
+      'Resolve',
+      'False Positive',
+      'Escalate',
+      'Save as Blocked',
+      'Save as Throttled',
+      'Save as Allowed',
+    ]
+
+    for (const label of expectedHelp) {
+      expect(screen.getByRole('button', { name: `About ${label}` })).toBeInTheDocument()
+    }
+    expect(screen.getAllByRole('button', { name: 'About Source IP' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'About Confidence' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'About Policy decision' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'About Source IP origin' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'About Source IP verification' })).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'About Enforcement source' }))
+    expect(screen.getByRole('region', { name: 'Enforcement source explanation' })).toHaveTextContent(
+      /“Not recorded” means it is unknown here/i
+    )
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'About Enforcement source' }), { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'About Captured query string' }))
+    expect(screen.getByRole('region', { name: 'Captured query string explanation' })).toHaveTextContent(
+      /may be absent or simply not retained/i
+    )
   })
 
   it('keeps opening read-only and offers an explicit Start Review action for new alerts', () => {
@@ -208,15 +288,15 @@ describe('AlertDrawer', () => {
 
     expect(screen.queryByText(/summary header/i)).not.toBeInTheDocument()
     expect(screen.queryByText('dashboard.local')).not.toBeInTheDocument()
-    expect(screen.getByText('Alert ID').nextElementSibling).toHaveTextContent('drawer-1')
-    expect(screen.getByText('Host').nextElementSibling).toHaveTextContent('—')
-    expect(screen.getByText('Transaction ID').nextElementSibling).toHaveTextContent('tx-drawer-1')
+    expect(screen.getByText('Alert ID').closest('dt')?.nextElementSibling).toHaveTextContent('drawer-1')
+    expect(screen.getByText('Host').closest('div')?.lastElementChild).toHaveTextContent('—')
+    expect(screen.getByText('Transaction ID').closest('dt')?.nextElementSibling).toHaveTextContent('tx-drawer-1')
     expect(screen.getByText('WAF and ML evidence agree')).toBeInTheDocument()
     expect(screen.getByText('SQL Injection Attack Detected')).toBeInTheDocument()
     expect(screen.getByText('attack-sqli')).toBeInTheDocument()
     expect(screen.getByText('Policy decision').closest('dt')?.nextElementSibling).toHaveTextContent('APPLICATION_BLOCK')
-    expect(screen.getByText('Decision reason').nextElementSibling).toHaveTextContent('STRONG CRS EVIDENCE')
-    expect(screen.getByText('Notifications').nextElementSibling).toHaveTextContent(
+    expect(screen.getByText('Decision reason').closest('dt')?.nextElementSibling).toHaveTextContent('STRONG CRS EVIDENCE')
+    expect(screen.getByText('Notifications').closest('dt')?.nextElementSibling).toHaveTextContent(
       'email: sent, telegram: retry wait'
     )
     expect(screen.getByRole('heading', { name: 'Training feedback' })).toBeInTheDocument()
@@ -228,8 +308,8 @@ describe('AlertDrawer', () => {
     expect(evidenceShell).toHaveClass('border-surface-border')
     expect(evidenceShell).toHaveClass('bg-surface-inset')
 
-    const blockedButton = screen.getByRole('button', { name: /Blocked/i })
-    const allowedButton = screen.getByRole('button', { name: /Allowed/i })
+    const blockedButton = screen.getByRole('button', { name: /^Save as Blocked/ })
+    const allowedButton = screen.getByRole('button', { name: /^Save as Allowed/ })
 
     expect(blockedButton).not.toBeDisabled()
     expect(allowedButton).not.toBeDisabled()
@@ -365,11 +445,11 @@ describe('AlertDrawer', () => {
     )
 
     expect(screen.getByText('Recorded: Throttled')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Save as Blocked/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Save as Throttled/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Save as Allowed/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Save as Blocked/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Save as Throttled/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Save as Allowed/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Save as Blocked/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save as Blocked/ }))
 
     expect(actionMutateMock).toHaveBeenCalledWith(
       { id: alertFixture.alert_id, action: 'BLOCKED' },
@@ -432,8 +512,8 @@ describe('AlertDrawer', () => {
         />
       )
 
-      expect(Boolean(screen.queryByRole('button', { name: /Resolve/i }))).toBe(canTriage)
-      expect(Boolean(screen.queryByRole('button', { name: /Blocked/i }))).toBe(
+      expect(Boolean(screen.queryByRole('button', { name: /^Resolve/i }))).toBe(canTriage)
+      expect(Boolean(screen.queryByRole('button', { name: /^Save as Blocked/ }))).toBe(
         canUpdateAction
       )
       expect(
@@ -552,7 +632,7 @@ describe('AlertDrawer', () => {
     )
 
     expect(screen.getByText('Traffic Details')).toBeInTheDocument()
-    expect(screen.getByText('Traffic record ID').nextElementSibling).toHaveTextContent(
+    expect(screen.getByText('Traffic record ID').closest('dt')?.nextElementSibling).toHaveTextContent(
       'traffic-record-18'
     )
     expect(screen.getByText('Normal').closest('span')).toHaveClass('border-severity-safe-border')

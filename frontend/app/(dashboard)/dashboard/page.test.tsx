@@ -31,11 +31,12 @@ vi.mock('motion/react', () => ({
 }))
 
 vi.mock('@/components/dashboard/StatCard', () => ({
-  StatCard: ({ label, value, secondary }: { label: string; value: string | number; secondary?: string }) => (
+  StatCard: ({ label, value, secondary, info }: { label: string; value: string | number; secondary?: string; info?: string }) => (
     <div data-testid="stat-card">
       <span>{label}</span>
       <span>{value}</span>
       {secondary ? <span>{secondary}</span> : null}
+      {info ? <span data-testid={`stat-card-info-${label}`}>{info}</span> : null}
     </div>
   ),
 }))
@@ -150,6 +151,54 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByRole('heading', { name: 'Model and policy context' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Policy by confidence tier' })).toBeInTheDocument()
     expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
+  })
+
+  it('explains throttled counts and Dashboard breakdown fields using their actual aggregates', async () => {
+    const user = userEvent.setup()
+    useDashboardStats.mockReturnValue({
+      data: {
+        ...stats,
+        attack_distribution: { 'SQL Injection': 7, 'Code Injection': 3 },
+        top_source_ips: [{ ip: '192.0.2.10', count: 4, action: 'BLOCKED' }],
+        top_targeted_paths: [{ path: '/records/search', hits: 5 }],
+      },
+      isPending: false,
+    })
+
+    render(<DashboardPage />)
+    expect(screen.getByTestId('stat-card-info-Recorded throttled')).toHaveTextContent(
+      /saved action label is THROTTLED/i
+    )
+    await user.click(screen.getByText('Attack and model breakdown'))
+
+    await user.click(screen.getByRole('button', { name: 'About Attack type counts and percentages' }))
+    expect(screen.getByRole('region', { name: 'Attack type counts and percentages explanation' })).toHaveTextContent(
+      /share of the displayed attack-class records, not of all traffic/i
+    )
+
+    await user.click(screen.getByRole('button', { name: 'About Top source IPs' }))
+    expect(screen.getByRole('region', { name: 'Top source IPs explanation' })).toHaveTextContent(
+      /latest recorded action label/i
+    )
+    expect(screen.getByRole('region', { name: 'Top source IPs explanation' })).toHaveTextContent(
+      /does not prove the runtime outcome/i
+    )
+
+    await user.click(screen.getByRole('button', { name: 'About Top targeted paths' }))
+    expect(screen.getByRole('region', { name: 'Top targeted paths explanation' })).toHaveTextContent(
+      /stored operational traffic record/i
+    )
+    expect(screen.getByRole('region', { name: 'Top targeted paths explanation' })).toHaveTextContent(
+      /not necessarily a count of unique client requests/i
+    )
+
+    await user.click(screen.getByRole('button', { name: 'About Policy by confidence tier' }))
+    expect(screen.getByRole('region', { name: 'Policy by confidence tier explanation' })).toHaveTextContent(
+      /configured policy intent/i
+    )
+    expect(screen.getByRole('region', { name: 'Policy by confidence tier explanation' })).toHaveTextContent(
+      /not confirmed HTTP outcomes/i
+    )
   })
 
   it('exposes the time-window control as an accessible pressed-button group', async () => {
