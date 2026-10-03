@@ -13,6 +13,21 @@ The route is configured in the Cloudflare dashboard. This repository change
 only makes the `frontend` service name reachable from the Docker-managed
 `cloudflared` connector.
 
+The same tunnel also serves the public project site at
+`cybertracesystems.com` through `http://frontend:3000`. Its Cloudflare path
+allowlist is intentionally limited to the homepage, Next.js assets, the public
+illustration and logo, the site icon, and these public pages:
+`/about-project`, `/how-it-works`, and `/about-us`. The current path expression
+is:
+
+```text
+^/$|^/_next/|^/assets/cybertrace-evidence-map(-mobile)?\.svg$|^/logo\.png$|^/icon\.png$|^/(about-project|how-it-works|about-us)/?$
+```
+
+When public pages or assets are added, update this route in the Cloudflare
+tunnel dashboard and verify the public URLs. Keep the allowlist specific; do
+not expose every frontend path on the public project hostname.
+
 The target Cloudflare overlay pins the official `cloudflare/cloudflared`
 `2026.8.3` multi-architecture image by digest. The tunnel command keeps
 `--no-autoupdate`, so future upgrades are deliberate, reviewable Compose
