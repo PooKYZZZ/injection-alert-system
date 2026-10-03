@@ -222,8 +222,15 @@ describe('AlertDrawer', () => {
     const notificationsTerm = screen.getByText('Notifications').closest('dt')
     const notificationsValue = notificationsTerm?.nextElementSibling
     expect(notificationsTerm).toHaveClass('min-w-0')
-    expect(notificationsTerm?.parentElement).toHaveClass('grid-cols-[112px_minmax(0,1fr)]')
+    const coreDetailsList = notificationsTerm?.parentElement
+    expect(coreDetailsList).toHaveClass('grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)]')
+    expect(coreDetailsList).toHaveClass('[&>dt]:grid-cols-[minmax(0,1fr)_20px]')
+    expect(coreDetailsList).toHaveClass('[&>dt]:col-span-2', '[&>dd]:col-start-3')
     expect(notificationsValue).toHaveClass('min-w-0')
+    const coreTermsWithHelp = Array.from(coreDetailsList?.querySelectorAll('dt') ?? []).filter((term) =>
+      term.querySelector('button[aria-label^="About "]')
+    )
+    expect(coreTermsWithHelp).toHaveLength(14)
 
     const notificationList = within(notificationsValue as HTMLElement).getByRole('list', {
       name: 'Notification channel statuses',

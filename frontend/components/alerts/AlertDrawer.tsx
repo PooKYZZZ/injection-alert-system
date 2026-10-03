@@ -49,6 +49,12 @@ const ALERT_DETAIL_HELP = {
   saveAllowed: 'Saves Allowed as the record’s action label. It does not change a past response or prove that the request was allowed at runtime.',
 } as const
 
+const ALERT_DETAIL_LIST_CLASS =
+  'grid grid-cols-[minmax(0,96px)_20px_minmax(0,1fr)] gap-x-2 gap-y-2 text-[12px] leading-4 ' +
+  '[&>dt]:col-span-2 [&>dt]:grid [&>dt]:min-w-0 [&>dt]:grid-cols-[minmax(0,1fr)_20px] ' +
+  '[&>dt]:items-center [&>dt]:gap-x-1 [&>dt>span:first-child]:min-w-0 [&>dt>span:first-child]:break-words ' +
+  '[&>dd]:col-start-3 [&>dd]:min-w-0'
+
 interface AlertDrawerProps {
   role?: unknown
   alert: Alert | null
@@ -411,7 +417,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Core Details
                     </h3>
-                    <dl className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-2 gap-y-2 text-[12px] leading-4">
+                    <dl className={ALERT_DETAIL_LIST_CLASS}>
                       <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         <span>{isActionableAlert ? 'Alert ID' : 'Traffic record ID'}</span>
                         <InfoDisclosure label={isActionableAlert ? 'Alert ID' : 'Traffic record ID'}>
@@ -532,7 +538,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                       Request correlation and observed outcome
                     </h3>
-                    <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
+                    <dl className={ALERT_DETAIL_LIST_CLASS}>
                       <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         <span>Correlation ID</span>
                         <InfoDisclosure label="Correlation ID">{ALERT_DETAIL_HELP.correlationId}</InfoDisclosure>
@@ -637,7 +643,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                     ) : (
                       <>
                         {hasOwnCrsEvidence ? (
-                        <dl className="grid grid-cols-[112px_1fr] gap-x-2 gap-y-2 text-[12px] leading-4">
+                        <dl className={ALERT_DETAIL_LIST_CLASS}>
                           <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                             <span>Transaction ID</span>
                             <InfoDisclosure label="Transaction ID">{ALERT_DETAIL_HELP.transactionId}</InfoDisclosure>
