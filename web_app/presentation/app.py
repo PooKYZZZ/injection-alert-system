@@ -31,6 +31,9 @@ from web_app.notifications.outbox import PostgresNotificationOutboxRepository
 from web_app.notifications.service import NotificationWorkerService
 from web_app.presentation.api.retraining_router import router as retraining_router
 from web_app.presentation.api.routes import router as api_router
+from web_app.presentation.api.traffic_history_export_router import (
+    router as traffic_history_export_router,
+)
 from web_app.presentation.api.triage_router import router as triage_router
 from web_app.presentation.api.waf_enforcement_router import (
     router as waf_enforcement_router,
@@ -222,6 +225,7 @@ def create_app() -> FastAPI:
 
     # --- API router ---
     app.include_router(api_router, prefix="/api")
+    app.include_router(traffic_history_export_router, prefix="/api")
     app.include_router(retraining_router, prefix="/api")
     app.include_router(triage_router, prefix="/api")
     app.include_router(waf_enforcement_router, prefix="/api")

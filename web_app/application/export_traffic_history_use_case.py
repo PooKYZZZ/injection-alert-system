@@ -30,7 +30,9 @@ CSV_EXPORT_COLUMNS = (
     "triage_status",
 )
 
-_FORMULA_AFTER_PREFIX = re.compile(r"^[\x00-\x20\u00a0\u200b\ufeff]*[=+\-@＝＋－＠]")
+_FORMULA_AFTER_PREFIX = re.compile(
+    r"^[\s\x00-\x08\x0e-\x1f\u200b\ufeff]*[=+\-@＝＋－＠]"
+)
 
 
 class InvalidTrafficHistoryExportRange(ValueError):
@@ -150,7 +152,7 @@ class ExportTrafficHistoryUseCase:
             )
 
         buffer = StringIO(newline="")
-        writer = csv.writer(buffer, lineterminator="\r\n", quoting=csv.QUOTE_MINIMAL)
+        writer = csv.writer(buffer, lineterminator="\r\n", quoting=csv.QUOTE_ALL)
         writer.writerow(CSV_EXPORT_COLUMNS)
         chunks = [buffer.getvalue().encode("utf-8")]
         encoded_size = len(chunks[0])

@@ -84,6 +84,7 @@ describe('BFF route handlers', () => {
       'alerts/[id]/triage/route.ts',
       'alerts/[id]/action/route.ts',
       'alerts/[id]/label-review/route.ts',
+      'traffic-history/export/route.ts',
       'stats/route.ts',
       'ml-health/route.ts',
       'ml-model/summary/route.ts',

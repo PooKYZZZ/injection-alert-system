@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
+import { TrafficHistoryExportButton } from '@/components/alerts/TrafficHistoryExportButton'
 import { TRIAGE_STATUS_VALUES } from '@/features/alerts/schemas'
 import { getCurrentSearchParams } from '@/lib/searchParams'
 import {
@@ -12,6 +13,7 @@ import {
 
 interface FilterBarProps {
   filteredCount?: number
+  role?: unknown
 }
 
 const CONFIDENCE_TIER_CYCLE = ['ALL', ...ALERT_CONFIDENCE_TIER_VALUES] as const
@@ -82,7 +84,7 @@ function FilterSelect<T extends string>({
   )
 }
 
-export function FilterBar({ filteredCount }: FilterBarProps) {
+export function FilterBar({ filteredCount, role }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -248,6 +250,7 @@ export function FilterBar({ filteredCount }: FilterBarProps) {
               {filteredCount} results
             </span>
           )}
+          <TrafficHistoryExportButton role={role} />
         </div>
       </div>
       {includeNormal && (

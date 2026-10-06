@@ -65,6 +65,8 @@ def test_invalid_date_ranges_are_rejected(
         "  =1+1",
         "\r\n+1+1",
         "\t@SUM(A1:A2)",
+        "\0=1+1",
+        "\u2003=1+1",
         "＝1+1",
         "＋1+1",
         "－1+2",
@@ -129,6 +131,7 @@ async def test_csv_is_allowlisted_quoted_unicode_and_excel_prefix_aware() -> Non
     assert parsed[1][3] == "東京"
     assert parsed[2][3] == "\t=1+1"
     assert parsed[3][3] == "\t\t@SUM(A1:A2)"
+    assert '"' + "\t=1+1" + '"' in result.content.decode("utf-8")
     assert "source_ip" not in parsed[0]
     assert "request_path" not in parsed[0]
     assert "query_string" not in parsed[0]
