@@ -146,6 +146,27 @@ async def test_worker_completes_claimed_job() -> None:
 
 
 @pytest.mark.asyncio
+async def test_worker_logs_provider_acceptance_without_claiming_mailbox_delivery(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    worker = OutboxWorker(
+        repository=RepositoryStub([job()]),
+        provider=SuccessfulProvider(),
+        worker_id="worker-a",
+        jitter=lambda _low, _high: 0,
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await worker.run_once()
+
+    records = [json.loads(record.message) for record in caplog.records]
+    accepted = next(record for record in records if record.get("event") == "notification.provider_accepted")
+    assert result.sent == 1
+    assert accepted["message"] == "Notification accepted by provider"
+    assert not any(record.get("event") == "notification.delivery_sent" for record in records)
+
+
+@pytest.mark.asyncio
 async def test_worker_records_retry_without_raising_or_mutating_job_contract() -> None:
     claimed = job(attempt_count=2)
     repository = RepositoryStub([claimed])

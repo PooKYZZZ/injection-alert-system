@@ -22,13 +22,13 @@ describe('password recovery forms', () => {
     expect(screen.getByText(/will not be signed in automatically/i)).toBeInTheDocument()
   })
 
-  it('shows a success state when the server queues a reset for an eligible account', async () => {
+  it('shows an accepted state without promising delivery', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      status: 200,
+      status: 202,
       json: async () => ({
-        status: 'sent',
-        message: 'Reset instructions were queued for this account. Check your inbox.',
+        status: 'accepted',
+        message: 'If an eligible account matches this address, reset instructions will be queued for delivery.',
       }),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -42,16 +42,16 @@ describe('password recovery forms', () => {
       '/api/auth/forgot-password',
       expect.objectContaining({ method: 'POST' }),
     ))
-    expect(await screen.findByRole('status')).toHaveTextContent(/reset instructions were queued for this account/i)
+    expect(await screen.findByRole('status')).toHaveTextContent(/if an eligible account matches this address/i)
   })
 
-  it('shows an error for an unknown account without showing success', async () => {
+  it('shows the same success state for an unknown account', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
+      ok: true,
+      status: 202,
       json: async () => ({
-        status: 'not_found',
-        message: 'No eligible account was found for this email address.',
+        status: 'accepted',
+        message: 'If an eligible account matches this address, reset instructions will be queued for delivery.',
       }),
     }))
     render(<ForgotPasswordForm />)
@@ -60,9 +60,9 @@ describe('password recovery forms', () => {
     fireEvent.change(input, { target: { value: 'unknown@example.test' } })
     fireEvent.submit(screen.getByRole('form', { name: /forgot password/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/no eligible account was found/i)
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(await screen.findByRole('status')).toHaveTextContent(/if an eligible account matches this address/i)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
   })
 
   it('shows a recoverable service error without clearing the entered email', async () => {

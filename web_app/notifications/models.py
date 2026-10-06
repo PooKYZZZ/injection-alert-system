@@ -26,6 +26,8 @@ class EmailMessage:
 
 @dataclass(frozen=True, slots=True)
 class ProviderSendResult:
+    """A provider accepted the handoff; this does not confirm mailbox delivery."""
+
     message_id: str
 
 

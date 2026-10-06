@@ -162,8 +162,8 @@ class OutboxWorker:
                     sent += 1
                     log_event(
                         logger,
-                        "notification.delivery_sent",
-                        "Notification delivery completed",
+                        "notification.provider_accepted",
+                        "Notification accepted by provider",
                         component="notification-worker",
                         notification_event_id=job.id,
                         channel=job.channel,

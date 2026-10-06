@@ -34,33 +34,28 @@ describe('password recovery routes', () => {
     harness.resetMfa.mockResolvedValue({ status: 'reset' })
   })
 
-  it('returns a success state for an eligible account', async () => {
+  it('returns the same accepted response for eligible and ineligible accounts', async () => {
     const { POST } = await import('./auth/forgot-password/route')
-    const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+    const eligibleResponse = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
       method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'owner@example.test' }),
     }))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      status: 'sent',
-      message: 'Reset instructions were queued for this account. Check your inbox.',
-    })
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(harness.request).toHaveBeenCalledWith('owner@example.test')
-  })
-
-  it('returns a visible not-found response for an unknown account', async () => {
-    harness.request.mockResolvedValue({ status: 'not_found' })
-    const { POST } = await import('./auth/forgot-password/route')
-    const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+    harness.request.mockResolvedValueOnce({ status: 'not_found' })
+    const ineligibleResponse = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
       method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'unknown@example.test' }),
     }))
 
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({
-      status: 'not_found',
-      message: 'No eligible account was found for this email address.',
-    })
-    expect(response.headers.get('cache-control')).toBe('no-store')
+    const expected = {
+      status: 'accepted',
+      message: 'If an eligible account matches this address, reset instructions will be queued for delivery.',
+    }
+    expect(eligibleResponse.status).toBe(202)
+    expect(await eligibleResponse.json()).toEqual(expected)
+    expect(ineligibleResponse.status).toBe(202)
+    expect(await ineligibleResponse.json()).toEqual(expected)
+    expect(eligibleResponse.headers.get('cache-control')).toBe('no-store')
+    expect(ineligibleResponse.headers.get('cache-control')).toBe('no-store')
+    expect(harness.request).toHaveBeenCalledWith('owner@example.test')
+    expect(harness.request).toHaveBeenCalledWith('unknown@example.test')
   })
 
   it('rejects malformed email without querying account state', async () => {
