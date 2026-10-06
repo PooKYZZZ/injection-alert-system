@@ -26,6 +26,7 @@ class Permission(StrEnum):
     ACCOUNTS_READ = "accounts:read"
     ACCOUNTS_MANAGE = "accounts:manage"
     MFA_ENROLLMENT = "mfa:enrollment"
+    TRAFFIC_EXPORT = "traffic:export"
 
 
 # Lowest to highest privilege. Authorization decisions should use permissions;
@@ -50,6 +51,7 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
             Permission.ALERTS_TRIAGE,
             Permission.STATS_READ,
             Permission.MFA_ENROLLMENT,
+            Permission.TRAFFIC_EXPORT,
         }
     ),
     UserRole.ADMIN: frozenset(
@@ -61,6 +63,7 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
             Permission.ACCOUNTS_READ,
             Permission.ACCOUNTS_MANAGE,
             Permission.MFA_ENROLLMENT,
+            Permission.TRAFFIC_EXPORT,
         }
     ),
     UserRole.OWNER: frozenset(Permission),

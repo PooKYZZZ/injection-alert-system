@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   ACCOUNTS_READ: 'accounts:read',
   ACCOUNTS_MANAGE: 'accounts:manage',
   MFA_ENROLLMENT: 'mfa:enrollment',
+  TRAFFIC_EXPORT: 'traffic:export',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -50,6 +51,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<UserRole, ReadonlySet<Permission>
     PERMISSIONS.ALERTS_TRIAGE,
     PERMISSIONS.STATS_READ,
     PERMISSIONS.MFA_ENROLLMENT,
+    PERMISSIONS.TRAFFIC_EXPORT,
   ]),
   [ROLES.ADMIN]: new Set([
     PERMISSIONS.ALERTS_READ,
@@ -59,6 +61,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<UserRole, ReadonlySet<Permission>
     PERMISSIONS.ACCOUNTS_READ,
     PERMISSIONS.ACCOUNTS_MANAGE,
     PERMISSIONS.MFA_ENROLLMENT,
+    PERMISSIONS.TRAFFIC_EXPORT,
   ]),
   [ROLES.OWNER]: new Set(Object.values(PERMISSIONS)),
 }
