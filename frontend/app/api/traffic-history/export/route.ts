@@ -45,10 +45,16 @@ export async function POST(request: NextRequest): Promise<Response> {
       session,
       PERMISSIONS.TRAFFIC_EXPORT
     )
-    if (!authorization.ok) return authorization.response
+    if (!authorization.ok) {
+      authorization.response.headers.set('Cache-Control', 'no-store')
+      return authorization.response
+    }
 
     const originError = requireTrustedOrigin(request)
-    if (originError) return originError
+    if (originError) {
+      originError.headers.set('Cache-Control', 'no-store')
+      return originError
+    }
 
     if (
       typeof session?.user?.id !== 'string' ||

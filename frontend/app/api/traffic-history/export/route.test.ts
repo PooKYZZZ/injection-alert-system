@@ -91,6 +91,7 @@ describe('Traffic History export BFF route', () => {
     )
 
     expect(response.status).toBe(403)
+    expect(response.headers.get('cache-control')).toBe('no-store')
     expect(harness.requireTrustedOrigin).not.toHaveBeenCalled()
     expect(harness.exportTrafficHistoryCsv).not.toHaveBeenCalled()
   })
@@ -144,6 +145,7 @@ describe('Traffic History export BFF route', () => {
     )
 
     expect(response.status).toBe(403)
+    expect(response.headers.get('cache-control')).toBe('no-store')
     expect(harness.exportTrafficHistoryCsv).not.toHaveBeenCalled()
   })
 })
