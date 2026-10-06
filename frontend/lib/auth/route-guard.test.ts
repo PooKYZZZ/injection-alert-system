@@ -403,6 +403,7 @@ describe('requirePermission', () => {
       auth_level: 'mfa',
       auth_method: 'totp',
       auth_time: 1_000,
+      mfa_challenge_purpose: 'recent_reauthentication',
     })
 
     await expect(
@@ -412,6 +413,24 @@ describe('requirePermission', () => {
         () => 1_599
       )
     ).resolves.toEqual({ ok: true })
+
+    for (const ageSeconds of [599, 600]) {
+      guardHarness.getAccount.mockResolvedValue(
+        currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+      )
+      await expect(
+        requireRecentTotp(
+          session(ROLES.ADMIN, 1, {
+            auth_level: 'mfa',
+            auth_method: 'totp',
+            auth_time: 10_000 - ageSeconds,
+            mfa_challenge_purpose: 'recent_reauthentication',
+          }),
+          PERMISSIONS.ACCOUNTS_MANAGE,
+          () => 10_000
+        )
+      ).resolves.toEqual({ ok: true })
+    }
 
     guardHarness.getAccount.mockResolvedValueOnce(
       currentAccount({ role: ROLES.ANALYST, mfaRequired: true })
@@ -441,6 +460,7 @@ describe('requirePermission', () => {
         auth_level: 'mfa',
         auth_method: 'totp',
         auth_time: 1_000,
+        mfa_challenge_purpose: 'recent_reauthentication',
       }),
     ]) {
       const result = await requireRecentTotp(
@@ -452,6 +472,72 @@ describe('requirePermission', () => {
       if (!result.ok) expect([401, 403]).toContain(result.response.status)
     }
 
+    for (const purpose of ['login_mfa', 'mfa_recovery', undefined]) {
+      guardHarness.getAccount.mockResolvedValue(
+        currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+      )
+      const result = await requireRecentTotp(
+        session(ROLES.ADMIN, 1, {
+          auth_level: 'mfa',
+          auth_method: 'totp',
+          auth_time: 9_999,
+          ...(purpose ? { mfa_challenge_purpose: purpose } : {}),
+        }),
+        PERMISSIONS.ACCOUNTS_MANAGE,
+        () => 10_000
+      )
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.response.status).toBe(403)
+    }
+
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+    const justExpired = await requireRecentTotp(
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 10_000 - 601,
+        mfa_challenge_purpose: 'recent_reauthentication',
+      }),
+      PERMISSIONS.ACCOUNTS_MANAGE,
+      () => 10_000
+    )
+    expect(justExpired.ok).toBe(false)
+    if (!justExpired.ok) expect(justExpired.response.status).toBe(403)
+
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true, disabledAt: '2026-07-04T00:00:00Z' })
+    )
+    const disabledRecentSession = await requireRecentTotp(
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 9_999,
+        mfa_challenge_purpose: 'recent_reauthentication',
+      }),
+      PERMISSIONS.ACCOUNTS_MANAGE,
+      () => 10_000
+    )
+    expect(disabledRecentSession.ok).toBe(false)
+    if (!disabledRecentSession.ok) expect(disabledRecentSession.response.status).toBe(401)
+
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true, authzVersion: 2 })
+    )
+    const staleRecentSession = await requireRecentTotp(
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 9_999,
+        mfa_challenge_purpose: 'recent_reauthentication',
+      }),
+      PERMISSIONS.ACCOUNTS_MANAGE,
+      () => 10_000
+    )
+    expect(staleRecentSession.ok).toBe(false)
+    if (!staleRecentSession.ok) expect(staleRecentSession.response.status).toBe(401)
+
     guardHarness.getAccount.mockResolvedValue(
       currentAccount({ role: ROLES.OWNER, mfaRequired: true })
     )
@@ -461,6 +547,7 @@ describe('requirePermission', () => {
           auth_level: 'mfa',
           auth_method: 'totp',
           auth_time: 1_000,
+          mfa_challenge_purpose: 'recent_reauthentication',
         }),
         PERMISSIONS.ACCOUNTS_MANAGE,
         () => 1_001

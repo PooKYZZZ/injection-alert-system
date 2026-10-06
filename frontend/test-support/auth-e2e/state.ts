@@ -37,12 +37,18 @@ const authE2EStateSchema = z
       backup: backupIdentitySchema,
       email: identitySchema,
       stepup: totpIdentitySchema,
+      managedTargets: z.array(identitySchema).length(2),
     }),
     roleMatrix: roleMatrixSchema,
   })
   .superRefine((state, context) => {
     const identities = [
-      ...Object.values(state.identities),
+      state.identities.enroll,
+      state.identities.login,
+      state.identities.backup,
+      state.identities.email,
+      state.identities.stepup,
+      ...state.identities.managedTargets,
       ...Object.values(state.roleMatrix),
     ]
     if (new Set(identities.map(({ id }) => id)).size !== identities.length) {
@@ -59,9 +65,12 @@ const authE2EStateSchema = z
   })
 
 export type AuthE2EState = z.infer<typeof authE2EStateSchema>
-export type AuthE2EIdentity = AuthE2EState['identities'][
-  keyof AuthE2EState['identities']
-]
+export type AuthE2EIdentity =
+  | AuthE2EState['identities']['enroll']
+  | AuthE2EState['identities']['login']
+  | AuthE2EState['identities']['backup']
+  | AuthE2EState['identities']['email']
+  | AuthE2EState['identities']['stepup']
 export type AuthE2ERole = keyof AuthE2EState['roleMatrix']
 export type AuthE2ERoleIdentity = AuthE2EState['roleMatrix'][AuthE2ERole]
 

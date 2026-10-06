@@ -293,6 +293,7 @@ export async function requireRecentTotp(
   const authTime = session?.user?.auth_time
   const now = nowSeconds()
   if (
+    session?.user?.mfa_challenge_purpose !== 'recent_reauthentication' ||
     typeof authTime !== 'number' ||
     !Number.isInteger(authTime) ||
     authTime > now + 30 ||

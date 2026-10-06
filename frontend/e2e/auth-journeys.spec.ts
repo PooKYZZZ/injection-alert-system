@@ -22,6 +22,8 @@ type AuthSession = {
     auth_level?: 'password' | 'recovery' | 'mfa'
     auth_method?: 'password' | 'totp' | 'backup_code' | 'email_otp'
     auth_time?: number
+    authz_version?: number
+    role?: 'OWNER' | 'ADMIN' | 'ANALYST' | 'VIEWER'
     mfa_challenge_purpose?:
       | 'login_mfa'
       | 'mfa_enrollment'
@@ -284,7 +286,8 @@ test.describe('critical authentication journeys', () => {
   test('step-up rejects TOTP time-step reuse and returns to the requested path with fresh claims', async ({
     page,
   }) => {
-    const identity = requireAuthE2EState().identities.stepup
+    const e2eState = requireAuthE2EState()
+    const identity = e2eState.identities.stepup
     await signIn(page, identity)
     await expect(page).toHaveURL(/\/mfa\/verify$/)
 
@@ -298,6 +301,9 @@ test.describe('critical authentication journeys', () => {
       method: 'totp',
       purpose: 'login_mfa',
     })
+    const secondTab = await page.context().newPage()
+    await secondTab.goto('/dashboard')
+    await expect(secondTab).toHaveURL(/\/dashboard$/)
 
     await page.goto(
       '/mfa/step-up?returnTo=%2Fdashboard%3Fstep-up%3D1'
@@ -332,5 +338,57 @@ test.describe('critical authentication journeys', () => {
       loginSession.user?.auth_time ?? 0
     )
     await expectFinalSessionCookie(page)
+
+    const secondTabSession = await readSession(secondTab)
+    expect(secondTabSession.user).toMatchObject({
+      id: identity.id,
+      auth_level: 'mfa',
+      auth_method: 'totp',
+      mfa_challenge_purpose: 'recent_reauthentication',
+      auth_time: stepUpSession.user?.auth_time,
+    })
+
+    const actorState = await readAuthAccountState(identity.id)
+    expect(actorState).toMatchObject({
+      role: stepUpSession.user?.role,
+      authzVersion: stepUpSession.user?.authz_version,
+      disabledAt: null,
+    })
+
+    const roleChangeRequest = (tab: Page, targetId: string) =>
+      tab.evaluate(async (managedAccountId) => {
+        const response = await fetch(
+          `/api/admin/users/${managedAccountId}/role`,
+          {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ role: 'ANALYST' }),
+          }
+        )
+        return {
+          status: response.status,
+          body: await response.json().catch(() => null),
+        }
+      }, targetId)
+    const [firstChange, secondChange] = await Promise.all([
+      roleChangeRequest(page, e2eState.identities.managedTargets[0].id),
+      roleChangeRequest(secondTab, e2eState.identities.managedTargets[1].id),
+    ])
+    expect(firstChange).toEqual({ status: 200, body: { status: 'role_changed' } })
+    expect(secondChange).toEqual({ status: 200, body: { status: 'role_changed' } })
+
+    const [firstTargetState, secondTargetState] = await Promise.all(
+      e2eState.identities.managedTargets.map(({ id }) =>
+        readAuthAccountState(id)
+      )
+    )
+    for (const targetState of [firstTargetState, secondTargetState]) {
+      expect(targetState).toMatchObject({
+        role: 'ANALYST',
+        authzVersion: 2,
+        mfaRequired: true,
+        disabledAt: null,
+      })
+    }
   })
 })
