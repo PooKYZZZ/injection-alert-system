@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
-import { recoveryErrorResponse, totpErrorResponse } from './account-route-response'
+import { AccountManagementError } from './account-management'
+import {
+  accountErrorResponse,
+  recoveryErrorResponse,
+  totpErrorResponse,
+} from './account-route-response'
 
 describe('account route error responses', () => {
   it('maps fixed local validation errors to safe client failures', async () => {
@@ -40,6 +45,20 @@ describe('account route error responses', () => {
       error: {
         code: 'INVALID_CODE',
         message: 'That authenticator code is invalid. Try again.',
+      },
+    })
+  })
+
+  it('returns a stable conflict response for the last-enabled-Owner guard', async () => {
+    const response = accountErrorResponse(
+      new AccountManagementError('LAST_ENABLED_OWNER')
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'LAST_ENABLED_OWNER',
+        message: 'At least one enabled Owner must remain.',
       },
     })
   })

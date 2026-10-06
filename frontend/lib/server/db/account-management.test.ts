@@ -216,4 +216,15 @@ describe('account management database boundary', () => {
     } satisfies Partial<AccountManagementError>)
     expect(harness.rpc).not.toHaveBeenCalled()
   })
+
+  it('maps the database last-enabled-Owner guard to a stable application error', async () => {
+    harness.rpc.mockResolvedValue({
+      data: null,
+      error: { code: '23514', message: 'LAST_ENABLED_OWNER' },
+    })
+
+    await expect(
+      changeManagedAccountRole(actorId, actorId, { role: 'ANALYST' })
+    ).rejects.toMatchObject({ code: 'LAST_ENABLED_OWNER' })
+  })
 })

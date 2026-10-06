@@ -50,7 +50,7 @@ RETURNING id
             return str(cursor.fetchone()[0])
 
 
-def _owner() -> str:
+def _owner(email: str = "owner@example.test") -> str:
     with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -60,11 +60,12 @@ INSERT INTO public.auth_accounts (
   email_verified_at, mfa_required
 )
 VALUES (
-  'owner@example.test', 'SOC Owner', 'OWNER', '$argon2id$test',
+  %s, 'SOC Owner', 'OWNER', '$argon2id$test',
   clock_timestamp(), clock_timestamp(), true
 )
 RETURNING id
-"""
+""",
+                (email,),
             )
             return str(cursor.fetchone()[0])
 
@@ -278,6 +279,87 @@ RETURNING id
                 (target_id,),
             )
             assert cursor.fetchone() == ('ADMIN', True, 2)
+
+
+@pytest.mark.parametrize("transition", ["demote", "disable"])
+def test_concurrent_last_owner_guard_preserves_one_enabled_owner(
+    transition: str,
+) -> None:
+    first_owner = _owner("owner-one@example.test")
+    second_owner = _owner("owner-two@example.test")
+    barrier = threading.Barrier(2)
+
+    def change_owner(target_id: str) -> bool:
+        try:
+            with psycopg.connect(POSTGRES_URL) as connection:
+                barrier.wait(timeout=5)
+                with connection.cursor() as cursor:
+                    # Exercise the database guard and the following mutation in
+                    # the same transaction, as the protected RPCs do.
+                    cursor.execute(
+                        "SELECT public.assert_last_enabled_owner(%s)",
+                        (target_id,),
+                    )
+                    if transition == "demote":
+                        cursor.execute(
+                            "UPDATE public.auth_accounts SET role = 'ANALYST' "
+                            "WHERE id = %s",
+                            (target_id,),
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE public.auth_accounts "
+                            "SET disabled_at = clock_timestamp() WHERE id = %s",
+                            (target_id,),
+                        )
+                    connection.commit()
+                    return True
+        except (psycopg.Error, threading.BrokenBarrierError):
+            return False
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = [
+            executor.submit(change_owner, second_owner),
+            executor.submit(change_owner, first_owner),
+        ]
+        outcomes = [result.result(timeout=10) for result in results]
+
+    assert outcomes.count(True) == 1
+    assert outcomes.count(False) == 1
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT count(*) FROM public.auth_accounts "
+                "WHERE role = 'OWNER' AND disabled_at IS NULL"
+            )
+            assert cursor.fetchone()[0] == 1
+
+
+def test_last_enabled_owner_guard_rejects_removing_the_only_owner() -> None:
+    only_owner = _owner()
+    with psycopg.connect(POSTGRES_URL) as connection:
+        with connection.cursor() as cursor:
+            with pytest.raises(psycopg.Error) as error:
+                cursor.execute(
+                    "SELECT public.assert_last_enabled_owner(%s)",
+                    (only_owner,),
+                )
+            assert error.value.sqlstate == "23514"
+            assert "LAST_ENABLED_OWNER" in str(error.value)
+
+
+def test_last_enabled_owner_guard_fails_closed_outside_read_committed() -> None:
+    only_owner = _owner()
+    with psycopg.connect(POSTGRES_URL) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            with pytest.raises(psycopg.Error) as error:
+                cursor.execute(
+                    "SELECT public.assert_last_enabled_owner(%s)",
+                    (only_owner,),
+                )
+            assert error.value.sqlstate == "40001"
+            assert "LAST_OWNER_GUARD_REQUIRES_READ_COMMITTED" in str(error.value)
 
 
 def test_managed_email_request_rejects_another_accounts_current_email() -> None:
