@@ -49,6 +49,28 @@ def _consume_reset(account_id: str, token_hash: str, password_hash: str) -> bool
         return False
 
 
+def _create_reset_token(account_id: str, token_hash: str, suffix: str) -> None:
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT public.create_password_reset_token_protected_v61(%s, %s, now() + interval '30 minutes', %s, %s, %s, 'user_requested')",
+                (
+                    account_id,
+                    token_hash,
+                    Jsonb(
+                        {
+                            'ciphertext': 'integration-test',
+                            'nonce': 'test-nonce',
+                            'key_version': 1,
+                        }
+                    ),
+                    f'reset-dedupe-{suffix}',
+                    f'reset-provider-{suffix}',
+                ),
+            )
+            assert cursor.fetchone()[0] is True
+
+
 def test_password_reset_is_single_use_and_increments_authz_once() -> None:
     account_id = _account('reset@example.test', 'ANALYST')
     token_hash = 'a' * 64
@@ -76,6 +98,49 @@ def test_password_reset_is_single_use_and_increments_authz_once() -> None:
         with connection.cursor() as cursor:
             cursor.execute('SELECT authz_version FROM public.auth_accounts WHERE id = %s', (account_id,))
             assert cursor.fetchone()[0] == 2
+
+
+def test_password_reset_reissue_revokes_the_previous_token() -> None:
+    account_id = _account('reissue@example.test', 'ANALYST')
+    previous_hash = 'b' * 64
+    latest_hash = 'c' * 64
+
+    _create_reset_token(account_id, previous_hash, 'first')
+    _create_reset_token(account_id, latest_hash, 'second')
+
+    assert not _consume_reset(account_id, previous_hash, '$argon2id$hash-long-enough')
+    assert _consume_reset(account_id, latest_hash, '$argon2id$hash-long-enough')
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'SELECT token_hash, status FROM public.auth_reset_tokens WHERE account_id = %s ORDER BY created_at',
+                (account_id,),
+            )
+            assert dict(cursor.fetchall()) == {
+                previous_hash: 'revoked',
+                latest_hash: 'used',
+            }
+
+
+def test_password_reset_rejects_an_expired_token() -> None:
+    account_id = _account('expired@example.test', 'ANALYST')
+    token_hash = 'd' * 64
+    _create_reset_token(account_id, token_hash, 'expired')
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE public.auth_reset_tokens SET expires_at = now() - interval '1 second' WHERE token_hash = %s",
+                (token_hash,),
+            )
+
+    assert not _consume_reset(account_id, token_hash, '$argon2id$hash-long-enough')
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'SELECT reset.status, account.authz_version FROM public.auth_accounts AS account JOIN public.auth_reset_tokens AS reset ON reset.account_id = account.id WHERE account.id = %s',
+                (account_id,),
+            )
+            assert cursor.fetchone() == ('pending', 1)
 
 
 def test_admin_mfa_reset_revokes_factor_and_invalidates_backup_codes() -> None:

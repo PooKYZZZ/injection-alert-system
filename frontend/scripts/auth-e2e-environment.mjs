@@ -712,6 +712,60 @@ GRANT anon, authenticated, service_role TO authenticator;
     label: 'Alembic upgrade',
     signal,
   })
+  if (options.realApi) {
+    const disposablePostgresUrl = databaseUrl.replace(
+      /^postgresql\+psycopg:/,
+      'postgresql:'
+    )
+    const postgresTestEnvironment = {
+      ...buildMigrationEnvironment({ databaseUrl }),
+      CYBERTRACE_POSTGRES_TEST_URL: disposablePostgresUrl,
+      CYBERTRACE_SQLALCHEMY_TEST_URL: databaseUrl,
+    }
+    await runProcess(
+      pythonExecutable(),
+      [
+        '-m',
+        'pytest',
+        '-q',
+        'tests/integration/test_account_management_postgres.py',
+        'tests/integration/test_password_recovery_postgres.py',
+      ],
+      {
+        env: postgresTestEnvironment,
+        capture: true,
+        label: 'Disposable account-management and password-recovery PostgreSQL tests',
+        signal,
+      }
+    )
+    console.log('AUTH_E2E: account-management and password-recovery PostgreSQL tests passed')
+    const measurement = await runProcess(
+      pythonExecutable(),
+      [
+        '-m',
+        'pytest',
+        '-q',
+        '-s',
+        'tests/integration/test_traffic_history_export_measurement.py',
+      ],
+      {
+        env: {
+        ...buildMigrationEnvironment({ databaseUrl }),
+        CYBERTRACE_POSTGRES_TEST_URL: disposablePostgresUrl,
+        CYBERTRACE_SQLALCHEMY_TEST_URL: databaseUrl,
+        CYBERTRACE_EXPORT_BENCHMARK_DISPOSABLE: 'true',
+        },
+        capture: true,
+        label: 'Disposable Traffic History export measurement',
+        signal,
+      }
+    )
+    const metric = `${measurement.stdout}\n${measurement.stderr}`.match(
+      /TRAFFIC_HISTORY_EXPORT_MEASUREMENT [^\r\n]+/
+    )?.[0]
+    if (metric) console.log(metric)
+    console.log('AUTH_E2E: bounded export measured on disposable tmpfs PostgreSQL')
+  }
   await runPsql(
     names.postgres,
     `

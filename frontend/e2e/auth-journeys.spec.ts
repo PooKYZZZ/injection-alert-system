@@ -120,6 +120,56 @@ test.describe('critical authentication journeys', () => {
     }
   })
 
+  test('forgot-password keeps account eligibility private and only queues mail', async ({
+    page,
+  }) => {
+    const state = requireAuthE2EState()
+    const eligibleEmail = state.identities.login.email
+    const unknownEmail = `missing-${state.runId}@example.test`
+    await page.goto('/forgot-password')
+
+    const responses = await page.evaluate(async (emails) =>
+      Promise.all(
+        emails.map(async (email) => {
+          const response = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email }),
+          })
+          return {
+            status: response.status,
+            cacheControl: response.headers.get('cache-control'),
+            body: await response.json(),
+          }
+        })
+      ),
+    [eligibleEmail, unknownEmail])
+
+    expect(responses[0]).toEqual(responses[1])
+    expect(responses[0]).toMatchObject({
+      status: 202,
+      cacheControl: 'no-store',
+      body: {
+        status: 'accepted',
+        message:
+          'If an eligible account matches this address, reset instructions will be queued for delivery.',
+      },
+    })
+    const session = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/session')
+      return (await response.json()) as AuthSession | null
+    })
+    expect(session?.user).toBeUndefined()
+    const cookieNames = (await page.context().cookies()).map(({ name }) => name)
+    expect(
+      cookieNames.some(
+        (name) =>
+          name.includes('authjs.session-token') ||
+          name.includes('next-auth.session-token')
+      )
+    ).toBe(false)
+  })
+
   test('first-time privileged-user MFA enrollment reaches an assured dashboard session', async ({
     page,
   }) => {
@@ -357,25 +407,52 @@ test.describe('critical authentication journeys', () => {
 
     const roleChangeRequest = (tab: Page, targetId: string) =>
       tab.evaluate(async (managedAccountId) => {
-        const response = await fetch(
-          `/api/admin/users/${managedAccountId}/role`,
-          {
-            method: 'PATCH',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ role: 'ANALYST' }),
+        try {
+          const response = await fetch(
+            `/api/admin/users/${managedAccountId}/role`,
+            {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ role: 'ANALYST' }),
+            }
+          )
+          return {
+            status: response.status,
+            body: await response.json().catch(() => null),
           }
-        )
-        return {
-          status: response.status,
-          body: await response.json().catch(() => null),
+        } catch (error) {
+          return {
+            status: 0,
+            body: null,
+            transportError: error instanceof Error ? error.name : 'Unknown',
+          }
         }
       }, targetId)
+    const failedRoleRequests: string[] = []
+    for (const [tabName, tab] of [
+      ['first', page],
+      ['second', secondTab],
+    ] as const) {
+      tab.on('requestfailed', (request) => {
+        if (
+          request.url().includes('/api/admin/users/') &&
+          request.url().endsWith('/role')
+        ) {
+          failedRoleRequests.push(
+            `${tabName}:${request.failure()?.errorText ?? 'unknown'}`
+          )
+        }
+      })
+    }
     const [firstChange, secondChange] = await Promise.all([
       roleChangeRequest(page, e2eState.identities.managedTargets[0].id),
       roleChangeRequest(secondTab, e2eState.identities.managedTargets[1].id),
     ])
     expect(firstChange).toEqual({ status: 200, body: { status: 'role_changed' } })
-    expect(secondChange).toEqual({ status: 200, body: { status: 'role_changed' } })
+    expect(secondChange, failedRoleRequests.join(', ')).toEqual({
+      status: 200,
+      body: { status: 'role_changed' },
+    })
 
     const [firstTargetState, secondTargetState] = await Promise.all(
       e2eState.identities.managedTargets.map(({ id }) =>

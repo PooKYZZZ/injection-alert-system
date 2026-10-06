@@ -50,6 +50,25 @@ RETURNING id
             return str(cursor.fetchone()[0])
 
 
+def _owner() -> str:
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+INSERT INTO public.auth_accounts (
+  email, name, role, password_hash, password_set_at,
+  email_verified_at, mfa_required
+)
+VALUES (
+  'owner@example.test', 'SOC Owner', 'OWNER', '$argon2id$test',
+  clock_timestamp(), clock_timestamp(), true
+)
+RETURNING id
+"""
+            )
+            return str(cursor.fetchone()[0])
+
+
 def _protected_payload() -> Jsonb:
     return Jsonb(
         {"ciphertext": "integration-test", "nonce": "test-nonce", "key_version": 1}
@@ -214,6 +233,51 @@ WHERE recipient = 'target@example.test'
 """
             )
             assert cursor.fetchone() == (2, 2, True)
+
+
+def test_admin_cannot_manage_owners_or_promote_to_owner_but_owner_can_manage() -> None:
+    admin_id = _admin()
+    owner_id = _owner()
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+INSERT INTO public.auth_accounts (
+  email, name, role, password_hash, password_set_at,
+  email_verified_at, mfa_required
+)
+VALUES ('target@example.test', 'Target', 'ANALYST', '$argon2id$test',
+  clock_timestamp(), clock_timestamp(), true)
+RETURNING id
+"""
+            )
+            target_id = cursor.fetchone()[0]
+            with pytest.raises(psycopg.Error):
+                cursor.execute(
+                    "SELECT public.admin_change_account_role(%s, %s, 'OWNER')",
+                    (admin_id, target_id),
+                )
+            with pytest.raises(psycopg.Error):
+                cursor.execute(
+                    "SELECT public.admin_change_account_role(%s, %s, 'ANALYST')",
+                    (admin_id, owner_id),
+                )
+            with pytest.raises(psycopg.Error):
+                cursor.execute(
+                    "SELECT public.admin_set_account_enabled_v61(%s, %s, false)",
+                    (admin_id, owner_id),
+                )
+
+            cursor.execute(
+                "SELECT public.admin_change_account_role(%s, %s, 'ADMIN')",
+                (owner_id, target_id),
+            )
+            assert cursor.fetchone()[0] is True
+            cursor.execute(
+                "SELECT role, mfa_required, authz_version FROM public.auth_accounts WHERE id = %s",
+                (target_id,),
+            )
+            assert cursor.fetchone() == ('ADMIN', True, 2)
 
 
 def test_managed_email_request_rejects_another_accounts_current_email() -> None:
