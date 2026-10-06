@@ -204,6 +204,7 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
   - `frontend/app/api/alerts/[id]/triage/route.ts` (PATCH triage)
   - `frontend/app/api/alerts/[id]/label-review/route.ts` (POST verified label review)
   - `frontend/app/api/alerts/[id]/action/route.ts` (PATCH action)
+  - `frontend/app/api/traffic-history/export/route.ts` (POST bounded CSV export)
   - `frontend/app/api/stats/route.ts`
   - `frontend/app/api/ml-health/route.ts`
   - `frontend/app/api/ml-model/summary/route.ts`, `/export`, and `/runs/*`
@@ -246,6 +247,77 @@ signal does not publish `alert.created` or invoke alert notifications.
 The user-facing page is `/traffic-history`; the prior `/alerts` page URL redirects
 there while preserving query parameters such as `alert_id` and active filters.
 The `/api/alerts` BFF and backend contracts retain their existing names.
+
+### Account management and the last enabled Owner
+
+Alembic revision `20261007_000032` adds a transaction-scoped PostgreSQL advisory
+lock shared by the role and enable/disable RPCs. Before demoting or disabling
+an enabled Owner, those RPCs call a `SECURITY INVOKER` helper that rejects the
+transition if it would leave no enabled Owner. The guard treats a NULL enable
+argument as a disable and fails closed with a retryable database error if a
+caller uses an isolation level other than the hosted `READ COMMITTED` default.
+The lock follows PostgreSQL's transaction-level advisory-lock semantics; the
+fresh-count assumption relies on the helper being `VOLATILE` at
+`READ COMMITTED` ([advisory locks](https://www.postgresql.org/docs/17/explicit-locking.html#ADVISORY-LOCKS),
+[function volatility](https://www.postgresql.org/docs/17/xfunc-volatility.html),
+[transaction isolation](https://www.postgresql.org/docs/17/transaction-iso.html)).
+The helper is not executable by `PUBLIC`, `anon`, or `authenticated`;
+`service_role` is granted execution. Next.js maps the stable last-Owner
+sentinel to HTTP `409` with a safe message.
+
+The last read-only hosted revision check on 2026-10-07 still showed
+`20260930_000031`, and the hosted RPC definitions did not contain this guard.
+The new revision is therefore source-implemented but not confirmed deployed.
+It protects the existing account-management RPCs; privileged SQL updates that
+bypass those RPCs are outside this guard.
+The repository tracks these functions through Alembic. The Supabase migration
+history separately reports only `20260905094814`; this repository has no
+`supabase/migrations` directory, so Supabase CLI push/repair is not an approved
+substitute for reconciling the Alembic history. Supabase documents that its
+migration history is tracked separately and warns that out-of-sync history
+must be reconciled before pushing ([migration guidance](https://supabase.com/docs/guides/deployment/database-migrations)).
+
+### Traffic History CSV export
+
+The Export CSV control submits the page's current filters to the authenticated
+same-origin `POST /api/traffic-history/export` BFF route. The BFF derives the
+actor from the current session and the FastAPI route checks the permission
+again. Owner, Admin, and Analyst may export; Viewer remains read-only. The
+browser never calls FastAPI directly. The inclusive date range replaces the
+page's Time Window preset; other supported current filters are carried through.
+This source change is not deployed: a read-only browser check on 2026-10-07
+still showed the hosted Traffic History page without Export CSV.
+
+The request uses inclusive calendar dates in an explicit IANA timezone, which
+the backend converts to a UTC half-open interval. The current limits are 31
+calendar days, 20,000 rows, 5 MiB, and a 10-second PostgreSQL statement timeout.
+The 31-day and 20,000-row limits are explicit application safety bounds; a
+previous synthetic 20,000-row test checked bounded generation, not hosted
+capacity. A read-only hosted query on 2026-10-07 found 5,752 total rows and
+3,651 rows matching one 31-day projected export. That one `EXPLAIN ANALYZE`
+sample took 104.017 ms execution time over 5,752 rows with a sequential scan;
+it is not a p95 or load test. The 5 MiB response cap remains an independent
+output bound, and the 10-second statement timeout is a hard query ceiling.
+
+The CSV uses a fixed allowlist: traffic ID, UTC timestamp, request method,
+classification, model confidence score/tier, recorded action label, and triage
+status. The confidence value is a model score, not a calibrated probability.
+Source IP, raw request/query text, model input text, and credential-like fields
+are excluded. Every field is quoted. Spreadsheet-oriented tab prefixing reduces
+formula execution risk for recognized cells; the tab changes the exported
+value, may affect downstream machine imports, and is not a universal safe-CSV
+transformation ([OWASP CSV Injection guidance](https://community.owasp.org/attacks/CSV_Injection)).
+
+`traffic_logs` remains the canonical history table. The seven-day UI preset is
+not a retention policy; this feature adds no archive, deletion, or retention
+job. The hosted table relation measured 7,520,256 bytes (4,661,248-byte heap,
+2,818,048 bytes of indexes); the database measured 24,898,707 bytes. The
+statistics reset time was unavailable, so these counters do not establish a
+growth rate. The connected project reports the Supabase Free tier. Supabase's
+[backup guidance](https://supabase.com/docs/guides/platform/backups) recommends
+off-site exports for Free projects; no actual backup inventory or successful
+restore evidence was available. Retention and archive decisions remain
+unchanged.
 
 Each backend stream ends after five minutes. Native EventSource reconnection
 therefore re-enters the authenticated BFF and re-runs current account and RBAC
@@ -387,21 +459,23 @@ and hosted deployment gates remain separately tracked there.
 - Confidence-tier badges always display the backend-emitted tier, including `INFORMATIONAL`; prediction labels such as Normal/benign remain separate UI concepts.
 - Current action values are recorded metadata, not proof of live network enforcement.
 - Password-level MFA sessions are bounded by the database challenge expiry; assured MFA sessions retain the configured eight-hour Auth.js maximum unless revoked by current account freshness checks.
+- The specific recent-TOTP account-role 403 has no confirmed runtime root cause. Unit tests cover the 599/600/601-second freshness boundary, purpose, disabled-account, and stale-authorization cases. A multi-tab/concurrent role-change check exists in the auth E2E suite but was not run here; the ten-minute requirement is unchanged.
 - ADMIN MFA break glass is isolated behind the NOLOGIN `cybertrace_break_glass` role and one `SECURITY DEFINER` function. The runtime `service_role` cannot execute either the restricted or legacy operator function; hosted login membership remains approval-gated.
 - Browser-level authentication proof is automated by the managed disposable harness and the required `auth-e2e` CI job; it intentionally covers Chromium only.
 - Bridge follow mode transient `readline()` `OSError` recovery is implemented and unit-tested; the follow loop preserves the last safe file position, warns, sleeps briefly, reopens, and continues processing later lines. Full log rotation and production retention remain future ops hardening.
 
 ### Project-Specific Forgot Password Response
 
-The same-origin Forgot Password route returns a queued confirmation for an
-eligible account and a not-found response when no eligible account matches, as
-required by the CyberTrace UI/UX revision plan. Invalid input returns `400`,
-while disabled recovery and service failures return a generic `503`. The
-unknown path is token-free and does not invoke the token-creation RPC. This
-deliberately exposes reset eligibility for this project requirement; it is an
-exception to the generic account-enumeration response recorded in the auth
-hardening ADR, not a general production recommendation. No schema change is
-needed.
+The same-origin Forgot Password route returns the same `202` accepted response
+for every syntactically valid address, whether or not an eligible account
+matches. Invalid input returns `400`; disabled recovery and service failures
+return a generic `503`. For eligible accounts, the database stores only a token
+digest and queues a protected outbox item. The notification worker leases and
+retries jobs, then hands them to Resend with an idempotency key. An outbox
+`sent` state and the worker's provider-accepted event mean Resend accepted the
+message request; they do not confirm inbox delivery. The user message says
+instructions will be queued, not that they were delivered. No hosted provider
+or mailbox delivery evidence was checked.
 
 ## Architecture Notes For Future Edits
 
