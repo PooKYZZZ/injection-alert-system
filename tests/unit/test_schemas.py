@@ -13,9 +13,44 @@ from web_app.presentation.schemas import (
     LabelReviewResponse,
     PredictionRequest,
     PredictionResponse,
+    TrafficHistoryExportRequest,
     TriageIngestRequest,
     TriageIngestResponse,
 )
+
+
+def test_traffic_history_export_schema_validates_timezone_aliases_and_allowlist():
+    payload = TrafficHistoryExportRequest(
+        start_date="2026-10-01",
+        end_date="2026-10-31",
+        timezone="Asia/Singapore",
+        confidence_tier="HIGH",
+        include_normal=True,
+    )
+    assert payload.timezone == "Asia/Singapore"
+    assert payload.include_normal is True
+
+    with pytest.raises(ValidationError):
+        TrafficHistoryExportRequest(
+            start_date="2026-10-01",
+            end_date="2026-10-01",
+            timezone="not/a-timezone",
+        )
+    with pytest.raises(ValidationError):
+        TrafficHistoryExportRequest(
+            start_date="2026-10-01",
+            end_date="2026-10-01",
+            timezone="UTC",
+            severity="HIGH",
+            confidence_tier="LOW",
+        )
+    with pytest.raises(ValidationError):
+        TrafficHistoryExportRequest(
+            start_date="2026-10-01",
+            end_date="2026-10-01",
+            timezone="UTC",
+            request_body="must not be accepted",
+        )
 
 
 def test_prediction_request_validation():

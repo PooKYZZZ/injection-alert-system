@@ -15,11 +15,11 @@ Dependency rule:
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import logging
+from typing import List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from typing import Optional, List
 
 from sqlalchemy import Integer, and_, bindparam, case, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -32,27 +32,31 @@ from web_app.domain.classification_scope import (
     OPERATIONAL_TRAFFIC_CLASSES,
 )
 from web_app.domain.interfaces import (
+    ActivityBucket,
+    DriftMetrics,
     ITrafficLogRepository,
+    SourceIPSummary,
+    TargetPathSummary,
+    TrafficHistoryExportFilters,
+    TrafficHistoryExportRecord,
+    TrafficLabelReview,
     TrafficLogActionHistoryEntity,
     TrafficLogEntity,
     TrafficLogPage,
-    TrafficLabelReview,
     TrafficStatsSummary,
-    DriftMetrics,
-    ActivityBucket,
-    SourceIPSummary,
-    TargetPathSummary,
 )
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
 from web_app.infrastructure.database.database import (
-    TrafficLabelReview as ReviewRow,
-    TrafficLogActionHistory as ActionHistoryRow,
+    AsyncSessionLocal,
+    EnforcementRecommendationRow,
+    TrafficLog,
 )
 from web_app.infrastructure.database.database import (
-    EnforcementRecommendationRow,
+    TrafficLabelReview as ReviewRow,
 )
-from web_app.infrastructure.database.database import TrafficLog
-from web_app.infrastructure.database.database import AsyncSessionLocal
+from web_app.infrastructure.database.database import (
+    TrafficLogActionHistory as ActionHistoryRow,
+)
 
 CANONICAL_PREDICTION_LABELS = (
     "SQL Injection",
@@ -197,6 +201,89 @@ class TrafficLogRepository(ITrafficLogRepository):
             f"stats:{id(self._session_factory)}:{window}:"
             f"{normalized_reference_time.isoformat(timespec='minutes')}"
         )
+
+    def _build_alert_filters(
+        self,
+        *,
+        severity: Optional[str] = None,
+        confidence_tier_filter: Optional[str] = None,
+        time_range: Optional[str] = None,
+        search: Optional[str] = None,
+        action: Optional[str] = None,
+        triage_status: Optional[str] = None,
+        confidence_levels: Optional[List[str]] = None,
+        prediction: Optional[str] = None,
+        source_ip: Optional[str] = None,
+        reference_time: Optional[datetime] = None,
+        include_normal: bool = False,
+        timestamp_start: Optional[datetime] = None,
+        timestamp_end: Optional[datetime] = None,
+    ) -> list:
+        """Share the canonical alert-list predicates with bounded exports."""
+        filters = [
+            self._completed_or_legacy_clause(),
+            (
+                self._operational_traffic_clause()
+                if include_normal and triage_status is None
+                else self._actionable_alert_clause()
+            ),
+        ]
+        effective_confidence_tier_filter = confidence_tier_filter or severity
+        if (
+            effective_confidence_tier_filter
+            and effective_confidence_tier_filter != "ALL"
+        ):
+            filters.append(
+                TrafficLog.confidence_level == effective_confidence_tier_filter
+            )
+
+        if timestamp_start is not None and timestamp_end is not None:
+            filters.extend(
+                (
+                    TrafficLog.timestamp >= timestamp_start,
+                    TrafficLog.timestamp < timestamp_end,
+                )
+            )
+        elif time_range in TIME_RANGE_DELTAS:
+            cutoff, range_end, _ = self._resolve_window_bounds(
+                time_range,
+                reference_time,
+            )
+            filters.extend(
+                (TrafficLog.timestamp >= cutoff, TrafficLog.timestamp < range_end)
+            )
+
+        if search:
+            search_value = f"%{search.strip()}%"
+            if search_value != "%%":
+                filters.append(
+                    or_(
+                        TrafficLog.source_ip.ilike(search_value),
+                        TrafficLog.request_path.ilike(search_value),
+                        TrafficLog.request_method.ilike(search_value),
+                        TrafficLog.http_request.ilike(search_value),
+                        TrafficLog.prediction.ilike(search_value),
+                    )
+                )
+        if action:
+            filters.append(TrafficLog.action_taken == action)
+        if triage_status:
+            if triage_status == "new":
+                filters.append(
+                    or_(
+                        TrafficLog.triage_status.is_(None),
+                        TrafficLog.triage_status == "new",
+                    )
+                )
+            else:
+                filters.append(TrafficLog.triage_status == triage_status)
+        if confidence_levels:
+            filters.append(TrafficLog.confidence_level.in_(confidence_levels))
+        if prediction:
+            filters.append(TrafficLog.prediction == prediction)
+        if source_ip:
+            filters.append(TrafficLog.source_ip == source_ip)
+        return filters
 
     async def _get_counts_for_range(
         self,
@@ -1616,82 +1703,21 @@ ORDER BY created_at DESC, id DESC
         page = max(page, 1)
         page_size = max(1, min(page_size, 100))
         offset = (page - 1) * page_size
-
-        stmt = (
-            select(TrafficLog)
-            .where(self._completed_or_legacy_clause())
-            .where(
-                self._operational_traffic_clause()
-                if include_normal and triage_status is None
-                else self._actionable_alert_clause()
+        stmt = select(TrafficLog).where(
+            *self._build_alert_filters(
+                severity=severity,
+                confidence_tier_filter=confidence_tier_filter,
+                time_range=time_range,
+                search=search,
+                action=action,
+                triage_status=triage_status,
+                confidence_levels=confidence_levels,
+                prediction=prediction,
+                source_ip=source_ip,
+                reference_time=reference_time,
+                include_normal=include_normal,
             )
         )
-
-        effective_confidence_tier_filter = confidence_tier_filter or severity
-
-        # The persisted column remains `confidence_level`. Accept the preferred
-        # confidence-tier filter while keeping the legacy severity alias alive
-        # until callers have migrated.
-        if (
-            effective_confidence_tier_filter
-            and effective_confidence_tier_filter != "ALL"
-        ):
-            stmt = stmt.where(
-                TrafficLog.confidence_level == effective_confidence_tier_filter
-            )
-
-        if time_range in TIME_RANGE_DELTAS:
-            cutoff, range_end, _ = self._resolve_window_bounds(
-                time_range,
-                reference_time,
-            )
-            stmt = stmt.where(
-                TrafficLog.timestamp >= cutoff,
-                TrafficLog.timestamp < range_end,
-            )
-
-        if search:
-            search_value = f"%{search.strip()}%"
-            if search_value != "%%":
-                stmt = stmt.where(
-                    or_(
-                        TrafficLog.source_ip.ilike(search_value),
-                        TrafficLog.request_path.ilike(search_value),
-                        TrafficLog.request_method.ilike(search_value),
-                        TrafficLog.http_request.ilike(search_value),
-                        TrafficLog.prediction.ilike(search_value),
-                    )
-                )
-
-        # Action filter (BLOCKED, THROTTLED, ALLOWED)
-        if action:
-            stmt = stmt.where(TrafficLog.action_taken == action)
-
-        # Triage status filter
-        # Keep `triage_status=new` compatible with both legacy NULL rows and
-        # rows where the literal string "new" has been persisted.
-        if triage_status:
-            if triage_status == 'new':
-                stmt = stmt.where(
-                    or_(
-                        TrafficLog.triage_status.is_(None),
-                        TrafficLog.triage_status == 'new',
-                    )
-                )
-            else:
-                stmt = stmt.where(TrafficLog.triage_status == triage_status)
-
-        # Confidence levels filter (multi-value)
-        if confidence_levels and len(confidence_levels) > 0:
-            stmt = stmt.where(TrafficLog.confidence_level.in_(confidence_levels))
-
-        # Prediction filter
-        if prediction:
-            stmt = stmt.where(TrafficLog.prediction == prediction)
-
-        # Source IP filter (exact match)
-        if source_ip:
-            stmt = stmt.where(TrafficLog.source_ip == source_ip)
 
         total_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self._session.execute(total_stmt)
@@ -1739,6 +1765,60 @@ ORDER BY created_at DESC, id DESC
             page=page,
             page_size=page_size,
         )
+
+    async def list_traffic_history_export_rows(
+        self,
+        filters: TrafficHistoryExportFilters,
+        *,
+        limit: int,
+    ) -> list[TrafficHistoryExportRecord]:
+        if limit < 1:
+            return []
+        if self._session.get_bind().dialect.name == "postgresql":
+            await self._session.execute(text("SET LOCAL statement_timeout = '10000ms'"))
+
+        statement = (
+            select(
+                TrafficLog.id,
+                TrafficLog.timestamp,
+                TrafficLog.request_method,
+                TrafficLog.prediction,
+                TrafficLog.confidence,
+                TrafficLog.confidence_level,
+                TrafficLog.action_taken,
+                TrafficLog.triage_status,
+            )
+            .where(
+                *self._build_alert_filters(
+                    confidence_tier_filter=filters.confidence_tier,
+                    search=filters.search,
+                    action=filters.action,
+                    triage_status=filters.triage_status,
+                    confidence_levels=list(filters.confidence_levels),
+                    prediction=filters.prediction,
+                    source_ip=filters.source_ip,
+                    include_normal=filters.include_normal,
+                    timestamp_start=filters.start_time,
+                    timestamp_end=filters.end_time,
+                )
+            )
+            .order_by(TrafficLog.timestamp.asc(), TrafficLog.id.asc())
+            .limit(limit)
+        )
+        result = await self._session.execute(statement)
+        return [
+            TrafficHistoryExportRecord(
+                traffic_log_id=row.id,
+                timestamp=row.timestamp,
+                request_method=row.request_method,
+                prediction=row.prediction,
+                confidence=row.confidence,
+                confidence_level=row.confidence_level,
+                action_taken=row.action_taken,
+                triage_status=row.triage_status,
+            )
+            for row in result.all()
+        ]
 
     async def list_recent(
         self, skip: int = 0, limit: int = 100

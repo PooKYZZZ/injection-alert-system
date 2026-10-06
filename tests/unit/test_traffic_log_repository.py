@@ -4,13 +4,13 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from web_app.domain.interfaces import TrafficLogEntity
+from web_app.domain.interfaces import TrafficHistoryExportFilters, TrafficLogEntity
 from web_app.domain.source_address import SourceProvenance, SourceVerificationStatus
 from web_app.infrastructure.database.database import Base, EnforcementRecommendationRow
 from web_app.infrastructure.repositories import traffic_log_repository as repo_module
 from web_app.infrastructure.repositories.traffic_log_repository import (
-    _StatsCache,
     TrafficLogRepository,
+    _StatsCache,
 )
 
 
@@ -204,6 +204,70 @@ async def test_get_alert_list_returns_filtered_total_and_stable_order(
     assert page.page_size == 1
     assert [item.id for item in page.items] == [saved_newer.id]
     assert saved_older.id != saved_newer.id
+
+
+@pytest.mark.asyncio
+async def test_traffic_history_export_uses_half_open_bounds_and_stable_allowlisted_projection(
+    repository: TrafficLogRepository,
+):
+    start = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    end = datetime(2026, 10, 2, tzinfo=timezone.utc)
+    first = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-export-boundary-first",
+            timestamp=start,
+            source_ip="198.51.100.1",
+            request_path="/private/path",
+            query_string="token=not-exported",
+            model_input_text="private model input not exported",
+            request_method="GET",
+            http_request="GET /private/path?token=not-exported",
+            prediction="SQL Injection",
+            confidence=0.91,
+            confidence_level="HIGH",
+            action_taken="BLOCKED",
+        )
+    )
+    second = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-export-boundary-second",
+            timestamp=start,
+            source_ip="198.51.100.2",
+            request_method="POST",
+            http_request="POST /search",
+            prediction="Code Injection",
+            confidence=0.82,
+            confidence_level="MEDIUM",
+            action_taken="THROTTLED",
+        )
+    )
+    await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-export-exclusive-end",
+            timestamp=end,
+            source_ip="198.51.100.3",
+            request_method="GET",
+            http_request="GET /exclusive-end",
+            prediction="SQL Injection",
+            confidence=0.99,
+            confidence_level="CRITICAL",
+            action_taken="BLOCKED",
+        )
+    )
+
+    rows = await repository.list_traffic_history_export_rows(
+        TrafficHistoryExportFilters(start_time=start, end_time=end),
+        limit=10,
+    )
+
+    assert [row.traffic_log_id for row in rows] == [first.id, second.id]
+    assert [
+        row.timestamp.replace(tzinfo=timezone.utc) for row in rows
+    ] == [start, start]
+    assert not hasattr(rows[0], "source_ip")
+    assert not hasattr(rows[0], "request_path")
+    assert not hasattr(rows[0], "query_string")
+    assert not hasattr(rows[0], "model_input_text")
 
 
 @pytest.mark.asyncio
