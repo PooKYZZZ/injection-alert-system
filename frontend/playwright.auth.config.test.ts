@@ -12,12 +12,12 @@ describe('authentication Playwright configuration', () => {
     expect(authConfig.projects?.[0].name).toBe('auth-chromium')
   })
 
-  it('uses deterministic setup and a non-reused webpack application server', () => {
+  it('uses deterministic setup and a non-reused production webpack server', () => {
     expect(authConfig.globalSetup).toBe('./e2e/auth-global-setup.ts')
     expect(authConfig.workers).toBe(2)
     expect(authConfig.expect?.timeout).toBe(30_000)
     expect(authConfig.webServer).toMatchObject({
-      command: 'npm run dev -- --webpack',
+      command: 'npm run build -- --webpack && node scripts/start-auth-e2e-standalone.mjs',
       reuseExistingServer: false,
       stdout: 'ignore',
       stderr: 'pipe',

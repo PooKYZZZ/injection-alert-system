@@ -122,7 +122,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 
 - PR7 Block 1 effective WAF state and authenticated snapshot boundary were
   implemented and validated at the prior migration point `20260728_000025`;
-  the current repository head is `20260930_000031`.
+  the current repository head is `20261007_000033`.
 - PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
   rendering, persistent selection/latch state, reload and worker-generation
   confirmation, candidate-specific source/path probes, and empty-first

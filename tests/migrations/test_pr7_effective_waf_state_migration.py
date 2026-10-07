@@ -7,7 +7,7 @@ from sqlalchemy import Column, Integer, MetaData, create_engine, inspect, text
 
 ROOT = Path(__file__).parents[2]
 REVISION = "20260728_000025"
-CURRENT_HEAD = "20260930_000031"
+CURRENT_HEAD = "20261007_000033"
 
 
 def _config() -> Config:
