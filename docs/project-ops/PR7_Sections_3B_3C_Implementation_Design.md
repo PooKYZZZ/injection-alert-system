@@ -72,8 +72,8 @@ Implement Sections 3B and 3C as two related but independently runnable evidence 
 Create two Compose overlays rather than one oversized test topology:
 
 ```text
-docker-compose.pr7-block3b.yml   # live Cloudflare and full portal integration
-docker-compose.pr7-block3c.yml   # deterministic local failure injection
+docker/compose/scenarios/pr7-block3b.yml   # live Cloudflare and full portal integration
+docker/compose/scenarios/pr7-block3c.yml   # deterministic local failure injection
 ```
 
 The work should primarily add:
@@ -674,7 +674,7 @@ No researched behavior justifies a new dependency, scheduler, service, database 
 
 | Requirement | Design decision | Affected files | Verification |
 |---|---|---|---|
-| 3B-R1 | Separate 3B overlay composed with existing base/target/PR7 files | New `docker-compose.pr7-block3b.yml`; existing Compose files | `docker compose config`; health and topology tests |
+| 3B-R1 | Separate 3B overlay composed with existing base/target/PR7 files | New `docker/compose/scenarios/pr7-block3b.yml`; existing Compose files | `docker compose config`; health and topology tests |
 | 3B-R2 | Correlate one evidence ID across Cloudflare, WAF, bridge, DB, and PR7 state | 3B harness and artifact collector | Two-network live proof |
 | 3B-R3 | Trust only exact `cloudflared` peer; test forged headers | Existing real-IP template; 3B harness | Header-forgery matrix |
 | 3B-R4 | No WAF/portal host ports; internal segmented networks | 3B overlay | Rendered Compose assertions and direct-origin probes |
@@ -836,10 +836,10 @@ Recommended order:
 
 ```text
 docker-compose.yml
-docker-compose.test.yml
+docker/compose/tests/base.yml
 docker-compose.demo-target.yml
 docker-compose.target-cloudflare.yml
-docker-compose.pr7-block3b.yml
+docker/compose/scenarios/pr7-block3b.yml
 ```
 
 The new overlay should:
@@ -1515,7 +1515,7 @@ Evidence must not retain:
 
 # 14. File-by-File Change Plan
 
-## 14.1 `docker-compose.pr7-block3b.yml`
+## 14.1 `docker/compose/scenarios/pr7-block3b.yml`
 
 **Status:** Proposed new file.
 
@@ -1538,7 +1538,7 @@ Evidence must not retain:
 
 **Risks:** Override order could restore a port/network/environment value.
 
-## 14.2 `docker-compose.pr7-block3c.yml`
+## 14.2 `docker/compose/scenarios/pr7-block3c.yml`
 
 **Status:** Proposed new file.
 
@@ -1572,7 +1572,7 @@ Evidence must not retain:
 
 **Risks:** Widening `SET_REAL_IP_FROM` would weaken the trust boundary.
 
-## 14.4 `docker-compose.pr7-block3.yml`
+## 14.4 `docker/compose/scenarios/pr7-block3.yml`
 
 **Status:** Verified existing file.
 
@@ -2811,7 +2811,7 @@ Sections 3B and 3C are done when all of the following are true:
 6. `docs/project-ops/PR7_IMPLEMENTATION_SPEC.md`
 7. `docs/project-ops/PR7_DESIGN_RATIONALE.md`
 8. `docker-compose.target-cloudflare.yml`
-9. `docker-compose.pr7-block3.yml`
+9. `docker/compose/scenarios/pr7-block3.yml`
 10. `web_app/application/post_triage_enforcement.py`
 11. `web_app/domain/waf_state.py`
 12. `web_app/infrastructure/repositories/waf_state_repository.py`

@@ -18,7 +18,7 @@ Status: **Substantially implemented and externally demonstrated for the approved
 - The executable Block 3 preflight verifies the locked model hashes, final
   portal commit, pinned Python/WAF/container inputs, and rejects degraded or
   mock model-health responses before a proof run can be accepted.
-- `docker-compose.pr7-block3b.yml` joins the pinned Cloudflare connector,
+- `docker/compose/scenarios/pr7-block3b.yml` joins the pinned Cloudflare connector,
   exact `172.30.20.2/32` real-IP peer, PR7 WAF runtime, portal, bridge,
   backend, and disposable PostgreSQL on the existing segmented networks.
 - The merged Compose model validates and publishes neither WAF nor portal.

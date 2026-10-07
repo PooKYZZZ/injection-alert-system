@@ -23,8 +23,8 @@ from tests.e2e.pr7_block3_artifacts import (
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = (
     ROOT / "docker-compose.yml",
-    ROOT / "docker-compose.test.yml",
-    ROOT / "docker-compose.pr7-block3.yml",
+    ROOT / "docker/compose/tests/base.yml",
+    ROOT / "docker/compose/scenarios/pr7-block3.yml",
 )
 SOURCE_A = "172.31.7.10"
 SOURCE_B = "172.31.7.11"
@@ -145,7 +145,7 @@ def require_block3bc_artifacts() -> dict[str, Any]:
             ROOT / "docker-compose.yml",
             ROOT / "docker-compose.demo-target.yml",
             ROOT / "docker-compose.target-cloudflare.yml",
-            ROOT / "docker-compose.pr7-block3b.yml",
+            ROOT / "docker/compose/scenarios/pr7-block3b.yml",
         ),
         lock_path,
     )

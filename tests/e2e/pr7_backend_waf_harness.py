@@ -51,7 +51,7 @@ def _compose(project: str, override: Path, *args: str) -> list[str]:
         "-f",
         "docker-compose.yml",
         "-f",
-        "docker-compose.test.yml",
+        "docker/compose/tests/base.yml",
         "-f",
         str(override),
         *args,

@@ -1,5 +1,5 @@
 # Isolated M8 route-matrix environment. Start with:
-# docker compose --env-file .env -p cybertrace-m08-e2e -f docker-compose.m08-multi-route-test.yml up -d --build
+# docker compose --project-directory . --env-file .env -p cybertrace-m08-e2e -f docker/compose/scenarios/m08-multi-route.yml up -d --build
 # The backend uses a fresh container-local SQLite database. The portal database
 # and ModSecurity audit log must be supplied from a dedicated temporary folder.
 services:

@@ -41,7 +41,7 @@ hashes are stored in:
 ## Isolated Compose test mode
 
 The normal target stack audits only relevant error responses. The
-docker-compose.search-records-test.yml overlay uses a separate ignored
+docker/compose/tests/search-records.yml overlay uses a separate ignored
 audit-log directory, captures every response, and attaches only the backend
 and bridge to the isolated target_waf_ingress network. This makes accepted
 requests observable without changing the normal public deployment topology.
@@ -59,7 +59,7 @@ external operator inputs and must stay in ignored configuration.
 ~~~powershell
 pwsh -NoProfile -File scripts/start_full_cloudflare_target.ps1 -PortalContext 'E:\AI\land-records-portal' -ValidateOnly
 New-Item -ItemType Directory -Force logs\modsecurity\search-records-test | Out-Null
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker-compose.search-records-test.yml --profile demo-target --profile target-cloudflare up -d --build --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --build --force-recreate backend demo-target-modsecurity demo-target-bridge
 docker exec injection-alert-system-backend-1 python -m scripts.search_route_attack_tester --catalog /app/scripts/fixtures/search_records_attack_seeds.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-seeds-20260903-r2 --output-csv /tmp/search-records-seeds-r2.csv --output-json /tmp/search-records-seeds-r2.json --references-output /tmp/search-records-seed-references-r2.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-seeds-r2.csv output\attack-tests\search-records-seeds-r2.csv
 docker cp injection-alert-system-backend-1:/tmp/search-records-seeds-r2.json output\attack-tests\search-records-seeds-r2.json
@@ -295,7 +295,7 @@ Start the isolated overlay without recreating unrelated dependent services:
 
 ~~~powershell
 New-Item -ItemType Directory -Force logs/modsecurity/search-records-test | Out-Null
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker-compose.search-records-test.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
 docker exec injection-alert-system-backend-1 python -m scripts.search_records_followup_tester --catalog /app/scripts/fixtures/search_records_code_expansion_catalog.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-code-expansion-20260903 --max-rps 3 --max-runtime-seconds 300 --output-csv /tmp/search-records-code-expansion.csv --output-json /tmp/search-records-code-expansion.json
 docker exec injection-alert-system-backend-1 python -m scripts.search_records_followup_tester --catalog /app/scripts/fixtures/search_records_normal_baseline.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-normal-baseline-20260903 --max-rps 3 --max-runtime-seconds 300 --output-csv /tmp/search-records-normal-baseline.csv --output-json /tmp/search-records-normal-baseline.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion.csv output/attack-tests/search-records-code-expansion-20260903.csv
@@ -390,7 +390,7 @@ isolated Search Records test overlay, and run the bounded local tester:
 docker build --build-arg INSTALL_TRAINING_REQUIREMENTS=false -t injection-alert-system-backend-round2:local -f Dockerfile .
 docker tag injection-alert-system-backend-round2:local injection-alert-system-backend:latest
 New-Item -ItemType Directory -Force logs/modsecurity/search-records-test | Out-Null
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker-compose.search-records-test.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
 docker exec injection-alert-system-backend-1 python -m scripts.search_records_followup_tester --catalog /app/scripts/fixtures/search_records_code_expansion_round2_catalog.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-code-expansion-round2-20260903 --environment local-search-records-waf-followup-round2 --family code_injection --max-rps 3 --max-runtime-seconds 600 --request-timeout-seconds 15 --audit-timeout-seconds 15 --lookup-timeout-seconds 25 --output-csv /tmp/search-records-code-expansion-round2.csv --output-json /tmp/search-records-code-expansion-round2.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion-round2.csv output/attack-tests/search-records-code-expansion-round2-20260903.csv
 docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion-round2.json output/attack-tests/search-records-code-expansion-round2-20260903.json

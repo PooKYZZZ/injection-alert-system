@@ -1,4 +1,4 @@
-import cybertrace_waf_serious_probe as probe
+from scripts import cybertrace_waf_serious_probe as probe
 
 
 def test_cloudflare_access_headers_are_read_from_environment(monkeypatch):

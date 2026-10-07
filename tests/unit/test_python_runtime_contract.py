@@ -31,7 +31,7 @@ def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
         PROJECT_ROOT / "Dockerfile",
         PROJECT_ROOT / "Dockerfile.bridge",
     ]
-    compose_files = [PROJECT_ROOT / "docker-compose.pr7-block3.yml"]
+    compose_files = [PROJECT_ROOT / "docker/compose/scenarios/pr7-block3.yml"]
     lock_files = [
         PROJECT_ROOT / "docs" / "project-ops" / "pr7-block3-artifact-lock.json",
         PROJECT_ROOT / "docs" / "project-ops" / "pr7-block3bc-artifact-lock.json",

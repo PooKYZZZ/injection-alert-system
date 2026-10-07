@@ -13,12 +13,12 @@ COMPOSE_3B = (
     "docker-compose.yml",
     "docker-compose.demo-target.yml",
     "docker-compose.target-cloudflare.yml",
-    "docker-compose.pr7-block3b.yml",
+    "docker/compose/scenarios/pr7-block3b.yml",
 )
 COMPOSE_3C = (
     "docker-compose.yml",
-    "docker-compose.pr7-block3.yml",
-    "docker-compose.pr7-block3c.yml",
+    "docker/compose/scenarios/pr7-block3.yml",
+    "docker/compose/scenarios/pr7-block3c.yml",
 )
 
 

@@ -31,27 +31,25 @@ exfiltration, shell callbacks, password brute-force, or destructive mutation.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import html
-from html.parser import HTMLParser
 import ipaddress
 import json
 import os
-from pathlib import Path
 import random
 import re
 import socket
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
-
 
 # ----------------------------
 # Seeds and payload corpus

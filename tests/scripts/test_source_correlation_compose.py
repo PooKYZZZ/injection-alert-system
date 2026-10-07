@@ -7,8 +7,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
-BASE_TEST_OVERRIDE = "docker-compose.test.yml"
-DEMO_TEST_OVERRIDE = "docker-compose.demo-target.test.yml"
+BASE_TEST_OVERRIDE = "docker/compose/tests/base.yml"
+DEMO_TEST_OVERRIDE = "docker/compose/tests/demo-target.yml"
 SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
 HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
 TARGET_CLOUDFLARE_OVERLAY = "docker-compose.target-cloudflare.yml"
@@ -111,7 +111,7 @@ def test_search_records_local_test_overlay_does_not_inherit_cloudflare_trust() -
         "docker-compose.yml",
         "docker-compose.demo-target.yml",
         TARGET_CLOUDFLARE_OVERLAY,
-        "docker-compose.search-records-test.yml",
+        "docker/compose/tests/search-records.yml",
         profile=["demo-target", "target-cloudflare"],
         source_provenance_mode="cloudflare_connecting_ip",
     )

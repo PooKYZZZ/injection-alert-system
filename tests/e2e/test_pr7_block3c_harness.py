@@ -115,7 +115,7 @@ def test_compose_profile_controls_are_bounded_and_explicit(
     monkeypatch.setattr("tests.e2e.pr7_block3c_harness.subprocess.run", fake_run)
     profile = ComposeProfile(
         "pr7-test",
-        ("docker-compose.yml", "docker-compose.pr7-block3c.yml"),
+        ("docker-compose.yml", "docker/compose/scenarios/pr7-block3c.yml"),
         str(tmp_path),
     )
     assert profile.disconnect("pr7-test_default", "backend") == "ok"

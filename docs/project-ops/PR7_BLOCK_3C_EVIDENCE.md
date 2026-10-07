@@ -4,7 +4,7 @@ Status: **Materially verified for the approved controlled local resilience scope
 
 ## Implemented and verified
 
-- `docker-compose.pr7-block3c.yml` provides a deterministic local profile with
+- `docker/compose/scenarios/pr7-block3c.yml` provides a deterministic local profile with
   persistent WAF state/audit volumes and portal sentinel evidence.
 - Portal evidence writing and parsing are schema-exact and bounded to 256 KiB;
   the writer serializes concurrent appends and rejects invalid IDs, stages,

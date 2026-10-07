@@ -363,7 +363,7 @@ def test_pr7_audit_uses_a_named_volume_for_container_writability():
 def test_block3_evidence_logging_is_opt_in_and_path_only():
     root = Path(__file__).parents[2]
     dockerfile = (root / "Dockerfile.pr7-waf").read_text()
-    compose = (root / "docker-compose.pr7-block3.yml").read_text()
+    compose = (root / "docker/compose/scenarios/pr7-block3.yml").read_text()
     template = (root / "config/modsecurity/pr7-evidence-log.conf.template").read_text()
 
     assert "pr7-evidence-log.conf.template" not in dockerfile
@@ -378,13 +378,15 @@ def test_block3_evidence_logging_is_opt_in_and_path_only():
 
 
 def test_block3_bridge_replays_existing_audit_lines_after_restart():
-    compose = (Path(__file__).parents[2] / "docker-compose.pr7-block3.yml").read_text()
+    compose = (
+        Path(__file__).parents[2] / "docker/compose/scenarios/pr7-block3.yml"
+    ).read_text()
     assert "--follow --from-start" in compose
 
 
 def test_block3b_preserves_exact_cloudflared_peer_and_hides_origins():
     root = Path(__file__).parents[2]
-    compose = (root / "docker-compose.pr7-block3b.yml").read_text()
+    compose = (root / "docker/compose/scenarios/pr7-block3b.yml").read_text()
 
     assert "SET_REAL_IP_FROM: 172.30.20.2/32" in compose
     assert "ports: !override []" in compose
@@ -402,7 +404,7 @@ def test_block3b_preserves_exact_cloudflared_peer_and_hides_origins():
 
 def test_block3c_is_local_and_preserves_persistent_runtime_state():
     root = Path(__file__).parents[2]
-    compose = (root / "docker-compose.pr7-block3c.yml").read_text()
+    compose = (root / "docker/compose/scenarios/pr7-block3c.yml").read_text()
 
     assert "cloudflared" not in compose
     assert "pr7-block3c-state:/pr7-state" in compose
@@ -416,10 +418,10 @@ def test_block3c_is_local_and_preserves_persistent_runtime_state():
 def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
     config = _merged_compose(
         "docker-compose.yml",
-        "docker-compose.test.yml",
+        "docker/compose/tests/base.yml",
         "docker-compose.demo-target.yml",
         "docker-compose.target-cloudflare.yml",
-        "docker-compose.pr7-block3b.yml",
+        "docker/compose/scenarios/pr7-block3b.yml",
     )
     services = config["services"]
     assert services["demo-portal"]["environment"]["ENFORCEMENT_MODE"] == "enforce"
@@ -435,9 +437,9 @@ def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
 def test_block3c_merged_model_is_local_and_explicitly_test_only():
     config = _merged_compose(
         "docker-compose.yml",
-        "docker-compose.test.yml",
-        "docker-compose.pr7-block3.yml",
-        "docker-compose.pr7-block3c.yml",
+        "docker/compose/tests/base.yml",
+        "docker/compose/scenarios/pr7-block3.yml",
+        "docker/compose/scenarios/pr7-block3c.yml",
     )
     services = config["services"]
     assert "cloudflared" not in services
