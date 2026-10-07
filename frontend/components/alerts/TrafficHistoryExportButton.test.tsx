@@ -114,6 +114,24 @@ describe('TrafficHistoryExportButton', () => {
     expect(dialog.open).toBe(false)
   })
 
+  it('closes from the backdrop without closing when the dialog panel is clicked', async () => {
+    const user = userEvent.setup()
+    render(<TrafficHistoryExportButton role="ANALYST" />)
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+
+    const dialog = screen.getByRole('dialog') as HTMLDialogElement
+    vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(100, 100, 500, 400)
+    )
+    expect(dialog).toHaveAttribute('closedby', 'any')
+
+    fireEvent.click(dialog, { clientX: 300, clientY: 300 })
+    expect(dialog.open).toBe(true)
+
+    fireEvent.click(dialog, { clientX: 50, clientY: 300 })
+    expect(dialog.open).toBe(false)
+  })
+
   it('keeps the dialog closed until requested and blocks future dates in the form', async () => {
     const user = userEvent.setup()
     render(<TrafficHistoryExportButton role="ANALYST" />)

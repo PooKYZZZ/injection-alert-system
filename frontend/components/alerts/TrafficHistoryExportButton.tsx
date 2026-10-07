@@ -214,8 +214,22 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
       </button>
       <dialog
         ref={dialogRef}
+        closedby="any"
         aria-labelledby="traffic-export-title"
         aria-describedby="traffic-export-description"
+        onClick={(event) => {
+          if ('closedBy' in HTMLDialogElement.prototype || event.target !== event.currentTarget) return
+
+          const dialog = event.currentTarget
+          const bounds = dialog.getBoundingClientRect()
+          const clickIsInsideDialog =
+            event.clientX >= bounds.left &&
+            event.clientX <= bounds.right &&
+            event.clientY >= bounds.top &&
+            event.clientY <= bounds.bottom
+
+          if (!clickIsInsideDialog) dialog.close()
+        }}
         onClose={() => {
           if (download) URL.revokeObjectURL(download.url)
           setDownload(null)
