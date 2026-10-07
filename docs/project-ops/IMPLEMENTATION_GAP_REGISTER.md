@@ -470,7 +470,8 @@ Missing: Decision whether it is a supported browser-facing operator path.
 
 Evidence:
 
-- `docs/CONTEXT.md`
+- `docs/architecture.md`
+- `docs/project-ops/STATUS.md`
 
 Requirement: Explicit architecture decision.
 

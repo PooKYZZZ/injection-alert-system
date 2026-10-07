@@ -1,8 +1,9 @@
 # Migration Rollback Runbook
 
-> General rollback policy background. Current V6.1 deployment configuration is
-> documented in [`../SETUP.md`](../SETUP.md) and the security architecture in
-> [`../architecture.md`](../architecture.md).
+> Use [`../SETUP.md`](../SETUP.md) for local environment setup,
+> [`../architecture.md`](../architecture.md) for current security and data
+> boundaries, and [`STATUS.md`](STATUS.md) for dated migration observations.
+> This runbook owns migration and rollback procedures.
 
 **Last updated:** 2026-10-08
 **Audience:** developers, database operator, reviewer  

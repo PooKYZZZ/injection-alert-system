@@ -23,7 +23,7 @@ Status note at the last checklist review:
   `20261007_000033` (see `STATUS.md`). The disposable PostgreSQL
   downgrade/re-upgrade result below is historical.
 - Frontend validation recorded at that review: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. These are historical results, not current pass claims.
-- Current source and operational guidance is routed through `docs/architecture.md`, `docs/SETUP.md`, and `docs/project-ops/STATUS.md`; `docs/CONTEXT.md` is historical context.
+- Current source and operational guidance is routed through `docs/architecture.md`, `docs/SETUP.md`, and `docs/project-ops/STATUS.md`; `docs/CONTEXT.md` is stable project orientation, not implementation history or current status.
 - PR #84 source-correlation implementation is locally complete at Alembic head
   `20260715_000021`; hosted Supabase had only been confirmed through
   `20260712_000020` at that review. The later hosted migration check is recorded

@@ -9,8 +9,10 @@ using them to make deployment decisions.
 
 - [Project overview](../README.md) — what CyberTrace is, its boundaries, and
   how to begin.
-- [Local setup](SETUP.md) — direct development and isolated Docker Compose
-  workflows. Hosted-style commands are operator-only.
+- [Local setup](SETUP.md) — direct backend/frontend development and safe local
+  configuration.
+- [Docker Compose guide](../docker/compose/README.md) — canonical commands for
+  the ordinary isolated local stack.
 - [Architecture](architecture.md) — application boundaries, data flow, and
   implementation limitations.
 - [Contributing](../CONTRIBUTING.md) — change workflow, repository guardrails,
@@ -24,16 +26,16 @@ using them to make deployment decisions.
 - [Implementation gap register](project-ops/IMPLEMENTATION_GAP_REGISTER.md) —
   cumulative gaps last reviewed on 2026-07-30. Reconcile it with current code
   before treating it as the active backlog.
-- [Project context](CONTEXT.md) — dated implementation and history notes,
-  editorially reconciled on 2026-10-08; use architecture and operator status
-  for current source and deployment evidence.
+- [Project context](CONTEXT.md) — stable orientation to CyberTrace's purpose,
+  people, system boundary, and evidence terminology; use architecture for
+  implementation details and operator status for dated verification.
 - [Client requirements](client-requirements.md) — requirements stated by the
   client; this document is not proof that every requirement is implemented.
 
 ## Evidence and operational guidance
 
-- [Smoke-test runbook](project-ops/SMOKE_TEST_RUNBOOK.md) — local smoke
-  procedures and their evidence boundaries.
+- [Smoke-test runbook](project-ops/SMOKE_TEST_RUNBOOK.md) — detailed local
+  Docker/WAF/demo procedures and clearly labeled operator-only checks.
 - [ModSecurity audit-log policy](project-ops/MODSECURITY_AUDIT_LOG_POLICY.md) —
   local WAF audit data handling and retention guidance.
 - [Migration rollback runbook](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md) —
@@ -49,7 +51,9 @@ using them to make deployment decisions.
 | Subject | Main document |
 |---|---|
 | Project overview | [README](../README.md) |
+| Project context | [CONTEXT](CONTEXT.md) |
 | Local setup | [SETUP](SETUP.md) |
+| Docker Compose | [Compose guide](../docker/compose/README.md) |
 | Architecture | [Architecture](architecture.md) |
 | Contributor workflow | [CONTRIBUTING](../CONTRIBUTING.md) |
 | Operator procedures | [Project Ops](project-ops/README.md) |

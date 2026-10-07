@@ -607,8 +607,8 @@ register or restate its entries.
 
 ## Source-of-Truth Docs
 
-- Project context and dated implementation notes (editorially reconciled
-  2026-10-08): `docs/CONTEXT.md`; historical claims remain date-scoped.
+- Product purpose, system boundary, and evidence terminology:
+  `docs/CONTEXT.md` (orientation, not a status snapshot).
 - Architecture boundaries: `docs/architecture.md`
 - Local setup: `docs/SETUP.md`
 - Client requirements: `docs/client-requirements.md`

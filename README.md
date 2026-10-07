@@ -1,15 +1,15 @@
 # CyberTrace
 
-**Injection Alert System** — an academic capstone project for reviewing
-suspicious web requests with machine-learning classification and web application
-firewall evidence.
+**Injection Alert System** is an academic capstone exploring how to reduce
+analyst fatigue and improve the workflow for reviewing suspicious web traffic.
+CyberTrace brings machine-learning detections and available ModSecurity/OWASP
+CRS evidence into one analyst workflow, helping analysts prioritize alerts,
+inspect why requests were flagged, and make informed, consistent triage and
+response decisions.
 
-CyberTrace records request and detection context, classifies supported injection
-patterns, and presents the resulting evidence for analyst review. It combines a
-Next.js app with a public project site, an authenticated analyst dashboard and
-backend-for-frontend (BFF), a FastAPI service, model inference, PostgreSQL-backed
-application data, and an optional local ModSecurity/OWASP Core Rule Set (CRS)
-integration.
+The system uses a Next.js dashboard and backend-for-frontend (BFF), a FastAPI
+backend, transformer-based model artifacts, Supabase-backed application data,
+and optional local WAF integration.
 
 > **Project scope:** CyberTrace is a research and demonstration system, not a
 > production-ready WAF or a replacement for layered security controls. Use the
@@ -50,26 +50,23 @@ controlled integration; it is not in front of every deployment or request.
 
 ## Status
 
-CyberTrace is an active academic project with a Next.js dashboard/BFF, FastAPI
-backend, ML inference, and Supabase-backed hosted data. It is not a
-production-validated deployment.
+CyberTrace is an academic Next.js/FastAPI system with ML-based detection,
+analyst review, Supabase-backed data, and optional local WAF integration. It is
+not production-validated.
 
-- **Confidence labels:** `INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, and
-  `CRITICAL` describe model confidence, not attack severity. `CRITICAL` starts
-  at 90%. `confidence_tier` is the preferred filter/query name;
-  `confidence_level` is the persisted backend field used for dashboard tiers;
-  legacy `severity` URLs remain compatible. No retraining, recalibration, or
-  model-artifact change was needed, and historical rows are not reclassified.
-- **Dashboard behavior:** `Normal` remains `ALLOWED` and is excluded from
-  enforcement-policy counts. Confidence badges use the canonical backend tier,
-  not the predicted class.
-- **Local WAF paths:** The technical proof uses `localhost:8088`. The realistic
-  demo uses `localhost:8089` and a `demo-portal` built from a separate checkout
-  of `stable/cybertrace-target`. These recorded local proofs do not establish
-  public Cloudflare routing or hosted enforcement.
+- **Local proof:** ModSecurity/OWASP CRS ingest runs through `localhost:8088`
+  and the demo target through `localhost:8089`. Controlled enforcement evidence
+  covers LOW/MEDIUM (PR5), HIGH (PR6), and CRITICAL (PR7); this does not prove
+  hosted or Cloudflare enforcement.
+- **Remaining gaps:** Cloudflare/origin trust verification and hosted
+  enforcement are unverified. Alert SSE is single-process without durable
+  replay or multi-worker fan-out; notification-worker operational validation
+  remains incomplete.
+- **Interpretation:** Confidence describes model certainty, not attack
+  severity. `Normal` remains `ALLOWED`.
 
-See [Project Ops Status](docs/project-ops/STATUS.md) for dated operator checks,
-test results, and remaining verification gaps.
+See [Project Ops Status](docs/project-ops/STATUS.md) for dated tests and proof,
+and [Architecture](docs/architecture.md) for implementation details and gaps.
 
 ## Technology
 
@@ -88,9 +85,10 @@ versions.
 
 ## Get started locally
 
-The detailed guide covers environment files, direct development, the isolated
-Docker stack, optional WAF profiles, and troubleshooting:
-[Local setup](docs/SETUP.md).
+The [local setup guide](docs/SETUP.md) covers environment files and direct
+development. Use the [Docker Compose guide](docker/compose/README.md) for the
+isolated stack commands and the [smoke-test runbook](docs/project-ops/SMOKE_TEST_RUNBOOK.md)
+for optional WAF profiles and verification.
 
 Prerequisites are Git, Python 3.14 or newer, Node.js 24, npm, and Docker Desktop
 for the Compose workflow. Prepare the local environment files exactly as
@@ -111,7 +109,8 @@ the protected dashboard is under `/dashboard`. The public homepage is host-gated
 to `cybertracesystems.com`, so `/` on ordinary `localhost` redirects to `/login`.
 This describes the repository's routing code, not current DNS or Cloudflare
 availability. Optional ModSecurity/CRS demonstration profiles are documented in
-[Local setup](docs/SETUP.md); they are not enabled by this command.
+the [smoke-test runbook](docs/project-ops/SMOKE_TEST_RUNBOOK.md); they are not
+enabled by this command.
 
 ## Run the main checks
 
@@ -153,7 +152,12 @@ validation and focused test commands.
 
 - [Documentation index](docs/README.md) — routes to the maintained guides and
   clearly dated status/evidence documents.
-- [Local setup](docs/SETUP.md) — developer setup and local Compose workflows.
+- [Local setup](docs/SETUP.md) — direct development setup and local environment
+  boundaries.
+- [Docker Compose guide](docker/compose/README.md) — ordinary local stack
+  commands.
+- [Smoke-test runbook](docs/project-ops/SMOKE_TEST_RUNBOOK.md) — WAF/demo smoke
+  procedures and evidence boundaries.
 - [Architecture](docs/architecture.md) — application boundaries, data flow,
   security semantics, and implementation limitations.
 - [Operator documentation map](docs/project-ops/README.md) — runbooks, status
