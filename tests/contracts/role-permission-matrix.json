@@ -1,0 +1,39 @@
+{
+  "OWNER": [
+    "alerts:read",
+    "alerts:triage",
+    "alerts:action:update",
+    "training-feedback:manage",
+    "stats:read",
+    "ml-health:read",
+    "ml-model:read",
+    "ml-model:run",
+    "ml-model:approve",
+    "ml-model:deploy",
+    "accounts:read",
+    "accounts:manage",
+    "mfa:enrollment",
+    "traffic:export"
+  ],
+  "ADMIN": [
+    "alerts:read",
+    "alerts:triage",
+    "alerts:action:update",
+    "stats:read",
+    "accounts:read",
+    "accounts:manage",
+    "mfa:enrollment",
+    "traffic:export"
+  ],
+  "ANALYST": [
+    "alerts:read",
+    "alerts:triage",
+    "stats:read",
+    "mfa:enrollment",
+    "traffic:export"
+  ],
+  "VIEWER": [
+    "alerts:read",
+    "stats:read"
+  ]
+}

@@ -21,6 +21,7 @@ export function buildContentSecurityPolicy(
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID,
   experimental: {
     authInterrupts: true,
   },

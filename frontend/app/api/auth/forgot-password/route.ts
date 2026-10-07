@@ -36,16 +36,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await requestPasswordReset(parsed.data.email)
-    if (result.status === 'not_found') {
-      return respond(
-        { status: 'not_found', message: 'No eligible account was found for this email address.' },
-        404
-      )
-    }
+    // The account lookup remains an internal implementation detail. A 202
+    // response means the request was accepted for processing, not delivered.
+    await requestPasswordReset(parsed.data.email)
     return respond(
-      { status: 'sent', message: 'Reset instructions were queued for this account. Check your inbox.' },
-      200
+      {
+        status: 'accepted',
+        message: 'If an eligible account matches this address, reset instructions will be queued for delivery.',
+      },
+      202
     )
   } catch {
     return respond(

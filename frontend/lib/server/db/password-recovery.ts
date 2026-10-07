@@ -8,13 +8,16 @@ import { hashPassword, validateNewPassword } from '@/lib/auth/password-hash'
 import { passwordHashConcurrencyGate } from '@/lib/auth/login-throttle'
 import { protectNotificationPayload } from '@/lib/server/notifications/payload-crypto'
 import { getSupabaseServerClient } from './client'
-import { preflightPasswordToken } from './password-token-preflight'
+import {
+  PasswordTokenPreflightError,
+  preflightPasswordToken,
+} from './password-token-preflight'
 
 const UUID = z.string().uuid()
 const EMAIL = z.string().email()
 
 export class PasswordRecoveryError extends Error {
-  constructor(public readonly code: 'INVALID_REQUEST' | 'UNAVAILABLE') {
+  constructor(public readonly code: 'INVALID_REQUEST' | 'INVALID_OR_EXPIRED' | 'UNAVAILABLE') {
     super(code)
     this.name = 'PasswordRecoveryError'
   }
@@ -65,7 +68,10 @@ export async function requestPasswordReset(
         recipient: normalized.data,
         idempotencyKey: dedupe,
       },
-      { reset_url: resetUrl }
+      {
+        reset_url: resetUrl,
+        reset_token_hash: digestOpaqueToken(token),
+      }
     ),
     p_dedupe_key: dedupe,
     p_provider_idempotency_key: dedupe,
@@ -84,7 +90,10 @@ export async function completePasswordReset(
   if (!validation.ok) throw new PasswordRecoveryError('INVALID_REQUEST')
   try {
     await preflightPasswordToken(token, 'password_reset')
-  } catch {
+  } catch (error) {
+    if (error instanceof PasswordTokenPreflightError) {
+      throw new PasswordRecoveryError(error.code)
+    }
     throw new PasswordRecoveryError('UNAVAILABLE')
   }
   const hashed = await passwordHashConcurrencyGate.run(() => hashPassword(password))
@@ -94,7 +103,16 @@ export async function completePasswordReset(
     p_token_hash: digestOpaqueToken(token),
     p_password_hash: passwordHash,
   })
-  if (error || !UUID.safeParse(data).success) throw new PasswordRecoveryError('UNAVAILABLE')
+  if (error) {
+    if (
+      error.code === 'P0001' &&
+      error.message === 'reset token is invalid or expired'
+    ) {
+      throw new PasswordRecoveryError('INVALID_OR_EXPIRED')
+    }
+    throw new PasswordRecoveryError('UNAVAILABLE')
+  }
+  if (!UUID.safeParse(data).success) throw new PasswordRecoveryError('UNAVAILABLE')
   return { account_id: data }
 }
 

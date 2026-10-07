@@ -50,6 +50,7 @@ export class AccountManagementError extends Error {
       | 'INVALID_REQUEST'
       | 'CONFLICT'
       | 'NOT_FOUND'
+      | 'LAST_ENABLED_OWNER'
       | 'UNAVAILABLE'
   ) {
     super(code)
@@ -76,8 +77,11 @@ function operationKeys(kind: string): {
   return { dedupeKey: key, providerKey: key }
 }
 
-function rpcError(error: { code?: string } | null): never {
+function rpcError(error: { code?: string; message?: string } | null): never {
   if (error?.code === '23505') throw new AccountManagementError('CONFLICT')
+  if (error?.code === '23514' && error.message === 'LAST_ENABLED_OWNER') {
+    throw new AccountManagementError('LAST_ENABLED_OWNER')
+  }
   throw new AccountManagementError('UNAVAILABLE')
 }
 

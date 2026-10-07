@@ -90,6 +90,9 @@ export async function waitForEmailRecoveryOtp(
 
 export async function readAuthAccountState(accountId: string): Promise<{
   authzVersion: number
+  role: 'OWNER' | 'ADMIN' | 'ANALYST' | 'VIEWER'
+  mfaRequired: boolean
+  disabledAt: string | null
   activeFactors: number
   usedBackupCodes: number
 }> {
@@ -97,7 +100,7 @@ export async function readAuthAccountState(accountId: string): Promise<{
   const [account, factors, backupCodes] = await Promise.all([
     client
       .from('auth_accounts')
-      .select('authz_version')
+      .select('authz_version,role,mfa_required,disabled_at')
       .eq('id', accountId)
       .single(),
     client
@@ -115,12 +118,17 @@ export async function readAuthAccountState(accountId: string): Promise<{
     account.error ||
     factors.error ||
     backupCodes.error ||
-    !Number.isInteger(account.data?.authz_version)
+    !Number.isInteger(account.data?.authz_version) ||
+    !['OWNER', 'ADMIN', 'ANALYST', 'VIEWER'].includes(account.data?.role ?? '') ||
+    typeof account.data?.mfa_required !== 'boolean'
   ) {
     throw new Error('Disposable authentication state is unavailable.')
   }
   return {
     authzVersion: account.data.authz_version,
+    role: account.data.role as 'OWNER' | 'ADMIN' | 'ANALYST' | 'VIEWER',
+    mfaRequired: account.data.mfa_required,
+    disabledAt: account.data.disabled_at,
     activeFactors: factors.count ?? 0,
     usedBackupCodes: backupCodes.count ?? 0,
   }

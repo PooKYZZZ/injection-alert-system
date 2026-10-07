@@ -9,7 +9,7 @@ export default async function TrafficHistoryPage() {
   return (
     <main className="flex flex-col gap-4" style={{ height: 'auto' }}>
       <Suspense fallback={null}>
-        <FilterBar />
+        <FilterBar role={session?.user?.role} />
       </Suspense>
       <AlertsPageClientOnly role={session?.user?.role} />
     </main>

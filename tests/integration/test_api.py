@@ -3,6 +3,7 @@ import logging
 
 import pytest
 from fastapi.testclient import TestClient
+
 from web_app.presentation.api.routes import get_model_service
 from web_app.presentation.app import create_app
 
@@ -51,6 +52,59 @@ def test_label_review_requires_trusted_internal_auth_and_reviewer_context(client
         headers=INTERNAL_HEADERS,
     )
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("role", "expected_status"),
+    [("OWNER", 200), ("ADMIN", 200), ("ANALYST", 200), ("VIEWER", 403)],
+)
+def test_traffic_history_export_enforces_role_permissions_at_backend(
+    client, role, expected_status
+):
+    response = client.post(
+        "/api/traffic-history/export",
+        json={
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-01",
+            "timezone": "UTC",
+        },
+        headers={
+            **INTERNAL_HEADERS,
+            "X-Reviewer-Id": f"{role.lower()}-export",
+            "X-Reviewer-Role": role,
+        },
+    )
+
+    assert response.status_code == expected_status
+    if role == "VIEWER":
+        assert response.json() == {"detail": "Permission required"}
+        return
+
+    assert response.headers["content-type"].startswith("text/csv")
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.text.startswith(
+        '"traffic_log_id","timestamp_utc","request_method","classification",'
+    )
+    assert "source_ip" not in response.text
+
+
+def test_traffic_history_export_requires_trusted_internal_auth(client):
+    response = client.post(
+        "/api/traffic-history/export",
+        json={
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-01",
+            "timezone": "UTC",
+        },
+        headers={
+            "X-Reviewer-Id": "analyst-export",
+            "X-Reviewer-Role": "ANALYST",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Unauthorized"}
 
 
 def test_response_includes_preserved_request_id(client):

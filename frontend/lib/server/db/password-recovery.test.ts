@@ -97,6 +97,7 @@ describe('password recovery database boundary', () => {
       }),
       {
         reset_url: expect.stringContaining('/reset-password?token='),
+        reset_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
       }
     )
   })
@@ -110,16 +111,54 @@ describe('password recovery database boundary', () => {
     expect(harness.rpc).toHaveBeenCalledWith('consume_password_reset_and_change_password', expect.objectContaining({ p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/) }))
   })
 
-  it('does not hash an invalid reset token after cheap preflight', async () => {
+  it('classifies an invalid reset token after cheap preflight without hashing', async () => {
     harness.rpc.mockResolvedValue({ data: false, error: null })
     await expect(
       completePasswordReset('a'.repeat(43), 'correct horse battery staple')
-    ).rejects.toMatchObject({ code: 'UNAVAILABLE' })
+    ).rejects.toMatchObject({ code: 'INVALID_OR_EXPIRED' })
     expect(harness.hash).not.toHaveBeenCalled()
     expect(harness.rpc).toHaveBeenCalledWith(
       'preflight_password_token_v61',
       expect.objectContaining({ p_purpose: 'password_reset' })
     )
+  })
+
+  it('classifies reset-token preflight database errors as unavailable', async () => {
+    harness.rpc.mockResolvedValue({
+      data: null,
+      error: { code: '08006', message: 'database connection unavailable' },
+    })
+
+    await expect(
+      completePasswordReset('a'.repeat(43), 'correct horse battery staple')
+    ).rejects.toMatchObject({ code: 'UNAVAILABLE' })
+    expect(harness.hash).not.toHaveBeenCalled()
+  })
+
+  it('classifies the consume RPC token race as invalid or expired', async () => {
+    harness.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: 'P0001', message: 'reset token is invalid or expired' },
+      })
+
+    await expect(
+      completePasswordReset('a'.repeat(43), 'correct horse battery staple')
+    ).rejects.toMatchObject({ code: 'INVALID_OR_EXPIRED' })
+  })
+
+  it('keeps unexpected consume RPC errors separate from invalid tokens', async () => {
+    harness.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '08006', message: 'database connection unavailable' },
+      })
+
+    await expect(
+      completePasswordReset('a'.repeat(43), 'correct horse battery staple')
+    ).rejects.toMatchObject({ code: 'UNAVAILABLE' })
   })
 
   it('requires a distinct target and bounded reason for MFA reset', async () => {

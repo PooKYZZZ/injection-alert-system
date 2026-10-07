@@ -51,8 +51,24 @@ def test_target_error_pages_do_not_intercept_upstream_responses():
     assert "proxy_intercept_errors on" not in proxy.lower()
 
 
+def test_target_cors_preserves_response_content_types():
+    cors = (ROOT / "config" / "modsecurity" / "target-cors.conf.template").read_text(
+        encoding="utf-8"
+    )
+
+    assert "more_set_headers -s 403 'Content-Type:" not in cors
+    assert "${CORS_HEADER_403_ALLOW_ORIGIN}" in cors
+    assert "${CORS_HEADER_403_MAX_AGE}" in cors
+    assert "${CORS_HEADER_403_ALLOW_METHODS}" in cors
+    assert "${CORS_HEADER_ACCESS_CONTROL_ALLOW_HEADERS}" in cors
+
+
 def test_target_error_pages_are_mounted_read_only():
     compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
+    assert (
+        "target-cors.conf.template:/etc/nginx/templates/includes/cors.conf.template:ro"
+        in compose
+    )
     assert (
         "target-error-pages-location-common.conf.template:/etc/nginx/templates/includes/location_common.conf.template:ro"
         in compose

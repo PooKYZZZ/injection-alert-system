@@ -87,6 +87,8 @@ WAF_SOURCE_PROVENANCE_MODE=direct_remote_addr
 ENFORCEMENT_MODE=off
 ENFORCEMENT_CHECK_API_KEY=<different-generated-secret>
 ENFORCEMENT_RECOMMENDATION_TTL_SECONDS=900
+# Block expiry is separate; normal default is 10 minutes (600 seconds).
+ENFORCEMENT_BLOCK_DURATION_SECONDS=600
 GROQ_API_KEY=
 ALLOWED_ORIGINS=["http://localhost:3000"]
 CONFIDENCE_LOW_THRESHOLD=0.40
@@ -385,7 +387,7 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current repository migration head is `20260930_000031`. The latest hosted Supabase
+- The current repository migration head is `20261007_000033`. The latest hosted Supabase
   revision with recorded evidence is `20260712_000020`. Hosted and repository
   revisions are separate facts.
 - Hosted migration state is only confirmed through `20260712_000020`; the
@@ -476,7 +478,7 @@ $env:CYBERTRACE_POSTGRES_TEST_URL = $env:DATABASE_URL
 .venv\Scripts\python.exe -m alembic current
 ```
 
-The repository has exactly one current head, `20260930_000031`. Use
+The repository has exactly one current head, `20261007_000033`. Use
 `alembic heads`, `alembic current`, and `alembic history` before any migration
 downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).

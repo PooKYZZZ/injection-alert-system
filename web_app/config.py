@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     enforcement_mode: Literal["off", "shadow", "enforce"] = "off"
     enforcement_check_api_key: str = ""
     enforcement_recommendation_ttl_seconds: int = Field(default=900, ge=60, le=86400)
+    enforcement_block_duration_seconds: int = Field(default=600, ge=1, le=3600)
     enforcement_low_window_seconds: int = Field(default=60, ge=1, le=3600)
     enforcement_medium_window_seconds: int = Field(default=60, ge=1, le=3600)
     enforcement_low_max_unchallenged_requests: int = Field(default=5, ge=1, le=10000)

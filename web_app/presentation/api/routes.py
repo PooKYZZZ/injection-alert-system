@@ -419,11 +419,12 @@ async def ingest_waf_event(
             repository=enforcement_repository,
             mode=settings.enforcement_mode,
             ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+            block_duration_seconds=settings.enforcement_block_duration_seconds,
         ),
         waf_repository=waf_state_repository,
         enforcement_mode=settings.enforcement_mode,
         pr7_mutation_enabled=settings.pr7_critical_waf_mutation_enabled,
-        recommendation_ttl_seconds=settings.enforcement_recommendation_ttl_seconds,
+        block_duration_seconds=settings.enforcement_block_duration_seconds,
         pr7_capacity=settings.pr7_waf_capacity,
     )
     queue_fields = _queue_log_fields(inference_queue)

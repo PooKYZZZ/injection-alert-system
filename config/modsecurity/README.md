@@ -88,6 +88,13 @@ sent with the stylesheet request. Error-asset access logs are suppressed; the
 original blocked request continues through the existing ModSecurity audit
 logging and bridge path.
 
+The CRS image's default CORS template also forces every 403 response to
+`Content-Type: text/plain`. With `nosniff`, that makes HTML error documents
+appear as source text. The demo target overrides that template to preserve its
+CORS headers without replacing the response MIME type: portal HTML responses
+remain HTML, API responses retain their own type, and static NGINX error pages
+use `default_type text/html`.
+
 The portal owns its 403/429 middleware responses and 404/500 page errors.
 `Retry-After` is preserved for 429 and only its actual valid integer value is
 shown. `proxy_intercept_errors` remains off so upstream API responses, bodies,

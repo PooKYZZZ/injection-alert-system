@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const harness = vi.hoisted(() => ({
-  request: vi.fn(),
-  complete: vi.fn(),
-  auth: vi.fn(),
-  guard: vi.fn(),
-  resetMfa: vi.fn(),
-}))
+const harness = vi.hoisted(() => {
+  class PasswordRecoveryError extends Error {
+    constructor(public readonly code: 'INVALID_REQUEST' | 'INVALID_OR_EXPIRED' | 'UNAVAILABLE') {
+      super(code)
+    }
+  }
+  return {
+    PasswordRecoveryError,
+    request: vi.fn(),
+    complete: vi.fn(),
+    auth: vi.fn(),
+    guard: vi.fn(),
+    resetMfa: vi.fn(),
+  }
+})
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/server/db/password-recovery', () => ({
+  PasswordRecoveryError: harness.PasswordRecoveryError,
   requestPasswordReset: harness.request,
   completePasswordReset: harness.complete,
   resetManagedAccountMfa: harness.resetMfa,
@@ -34,33 +43,28 @@ describe('password recovery routes', () => {
     harness.resetMfa.mockResolvedValue({ status: 'reset' })
   })
 
-  it('returns a success state for an eligible account', async () => {
+  it('returns the same accepted response for eligible and ineligible accounts', async () => {
     const { POST } = await import('./auth/forgot-password/route')
-    const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+    const eligibleResponse = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
       method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'owner@example.test' }),
     }))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      status: 'sent',
-      message: 'Reset instructions were queued for this account. Check your inbox.',
-    })
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(harness.request).toHaveBeenCalledWith('owner@example.test')
-  })
-
-  it('returns a visible not-found response for an unknown account', async () => {
-    harness.request.mockResolvedValue({ status: 'not_found' })
-    const { POST } = await import('./auth/forgot-password/route')
-    const response = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
+    harness.request.mockResolvedValueOnce({ status: 'not_found' })
+    const ineligibleResponse = await POST(new NextRequest('http://localhost/api/auth/forgot-password', {
       method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ email: 'unknown@example.test' }),
     }))
 
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({
-      status: 'not_found',
-      message: 'No eligible account was found for this email address.',
-    })
-    expect(response.headers.get('cache-control')).toBe('no-store')
+    const expected = {
+      status: 'accepted',
+      message: 'If an eligible account matches this address, reset instructions will be queued for delivery.',
+    }
+    expect(eligibleResponse.status).toBe(202)
+    expect(await eligibleResponse.json()).toEqual(expected)
+    expect(ineligibleResponse.status).toBe(202)
+    expect(await ineligibleResponse.json()).toEqual(expected)
+    expect(eligibleResponse.headers.get('cache-control')).toBe('no-store')
+    expect(ineligibleResponse.headers.get('cache-control')).toBe('no-store')
+    expect(harness.request).toHaveBeenCalledWith('owner@example.test')
+    expect(harness.request).toHaveBeenCalledWith('unknown@example.test')
   })
 
   it('rejects malformed email without querying account state', async () => {
@@ -102,6 +106,37 @@ describe('password recovery routes', () => {
     }))
     expect(response.status).toBe(200)
     expect(harness.complete).toHaveBeenCalled()
+  })
+
+  it('returns a generic invalid-link response for invalid or expired tokens', async () => {
+    const { POST } = await import('./auth/reset-password/route')
+    harness.complete.mockRejectedValueOnce(
+      new harness.PasswordRecoveryError('INVALID_OR_EXPIRED')
+    )
+    const response = await POST(new NextRequest('http://localhost/api/auth/reset-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ token: 'a'.repeat(43), password: 'correct horse battery staple' }),
+    }))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: { code: 'INVALID_OR_EXPIRED', message: 'This reset link is invalid or expired.' },
+    })
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('returns a temporary service error for reset backend failures', async () => {
+    const { POST } = await import('./auth/reset-password/route')
+    harness.complete.mockRejectedValueOnce(
+      new harness.PasswordRecoveryError('UNAVAILABLE')
+    )
+    const response = await POST(new NextRequest('http://localhost/api/auth/reset-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ token: 'a'.repeat(43), password: 'correct horse battery staple' }),
+    }))
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: { code: 'UNAVAILABLE', message: 'Password reset is temporarily unavailable. Try again.' },
+    })
   })
 
   it('guards ADMIN MFA reset and never allows the route to choose a password', async () => {

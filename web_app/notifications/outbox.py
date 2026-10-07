@@ -99,6 +99,26 @@ SELECT public.fail_notification_outbox_job_v61(
         if not changed:
             raise LeaseLostError("Notification outbox lease is no longer active.")
 
+    async def password_reset_token_is_active(self, token_hash: str) -> bool:
+        async with self._session_factory() as session:
+            async with session.begin():
+                result = await session.execute(
+                    text(
+                        """
+SELECT public.preflight_password_token_v61(
+  :token_hash, 'password_reset'
+)
+"""
+                    ),
+                    {"token_hash": token_hash},
+                )
+                active = result.scalar_one()
+        if not isinstance(active, bool):
+            raise RuntimeError(
+                "Password reset token preflight returned an invalid result."
+            )
+        return active
+
     async def enqueue(self, notification: PendingNotification) -> bool:
         async with self._session_factory() as session:
             async with session.begin():

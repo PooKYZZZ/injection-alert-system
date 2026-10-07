@@ -50,6 +50,26 @@ RETURNING id
             return str(cursor.fetchone()[0])
 
 
+def _owner(email: str = "owner@example.test") -> str:
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+INSERT INTO public.auth_accounts (
+  email, name, role, password_hash, password_set_at,
+  email_verified_at, mfa_required
+)
+VALUES (
+  %s, 'SOC Owner', 'OWNER', '$argon2id$test',
+  clock_timestamp(), clock_timestamp(), true
+)
+RETURNING id
+""",
+                (email,),
+            )
+            return str(cursor.fetchone()[0])
+
+
 def _protected_payload() -> Jsonb:
     return Jsonb(
         {"ciphertext": "integration-test", "nonce": "test-nonce", "key_version": 1}
@@ -214,6 +234,132 @@ WHERE recipient = 'target@example.test'
 """
             )
             assert cursor.fetchone() == (2, 2, True)
+
+
+def test_admin_cannot_manage_owners_or_promote_to_owner_but_owner_can_manage() -> None:
+    admin_id = _admin()
+    owner_id = _owner()
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+INSERT INTO public.auth_accounts (
+  email, name, role, password_hash, password_set_at,
+  email_verified_at, mfa_required
+)
+VALUES ('target@example.test', 'Target', 'ANALYST', '$argon2id$test',
+  clock_timestamp(), clock_timestamp(), true)
+RETURNING id
+"""
+            )
+            target_id = cursor.fetchone()[0]
+            with pytest.raises(psycopg.Error):
+                cursor.execute(
+                    "SELECT public.admin_change_account_role(%s, %s, 'OWNER')",
+                    (admin_id, target_id),
+                )
+            with pytest.raises(psycopg.Error):
+                cursor.execute(
+                    "SELECT public.admin_change_account_role(%s, %s, 'ANALYST')",
+                    (admin_id, owner_id),
+                )
+            with pytest.raises(psycopg.Error):
+                cursor.execute(
+                    "SELECT public.admin_set_account_enabled_v61(%s, %s, false)",
+                    (admin_id, owner_id),
+                )
+
+            cursor.execute(
+                "SELECT public.admin_change_account_role(%s, %s, 'ADMIN')",
+                (owner_id, target_id),
+            )
+            assert cursor.fetchone()[0] is True
+            cursor.execute(
+                "SELECT role, mfa_required, authz_version FROM public.auth_accounts WHERE id = %s",
+                (target_id,),
+            )
+            assert cursor.fetchone() == ('ADMIN', True, 2)
+
+
+@pytest.mark.parametrize("transition", ["demote", "disable"])
+def test_concurrent_last_owner_guard_preserves_one_enabled_owner(
+    transition: str,
+) -> None:
+    first_owner = _owner("owner-one@example.test")
+    second_owner = _owner("owner-two@example.test")
+    barrier = threading.Barrier(2)
+
+    def change_owner(target_id: str) -> bool:
+        try:
+            with psycopg.connect(POSTGRES_URL) as connection:
+                barrier.wait(timeout=5)
+                with connection.cursor() as cursor:
+                    # Exercise the database guard and the following mutation in
+                    # the same transaction, as the protected RPCs do.
+                    cursor.execute(
+                        "SELECT public.assert_last_enabled_owner(%s)",
+                        (target_id,),
+                    )
+                    if transition == "demote":
+                        cursor.execute(
+                            "UPDATE public.auth_accounts SET role = 'ANALYST' "
+                            "WHERE id = %s",
+                            (target_id,),
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE public.auth_accounts "
+                            "SET disabled_at = clock_timestamp() WHERE id = %s",
+                            (target_id,),
+                        )
+                    connection.commit()
+                    return True
+        except (psycopg.Error, threading.BrokenBarrierError):
+            return False
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = [
+            executor.submit(change_owner, second_owner),
+            executor.submit(change_owner, first_owner),
+        ]
+        outcomes = [result.result(timeout=10) for result in results]
+
+    assert outcomes.count(True) == 1
+    assert outcomes.count(False) == 1
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT count(*) FROM public.auth_accounts "
+                "WHERE role = 'OWNER' AND disabled_at IS NULL"
+            )
+            assert cursor.fetchone()[0] == 1
+
+
+def test_last_enabled_owner_guard_rejects_removing_the_only_owner() -> None:
+    only_owner = _owner()
+    with psycopg.connect(POSTGRES_URL) as connection:
+        with connection.cursor() as cursor:
+            with pytest.raises(psycopg.Error) as error:
+                cursor.execute(
+                    "SELECT public.assert_last_enabled_owner(%s)",
+                    (only_owner,),
+                )
+            assert error.value.sqlstate == "23514"
+            assert "LAST_ENABLED_OWNER" in str(error.value)
+
+
+def test_last_enabled_owner_guard_fails_closed_outside_read_committed() -> None:
+    only_owner = _owner()
+    with psycopg.connect(POSTGRES_URL) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            with pytest.raises(psycopg.Error) as error:
+                cursor.execute(
+                    "SELECT public.assert_last_enabled_owner(%s)",
+                    (only_owner,),
+                )
+            assert error.value.sqlstate == "40001"
+            assert "LAST_OWNER_GUARD_REQUIRES_READ_COMMITTED" in str(error.value)
 
 
 def test_managed_email_request_rejects_another_accounts_current_email() -> None:

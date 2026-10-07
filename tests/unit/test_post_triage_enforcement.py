@@ -46,7 +46,7 @@ async def test_critical_pr7_candidate_uses_only_the_atomic_waf_writer():
         waf_repository=waf,
         enforcement_mode=EnforcementMode.ENFORCE,
         pr7_mutation_enabled=True,
-        recommendation_ttl_seconds=900,
+        block_duration_seconds=10,
         clock=lambda: occurred_at,
     )
 
@@ -73,8 +73,8 @@ async def test_critical_pr7_candidate_uses_only_the_atomic_waf_writer():
     assert waf.calls == [
         {
             "trigger_traffic_log_id": 42,
-            "recommendation_expires_at": occurred_at + timedelta(seconds=900),
-            "effective_expires_at": occurred_at + timedelta(seconds=900),
+            "recommendation_expires_at": occurred_at + timedelta(seconds=10),
+            "effective_expires_at": occurred_at + timedelta(seconds=10),
             "capacity": 64,
         }
     ]
@@ -91,7 +91,7 @@ async def test_crs_evidence_for_another_class_cannot_select_pr7_writer():
         waf_repository=waf,
         enforcement_mode=EnforcementMode.ENFORCE,
         pr7_mutation_enabled=True,
-        recommendation_ttl_seconds=900,
+        block_duration_seconds=600,
     )
 
     result = await coordinator.execute(
@@ -124,7 +124,7 @@ async def test_non_critical_result_keeps_generic_recommendation_ownership():
         waf_repository=waf,
         enforcement_mode=EnforcementMode.ENFORCE,
         pr7_mutation_enabled=True,
-        recommendation_ttl_seconds=900,
+        block_duration_seconds=600,
     )
 
     result = await coordinator.execute(
@@ -153,7 +153,7 @@ async def test_disabled_pr7_gate_does_not_mutate_waf_state():
         waf_repository=waf,
         enforcement_mode=EnforcementMode.ENFORCE,
         pr7_mutation_enabled=False,
-        recommendation_ttl_seconds=900,
+        block_duration_seconds=600,
     )
 
     result = await coordinator.execute(
@@ -181,7 +181,7 @@ async def test_missing_alert_id_is_not_recorded():
         waf_repository=waf,
         enforcement_mode=EnforcementMode.ENFORCE,
         pr7_mutation_enabled=True,
-        recommendation_ttl_seconds=900,
+        block_duration_seconds=600,
     )
 
     result = await coordinator.execute(
@@ -209,7 +209,7 @@ async def test_pr7_candidate_normalizes_naive_persisted_event_time_as_utc():
         waf_repository=waf,
         enforcement_mode=EnforcementMode.ENFORCE,
         pr7_mutation_enabled=True,
-        recommendation_ttl_seconds=900,
+        block_duration_seconds=600,
     )
 
     await coordinator.execute(
@@ -226,5 +226,5 @@ async def test_pr7_candidate_normalizes_naive_persisted_event_time_as_utc():
     )
 
     assert waf.calls[0]["recommendation_expires_at"] == datetime(
-        2026, 7, 30, 10, 15, tzinfo=timezone.utc
+        2026, 7, 30, 10, 10, tzinfo=timezone.utc
     )

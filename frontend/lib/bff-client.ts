@@ -20,6 +20,9 @@ import {
   type AlertAction,
 } from '@/features/alerts/contract'
 import type { Alert, LabelReview, PaginatedAlerts } from '@/features/alerts/types'
+import {
+  TrafficHistoryExportRequestSchema,
+} from '@/features/alerts/export-contract'
 import type { MLHealthData } from '@/features/ml-health/types'
 import type { ConfidenceBandCounts, DashboardStats } from '@/features/stats/types'
 import {
@@ -1084,6 +1087,130 @@ export async function getAlerts(
     upstream.data,
     searchParams.get('include_normal') === 'true'
   )
+}
+
+export type TrafficHistoryCsvFile = {
+  content: Uint8Array
+  filename: string
+}
+
+const MAX_TRAFFIC_HISTORY_CSV_BYTES = 5 * 1024 * 1024
+
+async function readBoundedResponseBody(
+  response: Response,
+  maximumBytes: number
+): Promise<Uint8Array | null> {
+  const declaredLength = Number(response.headers.get('Content-Length'))
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+    await cancelResponseBody(response)
+    return null
+  }
+  if (!response.body) return new Uint8Array()
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > maximumBytes) {
+        await reader.cancel()
+        return null
+      }
+      chunks.push(value)
+    }
+  } catch {
+    return null
+  }
+
+  const content = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    content.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return content
+}
+
+export async function exportTrafficHistoryCsv(
+  input: unknown,
+  actor: RetrainingActor
+): Promise<BffResult<TrafficHistoryCsvFile>> {
+  const parsed = TrafficHistoryExportRequestSchema.safeParse(input)
+  if (!parsed.success) {
+    return err(400, 'INVALID_REQUEST', 'Date range or filters are invalid.')
+  }
+  if (isMockMode()) {
+    return err(503, 'UPSTREAM_ERROR', 'Traffic History export is unavailable in mock mode.')
+  }
+
+  const config = getUpstreamConfig()
+  if (!config.ok) return config
+
+  let response: Response
+  try {
+    response = await fetch(`${config.data.baseUrl}/api/traffic-history/export`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${config.data.apiKey}`,
+        'Content-Type': 'application/json',
+        ...actorHeaders(actor),
+      },
+      body: JSON.stringify(parsed.data),
+      signal: upstreamRequestSignal(),
+    })
+  } catch {
+    return upstreamTransportFailure()
+  }
+
+  if (!response.ok) {
+    await cancelResponseBody(response)
+    if (response.status === 401) {
+      return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
+    }
+    if (response.status === 403) {
+      return err(403, 'FORBIDDEN', 'You do not have permission to export Traffic History.')
+    }
+    if (response.status === 413) {
+      return err(
+        413,
+        'EXPORT_TOO_LARGE',
+        'Export exceeds the allowed size. Narrow the date range or filters and retry.'
+      )
+    }
+    if (response.status === 422) {
+      return err(400, 'INVALID_REQUEST', 'Date range or filters are invalid.')
+    }
+    return err(
+      response.status >= 500 ? response.status : 502,
+      'UPSTREAM_ERROR',
+      'Traffic History export is unavailable.'
+    )
+  }
+
+  const contentType = response.headers
+    .get('Content-Type')
+    ?.split(';', 1)[0]
+    ?.trim()
+    .toLowerCase()
+  if (contentType !== 'text/csv') {
+    await cancelResponseBody(response)
+    return err(502, 'UPSTREAM_ERROR', 'Upstream response was not a CSV file.')
+  }
+
+  const content = await readBoundedResponseBody(
+    response,
+    MAX_TRAFFIC_HISTORY_CSV_BYTES
+  )
+  if (!content) {
+    return err(502, 'UPSTREAM_ERROR', 'Upstream CSV exceeded the allowed size.')
+  }
+
+  const filename = `traffic-history_${parsed.data.start_date}_to_${parsed.data.end_date}.csv`
+  return ok({ content, filename })
 }
 
 export async function getAlertDetail(alertId: string): Promise<BffResult<Alert>> {

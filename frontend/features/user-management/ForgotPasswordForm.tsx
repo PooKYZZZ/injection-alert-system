@@ -36,15 +36,11 @@ export function ForgotPasswordForm() {
         status?: string
         message?: string
       } | null
-      if (response.status === 404 && result?.status === 'not_found') {
-        setError(result.message ?? 'No eligible account was found for this email address.')
-        return
-      }
       if (response.status === 400 && result?.status === 'invalid_request') {
         setError(result.message ?? 'Enter a valid email address.')
         return
       }
-      if (!response.ok || result?.status !== 'sent') throw new Error('request_failed')
+      if (!response.ok || result?.status !== 'accepted') throw new Error('request_failed')
       setSent(true)
     } catch {
       setError('Unable to send a reset link right now. Try again without leaving this page.')
@@ -84,7 +80,7 @@ export function ForgotPasswordForm() {
           {pending ? 'Sending…' : 'Send reset link'}
         </button>
       </form>
-      {sent ? <p role="status" className="mt-4 text-sm leading-5 text-status-success">Reset instructions were queued for this account. Check your inbox.</p> : null}
+      {sent ? <p role="status" className="mt-4 text-sm leading-5 text-status-success">If an eligible account matches this address, reset instructions will be queued for delivery.</p> : null}
       <div className={authFooterClass}>
         <a href="/login" className={'inline-flex ' + authLinkClass}>Return to sign in</a>
       </div>

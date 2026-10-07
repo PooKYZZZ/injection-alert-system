@@ -14,9 +14,9 @@ Dependency rule:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import List, Optional
 
 from web_app.domain.source_address import (
     SourceProvenance,
@@ -186,6 +186,36 @@ class TrafficLogPage:
     total: int = 0
     page: int = 1
     page_size: int = 20
+
+
+@dataclass(frozen=True)
+class TrafficHistoryExportFilters:
+    """Privacy-neutral canonical filters and half-open UTC bounds for export."""
+
+    start_time: datetime
+    end_time: datetime
+    include_normal: bool = False
+    confidence_tier: Optional[str] = None
+    search: Optional[str] = None
+    action: Optional[str] = None
+    triage_status: Optional[str] = None
+    confidence_levels: tuple[str, ...] = ()
+    prediction: Optional[str] = None
+    source_ip: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class TrafficHistoryExportRecord:
+    """Fixed, non-sensitive SQL projection used by the CSV export."""
+
+    traffic_log_id: int
+    timestamp: datetime
+    request_method: Optional[str]
+    prediction: Optional[str]
+    confidence: Optional[float]
+    confidence_level: Optional[str]
+    action_taken: Optional[str]
+    triage_status: Optional[str]
 
 
 @dataclass
@@ -442,6 +472,16 @@ class ITrafficLogRepository(ABC):
         ``reference_time`` is an optional UTC instant used by deterministic
         callers to evaluate rolling windows. Live callers may omit it.
         """
+        ...
+
+    @abstractmethod
+    async def list_traffic_history_export_rows(
+        self,
+        filters: TrafficHistoryExportFilters,
+        *,
+        limit: int,
+    ) -> list[TrafficHistoryExportRecord]:
+        """Return a limited allowlisted projection in stable timestamp order."""
         ...
 
     @abstractmethod

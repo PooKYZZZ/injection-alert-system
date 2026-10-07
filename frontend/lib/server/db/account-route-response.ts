@@ -46,21 +46,24 @@ export function accountErrorResponse(error: unknown): Response {
     const status =
       error.code === 'INVALID_REQUEST'
         ? 400
-        : error.code === 'CONFLICT'
+        : error.code === 'CONFLICT' || error.code === 'LAST_ENABLED_OWNER'
           ? 409
           : error.code === 'NOT_FOUND'
             ? 404
             : 503
+    const message =
+      error.code === 'LAST_ENABLED_OWNER'
+        ? 'At least one enabled Owner must remain.'
+        : status === 409
+          ? 'An account with that value already exists.'
+          : status === 503
+            ? 'Account management is temporarily unavailable.'
+            : 'The account request is invalid.'
     return NextResponse.json(
       {
         error: {
           code: error.code,
-          message:
-            status === 409
-              ? 'An account with that value already exists.'
-              : status === 503
-                ? 'Account management is temporarily unavailable.'
-                : 'The account request is invalid.',
+          message,
         },
       },
       { status }

@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, List, Literal, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
     BaseModel,
@@ -8,6 +9,7 @@ from pydantic import (
     Field,
     field_serializer,
     field_validator,
+    model_validator,
 )
 
 from web_app.application.update_alert_action_use_case import AlertAction
@@ -617,3 +619,45 @@ class AlertQueryParams(BaseModel):
     ]:
         self.ensure_compatible_confidence_tier_aliases()
         return self.confidence_tier or self.severity
+
+
+class TrafficHistoryExportRequest(BaseModel):
+    """Validated filters for the bounded custom-calendar-date CSV export."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start_date: date
+    end_date: date
+    timezone: str = Field(..., min_length=1, max_length=64)
+    include_normal: bool = False
+    severity: Optional[
+        Literal["ALL", "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    ] = None
+    confidence_tier: Optional[
+        Literal["ALL", "INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    ] = None
+    search: Optional[str] = Field(default=None, max_length=200)
+    action: Optional[ActionTaken] = None
+    triage_status: Optional[TriageStatus] = None
+    confidence_level: Optional[List[ConfidenceLevel]] = Field(default=None, max_length=5)
+    prediction: Optional[PredictionLabel] = None
+    source_ip: Optional[str] = Field(default=None, max_length=45)
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("timezone must be a supported IANA name") from exc
+        return value
+
+    @model_validator(mode="after")
+    def validate_confidence_tier_aliases(self) -> "TrafficHistoryExportRequest":
+        if (
+            self.severity
+            and self.confidence_tier
+            and self.severity != self.confidence_tier
+        ):
+            raise ValueError("severity and confidence_tier must match")
+        return self

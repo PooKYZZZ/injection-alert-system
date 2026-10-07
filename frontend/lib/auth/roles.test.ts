@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import {
   PERMISSIONS,
   ROLES,
   ROLE_HIERARCHY,
+  ROLE_PERMISSIONS,
+  ROLE_VALUES,
+  type UserRole,
   canManageAccount,
   roleAtLeast,
   roleHasPermission,
@@ -11,6 +16,13 @@ import {
 } from './roles'
 
 describe('role permission policy', () => {
+  const parityMatrix = JSON.parse(
+    readFileSync(
+      resolve(__dirname, '../../../tests/contracts/role-permission-matrix.json'),
+      'utf8'
+    )
+  ) as Record<UserRole, string[]>
+
   it('keeps role and permission constants stable', () => {
     expect(ROLES).toEqual({
       OWNER: 'OWNER',
@@ -32,7 +44,19 @@ describe('role permission policy', () => {
       ACCOUNTS_READ: 'accounts:read',
       ACCOUNTS_MANAGE: 'accounts:manage',
       MFA_ENROLLMENT: 'mfa:enrollment',
+      TRAFFIC_EXPORT: 'traffic:export',
     })
+  })
+
+  it('matches the shared backend/frontend permission matrix', () => {
+    for (const role of ROLE_VALUES) {
+      expect([...ROLE_PERMISSIONS[role]].sort()).toEqual(
+        [...parityMatrix[role]].sort()
+      )
+    }
+    expect(Object.values(PERMISSIONS).sort()).toEqual(
+      [...new Set(Object.values(parityMatrix).flat())].sort()
+    )
   })
 
   it('allows VIEWER read permissions only', () => {
@@ -82,6 +106,13 @@ describe('role permission policy', () => {
       expect(roleHasPermission(role, PERMISSIONS.TRAINING_FEEDBACK_MANAGE)).toBe(false)
     }
     expect(roleHasPermission(ROLES.OWNER, PERMISSIONS.TRAINING_FEEDBACK_MANAGE)).toBe(true)
+  })
+
+  it('allows only Owner, Admin, and Analyst to export Traffic History', () => {
+    expect(roleHasPermission(ROLES.OWNER, PERMISSIONS.TRAFFIC_EXPORT)).toBe(true)
+    expect(roleHasPermission(ROLES.ADMIN, PERMISSIONS.TRAFFIC_EXPORT)).toBe(true)
+    expect(roleHasPermission(ROLES.ANALYST, PERMISSIONS.TRAFFIC_EXPORT)).toBe(true)
+    expect(roleHasPermission(ROLES.VIEWER, PERMISSIONS.TRAFFIC_EXPORT)).toBe(false)
   })
 
   it('denies unknown and missing roles', () => {

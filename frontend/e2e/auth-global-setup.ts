@@ -44,7 +44,7 @@ async function assertMutation(
 function createJourneyState(): AuthE2EState {
   const runId = randomUUID()
   const suffix = runId.replaceAll('-', '').slice(0, 12)
-  const baseIdentity = (journey: (typeof JOURNEYS)[number]) => ({
+  const baseIdentity = (journey: string) => ({
     id: randomUUID(),
     email: `cybertrace-${suffix}-${journey}@example.test`,
     password: generateTestPassword(),
@@ -64,6 +64,7 @@ function createJourneyState(): AuthE2EState {
         backup: { ...baseIdentity('backup'), backupCode: generateBackupCode() },
         email: baseIdentity('email'),
         stepup: { ...baseIdentity('stepup'), totpSecret: generateTotpSecret() },
+        managedTargets: [baseIdentity('managed-target-1'), baseIdentity('managed-target-2')],
       },
       roleMatrix: {
         owner: roleIdentity('owner'),
@@ -78,6 +79,7 @@ function createJourneyState(): AuthE2EState {
 function allIdentities(state: AuthE2EState) {
   return [
     ...JOURNEYS.map((journey) => state.identities[journey]),
+    ...state.identities.managedTargets,
     ...ROLE_MATRIX.map((role) => state.roleMatrix[role]),
   ]
 }
@@ -101,6 +103,20 @@ async function seedJourneyState(
       password_set_at: createdAt,
       email_verified_at: createdAt,
       mfa_required: true,
+    })
+  }
+  for (const identity of state.identities.managedTargets) {
+    accountRows.push({
+      id: identity.id,
+      email: identity.email,
+      username: `e2e-${state.runId.slice(0, 8)}-target-${accountRows.length}`,
+      name: 'E2E managed target',
+      role: 'VIEWER',
+      authz_version: 1,
+      password_hash: await hashPassword(identity.password),
+      password_set_at: createdAt,
+      email_verified_at: createdAt,
+      mfa_required: false,
     })
   }
   for (const role of ROLE_MATRIX) {
@@ -193,7 +209,7 @@ async function seedJourneyState(
       'id',
       allIdentities(state).map(({ id }) => id)
     )
-  if (error || count !== JOURNEYS.length + ROLE_MATRIX.length) {
+  if (error || count !== JOURNEYS.length + 2 + ROLE_MATRIX.length) {
     throw fixedSetupError('verification')
   }
 }

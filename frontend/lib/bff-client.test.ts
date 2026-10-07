@@ -1823,4 +1823,116 @@ describe('bff-client', () => {
     })
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('calls the protected traffic export endpoint with a validated range and server actor', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('traffic_log_id,timestamp_utc\r\n1,2026-10-01T00:00:00Z\r\n', {
+        status: 200,
+        headers: { 'Content-Type': 'text/csv; charset=utf-8' },
+      })
+    )
+
+    const { exportTrafficHistoryCsv } = await loadClient()
+    const result = await exportTrafficHistoryCsv(
+      {
+        start_date: '2026-10-01',
+        end_date: '2026-10-31',
+        timezone: 'Asia/Singapore',
+        include_normal: true,
+        action: 'ALLOWED',
+        search: 'safe search term',
+      },
+      { id: 'analyst-17', role: 'ANALYST' }
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        filename: 'traffic-history_2026-10-01_to_2026-10-31.csv',
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/api/traffic-history/export',
+      expect.objectContaining({
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Authorization: 'Bearer test-secret',
+          'Content-Type': 'application/json',
+          'X-Reviewer-Id': 'analyst-17',
+          'X-Reviewer-Role': 'ANALYST',
+        },
+      })
+    )
+    expect(
+      JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    ).toEqual({
+      start_date: '2026-10-01',
+      end_date: '2026-10-31',
+      timezone: 'Asia/Singapore',
+      include_normal: true,
+      action: 'ALLOWED',
+      search: 'safe search term',
+    })
+  })
+
+  it('rejects invalid and over-limit ranges before calling FastAPI', async () => {
+    const { exportTrafficHistoryCsv } = await loadClient()
+    const invalid = await exportTrafficHistoryCsv(
+      {
+        start_date: '2026-02-01',
+        end_date: '2026-01-01',
+        timezone: 'UTC',
+      },
+      { id: 'analyst-17', role: 'ANALYST' }
+    )
+    const tooLong = await exportTrafficHistoryCsv(
+      {
+        start_date: '2026-01-01',
+        end_date: '2026-02-01',
+        timezone: 'UTC',
+      },
+      { id: 'analyst-17', role: 'ANALYST' }
+    )
+
+    expect(invalid).toMatchObject({ ok: false, status: 400 })
+    expect(tooLong).toMatchObject({ ok: false, status: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-CSV upstream responses and maps row caps without returning partial data', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response('not a CSV', {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('too large', { status: 413, headers: { 'Content-Type': 'text/plain' } })
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array(5 * 1024 * 1024 + 1), {
+          status: 200,
+          headers: { 'Content-Type': 'text/csv' },
+        })
+      )
+    const { exportTrafficHistoryCsv } = await loadClient()
+    const request = {
+      start_date: '2026-10-01',
+      end_date: '2026-10-01',
+      timezone: 'UTC',
+    }
+
+    const wrongType = await exportTrafficHistoryCsv(request, { id: 'admin-1', role: 'ADMIN' })
+    const capped = await exportTrafficHistoryCsv(request, { id: 'admin-1', role: 'ADMIN' })
+    const overBodyCap = await exportTrafficHistoryCsv(request, {
+      id: 'admin-1',
+      role: 'ADMIN',
+    })
+
+    expect(wrongType).toMatchObject({ ok: false, status: 502 })
+    expect(capped).toMatchObject({ ok: false, status: 413, error: { code: 'EXPORT_TOO_LARGE' } })
+    expect(overBodyCap).toMatchObject({ ok: false, status: 502 })
+  })
 })

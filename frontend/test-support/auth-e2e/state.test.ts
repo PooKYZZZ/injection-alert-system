@@ -13,9 +13,13 @@ const validState = {
   identities: {
     enroll: identity,
     login: { ...identity, id: '8b8bb9de-1dff-44b7-9a44-12efe8a6716f', email: 'login-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
-    backup: { ...identity, id: '9c9bb9de-1dff-44b7-9a44-12efe8a6716f', email: 'backup-e2e@example.test', backupCode: 'ABCD-EFGH-JKLM' },
-    email: { ...identity, id: 'adabb9de-1dff-44b7-9a44-12efe8a6716f', email: 'email-e2e@example.test' },
-    stepup: { ...identity, id: 'bebbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'stepup-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+      backup: { ...identity, id: '9c9bb9de-1dff-44b7-9a44-12efe8a6716f', email: 'backup-e2e@example.test', backupCode: 'ABCD-EFGH-JKLM' },
+      email: { ...identity, id: 'adabb9de-1dff-44b7-9a44-12efe8a6716f', email: 'email-e2e@example.test' },
+      stepup: { ...identity, id: 'bebbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'stepup-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+      managedTargets: [
+        { ...identity, id: 'aaabb9de-1dff-44b7-9a44-12efe8a6716f', email: 'managed-one@example.test' },
+        { ...identity, id: 'abbbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'managed-two@example.test' },
+      ],
   },
   roleMatrix: {
     owner: { ...identity, id: 'cfbbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'owner-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
