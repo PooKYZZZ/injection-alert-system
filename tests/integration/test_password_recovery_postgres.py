@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
@@ -120,6 +121,68 @@ def test_password_reset_reissue_revokes_the_previous_token() -> None:
                 previous_hash: 'revoked',
                 latest_hash: 'used',
             }
+
+
+def test_simultaneous_password_reset_requests_leave_only_one_pending_token() -> None:
+    account_id = _account('concurrent-reissue@example.test', 'ANALYST')
+    hashes = ('e' * 64, 'f' * 64)
+    barrier = threading.Barrier(2)
+
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+CREATE FUNCTION public.test_delay_password_reset_insert()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_sleep(0.75);
+  RETURN NEW;
+END
+$$
+"""
+            )
+            cursor.execute(
+                """
+CREATE TRIGGER test_delay_password_reset_insert
+BEFORE INSERT ON public.auth_reset_tokens
+FOR EACH ROW EXECUTE FUNCTION public.test_delay_password_reset_insert()
+"""
+            )
+
+    def create(token_hash: str, suffix: str) -> None:
+        barrier.wait()
+        _create_reset_token(account_id, token_hash, suffix)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(
+                pool.map(
+                    lambda item: create(*item),
+                    [(hashes[0], 'concurrent-first'), (hashes[1], 'concurrent-second')],
+                )
+            )
+    finally:
+        with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+DROP TRIGGER IF EXISTS test_delay_password_reset_insert
+ON public.auth_reset_tokens
+"""
+                )
+                cursor.execute(
+                    'DROP FUNCTION IF EXISTS public.test_delay_password_reset_insert()'
+                )
+
+    with psycopg.connect(POSTGRES_URL, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT count(*) FILTER (WHERE status = 'pending'), "
+                "count(*) FILTER (WHERE status = 'revoked') "
+                "FROM public.auth_reset_tokens WHERE account_id = %s",
+                (account_id,),
+            )
+            assert cursor.fetchone() == (1, 1)
 
 
 def test_password_reset_rejects_an_expired_token() -> None:
