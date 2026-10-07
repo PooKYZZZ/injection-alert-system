@@ -509,11 +509,13 @@ class RecordShadowRecommendationUseCase:
         repository: IEnforcementRecommendationRepository,
         mode: EnforcementMode | str,
         ttl_seconds: int,
+        block_duration_seconds: int = 600,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
         self._mode = EnforcementMode(mode)
         self._ttl_seconds = ttl_seconds
+        self._block_duration_seconds = block_duration_seconds
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     async def execute(
@@ -549,7 +551,13 @@ class RecordShadowRecommendationUseCase:
         event_time = occurred_at if isinstance(occurred_at, datetime) else created_at
         if event_time.tzinfo is None:
             event_time = event_time.replace(tzinfo=timezone.utc)
-        expires_at = event_time + timedelta(seconds=self._ttl_seconds)
+        ttl_seconds = (
+            self._block_duration_seconds
+            if recommendation.action
+            in {RecommendedAction.APPLICATION_BLOCK, RecommendedAction.WAF_BLOCK}
+            else self._ttl_seconds
+        )
+        expires_at = event_time + timedelta(seconds=ttl_seconds)
         if expires_at <= created_at:
             return False
         row = NewEnforcementRecommendation(

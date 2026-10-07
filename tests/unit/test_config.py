@@ -407,6 +407,18 @@ def test_shadow_enforcement_defaults_to_off() -> None:
     assert settings.enforcement_mode == "off"
     assert settings.enforcement_check_api_key == ""
     assert settings.enforcement_recommendation_ttl_seconds == 900
+    assert settings.enforcement_block_duration_seconds == 600
+
+
+def test_block_duration_accepts_a_short_local_test_override() -> None:
+    settings = Settings(
+        env_file=False,
+        database_url="sqlite+aiosqlite:///test.db",
+        model_path="test_model.py",
+        enforcement_block_duration_seconds=10,
+    )
+
+    assert settings.enforcement_block_duration_seconds == 10
 
 
 def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
@@ -422,6 +434,7 @@ def test_shadow_enforcement_accepts_a_distinct_dedicated_key() -> None:
 
     assert settings.enforcement_mode == "shadow"
     assert settings.enforcement_recommendation_ttl_seconds == 900
+    assert settings.enforcement_block_duration_seconds == 600
 
 
 def test_active_enforcement_accepts_explicit_controlled_configuration() -> None:
@@ -646,6 +659,8 @@ def test_deployed_active_enforcement_rejects_turnstile_test_mode() -> None:
             "enforcement_check_api_key": "shared-key-that-is-long-enough-123456",
         },
         {"enforcement_recommendation_ttl_seconds": 59},
+        {"enforcement_block_duration_seconds": 0},
+        {"enforcement_block_duration_seconds": 3601},
         {"enforcement_mode": "enforce", "enforcement_check_api_key": ""},
     ],
 )

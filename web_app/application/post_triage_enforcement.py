@@ -57,7 +57,7 @@ class PostTriageEnforcementCoordinator:
         waf_repository: IWafStateMutationRepository,
         enforcement_mode: EnforcementMode | str,
         pr7_mutation_enabled: bool,
-        recommendation_ttl_seconds: int,
+        block_duration_seconds: int = 600,
         pr7_capacity: int = PR7_DEFAULT_CAPACITY,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -65,7 +65,7 @@ class PostTriageEnforcementCoordinator:
         self._waf_repository = waf_repository
         self._mode = EnforcementMode(enforcement_mode)
         self._pr7_mutation_enabled = pr7_mutation_enabled
-        self._ttl_seconds = recommendation_ttl_seconds
+        self._block_duration_seconds = block_duration_seconds
         self._capacity = pr7_capacity
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -119,7 +119,7 @@ class PostTriageEnforcementCoordinator:
             event_time = event_time.replace(tzinfo=timezone.utc)
         else:
             event_time = event_time.astimezone(timezone.utc)
-        expires_at = event_time + timedelta(seconds=self._ttl_seconds)
+        expires_at = event_time + timedelta(seconds=self._block_duration_seconds)
 
         mutation = await self._waf_repository.record_critical_waf_recommendation(
             trigger_traffic_log_id=alert_id,

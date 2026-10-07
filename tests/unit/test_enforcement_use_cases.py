@@ -157,17 +157,30 @@ def _active_recommendation(
 
 
 @pytest.mark.asyncio
-async def test_record_shadow_recommendation_persists_expiring_policy():
+@pytest.mark.parametrize(
+    ("confidence_level", "expected_action"),
+    [
+        ("HIGH", RecommendedAction.APPLICATION_BLOCK),
+        ("CRITICAL", RecommendedAction.WAF_BLOCK),
+    ],
+)
+async def test_block_recommendations_use_the_configured_block_duration(
+    confidence_level, expected_action
+):
     repo = RecordingRepository()
     now = datetime(2026, 7, 20, tzinfo=timezone.utc)
     use_case = RecordShadowRecommendationUseCase(
-        repository=repo, mode=EnforcementMode.SHADOW, ttl_seconds=900, clock=lambda: now
+        repository=repo,
+        mode=EnforcementMode.SHADOW,
+        ttl_seconds=60,
+        block_duration_seconds=10,
+        clock=lambda: now,
     )
 
     recorded = await use_case.execute(
         alert_id=42,
         prediction="SQL Injection",
-        confidence_level="HIGH",
+        confidence_level=confidence_level,
         request_path="/records/search",
         evidence=EnforcementEvidence(
             source_verification_status="VERIFIED",
@@ -178,8 +191,32 @@ async def test_record_shadow_recommendation_persists_expiring_policy():
 
     assert recorded is True
     assert repo.inserted[0].trigger_traffic_log_id == 42
-    assert repo.inserted[0].action is RecommendedAction.APPLICATION_BLOCK
-    assert repo.inserted[0].expires_at == now + timedelta(seconds=900)
+    assert repo.inserted[0].action is expected_action
+    assert repo.inserted[0].expires_at == now + timedelta(seconds=10)
+
+
+@pytest.mark.asyncio
+async def test_throttle_recommendation_keeps_the_regular_recommendation_ttl():
+    repo = RecordingRepository()
+    now = datetime(2026, 7, 20, tzinfo=timezone.utc)
+    use_case = RecordShadowRecommendationUseCase(
+        repository=repo,
+        mode=EnforcementMode.ENFORCE,
+        ttl_seconds=60,
+        block_duration_seconds=10,
+        clock=lambda: now,
+    )
+
+    recorded = await use_case.execute(
+        alert_id=42,
+        prediction="SQL Injection",
+        confidence_level="MEDIUM",
+        request_path="/records/search",
+    )
+
+    assert recorded is True
+    assert repo.inserted[0].action is RecommendedAction.THROTTLE
+    assert repo.inserted[0].expires_at == now + timedelta(seconds=60)
 
 
 @pytest.mark.asyncio
