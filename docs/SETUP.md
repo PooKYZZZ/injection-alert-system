@@ -1,6 +1,6 @@
 # Local Setup
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 
 This guide covers direct local development, the isolated Docker Compose
 application stack, and optional controlled WAF demonstrations. It is not a
@@ -97,6 +97,13 @@ MAX_SEQ_LEN=128
 TEMPERATURE=0.596868
 ```
 
+These are example/default settings, not a promise about an already running
+container. The application and base Compose configuration default to
+`ENFORCEMENT_MODE=off` and a 600-second block duration. A local environment file
+or Compose overlay can override them; check the effective runtime configuration
+before drawing conclusions. The 2026-10-07 local-container observation is
+recorded separately in [`project-ops/STATUS.md`](project-ops/STATUS.md).
+
 The single-worker Compose backend uses a bounded database pool: five steady
 connections, five burst connections, and ten-second acquisition/connection
 deadlines. These limits reduce unnecessary pressure on the hosted pooler and
@@ -118,6 +125,17 @@ key only for `POST /api/internal/waf-events`; BFF calls and WAF transaction
 lookup continue to use `API_SECRET_KEY`. If either key is exposed, replace it
 manually and recreate the backend plus every affected bridge; no automatic key
 rotation exists.
+
+### Historical PR4/PR5 Turnstile enforcement flow
+
+The following paragraphs document the earlier PR4/PR5 challenge-and-fixed-window
+flow and its controlled-local test setup. They are not the current
+`confidence-enforcement-v3` model-tier policy. The current policy maps LOW to
+monitor-only, MEDIUM to evidence-gated throttling, HIGH to evidence-gated
+application blocking, and CRITICAL to evidence-gated WAF blocking; see
+[`architecture.md`](architecture.md#high-versus-critical-enforcement-boundary).
+Treat the PR5 thresholds below as historical behavior for that test slice, not
+as a description of the current policy or of a running container.
 
 PR4 shadow enforcement is opt-in. Set `ENFORCEMENT_MODE=shadow` and provide a
 third, independently generated `ENFORCEMENT_CHECK_API_KEY` (at least 32
@@ -171,8 +189,9 @@ $env:PR7_RUN_BACKEND_WAF_E2E = "1"
 ```
 
 The harness creates and removes its own PostgreSQL, backend, WAF, network, and
-state resources. The test is opt-in because it requires Docker and takes about
-two to three minutes. For the complete attack-to-CRITICAL-WAF lifecycle, run:
+state resources. The test is opt-in because it requires Docker and can take
+several minutes; duration depends on image availability and host performance.
+For the complete attack-to-CRITICAL-WAF lifecycle, run:
 
 ```powershell
 $env:PR7_RUN_BLOCK3_E2E = "1"
@@ -201,9 +220,9 @@ Auth.js Credentials login and BFF session freshness checks now read
 runtime source or outage fallback.
 Alembic revision `20260905_000029` establishes the Owner role and authorization
 policy and is part of the current migration chain. The hosted database was last
-verified at `20261007_000033` on 2026-10-07, so that revision is already behind
-the recorded hosted head. Recheck the live target and revision before a new
-hosted operation; do not rerun or downgrade the hosted database casually. Use
+verified at `20261007_000033` on 2026-10-07, beyond that revision. Recheck the
+live target and revision before a new hosted operation; do not rerun or
+downgrade the hosted database casually. Use
 `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`.
 
 The V6.1 account/MFA/recovery feature switches are documented in
@@ -308,7 +327,7 @@ Backend entrypoint:
 - `http://localhost:8000/health`
 - `http://localhost:8000/api/health`
 
-Current API surface:
+Selected backend API routes (not a complete route inventory):
 
 - Protected by backend bearer auth:
   - `POST /api/predict`
@@ -433,31 +452,14 @@ headers, cookies, and credentials. Alert timestamps remain canonical in the
 outbox payload and are converted to `NOTIFICATION_TIMEZONE` only when the
 operator-facing Telegram message is rendered.
 
-### Manual PR 3 auth cutover and rollback
+### Historical account cutover note
 
-Do not mutate live Supabase as part of normal app startup or automated tests.
-For each target environment:
-
-1. Apply migration `20260704_000008` through a reviewed deployment step.
-2. Create at least one account with `frontend/scripts/create_auth_account.mjs`.
-   For the temporary pre-MFA demo path, pass `--mfa-required false`.
-3. Verify login locally or in staging, then verify set-password and disable
-   behavior on a non-primary test account.
-4. Keep a secure pre-cutover `AUTH_USERS_JSON` export only as rollback
-   material. Rollback requires reverting the cutover code before restoring that
-   env value; the PR 3 runtime never reads it. Keep the auth tables intact
-   unless separately reviewed data recovery requires otherwise.
-
-Example from `frontend/`:
-
-```powershell
-node scripts/create_auth_account.mjs --email admin@example.test --name "SOC Admin" --role ADMIN --password "<temporary-password>" --mfa-required false
-node scripts/set_auth_account_password.mjs --email admin@example.test --password "<replacement-password>"
-node scripts/disable_auth_account.mjs --email disposable-check@example.test
-```
-
-Password CLI arguments can enter shell history. Use only an appropriate local
-operator shell and never commit or paste credentials into logs or reports.
+The original PR 3 account cutover instructions are obsolete; do not use them to
+provision a new environment or choose a migration target. Current account
+provisioning, migration, and rollback procedures are maintained in
+[`project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md)
+and the account setup steps above. `AUTH_USERS_JSON` is not a runtime login
+source or fallback. Never place passwords in command history or documentation.
 
 ### Validate migrations without touching live Supabase
 
@@ -564,9 +566,18 @@ cd frontend
 npm run build
 ```
 
-## 4. Current Frontend Data Reality
+## 4. Frontend routes and BFF behavior
 
-Be explicit about the current BFF status:
+The Next.js frontend serves both public project pages and authenticated
+dashboard pages. The public-page layout serves `/`, `/about-us`, and related
+pages only when the request host is exactly `cybertracesystems.com`; for an
+ordinary local host such as `localhost:3000`, `/` redirects to `/login`. Local
+sign-in is at `/login`, and the protected dashboard is under `/dashboard`.
+This is source-code routing behavior, not a claim that the public domain's DNS,
+Cloudflare route, or runtime is currently available.
+
+The server-side BFF uses `frontend/lib/bff-client.ts` to call FastAPI in
+non-mock mode. Representative wired paths include:
 
 - `/api/stats`
   - Wired through `frontend/lib/bff-client.ts`
@@ -587,28 +598,28 @@ Be explicit about the current BFF status:
   - Wired through `frontend/lib/bff-client.ts`
   - Owner-only ML Deployment control-plane proxy to real FastAPI in non-mock mode
 
-So the current local dashboard can run fully against the backend, with optional centralized mock mode via `USE_MOCK_API=true`.
-
-**Current state:** `USE_MOCK_API=false` - the dashboard is hitting the real FastAPI backend.
+`USE_MOCK_API` is the centralized server-only mock toggle. The committed
+frontend environment example sets it to `false`, but the effective value can be
+overridden by local environment files or container configuration. Do not infer
+which backend a running instance uses from the template alone.
 
 ### Current frontend protection split
 
 - `/login` is the public sign-in page.
-- `/` redirects to `/login` or `/dashboard` based on session state.
+- `/` is the host-gated public homepage on `cybertracesystems.com`; on local
+  hosts it redirects to `/login` (it is not a session-aware dashboard redirect).
+- `/login` is the sign-in page; the protected dashboard is under `/dashboard`.
 - `frontend/app/(dashboard)/layout.tsx` protects the dashboard route group with a session check plus the central DB-backed freshness guard.
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/alerts`, `/traffic-history`, `/ml-health`, and `/ml-model`; `/alerts` is retained as a protected compatibility redirect.
 - All protected BFF handlers validate the session, current DB account, disablement, role, and per-account `authz_version`; they return generic `401`/`403` responses before calling FastAPI when denied. The ML handlers require Owner-only permissions.
 
-## 5. What This Setup Does Not Cover
+## 5. Scope not covered by this setup guide
 
-The following are not yet available as runnable repo-level setup paths:
-
-- Production-grade ModSecurity-fronted deployment
-- Redis-backed review queue or enforcement state
-- Richer backend-native dashboard stats and ML-health payloads beyond the current BFF normalization layer
-- Automatic repo-managed export of Supabase policies and operational guardrails
-- Production-grade ModSecurity-fronted deployment, Turnstile widget/hostname rollout, managed identity, and distributed login throttling
-- Notification failure/retry operational testing, MFA flag-semantics audit, and Auth.js/passkey follow-ups
+This guide is for local development and controlled demonstrations; it is not a
+production deployment, Cloudflare topology, backup/restore, retention, or
+external-provider runbook. For implemented-versus-deferred behavior, see
+[`architecture.md`](architecture.md); for cumulative gaps, see the register
+whose last review date is stated in [`project-ops/README.md`](project-ops/README.md).
 
 ## 5A. Docker Smoke Setup
 
@@ -681,6 +692,12 @@ docker compose --project-directory . --env-file .local/env/.env -p injection-ale
   -f docker/compose/overlays/app-cloudflare.yml `
   --profile demo-target --profile target-cloudflare up -d --no-build backend frontend cloudflared
 ```
+
+The `target-cloudflare` overlay sets `WAF_SOURCE_VERIFICATION_MODE=cloudflare_tunnel`
+and `ENFORCEMENT_SOURCE_TRUST_MODE=cloudflare_verified`. Those configuration
+values are not evidence that external Cloudflare/origin trust gates have
+passed. Follow [`project-ops/CLOUDFLARE_TARGET_INGRESS_ISOLATION_RUNBOOK.md`](project-ops/CLOUDFLARE_TARGET_INGRESS_ISOLATION_RUNBOOK.md)
+and the latest dated status before selecting this operator-only overlay.
 
 The hosted overlays deliberately skip `safe_local_migrate`; applying migrations
 to live Supabase is a separate, reviewed operator step. They also bind-mount
@@ -763,7 +780,10 @@ localhost:8089
 
 The portal source stays separate from this repository checkout. This repo's Compose override references the `stable/cybertrace-target` checkout as a build context; it does not merge the portal source into CyberTrace. The portal runs as a production Next.js standalone container with `HOSTNAME=0.0.0.0` and `PORT=3010`, and port `3010` is internal to the Compose network unless explicitly changed for debugging. `demo-target-bridge` is required when `8089` events must appear in CyberTrace.
 
-Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
+One recorded demo-target proof, dated 2026-06-27, used the `/records/search`
+SQLi marker `SMOKE002945` and is preserved in
+[`project-ops/DEMO_TARGET_WAF_PROOF.md`](project-ops/DEMO_TARGET_WAF_PROOF.md).
+It is historical local evidence, not a fresh check of the current containers.
 
 For hosted rendering, first observe the actual narrow tunnel peer or subnet;
 do not guess it. Store the observed value in `.local/env/.env`, not only
@@ -826,39 +846,47 @@ if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
  docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
-Verified result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`.
+The checked-in [WAF ingest proof](../reports/modsecurity-live-proof/e2e-proof.md)
+records a dated transaction with these fields. Rerun the commands above to
+verify the current local stack; the recorded transaction is not live state.
 
 ### Frontend smoke check
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing http://localhost:3000 | Select-Object -ExpandProperty StatusCode
+Invoke-WebRequest -UseBasicParsing http://localhost:3000/login | Select-Object -ExpandProperty StatusCode
 ```
 
 Expected result: `200`
 
-### Public Cloudflare Tunnel verification
+### External domain and Cloudflare checks
 
-The verified public deployment uses a Cloudflare Tunnel in the deployment
-environment. Start the tunnel using the operator-managed tunnel configuration;
-do not commit the tunnel token or credentials:
+Cloudflare DNS, Tunnel ingress, and Access policy are external deployment
+configuration and are not established by local Compose files alone. The
+Next.js source serves public project pages only for the exact host
+`cybertracesystems.com`; dashboard and target routing must be verified in the
+operator-managed Cloudflare configuration. Do not treat the commands below as
+proof that a domain is live or that Access is correctly configured. Never
+commit tunnel tokens or credentials.
 
 ```powershell
 cloudflared tunnel run <tunnel-name>
 ```
 
-Verify the public application and protected target separately:
+When these routes are configured, check each separately and inspect its actual
+response and Cloudflare Access behavior:
 
 ```powershell
 Invoke-WebRequest -UseBasicParsing https://app.cybertracesystems.com | Select-Object -ExpandProperty StatusCode
 Invoke-WebRequest -UseBasicParsing https://target.cybertracesystems.com | Select-Object -ExpandProperty StatusCode
+Invoke-WebRequest -UseBasicParsing https://cybertracesystems.com | Select-Object -ExpandProperty StatusCode
 ```
 
-Expected result: the application domain is publicly reachable and the target
-domain is challenged by Cloudflare Access for identities without access. The
-frontend runtime flags are injected at container start, not at image build
-time. After changing them, run
-`docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml up -d --force-recreate frontend`
-and verify the value inside the recreated container.
+The expected status depends on live DNS, Tunnel, and Access configuration;
+verify those in Cloudflare and record the date and response before documenting
+them as current. Frontend runtime flags are injected at container start, not at
+image build time. Recreate the same service with the Compose files and project
+configuration that were changed; do not use the local overlay's recreation
+command as proof of hosted settings.
 
 ### Demo data
 

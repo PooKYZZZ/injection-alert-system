@@ -6,9 +6,10 @@ firewall evidence.
 
 CyberTrace records request and detection context, classifies supported injection
 patterns, and presents the resulting evidence for analyst review. It combines a
-Next.js dashboard and backend-for-frontend (BFF), a FastAPI service, model
-inference, PostgreSQL-backed application data, and an optional local
-ModSecurity/OWASP Core Rule Set (CRS) integration.
+Next.js app with a public project site, an authenticated analyst dashboard and
+backend-for-frontend (BFF), a FastAPI service, model inference, PostgreSQL-backed
+application data, and an optional local ModSecurity/OWASP Core Rule Set (CRS)
+integration.
 
 > **Project scope:** CyberTrace is a research and demonstration system, not a
 > production-ready WAF or a replacement for layered security controls. Use the
@@ -22,6 +23,8 @@ ModSecurity/OWASP Core Rule Set (CRS) integration.
   patterns.
 - Stores detection context, including model output and available ModSecurity/CRS
   evidence.
+- Provides public project information separately from the authenticated analyst
+  dashboard.
 - Provides an authenticated dashboard for reviewing traffic, alerts, and
   analyst triage.
 - Includes controlled local Compose profiles for demonstrating ModSecurity/CRS
@@ -37,6 +40,7 @@ itself, prove that a request was blocked or throttled by the network.
 
 | Flow | Path |
 |---|---|
+| Public project site | Browser → host-gated Next.js public pages (`cybertracesystems.com`) |
 | Dashboard and API | Browser → Next.js dashboard and BFF → FastAPI → model service and database |
 | Accounts and sessions | Browser → Auth.js session in Next.js; server-side account records → Supabase PostgreSQL |
 | Optional local WAF evidence | ModSecurity/OWASP CRS → audit log → bridge → FastAPI WAF-ingest endpoint |
@@ -78,8 +82,12 @@ from the repository root:
 docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml up --build -d
 ```
 
-The dashboard is served at [http://localhost:3000](http://localhost:3000).
-Optional ModSecurity/CRS demonstration profiles are documented in
+The Next.js app is served at [http://localhost:3000](http://localhost:3000).
+For local sign-in, open [http://localhost:3000/login](http://localhost:3000/login);
+the protected dashboard is under `/dashboard`. The public homepage is host-gated
+to `cybertracesystems.com`, so `/` on ordinary `localhost` redirects to `/login`.
+This describes the repository's routing code, not current DNS or Cloudflare
+availability. Optional ModSecurity/CRS demonstration profiles are documented in
 [Local setup](docs/SETUP.md); they are not enabled by this command.
 
 ## Run the main checks
@@ -131,6 +139,6 @@ validation and focused test commands.
 
 ## Maintainers and reuse
 
-CyberTrace is maintained by Team 13 as an academic capstone. This repository
+CyberTrace is maintained by its academic capstone team. This repository
 does not currently include a `LICENSE` file; do not assume that code or
 artifacts are licensed for reuse.

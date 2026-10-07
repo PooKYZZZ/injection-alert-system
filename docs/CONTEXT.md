@@ -1,12 +1,19 @@
 # Project Context
 
-Updated: 2026-07-30
+Editorially reconciled: 2026-10-08
 Defense: May 2026
 Client: LARES (Land Registration Systems, Inc.)
 
-## What This Repo Is Today
+> **Context/history document:** The entries below describe dated implementation
+> milestones and are not one coherent snapshot of the current checkout. Some
+> statements were added after their section dates. Use
+> [`architecture.md`](architecture.md) for current source structure and
+> [`project-ops/STATUS.md`](project-ops/STATUS.md) for the latest bounded
+> operator check; verify live behavior before relying on either.
 
-The repository currently contains:
+## Project scope and implementation context
+
+The repository includes:
 
 - A FastAPI backend built around a Clean Architecture split:
   - `domain -> application -> infrastructure -> presentation`
@@ -22,7 +29,7 @@ This is not yet a fully production-validated deployment. The codebase includes D
 
 Client-stated PD2 requirements are tracked in `docs/client-requirements.md`. They include secure login, RBAC, strong account security with 2FA, timely threat alerts, email notification after detection, and the project's `CRITICAL >=90%` model-confidence tier.
 
-## Verified Status
+## Date-scoped implementation and verification records
 
 ### Live WAF ingest proof (2026-06-22)
 
@@ -118,17 +125,18 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   Block 2, and the controlled-local Block 3 lifecycle; `GAP-002` tracks the
   remaining trust-topology and portal integration evidence.
 
-### PR7 controlled-local CRITICAL WAF runtime (2026-07-30)
+### PR7 controlled-local CRITICAL WAF runtime (implementation July 30; lifecycle evidence July 31)
 
 - PR7 Block 1 effective WAF state and authenticated snapshot boundary were
-  implemented and validated at the prior migration point `20260728_000025`;
-  the current repository head is `20261007_000033`.
+  implemented and validated at the migration point `20260728_000025`;
+  repository and hosted migration updates are recorded separately in
+  `docs/project-ops/STATUS.md`.
 - PR7 Block 2 adds the pinned local WAF runtime, deterministic candidate
   rendering, persistent selection/latch state, reload and worker-generation
   confirmation, candidate-specific source/path probes, and empty-first
   rollback. The disposable PostgreSQL -> backend -> WAF E2E passed in PR #97.
-- The runtime is local/disposable evidence only. Hosted, staging, and
-- production enforcement remain disabled. The guarded Block 3 lifecycle now
+- The runtime evidence is local/disposable and does not establish hosted,
+  staging, or production enforcement state. The guarded Block 3 lifecycle
   passes attack-to-ML-to-bridge-to-atomic-state-to-WAF-403-to-revocation in a
   disposable PostgreSQL/WAF topology. Real Cloudflare source equivalence,
   combined PR6/PR7 portal behavior, and portal-owned no-upstream proof remain
@@ -222,7 +230,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
 - `frontend/app/(dashboard)/layout.tsx` redirects unauthenticated dashboard requests to `/login`
 - `frontend/proxy.ts` additionally matches `/dashboard`, `/traffic-history`, the protected `/alerts` compatibility redirect, `/ml-health`, and `/ml-model`
 - Local `next start` validation requires `AUTH_TRUST_HOST=true` in `frontend/.env.local`
-- Current BFF status in the working tree:
+- BFF implementation details recorded at this snapshot (verify against current source):
   - `frontend/lib/bff-client.ts` is the shared server-only BFF client
   - `frontend/app/api/alerts/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/alerts/stream/route.ts` authenticates and streams the FastAPI SSE response with private/no-store, no-transform, no-buffer, and nosniff response controls
@@ -234,7 +242,8 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   - `frontend/app/api/stats/route.ts` proxies to FastAPI in non-mock mode
   - `frontend/app/api/ml-health/route.ts` proxies to FastAPI in non-mock mode after the Owner-only permission check
   - `frontend/app/api/ml-model/*` proxies the Owner-only ML Deployment control plane to FastAPI in non-mock mode
-  - `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**)
+  - `USE_MOCK_API` is the centralized server-only mock toggle; the sample
+    environment sets it to `false`, but runtime environment can override it.
   - every protected handler awaits the central DB-backed permission guard before downstream work; the ML handlers also forward the authenticated actor to FastAPI for defense in depth
   - one dashboard-level `AlertStreamSync` connection invalidates the existing
     alert and stats TanStack Query families on `alert.created` and `open`; the
@@ -276,7 +285,7 @@ Canonical evidence: `reports/shadow-enforcement/e2e-proof.md`.
   independent immediate-peer confirmation remain open. Hosted mode remains
   `unverified`.
 
-## Not Yet Implemented
+## Gaps noted in this historical context
 
 - Production-grade ModSecurity-fronted deployment
 - An additional Redis-style enforcement or review-state layer; PostgreSQL currently provides durable shared counters and PR4 has a bounded database-backed shadow recommendation path.

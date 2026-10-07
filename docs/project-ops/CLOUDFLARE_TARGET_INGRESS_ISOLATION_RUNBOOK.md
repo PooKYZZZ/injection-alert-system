@@ -3,9 +3,19 @@
 > Block 3 / external-ingress runbook. Not required for Block 2 merge and does
 > not authorize production ENFORCE.
 
-**Status:** Temporary target-only T0 source-identity proof completed. Final
-hostname cutover and continuous verified mode remain unauthorized; restore and
-keep normal runtime at `WAF_SOURCE_VERIFICATION_MODE=unverified`.
+**Status:** Temporary target-only T0 source-identity proof is recorded. Final
+hostname cutover and continuous verified mode are not established by this
+evidence. Keep the normal/base path at
+`WAF_SOURCE_VERIFICATION_MODE=unverified` until the external trust gates below
+are verified.
+
+**Configuration boundary:** The optional `target-cloudflare` Compose overlay
+sets `WAF_SOURCE_VERIFICATION_MODE=cloudflare_tunnel` and
+`ENFORCEMENT_SOURCE_TRUST_MODE=cloudflare_verified`. These are requested
+configuration values, not proof that the external trust checks below passed or
+that the overlay is active. The 2026-10-07 local-container check did not test
+the public Cloudflare edge. Do not treat selecting the overlay as completing
+the trust gate or as approval for hosted/production enforcement.
 
 ## Preconditions
 
@@ -155,7 +165,9 @@ values; redact Access and tunnel credentials.
    logs.
 8. Confirm home/mobile source separation, direct-origin failure, host-level and
    cross-container forgery resistance, no Worker path, and Pseudo IPv4 Off.
-   Hosted PR7 enforcement remains disabled.
+   This runbook does not authorize hosted PR7 enforcement. Its effective
+   runtime state must be verified independently; it is not established by the
+   temporary proof described here.
 
 ## Final cutover after proof passes
 

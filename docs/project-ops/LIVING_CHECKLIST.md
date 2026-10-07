@@ -1,22 +1,33 @@
 # Living Checklist
 > Location: `docs/project-ops/LIVING_CHECKLIST.md`
-> Keep this file updated after every meaningful implementation or verification session.
-> This is a working checklist, not the full runtime source of truth.
+> This checklist was last substantively reviewed on 2026-07-30. Its branch
+> names, migration claims, test counts, and unchecked items are historical and
+> have not been revalidated as a complete execution plan. Check
+> `docs/project-ops/STATUS.md` for the latest dated operator verification and
+> confirm current code/runtime state before acting on any item.
 
-**Last updated:** 2026-07-30
+**Last editorially updated:** 2026-10-08
+**Last substantive checklist review:** 2026-07-30
 
-Status note:
-- Current repository status is maintained in `docs/project-ops/STATUS.md`;
-  PR #90 is merged into `master`; the current review branch is `feat/pr7-waf-runtime`.
+Status note at the last checklist review:
+- Repository status was maintained in `docs/project-ops/STATUS.md`;
+  PR #90 was merged into `master`; the review branch at that time was
+  `feat/pr7-waf-runtime`.
 - PR7 Block 1 and Block 2 controlled-local WAF runtime evidence is complete in
-  `PR7_BLOCK_2_EVIDENCE.md`; hosted/staging/production enforcement remains off
-  and Block 3 evidence is still open.
-- Hosted Supabase is migrated through `20260712_000020`; disposable PostgreSQL downgrade/re-upgrade through the same head passed
-- Current frontend validation: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. Local-only browser session behavior remains a follow-up if it reappears.
-- Current source-of-truth runtime docs are `docs/CONTEXT.md`, `docs/architecture.md`, and `docs/SETUP.md`
+  `PR7_BLOCK_2_EVIDENCE.md`; Block 3 was still open at the 2026-07-30 checklist
+  review, then its controlled-local lifecycle passed on 2026-07-31 (see
+  `PR7_BLOCK_3_EVIDENCE.md`). External trust and portal-integration gates
+  remain separate; this checklist does not establish current hosted state.
+- At the 2026-07-30 review, hosted Supabase had been confirmed through
+  `20260712_000020`; the 2026-10-07 operator check later recorded
+  `20261007_000033` (see `STATUS.md`). The disposable PostgreSQL
+  downgrade/re-upgrade result below is historical.
+- Frontend validation recorded at that review: lint, typecheck, build, and full Vitest pass; remote authentication E2E is passing. These are historical results, not current pass claims.
+- Current source and operational guidance is routed through `docs/architecture.md`, `docs/SETUP.md`, and `docs/project-ops/STATUS.md`; `docs/CONTEXT.md` is historical context.
 - PR #84 source-correlation implementation is locally complete at Alembic head
-  `20260715_000021`; hosted Supabase is only confirmed through
-  `20260712_000020` and must not be described as migrated to the new head.
+  `20260715_000021`; hosted Supabase had only been confirmed through
+  `20260712_000020` at that review. The later hosted migration check is recorded
+  in `STATUS.md`; do not use this checklist's old snapshot as current state.
 - PR #84 implementation is historical and frozen at baseline
   `6cfe67bd331e55d4309c201c8c254668bc2ea688`; that maintenance pass was
   documentation-only. PR2 SSE and PR3 Telegram are completed historical slices;
@@ -39,7 +50,7 @@ Status note:
   **10 passed**, and V6.2 downgrade/re-upgrade ended at the single expected head.
 - WAF submission uses a distinct `WAF_INGEST_API_KEY`; lookup/BFF traffic keeps
   `API_SECRET_KEY`. Production/staging reject missing, short, or equal WAF keys.
-- Current PR validation: backend **703 passed, 32 skipped**; focused
+- Historical PR validation (not rerun for the current checkout): backend **703 passed, 32 skipped**; focused
   source/integrity suite **189 passed**; migration-focused run **2 passed, 1
   PostgreSQL-only skip**;
   executable SQLite migration cycle passed; disposable PostgreSQL CI

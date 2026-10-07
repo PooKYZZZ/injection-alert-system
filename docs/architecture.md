@@ -1,14 +1,21 @@
 # Architecture
 
+**Last reconciled with repository source:** 2026-10-08
+
 This document describes the current repository architecture. It distinguishes between what is implemented now and what remains planned.
 
-Client-stated security and alerting requirements are tracked in `docs/client-requirements.md`. They are architectural drivers for planned account security and alerting work, but not all are implemented in the current repository state.
+Client-stated security and alerting requirements are tracked in
+[`docs/client-requirements.md`](client-requirements.md). They describe desired
+outcomes, not implementation status; use the feature matrix below and dated
+operator evidence to distinguish implemented, partially verified, and deferred
+behavior.
 
 ## Current Topology
 
 ```mermaid
 flowchart LR
     Browser["Browser"] --> Next["Next.js 16 App Router"]
+    Next --> Public["Public project pages (host-gated)"]
     Next --> BFF["Route Handlers / BFF"]
     BFF --> FastAPI["FastAPI API"]
     FastAPI --> Model["ModelService"]
@@ -16,8 +23,8 @@ flowchart LR
     Queue --> Model
     FastAPI --> DB["Async SQLAlchemy DB"]
     Model --> Registry["ml_model/model_registry/"]
-    DB --> Supabase["Supabase PostgreSQL"]
-
+    DB --> Supabase["Supabase PostgreSQL (hosted app path)"]
+    DB -. local Compose .-> LocalPG["Private local PostgreSQL"]
     SQLite["SQLite (tests / isolated local work)"] -. optional .-> DB
     WAFProof["localhost:8088 technical WAF proof path"] --> ModSec["Main ModSecurity + OWASP CRS"]
     ModSec --> Bridge["WAF audit bridge"]
@@ -32,12 +39,13 @@ flowchart LR
 
 | Feature | Current State | Evidence |
 |---|---|---|
+| Public project pages | Implemented; exact-host gated | `frontend/app/(public-site)/*`, `frontend/lib/public-site-host.ts`; `cybertracesystems.com` is the only accepted public-site host in source |
 | Browser dashboard path | Implemented | `frontend/app/api/*`, `frontend/proxy.ts`, `frontend/lib/bff-client.ts` |
 | FastAPI routes and BFF calls | Implemented | `web_app/presentation/api/routes.py`, `frontend/app/api/*` |
 | ModelService runtime boundary | Implemented | `web_app/services/model_service.py` |
-| WAF ingest endpoint | Implemented; historical local proof | POST uses the distinct WAF bearer dependency, GET lookup retains the internal bearer dependency; current route tests `17 passed` including Telegram enqueue failure isolation |
-| WAF JSONL bridge | Implemented; historical local proof | bridge uses `WAF_INGEST_API_KEY`, canonical source evidence, and explicit provenance mode; current bridge tests `53 passed` |
-| Trusted source correlation | Implemented; hosted identity verification Partial | canonical IP/provenance/status, factual SHA-256 fingerprint, immutable duplicate handling, atomic matching stale reclaim, migration `20260715_000021`, isolated Compose profiles, and operator home/mobile source correlation are complete; final Cloudflare/origin trust gates remain, so mode stays `unverified` |
+| WAF ingest endpoint | Implemented; historical local proof | POST uses the distinct WAF bearer dependency; GET lookup retains the internal bearer dependency; run focused route tests for current results |
+| WAF JSONL bridge | Implemented; historical local proof | bridge uses `WAF_INGEST_API_KEY`, canonical source evidence, and explicit provenance mode; run focused bridge tests for current results |
+| Trusted source correlation | Implemented; external identity verification remains partial | Canonical IP/provenance/status handling, factual SHA-256 fingerprint, immutable duplicate handling, atomic matching stale reclaim, migration `20260715_000021`, isolated Compose profiles, and dated operator home/mobile source-correlation proof are present. Base/local configuration defaults to `unverified`; the opt-in `target-cloudflare` overlay selects `cloudflare_tunnel` and `cloudflare_verified`, but those settings do not themselves prove external trust gates. See the runbook and dated status before enabling that path. |
 | ModSecurity request path | Verified local proof | `localhost:8088` is the technical CyberTrace backend WAF proof path; SQLi blocks with HTTP 403 and writes `logs/modsecurity/modsec_audit.jsonl` |
 | Demo-target WAF ingest path | Verified local PD2 proof | `localhost:8089` is the realistic protected demo website path; `demo-target-bridge` forwards separate `logs/modsecurity/demo-target/modsec_audit.jsonl` events; transaction `178249138618.813428` reached FastAPI as `/records/search`, `SQL Injection`, `BLOCKED`, `crs_score=15` |
 | Backend Compose exposure | Implemented | backend is internal-only in Compose and shown as `8000/tcp`; proof lookup uses `docker compose exec`, not `localhost:8000` |
@@ -50,10 +58,10 @@ flowchart LR
 | Auth/security schema foundation | Implemented | additive Alembic migration creates public-schema auth/security tables with RLS, explicit public-role revocations, and no policies; `frontend/lib/server/db/` contains the server-only service-role boundary |
 | Argon2id, account provisioning, and login cutover | Implemented in repo | runtime accepts only approved Argon2id PHC parameters, unknown-account timing uses a precomputed same-profile hash, scripts load `frontend/.env.local` with shell precedence, and app runtime login uses the server-only Supabase boundary |
 | 2FA/MFA | Implemented and verified behind server-side availability flags | encrypted TOTP enrollment, replay-safe completion, backup/email recovery, and mandatory re-enrollment routes are implemented; the hosted Admin journey is verified |
-| Project model-confidence tiers | Implemented; isolated local database and WAF request path verified | exact zero is INFORMATIONAL; positive scores use LOW `(0, 0.40)`, MEDIUM `[0.40, 0.70)`, HIGH `[0.70, 0.90)`, and CRITICAL `[0.90, 1.0]`. The project adopts AWS Security Hub's normalized severity band boundaries as the reference for categorizing model-confidence scores; this is not AWS ML guidance or calibration evidence. Hosted migration remains a reviewed operator task. |
+| Project model-confidence tiers | Implemented; isolated local database and WAF request path verified | exact zero is INFORMATIONAL; positive scores use LOW `(0, 0.40)`, MEDIUM `[0.40, 0.70)`, HIGH `[0.70, 0.90)`, and CRITICAL `[0.90, 1.0]`. The project adopts AWS Security Hub's normalized severity band boundaries as a reference for categorizing model-confidence scores; this is not AWS ML guidance or calibration evidence. The hosted database was checked at `20261007_000033` on 2026-10-07; that is schema-state evidence, not proof of hosted inference or enforcement. |
 | Request evidence and action history | Implemented; isolated local WAF-to-database-to-detail path verified | separate producer transaction IDs and request correlation IDs, observed HTTP status, source-aware evidence relationships, append-only action history, and BFF-validated alert detail; missing historical values remain unknown. |
-| Runtime enforcement | PR5 LOW/MEDIUM and PR6 HIGH implemented and controlled locally E2E-validated; PR7 Block 1 and Block 2 controlled-local WAF runtime implemented and E2E-validated; hosted disabled | PR4 `SHADOW` rows remain historical and non-disruptive. Active `confidence-enforcement-v3` recommendations use class-matched CRS attack-family evidence; HIGH requires matching evidence, and MEDIUM throttling is limited to verified-source repeated events or matching CRS evidence, with a 60-second maximum from the latest recommendation. Repeat counts ignore unverified sources and stale policy versions. `/api/internal/enforcement/check` is route-scoped; user-input GETs on Search Records and Track Status are now synchronously inspected before their reads, alongside the existing protected POST flows. The portal's synchronous bridge currently supplies `no-crs-match`; same-request HIGH/CRITICAL ML blocking therefore remains a monitor fallback until trusted ModSecurity evidence is handed into that synchronous path. CRS-originated blocks are separate and may preempt ML inference. A valid applicable HIGH recommendation has precedence over MEDIUM/LOW and produces `BLOCK`. PR7 adds durable revisioned effective WAF state, an authenticated snapshot boundary, deterministic candidate rendering, reload/generation confirmation, candidate-specific probing, and rollback. The controlled PostgreSQL-to-backend-to-WAF path passes; Block 3 still owns full attack-to-ML creation, external ingress/source identity, PR6/PR7 integrated regression, and portal no-upstream evidence. Hosted active enforcement remains disabled. |
-| Verified label review workflow | Implemented locally; export and retraining lifecycle implemented in controlled local mode | Owners with `TRAINING_FEEDBACK_MANAGE` append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Non-Owners retain alert read access but cannot see or mutate Training Feedback. Alert responses project only the latest revision. Only `approved_for_training` enters the retraining snapshot. The Owner-only ML Deployment control plane, worker lifecycle, evidence gates, explicit local staging promotion, rollback, and scheduled trigger are implemented; hosted/production promotion remains disabled and unverified. |
+| Runtime enforcement | PR5-PR7 implemented with controlled-local evidence; public/hosted runtime state is not established by the latest local check | PR4 `SHADOW` rows remain historical and non-disruptive. Active `confidence-enforcement-v3` recommendations use class-matched CRS evidence; HIGH requires a matching attack family, while MEDIUM throttling requires qualifying repeated-source or CRS evidence and is bounded by the configured policy window. `/api/internal/enforcement/check` is route-scoped, and protected portal reads are inspected before access. The current synchronous portal path supplies `no-crs-match`, so same-request HIGH/CRITICAL ML enforcement is not established there; CRS can independently block before ML inference. A valid HIGH recommendation takes precedence over MEDIUM/LOW and produces `BLOCK`. PR7's full controlled-local attack-to-CRITICAL-WAF lifecycle passed; a separate dated manual home/mobile source-correlation proof is recorded, but full Cloudflare trust/topology checks (Pseudo IPv4, Worker behavior, direct-origin isolation, and immediate tunnel-peer identity) remain open. The PR7 lifecycle itself did not use external Cloudflare ingress, and the integrated PR6/PR7 portal-owned no-upstream proof remains unverified. Repository defaults are `ENFORCEMENT_MODE=off` and a 600-second block duration, but environment configuration may override them; see the dated local observation in `project-ops/STATUS.md`. |
+| Verified label review workflow | Implemented locally; export and retraining lifecycle implemented in controlled local mode | Owners with `TRAINING_FEEDBACK_MANAGE` append immutable reviews through the authenticated Next.js BFF and internal FastAPI route. Non-Owners retain alert read access but cannot see or mutate Training Feedback. Alert responses project only the latest revision. Only `approved_for_training` enters the retraining snapshot. The Owner-only ML Deployment control plane, worker lifecycle, evidence gates, explicit local staging promotion, rollback, and scheduled trigger are implemented; hosted/production promotion is not established by the available evidence. |
 | Training/evaluation source organization | Implemented for controlled-local execution | Canonical benchmark helpers and script-first entrypoints live under `ml_model/training/`, `ml_model/preprocessing/`, and `ml_model/evaluation/`; the dashboard native adapter reuses those entrypoints rather than duplicating a training loop. Native laptop quality proof remains separate evidence. |
 | Retraining pipeline | Implemented controlled-local lifecycle; hosted/production NOT_RUN | Reviewed-sample export, cumulative snapshots, durable worker runs, evidence-gated decisions, explicit local staging promotion/rollback, and a bounded scheduled trigger are implemented. Native model-quality execution, installed scheduling, hosted promotion, and production registry writes remain separate evidence. |
 | Wazuh export | Planned | no Wazuh JSON/JSONL export implementation found |
@@ -149,10 +157,15 @@ column is required because the decision is derived from the persisted label.
 - Auth: Auth.js credentials provider with JWT sessions
 - Data layer: TanStack Query + Zod
 - Client state: Zustand
+- Public project pages and the analyst dashboard share the Next.js app. The
+  public-site route group accepts only the exact hostname `cybertracesystems.com`;
+  ordinary local hosts redirect its pages to `/login`. This is a source-level
+  host check, not evidence that DNS or an external Cloudflare route is live.
 
 ### Client-Required Account Security
 
-The current Auth.js credentials flow is the named-account foundation. Client requirements still call for:
+The current Auth.js credentials flow is the named-account foundation. Client
+requirements include:
 
 - secure login backed by real user access management,
 - RBAC for role-specific access such as Owner, Admin, and Analyst,
@@ -209,7 +222,9 @@ Next.js route handlers remain the browser-facing boundary, but the implemented h
   - `frontend/app/api/ml-health/route.ts`
   - `frontend/app/api/ml-model/summary/route.ts`, `/export`, and `/runs/*`
 - Every protected handler requires a valid Auth.js session and an awaited DB-backed `requirePermission()` check before downstream work. ML Health and every ML Deployment BFF route require Owner-only permissions; the BFF forwards the validated session actor to FastAPI for a second authorization check.
-- `USE_MOCK_API` is the single centralized server-only mock toggle (currently **false**).
+- `USE_MOCK_API` is the single centralized server-only mock toggle. The checked-in
+  frontend example sets it to `false`; local files and container environment can
+  override it, so the template does not prove a running instance's effective mode.
 - The BFF validates transport payloads with Zod and preserves backend-emitted `action_taken` values: `BLOCKED`, `THROTTLED`, `ALLOWED`.
 - `frontend/app/api/alerts/[id]/label-review/route.ts` accepts the four-class
   verified-label vocabulary and review states after the server derives reviewer
@@ -272,12 +287,13 @@ the hosted head and function definitions were checked; see the dated record in
 [`project-ops/STATUS.md`](project-ops/STATUS.md). The guard protects the
 existing account-management RPCs; privileged SQL updates that bypass those
 RPCs are outside its scope.
-The repository tracks these functions through Alembic. The Supabase migration
-history separately reports only `20260905094814`; this repository has no
-`supabase/migrations` directory, so Supabase CLI push/repair is not an approved
-substitute for reconciling the Alembic history. Supabase documents that its
-migration history is tracked separately and warns that out-of-sync history
-must be reconciled before pushing ([migration guidance](https://supabase.com/docs/guides/deployment/database-migrations)).
+The repository tracks these functions through Alembic. Supabase CLI migration
+history is a separate ledger and is not interchangeable with the Alembic
+revision; this repository has no `supabase/migrations` directory. Do not use
+Supabase CLI push/repair as a substitute for reconciling the current Alembic
+history. Supabase documents that its migration history is tracked separately
+and warns that out-of-sync history must be reconciled before pushing
+([migration guidance](https://supabase.com/docs/guides/deployment/database-migrations)).
 
 ### Traffic History CSV export
 
@@ -426,9 +442,10 @@ kept for compatibility; new exporter code must use `model_input_hash` and
 
 ## Known architectural gaps
 
-See [`IMPLEMENTATION_GAP_REGISTER.md`](project-ops/IMPLEMENTATION_GAP_REGISTER.md)
-for the canonical backlog. Runbooks and policies are implemented; automation
-and hosted deployment gates remain separately tracked there.
+See the cumulative [`IMPLEMENTATION_GAP_REGISTER.md`](project-ops/IMPLEMENTATION_GAP_REGISTER.md)
+for gaps last reviewed on the date stated in that file. Reconcile those entries
+with current source before treating them as an active backlog. Hosted deployment
+state belongs to dated operator evidence, not this architecture description.
 
 ### HIGH versus CRITICAL enforcement boundary
 
@@ -439,11 +456,15 @@ and hosted deployment gates remain separately tracked there.
   `enforcement.application_block_applied`.
 - **CRITICAL / PR7:** controlled-local WAF-level enforcement. The PR7 runtime
   can reject an eligible `/records/search` request before the upstream is
-  reached, with a generic gateway denial and `WAF_BLOCK` intent. The local
-  PostgreSQL-to-backend-to-WAF path is validated; full attack-to-ML creation,
-  external ingress/source identity, integrated PR6/PR7 regression, and portal
-  no-upstream evidence remain Block 3. Hosted and production enforcement are
-  disabled.
+  reached, with a generic gateway denial and `WAF_BLOCK` intent. The complete
+  controlled-local attack-to-ML-to-WAF lifecycle passed on 2026-07-31; see
+  [`PR7_BLOCK_3_EVIDENCE.md`](project-ops/PR7_BLOCK_3_EVIDENCE.md). A separate
+  dated manual home/mobile source-correlation proof exists, but the complete
+  Cloudflare trust/topology gates (Pseudo IPv4, Worker behavior, direct-origin
+  isolation, and immediate tunnel-peer identity) remain open; the PR7 lifecycle
+  itself did not exercise the public edge. Integrated PR6/PR7 portal behavior
+  and a portal-owned no-upstream proof also remain unverified. The latest local
+  container observation does not establish hosted enforcement state.
 
 - Production-grade ModSecurity-fronted deployment
 - Full repo-managed export and automation of Supabase policy state
@@ -476,9 +497,11 @@ The same-origin Forgot Password route returns the same `202` accepted response
 for every syntactically valid address, whether or not an eligible account
 matches. Invalid input returns `400`; disabled recovery and service failures
 return a generic `503`. For eligible accounts, the database stores only a token
-digest and queues a protected outbox item. The database revokes previous
-pending reset tokens on reissue, but does not serialize simultaneous reset
-requests. The route has no server-side reset-request cooldown; the form only
+digest and queues a protected outbox item. Revision `20261007_000033`
+serializes token issuance requests for the same account by locking the account
+row while creating a token. That migration was checked as applied to the hosted
+database on 2026-10-07 (see `project-ops/STATUS.md`). The route has no
+server-side reset-request cooldown; the form only
 disables its submit button while that browser request is pending. The
 notification worker leases and retries jobs, then hands them to Resend with an
 idempotency key. An outbox
@@ -489,7 +512,9 @@ password-reset job, the worker checks that its token remains pending, unexpired,
 and eligible; an inactive token is not sent, and a failed check is retried. A
 token can still be revoked after this check while the provider request is in
 flight. The reset form reports invalid links separately from temporary service
-failures. No hosted provider or mailbox delivery evidence was checked.
+failures. The latest 2026-10-07 operator snapshot did not retest reset-email
+delivery; earlier provider evidence is date-scoped in `project-ops/STATUS.md`,
+and provider acceptance does not prove inbox delivery.
 
 ## Architecture Notes For Future Edits
 

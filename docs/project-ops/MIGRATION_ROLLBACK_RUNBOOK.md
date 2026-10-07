@@ -4,7 +4,7 @@
 > documented in [`../SETUP.md`](../SETUP.md) and the security architecture in
 > [`../architecture.md`](../architecture.md).
 
-**Last updated:** 2026-07-13
+**Last updated:** 2026-10-08
 **Audience:** developers, database operator, reviewer  
 **Scope:** CyberTrace database/schema migration safety and rollback decision-making  
 **Status:** operator documentation only; no migration or rollback automation is implemented by this file
@@ -24,13 +24,22 @@ Rollback exists only when the specific migration has a written, reviewed, and te
 
 ---
 
-## 2. Current Project Truth
+## 2. Current project constraints and dated migration evidence
 
-Current truth:
+Current migration evidence (dated):
 
 - The project uses SQLAlchemy/Alembic-style migration concepts.
 - Production target is PostgreSQL/Supabase.
-- The hosted Supabase migration head is `20260712_000020`.
+- The hosted Supabase database was checked at Alembic revision
+  `20261007_000033` on 2026-10-07; revisions `20261007_000032` and
+  `20261007_000033` were applied after `20260930_000031`. This is a dated check,
+  not a guarantee of present state. See [`STATUS.md`](STATUS.md).
+- The two applied revisions changed database functions only; no account or
+  traffic rows were changed. Backup and point-in-time recovery readiness were
+  not verified during that operation.
+- Confirm the live target and current revision before every future hosted
+  migration or rollback. Do not infer hosted state from the repository head or
+  local Compose database.
 - Hosted rollback must not be performed casually. The migration chain includes auth, MFA, notification, and authorization boundaries whose data and function contracts must remain compatible.
 - Disposable PostgreSQL is the required target for downgrade and re-upgrade testing before any hosted rollback decision.
 - This runbook does not create migrations.

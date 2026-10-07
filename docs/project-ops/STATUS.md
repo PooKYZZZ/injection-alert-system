@@ -26,7 +26,8 @@
   recreated. Cloudflared was left running because its image and configuration
   were unchanged.
 - The local runtime was checked as `ENFORCEMENT_MODE=enforce` with a 10-second
-  block duration. Backend health, dashboard login, demo portal home, and public
+  block duration, overriding the repository/Compose defaults (`off` and 600
+  seconds). Backend health, dashboard login, demo portal home, and public
   homepage returned HTTP 200; the NGINX configuration passed `nginx -t`.
 - This did not test the public Cloudflare edge, a browser attack journey, or
   end-to-end enforcement. A successful health or homepage response is not
@@ -46,7 +47,9 @@ on them for an operational decision.
   row, durable effective WAF state, PostgreSQL lifecycle constraints, restricted
   recommendation ownership, and partial uniqueness for ACTIVE source/path
   owners. Disposable PostgreSQL upgrade, downgrade, re-upgrade, and one-head
-  checks passed; the current repository migration head is `20260803_000028`.
+  checks passed; the repository head at that implementation snapshot was
+  `20260803_000028` (the current repository head is recorded separately below
+  and in `docs/architecture.md`).
 
 ### Verified label review workflow
 
@@ -66,7 +69,7 @@ on them for an operational decision.
   endpoint are implemented and covered by focused tests.
 - Block 1 effective-state migration, repository, and authenticated snapshot
   endpoint are implemented.
-- Block 2 local WAF runtime is implemented in PR #97 at current head
+- Block 2 local WAF runtime was implemented in PR #97 at review head
   `d74d6b6` (documentation sync after implementation head `77aa821`).
 - The runtime uses the pinned CRS image, deterministic ModSecurity rules, safe
   startup, reload confirmation, candidate-specific probing, rollback,
@@ -81,7 +84,9 @@ on them for an operational decision.
   `docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
 - GitHub CI: backend, PostgreSQL, migrations, frontend, authentication E2E,
   secret scan, and PR7 WAF runtime passed.
-- Hosted, staging, and production enforcement remain disabled.
+- The PR7 evidence snapshot (2026-07-31) did not test hosted, staging, or
+  production enforcement. The 2026-10-07 check above was local-only and does
+  not establish present hosted state.
 - Real Cloudflare ingress/source equivalence, combined PR6/PR7 portal
   interaction, portal-owned no-upstream evidence, and any hosted rollout
   remain unverified or blocked.
@@ -256,8 +261,11 @@ production evidence boundary only. **Technical debt:** none newly classified.
   tests; the final controlled proof is recorded in
   `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`.
 - Shared-IP collateral blocking is tracked as `LIMIT-006`; HTTP 200 block
-  semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
-  remain open. `GAP-001` is complete for the approved local PR6 scope;
+  semantics are tracked as `LIMIT-007`. Hosted/production rollout was not
+  authorized or demonstrated in this PR6 review; the latest 2026-10-07
+  local-only check does not establish present hosted state. `BLOCK-001` and
+  `BLOCK-002` remain open in this historical review. `GAP-001` is complete for
+  the approved local PR6 scope;
   `GAP-002` is partially resolved for PR7 CRITICAL/WAF enforcement; the
   remaining trust-topology, portal, and PR6 integration evidence is listed in
   the gap register.
@@ -394,7 +402,10 @@ production evidence boundary only. **Technical debt:** none newly classified.
 - Frontend production build: **passed**.
 - Managed authentication browser project: **5/5 Chromium journeys passed** with disposable PostgreSQL/PostgREST setup and cleanup; the same project is a required CI job.
 
-### Latest local verification results
+### Historical local verification results
+
+These PR-level test records predate the latest operator snapshot at the top of
+this file; use them as historical evidence, not as current pass claims.
 
 - PR2 SSE slice: backend full suite **717 passed, 32 skipped** with local
   notification-worker overrides; frontend full Vitest **87 files / 498 tests
@@ -570,7 +581,8 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
 - CI may show four checks on branch updates because both `push` and `pull_request` workflows run for frontend and backend.
 - `requirements.train.txt` is laptop/training-only and should not be treated as required for CI/backend runtime verification.
-- Supabase is now part of the current runtime truth. Do not document it as merely planned.
+- Supabase is part of the app's runtime architecture; do not document it as
+  merely planned. Hosted database state is separately date-scoped above.
 - ModSecurity audit log policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`.
 - Current ModSecurity audit log path is JSONL at `logs/modsecurity/modsec_audit.jsonl`.
 - Bridge and selected backend boundary logs are structured JSON; legacy startup and unrelated application logs are not claimed to be converted repo-wide.
@@ -595,12 +607,14 @@ register or restate its entries.
 
 ## Source-of-Truth Docs
 
-- Historical implementation snapshot (2026-07-30): `docs/CONTEXT.md`
+- Project context and dated implementation notes (editorially reconciled
+  2026-10-08): `docs/CONTEXT.md`; historical claims remain date-scoped.
 - Architecture boundaries: `docs/architecture.md`
 - Local setup: `docs/SETUP.md`
 - Client requirements: `docs/client-requirements.md`
 - Historical system snapshots: `docs/archive/system-snapshots/`
 - Cumulative implementation gaps (last reviewed 2026-07-30): `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`
 - Latest bounded operator verification: this file's 2026-10-07 section; older sections remain date-scoped.
-- Operational/demo checklist: `docs/project-ops/LIVING_CHECKLIST.md`
+- Historical working checklist (last substantively reviewed 2026-07-30):
+  `docs/project-ops/LIVING_CHECKLIST.md`; revalidate before execution.
 - ModSecurity audit log policy: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`

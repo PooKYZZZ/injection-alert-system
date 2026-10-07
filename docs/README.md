@@ -24,8 +24,9 @@ using them to make deployment decisions.
 - [Implementation gap register](project-ops/IMPLEMENTATION_GAP_REGISTER.md) —
   cumulative gaps last reviewed on 2026-07-30. Reconcile it with current code
   before treating it as the active backlog.
-- [Project context](CONTEXT.md) — an implementation snapshot updated
-  2026-07-30; use it as historical context, not as a current status report.
+- [Project context](CONTEXT.md) — dated implementation and history notes,
+  editorially reconciled on 2026-10-08; use architecture and operator status
+  for current source and deployment evidence.
 - [Client requirements](client-requirements.md) — requirements stated by the
   client; this document is not proof that every requirement is implemented.
 
