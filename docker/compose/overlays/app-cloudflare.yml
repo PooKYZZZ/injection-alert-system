@@ -1,5 +1,5 @@
 # Adds the least-privilege Docker path for the dashboard's Cloudflare route.
-# Use this overlay with docker-compose.target-cloudflare.yml.
+# Use this overlay with docker/compose/overlays/target-cloudflare.yml.
 services:
   frontend:
     # The dashboard origin must not remain reachable through a host-published

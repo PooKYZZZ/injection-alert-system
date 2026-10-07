@@ -412,7 +412,7 @@ kept for compatibility; new exporter code must use `model_input_hash` and
 
 ## What Is Present But Not Yet The Primary Runtime Path
 
-- A local `docker-compose.yml`
+- A local `docker/compose/base.yml`
 - Backend and frontend Dockerfiles
 - A verified historical local Compose ModSecurity + OWASP CRS proof path through `localhost:8088`; the pair now requires the `technical-waf` profile
 - A demo-target WAF profile through `localhost:8089`; the profile is optional for normal developer startup, but required for the final realistic WAF demonstration. It builds `demo-portal` from a separate checkout of this repository's `stable/cybertrace-target` branch, runs it as an internal Compose service on port `3010`, and does not publish portal port `3010` to the host by default.

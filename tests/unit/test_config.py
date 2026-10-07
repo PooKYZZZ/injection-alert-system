@@ -9,6 +9,10 @@ VALID_API_KEY = "general-internal-key"
 VALID_WAF_KEY = "test-waf-key-" * 3
 
 
+def test_settings_use_the_ignored_local_environment_file():
+    assert Settings.model_config["env_file"] == ".local/env/.env"
+
+
 @pytest.fixture(autouse=True)
 def clear_settings_cache():
     reset_settings_cache()

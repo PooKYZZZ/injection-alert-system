@@ -106,11 +106,11 @@ services:
   source-test-bridge:
     build:
       context: .
-      dockerfile: Dockerfile.bridge
+      dockerfile: docker/images/waf-bridge.Dockerfile
     profiles:
       - source-correlation-test
     env_file:
-      - path: .env
+      - path: .local/env/.env
         required: true
     environment:
       WAF_INGEST_API_KEY: ${SOURCE_TEST_WAF_INGEST_API_KEY:?Set SOURCE_TEST_WAF_INGEST_API_KEY for the isolated topology}

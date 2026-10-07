@@ -113,7 +113,16 @@ def test_coordinator_requires_distinct_sources_and_passes_matrix(
 
 def test_stack_command_is_bounded_and_uses_unique_project_name() -> None:
     command = stack.compose_command("3c", "run-1", "start")
-    assert command[:4] == ["docker", "compose", "--project-name", "pr7-run-1"]
+    assert command[:4] == [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(stack.ROOT),
+    ]
+    assert command[command.index("--project-name") + 1] == "pr7-run-1"
+    assert command[command.index("--env-file") + 1] == str(
+        stack.ROOT / ".local" / "env" / ".env"
+    )
     assert "--wait" in command
     with pytest.raises(ValueError):
         stack.compose_command("3c", "bad/run", "start")

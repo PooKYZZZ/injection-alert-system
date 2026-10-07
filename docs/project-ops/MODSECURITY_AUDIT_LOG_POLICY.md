@@ -69,7 +69,7 @@ http://localhost:8089
 Backend proof lookup must use Docker-internal access:
 
 ```text id="ip8gcg"
-docker compose exec backend
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend
 ```
 
 Do not document `http://localhost:8000` as the normal Docker proof path unless the backend port is explicitly published.
@@ -366,9 +366,9 @@ The main `bridge` reads `logs/modsecurity/modsec_audit.jsonl`. The `demo-target-
 Examples:
 
 ```text id="bubij5"
-docker compose logs modsecurity
-docker compose logs bridge
-docker compose logs backend
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs modsecurity
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs backend
 ```
 
 Purpose:
@@ -553,7 +553,7 @@ exact generated marker.
 Run Docker-internal backend lookup:
 
 ```powershell id="bzzflm"
-docker compose exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 ---

@@ -14,11 +14,11 @@ Audit-log evidence handling, sensitive-data rules, local retention, and the rota
   correlation are verified, but hosted identity authorization remains gated;
   keep `WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare and
   direct-origin checks pass.
-- Root `docker-compose.yml` keeps the technical `8088` WAF/bridge pair behind the opt-in `technical-waf` profile.
-- `docker-compose.demo-target.yml` contains the realistic `8089` target pair.
-- `docker-compose.hosted-target.yml` replaces the `8089` binding with one loopback-only binding and requires an observed narrow `HOSTED_WAF_TRUSTED_PEER`; it does not guess that peer.
-- `scripts/start_hosted_target.ps1` loads that value from the ignored root `.env`, rejects broad or missing peers, and refuses hosted verification modes other than `unverified` before starting the overlay.
-- `docker-compose.source-correlation-test.yml` is an isolated, no-host-port topology for controlled source-correlation proof.
+- Root `docker/compose/base.yml` keeps the technical `8088` WAF/bridge pair behind the opt-in `technical-waf` profile.
+- `docker/compose/overlays/demo-target.yml` contains the realistic `8089` target pair.
+- `docker/compose/overlays/hosted-target.yml` replaces the `8089` binding with one loopback-only binding and requires an observed narrow `HOSTED_WAF_TRUSTED_PEER`; it does not guess that peer.
+- `scripts/start_hosted_target.ps1` loads that value from the ignored `.local/env/.env`, rejects broad or missing peers, and refuses hosted verification modes other than `unverified` before starting the overlay.
+- `docker/compose/tests/source-correlation-test.yml` is an isolated, no-host-port topology for controlled source-correlation proof.
 - `source-correlation-proxy.conf` is used only by that controlled topology. It represents the one trusted proxy and overwrites `CF-Connecting-IP` with its direct client's address.
 - `source-correlation-proxy-backend.conf.template` removes the official image's
   location-level real-IP directives from the proxy include.
@@ -106,7 +106,7 @@ production readiness.
 Target role: first detection layer in the CRS-first hybrid enforcement hierarchy.
 
 Current repo state:
-- Root `docker-compose.yml` includes a ModSecurity CRS container that proxies to the backend.
+- Root `docker/compose/base.yml` includes a ModSecurity CRS container that proxies to the backend.
 - The verified WAF proof path is `localhost:8088 -> ModSecurity/OWASP CRS -> backend`.
 - The optional demo-target proof path is `localhost:8089 -> ModSecurity/OWASP CRS -> demo-portal:3010`.
 - The dashboard browser path remains `Browser -> Next.js -> FastAPI`; this proof is not a production-grade WAF deployment claim.
@@ -151,7 +151,7 @@ Verified proof result:
 - Docker-internal lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, `crs_score=5`, and CRS rules `942100`, `949110`.
 
 Optional demo-target proof:
-- Compose override: `docker-compose.demo-target.yml`
+- Compose override: `docker/compose/overlays/demo-target.yml`
 - WAF path: `localhost:8089`
 - Upstream: `host.docker.internal:3010`
 - Nginx image: pinned `owasp/modsecurity-crs@sha256:0385a81159d5112c113eeeed01c3f6cf05113891b02addc23abeab180934911e`; the demo target mounts the narrow proxy-backend template and only the hosted override adds the observed real-IP template

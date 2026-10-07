@@ -54,7 +54,7 @@ The same lifecycle asserted:
 - The controlled bridge skips opt-in Block 2 controller probes. Those probes
   traverse the WAF for activation safety, but forwarding their shared audit
   records would recursively create recommendations. The filter is enabled
-  only by `docker-compose.pr7-block3.yml`.
+  only by `docker/compose/scenarios/pr7-block3.yml`.
 - The bridge follows with `--from-start`; transaction-idempotent ingest permits
   safe replay after a restart instead of silently dropping lines written while
   the bridge was unavailable.

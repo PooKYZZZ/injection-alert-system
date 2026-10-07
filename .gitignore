@@ -98,6 +98,7 @@ playwright/.cache/
 local-screenshots/
 /output/
 tmp/
+/.local/
 
 # Local artifacts and external archive workspace
 artifacts/
@@ -105,9 +106,6 @@ stitch_waf_ml_soc_dashboard_overview/
 archive/
 !docs/archive/
 !docs/archive/**
-
-# Local planning tracker
-/PD2_PRIORITY_TRACKER.md
 
 # Local-only implementation and defense checklist
 /docs/ML_DEPLOYMENT_TRAINING_TESTING_DEFENSE_CHECKLIST.md
@@ -256,7 +254,6 @@ output/playwright/dashboard-dark.png
 docs.zip
 *.rar
 .tmp/pytest/
-cybertrace_waf_serious_probe.py
 .codex/config.toml
 .codex/agents/terra-worker.toml
 .codex/TASK_HANDOFF.md

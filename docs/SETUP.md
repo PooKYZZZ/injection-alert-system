@@ -58,9 +58,17 @@ If PowerShell blocks activation, either adjust execution policy for the current 
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-### Create `.env`
+### Create the local environment file
 
-The backend currently reads settings from `.env`. For ordinary local development,
+Copy the committed template into the ignored local configuration folder:
+
+```powershell
+New-Item -ItemType Directory -Force .local/env | Out-Null
+Copy-Item .env.example .local/env/.env
+```
+
+The backend reads settings from `.local/env/.env` when started from the
+repository root. For ordinary local development,
 use a local or disposable PostgreSQL database (or SQLite where supported); do
 not point `DATABASE_URL` at hosted Supabase. Hosted Supabase is for explicitly
 authorized operator work documented in the runbooks. A minimal local development file looks like this:
@@ -113,8 +121,8 @@ Generate the two bearer keys independently; never copy one into the other:
 .venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Run that command twice and place each result only in `.env`. In production and
-staging both keys are required, `WAF_INGEST_API_KEY` must be at least 32
+Run that command twice and place each result only in `.local/env/.env`. In
+production and staging both keys are required, `WAF_INGEST_API_KEY` must be at least 32
 characters, and it must differ from `API_SECRET_KEY`. The bridge uses the WAF
 key only for `POST /api/internal/waf-events`; BFF calls and WAF transaction
 lookup continue to use `API_SECRET_KEY`. If either key is exposed, replace it
@@ -613,26 +621,26 @@ The following are not yet available as runnable repo-level setup paths:
 
 ### Required files
 
-- Root `.env`
+- `.local/env/.env`
 - `frontend/.env.local`
 
-Those files are mounted into the containers via `docker-compose.yml`.
+Those files are mounted into the containers via `docker/compose/base.yml`.
 
 ### Start the stack
 
 Use the local overlay for ordinary Docker development. It provides a private
 PostgreSQL container and overrides any `DATABASE_URL` present in the ignored
-root `.env`:
+`.local/env/.env`:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
-docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml --profile technical-waf up --build -d
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml ps
 ```
 
 The base backend startup checks the database target before running Alembic and
 refuses remote hosts. Hosted Supabase migrations are separate, explicit
 operator work and are never part of the normal local Compose command.
-Set `LOCAL_POSTGRES_PASSWORD` in the ignored root `.env` before using this
+Set `LOCAL_POSTGRES_PASSWORD` in `.local/env/.env` before using this
 overlay. Compose fails closed when it is empty; the tracked Compose files do
 not contain a reusable database password.
 
@@ -660,7 +668,7 @@ This means:
 
 - Browser path today: `Browser -> frontend -> backend`
 - WAF proof path today: `localhost:8088 -> modsecurity -> backend`
-- Backend transaction lookup proof: `docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend ...`
+- Backend transaction lookup proof: `docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend ...`
 
 Do not use `localhost:8000` for Docker proof unless backend port 8000 is explicitly published.
 
@@ -668,16 +676,16 @@ Do not use `localhost:8000` for Docker proof unless backend port 8000 is explici
 
 The local overlay above is intentionally for isolated development: it replaces
 `DATABASE_URL` with the private `postgres` service. To run the hosted-style
-application against the Supabase URL already stored in the ignored root
-`.env`, do not include `docker-compose.local.yml`. Use the reviewed hosted
+application against the Supabase URL already stored in `.local/env/.env`, do not
+include `docker/compose/overlays/local.yml`. Use the reviewed hosted
 Cloudflare overlays instead:
 
 ```powershell
-docker compose --env-file .env -p injection-alert-system `
-  -f docker-compose.yml `
-  -f docker-compose.demo-target.yml `
-  -f docker-compose.target-cloudflare.yml `
-  -f docker-compose.app-cloudflare.yml `
+docker compose --project-directory . --env-file .local/env/.env -p injection-alert-system `
+  -f docker/compose/base.yml `
+  -f docker/compose/overlays/demo-target.yml `
+  -f docker/compose/overlays/target-cloudflare.yml `
+  -f docker/compose/overlays/app-cloudflare.yml `
   --profile demo-target --profile target-cloudflare up -d --no-build backend frontend cloudflared
 ```
 
@@ -738,14 +746,14 @@ inside the production portal container.
 Then start this repo with the demo-target profile:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml -f docker-compose.demo-target.collection.yml --profile demo-target up -d --build
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/demo-target.collection.yml --profile demo-target up -d --build
 ```
 
 The collection overlay changes only the local ModSecurity audit engine from
 `RelevantOnly` to `On`, so benign requests are persisted for thesis data
 collection. The base and hosted Compose paths remain `RelevantOnly` by default.
 
-By default, the profile builds the protected demo website from `../injection-alert-system-portal-pre-waf`, the sibling checkout of the `stable/cybertrace-target` branch. The checkout directory keeps its existing name for compatibility. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` in the ignored root `.env` or in the PowerShell session before running Compose.
+By default, the profile builds the protected demo website from `../injection-alert-system-portal-pre-waf`, the sibling checkout of the `stable/cybertrace-target` branch. The checkout directory keeps its existing name for compatibility. If your portal checkout is elsewhere, set `DEMO_PORTAL_CONTEXT` in `.local/env/.env` or in the PowerShell session before running Compose.
 
 Expected path:
 
@@ -765,7 +773,7 @@ The portal source stays separate from this repository checkout. This repo's Comp
 Latest verified local proof: `/records/search` SQLi marker `SMOKE002945` returned HTTP 403 through `localhost:8089`; `demo-target-bridge` posted transaction `178249138618.813428`; backend lookup returned `found=true`, `prediction=SQL Injection`, `action_taken=BLOCKED`, and `crs_score=15`.
 
 For hosted rendering, first observe the actual narrow tunnel peer or subnet;
-do not guess it. Store the observed value in the ignored root `.env`, not only
+do not guess it. Store the observed value in `.local/env/.env`, not only
 in a temporary PowerShell session:
 
 ```dotenv
@@ -795,8 +803,8 @@ proved. Current hosted identity verification status is Partial; mode remains
 The backend image does not include `curl`, so use Python from inside the container:
 
 ```powershell
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 ```
 
 ### Verified WAF proof flow
@@ -822,7 +830,7 @@ Backend transaction lookup is Docker-internal:
 ```powershell
 $txid = "<paste transaction.unique_id>"
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 Verified result for transaction `17821639659.909603`: `found=true`, `prediction=SQL Injection`, `confidence_level=HIGH`, `action_taken=BLOCKED`, `source_ip=172.21.0.1`, `request_path=/api/health`, URL-encoded `query_string`, `crs_score=5`, and rules `942100`, `949110`.
@@ -856,7 +864,7 @@ Expected result: the application domain is publicly reachable and the target
 domain is challenged by Cloudflare Access for identities without access. The
 frontend runtime flags are injected at container start, not at image build
 time. After changing them, run
-`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --force-recreate frontend`
+`docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml up -d --force-recreate frontend`
 and verify the value inside the recreated container.
 
 ### Demo data
@@ -868,7 +876,7 @@ stale seeder commands.
 ### Stop the stack
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml down
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml down
 ```
 
 ## 6. Troubleshooting

@@ -14,7 +14,7 @@ def safe_migrate_module():
 @pytest.mark.parametrize(
     "database_url",
     [
-        "sqlite+aiosqlite:///./injection_alerts.db",
+        "sqlite+aiosqlite:///./runtime/injection_alerts.db",
         "postgresql+asyncpg://cybertrace:local@postgres:5432/cybertrace",
         "postgresql+asyncpg://cybertrace:local@127.0.0.1:5432/cybertrace",
         "postgresql+asyncpg://cybertrace:local@[::1]:5432/cybertrace",

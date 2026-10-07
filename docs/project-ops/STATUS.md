@@ -281,7 +281,7 @@ production evidence boundary only. **Technical debt:** none newly classified.
   loopback `8089`. The controlled topology has separate trusted/untrusted
   networks, one `/32` trusted proxy, no host ports, and an isolated SQLite DB.
 - Hosted startup now has one explicit persistent path:
-  `scripts/start_hosted_target.ps1` reads the ignored root `.env`, validates the
+  `scripts/start_hosted_target.ps1` reads the ignored `.local/env/.env`, validates the
   observed narrow `HOSTED_WAF_TRUSTED_PEER`, requires
   `WAF_SOURCE_VERIFICATION_MODE=unverified`, and then renders the hosted
   overlay. Missing or broad trust values fail before Compose starts.

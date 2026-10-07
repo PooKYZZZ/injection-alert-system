@@ -70,8 +70,8 @@ Status note:
   confirm no Worker rewrites `CF-Connecting-IP`, prove direct-origin isolation,
   and independently confirm the immediate tunnel-side peer before enabling
   `cloudflare_tunnel`; current mode remains `unverified`.
-- Hosted recreate configuration is now persistent through the ignored root
-  `.env` and `scripts/start_hosted_target.ps1`; the launcher refuses missing or
+- Hosted recreate configuration is now persistent through the ignored
+  `.local/env/.env` and `scripts/start_hosted_target.ps1`; the launcher refuses missing or
   broad peers and any mode other than `unverified`.
 - ModSecurity audit-log handling policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 - Client requirements are tracked in `docs/client-requirements.md`

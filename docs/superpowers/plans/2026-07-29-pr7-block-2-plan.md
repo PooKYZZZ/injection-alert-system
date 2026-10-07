@@ -65,8 +65,8 @@
 ### Task 6: PID-1 supervisor and pinned local image
 
 **Files:**
-- Create: `waf_runtime/supervisor.py`, `waf_runtime/entrypoint.py`, `Dockerfile.pr7-waf`, `config/modsecurity/pr7-dynamic-include.conf.template`
-- Modify: `docker-compose.yml`
+- Create: `waf_runtime/supervisor.py`, `waf_runtime/entrypoint.py`, `docker/images/pr7-waf.Dockerfile`, `config/modsecurity/pr7-dynamic-include.conf.template`
+- Modify: `docker/compose/base.yml`
 - Test: `tests/waf_runtime/test_supervisor.py`, `tests/scripts/test_pr7_compose.py`
 
 - [ ] Write failing process tests for bootstrap preservation, child death, SIGQUIT/SIGTERM/SIGINT, reaping, and bounded shutdown.

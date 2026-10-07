@@ -12,7 +12,7 @@ Environment: isolated local Docker Compose, shadow enforcement, fresh container-
 - CRS-blocked requests continue through the independent ModSecurity audit bridge. They do not reach the portal route handler. The test report distinguishes a ModSecurity 403 from the ML recommendation and the response observed by the client.
 - NGINX forwards a generated edge request ID to the portal and returns it in a response header. The portal uses that ID only when it matches the strict 32-hex proxy format; otherwise it generates a UUID. The backend lookup response includes `model_version` for correlation.
 - The Cloudflare target overlay gives the portal access to the backend only over an internal Compose network and configures the internal ingest keys and source-trust mode. The backend remains unpublished to the host in that overlay.
-- `docker-compose.m08-multi-route-test.yml` and `scripts/multi_route_waf_e2e_tester.py` provide a local-only, route-aware matrix. The runner limits request rate, rejects non-local origins, records unique IDs and outcomes, never follows attack redirects, and does not write submitted values into its JSON/CSV report.
+- `docker/compose/scenarios/m08-multi-route.yml` and `scripts/multi_route_waf_e2e_tester.py` provide a local-only, route-aware matrix. The runner limits request rate, rejects non-local origins, records unique IDs and outcomes, never follows attack redirects, and does not write submitted values into its JSON/CSV report.
 
 These choices follow OWASP guidance to keep security logs purpose-limited and avoid collecting secrets, use server-side validation and narrowly scoped inputs, and treat resource consumption as a control concern. ModSecurity CRS remains an independent ingress control; FastAPI/Next.js route handlers retain their own boundaries. References: [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html), [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html), [OWASP API4:2023](https://api-security.owasp.org/editions/2023/en/0xa4-unrestricted-resource-consumption/), [OWASP CRS documentation](https://coreruleset.org/docs/index.print), [ModSecurity v3 reference manual](https://github.com/owasp-modsecurity/ModSecurity/wiki/Reference-Manual-%28v3.x%29), [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers), and [FastAPI Background Tasks](https://fastapi.tiangolo.com/tutorial/background-tasks/). The implementation reuses the current proxy, bridge, FastAPI ingestion and alert paths; it does not add a queue or another service.
 
@@ -46,10 +46,16 @@ Supplemental browser evidence used a separate local browser against the same iso
 
 Provide the demo portal checkout, a new temporary portal database file, temporary audit/results directories, and the required internal keys through ignored local environment configuration. Start only the isolated Compose project:
 
+Set `CYBERTRACE_M08_AUDIT_DIR`, `CYBERTRACE_M08_RESULTS_DIR`, and
+`CYBERTRACE_M08_PORTAL_DB_FILE` to dedicated paths under `./tmp/` (for example,
+`./tmp/m08-audit`, `./tmp/m08-results`, and `./tmp/m08-portal.sqlite`). The `./`
+prefix is important: Compose treats these as bind-mount paths relative to the
+repository root.
+
 ```powershell
-docker compose --env-file .env -p cybertrace-m08-e2e-clean -f docker-compose.m08-multi-route-test.yml up -d --build
-docker compose -p cybertrace-m08-e2e-clean -f docker-compose.m08-multi-route-test.yml exec backend python /app/scripts/multi_route_waf_e2e_tester.py --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --max-rps 1 --output-dir /app/m08-e2e-results
-docker compose -p cybertrace-m08-e2e-clean -f docker-compose.m08-multi-route-test.yml down
+docker compose --project-directory . --env-file .local/env/.env -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml up -d --build
+docker compose --project-directory . -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml exec backend python /app/scripts/multi_route_waf_e2e_tester.py --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --max-rps 1 --output-dir /app/m08-e2e-results
+docker compose --project-directory . -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml down
 ```
 
 Use a fresh project name and temporary database/log/result paths for each run. Do not add `--volumes` when stopping the stack if the report or evidence is still needed. The runner is bounded to 2 requests/second maximum and checks that its origin and backend are local test endpoints.

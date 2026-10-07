@@ -67,6 +67,27 @@ def test_pinned_compose_check_accepts_all_overlay_inputs(tmp_path: Path) -> None
     require_pinned_compose_images((compose_a, compose_b), lock_path)
 
 
+def test_pinned_compose_check_reads_dockerfiles_from_repository_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from tests.e2e import pr7_block3_artifacts
+
+    lock_path = tmp_path / "lock.json"
+    lock_path.write_text(
+        json.dumps({"schema_version": 2, "containers": {"backend": "python@sha256:test"}}),
+        encoding="utf-8",
+    )
+    compose_path = tmp_path / "docker" / "compose" / "base.yml"
+    compose_path.parent.mkdir(parents=True)
+    compose_path.write_text("services: {}\n", encoding="utf-8")
+    dockerfile = tmp_path / "docker" / "images" / "backend.Dockerfile"
+    dockerfile.parent.mkdir(parents=True)
+    dockerfile.write_text("FROM python@sha256:test\n", encoding="utf-8")
+    monkeypatch.setattr(pr7_block3_artifacts, "ROOT", tmp_path)
+
+    require_pinned_compose_images(compose_path, lock_path)
+
+
 def test_real_model_health_rejects_degraded_or_mock_payloads() -> None:
     with pytest.raises(AssertionError, match="healthy"):
         require_real_model_health({"status": "degraded"}, "locked")

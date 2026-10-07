@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Prepare non-secret Compose environment
-        run: cp .env.example .env
+        run: mkdir -p .local/env && cp .env.example .local/env/.env
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
@@ -182,7 +182,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build pinned PR7 WAF image
-        run: docker build -f Dockerfile.pr7-waf -t cybertrace-pr7-waf-ci .
+        run: docker build -f docker/images/pr7-waf.Dockerfile -t cybertrace-pr7-waf-ci .
       - name: Start with unavailable backend
         run: |
           docker run -d --name cybertrace-pr7-waf-ci \
@@ -261,25 +261,26 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Prepare non-secret local container configuration
         run: |
-          cp .env.example .env
+          mkdir -p .local/env
+          cp .env.example .local/env/.env
           cp frontend/.env.example frontend/.env.local
           sed -i 's/^AUTH_SECRET=.*/AUTH_SECRET=ci-container-only-placeholder/' frontend/.env.local
       - name: Validate Compose models
         run: |
-          docker compose config --quiet
-          docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+          docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml config --quiet
+          docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml config --quiet
       - name: Build and start the local application stack
         run: >-
-          docker compose -f docker-compose.yml -f docker-compose.local.yml
+          docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml
           up -d --build --wait --wait-timeout 240 postgres backend frontend
       - name: Verify non-root users and application readiness
         run: |
-          test "$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T backend id -u)" != "0"
-          test "$(docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T frontend id -u)" != "0"
-          docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T backend python -c "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200"
+          test "$(docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -T backend id -u)" != "0"
+          test "$(docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -T frontend id -u)" != "0"
+          docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -T backend python -c "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200"
           curl --fail --silent --show-error http://127.0.0.1:3000/login > /dev/null
       - name: Remove disposable local application stack
         if: always()
         run: >-
-          docker compose -f docker-compose.yml -f docker-compose.local.yml
+          docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml
           down --volumes --remove-orphans

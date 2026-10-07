@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$envPath = Join-Path $repoRoot ".env"
+$envPath = Join-Path $repoRoot ".local/env/.env"
 
 function Get-DotEnvValue {
     param([string]$Name)
@@ -57,7 +57,7 @@ $configuredTokenFile = if ([string]::IsNullOrWhiteSpace($CloudflaredTokenFile)) 
 }
 
 if ([string]::IsNullOrWhiteSpace($configuredTokenFile)) {
-    throw "CLOUDFLARED_TARGET_TOKEN_FILE is not configured in .env and no token path was supplied."
+    throw "CLOUDFLARED_TARGET_TOKEN_FILE is not configured in .local/env/.env and no token path was supplied."
 }
 
 if (-not [IO.Path]::IsPathRooted($configuredTokenFile)) {
@@ -68,7 +68,8 @@ if (-not (Test-Path -LiteralPath $configuredTokenFile -PathType Leaf)) {
     throw "Cloudflare token file configured for Docker Compose was not found."
 }
 
-# These are non-secret Compose inputs. Secret values remain in the ignored .env
+# These are non-secret Compose inputs. Secret values remain in the ignored
+# .local/env/.env
 # and in the token file outside the repository.
 $env:DEMO_PORTAL_CONTEXT = $PortalContext
 $env:CLOUDFLARED_TARGET_TOKEN_FILE = $configuredTokenFile
@@ -92,16 +93,17 @@ Push-Location $repoRoot
 try {
     $composeArgs = @(
         "compose",
+        "--project-directory", $repoRoot,
         "--env-file", $envPath,
         "-p", "injection-alert-system",
-        "-f", "docker-compose.yml",
-        "-f", "docker-compose.demo-target.yml",
-        "-f", "docker-compose.target-cloudflare.yml",
-        "-f", "docker-compose.app-cloudflare.yml"
+        "-f", "docker/compose/base.yml",
+        "-f", "docker/compose/overlays/demo-target.yml",
+        "-f", "docker/compose/overlays/target-cloudflare.yml",
+        "-f", "docker/compose/overlays/app-cloudflare.yml"
     )
 
     if ($Collection) {
-        $composeArgs += @("-f", "docker-compose.demo-target.collection.yml")
+        $composeArgs += @("-f", "docker/compose/overlays/demo-target.collection.yml")
     }
 
     $composeArgs += @(

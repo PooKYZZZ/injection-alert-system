@@ -1,12 +1,13 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+for %%I in ("%~dp0..\..") do set "REPO_ROOT=%%~fI"
+cd /d "%REPO_ROOT%"
 
 echo Starting the complete Cloudflare target stack...
 echo This builds and starts the backend, frontend, demo portal, target WAF, bridge, and cloudflared.
 echo.
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start_full_cloudflare_target.ps1" %*
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%REPO_ROOT%\scripts\start_full_cloudflare_target.ps1" %*
 set "exitCode=%ERRORLEVEL%"
 
 echo.

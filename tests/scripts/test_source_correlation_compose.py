@@ -7,12 +7,12 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
-BASE_TEST_OVERRIDE = "docker-compose.test.yml"
-DEMO_TEST_OVERRIDE = "docker-compose.demo-target.test.yml"
-SOURCE_TEST_OVERRIDE = "docker-compose.source-correlation-test.override.yml"
+BASE_TEST_OVERRIDE = "docker/compose/tests/base.yml"
+DEMO_TEST_OVERRIDE = "docker/compose/tests/demo-target.yml"
+SOURCE_TEST_OVERRIDE = "docker/compose/tests/source-correlation-test.override.yml"
 HOSTED_LAUNCHER = ROOT / "scripts" / "start_hosted_target.ps1"
-TARGET_CLOUDFLARE_OVERLAY = "docker-compose.target-cloudflare.yml"
-APP_CLOUDFLARE_OVERLAY = "docker-compose.app-cloudflare.yml"
+TARGET_CLOUDFLARE_OVERLAY = "docker/compose/overlays/target-cloudflare.yml"
+APP_CLOUDFLARE_OVERLAY = "docker/compose/overlays/app-cloudflare.yml"
 PROXY_BACKEND_TEMPLATE = ROOT / "config" / "modsecurity" / "source-correlation-proxy-backend.conf.template"
 
 
@@ -63,11 +63,11 @@ def _compose_config_result(
     source_provenance_mode: str | None = None,
     token_file: str = "C:/Users/REDACTED/CyberTrace-Secrets/cloudflared-target.token",
 ) -> subprocess.CompletedProcess[str]:
-    command = ["docker", "compose"]
+    command = ["docker", "compose", "--project-directory", str(ROOT)]
     rendered_files = [*files, BASE_TEST_OVERRIDE]
-    if "docker-compose.demo-target.yml" in files:
+    if "docker/compose/overlays/demo-target.yml" in files:
         rendered_files.append(DEMO_TEST_OVERRIDE)
-    if "docker-compose.source-correlation-test.yml" in files:
+    if "docker/compose/tests/source-correlation-test.yml" in files:
         rendered_files.append(SOURCE_TEST_OVERRIDE)
     for file in rendered_files:
         command.extend(["-f", file])
@@ -108,10 +108,10 @@ def _compose_config_result(
 
 def test_search_records_local_test_overlay_does_not_inherit_cloudflare_trust() -> None:
     result = _compose_config_result(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
         TARGET_CLOUDFLARE_OVERLAY,
-        "docker-compose.search-records-test.yml",
+        "docker/compose/tests/search-records.yml",
         profile=["demo-target", "target-cloudflare"],
         source_provenance_mode="cloudflare_connecting_ip",
     )
@@ -124,7 +124,7 @@ def test_search_records_local_test_overlay_does_not_inherit_cloudflare_trust() -
 
 
 def _base_config_without_profile() -> dict:
-    return _compose_config("docker-compose.yml")
+    return _compose_config("docker/compose/base.yml")
 
 
 def test_default_compose_excludes_opt_in_technical_waf_pair() -> None:
@@ -142,7 +142,7 @@ def test_default_compose_excludes_opt_in_technical_waf_pair() -> None:
 
 def test_demo_portal_receives_internal_shadow_check_wiring() -> None:
     config = _compose_config(
-        "docker-compose.yml", "docker-compose.demo-target.yml", profile="demo-target"
+        "docker/compose/base.yml", "docker/compose/overlays/demo-target.yml", profile="demo-target"
     )
     portal = config["services"]["demo-portal"]
     assert portal["environment"]["ENFORCEMENT_CHECK_URL"] == (
@@ -163,12 +163,12 @@ def test_demo_portal_receives_internal_shadow_check_wiring() -> None:
 
 def test_local_collection_overlay_captures_benign_events_without_changing_default():
     default_config = _compose_config(
-        "docker-compose.yml", "docker-compose.demo-target.yml", profile="demo-target"
+        "docker/compose/base.yml", "docker/compose/overlays/demo-target.yml", profile="demo-target"
     )
     collection_config = _compose_config(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.demo-target.collection.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/demo-target.collection.yml",
         profile="demo-target",
     )
 
@@ -192,7 +192,7 @@ def test_local_collection_overlay_captures_benign_events_without_changing_defaul
 
 
 def test_technical_profile_contains_the_existing_8088_pair() -> None:
-    config = _compose_config("docker-compose.yml", profile="technical-waf")
+    config = _compose_config("docker/compose/base.yml", profile="technical-waf")
 
     assert set(config["services"]) == {"backend", "frontend", "modsecurity", "bridge"}
     assert config["services"]["modsecurity"]["ports"] == [
@@ -215,9 +215,9 @@ def test_technical_profile_contains_the_existing_8088_pair() -> None:
 
 def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> None:
     config = _compose_config(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.hosted-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/hosted-target.yml",
         profile="demo-target",
     )
 
@@ -286,9 +286,9 @@ def test_hosted_demo_profile_excludes_technical_pair_and_is_loopback_only() -> N
 
 def test_hosted_compose_fails_clearly_without_trusted_peer() -> None:
     result = _compose_config_result(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.hosted-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/hosted-target.yml",
         profile="demo-target",
         hosted_peer=None,
     )
@@ -352,8 +352,8 @@ def test_target_cloudflare_overlay_isolated_and_secret_safe(tmp_path: Path) -> N
     token_path = tmp_path / "cloudflared-target.token"
     token_path.write_text("token-must-not-render\n", encoding="utf-8")
     result = _compose_config_result(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
         TARGET_CLOUDFLARE_OVERLAY,
         profile=["demo-target", "target-cloudflare"],
         token_file=str(token_path),
@@ -410,8 +410,8 @@ def test_app_cloudflare_overlay_adds_least_privilege_frontend_network(
     token_path = tmp_path / "cloudflared-target.token"
     token_path.write_text("token-must-not-render\n", encoding="utf-8")
     result = _compose_config_result(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
         TARGET_CLOUDFLARE_OVERLAY,
         APP_CLOUDFLARE_OVERLAY,
         profile=["demo-target", "target-cloudflare"],
@@ -480,8 +480,8 @@ def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
 
 def test_demo_proxy_mounts_cloudflare_peer_verification_map_read_only() -> None:
     config = _compose_config(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
         profile="demo-target",
     )
     mounts = config["services"]["demo-target-modsecurity"]["volumes"]
@@ -501,6 +501,32 @@ def test_demo_proxy_mounts_cloudflare_peer_verification_map_read_only() -> None:
         == "/etc/nginx/templates/conf.d/00-target-cloudflare-realip.conf.template"
         and mount.get("read_only") is True
         for mount in mounts
+    )
+
+
+def test_cloudflare_target_loads_real_ip_template_only_once() -> None:
+    config = _compose_config(
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        TARGET_CLOUDFLARE_OVERLAY,
+        profile=["demo-target", "target-cloudflare"],
+    )
+    mounts = config["services"]["demo-target-modsecurity"]["volumes"]
+    expected_source = str(
+        (
+            ROOT
+            / "config"
+            / "modsecurity"
+            / "target-cloudflare-realip.conf.template"
+        ).resolve()
+    )
+    matching_mounts = [
+        mount for mount in mounts if mount.get("source") == expected_source
+    ]
+
+    assert len(matching_mounts) == 1
+    assert matching_mounts[0]["target"] == (
+        "/etc/nginx/templates/conf.d/00-target-cloudflare-realip.conf.template"
     )
 
 
@@ -551,7 +577,7 @@ def test_synchronously_inspected_get_routes_are_not_ingested_twice() -> None:
     )
     assert route_pattern.fullmatch("true|GET|/appointments|200|")
 
-    compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
+    compose = (ROOT / "docker/compose/overlays/demo-target.yml").read_text(encoding="utf-8")
     assert (
         "/etc/nginx/templates/conf.d/00-normal-access-logging.conf.template"
         in compose
@@ -579,8 +605,8 @@ def test_cloudflare_target_launcher_defaults_to_shadow_and_guards_enforce_mode()
 
 def test_controlled_topology_has_narrow_trust_and_no_host_browser_path() -> None:
     config = _compose_config(
-        "docker-compose.yml",
-        "docker-compose.source-correlation-test.yml",
+        "docker/compose/base.yml",
+        "docker/compose/tests/source-correlation-test.yml",
         profile="source-correlation-test",
     )
 

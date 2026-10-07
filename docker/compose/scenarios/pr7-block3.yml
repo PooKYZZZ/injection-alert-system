@@ -65,7 +65,7 @@ services:
   pr7-block3-waf:
     build:
       context: .
-      dockerfile: Dockerfile.pr7-waf
+      dockerfile: docker/images/pr7-waf.Dockerfile
     profiles:
       - pr7-block3
     ports:
@@ -106,7 +106,7 @@ services:
   pr7-block3-bridge:
     build:
       context: .
-      dockerfile: Dockerfile.bridge
+      dockerfile: docker/images/waf-bridge.Dockerfile
     profiles:
       - pr7-block3
     environment:

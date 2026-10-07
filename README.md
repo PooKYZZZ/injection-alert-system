@@ -165,7 +165,13 @@ py -3.14 -m venv .venv
 .venv\Scripts\python.exe -m uvicorn web_app.presentation.app:create_app --reload
 ```
 
-Before starting the backend, create a root `.env` file using the current variable guidance in [docs/SETUP.md](docs/SETUP.md).
+Before starting the backend, copy `.env.example` to `.local/env/.env` and use
+the current variable guidance in [docs/SETUP.md](docs/SETUP.md):
+
+```powershell
+New-Item -ItemType Directory -Force .local/env | Out-Null
+Copy-Item .env.example .local/env/.env
+```
 
 ### Frontend
 
@@ -196,20 +202,20 @@ Before starting the frontend, create `frontend/.env.local` using the current var
 The repo also supports a local Docker smoke path:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml up --build -d
-docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml up --build -d
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml ps
 ```
 
 The local overlay supplies an isolated PostgreSQL service and takes precedence
-over any `DATABASE_URL` in the ignored root `.env`. Start the historical
+over any `DATABASE_URL` in the ignored `.local/env/.env`. Start the historical
 technical WAF proof pair explicitly with the same overlay:
 
-Set `LOCAL_POSTGRES_PASSWORD` in the ignored root `.env` first. The overlay
+Set `LOCAL_POSTGRES_PASSWORD` in `.local/env/.env` first. The overlay
 requires that value and does not store a reusable database password in the
 repository.
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml --profile technical-waf up --build -d
 ```
 
 Important constraints:

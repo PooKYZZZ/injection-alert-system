@@ -80,7 +80,7 @@ services:
   demo-target-bridge:
     build:
       context: .
-      dockerfile: Dockerfile.bridge
+      dockerfile: docker/images/waf-bridge.Dockerfile
     profiles:
       - demo-target
     environment:
