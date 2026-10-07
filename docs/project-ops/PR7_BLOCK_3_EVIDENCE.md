@@ -1,7 +1,10 @@
 # PR7 Block 3 Controlled-Local Evidence
 
-**Status:** Controlled-local attack-to-CRITICAL-WAF lifecycle passed; hosted,
-staging, production, and real Cloudflare ingress remain unverified.
+**Status:** The controlled-local attack-to-CRITICAL-WAF lifecycle passed. This
+run did not exercise hosted/staging/production runtime or the public Cloudflare
+edge. Separate limited home/mobile source-correlation evidence is recorded in
+`STATUS.md`; full Cloudflare trust/topology checks and any hosted rollout remain
+unverified.
 
 **Run date:** 2026-07-31
 **Repository:** `G:\AI\PDDDD\injection-alert-system`

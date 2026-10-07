@@ -6,10 +6,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CURRENT_DOCS = (
+    Path("README.md"),
     Path("docs/README.md"),
+    Path("docs/client-requirements.md"),
     Path("docs/CONTEXT.md"),
     Path("docs/SETUP.md"),
     Path("docs/architecture.md"),
+    Path("docker/compose/README.md"),
+    Path("ml_model/export/README.md"),
     Path("docs/project-ops/README.md"),
     Path("docs/project-ops/STATUS.md"),
     Path("docs/project-ops/LIVING_CHECKLIST.md"),
@@ -35,14 +39,14 @@ def test_current_documentation_has_one_canonical_route_per_operator_purpose() ->
         assert f"| {purpose} |" in index
 
 
-def test_training_promotion_docs_use_generated_loss_variant_directory() -> None:
+def test_model_export_guide_uses_generated_loss_variant_directory() -> None:
     expected_path = r"distilbert\loss_weighted_ce\seed_2026"
     stale_path = r"distilbert\weighted_ce\seed_2026"
 
-    for relative_path in (Path("docs/SETUP.md"), Path("ml_model/export/README.md")):
-        content = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
-        assert expected_path in content
-        assert stale_path not in content
+    export_guide = REPO_ROOT / "ml_model/export/README.md"
+    content = export_guide.read_text(encoding="utf-8")
+    assert expected_path in content
+    assert stale_path not in content
 
 
 def test_current_documentation_does_not_repeat_superseded_pr83_truth() -> None:

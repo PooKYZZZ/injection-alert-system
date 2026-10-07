@@ -62,7 +62,14 @@ The working tree contains unrelated existing edits. This research and plan are i
 | Password reset | Frontend/API/database code creates reset tokens with a 30-minute expiration; only a token digest is persisted. SQL token creation replaces earlier pending reset tokens. Consumption enforces pending/unexpired use and changes the password. The documented flow intentionally returns 404 for an ineligible/nonexistent account and 200 queued for eligible accounts. | Email provider delivery, outbox failure/retry state, active environment URL/domain configuration, request throttling across layers, and which link a user actually opened. Secret values were not inspected. |
 | Onboarding and design | CyberTrace has a custom tokenized Tailwind CSS v4 visual system, Radix dialogs, Motion, Recharts, Lucide, Help & Guide, and common loading/error/empty states. No first-run spotlight tour was found. Reduced-motion support exists for theme transitions and some authentication styling; motion should be audited component by component. | Full browser rendering, screen-reader behavior, touch testing, and cross-viewport quality were not verified. |
 
-Relevant implementation sources include docs/architecture.md, docs/CONTEXT.md, docs/SETUP.md, docs/project-ops/RETENTION_POLICY.md, docs/project-ops/BACKUP_RESTORE_RUNBOOK.md, web_app/infrastructure/database/database.py, web_app/infrastructure/repositories/traffic_log_repository.py, migrations/versions/20260322_000005_add_performance_indexes.py, migrations/versions/20260930_000031_cybertrace_evidence_history.py, frontend/lib/searchParams.ts, the Traffic History and Dashboard pages, frontend/lib/auth/roles.ts, frontend/lib/auth/route-guard.ts, frontend/auth.ts, and frontend/lib/server/db/password-recovery.ts.
+Relevant implementation sources include:
+
+- `docs/architecture.md`, `docs/SETUP.md`, `docs/project-ops/RETENTION_POLICY.md`, and `docs/project-ops/BACKUP_RESTORE_RUNBOOK.md`;
+- `web_app/infrastructure/database/database.py` and `web_app/infrastructure/repositories/traffic_log_repository.py`;
+- `migrations/versions/20260322_000005_add_performance_indexes.py` and `migrations/versions/20260930_000031_cybertrace_evidence_history.py`;
+- `frontend/lib/searchParams.ts`, the Traffic History and Dashboard pages, `frontend/lib/auth/roles.ts`, `frontend/lib/auth/route-guard.ts`, `frontend/auth.ts`, and `frontend/lib/server/db/password-recovery.ts`.
+
+`docs/CONTEXT.md` provides project orientation rather than implementation evidence.
 
 #### Important evidence boundaries
 

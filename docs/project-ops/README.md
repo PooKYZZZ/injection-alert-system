@@ -9,31 +9,35 @@ below before following older execution logs or broad policy background.
 |---|---|---|
 | Development setup | [`../SETUP.md`](../SETUP.md) | Supported local prerequisites, environment, startup, and developer commands. |
 | Tests | [`../SETUP.md`](../SETUP.md) | Canonical local commands and current validation routing. |
-| Migrations | [`MIGRATION_ROLLBACK_RUNBOOK.md`](MIGRATION_ROLLBACK_RUNBOOK.md) | Current V6.1 head, backup requirement, downgrade testing, and rollback. |
-| Feature enablement | [`../SETUP.md`](../SETUP.md) | Auth, worker, provider, runtime flags, and container recreation. |
-| Notifications | [`../architecture.md`](../architecture.md) | Outbox, protected payloads, worker, and Resend boundary. |
-| Recovery | [`../architecture.md`](../architecture.md) | Recovery assurance and password/MFA boundaries. |
+| Migrations | [`MIGRATION_ROLLBACK_RUNBOOK.md`](MIGRATION_ROLLBACK_RUNBOOK.md) | Backup requirement, downgrade testing, and rollback; the last checked revision is dated in STATUS. |
+| Feature enablement | [`STATUS.md`](STATUS.md) and [`SMOKE_TEST_RUNBOOK.md`](SMOKE_TEST_RUNBOOK.md) | Status lists dated evidence; the smoke runbook owns controlled-local procedures. |
+| Notifications | [`STATUS.md`](STATUS.md) | Dated provider/worker evidence and remaining validation; not a live delivery guarantee. |
+| Recovery | [`STATUS.md`](STATUS.md) | Dated account-recovery and MFA evidence; not a live service check. |
 | Break glass | [`MIGRATION_ROLLBACK_RUNBOOK.md`](MIGRATION_ROLLBACK_RUNBOOK.md) | Restricted-role and compatibility safeguards. |
-| Thesis demo | [`SMOKE_TEST_RUNBOOK.md`](SMOKE_TEST_RUNBOOK.md) | WAF proof commands and the verified Admin authentication journey. |
+| Thesis demo | [`SMOKE_TEST_RUNBOOK.md`](SMOKE_TEST_RUNBOOK.md) | Local WAF/demo procedures and clearly scoped operator checks; consult dated status before relying on prior evidence. |
 | Cumulative unresolved implementation work | [`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md) | Stable-ID register; distinguishes implementation, local/CI/manual, and hosted evidence. |
 
-[`STATUS.md`](STATUS.md) is the current operator snapshot;
-[`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md) owns
-cumulative unresolved implementation work; and
-[`LIVING_CHECKLIST.md`](LIVING_CHECKLIST.md) remains the operational execution
-checklist and handoff material.
+[`STATUS.md`](STATUS.md) starts with the latest dated operator snapshot
+(2026-10-07 in this checkout; it is not a live health feed);
+[`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md) preserves
+cumulative unresolved-work findings last reviewed on 2026-07-30 and must be
+reconciled with current source before planning work; and
+[`LIVING_CHECKLIST.md`](LIVING_CHECKLIST.md) is a historical working checklist
+last substantively reviewed on 2026-07-30; revalidate its items before using it
+for execution or handoff.
 
 ## Files
 
 - `STATUS.md`
-  - current implementation status and known repo gaps
+  - dated operator verification and earlier implementation/evidence records
 - `IMPLEMENTATION_GAP_REGISTER.md`
   - canonical cumulative stable-ID register for unresolved implementation work
 - `PR7_IMPLEMENTATION_SPEC.md`, `PR7_DESIGN_RATIONALE.md`, and
   `PR7_BLOCK_2_EVIDENCE.md`
   - current controlled-local CRITICAL/WAF contract, rationale, and evidence
 - `LIVING_CHECKLIST.md`
-  - operational execution checklist and handoff material
+  - historical working checklist last substantively reviewed on 2026-07-30;
+    revalidate items before execution or handoff
 - `DEMO_TARGET_WAF_PROOF.md`
   - verified local PD2 proof for the realistic `localhost:8089 -> demo-target-modsecurity -> demo-portal` WAF path and `demo-target-bridge` ingest
 - `SMOKE_TEST_RUNBOOK.md`
@@ -54,9 +58,10 @@ checklist and handoff material.
   operating instructions.
 - `MIGRATION_ROLLBACK_RUNBOOK.md`, `BACKUP_RESTORE_RUNBOOK.md`,
   `RETENTION_POLICY.md`, and `SUPABASE_RLS_HARDENING.md` remain general
-  policy/checklist background. Current V6.1 migration and runtime guidance is
-  in `../SETUP.md`, `../architecture.md`, `STATUS.md`, and
-  `SMOKE_TEST_RUNBOOK.md`.
+  policy/checklist background. Use `../SETUP.md` for local development,
+  `../architecture.md` for current implementation and configuration boundaries,
+  `STATUS.md` for dated runtime evidence, and the relevant runbook for an
+  operational procedure.
 - The superseded `IMPLEMENTATION_PLAN.md` was archived as
   `../archive/historical-plans/IMPLEMENTATION_PLAN_20260323.md`; use the
   current setup, architecture, status, and gap-register documents instead.

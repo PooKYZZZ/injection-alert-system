@@ -2,11 +2,43 @@
 
 **Scope:** operator-only session status
 **Defense:** May 2026
-**Last updated:** 2026-09-04
+**Last updated:** 2026-10-07
 
 ---
 
-## Current Verified Repo State
+## Latest operator verification (2026-10-07)
+
+### Hosted database migration
+
+- Before migration, the hosted database was verified at Alembic revision
+  `20260930_000031`. The approved migration advanced it through
+  `20261007_000032` and `20261007_000033`; the resulting head was checked.
+- The changes were limited to database functions: the last-enabled-Owner
+  concurrency guard and password-reset serialization. No account or traffic
+  rows were changed.
+- Post-migration function definitions and grants were checked. Supabase backup
+  and point-in-time recovery readiness were not verified during this operation.
+
+### Local Docker refresh
+
+- The application, portal, WAF bridge/ModSecurity, and public-site images were
+  rebuilt from their intended local source checkouts; affected containers were
+  recreated. Cloudflared was left running because its image and configuration
+  were unchanged.
+- The local runtime was checked as `ENFORCEMENT_MODE=enforce` with a 10-second
+  block duration, overriding the repository/Compose defaults (`off` and 600
+  seconds). Backend health, dashboard login, demo portal home, and public
+  homepage returned HTTP 200; the NGINX configuration passed `nginx -t`.
+- This did not test the public Cloudflare edge, a browser attack journey, or
+  end-to-end enforcement. A successful health or homepage response is not
+  evidence that an attack was blocked.
+
+## Earlier implementation and validation records
+
+The sections below preserve date-scoped implementation and test evidence from
+earlier work. They are not a live health feed or a complete statement of the
+current code; verify against the current source and rerun checks before relying
+on them for an operational decision.
 
 ### PR7 Block 1 and Block 2 controlled-local enforcement
 
@@ -15,7 +47,9 @@
   row, durable effective WAF state, PostgreSQL lifecycle constraints, restricted
   recommendation ownership, and partial uniqueness for ACTIVE source/path
   owners. Disposable PostgreSQL upgrade, downgrade, re-upgrade, and one-head
-  checks passed; the current repository migration head is `20260803_000028`.
+  checks passed; the repository head at that implementation snapshot was
+  `20260803_000028` (the current repository head is recorded separately below
+  and in `docs/architecture.md`).
 
 ### Verified label review workflow
 
@@ -35,7 +69,7 @@
   endpoint are implemented and covered by focused tests.
 - Block 1 effective-state migration, repository, and authenticated snapshot
   endpoint are implemented.
-- Block 2 local WAF runtime is implemented in PR #97 at current head
+- Block 2 local WAF runtime was implemented in PR #97 at review head
   `d74d6b6` (documentation sync after implementation head `77aa821`).
 - The runtime uses the pinned CRS image, deterministic ModSecurity rules, safe
   startup, reload confirmation, candidate-specific probing, rollback,
@@ -50,7 +84,9 @@
   `docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
 - GitHub CI: backend, PostgreSQL, migrations, frontend, authentication E2E,
   secret scan, and PR7 WAF runtime passed.
-- Hosted, staging, and production enforcement remain disabled.
+- The PR7 evidence snapshot (2026-07-31) did not test hosted, staging, or
+  production enforcement. The 2026-10-07 check above was local-only and does
+  not establish present hosted state.
 - Real Cloudflare ingress/source equivalence, combined PR6/PR7 portal
   interaction, portal-owned no-upstream evidence, and any hosted rollout
   remain unverified or blocked.
@@ -77,7 +113,7 @@
 - Active staged path remains stable: `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755`
 - Client requirements are now tracked in `docs/client-requirements.md`: secure login, RBAC, 2FA, timely alerts, email notifications after detection, and `CRITICAL >=90%`.
 - Account-security runtime: Auth.js Credentials login now reads Supabase `auth_accounts`, verifies Argon2id hashes, preserves role/authz/MFA claims, and rechecks current DB account state across protected BFF routes.
-- Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. Hosted Supabase is migrated through `20260712_000020`; the full chain and downgrade/re-upgrade also passed on disposable PostgreSQL.
+- Auth/security schema foundation implemented: an additive Alembic migration defines nine public-schema auth/security tables with RLS enabled, public-role privileges revoked, and no policies; `frontend/lib/server/db/` provides validated server-only Supabase service-role access. As of the 2026-09-04 status snapshot, hosted Supabase was migrated through `20260712_000020`; the full chain and downgrade/re-upgrade also passed on disposable PostgreSQL.
 - `AUTH_USERS_JSON` is no longer a runtime login or freshness source. Supabase/client failure fails closed with no env fallback; the hosted test account is provisioned through the supported flow.
 - Alerts dashboard UI role affordances now hide unavailable dense-row actions for viewers, keep triage controls for analysts, keep the full control set for admins, and expose Training Feedback only to Owners.
 - Login hardening is local/process-bound: approved Argon2id PHC parameter enforcement, precomputed same-profile dummy verification, bounded per-identifier failure throttles, a default two-operation password-hash cap, database-expiring password-level MFA sessions, replay-safe TOTP/recovery claims, current-row MFA fail-closed checks, and secret-safe JSON login and route-guard audit events are implemented.
@@ -225,8 +261,11 @@ production evidence boundary only. **Technical debt:** none newly classified.
   tests; the final controlled proof is recorded in
   `reports/active-enforcement/PR6_HIGH_APPLICATION_BLOCK_PROOF.md`.
 - Shared-IP collateral blocking is tracked as `LIMIT-006`; HTTP 200 block
-  semantics are tracked as `LIMIT-007`. Hosted/production `ENFORCE` remains disabled. `BLOCK-001` and `BLOCK-002`
-  remain open. `GAP-001` is complete for the approved local PR6 scope;
+  semantics are tracked as `LIMIT-007`. Hosted/production rollout was not
+  authorized or demonstrated in this PR6 review; the latest 2026-10-07
+  local-only check does not establish present hosted state. `BLOCK-001` and
+  `BLOCK-002` remain open in this historical review. `GAP-001` is complete for
+  the approved local PR6 scope;
   `GAP-002` is partially resolved for PR7 CRITICAL/WAF enforcement; the
   remaining trust-topology, portal, and PR6 integration evidence is listed in
   the gap register.
@@ -339,7 +378,7 @@ production evidence boundary only. **Technical debt:** none newly classified.
 
 ### PR #83 completed release checks
 
-- Hosted migration through `20260712_000020`, live Resend delivery, Admin invitation/setup/password flow, TOTP enrollment, invalid-code rejection, MFA-authenticated Admin login, and User Management access are verified.
+- At the 2026-07-13 PR #83 release check, hosted migration through `20260712_000020`, live Resend delivery, Admin invitation/setup/password flow, TOTP enrollment, invalid-code rejection, MFA-authenticated Admin login, and User Management access were verified.
 - The runtime feature-flag prerender defect is fixed with request-time server-side evaluation. Environment changes require container recreation or restart.
 
 ### Deferred / post-merge follow-up
@@ -363,7 +402,10 @@ production evidence boundary only. **Technical debt:** none newly classified.
 - Frontend production build: **passed**.
 - Managed authentication browser project: **5/5 Chromium journeys passed** with disposable PostgreSQL/PostgREST setup and cleanup; the same project is a required CI job.
 
-### Latest local verification results
+### Historical local verification results
+
+These PR-level test records predate the latest operator snapshot at the top of
+this file; use them as historical evidence, not as current pass claims.
 
 - PR2 SSE slice: backend full suite **717 passed, 32 skipped** with local
   notification-worker overrides; frontend full Vitest **87 files / 498 tests
@@ -539,7 +581,8 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
 - CI may show four checks on branch updates because both `push` and `pull_request` workflows run for frontend and backend.
 - `requirements.train.txt` is laptop/training-only and should not be treated as required for CI/backend runtime verification.
-- Supabase is now part of the current runtime truth. Do not document it as merely planned.
+- Supabase is part of the app's runtime architecture; do not document it as
+  merely planned. Hosted database state is separately date-scoped above.
 - ModSecurity audit log policy is documented in `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`.
 - Current ModSecurity audit log path is JSONL at `logs/modsecurity/modsec_audit.jsonl`.
 - Bridge and selected backend boundary logs are structured JSON; legacy startup and unrelated application logs are not claimed to be converted repo-wide.
@@ -551,23 +594,27 @@ Audit-log policy file: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
 
 ---
 
-## Open Gaps (Current, Not Historical)
+## Open Gaps (register last reviewed 2026-07-30)
 
+The cumulative register was last reviewed on 2026-07-30. Its entries should be
+revalidated against the current source before using them as a current backlog.
 Previous prose items were normalized into stable IDs in
 [`IMPLEMENTATION_GAP_REGISTER.md`](IMPLEMENTATION_GAP_REGISTER.md); the complete
-current inventory lives there. Highest-priority current items are `BLOCK-001`,
-`BLOCK-002`, `BUG-001`, and the remaining portion of `GAP-002`. This status snapshot does not
-replace the register or restate its full entries.
+inventory at that review lives there. This status snapshot does not replace the
+register or restate its entries.
 
 ---
 
 ## Source-of-Truth Docs
 
-- Implementation snapshot: `docs/CONTEXT.md`
+- Product purpose, system boundary, and evidence terminology:
+  `docs/CONTEXT.md` (orientation, not a status snapshot).
 - Architecture boundaries: `docs/architecture.md`
 - Local setup: `docs/SETUP.md`
 - Client requirements: `docs/client-requirements.md`
-- Historical system snapshots: `docs/archive/system-snapshots/`; current state is maintained in `STATUS.md` and `CONTEXT.md`.
-- Implementation gaps: `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`
-- Operational/demo checklist: `docs/project-ops/LIVING_CHECKLIST.md`
+- Historical system snapshots: `docs/archive/system-snapshots/`
+- Cumulative implementation gaps (last reviewed 2026-07-30): `docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md`
+- Latest bounded operator verification: this file's 2026-10-07 section; older sections remain date-scoped.
+- Historical working checklist (last substantively reviewed 2026-07-30):
+  `docs/project-ops/LIVING_CHECKLIST.md`; revalidate before execution.
 - ModSecurity audit log policy: `docs/project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`

@@ -2,15 +2,21 @@
 
 **Reviewed:** 2026-07-30
 
-**Repository baseline:** `master` at `d80719d`; current review branch head is
-`d74d6b6`; PR #90 is merged in the master history
+**Repository baseline at review:** `master` at `d80719d`; review branch head
+`d74d6b6`; PR #90 was merged in the master history
+
+> **Date boundary:** The register as a whole was reviewed on 2026-07-30;
+> individual entries may show a later review date. It has not been revalidated
+> as a complete backlog since then. Treat listed repository revisions and
+> “current implementation” notes as historical review context; confirm against
+> current source and the latest dated operator status before acting on an entry.
 
 This is the canonical cumulative register for unresolved implementation work. Only
 code, configuration, tests, and current runtime wiring outrank documentation.
 Entries are cumulative: IDs never renumber, and local, CI, manual, and hosted
 evidence are distinct evidence classes.
 
-## Immediate priority queue
+## Priority queue recorded at the review date
 
 | ID | Priority | Status | Area | Target |
 |---|---|---|---|---|
@@ -25,9 +31,9 @@ evidence are distinct evidence classes.
 
 Detailed entries below remain grouped by stable ID and are the source of truth.
 
-ID prefixes are permanent historical identifiers. The `Status` field is
-authoritative and may change over time; do not infer current status from an ID
-prefix.
+ID prefixes are permanent historical identifiers. The `Status` field records
+the status at the review date and may change; do not infer current status from
+an ID prefix or treat this dated table as a live backlog.
 
 ### BLOCK-001 — Hosted PR5 topology and production rollout gate
 
@@ -217,8 +223,10 @@ Completed:
   atomic PR7 state -> WAF 403 -> source/path isolation -> revocation.
 - Run-scoped proof automation and a real disposable 3C lifecycle runner now
   capture bounded timing evidence and verify cleanup.
-- Earlier controlled manual Cloudflare proof from distinct home and mobile-data
-  sources demonstrated the approved external CRITICAL lifecycle.
+- A separate controlled manual proof from home and mobile-data sources
+  demonstrated the external CRITICAL lifecycle for those tested paths. This is
+  limited source-correlation evidence; it does not close the Pseudo IPv4,
+  Worker, direct-origin, or immediate tunnel-peer trust checks below.
 - The current real disposable lifecycle verified CRITICAL activation, dynamic
   blocking, expiry during backend outage, portal restoration, static CRS
   continuity, revocation, representative snapshot rejection, disabled-empty
@@ -462,7 +470,8 @@ Missing: Decision whether it is a supported browser-facing operator path.
 
 Evidence:
 
-- `docs/CONTEXT.md`
+- `docs/architecture.md`
+- `docs/project-ops/STATUS.md`
 
 Requirement: Explicit architecture decision.
 

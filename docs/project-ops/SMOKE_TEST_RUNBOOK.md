@@ -1,13 +1,21 @@
 # Smoke Test Runbook
 
-**Last updated:** 2026-07-30
-**Audience:** Any teammate with zero prior context.
+**Last reviewed for scope and routing:** 2026-10-08
+**Audience:** Developers running local smoke tests; operators only for the
+clearly labeled hosted checks.
 
-This runbook walks through starting the current repo Docker stack, verifying the WAF proof path, verifying the current browser-facing dashboard flow, and confirming that a triage update persists through the real `triage_status` contract.
+This runbook provides smoke procedures for the local Compose stack, WAF ingest,
+demo target, dashboard, and triage persistence. Hosted procedures are labeled
+separately and require fresh operator verification.
 
 > **Scope note:** This runbook documents the current branch state only. In this repo variant, the frontend is published on `localhost:3000`, the technical CyberTrace WAF proof path is published on `localhost:8088`, the realistic protected demo website WAF path is published on `localhost:8089` when the `demo-target` profile is enabled, and the backend stays internal to the compose network as `8000/tcp`.
 
 ---
+
+> The review date is editorial. Procedures and historical claims were not
+> rerun as part of this documentation review. Treat each proof as evidence for
+> its recorded date and environment, not as current hosted or production
+> verification.
 
 ## Guarded Telegram provider smoke
 
@@ -29,10 +37,15 @@ Telegram message and database lifecycle. Do not run live provider tests in CI.
 
 ---
 
-## Verified hosted Admin authentication journey
+## Hosted Admin authentication journey (previously verified)
 
-The following journey was verified against the public deployment. Use a
-disposable test account and synthetic data only:
+An earlier hosted run is recorded in [Project Status](STATUS.md). This
+checklist is a procedure, not confirmation that the current hosted account,
+provider, or deployment is available. Re-run it with a disposable test account
+before making a current verification claim.
+
+When re-running this journey, use a disposable test account and synthetic data
+only:
 
 1. **Admin creates an account.** Expected: the account is created with the
    intended role and MFA requirement, and a one-time setup email is queued.
