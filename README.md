@@ -48,6 +48,16 @@ itself, prove that a request was blocked or throttled by the network.
 The browser does not call FastAPI directly. The ModSecurity path is an optional,
 controlled integration; it is not in front of every deployment or request.
 
+## Status
+
+CyberTrace is an active academic app-plus-BFF project with a controlled local
+ModSecurity/OWASP CRS proof path. It is not a production-validated deployment.
+
+Local WAF-ingest and controlled-enforcement results are dated evidence, not
+proof of current public Cloudflare routing or hosted enforcement. See
+[Project Ops Status](docs/project-ops/STATUS.md) for the latest operator check,
+test results, and remaining verification gaps.
+
 ## Technology
 
 | Area | Technologies |
