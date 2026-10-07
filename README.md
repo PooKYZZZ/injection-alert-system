@@ -50,12 +50,25 @@ controlled integration; it is not in front of every deployment or request.
 
 ## Status
 
-CyberTrace is an active academic app-plus-BFF project with a controlled local
-ModSecurity/OWASP CRS proof path. It is not a production-validated deployment.
+CyberTrace is an active academic project with a Next.js dashboard/BFF, FastAPI
+backend, ML inference, and Supabase-backed hosted data. It is not a
+production-validated deployment.
 
-Local WAF-ingest and controlled-enforcement results are dated evidence, not
-proof of current public Cloudflare routing or hosted enforcement. See
-[Project Ops Status](docs/project-ops/STATUS.md) for the latest operator check,
+- **Confidence labels:** `INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, and
+  `CRITICAL` describe model confidence, not attack severity. `CRITICAL` starts
+  at 90%. `confidence_tier` is the preferred filter/query name;
+  `confidence_level` is the persisted backend field used for dashboard tiers;
+  legacy `severity` URLs remain compatible. No retraining, recalibration, or
+  model-artifact change was needed, and historical rows are not reclassified.
+- **Dashboard behavior:** `Normal` remains `ALLOWED` and is excluded from
+  enforcement-policy counts. Confidence badges use the canonical backend tier,
+  not the predicted class.
+- **Local WAF paths:** The technical proof uses `localhost:8088`. The realistic
+  demo uses `localhost:8089` and a `demo-portal` built from a separate checkout
+  of `stable/cybertrace-target`. These recorded local proofs do not establish
+  public Cloudflare routing or hosted enforcement.
+
+See [Project Ops Status](docs/project-ops/STATUS.md) for dated operator checks,
 test results, and remaining verification gaps.
 
 ## Technology
