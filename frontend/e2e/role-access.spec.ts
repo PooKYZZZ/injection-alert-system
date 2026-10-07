@@ -84,6 +84,27 @@ test.describe('role authorization matrix', () => {
           ).toBeVisible()
         }
       }
+
+      await page.goto('/traffic-history')
+      const exportAllowed = ['owner', 'admin', 'analyst'].includes(role)
+      await expect(
+        page.getByRole('button', { name: 'Export CSV', exact: true })
+      ).toHaveCount(exportAllowed ? 1 : 0)
+      const exportStatus = await page.evaluate(async () => {
+        const response = await fetch('/api/traffic-history/export', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            start_date: '2026-10-01',
+            end_date: '2026-10-01',
+            timezone: 'UTC',
+          }),
+        })
+        return response.status
+      })
+      // Allowed roles pass authorization and reach the deliberately unavailable
+      // mock export; Viewer must be denied at the BFF boundary.
+      expect(exportStatus).toBe(exportAllowed ? 503 : 403)
     })
   }
 })

@@ -16,6 +16,10 @@ describe('buildContentSecurityPolicy', () => {
     })
   })
 
+  it('passes the build deployment identifier to Next.js version-skew protection', () => {
+    expect(nextConfig.deploymentId).toBe(process.env.NEXT_DEPLOYMENT_ID)
+  })
+
   it('keeps inline scripts enabled in production without eval', () => {
     const csp = buildContentSecurityPolicy('production')
 

@@ -12,9 +12,13 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 
-# Build-only sentinel satisfies Auth.js secret presence checks at compile time
-# without passing real runtime secrets into image build metadata.
-RUN AUTH_SECRET=__BUILD_AUTH_SENTINEL_DO_NOT_USE__ NEXTAUTH_SECRET=__BUILD_AUTH_SENTINEL_DO_NOT_USE__ npm run build
+# Give each image build a distinct ID so Next.js can detect clients left on an
+# older deployment. The value is compiled into the image, not supplied at runtime.
+# Build-only sentinels satisfy Auth.js checks without embedding real secrets.
+RUN NEXT_DEPLOYMENT_ID="$(node -p 'require("node:crypto").randomUUID()')" \
+    AUTH_SECRET=__BUILD_AUTH_SENTINEL_DO_NOT_USE__ \
+    NEXTAUTH_SECRET=__BUILD_AUTH_SENTINEL_DO_NOT_USE__ \
+    npm run build
 
 FROM node:24-alpine AS runtime
 

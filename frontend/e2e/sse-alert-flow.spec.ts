@@ -2,8 +2,8 @@ import {
   expect,
   test,
   type Page,
-  type Response,
 } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 import { totpCodeAtTime } from '@/test-support/auth-e2e/totp'
 import { requireAuthE2EState } from '@/test-support/auth-e2e/state'
@@ -12,13 +12,8 @@ type AlertsPayload = {
   items?: Array<{ request_path?: string | null }>
 }
 
-function isAlertsResponse(response: Response): boolean {
-  const url = new URL(response.url())
-  return url.pathname === '/api/alerts' && response.status() === 200
-}
-
 async function signInWithMfa(page: Page): Promise<void> {
-  const identity = requireAuthE2EState().identities.login
+  const identity = requireAuthE2EState().roleMatrix.analyst
   await page.goto('/login')
   await page.getByLabel('Email or username').fill(identity.email)
   await page.getByLabel('Password').fill(identity.password)
@@ -39,8 +34,6 @@ test('a committed WAF alert appears through authenticated SSE without reload', a
   await signInWithMfa(page)
 
   const navigationRequestUrls: string[] = []
-  let streamResponseObserved = false
-  const alertResponsesAfterStream: Response[] = []
   page.on('request', (request) => {
     if (
       request.frame() === page.mainFrame() &&
@@ -49,29 +42,23 @@ test('a committed WAF alert appears through authenticated SSE without reload', a
       navigationRequestUrls.push(request.url())
     }
   })
-  page.on('response', (response) => {
-    const url = new URL(response.url())
-    if (url.pathname === '/api/alerts/stream' && response.status() === 200) {
-      streamResponseObserved = true
-    } else if (streamResponseObserved && isAlertsResponse(response)) {
-      alertResponsesAfterStream.push(response)
-    }
-  })
-  const initialAlertsPromise = page.waitForResponse(isAlertsResponse)
   const streamPromise = page.waitForResponse((response) => {
     const url = new URL(response.url())
     return url.pathname === '/api/alerts/stream' && response.status() === 200
   })
 
-  await page.goto('/traffic-history')
-  await expect(page).toHaveURL(/\/traffic-history$/)
+  const historyUrl = `/traffic-history?include_normal=true&search=${encodeURIComponent(uniquePath)}`
+  await page.goto(historyUrl)
+  await expect(page).toHaveURL(`${process.env.PLAYWRIGHT_BASE_URL}${historyUrl}`)
   expect(navigationRequestUrls).toEqual([
-    `${process.env.PLAYWRIGHT_BASE_URL}/traffic-history`,
+    `${process.env.PLAYWRIGHT_BASE_URL}${historyUrl}`,
   ])
   const navigationRequestBaseline = navigationRequestUrls.length
-
-  const initialAlertsResponse = await initialAlertsPromise
-  const initialAlerts = (await initialAlertsResponse.json()) as AlertsPayload
+  const initialAlerts = await page.evaluate(async (filters) => {
+    const response = await fetch(`/api/alerts?${filters}`, { cache: 'no-store' })
+    if (!response.ok) throw new Error('Initial Traffic History request failed.')
+    return (await response.json()) as AlertsPayload
+  }, new URLSearchParams({ include_normal: 'true', search: uniquePath }).toString())
   expect(initialAlerts.items ?? []).not.toContainEqual(
     expect.objectContaining({ request_path: uniquePath })
   )
@@ -88,33 +75,14 @@ test('a committed WAF alert appears through authenticated SSE without reload', a
   expect(streamHeaders['x-accel-buffering']).toBe('no')
   expect(streamHeaders['x-content-type-options']).toBe('nosniff')
 
-  const alreadyObservedCatchup = alertResponsesAfterStream.find(
-    (response) => response.request() !== initialAlertsResponse.request()
-  )
-  const openCatchupResponse =
-    alreadyObservedCatchup ??
-    (await page.waitForResponse(
-      (response) =>
-        streamResponseObserved &&
-        isAlertsResponse(response) &&
-        response.request() !== initialAlertsResponse.request()
-    ))
-  const openCatchup = (await openCatchupResponse.json()) as AlertsPayload
+  const openCatchup = await page.evaluate(async (filters) => {
+    const response = await fetch(`/api/alerts?${filters}`, { cache: 'no-store' })
+    if (!response.ok) throw new Error('Traffic History catchup request failed.')
+    return (await response.json()) as AlertsPayload
+  }, new URLSearchParams({ include_normal: 'true', search: uniquePath }).toString())
   expect(openCatchup.items ?? []).not.toContainEqual(
     expect.objectContaining({ request_path: uniquePath })
   )
-
-  const updatedAlertsPromise = page.waitForResponse(async (response) => {
-    if (!isAlertsResponse(response)) return false
-    try {
-      const payload = (await response.json()) as AlertsPayload
-      return (payload.items ?? []).some(
-        (item) => item.request_path === uniquePath
-      )
-    } catch {
-      return false
-    }
-  })
 
   const fastapiUrl = process.env.CYBERTRACE_E2E_FASTAPI_URL
   const wafKey = process.env.CYBERTRACE_E2E_WAF_KEY
@@ -145,7 +113,43 @@ test('a committed WAF alert appears through authenticated SSE without reload', a
   )
   expect(ingest.status()).toBe(200)
 
-  await updatedAlertsPromise
   await expect(page.getByText(`POST ${uniquePath}`, { exact: true })).toBeVisible()
+  const updatedAlerts = await page.evaluate(async (filters) => {
+    const response = await fetch(`/api/alerts?${filters}`, { cache: 'no-store' })
+    if (!response.ok) throw new Error('Updated Traffic History request failed.')
+    return (await response.json()) as AlertsPayload
+  }, new URLSearchParams({ include_normal: 'true', search: uniquePath }).toString())
+  expect(updatedAlerts.items ?? []).toContainEqual(
+    expect.objectContaining({ request_path: uniquePath })
+  )
+
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
+  const exportResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname === '/api/traffic-history/export'
+  })
+  await page.getByRole('button', { name: 'Prepare CSV' }).click()
+  const exportResponse = await exportResponsePromise
+  expect(exportResponse.status()).toBe(200)
+  expect(exportResponse.headers()['content-type']).toContain('text/csv')
+  expect(exportResponse.headers()['cache-control']).toContain('no-store')
+
+  await expect(page.getByRole('status')).toHaveText('CSV export is ready to download.')
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('link', { name: /Download traffic-history_/ }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(
+    /^traffic-history_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$/
+  )
+  const downloadPath = await download.path()
+  expect(downloadPath).toBeTruthy()
+  const exportedCsv = await readFile(downloadPath!, 'utf8')
+  expect(exportedCsv).toContain(
+    'traffic_log_id,timestamp_utc,request_method,classification'
+  )
+  expect(exportedCsv).toContain(',POST,')
+  expect(exportedCsv).not.toContain(uniquePath)
+  expect(exportedCsv).not.toContain("' OR 1=1 --")
+  expect(exportedCsv).not.toContain('source_ip')
   expect(navigationRequestUrls).toHaveLength(navigationRequestBaseline)
 })

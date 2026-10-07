@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock }),
 }))
 
-import LoginPage from './page'
+import LoginPage, { dynamic } from './page'
 import { loginAction } from './actions'
 import { AuthShell } from '@/components/auth/AuthShell'
 
@@ -37,6 +37,10 @@ afterEach(() => {
 })
 
 describe('LoginPage', () => {
+  it('renders dynamically so cached login documents cannot retain an old action ID', () => {
+    expect(dynamic).toBe('force-dynamic')
+  })
+
   it('renders identifier and password fields without a role selector', () => {
     renderLogin()
 
