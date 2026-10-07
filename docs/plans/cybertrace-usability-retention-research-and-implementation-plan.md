@@ -68,7 +68,7 @@ Relevant implementation sources include docs/architecture.md, docs/CONTEXT.md, d
 
 - docs/project-ops/RETENTION_POLICY.md is policy documentation, not proof of a running retention job or current database behavior.
 - docs/project-ops/BACKUP_RESTORE_RUNBOOK.md describes a procedure; it does not establish that automated backups are enabled or restorable.
-- The repository migration head is 20260930_000031, but hosted migration state was not queried. The architecture document records older schema evidence, so that snapshot must not be described as current.
+- The repository migration head is 20261007_000033, but hosted migration state was not queried. The architecture document records older schema evidence, so that snapshot must not be described as current.
 - Model/retraining archive files do not constitute Traffic History archives.
 - A healthy local container, passing API test, or index in a migration would not prove hosted retention, database backup, or production query performance.
 

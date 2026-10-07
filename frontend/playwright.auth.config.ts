@@ -25,7 +25,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev -- --webpack',
+    // Auth journeys must not run against Next.js HMR: a dev recompilation can
+    // reload a page between an auth transition and its session assertions.
+    command: 'npm run build -- --webpack && node scripts/start-auth-e2e-standalone.mjs',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: false,
     stdout: 'ignore',
