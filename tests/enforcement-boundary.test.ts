@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   enforcementPageResponse,
   enforcementRouteResponse,
+  inspectionUnavailablePageResponse,
 } from "../lib/enforcement-boundary";
 
 test("page throttle boundary returns HTTP 429 with Retry-After", async () => {
@@ -40,6 +41,20 @@ test("page block boundary returns HTTP 403 without exposing policy details", asy
   assert.match(body, /Access Restricted/);
   assert.match(body, /Land Records Portal/);
   assert.doesNotMatch(body, /STRONG_CRS_EVIDENCE/);
+});
+
+test("inspection-unavailable page boundary returns a branded, non-cacheable HTTP 503", async () => {
+  const response = inspectionUnavailablePageResponse(5);
+
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("retry-after"), "5");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html(?:;|$)/i);
+  const body = await response.text();
+  assert.match(body, /Security Check Temporarily Unavailable/);
+  assert.match(body, /We couldn(?:'|&#39;)t complete the security checks/);
+  assert.doesNotMatch(body, /security_inspection_unavailable|stack trace|CRS/i);
 });
 
 test("page boundary leaves ALLOW and CHALLENGE rendering to the page", () => {
