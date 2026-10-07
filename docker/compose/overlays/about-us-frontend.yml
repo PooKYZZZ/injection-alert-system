@@ -1,6 +1,6 @@
 # Dedicated public-site frontend for cybertracesystems.com.
 # Start from this repository root with:
-#   docker compose -p cybertrace-public-site -f docker-compose.about-us-frontend.yml up -d --build
+#   docker compose --project-directory . -p cybertrace-public-site -f docker/compose/overlays/about-us-frontend.yml up -d --build
 services:
   about-us-frontend:
     build:

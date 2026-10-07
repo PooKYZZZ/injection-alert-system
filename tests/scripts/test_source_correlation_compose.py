@@ -480,8 +480,8 @@ def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
 
 def test_demo_proxy_mounts_cloudflare_peer_verification_map_read_only() -> None:
     config = _compose_config(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
         profile="demo-target",
     )
     mounts = config["services"]["demo-target-modsecurity"]["volumes"]
@@ -501,6 +501,32 @@ def test_demo_proxy_mounts_cloudflare_peer_verification_map_read_only() -> None:
         == "/etc/nginx/templates/conf.d/00-target-cloudflare-realip.conf.template"
         and mount.get("read_only") is True
         for mount in mounts
+    )
+
+
+def test_cloudflare_target_loads_real_ip_template_only_once() -> None:
+    config = _compose_config(
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        TARGET_CLOUDFLARE_OVERLAY,
+        profile=["demo-target", "target-cloudflare"],
+    )
+    mounts = config["services"]["demo-target-modsecurity"]["volumes"]
+    expected_source = str(
+        (
+            ROOT
+            / "config"
+            / "modsecurity"
+            / "target-cloudflare-realip.conf.template"
+        ).resolve()
+    )
+    matching_mounts = [
+        mount for mount in mounts if mount.get("source") == expected_source
+    ]
+
+    assert len(matching_mounts) == 1
+    assert matching_mounts[0]["target"] == (
+        "/etc/nginx/templates/conf.d/00-target-cloudflare-realip.conf.template"
     )
 
 

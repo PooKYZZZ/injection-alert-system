@@ -85,8 +85,9 @@ services:
       REAL_IP_PROXY_HEADER: CF-Connecting-IP
       REAL_IP_RECURSIVE: "off"
       SET_REAL_IP_FROM: 172.30.20.2/32
-    volumes:
-      - ./config/modsecurity/target-cloudflare-realip.conf.template:/etc/nginx/templates/conf.d/realip.conf.template:ro
+    # The demo-target overlay already mounts this template at HTTP context as
+    # 00-target-cloudflare-realip.conf.template. Avoid loading it twice under
+    # different names, which would duplicate the NGINX real-IP directives.
     networks: !override
       target_application: {}
       target_waf_ingress:
