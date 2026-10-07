@@ -18,6 +18,13 @@ beforeEach(() => {
       this.open = true
     },
   })
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value: function close(this: HTMLDialogElement) {
+      this.open = false
+      this.dispatchEvent(new Event('close'))
+    },
+  })
   vi.stubGlobal('fetch', vi.fn())
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:traffic-history-test')
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
@@ -54,7 +61,7 @@ describe('TrafficHistoryExportButton', () => {
     render(<TrafficHistoryExportButton role="ANALYST" />)
     await user.click(screen.getByRole('button', { name: 'Export CSV' }))
     expect(screen.getByRole('dialog')).toHaveTextContent(
-      'This custom range replaces the page’s Time Window preset'
+      'This replaces the Time Window preset'
     )
     fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-10-01' } })
     fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2026-10-07' } })
@@ -81,6 +88,18 @@ describe('TrafficHistoryExportButton', () => {
     expect(requestBody).not.toHaveProperty('window')
     expect(requestBody).not.toHaveProperty('page')
     expect(screen.getByRole('status')).toHaveTextContent('CSV export is ready to download.')
+  })
+
+  it('shows an obvious header close button and closes the dialog', async () => {
+    const user = userEvent.setup()
+    render(<TrafficHistoryExportButton role="ANALYST" />)
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+
+    const dialog = screen.getByRole('dialog') as HTMLDialogElement
+    expect(screen.getByRole('button', { name: 'Close export dialog' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close export dialog' }))
+
+    expect(dialog.open).toBe(false)
   })
 
   it('rejects a range over the limit in the dialog and does not call the BFF', async () => {

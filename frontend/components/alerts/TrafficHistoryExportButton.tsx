@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { X } from 'lucide-react'
 import { TrafficHistoryExportRequestSchema } from '@/features/alerts/export-contract'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 
@@ -159,7 +160,7 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
       <button
         type="button"
         onClick={openDialog}
-        className="min-h-[40px] rounded-md border border-action-border bg-action-accent px-3 py-2 text-xs font-semibold text-action-contrast transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
+        className="min-h-[40px] rounded-md border border-accent-action bg-accent-action px-3 py-2 text-xs font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
         aria-haspopup="dialog"
       >
         Export CSV
@@ -172,73 +173,94 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
           if (download) URL.revokeObjectURL(download.url)
           setDownload(null)
         }}
-        className="w-[min(28rem,calc(100%-2rem))] rounded-xl border border-surface-border bg-surface-card p-0 text-[var(--color-text-primary)] shadow-2xl backdrop:bg-black/60"
+        className="fixed inset-0 m-auto flex max-h-[calc(100dvh_-_2rem)] w-[calc(100vw_-_2rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface-card p-0 text-[var(--color-text-primary)] shadow-2xl backdrop:bg-black/60"
       >
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
-          <div>
-            <h2 id="traffic-export-title" className="text-base font-semibold">
-              Export Traffic History
-            </h2>
-            <p id="traffic-export-description" className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              Choose inclusive calendar dates. This custom range replaces the page’s Time Window preset; other supported Traffic History filters are applied in {timezone}.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm">
-              <span>Start date</span>
-              <input
-                type="date"
-                required
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? 'traffic-export-error' : undefined}
-                className="min-h-10 rounded-md border border-surface-border bg-surface-inset px-2 text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span>End date</span>
-              <input
-                type="date"
-                required
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? 'traffic-export-error' : undefined}
-                className="min-h-10 rounded-md border border-surface-border bg-surface-inset px-2 text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
-              />
-            </label>
-          </div>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Maximum range: 31 calendar days. Spreadsheet formula-like values are prefixed for Excel-oriented safety, which can change those cell values.
-          </p>
-          {error && <p id="traffic-export-error" role="alert" className="text-sm text-red-400">{error}</p>}
-          {announcement && <p role="status" className="text-sm text-[var(--color-text-secondary)]">{announcement}</p>}
-          {download && (
-            <a
-              href={download.url}
-              download={download.filename}
-              className="w-fit text-sm font-medium text-action-accent underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
-            >
-              Download {download.filename}
-            </a>
-          )}
-          <div className="flex flex-wrap justify-end gap-2 border-t border-surface-border pt-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
+          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-surface-border px-5 py-4 sm:px-6">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+                Traffic History · CSV
+              </p>
+              <h2 id="traffic-export-title" className="mt-1 text-lg font-semibold">
+                Export Traffic History
+              </h2>
+              <p id="traffic-export-description" className="mt-1 max-w-prose text-sm leading-5 text-[var(--color-text-secondary)]">
+                Choose up to 31 calendar days. This replaces the Time Window preset; other Traffic History filters stay applied in {timezone}.
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => dialogRef.current?.close()}
-              className="min-h-10 rounded-md border border-surface-border px-3 py-2 text-sm hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border"
+              aria-label="Close export dialog"
+              title="Close"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-surface-border text-[var(--color-text-secondary)] transition-colors hover:bg-surface-inset hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </header>
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">Start date</span>
+                <input
+                  type="date"
+                  required
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? 'traffic-export-error' : undefined}
+                  className="min-h-11 w-full rounded-lg border border-surface-border bg-surface-inset px-3 text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">End date</span>
+                <input
+                  type="date"
+                  required
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? 'traffic-export-error' : undefined}
+                  className="min-h-11 w-full rounded-lg border border-surface-border bg-surface-inset px-3 text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
+                />
+              </label>
+            </div>
+            <p className="text-xs leading-5 text-[var(--color-text-secondary)]">
+              The calendar opens to the selected month. Use its month arrows to browse other dates. Both dates are included. Formula-like CSV values are prefixed for Excel safety, which can change those cell values.
+            </p>
+            {error && <p id="traffic-export-error" role="alert" className="text-sm text-red-400">{error}</p>}
+            {announcement && <p role="status" className="sr-only">{announcement}</p>}
+            {download && (
+              <div className="rounded-lg border border-surface-border bg-surface-inset p-3">
+                <p className="text-xs font-medium text-[var(--color-text-secondary)]">Your CSV is ready</p>
+                <a
+                  href={download.url}
+                  download={download.filename}
+                  className="mt-1 block w-fit break-all text-sm font-medium text-accent-action underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
+                >
+                  Download {download.filename}
+                </a>
+              </div>
+            )}
+          </div>
+
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-surface-border bg-surface-card px-5 py-4 sm:px-6">
+            <button
+              type="button"
+              onClick={() => dialogRef.current?.close()}
+              className="min-h-10 rounded-md border border-surface-border px-3 py-2 text-sm hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
             >
               Close
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="min-h-10 rounded-md bg-action-accent px-3 py-2 text-sm font-semibold text-action-contrast hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border disabled:cursor-wait disabled:opacity-60"
+              className="min-h-10 rounded-md bg-accent-action px-3 py-2 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action disabled:cursor-wait disabled:opacity-60"
             >
               {loading ? 'Preparing CSV…' : 'Prepare CSV'}
             </button>
-          </div>
+          </footer>
         </form>
       </dialog>
     </>
