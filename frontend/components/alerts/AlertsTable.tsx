@@ -48,6 +48,17 @@ const ALERT_TABLE_COLUMNS = [
   { key: 'crs_score', label: 'CRS score', sortable: false },
 ] as const
 
+const ALERT_COLUMN_HELP = {
+  triage: 'Shows the analyst-review status saved for this detection. Normal traffic has no triage status.',
+  timestamp: 'The time saved on this traffic record, formatted for display; its relative age appears below.',
+  source_ip: 'The source address saved with this record when available. It does not by itself verify the address or identify a person.',
+  target_path: 'Shows the recorded request method and path, with a captured payload snippet below when available. Missing details were not retained for this record.',
+  attack_type: 'The classification label saved for this traffic record. It is not an attack-severity rating or proof of malicious intent.',
+  confidence: 'Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.',
+  action: 'This is the action label saved on the record. It does not confirm a WAF command or observed HTTP response.',
+  crs_score: 'The score reported with ModSecurity/OWASP CRS evidence is derived from matched WAF rules. The score and those rules are related evidence, and the score does not prove the request was blocked.',
+} satisfies Record<(typeof ALERT_TABLE_COLUMNS)[number]['key'], string>
+
 function formatCrsScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
   return score.toFixed(2)
@@ -163,16 +174,14 @@ function SortHeader({
   sortDir: 'asc' | 'desc'
   onSort: (column: SortColumn) => void
 }) {
+  const help = ALERT_COLUMN_HELP[column.key]
+
   if (!column.sortable) {
     return (
       <th scope="col" className="p-3 text-left text-xs font-semibold tracking-normal text-[var(--color-text-secondary)]">
         <span className="inline-flex items-center gap-1.5">
           {column.label}
-          {column.key === 'crs_score' ? (
-            <InfoDisclosure label="CRS score">
-              A score recorded with a ModSecurity Core Rule Set record. It summarizes the associated WAF rule evidence; it does not prove the request was blocked.
-            </InfoDisclosure>
-          ) : null}
+          <InfoDisclosure label={column.label}>{help}</InfoDisclosure>
         </span>
       </th>
     )
@@ -197,15 +206,7 @@ function SortHeader({
             <span className="text-[var(--color-text-muted)]">↕</span>
           )}
         </button>
-        {column.key === 'confidence' ? (
-          <InfoDisclosure label="Confidence">
-            Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
-          </InfoDisclosure>
-        ) : column.key === 'action' ? (
-          <InfoDisclosure label="Recorded action">
-            This is the action label saved on the record. It does not confirm a WAF command or observed HTTP response.
-          </InfoDisclosure>
-        ) : null}
+        <InfoDisclosure label={column.label}>{help}</InfoDisclosure>
       </span>
     </th>
   )

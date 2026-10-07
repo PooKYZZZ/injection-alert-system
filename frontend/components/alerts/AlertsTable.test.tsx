@@ -162,6 +162,38 @@ describe('AlertsTable', () => {
     expect(screen.getByRole('button', { name: 'About Recorded action' })).toBeInTheDocument()
   })
 
+  it('adds one contextual-help trigger for each Alerts table field without duplicating the existing ones', async () => {
+    const user = userEvent.setup()
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    for (const field of [
+      'Triage',
+      'Timestamp',
+      'Source IP',
+      'Request',
+      'Prediction',
+      'Confidence',
+      'Recorded action',
+      'CRS score',
+    ]) {
+      expect(screen.getAllByRole('button', { name: `About ${field}` })).toHaveLength(1)
+    }
+
+    await user.click(screen.getByRole('button', { name: 'About Request' }))
+    expect(screen.getByRole('region', { name: 'Request explanation' })).toHaveTextContent(
+      /recorded request method and path/i
+    )
+    expect(screen.getByRole('region', { name: 'Request explanation' })).toHaveTextContent(
+      /missing details were not retained/i
+    )
+  })
+
   it('explains how to reach the horizontally scrollable fields on mobile', async () => {
     render(
       <AlertsTable

@@ -2,7 +2,20 @@
 
 import { motion } from 'motion/react'
 import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
+import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 import type { ConfidenceBandCounts } from '@/features/alerts/confidenceBands'
+
+const COUNT_HELP =
+  'Counts stored actionable-detection records in this model-confidence tier and selected window. A count is not a count of guaranteed unique HTTP requests.'
+
+const BLOCK_HELP =
+  'For HIGH and CRITICAL detections, policy intends to block only when strong CRS evidence matches the predicted attack family and runtime checks pass. This label describes policy intent; it does not confirm an HTTP block.'
+
+const THROTTLE_HELP =
+  'Policy intends to throttle MEDIUM detections when matching strong CRS evidence or the repeated-suspicious-activity threshold is met and runtime checks pass. This label describes policy intent; it does not confirm throttling.'
+
+const MONITOR_HELP =
+  'For LOW and INFORMATIONAL detections, policy intent is monitoring without an ML block or throttle. This label does not prove the request was allowed by every system layer.'
 
 interface MLEnforcementMapProps {
   nonNormalCounts: ConfidenceBandCounts
@@ -52,8 +65,14 @@ export function MLEnforcementMap({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{critical}</span>
-          <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
-            BLOCK WITH EVIDENCE
+          <InfoDisclosure label="CRITICAL actionable detections">{COUNT_HELP}</InfoDisclosure>
+          <span className="flex items-center gap-1">
+            <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
+              BLOCK WITH EVIDENCE
+            </span>
+            <InfoDisclosure label="Block with evidence">
+              {BLOCK_HELP}
+            </InfoDisclosure>
           </span>
         </div>
       </div>
@@ -68,8 +87,14 @@ export function MLEnforcementMap({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{high}</span>
-          <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
-            BLOCK WITH EVIDENCE
+          <InfoDisclosure label="HIGH actionable detections">{COUNT_HELP}</InfoDisclosure>
+          <span className="flex items-center gap-1">
+            <span className="rounded border border-severity-high-border bg-severity-high-bg px-1 py-0.5 text-[10px] font-bold text-severity-high-text">
+              BLOCK WITH EVIDENCE
+            </span>
+            <InfoDisclosure label="Block with evidence">
+              {BLOCK_HELP}
+            </InfoDisclosure>
           </span>
         </div>
       </div>
@@ -84,8 +109,14 @@ export function MLEnforcementMap({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{medium}</span>
-          <span className="rounded border border-severity-blocked-border bg-severity-blocked-bg px-1 py-0.5 text-[10px] font-bold text-severity-blocked-text">
-            THROTTLE WITH EVIDENCE
+          <InfoDisclosure label="MEDIUM actionable detections">{COUNT_HELP}</InfoDisclosure>
+          <span className="flex items-center gap-1">
+            <span className="rounded border border-severity-blocked-border bg-severity-blocked-bg px-1 py-0.5 text-[10px] font-bold text-severity-blocked-text">
+              THROTTLE WITH EVIDENCE
+            </span>
+            <InfoDisclosure label="Throttle with evidence">
+              {THROTTLE_HELP}
+            </InfoDisclosure>
           </span>
         </div>
       </div>
@@ -100,8 +131,14 @@ export function MLEnforcementMap({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{low}</span>
-          <span className="rounded border border-severity-safe-border bg-severity-safe-bg px-1 py-0.5 text-[10px] font-bold text-severity-safe-text">
-            MONITOR ONLY
+          <InfoDisclosure label="LOW actionable detections">{COUNT_HELP}</InfoDisclosure>
+          <span className="flex items-center gap-1">
+            <span className="rounded border border-severity-safe-border bg-severity-safe-bg px-1 py-0.5 text-[10px] font-bold text-severity-safe-text">
+              MONITOR ONLY
+            </span>
+            <InfoDisclosure label="Monitor only">
+              {MONITOR_HELP}
+            </InfoDisclosure>
           </span>
         </div>
       </div>
@@ -116,8 +153,14 @@ export function MLEnforcementMap({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="font-mono text-[var(--color-text-primary)]">{informational}</span>
-          <span className="rounded border border-surface-border bg-surface-inset px-1 py-0.5 text-[10px] font-bold text-text-secondary">
-            MONITOR ONLY
+          <InfoDisclosure label="INFORMATIONAL actionable detections">{COUNT_HELP}</InfoDisclosure>
+          <span className="flex items-center gap-1">
+            <span className="rounded border border-surface-border bg-surface-inset px-1 py-0.5 text-[10px] font-bold text-text-secondary">
+              MONITOR ONLY
+            </span>
+            <InfoDisclosure label="Monitor only">
+              {MONITOR_HELP}
+            </InfoDisclosure>
           </span>
         </div>
       </div>
