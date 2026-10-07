@@ -19,7 +19,7 @@ TURNSTILE_TEST_SECRETS = {
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".local/env/.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
