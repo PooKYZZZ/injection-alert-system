@@ -47,11 +47,15 @@ function filenameFromResponse(response: Response, fallback: string): string {
 export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
   const searchParams = useSearchParams()
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const startDateInputRef = useRef<HTMLInputElement>(null)
+  const endDateInputRef = useRef<HTMLInputElement>(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [today, setToday] = useState('')
   const [timezone, setTimezone] = useState('UTC')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorField, setErrorField] = useState<'start_date' | 'end_date' | null>(null)
   const [download, setDownload] = useState<{ url: string; filename: string } | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const canExport = roleHasPermission(role, PERMISSIONS.TRAFFIC_EXPORT)
@@ -89,9 +93,11 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
     const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     const today = localDateInZone(new Date(), currentTimezone)
     setTimezone(currentTimezone)
+    setToday(today)
     setEndDate(today)
     setStartDate(subtractCalendarDays(today, 6))
     setError(null)
+    setErrorField(null)
     setAnnouncement('')
     setDownload(null)
     dialogRef.current?.showModal()
@@ -100,8 +106,36 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    setErrorField(null)
     setAnnouncement('')
     setDownload(null)
+
+    const currentDate = localDateInZone(new Date(), timezone)
+    setToday(currentDate)
+    if (!startDate) {
+      setError('Choose a start date.')
+      setErrorField('start_date')
+      startDateInputRef.current?.focus()
+      return
+    }
+    if (!endDate) {
+      setError('Choose an end date.')
+      setErrorField('end_date')
+      endDateInputRef.current?.focus()
+      return
+    }
+    if (startDate > currentDate) {
+      setError('Choose today or an earlier date.')
+      setErrorField('start_date')
+      startDateInputRef.current?.focus()
+      return
+    }
+    if (endDate > currentDate) {
+      setError('Choose today or an earlier date.')
+      setErrorField('end_date')
+      endDateInputRef.current?.focus()
+      return
+    }
 
     const parsed = TrafficHistoryExportRequestSchema.safeParse({
       ...currentFilters,
@@ -113,11 +147,20 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
       const dateIssue = parsed.error.issues.find((issue) =>
         issue.path.includes('start_date') || issue.path.includes('end_date')
       )
+      const field = dateIssue?.path.includes('start_date')
+        ? 'start_date'
+        : dateIssue?.path.includes('end_date')
+          ? 'end_date'
+          : null
       setError(dateIssue?.message ?? 'Check the export dates and current filters.')
+      setErrorField(field)
+      if (field === 'start_date') startDateInputRef.current?.focus()
+      if (field === 'end_date') endDateInputRef.current?.focus()
       return
     }
 
     setLoading(true)
+    setAnnouncement('Preparing Traffic History CSV.')
     try {
       const response = await fetch('/api/traffic-history/export', {
         method: 'POST',
@@ -134,6 +177,10 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
             ? payload.error.message
             : 'Traffic History export could not be completed. Try a shorter date range.'
         setError(message)
+        if (message === 'Export dates must be today or earlier.') {
+          setErrorField('end_date')
+          endDateInputRef.current?.focus()
+        }
         return
       }
 
@@ -173,9 +220,9 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
           if (download) URL.revokeObjectURL(download.url)
           setDownload(null)
         }}
-        className="fixed inset-0 m-auto flex max-h-[calc(100dvh_-_2rem)] w-[calc(100vw_-_2rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface-card p-0 text-[var(--color-text-primary)] shadow-2xl backdrop:bg-black/60"
+        className="fixed inset-0 m-auto open:flex open:flex-col max-h-[calc(100dvh_-_2rem)] w-[calc(100vw_-_2rem)] max-w-xl overflow-hidden rounded-2xl border border-surface-border bg-surface-card p-0 text-[var(--color-text-primary)] shadow-2xl backdrop:bg-black/60"
       >
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
+        <form onSubmit={handleSubmit} noValidate aria-busy={loading} className="flex min-h-0 flex-col">
           <header className="flex shrink-0 items-start justify-between gap-4 border-b border-surface-border px-5 py-4 sm:px-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
@@ -201,35 +248,63 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="font-medium">Start date</span>
+              <div className="flex flex-col gap-1.5 text-sm">
+                <label htmlFor="traffic-export-start-date" className="font-medium">
+                  Start date
+                </label>
                 <input
+                  ref={startDateInputRef}
+                  id="traffic-export-start-date"
                   type="date"
                   required
+                  max={today || undefined}
                   value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'traffic-export-error' : undefined}
+                  onChange={(event) => {
+                    setStartDate(event.target.value)
+                    setError(null)
+                    setErrorField(null)
+                  }}
+                  aria-invalid={errorField === 'start_date'}
+                  aria-describedby={`traffic-export-date-hint${errorField === 'start_date' ? ' traffic-export-error' : ''}`}
                   className="min-h-11 w-full rounded-lg border border-surface-border bg-surface-inset px-3 text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
                 />
-              </label>
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="font-medium">End date</span>
+                {error && errorField === 'start_date' && (
+                  <p id="traffic-export-error" role="alert" className="text-xs text-red-400">
+                    {error}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 text-sm">
+                <label htmlFor="traffic-export-end-date" className="font-medium">
+                  End date
+                </label>
                 <input
+                  ref={endDateInputRef}
+                  id="traffic-export-end-date"
                   type="date"
                   required
+                  max={today || undefined}
                   value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'traffic-export-error' : undefined}
+                  onChange={(event) => {
+                    setEndDate(event.target.value)
+                    setError(null)
+                    setErrorField(null)
+                  }}
+                  aria-invalid={errorField === 'end_date'}
+                  aria-describedby={`traffic-export-date-hint${errorField === 'end_date' ? ' traffic-export-error' : ''}`}
                   className="min-h-11 w-full rounded-lg border border-surface-border bg-surface-inset px-3 text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action"
                 />
-              </label>
+                {error && errorField === 'end_date' && (
+                  <p id="traffic-export-error" role="alert" className="text-xs text-red-400">
+                    {error}
+                  </p>
+                )}
+              </div>
             </div>
-            <p className="text-xs leading-5 text-[var(--color-text-secondary)]">
-              The calendar opens to the selected month. Use its month arrows to browse other dates. Both dates are included. Formula-like CSV values are prefixed for Excel safety, which can change those cell values.
+            <p id="traffic-export-date-hint" className="text-xs leading-5 text-[var(--color-text-secondary)]">
+              Dates use {timezone}. Both dates are included; choose up to 31 calendar days. Future dates are unavailable. Formula-like CSV values are prefixed for spreadsheet safety, which can change those cell values.
             </p>
-            {error && <p id="traffic-export-error" role="alert" className="text-sm text-red-400">{error}</p>}
+            {error && !errorField && <p role="alert" className="text-sm text-red-400">{error}</p>}
             {announcement && <p role="status" className="sr-only">{announcement}</p>}
             {download && (
               <div className="rounded-lg border border-surface-border bg-surface-inset p-3">

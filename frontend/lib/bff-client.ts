@@ -1167,6 +1167,18 @@ export async function exportTrafficHistoryCsv(
   }
 
   if (!response.ok) {
+    if (response.status === 422) {
+      const payload: unknown = await response.json().catch(() => null)
+      const detail =
+        typeof payload === 'object' && payload !== null && 'detail' in payload
+          ? payload.detail
+          : null
+      const message =
+        detail === 'Export dates must be today or earlier.'
+          ? detail
+          : 'Date range or filters are invalid.'
+      return err(400, 'INVALID_REQUEST', message)
+    }
     await cancelResponseBody(response)
     if (response.status === 401) {
       return err(500, 'INTERNAL_SERVICE_AUTH_FAILED', 'Internal service authentication failed.')
@@ -1180,9 +1192,6 @@ export async function exportTrafficHistoryCsv(
         'EXPORT_TOO_LARGE',
         'Export exceeds the allowed size. Narrow the date range or filters and retry.'
       )
-    }
-    if (response.status === 422) {
-      return err(400, 'INVALID_REQUEST', 'Date range or filters are invalid.')
     }
     return err(
       response.status >= 500 ? response.status : 502,

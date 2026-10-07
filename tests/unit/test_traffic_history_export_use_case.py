@@ -35,9 +35,51 @@ def test_inclusive_date_bounds_cover_a_leap_day_and_exact_midnight_boundary() ->
 def test_date_bounds_follow_dst_calendar_midnights(
     day: date, expected_hours: int
 ) -> None:
-    start, end = inclusive_dates_to_utc_bounds(day, day, "America/New_York")
+    start, end = inclusive_dates_to_utc_bounds(
+        day,
+        day,
+        "America/New_York",
+        now=datetime(2026, 11, 2, tzinfo=timezone.utc),
+    )
 
     assert (end - start) == timedelta(hours=expected_hours)
+
+
+def test_date_bounds_use_the_selected_timezone_for_today_boundary() -> None:
+    before_singapore_midnight = datetime(
+        2026, 10, 7, 15, 59, 59, tzinfo=timezone.utc
+    )
+    with pytest.raises(InvalidTrafficHistoryExportRange) as before_midnight:
+        inclusive_dates_to_utc_bounds(
+            date(2026, 10, 8),
+            date(2026, 10, 8),
+            "Asia/Singapore",
+            now=before_singapore_midnight,
+        )
+    assert before_midnight.value.reason == "future_date"
+
+    singapore_midnight = datetime(2026, 10, 7, 16, tzinfo=timezone.utc)
+    start, end = inclusive_dates_to_utc_bounds(
+        date(2026, 10, 8),
+        date(2026, 10, 8),
+        "Asia/Singapore",
+        now=singapore_midnight,
+    )
+    assert start == datetime(2026, 10, 7, 16, tzinfo=timezone.utc)
+    assert end == datetime(2026, 10, 8, 16, tzinfo=timezone.utc)
+
+    for start_date, end_date in (
+        (date(2026, 10, 8), date(2026, 10, 9)),
+        (date(2026, 10, 9), date(2026, 10, 9)),
+    ):
+        with pytest.raises(InvalidTrafficHistoryExportRange) as future_range:
+            inclusive_dates_to_utc_bounds(
+                start_date,
+                end_date,
+                "Asia/Singapore",
+                now=singapore_midnight,
+            )
+        assert future_range.value.reason == "future_date"
 
 
 @pytest.mark.parametrize(
@@ -53,6 +95,26 @@ def test_invalid_date_ranges_are_rejected(
 ) -> None:
     with pytest.raises(InvalidTrafficHistoryExportRange):
         inclusive_dates_to_utc_bounds(start, end, timezone_name)
+
+
+@pytest.mark.asyncio
+async def test_export_rejects_future_dates_before_querying_repository() -> None:
+    repository = type("Repository", (), {})()
+    repository.list_traffic_history_export_rows = AsyncMock(return_value=[])
+    use_case = ExportTrafficHistoryUseCase(
+        repository,
+        clock=lambda: datetime(2026, 10, 7, 16, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(InvalidTrafficHistoryExportRange) as raised:
+        await use_case.execute(
+            start_date=date(2026, 10, 8),
+            end_date=date(2026, 10, 9),
+            timezone_name="Asia/Singapore",
+        )
+
+    assert raised.value.reason == "future_date"
+    repository.list_traffic_history_export_rows.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

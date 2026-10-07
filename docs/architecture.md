@@ -52,6 +52,11 @@ application/domain code, and database details in infrastructure.
   operational alert is a filtered view of actionable classifications, not a
   separate source-of-truth table. Current actionable classes are SQL Injection
   and Code Injection; `Normal` is not an alert.
+- **Traffic History export:** CSV requests keep the current filters and pass
+  through the authenticated same-origin BFF to FastAPI. The dialog supports
+  close controls, Escape, and backdrop dismissal. Inclusive calendar dates use
+  the selected timezone, allow at most 31 days, and cannot extend past today;
+  FastAPI repeats the date check before querying.
 - **Evidence is not outcome:** model confidence is not attack severity. A
   recorded action or policy decision does not by itself prove what the WAF or
   origin returned. Observed HTTP outcome and WAF evidence are separate facts.

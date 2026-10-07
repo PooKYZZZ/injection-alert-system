@@ -117,16 +117,20 @@ async def export_traffic_history_csv(
             prediction=query.prediction,
             source_ip=query.source_ip,
         )
-    except InvalidTrafficHistoryExportRange:
+    except InvalidTrafficHistoryExportRange as exc:
         _log_traffic_history_export(
             actor=actor,
             query=query,
             outcome="rejected",
-            reason="invalid_range",
+            reason=exc.reason,
         )
         raise HTTPException(
             status_code=422,
-            detail="Date range or filters are invalid.",
+            detail=(
+                "Export dates must be today or earlier."
+                if exc.reason == "future_date"
+                else "Date range or filters are invalid."
+            ),
         ) from None
     except TrafficHistoryExportTooLarge as exc:
         _log_traffic_history_export(

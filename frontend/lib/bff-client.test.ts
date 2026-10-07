@@ -1900,6 +1900,54 @@ describe('bff-client', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('returns a safe, specific future-date validation message from FastAPI', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'Export dates must be today or earlier.' }), {
+          status: 422,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'Unexpected validation details.' }), {
+          status: 422,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+
+    const { exportTrafficHistoryCsv } = await loadClient()
+    const request = {
+      start_date: '2026-10-01',
+      end_date: '2026-10-02',
+      timezone: 'UTC',
+    }
+    const futureDate = await exportTrafficHistoryCsv(request, {
+      id: 'analyst-17',
+      role: 'ANALYST',
+    })
+    const otherValidation = await exportTrafficHistoryCsv(request, {
+      id: 'analyst-17',
+      role: 'ANALYST',
+    })
+
+    expect(futureDate).toMatchObject({
+      ok: false,
+      status: 400,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'Export dates must be today or earlier.',
+      },
+    })
+    expect(otherValidation).toMatchObject({
+      ok: false,
+      status: 400,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'Date range or filters are invalid.',
+      },
+    })
+  })
+
   it('rejects non-CSV upstream responses and maps row caps without returning partial data', async () => {
     fetchMock
       .mockResolvedValueOnce(

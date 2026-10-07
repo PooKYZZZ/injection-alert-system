@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
@@ -36,7 +37,11 @@ _FORMULA_AFTER_PREFIX = re.compile(
 
 
 class InvalidTrafficHistoryExportRange(ValueError):
-    """The inclusive calendar-date range or timezone is not supported."""
+    """The inclusive calendar-date range, timezone, or today limit is invalid."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class TrafficHistoryExportTooLarge(ValueError):
@@ -60,6 +65,8 @@ def inclusive_dates_to_utc_bounds(
     start_date: date,
     end_date: date,
     timezone_name: str,
+    *,
+    now: datetime | None = None,
 ) -> tuple[datetime, datetime]:
     if end_date < start_date:
         raise InvalidTrafficHistoryExportRange("reversed_range")
@@ -68,8 +75,14 @@ def inclusive_dates_to_utc_bounds(
     try:
         selected_zone = ZoneInfo(timezone_name)
         exclusive_end_date = end_date + timedelta(days=1)
+        current_time = now or datetime.now(timezone.utc)
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=timezone.utc)
+        today_in_selected_zone = current_time.astimezone(selected_zone).date()
     except (ZoneInfoNotFoundError, OverflowError, ValueError) as exc:
         raise InvalidTrafficHistoryExportRange("invalid_timezone_or_date") from exc
+    if start_date > today_in_selected_zone or end_date > today_in_selected_zone:
+        raise InvalidTrafficHistoryExportRange("future_date")
 
     start_local = datetime.combine(start_date, time.min, tzinfo=selected_zone)
     end_local = datetime.combine(exclusive_end_date, time.min, tzinfo=selected_zone)
@@ -102,8 +115,14 @@ def _format_utc_timestamp(value: datetime) -> str:
 
 
 class ExportTrafficHistoryUseCase:
-    def __init__(self, repository: ITrafficLogRepository) -> None:
+    def __init__(
+        self,
+        repository: ITrafficLogRepository,
+        *,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self._repository = repository
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     async def execute(
         self,
@@ -125,6 +144,7 @@ class ExportTrafficHistoryUseCase:
             start_date,
             end_date,
             timezone_name,
+            now=self._clock(),
         )
         if confidence_tier and severity and confidence_tier != severity:
             raise InvalidTrafficHistoryExportRange("conflicting_confidence_tiers")
