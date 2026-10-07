@@ -19,8 +19,17 @@ export function ResetPasswordForm({ token }: { token: string }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token, password }),
       })
+      const result = await response.json().catch(() => null) as {
+        error?: { code?: string }
+      } | null
       if (!response.ok) {
-        setError('This reset link is invalid or expired.')
+        if (result?.error?.code === 'INVALID_OR_EXPIRED') {
+          setError('This reset link is invalid or expired.')
+        } else if (result?.error?.code === 'INVALID_REQUEST') {
+          setError('Check the reset form and try again.')
+        } else {
+          setError('Password reset is temporarily unavailable. Try again without leaving this page.')
+        }
         return
       }
       setDone(true)

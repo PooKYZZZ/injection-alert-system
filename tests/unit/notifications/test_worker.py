@@ -9,10 +9,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from web_app.notifications import providers
 from web_app.notifications.delivery import DeliveryRouter
 from web_app.notifications.models import OutboxJob, ProviderSendResult
 from web_app.notifications.payload_crypto import encrypt_notification_payload
-from web_app.notifications import providers
 from web_app.notifications.providers import EmailProviderError
 from web_app.notifications.worker import OutboxWorker
 from web_app.observability.context import reset_request_context, set_request_context
@@ -53,6 +53,9 @@ class RepositoryStub:
     jobs: list[OutboxJob]
     completed: list[tuple[str, str, str]] = field(default_factory=list)
     failed: list[tuple[str, str, str, bool, int]] = field(default_factory=list)
+    reset_token_active: bool = True
+    reset_token_error: Exception | None = None
+    reset_token_hashes: list[str] = field(default_factory=list)
 
     async def claim_batch(self, worker_id: str, batch_size: int, lease_seconds: int):
         return self.jobs
@@ -71,6 +74,12 @@ class RepositoryStub:
         self.failed.append(
             (job_id, worker_id, error_class, retryable, retry_delay_seconds)
         )
+
+    async def password_reset_token_is_active(self, token_hash: str) -> bool:
+        self.reset_token_hashes.append(token_hash)
+        if self.reset_token_error is not None:
+            raise self.reset_token_error
+        return self.reset_token_active
 
 
 class SuccessfulProvider:
@@ -268,6 +277,7 @@ async def test_worker_records_provider_accepted_completion_failure_as_ambiguous(
             idempotency_key=job().provider_idempotency_key,
             payload={
                 "reset_url": "https://dashboard.example.test/reset?token=raw-secret",
+                "reset_token_hash": "a" * 64,
             },
         ),
     )
@@ -331,7 +341,7 @@ async def test_worker_decrypts_secret_payload_only_at_delivery_boundary() -> Non
             kind="password_reset",
             recipient=job().recipient,
             idempotency_key=job().provider_idempotency_key,
-            payload={"reset_url": reset_url},
+            payload={"reset_url": reset_url, "reset_token_hash": "a" * 64},
         ),
     )
     repository = RepositoryStub([protected])
@@ -347,6 +357,115 @@ async def test_worker_decrypts_secret_payload_only_at_delivery_boundary() -> Non
     assert result.sent == 1
     assert reset_url not in json.dumps(protected.safe_payload)
     assert reset_url in provider.messages[0].text
+    assert repository.reset_token_hashes == ["a" * 64]
+    assert "reset_token_hash" not in provider.messages[0].text
+
+
+@pytest.mark.asyncio
+async def test_worker_derives_hash_for_an_older_reset_job() -> None:
+    token = "old-reset-" + "x" * 40
+    reset_url = f"https://dashboard.example.test/reset?token={token}"
+    protected = replace(
+        job(),
+        kind="password_reset",
+        safe_payload=encrypt_notification_payload(
+            kind="password_reset",
+            recipient=job().recipient,
+            idempotency_key=job().provider_idempotency_key,
+            payload={"reset_url": reset_url},
+        ),
+    )
+    repository = RepositoryStub([protected])
+    provider = SuccessfulProvider()
+    worker = OutboxWorker(
+        repository=repository,
+        provider=provider,
+        worker_id="worker-a",
+    )
+
+    result = await worker.run_once()
+
+    assert result.sent == 1
+    assert repository.reset_token_hashes == [
+        "6f326d7e775cee483a7cfe65dd83f55745f251fc50460992a5b7406dd20e76c5"
+    ]
+    assert reset_url in provider.messages[0].text
+
+
+@pytest.mark.asyncio
+async def test_worker_skips_a_leased_reset_email_after_its_token_is_revoked(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    protected = replace(
+        job(),
+        kind="password_reset",
+        safe_payload=encrypt_notification_payload(
+            kind="password_reset",
+            recipient=job().recipient,
+            idempotency_key=job().provider_idempotency_key,
+            payload={
+                "reset_url": "https://dashboard.example.test/reset?token=revoked-token-value-123456789012345678901234567890",
+                "reset_token_hash": "a" * 64,
+            },
+        ),
+    )
+    repository = RepositoryStub([protected], reset_token_active=False)
+    provider = SuccessfulProvider()
+    worker = OutboxWorker(
+        repository=repository,
+        provider=provider,
+        worker_id="worker-a",
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await worker.run_once()
+
+    assert result == type(result)(claimed=1, sent=0, failed=1, ambiguous=0)
+    assert provider.messages == []
+    assert repository.failed == [
+        (protected.id, "worker-a", "password_reset_token_inactive", False, 0)
+    ]
+    assert repository.reset_token_hashes == ["a" * 64]
+    assert "revoked-token-value" not in caplog.text
+    assert "a" * 64 not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_worker_retries_reset_email_when_token_preflight_is_unavailable() -> None:
+    protected = replace(
+        job(),
+        kind="password_reset",
+        safe_payload=encrypt_notification_payload(
+            kind="password_reset",
+            recipient=job().recipient,
+            idempotency_key=job().provider_idempotency_key,
+            payload={"reset_url": "https://dashboard.example.test/reset?token=" + "a" * 43},
+        ),
+    )
+    repository = RepositoryStub(
+        [protected], reset_token_error=RuntimeError("database detail must not leak")
+    )
+    provider = SuccessfulProvider()
+    worker = OutboxWorker(
+        repository=repository,
+        provider=provider,
+        worker_id="worker-a",
+        jitter=lambda _low, _high: 0,
+    )
+
+    result = await worker.run_once()
+
+    assert result == type(result)(claimed=1, sent=0, failed=1, ambiguous=0)
+    assert provider.messages == []
+    assert repository.failed == [
+        (
+            protected.id,
+            "worker-a",
+            "password_reset_preflight_unavailable",
+            True,
+            30,
+        )
+    ]
 
 
 @pytest.mark.asyncio

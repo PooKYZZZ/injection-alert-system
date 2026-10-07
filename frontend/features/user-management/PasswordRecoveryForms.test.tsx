@@ -92,7 +92,11 @@ describe('password recovery forms', () => {
   })
 
   it('associates reset-link errors with the password control', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 410 }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { code: 'INVALID_OR_EXPIRED' } }),
+    }))
     render(<ResetPasswordForm token={'a'.repeat(43)} />)
 
     const input = screen.getByLabelText('New password')
@@ -102,5 +106,21 @@ describe('password recovery forms', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/invalid or expired/i)
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(input).toHaveAttribute('aria-describedby', 'reset-password-error')
+  })
+
+  it('shows service failures as temporary and keeps the password form available', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: { code: 'UNAVAILABLE' } }),
+    }))
+    render(<ResetPasswordForm token={'a'.repeat(43)} />)
+
+    const input = screen.getByLabelText('New password')
+    fireEvent.change(input, { target: { value: 'correct horse battery staple' } })
+    fireEvent.submit(screen.getByRole('form', { name: /set a new password/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/temporarily unavailable/i)
+    expect(await screen.findByRole('button', { name: /reset password/i })).toBeEnabled()
   })
 })

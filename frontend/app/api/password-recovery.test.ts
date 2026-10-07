@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const harness = vi.hoisted(() => ({
-  request: vi.fn(),
-  complete: vi.fn(),
-  auth: vi.fn(),
-  guard: vi.fn(),
-  resetMfa: vi.fn(),
-}))
+const harness = vi.hoisted(() => {
+  class PasswordRecoveryError extends Error {
+    constructor(public readonly code: 'INVALID_REQUEST' | 'INVALID_OR_EXPIRED' | 'UNAVAILABLE') {
+      super(code)
+    }
+  }
+  return {
+    PasswordRecoveryError,
+    request: vi.fn(),
+    complete: vi.fn(),
+    auth: vi.fn(),
+    guard: vi.fn(),
+    resetMfa: vi.fn(),
+  }
+})
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/server/db/password-recovery', () => ({
+  PasswordRecoveryError: harness.PasswordRecoveryError,
   requestPasswordReset: harness.request,
   completePasswordReset: harness.complete,
   resetManagedAccountMfa: harness.resetMfa,
@@ -97,6 +106,37 @@ describe('password recovery routes', () => {
     }))
     expect(response.status).toBe(200)
     expect(harness.complete).toHaveBeenCalled()
+  })
+
+  it('returns a generic invalid-link response for invalid or expired tokens', async () => {
+    const { POST } = await import('./auth/reset-password/route')
+    harness.complete.mockRejectedValueOnce(
+      new harness.PasswordRecoveryError('INVALID_OR_EXPIRED')
+    )
+    const response = await POST(new NextRequest('http://localhost/api/auth/reset-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ token: 'a'.repeat(43), password: 'correct horse battery staple' }),
+    }))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: { code: 'INVALID_OR_EXPIRED', message: 'This reset link is invalid or expired.' },
+    })
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('returns a temporary service error for reset backend failures', async () => {
+    const { POST } = await import('./auth/reset-password/route')
+    harness.complete.mockRejectedValueOnce(
+      new harness.PasswordRecoveryError('UNAVAILABLE')
+    )
+    const response = await POST(new NextRequest('http://localhost/api/auth/reset-password', {
+      method: 'POST', headers: { origin: 'http://localhost' }, body: JSON.stringify({ token: 'a'.repeat(43), password: 'correct horse battery staple' }),
+    }))
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: { code: 'UNAVAILABLE', message: 'Password reset is temporarily unavailable. Try again.' },
+    })
   })
 
   it('guards ADMIN MFA reset and never allows the route to choose a password', async () => {

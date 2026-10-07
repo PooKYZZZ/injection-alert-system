@@ -115,6 +115,7 @@ async def test_resend_provider_classifies_failures_without_provider_text(
 
     assert captured.value.retryable is retryable
     assert captured.value.error_class == error_type
+    assert captured.value.delivery_ambiguous is (status in {409, 408, 425} or status >= 500)
     assert "unsafe provider detail" not in str(captured.value)
 
 
@@ -145,7 +146,37 @@ async def test_resend_provider_treats_timeout_as_retryable() -> None:
 
     assert captured.value.retryable is True
     assert captured.value.error_class == "provider_timeout"
+    assert captured.value.delivery_ambiguous is True
     assert "secret-bearing" not in str(captured.value)
+
+
+@pytest.mark.asyncio
+async def test_resend_connect_timeout_is_retryable_but_not_delivery_ambiguous() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("secret-bearing connect timeout", request=request)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.resend.com",
+    ) as client:
+        provider = ResendEmailProvider(
+            api_key="test-api-key",
+            from_email="security@example.test",
+            client=client,
+        )
+        with pytest.raises(EmailProviderError) as captured:
+            await provider.send(
+                EmailMessage(
+                    recipient="viewer@example.test",
+                    subject="Notice",
+                    text="Safe",
+                    html="<p>Safe</p>",
+                    idempotency_key="notice/event-4b",
+                )
+            )
+
+    assert captured.value.retryable is True
+    assert captured.value.delivery_ambiguous is False
 
 
 @pytest.mark.asyncio

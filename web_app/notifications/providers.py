@@ -99,16 +99,42 @@ class ResendEmailProvider:
                 timeout=self._timeout,
             )
         except httpx.TimeoutException as exc:
-            raise EmailProviderError("provider_timeout", retryable=True) from exc
+            ambiguous = isinstance(exc, (httpx.ReadTimeout, httpx.WriteTimeout))
+            raise EmailProviderError(
+                "provider_timeout",
+                retryable=True,
+                delivery_ambiguous=ambiguous,
+            ) from exc
         except httpx.TransportError as exc:
-            raise EmailProviderError("provider_transport", retryable=True) from exc
+            ambiguous = isinstance(
+                exc,
+                (
+                    httpx.ReadError,
+                    httpx.WriteError,
+                    httpx.RemoteProtocolError,
+                ),
+            )
+            raise EmailProviderError(
+                "provider_transport",
+                retryable=True,
+                delivery_ambiguous=ambiguous,
+            ) from exc
 
         if not 200 <= response.status_code < 300:
             error_class = self._read_error_class(response)
             retryable = response.status_code in {408, 425, 429} or response.status_code >= 500
             if response.status_code == 409:
                 retryable = error_class == "concurrent_idempotent_requests"
-            raise EmailProviderError(error_class, retryable=retryable)
+            delivery_ambiguous = (
+                response.status_code in {408, 425}
+                or response.status_code >= 500
+                or error_class == "concurrent_idempotent_requests"
+            )
+            raise EmailProviderError(
+                error_class,
+                retryable=retryable,
+                delivery_ambiguous=delivery_ambiguous,
+            )
 
         try:
             message_id = response.json().get("id")

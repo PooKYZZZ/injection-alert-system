@@ -1,25 +1,30 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import random
+import re
 import time
 from datetime import datetime, timezone
 from typing import Callable, Literal, Protocol
+from urllib.parse import parse_qs, urlsplit
 
+from web_app.notifications.delivery import DeliveryRouter
 from web_app.notifications.models import OutboxJob, WorkerRunResult
 from web_app.notifications.payload_crypto import (
     PROTECTED_NOTIFICATION_KINDS,
     NotificationPayloadError,
     decrypt_notification_payload,
 )
-from web_app.notifications.delivery import DeliveryRouter
 from web_app.notifications.providers import EmailProvider, NotificationProviderError
 from web_app.notifications.telegram import TelegramPayloadError
 from web_app.notifications.templates import TemplatePayloadError
 from web_app.observability.structured_logging import log_event
 
 logger = logging.getLogger(__name__)
+_RESET_TOKEN_HASH = re.compile(r"^[a-f0-9]{64}$")
+_OPAQUE_RESET_TOKEN = re.compile(r"^[A-Za-z0-9_-]{40,512}$")
 
 
 class OutboxRepository(Protocol):
@@ -39,6 +44,29 @@ class OutboxRepository(Protocol):
         retryable: bool,
         retry_delay_seconds: int,
     ) -> None: ...
+
+    async def password_reset_token_is_active(self, token_hash: str) -> bool: ...
+
+
+def _password_reset_token_hash(payload: dict[str, str]) -> str | None:
+    stored_hash = payload.get("reset_token_hash")
+    if stored_hash is not None:
+        return stored_hash if _RESET_TOKEN_HASH.fullmatch(stored_hash) else None
+
+    # Older queued jobs only contain the encrypted reset URL. Parse it in
+    # memory so those jobs can use the same active-token check after upgrade.
+    reset_url = payload.get("reset_url")
+    if not isinstance(reset_url, str):
+        return None
+    try:
+        values = parse_qs(urlsplit(reset_url).query, keep_blank_values=True).get(
+            "token", []
+        )
+    except ValueError:
+        return None
+    if len(values) != 1 or not _OPAQUE_RESET_TOKEN.fullmatch(values[0]):
+        return None
+    return hashlib.sha256(values[0].encode("utf-8")).hexdigest()
 
 
 class OutboxWorker:
@@ -97,6 +125,66 @@ class OutboxWorker:
                         idempotency_key=job.provider_idempotency_key,
                         envelope=job.safe_payload,
                     )
+                if job.kind == "password_reset":
+                    token_hash = _password_reset_token_hash(payload)
+                    if token_hash is None:
+                        failed += 1
+                        await self._safe_fail(
+                            job, "password_reset_payload_invalid", False, 0
+                        )
+                        log_event(
+                            logger,
+                            "notification.password_reset_skipped",
+                            "Password reset notification had no valid token reference",
+                            component="notification-worker",
+                            notification_event_id=job.id,
+                            error_class="password_reset_payload_invalid",
+                            attempt_number=job.attempt_count,
+                        )
+                        continue
+                    try:
+                        token_active = (
+                            await self._repository.password_reset_token_is_active(
+                                token_hash
+                            )
+                        )
+                    except Exception as exc:
+                        failed += 1
+                        retry_delay = self._retry_delay(job.attempt_count)
+                        await self._safe_fail(
+                            job,
+                            "password_reset_preflight_unavailable",
+                            True,
+                            retry_delay,
+                        )
+                        log_event(
+                            logger,
+                            "notification.password_reset_preflight_failed",
+                            "Password reset token could not be checked before delivery",
+                            level="WARNING",
+                            component="notification-worker",
+                            notification_event_id=job.id,
+                            error_class=type(exc).__name__,
+                            attempt_number=job.attempt_count,
+                            retry_delay_seconds=retry_delay,
+                        )
+                        continue
+                    if not token_active:
+                        failed += 1
+                        await self._safe_fail(
+                            job, "password_reset_token_inactive", False, 0
+                        )
+                        log_event(
+                            logger,
+                            "notification.password_reset_skipped",
+                            "Password reset notification token is no longer active",
+                            component="notification-worker",
+                            notification_event_id=job.id,
+                            error_class="password_reset_token_inactive",
+                            attempt_number=job.attempt_count,
+                        )
+                        continue
+                    payload.pop("reset_token_hash", None)
                 result = await self._delivery.deliver(job, payload)
             except NotificationPayloadError:
                 failed += 1
