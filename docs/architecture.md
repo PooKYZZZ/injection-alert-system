@@ -265,11 +265,13 @@ The helper is not executable by `PUBLIC`, `anon`, or `authenticated`;
 `service_role` is granted execution. Next.js maps the stable last-Owner
 sentinel to HTTP `409` with a safe message.
 
-The last read-only hosted revision check on 2026-10-07 still showed
-`20260930_000031`, and the hosted RPC definitions did not contain this guard.
-The new revision is therefore source-implemented but not confirmed deployed.
-It protects the existing account-management RPCs; privileged SQL updates that
-bypass those RPCs are outside this guard.
+The pre-migration hosted check on 2026-10-07 showed
+`20260930_000031` and RPC definitions without this guard. After explicit
+approval, revisions `20261007_000032` and `20261007_000033` were applied and
+the hosted head and function definitions were checked; see the dated record in
+[`project-ops/STATUS.md`](project-ops/STATUS.md). The guard protects the
+existing account-management RPCs; privileged SQL updates that bypass those
+RPCs are outside its scope.
 The repository tracks these functions through Alembic. The Supabase migration
 history separately reports only `20260905094814`; this repository has no
 `supabase/migrations` directory, so Supabase CLI push/repair is not an approved
@@ -352,9 +354,13 @@ the client-facing behavior for disabled or unauthorized pages.
 - Tests use SQLite
 - Isolated local work can still use SQLite when needed
 - The current app runtime is wired to Supabase-backed PostgreSQL
-- Repository Alembic head: `20261007_000033`. The running local database was
-  observed at `20260924_000030` before this migration was applied. Latest
-  hosted Supabase revision with recorded evidence: `20260712_000020`.
+- Repository Alembic head: `20261007_000033`. The hosted Supabase database
+  was explicitly checked and migrated to `20261007_000033` on 2026-10-07;
+  its prior head was `20260930_000031`. Revisions `20261007_000032` and
+  `20261007_000033` changed database functions only; no account or traffic
+  rows were changed. Post-migration function definitions and grants were
+  checked. Supabase backup/PITR readiness was not verified during that
+  operation, and the hosted state must be rechecked before a later migration.
 - The auth/security schema foundation and app-runtime account lookup are implemented additively; `auth_accounts` is now the login and request-time session-freshness source of truth
 - MFA/recovery state transitions are database-authoritative. Auth.js receives only typed completion claims returned by purpose-bound PostgreSQL functions.
 - Notification outbox rows have bounded deadlines, cancellation/expiry/permanent-failure terminal states, and lease reconciliation. Email retains AES-GCM protection for active credential-equivalent payloads; Telegram is database-restricted to safe `threat_detected` payloads. Terminal payloads are scrubbed.

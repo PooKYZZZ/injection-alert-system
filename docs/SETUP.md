@@ -1,31 +1,21 @@
 # Local Setup
 
-Last updated: 2026-07-30
+Last updated: 2026-10-07
 
-This guide reflects the repo as it exists now. It supports direct local development, a Docker-based CyberTrace smoke path, and a final realistic WAF demo path. Docker Compose and ModSecurity now exist in the repo. The dashboard browser boundary remains `Browser -> Next.js -> FastAPI`; the technical CyberTrace WAF proof path uses `localhost:8088`, and the realistic protected demo website path uses `localhost:8089` with the separate land-records portal built as the `demo-portal` service. PR2 SSE no-refresh and browser reconnect behavior are manually verified through the named hosted deployment; see `docs/project-ops/STATUS.md` for evidence and limitations.
+This guide covers direct local development, the isolated Docker Compose
+application stack, and optional controlled WAF demonstrations. It is not a
+production deployment recipe. The ordinary local Compose workflow uses its
+private PostgreSQL service; do not point it at the hosted database.
 
-PR #84 is frozen at trusted source correlation. Its code, migrations, CI,
-controlled proof, hosted source-correlation proof, and restart/recreate proof
-are complete. The separate PR2 SSE slice is implemented with automated and
-manual no-refresh, browser-reconnect, and named-domain hosted proof. PR5 adds
-local/test-only LOW/MEDIUM active enforcement for the protected portal route;
-hosted/production enforcement remains off and HIGH/CRITICAL remain
-non-disruptive. Current Telegram provider/hosted verification is recorded in
-`docs/project-ops/STATUS.md`. Hosted source verification remains
-`WAF_SOURCE_VERIFICATION_MODE=unverified` until the final Cloudflare/origin
-trust checks are completed. See
-`docs/project-ops/IMPLEMENTATION_GAP_REGISTER.md` for remaining PR5 and hosted
-work.
+The hosted-style Docker instructions later in this document are operator-only.
+Use them only for an explicitly authorized task after reviewing the current
+operator status and migration runbook. A local proof, a historical test result,
+or a successful health check is not proof of hosted or production readiness.
 
-PR7 Block 1, Block 2, and the controlled-local Block 3 lifecycle are implemented
-for controlled-local CRITICAL WAF evidence. The runtime is opt-in through the
-`pr7-local-waf` and `pr7-block3` Compose profiles and the disposable PostgreSQL
--> backend -> WAF integration tests. This does not
-authorize hosted, staging, or production enforcement; remaining trust-topology
-and portal evidence is listed in
-`docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`.
-
-Client-stated PD2 requirements are recorded in `docs/client-requirements.md`. The `CRITICAL >=90%` confidence tier, named-account/RBAC, TOTP MFA, recovery, password-reset, recent-step-up, protected notification outbox, and restricted break-glass boundaries are implemented behind explicit rollout switches and database roles. The hosted V6.1 migration, public Cloudflare deployment, Resend delivery, and live Admin authentication journey are verified; Turnstile hostname verification and the approved post-merge follow-ups remain separate work.
+For the source-grounded architecture and current implementation boundaries, see
+[`docs/architecture.md`](architecture.md). Date-sensitive migration and
+container verification is recorded in
+[`docs/project-ops/STATUS.md`](project-ops/STATUS.md).
 
 ## Prerequisites
 
@@ -209,11 +199,11 @@ RLS on the new public-schema auth/security tables is defense-in-depth only.
 Auth.js Credentials login and BFF session freshness checks now read
 `auth_accounts` through the server-only client. `AUTH_USERS_JSON` is not a
 runtime source or outage fallback.
-The repository migration chain now includes `20260905_000029` for the Owner
-role and authorization policy. Apply that migration through the reviewed
-deployment process before using Owner accounts in a hosted database. The
-previously recorded hosted migration state is through `20260712_000020`; do
-not rerun or downgrade the hosted database casually; use
+Alembic revision `20260905_000029` establishes the Owner role and authorization
+policy and is part of the current migration chain. The hosted database was last
+verified at `20261007_000033` on 2026-10-07, so that revision is already behind
+the recorded hosted head. Recheck the live target and revision before a new
+hosted operation; do not rerun or downgrade the hosted database casually. Use
 `docs/project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`.
 
 The V6.1 account/MFA/recovery feature switches are documented in
@@ -395,15 +385,14 @@ Notes:
 - Runtime feature flags are server-only availability controls. They are injected when the frontend container starts, are not Docker build arguments, and are evaluated per request. Recreate or restart the container after changing them.
 - TOTP MFA enrollment/login, backup/email recovery, password reset, and recent-TOTP step-up are implemented behind `AUTH_MFA_ENROLLMENT_ENABLED`, `AUTH_EMAIL_RECOVERY_ENABLED`, and `AUTH_PASSWORD_RESET_ENABLED`. Missing values fail closed; runtime changes require container recreation or restart. Turnstile has a server-side verification boundary but no enabled production widget/hostname configuration.
 - Accounts with `mfa_required=true` enter the password-level pre-auth flow and cannot reach the dashboard until final TOTP completion; recovery-level sessions are routed to mandatory enrollment.
-- The current repository migration head is `20261007_000033`. The latest hosted Supabase
-  revision with recorded evidence is `20260712_000020`. Hosted and repository
-  revisions are separate facts.
-- Hosted migration state is only confirmed through `20260712_000020`; the
-  source-verification migration is not claimed as hosted until a reviewed
-  deployment proves it. Application
-  functions remain purpose-bound and server-only; the restricted break-glass
-  function is executable only through `cybertrace_break_glass`, not
-  `service_role`.
+- The repository's Alembic head and the hosted database revision are separate
+  facts. The last hosted revision check and migration operation are recorded
+  with their date in [`project-ops/STATUS.md`](project-ops/STATUS.md); recheck
+  the live target and revision before any new hosted migration. Do not infer
+  hosted state from the local Compose database.
+- Application functions remain purpose-bound and server-only; the restricted
+  break-glass function is executable only through `cybertrace_break_glass`,
+  not `service_role`.
 - The notification worker is channel-aware for email and Telegram, claims one
   job per poll by default, reconciles expired leases/deadlines, cancels
   superseded jobs, decrypts protected credential payloads only at email
@@ -492,9 +481,10 @@ downgrade or upgrade; the exact rollback decision belongs in
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md).
 Do not choose a downgrade target from this setup guide. Follow
 [`MIGRATION_ROLLBACK_RUNBOOK.md`](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md) for
-reviewed downgrade/re-upgrade testing. Hosted Supabase is confirmed only through
-`20260712_000020`; do not infer that the repository head has been deployed
-there. Revision `20260704_000008` is intentionally part of normal `upgrade head`.
+reviewed downgrade/re-upgrade testing. Hosted Supabase was verified at
+`20261007_000033` on 2026-10-07; this is a dated check, not a guarantee of its
+present state. Verify the target and current revision before any later hosted
+migration. Revision `20260704_000008` is intentionally part of normal `upgrade head`.
 It creates nine auth/security tables, enables RLS, revokes public-role access,
 and creates no browser-facing policies. Revision `20260324_000007` now fails
 clearly if its required `traffic_logs` table is missing instead of silently
@@ -544,7 +534,10 @@ npm run lint
 npm run typecheck
 ```
 
-As of 2026-07-03, both pass cleanly.
+These commands describe the checks to run; older pass results are not evidence
+that the current checkout still passes. Use the dated records in
+`project-ops/STATUS.md` for prior validation and rerun the commands before
+relying on them.
 
 ### Run focused frontend BFF tests
 

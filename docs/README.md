@@ -1,79 +1,65 @@
-# Documentation
+# Documentation Index
 
-This folder is the maintained documentation surface for the repository. It is intentionally trimmed to the documents that still map to the current codebase, test suite, runtime boundaries, and academic deliverables.
+This page routes readers to the right document. It is an index, not a guarantee
+that every dated proof or status note is still current. Check the date and scope
+inside operational documents, and verify the live repository/runtime before
+using them to make deployment decisions.
 
-## Use This Folder By Purpose
+## Start here
 
-### Current implementation
-- `CONTEXT.md`
-  - Short status snapshot for the repo as it exists today.
-- `architecture.md`
-  - Current system structure, request flow, active boundaries, and known gaps.
-- `SETUP.md`
-  - Honest local setup instructions for the repo in its current state.
-- `client-requirements.md`
-  - Client-stated PD2 requirements for secure login, RBAC, 2FA, timely alerts, email notifications, and confidence-tier expectations.
-- `../CONTRIBUTING.md`
-  - Workflow, guardrails, and validation steps for contributors.
+- [Project overview](../README.md) — what CyberTrace is, its boundaries, and
+  how to begin.
+- [Local setup](SETUP.md) — direct development and isolated Docker Compose
+  workflows. Hosted-style commands are operator-only.
+- [Architecture](architecture.md) — application boundaries, data flow, and
+  implementation limitations.
+- [Contributing](../CONTRIBUTING.md) — change workflow, repository guardrails,
+  and validation commands.
 
-### Operator docs
-- `project-ops/STATUS.md`
-  - Team and implementation status notes for current operator workflows.
-- `project-ops/IMPLEMENTATION_GAP_REGISTER.md`
-  - Canonical cumulative stable-ID register for unresolved implementation work;
-    local, CI, manual, and hosted evidence remain distinct.
-- `project-ops/LIVING_CHECKLIST.md`
-  - Ongoing implementation checklist and handoff material.
-- `project-ops/MODSECURITY_AUDIT_LOG_POLICY.md`
-  - ModSecurity audit-log policy for the verified local WAF proof path.
-- `project-ops/DEMO_TARGET_WAF_PROOF.md`
-  - Verified local PD2 proof for the realistic `localhost:8089` demo-target WAF path against the separate land-records portal.
-- `project-ops/SMOKE_TEST_RUNBOOK.md`
-  - Canonical smoke commands for the `8088` technical proof path, the `8089` realistic demo-target path, and the verified Admin authentication journey.
-- `project-ops/MIGRATION_ROLLBACK_RUNBOOK.md`
-  - Migration-head, backup, downgrade, application rollback, and runtime kill-switch guidance.
-- `project-ops/README.md`
-  - Canonical routing table for setup, tests, migrations, enablement,
-    notifications, recovery, break glass, and thesis demonstrations.
-- `../reports/modsecurity-live-proof/e2e-proof.md`
-  - Checked-in local proof evidence for ModSecurity/OWASP CRS -> bridge -> FastAPI WAF ingest.
+## Current source and date-sensitive records
 
-### Dataset and ML baseline
-- Dataset and model-artifact provenance is maintained under `ml_model/` and
-  `data/`; no standalone dataset-release Markdown files are currently checked
-  in under `docs/`.
+- [Project Ops index](project-ops/README.md) — routes to runbooks and evidence.
+- [Project Ops status](project-ops/STATUS.md) — the latest bounded operator
+  verification is at the top; later sections preserve older dated records.
+- [Implementation gap register](project-ops/IMPLEMENTATION_GAP_REGISTER.md) —
+  cumulative gaps last reviewed on 2026-07-30. Reconcile it with current code
+  before treating it as the active backlog.
+- [Project context](CONTEXT.md) — an implementation snapshot updated
+  2026-07-30; use it as historical context, not as a current status report.
+- [Client requirements](client-requirements.md) — requirements stated by the
+  client; this document is not proof that every requirement is implemented.
 
-## Current project state
+## Evidence and operational guidance
 
-This index intentionally avoids duplicating fast-changing status, route, and
-evidence details. Use the canonical documents below:
-
-- [Project context](CONTEXT.md)
-- [Architecture](architecture.md)
-- [Developer setup](SETUP.md)
-- [Operator status](project-ops/STATUS.md)
-- [Implementation gap register](project-ops/IMPLEMENTATION_GAP_REGISTER.md)
-- [Execution checklist](project-ops/LIVING_CHECKLIST.md)
+- [Smoke-test runbook](project-ops/SMOKE_TEST_RUNBOOK.md) — local smoke
+  procedures and their evidence boundaries.
+- [ModSecurity audit-log policy](project-ops/MODSECURITY_AUDIT_LOG_POLICY.md) —
+  local WAF audit data handling and retention guidance.
+- [Migration rollback runbook](project-ops/MIGRATION_ROLLBACK_RUNBOOK.md) —
+  migration and rollback safeguards.
+- [Local ModSecurity/OWASP CRS proof](../reports/modsecurity-live-proof/e2e-proof.md)
+  — dated evidence for the local audit-log bridge path; not hosted or production
+  proof.
+- [Implementation-gap details](project-ops/IMPLEMENTATION_GAP_REGISTER.md) —
+  date-stamped cumulative planning/evidence.
 
 ## Documentation ownership
 
-| Subject | Canonical source |
+| Subject | Main document |
 |---|---|
-| Project overview | `README.md` |
-| Current implementation | `CONTEXT.md` |
-| Runtime architecture | `architecture.md` |
-| Developer setup | `SETUP.md` |
-| Operator snapshot | `project-ops/STATUS.md` |
-| Outstanding work | `project-ops/IMPLEMENTATION_GAP_REGISTER.md` |
-| Execution checklist | `project-ops/LIVING_CHECKLIST.md` |
-| Historical evidence | `../reports/` |
-| PR7 controlled-local WAF evidence | `project-ops/PR7_BLOCK_2_EVIDENCE.md` |
-| PR7 implementation contract | `project-ops/PR7_IMPLEMENTATION_SPEC.md` |
+| Project overview | [README](../README.md) |
+| Local setup | [SETUP](SETUP.md) |
+| Architecture | [Architecture](architecture.md) |
+| Contributor workflow | [CONTRIBUTING](../CONTRIBUTING.md) |
+| Operator procedures | [Project Ops](project-ops/README.md) |
+| Dated operator verification | [STATUS](project-ops/STATUS.md) |
+| Academic/history snapshots | [Archive](archive/) and dated reports |
 
-## Documentation Rules For This Repo
+## Documentation rules
 
-- Keep implementation docs tied to code and tests, not intention.
-- If something is planned but not shipped, label it as planned.
-- Keep setup, architecture, and status separate so each file has one job.
-- Preserve academic documents, but mark them clearly when they are design artifacts instead of runtime truth.
-- Keep operator docs separate from user-facing implementation docs.
+- Describe behavior verified in code and tests; label proposals as planned.
+- Keep the overview, setup, architecture, and operational evidence in their
+  respective documents rather than copying long detail into the project README.
+- Keep repository-relative links so they work in GitHub and local clones.
+- Do not treat an old test count, migration revision, screenshot, or local
+  demonstration as proof of current hosted behavior.
