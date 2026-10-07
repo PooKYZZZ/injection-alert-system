@@ -57,8 +57,9 @@ def test_ci_validates_and_smokes_the_local_compose_stack() -> None:
     source = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     job = source.split("  container-smoke:", 1)[1]
 
-    assert "docker compose config --quiet" in job
-    assert "docker-compose.local.yml" in job
+    assert "docker compose --project-directory . --env-file .local/env/.env" in job
+    assert "config --quiet" in job
+    assert "docker/compose/overlays/local.yml" in job
     assert "up -d --build --wait" in job
     assert "docker compose" in job and "exec -T backend" in job
     assert "exec -T frontend" in job

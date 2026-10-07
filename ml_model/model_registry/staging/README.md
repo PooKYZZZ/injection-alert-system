@@ -23,7 +23,7 @@ Do not rename this active directory as part of promotion.
 3. Confirm this path exists after extraction:
    `ml_model/model_registry/staging/distilbert_v3_907k_cleaned_20260312_133755/`
 
-4. Set `.env` to the real runtime model boundary:
+4. Set `.local/env/.env` to the real runtime model boundary:
    `MODEL_REGISTRY_PATH=ml_model/model_registry`
    (or set an explicit run directory under `ml_model/model_registry/staging/`)
 

@@ -22,7 +22,7 @@ from tests.e2e.pr7_block3_artifacts import (
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = (
-    ROOT / "docker-compose.yml",
+    ROOT / "docker/compose/base.yml",
     ROOT / "docker/compose/tests/base.yml",
     ROOT / "docker/compose/scenarios/pr7-block3.yml",
 )
@@ -62,7 +62,16 @@ def _run(command: list[str], *, timeout: float = 180) -> str:
 
 
 def _compose(project: str, override: Path, *args: str) -> list[str]:
-    command = ["docker", "compose", "--project-name", project]
+    command = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(ROOT),
+        "--env-file",
+        str(ROOT / ".local" / "env" / ".env"),
+        "--project-name",
+        project,
+    ]
     for compose_file in COMPOSE_FILES:
         command.extend(["-f", str(compose_file)])
     command.extend(["-f", str(override), "--profile", "pr7-block3"])
@@ -142,9 +151,9 @@ def require_block3bc_artifacts() -> dict[str, Any]:
     require_portal_commit(PORTAL_PATH, lock["portal"]["commit"])
     require_pinned_compose_images(
         (
-            ROOT / "docker-compose.yml",
-            ROOT / "docker-compose.demo-target.yml",
-            ROOT / "docker-compose.target-cloudflare.yml",
+            ROOT / "docker/compose/base.yml",
+            ROOT / "docker/compose/overlays/demo-target.yml",
+            ROOT / "docker/compose/overlays/target-cloudflare.yml",
             ROOT / "docker/compose/scenarios/pr7-block3b.yml",
         ),
         lock_path,

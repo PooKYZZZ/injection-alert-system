@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import Any
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
@@ -20,7 +20,6 @@ from web_app.domain.source_address import (
     SourceProvenance,
     canonicalize_source_ip,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SAMPLES_ROOT = REPO_ROOT / "data" / "processed" / "v3_907k_cleaned" / "sample_exports"
@@ -693,7 +692,8 @@ def main() -> int:
     parser.add_argument("--report-root", type=Path, default=DEFAULT_REPORT_ROOT)
     args = parser.parse_args()
 
-    env_text = Path(".env").read_text(encoding="utf-8") if Path(".env").exists() else ""
+    env_path = REPO_ROOT / ".local" / "env" / ".env"
+    env_text = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
 
     def _dotenv_value(name: str) -> str:
         prefix = f"{name}="
@@ -716,13 +716,13 @@ def main() -> int:
     if not waf_ingest_api_key:
         print(
             "WAF ingest API key is required via --waf-ingest-api-key or "
-            ".env WAF_INGEST_API_KEY",
+            ".local/env/.env WAF_INGEST_API_KEY",
             file=sys.stderr,
         )
         return 2
 
     if not internal_api_key:
-        print("internal API key is required via --internal-api-key or .env API_SECRET_KEY", file=sys.stderr)
+        print("internal API key is required via --internal-api-key or .local/env/.env API_SECRET_KEY", file=sys.stderr)
         return 2
 
     output_dir, report = run_replay_harness(

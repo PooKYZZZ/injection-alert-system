@@ -33,7 +33,7 @@ services:
     image: !reset null
     build:
       context: .
-      dockerfile: Dockerfile.pr7-waf
+      dockerfile: docker/images/pr7-waf.Dockerfile
     ports: !override []
     environment:
       WAF_STATE_SNAPSHOT_URL: http://backend:8000/api/internal/waf-enforcement/snapshot

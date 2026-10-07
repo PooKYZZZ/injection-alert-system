@@ -10,9 +10,9 @@ if (-not $Apply) {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$envPath = Join-Path $repoRoot '.env'
+$envPath = Join-Path $repoRoot '.local/env/.env'
 if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
-    throw 'The ignored repository .env file is required; no credentials were changed.'
+    throw 'The ignored .local/env/.env file is required; no credentials were changed.'
 }
 
 $credentialNames = @('WAF_INGEST_API_KEY', 'WAF_AUDIT_EVIDENCE_KEY')
@@ -60,7 +60,7 @@ foreach ($name in $credentialNames) {
     $pattern = "(?m)^(?<prefix>$name[ \t]*=[ \t]*)(?<value>[^\r\n]*)(?<linebreak>\r?)$"
     $matches = [regex]::Matches($updatedText, $pattern)
     if ($matches.Count -ne 1) {
-        throw "Expected exactly one $name entry in .env; no credentials were changed."
+        throw "Expected exactly one $name entry in .local/env/.env; no credentials were changed."
     }
 
     $randomBytes = [byte[]]::new(32)
@@ -83,12 +83,13 @@ foreach ($name in $credentialNames) {
     $updatedText = [regex]::Replace($updatedText, $pattern, $evaluator, 1)
 }
 
-if (-not $PSCmdlet.ShouldProcess('.env', 'Atomically rotate the two WAF bridge credentials')) {
+if (-not $PSCmdlet.ShouldProcess('.local/env/.env', 'Atomically rotate the two WAF bridge credentials')) {
     return
 }
 
-$temporaryPath = Join-Path $repoRoot ('.env.rotate-' + [guid]::NewGuid().ToString('N') + '.tmp')
-$backupPath = Join-Path $repoRoot ('.env.rotate-backup-' + [guid]::NewGuid().ToString('N') + '.tmp')
+$envDirectory = Split-Path -Parent $envPath
+$temporaryPath = Join-Path $envDirectory ('.env.rotate-' + [guid]::NewGuid().ToString('N') + '.tmp')
+$backupPath = Join-Path $envDirectory ('.env.rotate-backup-' + [guid]::NewGuid().ToString('N') + '.tmp')
 $temporaryPath = [System.IO.Path]::GetFullPath($temporaryPath)
 $backupPath = [System.IO.Path]::GetFullPath($backupPath)
 $envPath = [System.IO.Path]::GetFullPath($envPath)

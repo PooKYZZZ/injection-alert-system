@@ -472,7 +472,7 @@ Each slice must leave the repository buildable and must be reviewed before the n
 - web_app/infrastructure/retraining_process_runner.py
 - ml_model/training/train.py
 - relevant unit/integration tests
-- docker-compose.yml, Dockerfile, and any laptop override
+- `docker/compose/base.yml`, `docker/images/backend.Dockerfile`, and any laptop override
 - docs/project-ops/ML_MODEL_OPERATIONS_RUNBOOK.md
 - docs/project-ops/LAPTOP_TRAINING_HANDOFF.md
 
@@ -801,10 +801,10 @@ Do not test CSS class strings when a rendered semantic behavior can be tested in
 Use the actual laptop runtime, not only the host virtual environment:
 
 ~~~
-docker compose -f docker-compose.yml -f docker-compose.local.yml config
-docker compose -f docker-compose.yml -f docker-compose.local.yml build backend frontend
-docker compose -f docker-compose.yml -f docker-compose.local.yml ps
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import torch, transformers; print(torch.__version__); print(transformers.__version__)"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml config
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml build backend frontend
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import torch, transformers; print(torch.__version__); print(transformers.__version__)"
 ~~~
 
 Then perform the dashboard run and record:

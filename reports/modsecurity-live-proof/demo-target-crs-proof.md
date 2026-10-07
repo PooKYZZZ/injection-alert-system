@@ -16,7 +16,7 @@ This report is evidence for the demo-target WAF route only. It is not a full pen
 | WAF path | `http://localhost:8089` |
 | WAF upstream | `host.docker.internal:3010` |
 | Audit log | `logs/modsecurity/demo-target/modsec_audit.jsonl` |
-| Audit mode | `RelevantOnly` from `docker-compose.demo-target.yml` |
+| Audit mode | `RelevantOnly` from `docker/compose/overlays/demo-target.yml` |
 | CRS paranoia level | `PL1` from `PARANOIA=1` and observed `paranoia-level/1` audit tags |
 | WAF container | `injection-alert-system-demo-target-modsecurity-1` |
 

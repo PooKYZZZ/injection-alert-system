@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$EnvFile = ".env",
+    [string]$EnvFile = ".local/env/.env",
     [switch]$Build,
     [switch]$Reset,
     [switch]$ValidateOnly
@@ -16,7 +16,7 @@ $envPath = if ([IO.Path]::IsPathRooted($EnvFile)) {
 }
 
 if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
-    throw "Hosted startup requires a persistent env file at '$envPath'. Copy .env.example to .env and set the runtime values."
+    throw "Hosted startup requires a persistent env file at '$envPath'. Copy .env.example to .local/env/.env and set the runtime values."
 }
 
 function Read-DotEnvValue {
@@ -107,19 +107,21 @@ Push-Location $repoRoot
 try {
     $composeArgs = @(
         "compose",
+        "--project-directory", $repoRoot,
         "--env-file", $envPath,
         "-p", "injection-alert-system",
-        "-f", "docker-compose.yml",
-        "-f", "docker-compose.demo-target.yml",
-        "-f", "docker-compose.hosted-target.yml",
+        "-f", "docker/compose/base.yml",
+        "-f", "docker/compose/overlays/demo-target.yml",
+        "-f", "docker/compose/overlays/hosted-target.yml",
         "--profile", "demo-target"
     )
     $technicalComposeArgs = @(
         "compose",
+        "--project-directory", $repoRoot,
         "--env-file", $envPath,
         "-p", "injection-alert-system",
-        "-f", "docker-compose.yml",
-        "-f", "docker-compose.demo-target.yml",
+        "-f", "docker/compose/base.yml",
+        "-f", "docker/compose/overlays/demo-target.yml",
         "--profile", "technical-waf"
     )
 

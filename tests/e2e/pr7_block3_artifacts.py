@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -77,8 +77,12 @@ def require_pinned_compose_images(
     lock = load_artifact_lock(lock_path)
     paths = [compose_paths] if isinstance(compose_paths, Path) else list(compose_paths)
     compose = "\n".join(path.read_text(encoding="utf-8") for path in paths)
-    for dockerfile_name in ("Dockerfile", "Dockerfile.bridge", "Dockerfile.pr7-waf"):
-        dockerfile = paths[0].parent / dockerfile_name
+    for dockerfile_name in (
+        "docker/images/backend.Dockerfile",
+        "docker/images/waf-bridge.Dockerfile",
+        "docker/images/pr7-waf.Dockerfile",
+    ):
+        dockerfile = ROOT / dockerfile_name
         if dockerfile.is_file():
             compose += dockerfile.read_text(encoding="utf-8")
     for image in lock["containers"].values():

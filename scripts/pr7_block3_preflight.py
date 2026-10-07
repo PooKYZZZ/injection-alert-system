@@ -13,13 +13,13 @@ from scripts.pr7_block3_evidence import utc_now, validate_id, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_3B_FILES = (
-    "docker-compose.yml",
-    "docker-compose.demo-target.yml",
-    "docker-compose.target-cloudflare.yml",
+    "docker/compose/base.yml",
+    "docker/compose/overlays/demo-target.yml",
+    "docker/compose/overlays/target-cloudflare.yml",
     "docker/compose/scenarios/pr7-block3b.yml",
 )
 REQUIRED_3C_FILES = (
-    "docker-compose.yml",
+    "docker/compose/base.yml",
     "docker/compose/scenarios/pr7-block3.yml",
     "docker/compose/scenarios/pr7-block3c.yml",
 )

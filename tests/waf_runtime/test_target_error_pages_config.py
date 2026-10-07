@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -64,7 +63,7 @@ def test_target_cors_preserves_response_content_types():
 
 
 def test_target_error_pages_are_mounted_read_only():
-    compose = (ROOT / "docker-compose.demo-target.yml").read_text(encoding="utf-8")
+    compose = (ROOT / "docker/compose/overlays/demo-target.yml").read_text(encoding="utf-8")
     assert (
         "target-cors.conf.template:/etc/nginx/templates/includes/cors.conf.template:ro"
         in compose

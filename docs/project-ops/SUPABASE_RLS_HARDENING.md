@@ -220,7 +220,7 @@ Minimum environments:
 
 Rules:
 
-- [ ] Local `.env` must not point to production by accident.
+- [ ] Local `.local/env/.env` must not point to production by accident.
 - [ ] Staging and production use different DB projects.
 - [ ] CI does not use production DB for tests.
 - [ ] Migration dry runs happen before production.

@@ -237,7 +237,7 @@ It must produce repeatable measurements and finish with the disable latch presen
 
 ## 2.7 Main constraints
 
-- Preserve the existing `.env` location and environment-loading model.
+- Keep secrets in the ignored `.local/env/.env` file and preserve the existing environment-loading model.
 - Do not introduce a new framework or infrastructure tier.
 - Do not change confidence thresholds or recommendation policy.
 - Do not change the snapshot schema or PR7 policy version unless a verified defect makes it unavoidable.
@@ -276,7 +276,7 @@ The CyberTrace repository was inspected, but the sibling Land Records portal sou
 | Type | Statement |
 |---|---|
 | **Confirmed fact** | PR #99 is merged on `master` and completes Block 3A controlled-local integration |
-| **Confirmed fact** | `docker-compose.target-cloudflare.yml` already defines outbound `cloudflared`, internal networks, no WAF host port, and `/32` real-IP trust |
+| **Confirmed fact** | `docker/compose/overlays/target-cloudflare.yml` already defines outbound `cloudflared`, internal networks, no WAF host port, and `/32` real-IP trust |
 | **Confirmed fact** | PR7 currently supports canonical IPv4 only, default capacity 64, maximum 512 |
 | **Reasonable assumption** | No CyberTrace database migration is needed for Sections 3B/3C |
 | **Reasonable assumption** | A portal sentinel can be implemented using built-in Node filesystem APIs without a new dependency |
@@ -598,7 +598,7 @@ Current validation already includes:
 - Static CRS configuration except profile-specific evidence wiring.
 - Dashboard behavior.
 - Authentication architecture.
-- `.env` loading model.
+- `.local/env/.env` loading model.
 
 ---
 
@@ -620,7 +620,7 @@ Current validation already includes:
 
 **Documented behavior.** NGINX replaces the client address from the configured header only when the original peer is in `set_real_ip_from`.
 
-**Implementation consequence:** Keep the trusted peer as the exact `cloudflared` `/32` address already present in `docker-compose.target-cloudflare.yml`. Widening trust to the whole network would make header forgery materially easier.
+**Implementation consequence:** Keep the trusted peer as the exact `cloudflared` `/32` address already present in `docker/compose/overlays/target-cloudflare.yml`. Widening trust to the whole network would make header forgery materially easier.
 
 ## 6.4 Docker internal networks
 
@@ -835,10 +835,10 @@ No new CyberTrace endpoint is required.
 Recommended order:
 
 ```text
-docker-compose.yml
+docker/compose/base.yml
 docker/compose/tests/base.yml
-docker-compose.demo-target.yml
-docker-compose.target-cloudflare.yml
+docker/compose/overlays/demo-target.yml
+docker/compose/overlays/target-cloudflare.yml
 docker/compose/scenarios/pr7-block3b.yml
 ```
 
@@ -1558,7 +1558,7 @@ Evidence must not retain:
 
 **Risks:** Fault controls must not leak into ordinary profiles.
 
-## 14.3 `docker-compose.target-cloudflare.yml`
+## 14.3 `docker/compose/overlays/target-cloudflare.yml`
 
 **Status:** Verified existing file.
 
@@ -2626,7 +2626,7 @@ No migration is expected. If a migration appears necessary, stop and verify that
 
 - Add only optional test-specific configuration.
 - `PR7_PORTAL_SENTINEL_PATH` is absent by default.
-- Existing backend environment variables and `.env` location remain unchanged.
+- Existing backend environment variables remain unchanged; local secrets are stored in `.local/env/.env`.
 - Existing default Compose behavior remains enforcement off.
 
 ## 22.3 Deployment ordering
@@ -2810,7 +2810,7 @@ Sections 3B and 3C are done when all of the following are true:
 5. `docs/project-ops/PR7_BLOCK_3_EVIDENCE.md`
 6. `docs/project-ops/PR7_IMPLEMENTATION_SPEC.md`
 7. `docs/project-ops/PR7_DESIGN_RATIONALE.md`
-8. `docker-compose.target-cloudflare.yml`
+8. `docker/compose/overlays/target-cloudflare.yml`
 9. `docker/compose/scenarios/pr7-block3.yml`
 10. `web_app/application/post_triage_enforcement.py`
 11. `web_app/domain/waf_state.py`
@@ -2862,4 +2862,3 @@ absolute expiry
 The architecture should remain unchanged wherever possible. The most important acceptance rule is:
 
 > Section 3B must prove that enforcement uses the correct trusted external source and reaches the correct enforcement layer. Section 3C must prove that the same enforcement remains bounded, reversible, recoverable, and measurable when components fail.
-

@@ -93,8 +93,9 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "Model load failed — %s. "
             "Starting in mock mode. Predictions will be simulated. "
-            "To use the real model, set MODEL_REGISTRY_PATH correctly in .env "
-            "and ensure model files are present at that path.",
+            "To use the real model, set MODEL_REGISTRY_PATH in "
+            "the ignored .local/env/.env and ensure model files are present "
+            "at that path.",
             exc,
         )
         model_service = ModelService.create_mock()
@@ -106,8 +107,9 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "Model load failed — %s. "
             "Starting in mock mode. Predictions will be simulated. "
-            "To use the real model, set MODEL_REGISTRY_PATH correctly in .env "
-            "and ensure model files are present at that path.",
+            "To use the real model, set MODEL_REGISTRY_PATH in "
+            "the ignored .local/env/.env and ensure model files are present "
+            "at that path.",
             exc,
         )
         model_service = ModelService.create_mock()
@@ -118,8 +120,9 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "Model load failed — %s. "
             "Starting in mock mode. Predictions will be simulated. "
-            "To use the real model, set MODEL_REGISTRY_PATH correctly in .env "
-            "and ensure model files are present at that path.",
+            "To use the real model, set MODEL_REGISTRY_PATH in "
+            "the ignored .local/env/.env and ensure model files are present "
+            "at that path.",
             exc,
         )
         model_service = ModelService.create_mock()

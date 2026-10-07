@@ -136,9 +136,9 @@ FastAPI does not create, update, or validate application-user sessions. `web_app
 
 ### Runtime and deployment
 
-- `docker-compose.yml` runs frontend, internal-only FastAPI backend, ModSecurity on host port 8088, and the audit bridge. The frontend calls `http://backend:8000` inside Compose.
-- `docker-compose.demo-target.yml` adds the optional separate portal, ModSecurity host port 8089, and demo-target bridge.
-- `frontend/Dockerfile` pins Node 24; the root backend image pins Python 3.14. The active shell Node was 22.22.2, so validation uses the bundled Node 24.14.0 runtime.
+- `docker/compose/base.yml` runs frontend, internal-only FastAPI backend, ModSecurity on host port 8088, and the audit bridge. The frontend calls `http://backend:8000` inside Compose.
+- `docker/compose/overlays/demo-target.yml` adds the optional separate portal, ModSecurity host port 8089, and demo-target bridge.
+- `frontend/Dockerfile` pins Node 24; `docker/images/backend.Dockerfile` pins Python 3.14. The active shell Node was 22.22.2, so validation uses the bundled Node 24.14.0 runtime.
 - No committed public deployment configuration was found. The current verified deployment boundary is local Compose plus hosted Supabase; a connected public thesis environment remains `Planned`.
 - `.codex/config.toml` and `.codex/agents/terra-worker.toml` are ignored abandoned-workflow files and were left unchanged as instructed.
 

@@ -1,5 +1,5 @@
 # Isolated M8 route-matrix environment. Start with:
-# docker compose --project-directory . --env-file .env -p cybertrace-m08-e2e -f docker/compose/scenarios/m08-multi-route.yml up -d --build
+# docker compose --project-directory . --env-file .local/env/.env -p cybertrace-m08-e2e -f docker/compose/scenarios/m08-multi-route.yml up -d --build
 # The backend uses a fresh container-local SQLite database. The portal database
 # and ModSecurity audit log must be supplied from a dedicated temporary folder.
 services:
@@ -18,6 +18,7 @@ services:
   backend:
     build:
       context: .
+      dockerfile: docker/images/backend.Dockerfile
       args:
         INSTALL_TRAINING_REQUIREMENTS: "false"
     command:
@@ -31,7 +32,7 @@ services:
         "8000",
       ]
     env_file:
-      - .env
+      - .local/env/.env
     environment:
       APP_ENV: development
       DATABASE_URL: sqlite+aiosqlite:////tmp/cybertrace-m08-e2e.db
@@ -73,14 +74,14 @@ services:
       ENFORCEMENT_MODE: shadow
       ENFORCEMENT_CHECK_URL: http://backend:8000/api/internal/enforcement/check
       ENFORCEMENT_CHALLENGE_URL: http://backend:8000/api/internal/enforcement/challenge
-      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY in .env}
+      ENFORCEMENT_CHECK_API_KEY: ${ENFORCEMENT_CHECK_API_KEY:?Set ENFORCEMENT_CHECK_API_KEY in .local/env/.env}
       ENFORCEMENT_CHECK_TIMEOUT_MS: "3000"
       ENFORCEMENT_CHALLENGE_TIMEOUT_MS: "5000"
       ENFORCEMENT_SOURCE_TRUST_MODE: unverified
       ENFORCEMENT_ALLOW_UNVERIFIED_SOURCE_FOR_TESTS: "true"
       WAF_INGEST_URL: http://backend:8000/api/internal/waf-events
-      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY in .env}
-      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY in .env}
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY in .local/env/.env}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY in .local/env/.env}
       WAF_INGEST_TIMEOUT_MS: "10000"
     volumes:
       - ${CYBERTRACE_M08_PORTAL_DB_FILE:?Set CYBERTRACE_M08_PORTAL_DB_FILE to a new temporary file}:/app/prisma/dev.db
@@ -134,10 +135,10 @@ services:
   demo-target-bridge:
     build:
       context: .
-      dockerfile: Dockerfile.bridge
+      dockerfile: docker/images/waf-bridge.Dockerfile
     environment:
-      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY in .env}
-      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY in .env}
+      WAF_INGEST_API_KEY: ${WAF_INGEST_API_KEY:?Set WAF_INGEST_API_KEY in .local/env/.env}
+      WAF_AUDIT_EVIDENCE_KEY: ${WAF_AUDIT_EVIDENCE_KEY:?Set WAF_AUDIT_EVIDENCE_KEY in .local/env/.env}
       WAF_SOURCE_PROVENANCE_MODE: direct_remote_addr
       WAF_TRUSTED_TUNNEL_PEER: ""
       CYBERTRACE_NORMAL_ACCESS_TELEMETRY: "true"

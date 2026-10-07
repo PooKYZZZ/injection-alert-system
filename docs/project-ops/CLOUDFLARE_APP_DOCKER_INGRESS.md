@@ -39,10 +39,10 @@ does not add the app ingress network to the backend or target WAF.
 ## Startup
 
 Use `scripts/start_full_cloudflare_target.ps1` or
-`START_FULL_CLOUDFLARE_TARGET.bat`. The launcher now includes:
+`scripts/windows/START_FULL_CLOUDFLARE_TARGET.bat`. The launcher now includes:
 
 ```text
-docker-compose.app-cloudflare.yml
+docker/compose/overlays/app-cloudflare.yml
 ```
 
 The token remains a Compose secret loaded from the operator's external token
@@ -53,7 +53,7 @@ file. Do not copy it into this document, `.env`, or a command argument.
 After startup, verify the merged model and runtime membership:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker-compose.app-cloudflare.yml --profile demo-target --profile target-cloudflare config --quiet
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml -f docker/compose/overlays/app-cloudflare.yml --profile demo-target --profile target-cloudflare config --quiet
 docker network inspect injection-alert-system_app_cloudflare_ingress
 docker network inspect injection-alert-system_default
 ```

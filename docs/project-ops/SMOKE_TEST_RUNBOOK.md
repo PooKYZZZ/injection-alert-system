@@ -157,10 +157,10 @@ hosted-target overlays remain `RelevantOnly`; the collection overlay is local
 thesis-lab configuration only:
 
 ```powershell
-docker compose -p injection-alert-system `
-  -f docker-compose.yml `
-  -f docker-compose.demo-target.yml `
-  -f docker-compose.demo-target.collection.yml `
+docker compose --project-directory . --env-file .local/env/.env -p injection-alert-system `
+  -f docker/compose/base.yml `
+  -f docker/compose/overlays/demo-target.yml `
+  -f docker/compose/overlays/demo-target.collection.yml `
   --profile demo-target up -d --build --force-recreate
 ```
 
@@ -219,10 +219,10 @@ dashboard checks, and triage persistence.
 
 - Docker Desktop is installed and running.
 - You have cloned the repo and are at the repo root (`injection-alert-system/`).
-- `.env` exists at the repo root with a valid local/disposable `DATABASE_URL`.
+- `.local/env/.env` exists with a valid local/disposable `DATABASE_URL`.
   Do not point this smoke stack at hosted Supabase unless an explicitly
   authorized operator procedure requires it.
-- `LOCAL_POSTGRES_PASSWORD` is set in the ignored root `.env`; the local
+- `LOCAL_POSTGRES_PASSWORD` is set in `.local/env/.env`; the local
   overlay refuses to start without it.
 - `frontend/.env.local` exists with valid values (see `docs/SETUP.md` for the template).
 
@@ -233,13 +233,13 @@ dashboard checks, and triage persistence.
 From the repo root:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml --profile technical-waf up --build -d
 ```
 
 **What this does:** Builds the backend, frontend, technical ModSecurity WAF,
 and WAF bridge, then starts them in detached mode. The local overlay also
 starts an isolated PostgreSQL service and overrides any database URL from the
-ignored root `.env`. Without `--profile technical-waf`, the local stack starts
+ignored `.local/env/.env`. Without `--profile technical-waf`, the local stack starts
 backend, frontend, and postgres.
 
 Wait approximately 30–60 seconds for all containers to initialize.
@@ -249,7 +249,7 @@ Wait approximately 30–60 seconds for all containers to initialize.
 ## Step 2 — Confirm All Containers Are Running
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml ps
 ```
 
 **Expected output:** Four services listed, all with status `Up` (or `running`):
@@ -265,10 +265,10 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml ps
 If any container shows `Exit` or is missing, inspect its logs:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml logs <service-name>
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs <service-name>
 ```
 
-For example: `docker compose -f docker-compose.yml -f docker-compose.local.yml logs backend`
+For example: `docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs backend`
 
 ---
 
@@ -277,7 +277,7 @@ For example: `docker compose -f docker-compose.yml -f docker-compose.local.yml l
 The backend image does not include `curl`, so use Python inside the container:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
 ```
 
 **Expected response (HTTP 200):**
@@ -289,7 +289,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend py
 Also verify the API health endpoint:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 ```
 
 **Expected response (HTTP 200):**
@@ -298,7 +298,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend py
 {"status": "ok"}
 ```
 
-> **Note:** The backend is not published to the host in the current compose file. Use `docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend ...` for direct backend checks from the host machine.
+> **Note:** The backend is not published to the host in the current compose file. Use `docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend ...` for direct backend checks from the host machine.
 
 ---
 
@@ -333,13 +333,13 @@ $latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
 $latest = $latestRaw | ConvertFrom-Json
 $txid = $latest.transaction.unique_id
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
- docker compose -f docker-compose.yml -f docker-compose.local.yml logs --tail=100 bridge
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs --tail=100 bridge
 ```
 
 Use Docker-internal backend lookup. Do not use `localhost:8000` unless backend port 8000 is explicitly published:
 
 ```powershell
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 Expected lookup fields:
@@ -361,7 +361,7 @@ Use this section for the final realistic WAF demonstration. The portal source st
 Start the compose stack with the demo-target profile:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml --profile demo-target up -d --build
 ```
 
 Confirm expected containers:
@@ -420,7 +420,7 @@ Expected:
 Inspect the demo-target bridge logs:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge | Select-String -Pattern "posted|status=200|transaction_id|rule_ids|records/search|SMOKE|949110"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge | Select-String -Pattern "posted|status=200|transaction_id|rule_ids|records/search|SMOKE|949110"
 ```
 
 Expected: `demo-target-bridge` posted the fresh transaction with `status=200`.
@@ -428,7 +428,7 @@ Expected: `demo-target-bridge` posted the fresh transaction with `status=200`.
 Run the Docker-internal backend lookup:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 Expected lookup fields:
@@ -460,7 +460,7 @@ do not reuse runtime credentials:
 ```powershell
 $env:SOURCE_TEST_API_SECRET_KEY = '<test-only-internal-key>'
 $env:SOURCE_TEST_WAF_INGEST_API_KEY = '<different-test-only-waf-key>'
-docker compose -f docker-compose.yml -f docker-compose.source-correlation-test.yml --profile source-correlation-test up -d --build
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/tests/source-correlation-test.yml --profile source-correlation-test up -d --build
 ```
 
 The topology contains controlled clients A and B behind one trusted proxy, a
@@ -481,16 +481,16 @@ For the controlled real-IP diagnosis, inspect the running ModSecurity service
 without printing unrelated configuration or secrets:
 
 ```powershell
-docker compose -p source-correlation-proof `
-  -f docker-compose.yml `
-  -f docker-compose.source-correlation-test.yml `
-  -f docker-compose.source-correlation-test.override.yml `
+docker compose --project-directory . --env-file .local/env/.env -p source-correlation-proof `
+  -f docker/compose/base.yml `
+  -f docker/compose/tests/source-correlation-test.yml `
+  -f docker/compose/tests/source-correlation-test.override.yml `
   --profile source-correlation-test exec source-test-modsecurity nginx -V
 
-docker compose -p source-correlation-proof `
-  -f docker-compose.yml `
-  -f docker-compose.source-correlation-test.yml `
-  -f docker-compose.source-correlation-test.override.yml `
+docker compose --project-directory . --env-file .local/env/.env -p source-correlation-proof `
+  -f docker/compose/base.yml `
+  -f docker/compose/tests/source-correlation-test.yml `
+  -f docker/compose/tests/source-correlation-test.override.yml `
   --profile source-correlation-test exec source-test-modsecurity sh -c `
   "nginx -T 2>&1 | grep -E 'set_real_ip_from|real_ip_header|real_ip_recursive|source_correlation'"
 ```
@@ -516,7 +516,7 @@ bridge ingestion, source provenance, and fingerprint persistence still work.
 ## Hosted Cloudflare Source-Correlation Proof (operator-only)
 
 Before starting the hosted overlay, persist the observed narrow peer in the
-ignored root `.env`. Do not rely on a session-only `$env:` assignment:
+ignored `.local/env/.env`. Do not rely on a session-only `$env:` assignment:
 
 ```dotenv
 HOSTED_WAF_TRUSTED_PEER=<observed-narrow-peer-or-subnet>
@@ -575,7 +575,7 @@ $txid = $event.transaction.unique_id
 Correlate the same `$txid` in the bridge without exposing its payload:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml `
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml `
   --profile demo-target logs --no-color --tail=200 demo-target-bridge |
   Select-String -Pattern $txid
 ```
@@ -583,7 +583,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compo
 Use the internal lookup with `API_SECRET_KEY` kept inside the backend container:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml `
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml `
   --profile demo-target exec -e TXID=$txid backend python -c "import os,urllib.request; txid=os.environ['TXID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}',headers={'Authorization':'Bearer '+os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
@@ -666,7 +666,7 @@ If the login button appears unresponsive or the dashboard remains on skeletons, 
 - [ ] Recent detections renders, and View traffic history opens `/traffic-history`.
 - [ ] Attack and model breakdown can be expanded to review traffic patterns and model context.
 
-If stat cards show `—`, the backend may not be responding. Check `docker compose -f docker-compose.yml -f docker-compose.local.yml logs backend`.
+If stat cards show `—`, the backend may not be responding. Check `docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs backend`.
 
 ---
 
@@ -746,7 +746,7 @@ recovery codes, or database credentials in evidence.
 ## Step 10 — Verify Triage Update Persists in the Local Database
 
 The commands in this section use the isolated PostgreSQL service from
-`docker-compose.local.yml`. They do not write to hosted Supabase. Use the
+`docker/compose/overlays/local.yml`. They do not write to hosted Supabase. Use the
 separate hosted authentication and migration procedure below only when an
 authorized operator is intentionally testing the hosted environment.
 
@@ -759,7 +759,7 @@ Go to `http://localhost:3000/traffic-history` and note the ID of a security dete
 Use PowerShell to send a triage update directly inside the backend container. Replace `<ALERT_ID>` with the actual alert ID:
 
 ```powershell
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 > **Note:** The browser path still goes through the Next.js BFF. This direct backend call is only for smoke verification because the backend is internal to the compose network.
@@ -769,7 +769,7 @@ Use PowerShell to send a triage update directly inside the backend container. Re
 Query the same alert to confirm the triage status changed:
 
 ```powershell
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 ```
 
 **What to check:**
@@ -788,13 +788,13 @@ Refresh `http://localhost:3000/traffic-history` and confirm the updated detectio
 When finished:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml down
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml down
 ```
 
 To also remove volumes (clears local data):
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml down -v
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml down -v
 ```
 
 ---
@@ -803,14 +803,14 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml down -v
 
 ```powershell
 # 1. Start stack
-docker compose -f docker-compose.yml -f docker-compose.local.yml --profile technical-waf up --build -d
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml --profile technical-waf up --build -d
 
 # 2. Confirm containers
-docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml ps
 
 # 3. Backend health
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').status)"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)"
 
 # 4. WAF proof path
 Invoke-WebRequest -UseBasicParsing "http://localhost:8088/healthz"
@@ -820,10 +820,10 @@ $latestRaw = Get-Content .\logs\modsecurity\modsec_audit.jsonl -Tail 1
 $latest = $latestRaw | ConvertFrom-Json
 $txid = $latest.transaction.unique_id
 if ([string]::IsNullOrWhiteSpace($txid)) { throw "txid missing" }
- docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+ docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 
 # 5. Final realistic demo-target smoke; Compose starts demo-portal from the separate portal repo
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target up -d --build
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml --profile demo-target up -d --build
 curl.exe -s -o NUL -w "8089 home status: %{http_code}`n" http://localhost:8089/
 $marker = "SMOKE$(Get-Date -Format HHmmss)"
 $url = "http://localhost:8089/records/search?query=%27%20UNION%20SELECT%20null,null,null--%20$marker"
@@ -831,8 +831,8 @@ curl.exe -s -o NUL -w "demo SQLi status: %{http_code}`n" $url
 $raw = Get-Content .\logs\modsecurity\demo-target\modsec_audit.jsonl -Tail 1
 $evt = $raw | ConvertFrom-Json
 $txid = $evt.transaction.unique_id
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge
-docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.demo-target.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml --profile demo-target logs --tail=200 demo-target-bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml -f docker/compose/overlays/demo-target.yml exec -e TXID=$txid backend python -c "import os, urllib.request; txid=os.environ['TXID']; secret=os.environ['API_SECRET_KEY']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/internal/waf-events/{txid}', headers={'Authorization': 'Bearer ' + secret}); print(urllib.request.urlopen(req).read().decode())"
 curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/?id=1%27%20OR%20%271%27%3D%271"
 
 # 6. Open browser to http://localhost:3000/login and log in
@@ -843,13 +843,13 @@ curl.exe -s -o NUL -w "8088 SQLi status: %{http_code}`n" "http://localhost:8088/
 #    - http://localhost:3000/ml-health
 
 # 9. Triage update (replace <ALERT_ID>)
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import json, os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}/triage', data=json.dumps({'triage_status':'in_review'}).encode(), method='PATCH', headers={'Content-Type':'application/json','Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 
 # 10. Verify persistence
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml exec -e ALERT_ID=<ALERT_ID> backend python -c "import os, urllib.request; alert_id=os.environ['ALERT_ID']; req=urllib.request.Request(f'http://127.0.0.1:8000/api/alerts/{alert_id}', headers={'Authorization':'Bearer ' + os.environ['API_SECRET_KEY']}); print(urllib.request.urlopen(req).read().decode())"
 
 # 11. Stop stack
-docker compose -f docker-compose.yml -f docker-compose.local.yml down
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml down
 ```
 
 ---
@@ -859,11 +859,11 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml down
 ### Container exits immediately
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.local.yml logs <service-name>
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/local.yml logs <service-name>
 ```
 
 Common causes:
-- Missing `.env` or `frontend/.env.local` — check that both files exist with correct values.
+- Missing `.local/env/.env` or `frontend/.env.local` — check that both files exist with correct values.
 - `DATABASE_URL` is invalid or Supabase is unreachable — verify connectivity.
 - Port conflict (80, 3000, or 8000 already in use) — stop conflicting services.
 
@@ -871,7 +871,7 @@ Common causes:
 
 - Ensure you logged in at `http://localhost:3000/login` first.
 - Check `AUTH_TRUST_HOST=true` in `frontend/.env.local`.
-- Check `INTERNAL_API_KEY` matches `API_SECRET_KEY` in `.env`.
+- Check `INTERNAL_API_KEY` matches `API_SECRET_KEY` in `.local/env/.env`.
 
 ### A copied seeding command fails
 

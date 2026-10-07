@@ -43,7 +43,7 @@ Do not claim automated backup/restore exists unless a future branch implements a
 | Demo proof reports | `reports/modsecurity-live-proof/*.md` | Medium-High | Git-tracked or external archive |
 | Screenshots | proof screenshots | Medium | Git-tracked if intentionally committed or artifact archive |
 | Model artifacts | `ml_model/model_registry/**` | Medium-High | Git/LFS/artifact store depending on size and policy |
-| App config | `.env`, `frontend/.env.local` | Critical but secret | Secret manager/manual secure copy, never Git |
+| App config | `.local/env/.env`, `frontend/.env.local` | Critical but secret | Secret manager/manual secure copy, never Git |
 | Structured logs | bridge/backend JSON logs | Medium-High | log retention/export process |
 
 ---
@@ -294,7 +294,7 @@ select count(*) from traffic_logs where transaction_id is not null;
 
 ### 10.5 Verify app can connect
 
-Use a staging/local `.env` pointing to the restored database and run:
+Use `.local/env/.env` pointing to the restored database and run:
 
 ```powershell
 .venv\Scripts\python.exe -m pytest -q tests/integration/test_app_startup.py

@@ -34,7 +34,7 @@ enable `cloudflare_tunnel` verification in the existing topology.
 - Backend baseline with test-only `APP_ENV=testing`,
   `NOTIFICATION_WORKER_ENABLED=false`, and
   `NOTIFICATION_WORKER_REQUIRED=false`: `619 passed, 31 skipped`.
-- Without those process-only overrides, the local `.env` requires the hosted
+- Without those process-only overrides, `.local/env/.env` requires the hosted
   PostgreSQL notification worker while integration fixtures use SQLite. The
   baseline then fails at startup because SQLite has no
   `public.claim_notification_outbox_batch_v61` function. No `.env` value was
@@ -68,7 +68,8 @@ enable `cloudflare_tunnel` verification in the existing topology.
   identity, URI, client address, CRS messages, rule IDs, and status metadata.
 - Clean-checkout Compose tests clear runtime `env_file` declarations with
   test-only overrides and supply isolated SQLite/test credentials through the
-  subprocess environment. The real runtime Compose files still require `.env`.
+  subprocess environment. The real runtime Compose files still require
+  `.local/env/.env`.
 - GitHub Actions for implementation head `6cfe67b` passed backend, postgres,
   frontend, auth-e2e, and secret-scan. Earlier red runs are retained in
   `docs/project-ops/STATUS.md` with their corrected root causes.
@@ -124,7 +125,7 @@ template also supports:
 
 The hosted override requires the operator to supply the observed narrow
 `HOSTED_WAF_TRUSTED_PEER`; it deliberately has no guessed default. The value is
-persisted in the ignored root `.env` and loaded by
+persisted in the ignored `.local/env/.env` and loaded by
 `scripts/start_hosted_target.ps1`, which rejects missing or broad peers and
 requires `WAF_SOURCE_VERIFICATION_MODE=unverified`. Neither topology trusts
 `0.0.0.0/0` or all RFC1918 space.
@@ -169,7 +170,7 @@ confirmed.
 
 ## Target-only isolation prerequisite
 
-`docker-compose.target-cloudflare.yml` is a separate target-specific overlay.
+`docker/compose/overlays/target-cloudflare.yml` is a separate target-specific overlay.
 The current repository pin is
 `cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339`,
 uses the read-only external secret `CLOUDFLARED_TARGET_TOKEN_FILE`, and runs

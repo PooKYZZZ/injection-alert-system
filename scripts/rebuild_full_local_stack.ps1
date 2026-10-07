@@ -8,21 +8,24 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$envPath = Join-Path $repoRoot ".local/env/.env"
 Push-Location $repoRoot
 try {
     $composeFiles = @(
-        "-f", "docker-compose.yml",
-        "-f", "docker-compose.local.yml",
-        "-f", "docker-compose.demo-target.yml"
+        "-f", "docker/compose/base.yml",
+        "-f", "docker/compose/overlays/local.yml",
+        "-f", "docker/compose/overlays/demo-target.yml"
     )
     if ($Collection) {
         $composeFiles += @(
-            "-f", "docker-compose.demo-target.collection.yml"
+            "-f", "docker/compose/overlays/demo-target.collection.yml"
         )
     }
 
     $composeArgs = @(
         "compose",
+        "--project-directory", $repoRoot,
+        "--env-file", $envPath,
         "-p", "injection-alert-system"
     ) + $composeFiles + @(
         "--profile", "technical-waf",

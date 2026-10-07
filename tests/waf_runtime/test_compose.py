@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).parents[2]
 
 
@@ -18,16 +17,44 @@ def test_backend_runtime_code_is_not_excluded_from_the_image():
     }
     assert "ml_model/retraining/" not in dockerignore
     assert "ml_model/results/" in dockerignore
+    assert ".local/" in dockerignore
+
+
+def test_docker_assets_are_grouped_out_of_the_repository_root():
+    assert (ROOT / "docker/compose/base.yml").is_file()
+    assert (ROOT / "docker/images/backend.Dockerfile").is_file()
+    assert not (ROOT / "docker-compose.yml").exists()
+    assert not (ROOT / "Dockerfile").exists()
+
+
+def test_windows_launchers_resolve_the_repository_from_their_new_folder():
+    for launcher_name, script_name in (
+        ("START_FULL_LOCAL_STACK.bat", "rebuild_full_local_stack.ps1"),
+        ("START_FULL_CLOUDFLARE_TARGET.bat", "start_full_cloudflare_target.ps1"),
+    ):
+        launcher = (
+            ROOT / "scripts" / "windows" / launcher_name
+        ).read_text(encoding="utf-8")
+        assert (
+            'for %%I in ("%~dp0..\\..") do set "REPO_ROOT=%%~fI"'
+            in launcher
+        )
+        assert 'cd /d "%REPO_ROOT%"' in launcher
+        assert f'"%REPO_ROOT%\\scripts\\{script_name}"' in launcher
 
 
 def test_backend_compose_exposes_the_opt_in_training_dependency_build_arg():
-    compose = (ROOT / "docker-compose.yml").read_text()
+    compose = (ROOT / "docker/compose/base.yml").read_text()
 
-    assert "INSTALL_TRAINING_REQUIREMENTS: ${INSTALL_TRAINING_REQUIREMENTS:-false}" in compose
+    assert "dockerfile: docker/images/backend.Dockerfile" in compose
+    assert (
+        "INSTALL_TRAINING_REQUIREMENTS: ${INSTALL_TRAINING_REQUIREMENTS:-false}"
+        in compose
+    )
 
 
 def test_backend_compose_guards_migrations_before_startup():
-    compose = (ROOT / "docker-compose.yml").read_text()
+    compose = (ROOT / "docker/compose/base.yml").read_text()
 
     assert "python -m scripts.safe_local_migrate" in compose
     assert "alembic upgrade head && uvicorn" not in compose
@@ -35,9 +62,9 @@ def test_backend_compose_guards_migrations_before_startup():
 
 def test_hosted_compose_starts_without_local_migration_guard():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.hosted-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/hosted-target.yml",
     )
 
     command = config["services"]["backend"]["command"]
@@ -51,9 +78,9 @@ def test_hosted_compose_starts_without_local_migration_guard():
 
 def test_cloudflare_target_compose_starts_without_local_migration_guard():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.target-cloudflare.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/target-cloudflare.yml",
     )
 
     command = config["services"]["backend"]["command"]
@@ -67,9 +94,9 @@ def test_cloudflare_target_compose_starts_without_local_migration_guard():
 
 def test_cloudflare_target_compose_connects_portal_to_backend_on_private_network():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.target-cloudflare.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/target-cloudflare.yml",
     )
 
     services = config["services"]
@@ -130,9 +157,9 @@ def test_normal_access_telemetry_does_not_duplicate_portal_post_ingest():
 
 def test_demo_target_scopes_sqli_referer_exclusion_to_search_rsc_prefetches():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.target-cloudflare.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/target-cloudflare.yml",
     )
     mounts = config["services"]["demo-target-modsecurity"]["volumes"]
     expected_source = str(
@@ -160,9 +187,9 @@ def test_demo_target_scopes_sqli_referer_exclusion_to_search_rsc_prefetches():
 
 def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.target-cloudflare.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/target-cloudflare.yml",
     )
 
     mounts = config["services"]["backend"]["volumes"]
@@ -183,10 +210,10 @@ def test_cloudflare_target_compose_mounts_approved_datasets_read_only():
 
 def test_app_cloudflare_compose_removes_frontend_host_port():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.target-cloudflare.yml",
-        "docker-compose.app-cloudflare.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/target-cloudflare.yml",
+        "docker/compose/overlays/app-cloudflare.yml",
     )
 
     assert config["services"]["frontend"].get("ports", []) == []
@@ -195,7 +222,7 @@ def test_app_cloudflare_compose_removes_frontend_host_port():
 
 
 def test_backend_persists_controlled_retraining_state_without_mounting_production():
-    config = _merged_compose("docker-compose.yml")
+    config = _merged_compose("docker/compose/base.yml")
 
     mounts = config["services"]["backend"]["volumes"]
     expected = {
@@ -220,7 +247,7 @@ def test_backend_persists_controlled_retraining_state_without_mounting_productio
 
 
 def test_local_compose_uses_an_explicit_postgres_database():
-    config = _merged_compose("docker-compose.yml", "docker-compose.local.yml")
+    config = _merged_compose("docker/compose/base.yml", "docker/compose/overlays/local.yml")
 
     services = config["services"]
     assert "postgres" in services
@@ -237,11 +264,11 @@ def test_local_compose_uses_an_explicit_postgres_database():
 def test_full_local_stack_launcher_uses_the_local_database_overlay():
     script = (ROOT / "scripts" / "rebuild_full_local_stack.ps1").read_text()
 
-    assert '"-f", "docker-compose.local.yml"' in script
+    assert '"-f", "docker/compose/overlays/local.yml"' in script
 
 
 def test_application_services_wait_for_backend_readiness():
-    config = _merged_compose("docker-compose.yml")
+    config = _merged_compose("docker/compose/base.yml")
 
     services = config["services"]
     assert services["frontend"]["depends_on"]["backend"]["condition"] == (
@@ -253,7 +280,7 @@ def test_application_services_wait_for_backend_readiness():
 
 
 def test_frontend_has_a_runtime_readiness_check():
-    config = _merged_compose("docker-compose.yml")
+    config = _merged_compose("docker/compose/base.yml")
 
     healthcheck = config["services"]["frontend"]["healthcheck"]
     assert healthcheck["test"][0] == "CMD"
@@ -274,7 +301,7 @@ def test_frontend_image_uses_standalone_non_root_runtime():
 
 
 def test_backend_image_runs_non_root_with_owned_runtime_directories():
-    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "docker/images/backend.Dockerfile").read_text(encoding="utf-8")
     env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
 
     assert "useradd --no-log-init" in dockerfile
@@ -316,8 +343,11 @@ def _merged_compose(*files: str) -> dict:
             ),
         }
     )
-    command = ["docker", "compose"]
-    for compose_file in files:
+    rendered_files = [*files, "docker/compose/tests/base.yml"]
+    if "docker/compose/overlays/demo-target.yml" in files:
+        rendered_files.append("docker/compose/tests/demo-target.yml")
+    command = ["docker", "compose", "--project-directory", str(ROOT)]
+    for compose_file in rendered_files:
         command.extend(["-f", str(ROOT / compose_file)])
     command.extend(
         [
@@ -354,7 +384,7 @@ def _merged_compose(*files: str) -> dict:
 
 
 def test_pr7_audit_uses_a_named_volume_for_container_writability():
-    compose = (Path(__file__).parents[2] / "docker-compose.yml").read_text()
+    compose = (Path(__file__).parents[2] / "docker/compose/base.yml").read_text()
     assert "- pr7-audit:/var/log/modsecurity" in compose
     assert "pr7-audit:" in compose
     assert "./logs/modsecurity/pr7:/var/log/modsecurity" not in compose
@@ -362,7 +392,7 @@ def test_pr7_audit_uses_a_named_volume_for_container_writability():
 
 def test_block3_evidence_logging_is_opt_in_and_path_only():
     root = Path(__file__).parents[2]
-    dockerfile = (root / "Dockerfile.pr7-waf").read_text()
+    dockerfile = (root / "docker/images/pr7-waf.Dockerfile").read_text()
     compose = (root / "docker/compose/scenarios/pr7-block3.yml").read_text()
     template = (root / "config/modsecurity/pr7-evidence-log.conf.template").read_text()
 
@@ -417,10 +447,10 @@ def test_block3c_is_local_and_preserves_persistent_runtime_state():
 
 def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
     config = _merged_compose(
-        "docker-compose.yml",
+        "docker/compose/base.yml",
         "docker/compose/tests/base.yml",
-        "docker-compose.demo-target.yml",
-        "docker-compose.target-cloudflare.yml",
+        "docker/compose/overlays/demo-target.yml",
+        "docker/compose/overlays/target-cloudflare.yml",
         "docker/compose/scenarios/pr7-block3b.yml",
     )
     services = config["services"]
@@ -436,7 +466,7 @@ def test_block3b_merged_model_has_active_enforcement_and_no_origin_ports():
 
 def test_block3c_merged_model_is_local_and_explicitly_test_only():
     config = _merged_compose(
-        "docker-compose.yml",
+        "docker/compose/base.yml",
         "docker/compose/tests/base.yml",
         "docker/compose/scenarios/pr7-block3.yml",
         "docker/compose/scenarios/pr7-block3c.yml",
@@ -454,8 +484,8 @@ def test_block3c_merged_model_is_local_and_explicitly_test_only():
 
 def test_demo_target_modsecurity_disables_the_image_healthcheck():
     config = _merged_compose(
-        "docker-compose.yml",
-        "docker-compose.demo-target.yml",
+        "docker/compose/base.yml",
+        "docker/compose/overlays/demo-target.yml",
     )
 
     assert config["services"]["demo-target-modsecurity"]["healthcheck"] == {

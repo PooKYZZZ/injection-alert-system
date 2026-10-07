@@ -27,7 +27,7 @@ addresses.
 
 ## Automated validation
 
-- `docker compose -f docker-compose.yml -f docker-compose.demo-target.yml --profile demo-target config --quiet`: PASS
+- `docker compose -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml --profile demo-target config --quiet`: PASS
 - Backend targeted PR4 suite with process-only notification-worker overrides: **52 passed, 1 skipped**.
 - Portal `npm run typecheck`: PASS
 - Portal `npm run lint`: PASS

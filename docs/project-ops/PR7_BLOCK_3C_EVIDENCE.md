@@ -50,7 +50,7 @@ Status: **Materially verified for the approved controlled local resilience scope
   selections pass; guarded external and disposable E2E remain explicitly
   skipped unless opted in.
 - Both merged Compose profiles validated with `config --quiet`.
-- Full repository pytest initially fails under the local `.env` because it
+- Full repository pytest initially fails under the local `.local/env/.env` because it
   enables a required notification worker while SQLite lacks
   `public.claim_notification_outbox_batch_v62`. Re-running with the test
   worker explicitly disabled (`NOTIFICATION_WORKER_ENABLED=false`,

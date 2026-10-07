@@ -46,10 +46,12 @@ def _compose(project: str, override: Path, *args: str) -> list[str]:
     return [
         "docker",
         "compose",
+        "--project-directory",
+        str(ROOT),
         "--project-name",
         project,
         "-f",
-        "docker-compose.yml",
+        "docker/compose/base.yml",
         "-f",
         "docker/compose/tests/base.yml",
         "-f",

@@ -1,6 +1,7 @@
 .env
 .env.local
 .env*.local
+.local/
 .venv/
 node_modules/
 .git/

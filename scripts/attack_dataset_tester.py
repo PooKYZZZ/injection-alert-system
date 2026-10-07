@@ -145,7 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--api-key",
         default=None,
-        help="Bearer token. If omitted, reads API_SECRET_KEY from the ignored .env.",
+        help="Bearer token. If omitted, reads API_SECRET_KEY from .local/env/.env.",
     )
     parser.add_argument(
         "--limit",
@@ -256,7 +256,7 @@ def load_env_value(name: str) -> str | None:
     if environment_value is not None:
         return environment_value.strip().strip('"').strip("'") or None
 
-    env_path = REPO_ROOT / ".env"
+    env_path = REPO_ROOT / ".local" / "env" / ".env"
     if not env_path.exists():
         return None
     for line in env_path.read_text(encoding="utf-8").splitlines():

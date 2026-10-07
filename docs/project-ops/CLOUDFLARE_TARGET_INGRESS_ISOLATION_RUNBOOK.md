@@ -42,9 +42,9 @@ Keep the existing Windows `cloudflared` process running; it continues to serve
 
 ```powershell
 $env:WAF_SOURCE_VERIFICATION_MODE = "unverified"
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare config --format json | Out-File "$env:TEMP\cybertrace-target-compose.json" -Encoding utf8
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --build
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare config --format json | Out-File "$env:TEMP\cybertrace-target-compose.json" -Encoding utf8
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --build
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare ps
 docker inspect --format '{{json .State.Health}}' injection-alert-system-cloudflared-1
 ```
 
@@ -171,7 +171,7 @@ values; redact Access and tunnel credentials.
    $env:CLOUDFLARE_TARGET_VERIFIED_PROOF = "false"
    $env:WAF_SOURCE_VERIFICATION_MODE = "unverified"
    $env:WAF_SOURCE_PROVENANCE_MODE = "direct_remote_addr"
-   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-bridge
+   docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-bridge
    ```
 
 5. Remove `target-proof.cybertracesystems.com` after final validation.
@@ -185,12 +185,12 @@ values; redact Access and tunnel credentials.
 3. Stop only the target-only stack:
 
    ```powershell
-   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare stop cloudflared demo-target-bridge demo-target-modsecurity
-   docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare rm -f cloudflared demo-target-bridge demo-target-modsecurity
+   docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare stop cloudflared demo-target-bridge demo-target-modsecurity
+   docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare rm -f cloudflared demo-target-bridge demo-target-modsecurity
    ```
 
 4. Recreate the original hosted target stack with the existing
-   `docker-compose.hosted-target.yml` and ignored `.env` configuration. Keep it
+   `docker/compose/overlays/hosted-target.yml` and ignored `.local/env/.env` configuration. Keep it
    `unverified`; the original gateway peer is not an authenticated tunnel.
 5. Remove the temporary proof hostname and revoke/rotate the target token in
    Cloudflare if it was exposed or the cutover was abandoned.

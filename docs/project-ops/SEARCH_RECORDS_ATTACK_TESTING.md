@@ -59,7 +59,7 @@ external operator inputs and must stay in ignored configuration.
 ~~~powershell
 pwsh -NoProfile -File scripts/start_full_cloudflare_target.ps1 -PortalContext 'E:\AI\land-records-portal' -ValidateOnly
 New-Item -ItemType Directory -Force logs\modsecurity\search-records-test | Out-Null
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --build --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --build --force-recreate backend demo-target-modsecurity demo-target-bridge
 docker exec injection-alert-system-backend-1 python -m scripts.search_route_attack_tester --catalog /app/scripts/fixtures/search_records_attack_seeds.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-seeds-20260903-r2 --output-csv /tmp/search-records-seeds-r2.csv --output-json /tmp/search-records-seeds-r2.json --references-output /tmp/search-records-seed-references-r2.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-seeds-r2.csv output\attack-tests\search-records-seeds-r2.csv
 docker cp injection-alert-system-backend-1:/tmp/search-records-seeds-r2.json output\attack-tests\search-records-seeds-r2.json
@@ -68,8 +68,8 @@ docker exec injection-alert-system-backend-1 python -m scripts.search_route_atta
 docker cp injection-alert-system-backend-1:/tmp/search-records-full.csv output\attack-tests\search-records-full.csv
 docker cp injection-alert-system-backend-1:/tmp/search-records-full.json output\attack-tests\search-records-full.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-known-references.json output\attack-tests\search-records-known-references.json
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare ps
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare ps
 ~~~
 
 The backend port remains unpublished on the host. The runner therefore calls
@@ -287,7 +287,7 @@ standard backend Dockerfile build itself passed. If the same environment
 issue occurs, use this bounded local fallback before the overlay command:
 
 ~~~powershell
-docker build --build-arg INSTALL_TRAINING_REQUIREMENTS=false -t injection-alert-system-backend-followup:local -f Dockerfile .
+docker build --build-arg INSTALL_TRAINING_REQUIREMENTS=false -t injection-alert-system-backend-followup:local -f docker/images/backend.Dockerfile .
 docker tag injection-alert-system-backend-followup:local injection-alert-system-backend:latest
 ~~~
 
@@ -295,7 +295,7 @@ Start the isolated overlay without recreating unrelated dependent services:
 
 ~~~powershell
 New-Item -ItemType Directory -Force logs/modsecurity/search-records-test | Out-Null
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
 docker exec injection-alert-system-backend-1 python -m scripts.search_records_followup_tester --catalog /app/scripts/fixtures/search_records_code_expansion_catalog.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-code-expansion-20260903 --max-rps 3 --max-runtime-seconds 300 --output-csv /tmp/search-records-code-expansion.csv --output-json /tmp/search-records-code-expansion.json
 docker exec injection-alert-system-backend-1 python -m scripts.search_records_followup_tester --catalog /app/scripts/fixtures/search_records_normal_baseline.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-normal-baseline-20260903 --max-rps 3 --max-runtime-seconds 300 --output-csv /tmp/search-records-normal-baseline.csv --output-json /tmp/search-records-normal-baseline.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion.csv output/attack-tests/search-records-code-expansion-20260903.csv
@@ -387,10 +387,10 @@ Build the local backend image if Compose Buildx/Bake is unavailable, apply the
 isolated Search Records test overlay, and run the bounded local tester:
 
 ~~~powershell
-docker build --build-arg INSTALL_TRAINING_REQUIREMENTS=false -t injection-alert-system-backend-round2:local -f Dockerfile .
+docker build --build-arg INSTALL_TRAINING_REQUIREMENTS=false -t injection-alert-system-backend-round2:local -f docker/images/backend.Dockerfile .
 docker tag injection-alert-system-backend-round2:local injection-alert-system-backend:latest
 New-Item -ItemType Directory -Force logs/modsecurity/search-records-test | Out-Null
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml -f docker/compose/tests/search-records.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
 docker exec injection-alert-system-backend-1 python -m scripts.search_records_followup_tester --catalog /app/scripts/fixtures/search_records_code_expansion_round2_catalog.json --audit-log /app/search-test-audit/modsec_audit.jsonl --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --run-id search-records-code-expansion-round2-20260903 --environment local-search-records-waf-followup-round2 --family code_injection --max-rps 3 --max-runtime-seconds 600 --request-timeout-seconds 15 --audit-timeout-seconds 15 --lookup-timeout-seconds 25 --output-csv /tmp/search-records-code-expansion-round2.csv --output-json /tmp/search-records-code-expansion-round2.json
 docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion-round2.csv output/attack-tests/search-records-code-expansion-round2-20260903.csv
 docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion-round2.json output/attack-tests/search-records-code-expansion-round2-20260903.json
@@ -400,7 +400,7 @@ docker cp injection-alert-system-backend-1:/tmp/search-records-code-expansion-ro
 Restore the ordinary Compose topology after testing:
 
 ~~~powershell
-docker compose -f docker-compose.yml -f docker-compose.demo-target.yml -f docker-compose.target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
+docker compose --project-directory . --env-file .local/env/.env -f docker/compose/base.yml -f docker/compose/overlays/demo-target.yml -f docker/compose/overlays/target-cloudflare.yml --profile demo-target --profile target-cloudflare up -d --no-build --no-deps --force-recreate backend demo-target-modsecurity demo-target-bridge
 ~~~
 
 The round-two research basis was limited to defensive test design: MITRE

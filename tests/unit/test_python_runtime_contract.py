@@ -28,8 +28,8 @@ def test_github_python_jobs_use_python_314() -> None:
 
 def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
     dockerfiles = [
-        PROJECT_ROOT / "Dockerfile",
-        PROJECT_ROOT / "Dockerfile.bridge",
+        PROJECT_ROOT / "docker/images/backend.Dockerfile",
+        PROJECT_ROOT / "docker/images/waf-bridge.Dockerfile",
     ]
     compose_files = [PROJECT_ROOT / "docker/compose/scenarios/pr7-block3.yml"]
     lock_files = [
@@ -52,7 +52,7 @@ def test_runtime_container_pin_matches_python_314_artifact_lock() -> None:
 
 
 def test_bridge_runtime_copies_imported_request_correlation_helper() -> None:
-    dockerfile = (PROJECT_ROOT / "Dockerfile.bridge").read_text(encoding="utf-8")
+    dockerfile = (PROJECT_ROOT / "docker/images/waf-bridge.Dockerfile").read_text(encoding="utf-8")
 
     assert (
         "COPY web_app/domain/request_correlation.py "
@@ -61,7 +61,7 @@ def test_bridge_runtime_copies_imported_request_correlation_helper() -> None:
 
 
 def test_backend_uses_cpu_torch_index_for_container_runtime() -> None:
-    dockerfile = PROJECT_ROOT / "Dockerfile"
+    dockerfile = PROJECT_ROOT / "docker/images/backend.Dockerfile"
 
     source = dockerfile.read_text(encoding="utf-8")
 

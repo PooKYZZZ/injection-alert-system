@@ -10,13 +10,13 @@ from scripts.pr7_block3_evidence import validate_id
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_3B = (
-    "docker-compose.yml",
-    "docker-compose.demo-target.yml",
-    "docker-compose.target-cloudflare.yml",
+    "docker/compose/base.yml",
+    "docker/compose/overlays/demo-target.yml",
+    "docker/compose/overlays/target-cloudflare.yml",
     "docker/compose/scenarios/pr7-block3b.yml",
 )
 COMPOSE_3C = (
-    "docker-compose.yml",
+    "docker/compose/base.yml",
     "docker/compose/scenarios/pr7-block3.yml",
     "docker/compose/scenarios/pr7-block3c.yml",
 )
@@ -29,7 +29,16 @@ def compose_command(profile: str, run_id: str, action: str) -> list[str]:
         raise ValueError("action must be start or stop")
     validate_id(run_id, label="run ID")
     files = COMPOSE_3B if profile == "3b" else COMPOSE_3C
-    command = ["docker", "compose", "--project-name", f"pr7-{run_id}"]
+    command = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(ROOT),
+        "--env-file",
+        str(ROOT / ".local" / "env" / ".env"),
+        "--project-name",
+        f"pr7-{run_id}",
+    ]
     for compose_file in files:
         command.extend(("-f", compose_file))
     command.extend(("--profile", "demo-target" if profile == "3b" else "pr7-block3"))

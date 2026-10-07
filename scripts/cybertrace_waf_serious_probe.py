@@ -51,6 +51,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 # ----------------------------
 # Seeds and payload corpus
 # ----------------------------
@@ -545,7 +547,14 @@ def find_audit_for_marker(events: list[dict[str, Any]], marker: str) -> dict[str
 
 def backend_lookup_via_docker(txid: str, compose_files: list[str], profile: str | None, timeout: int = 45) -> dict[str, Any] | None:
     # Uses backend container's own API_SECRET_KEY so the user does not need to expose secrets on host.
-    compose = ["docker", "compose"]
+    compose = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(REPO_ROOT),
+        "--env-file",
+        str(REPO_ROOT / ".local" / "env" / ".env"),
+    ]
     for f in compose_files:
         compose.extend(["-f", f])
     if profile:
@@ -682,7 +691,7 @@ def run() -> int:
     parser.add_argument("--allow-non-local", action="store_true", help="Allow non-local targets; only use with permission")
     parser.add_argument("--verify-backend", action="store_true", help="For blocked/audited events, query CyberTrace backend through docker compose exec")
     parser.add_argument("--backend-verify-limit", type=int, default=40, help="Max backend lookups to attempt")
-    parser.add_argument("--compose-file", action="append", default=["docker-compose.yml", "docker-compose.demo-target.yml"], help="Compose file(s) for backend lookup")
+    parser.add_argument("--compose-file", action="append", default=["docker/compose/base.yml", "docker/compose/overlays/demo-target.yml"], help="Compose file(s) for backend lookup")
     parser.add_argument("--compose-profile", default="demo-target", help="Compose profile for backend lookup")
     parser.add_argument("--aggressive", action="store_true", help="Increase payload/path combinations")
     args = parser.parse_args()

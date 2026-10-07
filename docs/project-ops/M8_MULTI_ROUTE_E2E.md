@@ -53,7 +53,7 @@ prefix is important: Compose treats these as bind-mount paths relative to the
 repository root.
 
 ```powershell
-docker compose --project-directory . --env-file .env -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml up -d --build
+docker compose --project-directory . --env-file .local/env/.env -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml up -d --build
 docker compose --project-directory . -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml exec backend python /app/scripts/multi_route_waf_e2e_tester.py --origin http://demo-target-modsecurity:8080 --backend http://127.0.0.1:8000 --max-rps 1 --output-dir /app/m08-e2e-results
 docker compose --project-directory . -p cybertrace-m08-e2e-clean -f docker/compose/scenarios/m08-multi-route.yml down
 ```
