@@ -470,12 +470,20 @@ The same-origin Forgot Password route returns the same `202` accepted response
 for every syntactically valid address, whether or not an eligible account
 matches. Invalid input returns `400`; disabled recovery and service failures
 return a generic `503`. For eligible accounts, the database stores only a token
-digest and queues a protected outbox item. The notification worker leases and
-retries jobs, then hands them to Resend with an idempotency key. An outbox
+digest and queues a protected outbox item. The database revokes previous
+pending reset tokens on reissue, but does not serialize simultaneous reset
+requests. The route has no server-side reset-request cooldown; the form only
+disables its submit button while that browser request is pending. The
+notification worker leases and retries jobs, then hands them to Resend with an
+idempotency key. An outbox
 `sent` state and the worker's provider-accepted event mean Resend accepted the
 message request; they do not confirm inbox delivery. The user message says
-instructions will be queued, not that they were delivered. No hosted provider
-or mailbox delivery evidence was checked.
+instructions will be queued, not that they were delivered. Before sending a
+password-reset job, the worker checks that its token remains pending, unexpired,
+and eligible; an inactive token is not sent, and a failed check is retried. A
+token can still be revoked after this check while the provider request is in
+flight. The reset form reports invalid links separately from temporary service
+failures. No hosted provider or mailbox delivery evidence was checked.
 
 ## Architecture Notes For Future Edits
 

@@ -93,6 +93,18 @@ async def test_repository_rejects_lost_lease_on_completion() -> None:
         await repository.complete("job-1", "worker-a", "provider-1")
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("active", [True, False])
+async def test_repository_checks_password_reset_token_activity(active: bool) -> None:
+    session = SessionStub([ResultStub(scalar=active)])
+    repository = PostgresNotificationOutboxRepository(lambda: session)
+
+    assert await repository.password_reset_token_is_active("a" * 64) is active
+    sql, params = session.calls[0]
+    assert "preflight_password_token_v61" in sql
+    assert params == {"token_hash": "a" * 64}
+
+
 def test_build_threat_notification_excludes_query_and_raw_request_data() -> None:
     notification = build_threat_notification(
         alert_id=42,
