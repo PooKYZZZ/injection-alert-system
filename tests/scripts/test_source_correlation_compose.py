@@ -478,6 +478,32 @@ def test_target_cloudflare_overlay_rejects_broad_real_ip_trust() -> None:
     assert "192.168.0.0/16" not in template
 
 
+def test_demo_proxy_mounts_cloudflare_peer_verification_map_read_only() -> None:
+    config = _compose_config(
+        "docker-compose.yml",
+        "docker-compose.demo-target.yml",
+        profile="demo-target",
+    )
+    mounts = config["services"]["demo-target-modsecurity"]["volumes"]
+    expected_source = str(
+        (
+            ROOT
+            / "config"
+            / "modsecurity"
+            / "target-cloudflare-realip.conf.template"
+        ).resolve()
+    )
+
+    assert any(
+        mount.get("type") == "bind"
+        and mount.get("source") == expected_source
+        and mount.get("target")
+        == "/etc/nginx/templates/conf.d/00-target-cloudflare-realip.conf.template"
+        and mount.get("read_only") is True
+        for mount in mounts
+    )
+
+
 def test_normal_access_logging_is_allowlisted_and_omits_request_content() -> None:
     template = (
         ROOT / "config" / "modsecurity" / "normal-access-logging.conf.template"
