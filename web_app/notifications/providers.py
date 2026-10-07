@@ -139,11 +139,19 @@ class ResendEmailProvider:
         try:
             message_id = response.json().get("id")
         except (ValueError, AttributeError) as exc:
-            raise EmailProviderError("provider_malformed_response", retryable=False) from exc
+            raise EmailProviderError(
+                "provider_malformed_response",
+                retryable=True,
+                delivery_ambiguous=True,
+            ) from exc
         if not isinstance(message_id, str) or not _SAFE_MESSAGE_ID.fullmatch(
             message_id
         ):
-            raise EmailProviderError("provider_malformed_response", retryable=False)
+            raise EmailProviderError(
+                "provider_malformed_response",
+                retryable=True,
+                delivery_ambiguous=True,
+            )
         return ProviderSendResult(message_id=message_id)
 
     @staticmethod

@@ -115,7 +115,9 @@ async def test_resend_provider_classifies_failures_without_provider_text(
 
     assert captured.value.retryable is retryable
     assert captured.value.error_class == error_type
-    assert captured.value.delivery_ambiguous is (status in {409, 408, 425} or status >= 500)
+    assert captured.value.delivery_ambiguous is (
+        status in {409, 408, 425} or status >= 500
+    )
     assert "unsafe provider detail" not in str(captured.value)
 
 
@@ -205,3 +207,40 @@ async def test_resend_provider_rejects_log_unsafe_message_id() -> None:
             )
 
     assert captured.value.error_class == "provider_malformed_response"
+    assert captured.value.retryable is True
+    assert captured.value.delivery_ambiguous is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("body", "as_json"), [({}, True), ("not-json", False)])
+async def test_resend_retries_ambiguous_success_responses(body, as_json: bool) -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return (
+            httpx.Response(200, json=body)
+            if as_json
+            else httpx.Response(200, text=body)
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.resend.com",
+    ) as client:
+        provider = ResendEmailProvider(
+            api_key="test-api-key",
+            from_email="security@example.test",
+            client=client,
+        )
+        with pytest.raises(EmailProviderError) as captured:
+            await provider.send(
+                EmailMessage(
+                    recipient="viewer@example.test",
+                    subject="Notice",
+                    text="Safe",
+                    html="<p>Safe</p>",
+                    idempotency_key="notice/event-6",
+                )
+            )
+
+    assert captured.value.error_class == "provider_malformed_response"
+    assert captured.value.retryable is True
+    assert captured.value.delivery_ambiguous is True

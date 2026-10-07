@@ -439,7 +439,10 @@ async def test_worker_retries_reset_email_when_token_preflight_is_unavailable() 
             kind="password_reset",
             recipient=job().recipient,
             idempotency_key=job().provider_idempotency_key,
-            payload={"reset_url": "https://dashboard.example.test/reset?token=" + "a" * 43},
+            payload={
+                "reset_url": "https://dashboard.example.test/reset?token="
+                + "a" * 43
+            },
         ),
     )
     repository = RepositoryStub(
