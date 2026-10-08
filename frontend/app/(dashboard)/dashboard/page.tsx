@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -74,6 +73,7 @@ export default function DashboardPage() {
   // Keep the URL canonical while updating the control immediately on click.
   // The URL remains the source of truth after navigation or reload.
   const [timeWindow, setTimeWindow] = useState<TimeWindow>(urlTimeWindow)
+  const [hasOpenedBreakdown, setHasOpenedBreakdown] = useState(false)
   useEffect(() => {
     setTimeWindow(urlTimeWindow)
   }, [urlTimeWindow])
@@ -157,7 +157,6 @@ export default function DashboardPage() {
     previousValue?: number | null
     progressBar?: number
     hideDeltaWhenValueZero?: boolean
-    delay?: number
   }> = [
     {
       label: 'Actionable detections',
@@ -172,7 +171,6 @@ export default function DashboardPage() {
       secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_high_alert_count ?? null,
       hideDeltaWhenValueZero: true,
-      delay: 0,
     },
     {
       label: 'Recorded blocked',
@@ -181,7 +179,6 @@ export default function DashboardPage() {
       secondary: statsUnavailable ? 'Unavailable' : undefined,
       secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_blocked_count ?? null,
-      delay: 0.05,
     },
     {
       label: 'Recorded throttled',
@@ -189,7 +186,6 @@ export default function DashboardPage() {
       value: stats?.throttled_count ?? '—',
       secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_throttled_count ?? null,
-      delay: 0.1,
     },
     {
       label: 'Traffic records',
@@ -198,17 +194,11 @@ export default function DashboardPage() {
       secondary: statsUnavailable ? 'Unavailable' : undefined,
       secondaryColor: 'text-text-secondary',
       previousValue: stats?.prev_total_requests ?? null,
-      delay: 0.15,
     },
   ]
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="min-w-0 flex flex-col gap-6"
-    >
+    <div className="min-w-0 flex flex-col gap-6">
       <PageHeader
         title="Dashboard"
         description="Overview of recent security activity for the selected window."
@@ -227,18 +217,12 @@ export default function DashboardPage() {
             previousValue={card.previousValue}
             progressBar={card.progressBar}
             hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
-            delay={card.delay}
           />
         ))}
       </div>
 
       {/* Timeline Panel */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-3 sm:p-4"
-      >
+      <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-3 sm:p-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
@@ -313,24 +297,14 @@ export default function DashboardPage() {
             <p className="text-[11px] text-[var(--color-text-secondary)]">Timeline unavailable</p>
           </div>
         ) : (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={timeWindow}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <TimelineChart
-                buckets={stats?.activity_buckets ?? []}
-                timeWindow={timeWindow}
-                isPending={statsPending}
-                hasEvents={hasTimelineEvents}
-              />
-            </motion.div>
-          </AnimatePresence>
+          <TimelineChart
+            buckets={stats?.activity_buckets ?? []}
+            timeWindow={timeWindow}
+            isPending={statsPending}
+            hasEvents={hasTimelineEvents}
+          />
         )}
-      </motion.div>
+      </div>
 
       {statsError ? (
         <DashboardQueryError
@@ -359,7 +333,12 @@ export default function DashboardPage() {
 
       {/* Secondary analytics follow the recent-event preview in the scan order. */}
       {!statsUnavailable ? (
-        <details className="group min-w-0 rounded-lg border border-border-light bg-surface-panel">
+        <details
+          className="group min-w-0 rounded-lg border border-border-light bg-surface-panel"
+          onToggle={(event) => {
+            if (event.currentTarget.open) setHasOpenedBreakdown(true)
+          }}
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 [&::-webkit-details-marker]:hidden">
             <span className="min-w-0">
               <span role="heading" aria-level={2} className="block text-sm font-semibold text-text-primary">
@@ -376,96 +355,100 @@ export default function DashboardPage() {
             />
           </summary>
           <div className="space-y-5 border-t border-border-light p-4">
-            {!statsUnavailable && hasDistributionData ? (
+            {hasOpenedBreakdown ? (
               <>
-                <section aria-labelledby="dashboard-traffic-patterns" className="min-w-0 space-y-3">
-                  <h2 id="dashboard-traffic-patterns" className="text-sm font-semibold text-text-primary">
-                    Traffic patterns
-                  </h2>
-                  <div className="grid min-w-0 grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-light bg-border-light md:grid-cols-2 xl:grid-cols-3">
-                    <section className="min-w-0 bg-surface-panel p-4">
-                      <div className="mb-3 flex items-center gap-1.5">
-                        <h3 className="text-sm font-medium text-text-primary">Attack types</h3>
-                        <InfoDisclosure label="Attack type counts and percentages">
-                          Counts are stored operational traffic records for the displayed actionable attack classes in this window. Each percentage is that class&apos;s share of the displayed attack-class records, not of all traffic.
-                        </InfoDisclosure>
+                {hasDistributionData ? (
+                  <>
+                    <section aria-labelledby="dashboard-traffic-patterns" className="min-w-0 space-y-3">
+                      <h2 id="dashboard-traffic-patterns" className="text-sm font-semibold text-text-primary">
+                        Traffic patterns
+                      </h2>
+                      <div className="grid min-w-0 grid-cols-1 gap-px overflow-hidden rounded-lg border border-border-light bg-border-light md:grid-cols-2 xl:grid-cols-3">
+                        <section className="min-w-0 bg-surface-panel p-4">
+                          <div className="mb-3 flex items-center gap-1.5">
+                            <h3 className="text-sm font-medium text-text-primary">Attack types</h3>
+                            <InfoDisclosure label="Attack type counts and percentages">
+                              Counts are stored operational traffic records for the displayed actionable attack classes in this window. Each percentage is that class&apos;s share of the displayed attack-class records, not of all traffic.
+                            </InfoDisclosure>
+                          </div>
+                          <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
+                        </section>
+                        <section className="min-w-0 bg-surface-panel p-4">
+                          <div className="mb-3 flex items-center gap-1.5">
+                            <h3 className="text-sm font-medium text-text-primary">Top source IPs</h3>
+                            <InfoDisclosure label="Top source IPs">
+                              Counts are stored operational traffic records for each address in this window, not guaranteed unique requests. When available, the action badge is that address&apos;s latest recorded action label in the window; it does not prove the runtime outcome of every request.
+                            </InfoDisclosure>
+                          </div>
+                          <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
+                        </section>
+                        <section className="min-w-0 bg-surface-panel p-4">
+                          <div className="mb-3 flex items-center gap-1.5">
+                            <h3 className="text-sm font-medium text-text-primary">Top targeted paths</h3>
+                            <InfoDisclosure label="Top targeted paths">
+                              Each hit counts a stored operational traffic record with this path in the selected window. Multiple records may relate to one request, so this is not necessarily a count of unique client requests.
+                            </InfoDisclosure>
+                          </div>
+                          <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
+                        </section>
                       </div>
-                      <AttackTypePanel countsByLabel={attackCounts} isPending={statsPending} />
                     </section>
-                    <section className="min-w-0 bg-surface-panel p-4">
-                      <div className="mb-3 flex items-center gap-1.5">
-                        <h3 className="text-sm font-medium text-text-primary">Top source IPs</h3>
-                        <InfoDisclosure label="Top source IPs">
-                          Counts are stored operational traffic records for each address in this window, not guaranteed unique requests. When available, the action badge is that address&apos;s latest recorded action label in the window; it does not prove the runtime outcome of every request.
-                        </InfoDisclosure>
-                      </div>
-                      <TopSourceIPs ips={stats?.top_source_ips ?? []} isPending={statsPending} />
-                    </section>
-                    <section className="min-w-0 bg-surface-panel p-4">
-                      <div className="mb-3 flex items-center gap-1.5">
-                        <h3 className="text-sm font-medium text-text-primary">Top targeted paths</h3>
-                        <InfoDisclosure label="Top targeted paths">
-                          Each hit counts a stored operational traffic record with this path in the selected window. Multiple records may relate to one request, so this is not necessarily a count of unique client requests.
-                        </InfoDisclosure>
-                      </div>
-                      <TopTargetedPaths paths={stats?.top_targeted_paths ?? []} isPending={statsPending} />
-                    </section>
-                  </div>
-                </section>
 
-                <section aria-labelledby="dashboard-model-context" className="min-w-0 space-y-3 border-t border-border-light pt-5">
-                  <h2 id="dashboard-model-context" className="text-sm font-semibold text-text-primary">
-                    Model and policy context
-                  </h2>
-                  <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2">
-                    <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
-                      <div className="mb-3 flex items-center gap-2">
-                        <h3 className="text-sm font-medium text-text-primary">Confidence by tier</h3>
-                        <InfoDisclosure label="Confidence">
-                          Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
-                        </InfoDisclosure>
+                    <section aria-labelledby="dashboard-model-context" className="min-w-0 space-y-3 border-t border-border-light pt-5">
+                      <h2 id="dashboard-model-context" className="text-sm font-semibold text-text-primary">
+                        Model and policy context
+                      </h2>
+                      <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2">
+                        <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
+                          <div className="mb-3 flex items-center gap-2">
+                            <h3 className="text-sm font-medium text-text-primary">Confidence by tier</h3>
+                            <InfoDisclosure label="Confidence">
+                              Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+                            </InfoDisclosure>
+                          </div>
+                          <MLConfidenceBands
+                            critical={allConfidenceBands?.critical ?? 0}
+                            high={allConfidenceBands?.high ?? 0}
+                            medium={allConfidenceBands?.medium ?? 0}
+                            low={allConfidenceBands?.low ?? 0}
+                            informational={allConfidenceBands?.informational ?? 0}
+                            isPending={statsPending}
+                            unavailable={allConfidenceBands == null}
+                          />
+                        </div>
+                        <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
+                          <div className="mb-3 flex items-center gap-1.5">
+                            <h3 className="text-sm font-medium text-text-primary">Policy by confidence tier</h3>
+                            <InfoDisclosure label="Policy by confidence tier">
+                              Counts show stored actionable-detection records in each model-confidence tier for the selected window. Response badges describe configured policy intent; runtime mode, request scope, source checks, evidence, and recommendation freshness can affect whether an action is applied. They are not confirmed HTTP outcomes.
+                            </InfoDisclosure>
+                          </div>
+                          <MLEnforcementMap
+                            nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
+                            isPending={statsPending}
+                            unavailable={nonNormalEnforcementBands == null}
+                          />
+                        </div>
                       </div>
-                      <MLConfidenceBands
-                        critical={allConfidenceBands?.critical ?? 0}
-                        high={allConfidenceBands?.high ?? 0}
-                        medium={allConfidenceBands?.medium ?? 0}
-                        low={allConfidenceBands?.low ?? 0}
-                        informational={allConfidenceBands?.informational ?? 0}
-                        isPending={statsPending}
-                        unavailable={allConfidenceBands == null}
-                      />
-                    </div>
-                    <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-4">
-                      <div className="mb-3 flex items-center gap-1.5">
-                        <h3 className="text-sm font-medium text-text-primary">Policy by confidence tier</h3>
-                        <InfoDisclosure label="Policy by confidence tier">
-                          Counts show stored actionable-detection records in each model-confidence tier for the selected window. Response badges describe configured policy intent; runtime mode, request scope, source checks, evidence, and recommendation freshness can affect whether an action is applied. They are not confirmed HTTP outcomes.
-                        </InfoDisclosure>
-                      </div>
-                      <MLEnforcementMap
-                        nonNormalCounts={nonNormalEnforcementBands ?? emptyConfidenceBandCounts()}
-                        isPending={statsPending}
-                        unavailable={nonNormalEnforcementBands == null}
-                      />
-                    </div>
-                  </div>
-                </section>
+                    </section>
+                  </>
+                ) : statsPending ? (
+                  <section aria-label="Breakdown loading">
+                    <p className="text-sm text-text-secondary">Loading activity breakdown…</p>
+                  </section>
+                ) : (
+                  <section aria-label="Activity breakdown">
+                    <h2 className="text-sm font-semibold text-text-primary">No activity in this time window</h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
+                      Traffic summaries will appear when activity is available for the selected window.
+                    </p>
+                  </section>
+                )}
               </>
-            ) : statsPending ? (
-              <section aria-label="Breakdown loading">
-                <p className="text-sm text-text-secondary">Loading activity breakdown…</p>
-              </section>
-            ) : !statsUnavailable ? (
-              <section aria-label="Activity breakdown">
-                <h2 className="text-sm font-semibold text-text-primary">No activity in this time window</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">
-                  Traffic summaries will appear when activity is available for the selected window.
-                </p>
-              </section>
             ) : null}
           </div>
         </details>
       ) : null}
-    </motion.div>
+    </div>
   )
 }

@@ -10,61 +10,72 @@ vi.mock('@/components/SignInToast', () => ({
   default: () => <div data-testid="sign-in-toast" />,
 }))
 
+function mockMatchMedia(matchesDark: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-color-scheme: dark)' ? matchesDark : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
+function mockAnimationFrames() {
+  let nextFrameId = 0
+  const callbacks = new Map<number, FrameRequestCallback>()
+
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    const frameId = ++nextFrameId
+    callbacks.set(frameId, callback)
+    return frameId
+  })
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+    callbacks.delete(frameId)
+  })
+
+  return {
+    flushFrame() {
+      const currentCallbacks = [...callbacks.values()]
+      callbacks.clear()
+      currentCallbacks.forEach((callback) => callback(0))
+    },
+    pendingCount: () => callbacks.size,
+  }
+}
+
+function ThemeToggleHarness() {
+  const { theme, toggleTheme } = useTheme()
+
+  return (
+    <div>
+      <span data-testid="active-theme">{theme}</span>
+      <button type="button" onClick={toggleTheme}>
+        Toggle theme
+      </button>
+    </div>
+  )
+}
+
 describe('Providers', () => {
-  const mockMatchMedia = ({
-    matchesDark,
-    prefersReducedMotion = false,
-  }: {
-    matchesDark: boolean
-    prefersReducedMotion?: boolean
-  }) => {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches:
-          query === '(prefers-color-scheme: dark)'
-            ? matchesDark
-            : query === '(prefers-reduced-motion: reduce)'
-              ? prefersReducedMotion
-              : false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      })),
-    })
-  }
-
-  function ThemeToggleHarness() {
-    const { theme, toggleTheme } = useTheme()
-
-    return (
-      <div>
-        <span data-testid="active-theme">{theme}</span>
-        <button type="button" onClick={toggleTheme}>
-          Toggle theme
-        </button>
-      </div>
-    )
-  }
-
   afterEach(() => {
     cleanup()
-    vi.useRealTimers()
     vi.restoreAllMocks()
     window.localStorage.clear()
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.style.colorScheme = ''
-    document.documentElement.style.removeProperty('--theme-transition-duration')
-    document.documentElement.classList.remove('theme-transitioning')
+    document.documentElement.classList.remove('theme-switching')
   })
 
   it('applies saved explicit theme to the root after render', () => {
     window.localStorage.setItem('ias-theme', 'light')
-    mockMatchMedia({ matchesDark: true })
+    mockMatchMedia(true)
 
     render(
       <Providers>
@@ -74,6 +85,7 @@ describe('Providers', () => {
 
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.documentElement).not.toHaveClass('theme-switching')
   })
 
   it('falls back safely when browser theme APIs throw', () => {
@@ -81,6 +93,7 @@ describe('Providers', () => {
       throw new Error('storage unavailable')
     })
     Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
       writable: true,
       value: vi.fn(() => {
         throw new Error('media query unavailable')
@@ -97,30 +110,8 @@ describe('Providers', () => {
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
   })
 
-  it('still toggles safely when reduced-motion detection throws', () => {
-    window.localStorage.setItem('ias-theme', 'dark')
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      value: vi.fn(() => {
-        throw new Error('media query unavailable')
-      }),
-    })
-
-    render(
-      <Providers>
-        <ThemeToggleHarness />
-      </Providers>
-    )
-
-    expect(() =>
-      fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
-    ).not.toThrow()
-    expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
-  })
-
-  it('falls back to system preference when no explicit theme is saved', () => {
-    mockMatchMedia({ matchesDark: true })
+  it('uses the system preference when no explicit theme is saved', () => {
+    mockMatchMedia(true)
 
     render(
       <Providers>
@@ -130,10 +121,21 @@ describe('Providers', () => {
 
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
     expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.documentElement).not.toHaveClass('theme-switching')
   })
 
-  it('does not apply transition class during initial render', () => {
-    mockMatchMedia({ matchesDark: true })
+  it('applies a theme switch immediately and suppresses transitions for one painted frame', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: query === '(prefers-color-scheme: dark)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+    const frames = mockAnimationFrames()
 
     render(
       <Providers>
@@ -141,38 +143,22 @@ describe('Providers', () => {
       </Providers>
     )
 
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
-  })
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }))
 
-  it('keeps theme transitions enabled until the fallback cleanup window expires', () => {
-    vi.useFakeTimers()
-    document.documentElement.style.setProperty('--theme-transition-duration', '200ms')
-    mockMatchMedia({ matchesDark: true })
-
-    render(
-      <Providers>
-        <ThemeToggleHarness />
-      </Providers>
-    )
-
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
-
-    fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
-
-    expect(document.documentElement).toHaveClass('theme-transitioning')
     expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.documentElement).toHaveClass('theme-switching')
 
-    vi.advanceTimersByTime(449)
-    expect(document.documentElement).toHaveClass('theme-transitioning')
-
-    vi.advanceTimersByTime(1)
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
+    frames.flushFrame()
+    expect(document.documentElement).toHaveClass('theme-switching')
+    frames.flushFrame()
+    expect(document.documentElement).not.toHaveClass('theme-switching')
   })
 
-  it('clears the theme transition after all tooltip color tokens finish', () => {
-    vi.useFakeTimers()
-    document.documentElement.style.setProperty('--theme-transition-duration', '200ms')
-    mockMatchMedia({ matchesDark: true })
+  it('keeps rapid back-to-back switches synchronized and replaces stale cleanup frames', () => {
+    mockMatchMedia(true)
+    const frames = mockAnimationFrames()
 
     render(
       <Providers>
@@ -180,65 +166,36 @@ describe('Providers', () => {
       </Providers>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
-
-    const transitionedProperties = [
-      '--info-disclosure-panel',
-      '--info-disclosure-border',
-      '--info-disclosure-primary',
-      '--info-disclosure-secondary',
-      '--info-disclosure-accent',
-    ]
-
-    for (const propertyName of transitionedProperties.slice(0, -1)) {
-      fireEvent.transitionEnd(document.documentElement, { propertyName })
-      expect(document.documentElement).toHaveClass('theme-transitioning')
-    }
-
-    fireEvent.transitionEnd(document.documentElement, {
-      propertyName: transitionedProperties.at(-1),
-    })
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
-  })
-
-  it('restarts the transition cleanup window when the user quickly toggles back', () => {
-    vi.useFakeTimers()
-    document.documentElement.style.setProperty('--theme-transition-duration', '200ms')
-    mockMatchMedia({ matchesDark: true })
-
-    render(
-      <Providers>
-        <ThemeToggleHarness />
-      </Providers>
-    )
-
-    const toggle = screen.getByRole('button', { name: /toggle theme/i })
+    const toggle = screen.getByRole('button', { name: 'Toggle theme' })
     fireEvent.click(toggle)
-    vi.advanceTimersByTime(150)
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     fireEvent.click(toggle)
 
     expect(screen.getByTestId('active-theme')).toHaveTextContent('dark')
-    expect(document.documentElement).toHaveClass('theme-transitioning')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.documentElement).toHaveClass('theme-switching')
+    expect(frames.pendingCount()).toBe(1)
 
-    vi.advanceTimersByTime(449)
-    expect(document.documentElement).toHaveClass('theme-transitioning')
-    vi.advanceTimersByTime(1)
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
+    frames.flushFrame()
+    frames.flushFrame()
+    expect(document.documentElement).not.toHaveClass('theme-switching')
   })
 
-  it('skips transition class when reduced-motion is enabled', () => {
-    mockMatchMedia({ matchesDark: true, prefersReducedMotion: true })
-
-    render(
+  it('cleans up the pending transition-suppression frame when providers unmount', () => {
+    mockMatchMedia(true)
+    const frames = mockAnimationFrames()
+    const { unmount } = render(
       <Providers>
         <ThemeToggleHarness />
       </Providers>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }))
+    expect(document.documentElement).toHaveClass('theme-switching')
+    unmount()
 
-    expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
-    expect(document.documentElement).not.toHaveClass('theme-transitioning')
+    expect(document.documentElement).not.toHaveClass('theme-switching')
+    expect(frames.pendingCount()).toBe(0)
   })
 
   it('renders SignInToast and does not register action-retry-success listeners', () => {
