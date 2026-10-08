@@ -26,6 +26,10 @@ describe('UserManagementWorkspace', () => {
     render(<UserManagementWorkspace initialAccounts={[account]} />)
 
     expect(screen.getByRole('heading', { name: 'User Management' })).toBeInTheDocument()
+    const inviteButton = screen.getByRole('button', { name: 'Invite user' })
+    expect(inviteButton).toHaveClass('border', 'border-border-light', 'text-text-secondary')
+    expect(inviteButton).toHaveClass('focus-visible:ring-2')
+    expect(inviteButton).not.toHaveClass('bg-accent-action')
     expect(screen.getByRole('region', { name: 'Account summary' })).toBeInTheDocument()
     expect(screen.getByText('MFA required for 1 account.')).toBeInTheDocument()
     expect(screen.queryByText('MFA scope')).not.toBeInTheDocument()

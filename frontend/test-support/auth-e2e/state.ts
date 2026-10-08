@@ -37,6 +37,7 @@ const authE2EStateSchema = z
       backup: backupIdentitySchema,
       email: identitySchema,
       stepup: totpIdentitySchema,
+      dashboard: totpIdentitySchema,
       managedTargets: z.array(identitySchema).length(2),
     }),
     roleMatrix: roleMatrixSchema,
@@ -48,6 +49,7 @@ const authE2EStateSchema = z
       state.identities.backup,
       state.identities.email,
       state.identities.stepup,
+      state.identities.dashboard,
       ...state.identities.managedTargets,
       ...Object.values(state.roleMatrix),
     ]
@@ -71,6 +73,7 @@ export type AuthE2EIdentity =
   | AuthE2EState['identities']['backup']
   | AuthE2EState['identities']['email']
   | AuthE2EState['identities']['stepup']
+  | AuthE2EState['identities']['dashboard']
 export type AuthE2ERole = keyof AuthE2EState['roleMatrix']
 export type AuthE2ERoleIdentity = AuthE2EState['roleMatrix'][AuthE2ERole]
 

@@ -7,14 +7,13 @@ import { AttackTypePanel } from './AttackTypePanel'
 
 vi.mock('recharts', () => ({
   Cell: () => null,
-  Pie: ({ data }: { data: Array<{ label: string; count: number }> }) => (
-    <div data-testid="pie-data">
+  Pie: ({ data, isAnimationActive }: { data: Array<{ label: string; count: number }>; isAnimationActive?: boolean }) => (
+    <div data-testid="pie-data" data-animation-active={String(isAnimationActive)}>
       {data.map(({ label, count }) => `${label}:${count}`).join('|')}
     </div>
   ),
-  PieChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  ResponsiveContainer: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
-    <div data-testid="responsive-container" data-props={JSON.stringify(props)}>{children}</div>
+  PieChart: ({ children, width, height }: { children: React.ReactNode; width?: number; height?: number }) => (
+    <div data-testid="pie-chart" data-width={width} data-height={height}>{children}</div>
   ),
   Tooltip: ({ contentStyle }: { contentStyle?: React.CSSProperties }) => (
     <div data-testid="pie-tooltip-style" data-background={String(contentStyle?.backgroundColor ?? '')} />
@@ -53,17 +52,14 @@ describe('AttackTypePanel', () => {
       })
     ).toBeInTheDocument()
     expect(screen.getByTestId('pie-data')).toHaveTextContent('SQL Injection:4|Code Injection:2')
+    expect(screen.getByTestId('pie-data')).toHaveAttribute('data-animation-active', 'false')
+    expect(screen.getByTestId('pie-chart')).toHaveAttribute('data-width', '196')
+    expect(screen.getByTestId('pie-chart')).toHaveAttribute('data-height', '196')
     expect(screen.getByText('4 · 67%')).toBeInTheDocument()
     expect(screen.getByTestId('pie-tooltip-style')).toHaveAttribute(
       'data-background',
       'var(--color-surface-card)'
     )
-    expect(JSON.parse(screen.getByTestId('responsive-container').getAttribute('data-props') ?? '{}')).toMatchObject({
-      width: '100%',
-      height: '100%',
-      minHeight: 196,
-      initialDimension: { width: 0, height: 196 },
-    })
   })
 
   it('explains both chart controls as presentation-only changes', async () => {

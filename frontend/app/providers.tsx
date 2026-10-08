@@ -6,7 +6,6 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
@@ -19,9 +18,6 @@ type ThemePreference = Theme | 'system'
 
 const THEME_STORAGE_KEY = 'ias-theme'
 const THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'
-const REDUCED_MOTION_MEDIA_QUERY = '(prefers-reduced-motion: reduce)'
-const THEME_TRANSITION_CLASS = 'theme-transitioning'
-const THEME_TRANSITION_DURATION_MS = 145
 
 interface ThemeContextValue {
   theme: Theme
@@ -41,18 +37,6 @@ function getSystemTheme(): Theme {
     return window.matchMedia(THEME_MEDIA_QUERY).matches ? 'dark' : 'light'
   } catch {
     return 'dark'
-  }
-}
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return true
-  }
-
-  try {
-    return window.matchMedia(REDUCED_MOTION_MEDIA_QUERY).matches
-  } catch {
-    return true
   }
 }
 
@@ -112,7 +96,6 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => getStoredThemePreference())
   const [systemTheme, setSystemTheme] = useState<Theme>(() => getSystemTheme())
-  const transitionTimeoutRef = useRef<number | null>(null)
 
   const theme = themePreference === 'system' ? systemTheme : themePreference
   useLayoutEffect(() => {
@@ -161,43 +144,12 @@ export function Providers({ children }: { children: ReactNode }) {
     return () => mediaQueryList.removeListener(handleChange)
   }, [])
 
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && transitionTimeoutRef.current !== null) {
-        window.clearTimeout(transitionTimeoutRef.current)
-      }
-
-      if (typeof document !== 'undefined') {
-        document.documentElement.classList.remove(THEME_TRANSITION_CLASS)
-      }
-    }
-  }, [])
-
   const themeContextValue = useMemo<ThemeContextValue>(
     () => ({
       theme,
       themePreference,
       setThemePreference,
       toggleTheme: () => {
-        if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-          const reduceMotion = prefersReducedMotion()
-
-          const root = document.documentElement
-
-          if (!reduceMotion) {
-            root.classList.add(THEME_TRANSITION_CLASS)
-
-            if (transitionTimeoutRef.current !== null) {
-              window.clearTimeout(transitionTimeoutRef.current)
-            }
-
-            transitionTimeoutRef.current = window.setTimeout(() => {
-              root.classList.remove(THEME_TRANSITION_CLASS)
-              transitionTimeoutRef.current = null
-            }, THEME_TRANSITION_DURATION_MS)
-          }
-        }
-
         setThemePreference((previousPreference) => {
           const resolvedTheme = previousPreference === 'system' ? systemTheme : previousPreference
           return resolvedTheme === 'dark' ? 'light' : 'dark'

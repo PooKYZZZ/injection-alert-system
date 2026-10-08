@@ -58,7 +58,6 @@ describe('Providers', () => {
     window.localStorage.clear()
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.style.colorScheme = ''
-    document.documentElement.classList.remove('theme-transitioning')
   })
 
   it('applies saved explicit theme to the root after render', () => {
@@ -143,7 +142,7 @@ describe('Providers', () => {
     expect(document.documentElement).not.toHaveClass('theme-transitioning')
   })
 
-  it('applies transition class only when the user explicitly toggles theme', () => {
+  it('updates the root theme immediately when the user toggles theme', () => {
     vi.useFakeTimers()
     mockMatchMedia({ matchesDark: true })
 
@@ -157,14 +156,15 @@ describe('Providers', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
 
-    expect(document.documentElement).toHaveClass('theme-transitioning')
     expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(document.documentElement.style.colorScheme).toBe('light')
 
     vi.advanceTimersByTime(160)
     expect(document.documentElement).not.toHaveClass('theme-transitioning')
   })
 
-  it('skips transition class when reduced-motion is enabled', () => {
+  it('toggles theme when reduced motion is enabled', () => {
     mockMatchMedia({ matchesDark: true, prefersReducedMotion: true })
 
     render(
@@ -176,6 +176,7 @@ describe('Providers', () => {
     fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
 
     expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     expect(document.documentElement).not.toHaveClass('theme-transitioning')
   })
 

@@ -2,7 +2,11 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['auth-journeys.spec.ts', 'role-access.spec.ts'],
+  testMatch: [
+    'auth-journeys.spec.ts',
+    'role-access.spec.ts',
+    'dashboard-interaction.spec.ts',
+  ],
   globalSetup: './e2e/auth-global-setup.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
@@ -13,7 +17,7 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3000',
     trace: 'off',
     screenshot: 'off',
     video: 'off',
@@ -28,7 +32,7 @@ export default defineConfig({
     // Auth journeys must not run against Next.js HMR: a dev recompilation can
     // reload a page between an auth transition and its session assertions.
     command: 'npm run build -- --webpack && node scripts/start-auth-e2e-standalone.mjs',
-    url: 'http://127.0.0.1:3000',
+    url: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3000',
     reuseExistingServer: false,
     stdout: 'ignore',
     stderr: 'pipe',

@@ -21,8 +21,8 @@ import {
 } from '@/test-support/auth-e2e/state'
 import { prewarmAuthRoutes } from '@/test-support/auth-e2e/prewarm'
 
-const JOURNEYS = ['enroll', 'login', 'backup', 'email', 'stepup'] as const
-const ACTIVE_FACTOR_JOURNEYS = ['login', 'backup', 'email', 'stepup'] as const
+const JOURNEYS = ['enroll', 'login', 'backup', 'email', 'stepup', 'dashboard'] as const
+const ACTIVE_FACTOR_JOURNEYS = ['login', 'backup', 'email', 'stepup', 'dashboard'] as const
 const ROLE_MATRIX = ['owner', 'admin', 'analyst', 'viewer'] as const
 const ACTIVE_ROLE_MATRIX = ['owner', 'admin', 'analyst'] as const
 
@@ -64,6 +64,7 @@ function createJourneyState(): AuthE2EState {
         backup: { ...baseIdentity('backup'), backupCode: generateBackupCode() },
         email: baseIdentity('email'),
         stepup: { ...baseIdentity('stepup'), totpSecret: generateTotpSecret() },
+        dashboard: { ...baseIdentity('dashboard'), totpSecret: generateTotpSecret() },
         managedTargets: [baseIdentity('managed-target-1'), baseIdentity('managed-target-2')],
       },
       roleMatrix: {

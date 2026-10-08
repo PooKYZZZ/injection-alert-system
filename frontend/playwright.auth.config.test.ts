@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest'
 import authConfig from './playwright.auth.config'
 
 describe('authentication Playwright configuration', () => {
-  it('runs only the critical auth file in the supported Chromium browser', () => {
+  it('runs the critical auth and dashboard interaction files in Chromium', () => {
     expect(authConfig.testMatch).toEqual([
       'auth-journeys.spec.ts',
       'role-access.spec.ts',
+      'dashboard-interaction.spec.ts',
     ])
     expect(authConfig.projects).toHaveLength(1)
     expect(authConfig.projects?.[0].name).toBe('auth-chromium')

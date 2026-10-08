@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'motion/react'
 import { LoadingSkeleton, EmptyState } from '@/components/ui/StateViews'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 import type { ConfidenceBandCounts } from '@/features/alerts/confidenceBands'
@@ -45,12 +44,7 @@ export function MLEnforcementMap({
   const total = critical + high + medium + low + informational
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut', delay: 0.1 }}
-      className="min-w-0 flex flex-col gap-1.5"
-    >
+    <div className="min-w-0 flex flex-col gap-1.5">
       <div className="break-words text-[11px] font-medium text-[var(--color-text-primary)]">
         Configured response policy
       </div>
@@ -171,6 +165,6 @@ export function MLEnforcementMap({
       <div className="mt-1 break-words text-[11px] leading-tight text-[var(--color-text-muted)] italic">
         Configured policy depends on prediction class and confidence tier; it does not prove a WAF action or HTTP outcome.
       </div>
-    </motion.div>
+    </div>
   )
 }

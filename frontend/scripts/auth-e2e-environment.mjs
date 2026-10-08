@@ -842,9 +842,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
       backend = await startManagedFastApi(databaseUrl, signal)
       unregisterBackend = registerCleanup(() => backend.close())
     }
-    const frontendOrigin = options.realApi
-      ? `http://127.0.0.1:${await allocateLoopbackPort()}`
-      : FRONTEND_ORIGIN
+    const frontendOrigin = `http://127.0.0.1:${await allocateLoopbackPort()}`
     const authEnvironment = buildAuthE2EEnvironment({
       supabaseUrl: restProxy.url,
       serviceRoleToken,

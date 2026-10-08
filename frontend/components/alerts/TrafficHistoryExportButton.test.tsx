@@ -36,6 +36,15 @@ describe('TrafficHistoryExportButton', () => {
     expect(screen.queryByRole('button', { name: 'Export CSV' })).not.toBeInTheDocument()
   })
 
+  it('uses the quiet secondary action style while preserving keyboard focus', () => {
+    render(<TrafficHistoryExportButton role="ANALYST" />)
+
+    const button = screen.getByRole('button', { name: 'Export CSV' })
+    expect(button).toHaveClass('border', 'border-surface-border', 'text-text-secondary')
+    expect(button).toHaveClass('focus-visible:ring-2')
+    expect(button).not.toHaveClass('bg-action-accent', 'text-action-contrast')
+  })
+
   it('submits custom dates with canonical current filters and exposes a download', async () => {
     const user = userEvent.setup()
     mockSearchParams = new URLSearchParams(
