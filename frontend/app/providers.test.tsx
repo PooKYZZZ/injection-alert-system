@@ -58,6 +58,7 @@ describe('Providers', () => {
     window.localStorage.clear()
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.style.colorScheme = ''
+    document.documentElement.style.removeProperty('--theme-transition-duration')
     document.documentElement.classList.remove('theme-transitioning')
   })
 
@@ -143,8 +144,9 @@ describe('Providers', () => {
     expect(document.documentElement).not.toHaveClass('theme-transitioning')
   })
 
-  it('applies transition class only when the user explicitly toggles theme', () => {
+  it('keeps theme transitions enabled until the fallback cleanup window expires', () => {
     vi.useFakeTimers()
+    document.documentElement.style.setProperty('--theme-transition-duration', '200ms')
     mockMatchMedia({ matchesDark: true })
 
     render(
@@ -160,7 +162,67 @@ describe('Providers', () => {
     expect(document.documentElement).toHaveClass('theme-transitioning')
     expect(screen.getByTestId('active-theme')).toHaveTextContent('light')
 
-    vi.advanceTimersByTime(160)
+    vi.advanceTimersByTime(449)
+    expect(document.documentElement).toHaveClass('theme-transitioning')
+
+    vi.advanceTimersByTime(1)
+    expect(document.documentElement).not.toHaveClass('theme-transitioning')
+  })
+
+  it('clears the theme transition after all tooltip color tokens finish', () => {
+    vi.useFakeTimers()
+    document.documentElement.style.setProperty('--theme-transition-duration', '200ms')
+    mockMatchMedia({ matchesDark: true })
+
+    render(
+      <Providers>
+        <ThemeToggleHarness />
+      </Providers>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /toggle theme/i }))
+
+    const transitionedProperties = [
+      '--info-disclosure-panel',
+      '--info-disclosure-border',
+      '--info-disclosure-primary',
+      '--info-disclosure-secondary',
+      '--info-disclosure-accent',
+    ]
+
+    for (const propertyName of transitionedProperties.slice(0, -1)) {
+      fireEvent.transitionEnd(document.documentElement, { propertyName })
+      expect(document.documentElement).toHaveClass('theme-transitioning')
+    }
+
+    fireEvent.transitionEnd(document.documentElement, {
+      propertyName: transitionedProperties.at(-1),
+    })
+    expect(document.documentElement).not.toHaveClass('theme-transitioning')
+  })
+
+  it('restarts the transition cleanup window when the user quickly toggles back', () => {
+    vi.useFakeTimers()
+    document.documentElement.style.setProperty('--theme-transition-duration', '200ms')
+    mockMatchMedia({ matchesDark: true })
+
+    render(
+      <Providers>
+        <ThemeToggleHarness />
+      </Providers>
+    )
+
+    const toggle = screen.getByRole('button', { name: /toggle theme/i })
+    fireEvent.click(toggle)
+    vi.advanceTimersByTime(150)
+    fireEvent.click(toggle)
+
+    expect(screen.getByTestId('active-theme')).toHaveTextContent('dark')
+    expect(document.documentElement).toHaveClass('theme-transitioning')
+
+    vi.advanceTimersByTime(449)
+    expect(document.documentElement).toHaveClass('theme-transitioning')
+    vi.advanceTimersByTime(1)
     expect(document.documentElement).not.toHaveClass('theme-transitioning')
   })
 

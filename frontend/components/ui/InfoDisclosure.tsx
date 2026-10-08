@@ -212,6 +212,7 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
   return (
     <span
       ref={rootRef}
+      data-info-disclosure-container
       data-info-disclosure-open={open ? 'true' : undefined}
       onKeyDownCapture={(event) => {
         if (open && event.key === 'Escape') {
@@ -278,7 +279,7 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
           openSourceRef.current = next ? 'click' : null
           setOpen(next)
         }}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-surface-border text-[10px] font-semibold leading-none text-text-secondary transition-colors hover:border-accent-action hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-panel"
+        className="info-disclosure-trigger inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold leading-none"
       >
         <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
           <circle cx="10" cy="10" r="8" />
@@ -292,6 +293,7 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
               id={contentId}
               ref={popoverRef}
               role="region"
+              data-info-disclosure-popover
               aria-label={`${label} explanation`}
               data-side={position?.side}
               onPointerEnter={(event) => {
@@ -314,9 +316,9 @@ export function InfoDisclosure({ label, children, className }: InfoDisclosurePro
                 boxSizing: 'border-box',
                 visibility: position ? 'visible' : 'hidden',
               }}
-              className="z-[100] overflow-y-auto rounded-lg border border-border-light bg-surface-panel p-3 text-[13px] leading-5 text-text-secondary shadow-xl ring-1 ring-black/10 normal-case tracking-normal"
+              className="info-disclosure-popover z-[100] overflow-y-auto rounded-lg border p-3 text-[13px] leading-5 shadow-xl ring-1 ring-black/10 normal-case tracking-normal"
             >
-              <p className="mb-1 font-semibold text-text-primary normal-case tracking-normal">{label}</p>
+              <p className="info-disclosure-title mb-1 font-semibold normal-case tracking-normal">{label}</p>
               <div className="normal-case tracking-normal">{children}</div>
             </div>,
             document.body
