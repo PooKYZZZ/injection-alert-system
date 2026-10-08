@@ -373,9 +373,7 @@ export function TimelineChart({
                 fillOpacity={1}
                 name="Recorded blocked"
                 dot={false}
-                isAnimationActive
-                animationDuration={550}
-                animationEasing="ease-out"
+                isAnimationActive={false}
                 connectNulls={false}
               />
               <Area
@@ -386,9 +384,7 @@ export function TimelineChart({
                 fillOpacity={1}
                 name="Recorded throttled"
                 dot={false}
-                isAnimationActive
-                animationDuration={550}
-                animationEasing="ease-out"
+                isAnimationActive={false}
                 connectNulls={false}
               />
               <Area
@@ -399,9 +395,7 @@ export function TimelineChart({
                 fillOpacity={1}
                 name="Recorded allowed"
                 dot={false}
-                isAnimationActive
-                animationDuration={550}
-                animationEasing="ease-out"
+                isAnimationActive={false}
                 connectNulls={false}
               />
               <Line
@@ -412,7 +406,7 @@ export function TimelineChart({
                 dot={false}
                 activeDot={{ r: 4, fill: colorBlocked, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
-                isAnimationActive
+                isAnimationActive={false}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -424,7 +418,7 @@ export function TimelineChart({
                 dot={false}
                 activeDot={{ r: 4, fill: colorThrottled, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
-                isAnimationActive
+                isAnimationActive={false}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -436,7 +430,7 @@ export function TimelineChart({
                 dot={false}
                 activeDot={{ r: 4, fill: colorAllowed, stroke: 'var(--color-surface-card)', strokeWidth: 2 }}
                 connectNulls={false}
-                isAnimationActive
+                isAnimationActive={false}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />

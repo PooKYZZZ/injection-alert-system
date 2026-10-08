@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import CountUp from 'react-countup'
-import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
@@ -15,7 +13,6 @@ interface StatCardProps {
   previousValue?: number | null
   progressBar?: number
   hideDeltaWhenValueZero?: boolean
-  delay?: number
   onClick?: () => void
 }
 
@@ -35,33 +32,13 @@ export function StatCard({
   previousValue,
   progressBar,
   hideDeltaWhenValueZero = false,
-  delay = 0,
   onClick,
 }: StatCardProps) {
   const delta = typeof value === 'number' ? computeDelta(value, previousValue) : null
   const showDelta = !(hideDeltaWhenValueZero && typeof value === 'number' && value === 0)
-  const isZeroValue = typeof value === 'number' && value === 0
-  const [flash, setFlash] = useState(false)
-  const prevValueRef = useRef(value)
-
-  useEffect(() => {
-    if (prevValueRef.current !== value && typeof value === 'number') {
-      const showTimer = setTimeout(() => setFlash(true), 0)
-      const hideTimer = setTimeout(() => setFlash(false), 600)
-      prevValueRef.current = value
-      return () => {
-        clearTimeout(showTimer)
-        clearTimeout(hideTimer)
-      }
-    }
-    prevValueRef.current = value
-  }, [value])
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut', delay }}
+    <div
       onClick={onClick}
       className={cn(
         'min-w-0 flex flex-col gap-1 p-3 transition-colors sm:p-4',
@@ -78,12 +55,7 @@ export function StatCard({
           {label}
         </div>
       )}
-      <div
-        className={cn(
-          'text-[28px] font-semibold tracking-tight leading-none transition-colors duration-300',
-          isZeroValue || !flash ? 'text-text-primary' : 'text-accent-action'
-        )}
-      >
+      <div className="text-[28px] font-semibold tracking-tight leading-none text-text-primary">
         {typeof value === 'number' ? (
           <CountUp end={value} duration={0.55} preserveValue useEasing />
         ) : (
@@ -114,6 +86,6 @@ export function StatCard({
           />
         </div>
       ) : null}
-    </motion.div>
+    </div>
   )
 }

@@ -2,7 +2,11 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['auth-journeys.spec.ts', 'role-access.spec.ts'],
+  testMatch: [
+    'auth-journeys.spec.ts',
+    'role-access.spec.ts',
+    'theme-switch-performance.spec.ts',
+  ],
   globalSetup: './e2e/auth-global-setup.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),

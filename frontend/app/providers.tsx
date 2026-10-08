@@ -19,49 +19,30 @@ type ThemePreference = Theme | 'system'
 
 const THEME_STORAGE_KEY = 'ias-theme'
 const THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'
-const REDUCED_MOTION_MEDIA_QUERY = '(prefers-reduced-motion: reduce)'
-const THEME_TRANSITION_CLASS = 'theme-transitioning'
-const THEME_TRANSITION_PROPERTIES = [
-  '--info-disclosure-panel',
-  '--info-disclosure-border',
-  '--info-disclosure-primary',
-  '--info-disclosure-secondary',
-  '--info-disclosure-accent',
-] as const
-const DEFAULT_THEME_TRANSITION_DURATION_MS = 145
-const THEME_TRANSITION_CLEANUP_BUFFER_MS = 50
-const THEME_TRANSITION_FALLBACK_MULTIPLIER = 2
+const THEME_SWITCHING_CLASS = 'theme-switching'
 
-function getThemeTransitionDurationMs(root: HTMLElement): number {
-  const rawDuration = window.getComputedStyle(root)
-    .getPropertyValue('--theme-transition-duration')
-    .trim()
-  const match = /^(\d+(?:\.\d+)?)(ms|s)$/.exec(rawDuration)
-  if (!match) return DEFAULT_THEME_TRANSITION_DURATION_MS
+type ThemeSwitchFrameRef = { current: number | null }
 
-  const value = Number(match[1])
-  const durationMs = match[2] === 's' ? value * 1000 : value
-  return Number.isFinite(durationMs) && durationMs >= 0
-    ? durationMs
-    : DEFAULT_THEME_TRANSITION_DURATION_MS
+function scheduleThemeSwitchCleanup(root: HTMLElement, frameRef: ThemeSwitchFrameRef) {
+  if (frameRef.current !== null) {
+    window.cancelAnimationFrame(frameRef.current)
+  }
+
+  frameRef.current = window.requestAnimationFrame(() => {
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null
+      root.classList.remove(THEME_SWITCHING_CLASS)
+    })
+  })
 }
 
-function clearThemeTransition(
-  root: HTMLElement,
-  timeoutRef: { current: number | null },
-  endHandlerRef: { current: ((event: TransitionEvent) => void) | null }
-) {
-  if (timeoutRef.current !== null) {
-    window.clearTimeout(timeoutRef.current)
-    timeoutRef.current = null
+function clearThemeSwitch(root: HTMLElement, frameRef: ThemeSwitchFrameRef) {
+  if (frameRef.current !== null) {
+    window.cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
   }
 
-  if (endHandlerRef.current !== null) {
-    root.removeEventListener('transitionend', endHandlerRef.current)
-    endHandlerRef.current = null
-  }
-
-  root.classList.remove(THEME_TRANSITION_CLASS)
+  root.classList.remove(THEME_SWITCHING_CLASS)
 }
 
 interface ThemeContextValue {
@@ -82,18 +63,6 @@ function getSystemTheme(): Theme {
     return window.matchMedia(THEME_MEDIA_QUERY).matches ? 'dark' : 'light'
   } catch {
     return 'dark'
-  }
-}
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return true
-  }
-
-  try {
-    return window.matchMedia(REDUCED_MOTION_MEDIA_QUERY).matches
-  } catch {
-    return true
   }
 }
 
@@ -153,12 +122,18 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => getStoredThemePreference())
   const [systemTheme, setSystemTheme] = useState<Theme>(() => getSystemTheme())
-  const transitionTimeoutRef = useRef<number | null>(null)
-  const transitionEndHandlerRef = useRef<((event: TransitionEvent) => void) | null>(null)
+  const themeSwitchFrameRef = useRef<number | null>(null)
+  const hasAppliedThemeRef = useRef(false)
 
   const theme = themePreference === 'system' ? systemTheme : themePreference
   useLayoutEffect(() => {
+    const root = document.documentElement
+    if (hasAppliedThemeRef.current && root.getAttribute('data-theme') !== theme) {
+      root.classList.add(THEME_SWITCHING_CLASS)
+      scheduleThemeSwitchCleanup(root, themeSwitchFrameRef)
+    }
     applyThemeToRoot(theme)
+    hasAppliedThemeRef.current = true
   }, [theme])
 
   useEffect(() => {
@@ -206,11 +181,7 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-        clearThemeTransition(
-          document.documentElement,
-          transitionTimeoutRef,
-          transitionEndHandlerRef
-        )
+        clearThemeSwitch(document.documentElement, themeSwitchFrameRef)
       }
     }
   }, [])
@@ -221,42 +192,6 @@ export function Providers({ children }: { children: ReactNode }) {
       themePreference,
       setThemePreference,
       toggleTheme: () => {
-        if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-          const root = document.documentElement
-          clearThemeTransition(root, transitionTimeoutRef, transitionEndHandlerRef)
-          const reduceMotion = prefersReducedMotion()
-
-          if (!reduceMotion) {
-            root.classList.add(THEME_TRANSITION_CLASS)
-
-            const pendingProperties = new Set<string>(THEME_TRANSITION_PROPERTIES)
-            const endHandler = (event: TransitionEvent) => {
-              if (
-                event.target !== root ||
-                transitionEndHandlerRef.current !== endHandler ||
-                !pendingProperties.delete(event.propertyName)
-              ) {
-                return
-              }
-
-              if (pendingProperties.size === 0) {
-                clearThemeTransition(root, transitionTimeoutRef, transitionEndHandlerRef)
-              }
-            }
-
-            transitionEndHandlerRef.current = endHandler
-            root.addEventListener('transitionend', endHandler)
-
-            const fallbackDelay =
-              getThemeTransitionDurationMs(root) * THEME_TRANSITION_FALLBACK_MULTIPLIER +
-              THEME_TRANSITION_CLEANUP_BUFFER_MS
-            transitionTimeoutRef.current = window.setTimeout(() => {
-              if (transitionEndHandlerRef.current !== endHandler) return
-              clearThemeTransition(root, transitionTimeoutRef, transitionEndHandlerRef)
-            }, fallbackDelay)
-          }
-        }
-
         setThemePreference((previousPreference) => {
           const resolvedTheme = previousPreference === 'system' ? systemTheme : previousPreference
           return resolvedTheme === 'dark' ? 'light' : 'dark'

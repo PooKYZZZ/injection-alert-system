@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { Cell, Pie, PieChart, Tooltip } from 'recharts'
 import { cn } from '@/lib/utils'
 import { LoadingSkeleton } from '@/components/ui/StateViews'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
@@ -116,8 +116,8 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
                 </span>
                 <div className="h-[3px] min-w-0 rounded-full bg-surface-inset">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${percentage}%`, background: colorMap[label] }}
+                    className="h-full w-full origin-left rounded-full"
+                    style={{ transform: `scaleX(${percentage / 100})`, background: colorMap[label] }}
                   />
                 </div>
                 <div className="flex shrink-0 items-center justify-end gap-2 tabular-nums">
@@ -137,19 +137,14 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
           <div
             role="img"
             aria-label={`Attack type distribution pie chart. ${accessibleSummary}.`}
-            className="flex h-[196px] min-h-[160px] w-full min-w-0 max-w-[260px] self-center"
+            className="flex h-[196px] min-h-[160px] w-full min-w-0 max-w-[260px] self-center justify-center"
           >
-            <ResponsiveContainer
-              width="100%"
-              height="100%"
-              minHeight={196}
-              initialDimension={{ width: 0, height: 196 }}
-            >
-              <PieChart accessibilityLayer>
+            <PieChart width={196} height={196} accessibilityLayer>
                 <Pie
                   data={entries}
                   dataKey="count"
                   nameKey="label"
+                  isAnimationActive={false}
                   innerRadius="52%"
                   outerRadius="78%"
                   paddingAngle={2}
@@ -176,8 +171,7 @@ export function AttackTypePanel({ countsByLabel, isPending = false }: AttackType
                     return [`${numericValue} (${percentage}%)`, String(name ?? '')]
                   }}
                 />
-              </PieChart>
-            </ResponsiveContainer>
+            </PieChart>
           </div>
 
           <div className="flex w-full min-w-0 flex-col gap-2.5">

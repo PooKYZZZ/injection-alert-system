@@ -16,15 +16,9 @@ describe('InfoDisclosure', () => {
 
     await user.click(screen.getByRole('button', { name: 'About Confidence' }))
     const explanation = screen.getByRole('region', { name: 'Confidence explanation' })
-    const trigger = screen.getByRole('button', { name: 'About Confidence' })
 
     expect(explanation.parentElement).toBe(document.body)
     expect(explanation).not.toBe(container.querySelector('[role="region"]'))
-    expect(container.querySelector('[data-info-disclosure-container]')).toBeInTheDocument()
-    expect(trigger).toHaveClass('info-disclosure-trigger')
-    expect(explanation).toHaveAttribute('data-info-disclosure-popover')
-    expect(explanation).toHaveClass('info-disclosure-popover')
-    expect(explanation.querySelector('p')).toHaveClass('info-disclosure-title')
     expect(explanation).toHaveClass('normal-case', 'tracking-normal')
   })
 

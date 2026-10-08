@@ -121,6 +121,8 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.queryByText('Average model confidence')).not.toBeInTheDocument()
     expect(screen.getByText('Recorded actions over time')).toBeInTheDocument()
     expect(screen.getByText('Attack and model breakdown').closest('details')).not.toHaveAttribute('open')
+    expect(screen.queryByRole('heading', { name: 'Traffic patterns' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('attack-type-panel')).not.toBeInTheDocument()
 
     const overviewSections = [...container.querySelectorAll('[data-testid="recent-alerts-table"], details')]
     expect(overviewSections.map((section) => section.tagName)).toEqual(['DIV', 'DETAILS'])
@@ -144,6 +146,7 @@ describe('DashboardPage metric definitions', () => {
     await user.click(screen.getByRole('button', { name: 'About Recorded actions' }))
     expect(screen.getByRole('region', { name: 'Recorded actions explanation' })).toHaveTextContent(/do not prove the HTTP outcome/i)
 
+    const details = screen.getByText('Attack and model breakdown').closest('details')
     await user.click(screen.getByText('Attack and model breakdown'))
     expect(screen.getByTestId('enforcement-map')).toHaveTextContent('Enforcement map: 5/6/7/8')
     expect(screen.getByText('Confidence by tier')).toBeInTheDocument()
@@ -151,6 +154,12 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByRole('heading', { name: 'Model and policy context' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Policy by confidence tier' })).toBeInTheDocument()
     expect(screen.getByText('Rolling window · ending now')).toBeInTheDocument()
+
+    await user.click(screen.getByText('Attack and model breakdown'))
+    expect(details).not.toHaveAttribute('open')
+    expect(details?.querySelector('#dashboard-traffic-patterns')).not.toBeNull()
+    await user.click(screen.getByText('Attack and model breakdown'))
+    expect(screen.getByRole('heading', { name: 'Traffic patterns' })).toBeVisible()
   })
 
   it('explains throttled counts and Dashboard breakdown fields using their actual aggregates', async () => {
@@ -231,7 +240,8 @@ describe('DashboardPage metric definitions', () => {
     expect(useDashboardStats).toHaveBeenCalledWith('7d')
   })
 
-  it('uses window-wide stats for distributions instead of the paginated alert preview', () => {
+  it('uses window-wide stats for distributions instead of the paginated alert preview', async () => {
+    const user = userEvent.setup()
     useAlerts.mockReturnValue({
       data: {
         items: [
@@ -246,12 +256,14 @@ describe('DashboardPage metric definitions', () => {
     })
 
     render(<DashboardPage />)
+    await user.click(screen.getByText('Attack and model breakdown'))
 
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('1/2/3/4')
   })
 
-  it('does not present missing confidence aggregates as zero-count data', () => {
+  it('does not present missing confidence aggregates as zero-count data', async () => {
+    const user = userEvent.setup()
     useDashboardStats.mockReturnValue({
       data: {
         ...stats,
@@ -262,6 +274,7 @@ describe('DashboardPage metric definitions', () => {
     })
 
     render(<DashboardPage />)
+    await user.click(screen.getByText('Attack and model breakdown'))
 
     expect(screen.getByTestId('confidence-bands')).toHaveTextContent('Confidence bands unavailable')
     expect(screen.queryByText('Confidence bands: 0/0/0/0')).not.toBeInTheDocument()
@@ -314,7 +327,8 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.queryByTestId('top-source-ips')).not.toBeInTheDocument()
   })
 
-  it('does not present an alerts query failure as an empty result', () => {
+  it('does not present an alerts query failure as an empty result', async () => {
+    const user = userEvent.setup()
     const refetchAlerts = vi.fn()
     useAlerts.mockReturnValue({
       data: undefined,
@@ -324,6 +338,7 @@ describe('DashboardPage metric definitions', () => {
     })
 
     render(<DashboardPage />)
+    await user.click(screen.getByText('Attack and model breakdown'))
 
     expect(screen.getByRole('alert')).toHaveTextContent('Detection data is unavailable')
     expect(screen.getByTestId('attack-type-panel')).toHaveTextContent('Attack type panel: 7')
@@ -346,7 +361,8 @@ describe('DashboardPage metric definitions', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/showing the last successful data/i)
   })
 
-  it('keeps cached alert data visible when a refresh fails', () => {
+  it('keeps cached alert data visible when a refresh fails', async () => {
+    const user = userEvent.setup()
     useAlerts.mockReturnValue({
       data: { items: [{ alert_id: 'cached-alert' }] },
       isPending: false,
@@ -355,6 +371,7 @@ describe('DashboardPage metric definitions', () => {
     })
 
     render(<DashboardPage />)
+    await user.click(screen.getByText('Attack and model breakdown'))
 
     expect(screen.getByTestId('attack-type-panel')).toBeInTheDocument()
     expect(screen.getByTestId('recent-alerts-table')).toBeInTheDocument()

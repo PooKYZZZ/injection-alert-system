@@ -227,6 +227,19 @@ describe('TimelineChart', () => {
     })
   })
 
+  it('updates chart data without replaying entrance animations', () => {
+    const { container } = render(<TimelineChart buckets={buckets} timeWindow="24h" />)
+    const areas = [...container.querySelectorAll('[data-testid="Area"]')]
+    const lines = [...container.querySelectorAll('[data-testid="Line"]')]
+
+    expect(areas).toHaveLength(3)
+    expect(lines).toHaveLength(3)
+    for (const chartElement of [...areas, ...lines]) {
+      const props = JSON.parse(chartElement.getAttribute('data-props') ?? '{}') as Record<string, unknown>
+      expect(props.isAnimationActive).toBe(false)
+    }
+  })
+
   it('extends the y-axis above 60 when the series data exceeds the baseline', () => {
     const tallBuckets = [
       {
