@@ -3,11 +3,12 @@
 # Then: pip install -r requirements.train.txt
 # CPU training is supported. Install an accelerator-specific PyTorch build only
 # when the official PyTorch selector recommends one for the target machine.
+# Accelerate is omitted: the checked-in training workflow uses plain PyTorch
+# loops and does not call Accelerate's checkpoint-loading APIs.
 # Training - ML fine-tuning and evaluation
 # Install AFTER requirements.txt
 # Supported Python version: 3.14+ (see pyproject.toml)
 
-accelerate==1.13.0
 datasketch==2.0.0
 ipykernel==7.2.0
 ipywidgets==8.1.8
