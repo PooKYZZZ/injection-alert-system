@@ -19,6 +19,7 @@ import { useDashboardStats } from '@/features/stats/queries'
 import { useAlerts } from '@/features/alerts/queries'
 import type { DashboardFilters } from '@/lib/searchParams'
 import { emptyConfidenceBandCounts } from '@/features/alerts/confidenceBands'
+import { ALERT_CONFIDENCE_HELP_TEXT } from '@/features/alerts/help-text'
 import type { TimeWindow } from '@/components/dashboard/TimelineChart'
 import { getCurrentSearchParams } from '@/lib/searchParams'
 
@@ -403,7 +404,7 @@ export default function DashboardPage() {
                           <div className="mb-3 flex items-center gap-2">
                             <h3 className="text-sm font-medium text-text-primary">Confidence by tier</h3>
                             <InfoDisclosure label="Confidence">
-                              Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+                              {ALERT_CONFIDENCE_HELP_TEXT}
                             </InfoDisclosure>
                           </div>
                           <MLConfidenceBands

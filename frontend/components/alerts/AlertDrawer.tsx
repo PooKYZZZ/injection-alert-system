@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { formatAlertDateTime, formatConfidenceLabel } from '@/lib/date-time'
 import { PERMISSIONS, roleHasPermission } from '@/lib/auth/roles'
 import { describeEvidenceRelationship } from '@/features/alerts/evidence'
+import { ALERT_CONFIDENCE_HELP_TEXT, ALERT_CRS_SCORE_HELP_TEXT } from '@/features/alerts/help-text'
 import { InfoDisclosure } from '@/components/ui/InfoDisclosure'
 
 const ALERT_DETAIL_HELP = {
@@ -33,7 +34,6 @@ const ALERT_DETAIL_HELP = {
   enforcementSource: 'Names the enforcing component only when that source was recorded. “Not recorded” means it is unknown here; an HTTP status alone cannot identify the enforcement layer.',
   relatedRecords: 'Lists up to 20 records returned by the correlation-ID lookup. Related rows may describe the same request or separate observations; one row does not necessarily mean one distinct client request.',
   transactionId: 'The transaction identifier assigned by ModSecurity for its WAF event. It helps locate that WAF evidence but does not by itself prove a match to a portal record.',
-  crsScore: 'The OWASP CRS/ModSecurity score is derived from matched WAF rule evidence when available. The score and those rules are related evidence, not independent signals; the score alone does not prove a block.',
   ruleIds: 'Identifiers of ModSecurity/OWASP CRS rules recorded as matched for this WAF event. Missing IDs mean they were not available in this record.',
   ruleTags: 'Categories or metadata attached to matched ModSecurity/OWASP CRS rules. Tags describe those same rules; they are not separate proof of an attack.',
   host: 'The Host value is not available in this request-detail view. The dash means CyberTrace cannot show a recorded host here.',
@@ -471,7 +471,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                       <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                         <span>Confidence</span>
                         <InfoDisclosure label="Confidence">
-                          Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+                          {ALERT_CONFIDENCE_HELP_TEXT}
                         </InfoDisclosure>
                       </dt>
                       <dd className="text-[var(--color-text-primary)]">
@@ -673,7 +673,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                           <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                             <span>CRS score</span>
                             <InfoDisclosure label="CRS score">
-                              {ALERT_DETAIL_HELP.crsScore}
+                              {ALERT_CRS_SCORE_HELP_TEXT}
                             </InfoDisclosure>
                           </dt>
                           <dd className="text-severity-blocked-text">{formatCrsScore(alert.crs_score)}</dd>
@@ -722,7 +722,7 @@ function AlertDrawerContent({ role, alert, onClose, onTriageUpdated, onActionUpd
                               </dd>
                               <dt className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                                 <span>CRS score</span>
-                                <InfoDisclosure label="CRS score">{ALERT_DETAIL_HELP.crsScore}</InfoDisclosure>
+                                <InfoDisclosure label="CRS score">{ALERT_CRS_SCORE_HELP_TEXT}</InfoDisclosure>
                               </dt>
                               <dd className="text-[var(--color-text-secondary)]">
                                 {formatCrsScore(record.crs_score)}
