@@ -1,6 +1,7 @@
 'use client'
 
 import * as Dialog from '@radix-ui/react-dialog'
+import { ALERT_CONFIDENCE_HELP_TEXT } from '@/features/alerts/help-text'
 
 interface HelpGuideDialogProps {
   open: boolean
@@ -64,7 +65,7 @@ export function HelpGuideDialog({ open, onOpenChange, returnFocusRef }: HelpGuid
             <section aria-labelledby="help-confidence-heading">
               <h2 id="help-confidence-heading" className="text-sm font-semibold text-text-primary">Confidence</h2>
               <p className="mt-1 text-sm leading-5 text-text-secondary">
-                Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.
+                {ALERT_CONFIDENCE_HELP_TEXT}
               </p>
             </section>
 
