@@ -207,7 +207,7 @@ export function TrafficHistoryExportButton({ role }: { role?: unknown }) {
       <button
         type="button"
         onClick={openDialog}
-        className="min-h-[40px] rounded-md border border-accent-action bg-accent-action px-3 py-2 text-xs font-semibold text-surface-shell transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
+        className="inline-flex min-h-10 items-center justify-center rounded-md border border-surface-border px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel"
         aria-haspopup="dialog"
       >
         Export CSV

@@ -58,7 +58,7 @@ const roleGuidance: Record<UserRole, string> = {
 const fieldClass =
   'h-10 rounded-md border border-border-light bg-surface-inset px-3 text-sm text-text-primary outline-none transition-colors focus:border-accent-action'
 const secondaryButton =
-  'rounded-md border border-border-light px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50'
+  'rounded-md border border-border-light px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-inset hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 disabled:cursor-not-allowed disabled:opacity-50'
 
 export function UserManagementWorkspace({
   initialAccounts,
@@ -194,7 +194,7 @@ export function UserManagementWorkspace({
       >
         <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
           <Dialog.Trigger asChild>
-            <button type="button" className="h-10 rounded-md bg-accent-action px-4 text-sm font-semibold text-surface-shell transition-opacity hover:opacity-90">
+            <button type="button" className={`${secondaryButton} inline-flex min-h-10 items-center px-4 text-sm`}>
               Invite user
             </button>
           </Dialog.Trigger>
