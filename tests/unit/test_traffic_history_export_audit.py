@@ -1,6 +1,7 @@
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import HTTPException
@@ -96,3 +97,38 @@ async def test_denied_role_is_audited_without_filter_values(caplog):
     assert event["reason"] == "permission_denied"
     assert "private phrase" not in caplog.text
     assert "192.0.2.22" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_future_export_date_returns_specific_validation_error_and_audit_reason(
+    caplog,
+):
+    timezone_name = "Asia/Singapore"
+    today = datetime.now(timezone.utc).astimezone(ZoneInfo(timezone_name)).date()
+    future_date = today + timedelta(days=2)
+    query = TrafficHistoryExportRequest(
+        start_date=future_date,
+        end_date=future_date,
+        timezone=timezone_name,
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="web_app.presentation.api.traffic_history_export_router",
+    ):
+        with pytest.raises(HTTPException) as raised:
+            await export_traffic_history_csv(
+                query,
+                repository=object(),
+                actor=ReviewerContext("analyst-9", "ANALYST"),
+            )
+
+    assert raised.value.status_code == 422
+    assert raised.value.detail == "Export dates must be today or earlier."
+    event = next(
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+    )
+    assert event["outcome"] == "rejected"
+    assert event["reason"] == "future_date"
