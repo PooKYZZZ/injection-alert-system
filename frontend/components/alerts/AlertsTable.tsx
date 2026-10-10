@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams, type ReadonlyURLSearchParams }
 import { useAlertsFromFilters } from '@/features/alerts/queries'
 import type { Alert } from '@/features/alerts/types'
 import { isActionableAttackClass } from '@/features/alerts/contract'
+import { ALERT_CONFIDENCE_HELP_TEXT, ALERT_CRS_SCORE_HELP_TEXT } from '@/features/alerts/help-text'
 import { ActionLabel } from '@/components/ui/ActionLabel'
 import { TriageBadge } from '@/components/ui/TriageBadge'
 import { getCurrentSearchParams, normalizeAlertSearchParams } from '@/lib/searchParams'
@@ -54,9 +55,9 @@ const ALERT_COLUMN_HELP = {
   source_ip: 'The source address saved with this record when available. It does not by itself verify the address or identify a person.',
   target_path: 'Shows the recorded request method and path, with a captured payload snippet below when available. Missing details were not retained for this record.',
   attack_type: 'The classification label saved for this traffic record. It is not an attack-severity rating or proof of malicious intent.',
-  confidence: 'Confidence indicates how strongly the model supports its predicted classification. It does not represent attack severity.',
+  confidence: ALERT_CONFIDENCE_HELP_TEXT,
   action: 'This is the action label saved on the record. It does not confirm a WAF command or observed HTTP response.',
-  crs_score: 'The score reported with ModSecurity/OWASP CRS evidence is derived from matched WAF rules. The score and those rules are related evidence, and the score does not prove the request was blocked.',
+  crs_score: ALERT_CRS_SCORE_HELP_TEXT,
 } satisfies Record<(typeof ALERT_TABLE_COLUMNS)[number]['key'], string>
 
 function formatCrsScore(score: number | null | undefined): string {
