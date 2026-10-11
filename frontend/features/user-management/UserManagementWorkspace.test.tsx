@@ -55,6 +55,39 @@ describe('UserManagementWorkspace', () => {
     expect(screen.queryByRole('button', { name: 'Resend setup for SOC Analyst' })).not.toBeInTheDocument()
   })
 
+  it('opens the matching account when any row cell is clicked or the row is activated by keyboard', () => {
+    const secondAccount = {
+      ...account,
+      id: '89a7fd9a-ec8f-4b0e-9c9a-5bcf1d260c2d',
+      display_name: 'SOC Admin',
+      email: 'admin@example.test',
+      role: 'ADMIN' as const,
+      mfa_status: 'active' as const,
+    }
+    render(<UserManagementWorkspace initialAccounts={[account, secondAccount]} />)
+
+    const rows = screen.getAllByRole('row')
+    const analystRow = rows.find(
+      (row) => row.getAttribute('aria-label') === 'Open account details for SOC Analyst',
+    )
+    const adminRow = rows.find(
+      (row) => row.getAttribute('aria-label') === 'Open account details for SOC Admin',
+    )
+    if (!analystRow || !adminRow) throw new Error('Expected account rows were not rendered')
+
+    fireEvent.click(within(analystRow).getByText('analyst@example.test'))
+    expect(screen.getByRole('dialog', { name: 'SOC Analyst' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close account details' }))
+    fireEvent.click(within(adminRow).getByText('admin@example.test'))
+    expect(screen.getByRole('dialog', { name: 'SOC Admin' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close account details' }))
+    analystRow.focus()
+    fireEvent.keyDown(analystRow, { key: 'Enter' })
+    expect(screen.getByRole('dialog', { name: 'SOC Analyst' })).toBeInTheDocument()
+  })
+
   it('keeps role edits as a draft until the administrator saves or cancels', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

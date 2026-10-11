@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DashboardTopBar, TopBar } from './TopBar'
@@ -51,12 +51,12 @@ describe('TopBar', () => {
     expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
   })
 
-  it('shows the Traffic History title and search on its canonical route', () => {
+  it('shows the Traffic History title without a global search control', () => {
     pathname = '/traffic-history'
     render(<DashboardTopBar />)
 
     expect(screen.getByText('Traffic History')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Search traffic history' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('removes alert search from account administration while retaining section context', () => {
@@ -78,20 +78,6 @@ describe('TopBar', () => {
     render(<DashboardTopBar />)
 
     expect(screen.getByText('Model Lifecycle')).toBeInTheDocument()
-  })
-
-  it('routes Dashboard searches to Traffic History', () => {
-    vi.useFakeTimers()
-    render(<DashboardTopBar />)
-
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: 'SQL Injection' },
-    })
-    vi.advanceTimersByTime(300)
-
-    expect(mockPush).toHaveBeenCalledWith('/traffic-history?search=SQL+Injection', {
-      scroll: false,
-    })
   })
 
   it('removes static alert counts from the global utility bar', () => {

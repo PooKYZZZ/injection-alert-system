@@ -153,6 +153,7 @@ export default function DashboardPage() {
     label: string
     info?: string
     value: string | number
+    tourTarget: string
     secondary?: string
     secondaryColor?: string
     previousValue?: number | null
@@ -161,6 +162,7 @@ export default function DashboardPage() {
   }> = [
     {
       label: 'Actionable detections',
+      tourTarget: 'dashboard-actionable-detections',
       info: 'Counts persisted records with an actionable attack classification in this window. It is a record count, not a confirmed incident count.',
       value: stats?.high_alert_count ?? '—',
       secondary:
@@ -175,6 +177,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Recorded blocked',
+      tourTarget: 'dashboard-recorded-blocked',
       info: 'Counts records whose stored action label is BLOCKED. This does not confirm that a WAF blocked the request or establish the observed HTTP outcome.',
       value: stats?.blocked_count ?? '—',
       secondary: statsUnavailable ? 'Unavailable' : undefined,
@@ -183,6 +186,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Recorded throttled',
+      tourTarget: 'dashboard-recorded-throttled',
       info: 'Counts stored operational traffic records whose saved action label is THROTTLED in this window. It does not confirm that a request was actually slowed or identify which layer acted.',
       value: stats?.throttled_count ?? '—',
       secondaryColor: 'text-text-secondary',
@@ -190,6 +194,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Traffic records',
+      tourTarget: 'dashboard-traffic-records',
       info: 'Counts stored traffic-log rows for this window. A single request may produce multiple related records.',
       value: stats?.total_requests ?? '—',
       secondary: statsUnavailable ? 'Unavailable' : undefined,
@@ -203,6 +208,7 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Overview of recent security activity for the selected window."
+        dataTourTarget="dashboard-overview"
       />
 
       {/* Summary metrics */}
@@ -218,12 +224,16 @@ export default function DashboardPage() {
             previousValue={card.previousValue}
             progressBar={card.progressBar}
             hideDeltaWhenValueZero={card.hideDeltaWhenValueZero}
+            tourTarget={card.tourTarget}
           />
         ))}
       </div>
 
       {/* Timeline Panel */}
-      <div className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-3 sm:p-4">
+      <div
+        data-tour-target="dashboard-timeline"
+        className="min-w-0 rounded-lg border border-border-light bg-surface-panel p-3 sm:p-4"
+      >
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
@@ -232,7 +242,12 @@ export default function DashboardPage() {
                 These series count stored BLOCKED, THROTTLED, and ALLOWED action labels. They do not prove the HTTP outcome or identify which system enforced a request.
               </InfoDisclosure>
             </div>
-            <div className="flex shrink-0 gap-1" role="group" aria-label="Timeline window">
+            <div
+              data-tour-target="dashboard-time-window"
+              className="flex shrink-0 gap-1"
+              role="group"
+              aria-label="Timeline window"
+            >
               {TIME_WINDOWS.map((win) => (
                 <button
                   key={win}
@@ -330,7 +345,13 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Recent detection preview */}
-      {alertsUnavailable ? null : <RecentAlertsTable alerts={alerts} isPending={alertsPending} />}
+      {alertsUnavailable ? null : (
+        <RecentAlertsTable
+          alerts={alerts}
+          isPending={alertsPending}
+          tourTarget="dashboard-recent-history"
+        />
+      )}
 
       {/* Secondary analytics follow the recent-event preview in the scan order. */}
       {!statsUnavailable ? (
@@ -340,7 +361,10 @@ export default function DashboardPage() {
             if (event.currentTarget.open) setHasOpenedBreakdown(true)
           }}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 [&::-webkit-details-marker]:hidden">
+          <summary
+            data-tour-target="dashboard-breakdown"
+            className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-action/85 [&::-webkit-details-marker]:hidden"
+          >
             <span className="min-w-0">
               <span role="heading" aria-level={2} className="block text-sm font-semibold text-text-primary">
                 Attack and model breakdown

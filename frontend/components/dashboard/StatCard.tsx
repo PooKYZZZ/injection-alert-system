@@ -14,6 +14,7 @@ interface StatCardProps {
   progressBar?: number
   hideDeltaWhenValueZero?: boolean
   onClick?: () => void
+  tourTarget?: string
 }
 
 function computeDelta(current: number, previous: number | null | undefined) {
@@ -33,12 +34,14 @@ export function StatCard({
   progressBar,
   hideDeltaWhenValueZero = false,
   onClick,
+  tourTarget,
 }: StatCardProps) {
   const delta = typeof value === 'number' ? computeDelta(value, previousValue) : null
   const showDelta = !(hideDeltaWhenValueZero && typeof value === 'number' && value === 0)
 
   return (
     <div
+      data-tour-target={tourTarget}
       onClick={onClick}
       className={cn(
         'min-w-0 flex flex-col gap-1 p-3 transition-colors sm:p-4',

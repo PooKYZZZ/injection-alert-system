@@ -458,6 +458,7 @@ class ITrafficLogRepository(ABC):
         confidence_tier_filter: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
+        timezone_name: Optional[str] = None,
         action: Optional[str] = None,
         triage_status: Optional[str] = None,
         confidence_levels: Optional[List[str]] = None,

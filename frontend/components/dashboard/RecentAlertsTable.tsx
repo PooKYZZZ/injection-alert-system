@@ -11,13 +11,19 @@ import { formatAlertDateTime } from '@/lib/date-time'
 interface RecentAlertsTableProps {
   alerts: Alert[]
   isPending?: boolean
+  tourTarget?: string
 }
 
-export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTableProps) {
+export function RecentAlertsTable({
+  alerts,
+  isPending = false,
+  tourTarget,
+}: RecentAlertsTableProps) {
   if (isPending) {
     return (
       <section
         aria-label="Recent detections table"
+        data-tour-target={tourTarget}
         className="min-w-0 rounded-lg border border-surface-border bg-surface-card p-4"
       >
         <LoadingSkeleton rows={4} />
@@ -30,6 +36,7 @@ export function RecentAlertsTable({ alerts, isPending = false }: RecentAlertsTab
   return (
     <section
       aria-label="Recent detections table"
+      data-tour-target={tourTarget}
       className="min-w-0 rounded-lg border border-surface-border bg-surface-card p-4"
     >
       <div className="mb-3 flex items-center justify-between gap-3">

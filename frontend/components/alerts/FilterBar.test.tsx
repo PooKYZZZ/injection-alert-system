@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +21,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   window.history.replaceState({}, '', '/traffic-history')
+  vi.useRealTimers()
 })
 
 describe('FilterBar', () => {
@@ -79,6 +80,36 @@ describe('FilterBar', () => {
     expect(
       screen.getByText(/Normal traffic has no triage status/)
     ).toBeInTheDocument()
+  })
+
+  it('searches alert columns while preserving selected filters and resetting pagination', () => {
+    vi.useFakeTimers()
+    mockSearchParams = new URLSearchParams('action=BLOCKED&page=3')
+    window.history.replaceState({}, '', '/traffic-history?action=BLOCKED&page=3')
+
+    render(<FilterBar />)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Traffic History' }), {
+      target: { value: 'SQL Injection' },
+    })
+    vi.advanceTimersByTime(300)
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/traffic-history?action=BLOCKED&page=1&search=SQL+Injection',
+      { scroll: false }
+    )
+  })
+
+  it('clears the search term with the other alert filters', async () => {
+    const user = userEvent.setup()
+    mockSearchParams = new URLSearchParams('search=SQLi&page=2')
+    window.history.replaceState({}, '', '/traffic-history?search=SQLi&page=2')
+
+    render(<FilterBar />)
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    expect(mockReplace).toHaveBeenCalledWith('/traffic-history?page=1', { scroll: false })
   })
 
   it('disables Normal traffic without clearing other selected filters', async () => {

@@ -48,6 +48,12 @@ function mfaTone(status: SafeManagedAccount['mfa_status']): StatusTone {
   return 'neutral'
 }
 
+function isRowInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(
+    target.closest('button, a, input, select, textarea, [role="button"]')
+  )
+}
+
 const roleGuidance: Record<UserRole, string> = {
   VIEWER: 'Viewers can review security activity without changing analyst or account settings.',
   ANALYST: 'Analysts can investigate alerts and update triage work without managing accounts.',
@@ -191,10 +197,15 @@ export function UserManagementWorkspace({
       <PageHeader
         title="User Management"
         description="Review account access and MFA enrollment state."
+        dataTourTarget="user-management-overview"
       >
         <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
           <Dialog.Trigger asChild>
-            <button type="button" className={`${secondaryButton} inline-flex min-h-10 items-center px-4 text-sm`}>
+            <button
+              type="button"
+              data-tour-target="user-management-invite"
+              className={`${secondaryButton} inline-flex min-h-10 items-center px-4 text-sm`}
+            >
               Invite user
             </button>
           </Dialog.Trigger>
@@ -254,7 +265,15 @@ export function UserManagementWorkspace({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="sr-only" htmlFor="account-search">Search accounts</label>
-            <input id="account-search" className={`${fieldClass} min-w-0 sm:w-72`} type="search" placeholder="Search name, email, role, or state" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input
+              id="account-search"
+              data-tour-target="user-management-search"
+              className={`${fieldClass} min-w-0 sm:w-72`}
+              type="search"
+              placeholder="Search name, email, role, or state"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
             <button type="button" className={secondaryButton} aria-label="Refresh accounts" disabled={refreshPending} onClick={() => void refreshAccounts()}>
               {refreshPending ? 'Refreshing…' : 'Refresh'}
             </button>
@@ -262,24 +281,62 @@ export function UserManagementWorkspace({
         </div>
         {refreshError ? <p className="mb-3 text-sm text-status-danger" role="alert">{refreshError}</p> : null}
         <div className="overflow-x-auto border-y border-border-light">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <table
+            data-tour-target="user-management-list"
+            className="w-full min-w-[760px] border-collapse text-left text-sm"
+          >
             <caption className="sr-only">Managed accounts and their current access state.</caption>
             <thead className="bg-surface-panel text-[10px] font-semibold text-text-muted">
               <tr>
                 {['Account', 'Role', 'Lifecycle', 'MFA'].map((heading) => (
-                  <th key={heading} scope="col" className="px-4 py-3 font-semibold">{heading}</th>
+                  <th
+                    key={heading}
+                    scope="col"
+                    data-tour-target={
+                      heading === 'Role'
+                        ? 'user-management-role-column'
+                        : heading === 'Lifecycle'
+                          ? 'user-management-status-column'
+                          : heading === 'MFA'
+                            ? 'user-management-mfa-column'
+                            : undefined
+                    }
+                    className="px-4 py-3 font-semibold"
+                  >
+                    {heading}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-light">
-              {filteredAccounts.map((account) => (
-                <tr key={account.id} className="bg-surface-page transition-colors hover:bg-surface-panel/60">
+              {filteredAccounts.map((account, index) => (
+                <tr
+                  key={account.id}
+                  tabIndex={0}
+                  data-tour-target={index === 0 ? 'user-management-row' : undefined}
+                  aria-label={`Open account details for ${account.display_name}`}
+                  className="cursor-pointer bg-surface-page transition-colors hover:bg-surface-panel/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-action"
+                  onClick={(event) => {
+                    if (isRowInteractiveTarget(event.target)) return
+                    setSelectedAccountId(account.id)
+                  }}
+                  onKeyDown={(event) => {
+                    if (isRowInteractiveTarget(event.target)) return
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      setSelectedAccountId(account.id)
+                    }
+                  }}
+                >
                   <td className="px-4 py-3.5">
                     <button
                       type="button"
                       className="text-left font-medium text-text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-action focus-visible:outline-offset-2"
                       aria-label={`Open account details for ${account.display_name}`}
-                      onClick={() => setSelectedAccountId(account.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setSelectedAccountId(account.id)
+                      }}
                     >
                       {account.display_name}
                     </button>
