@@ -9,6 +9,7 @@ export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const errorId = 'step-up-error'
 
   async function begin() {
     setBusy(true)
@@ -48,7 +49,8 @@ export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
     <section className="w-full max-w-[400px] space-y-5" aria-labelledby="step-up-heading">
       <div>
         <h1 id="step-up-heading" className={authHeadingClass}>Confirm sensitive action</h1>
-        <p className="mt-2 text-sm text-text-secondary">Enter a current authenticator code to continue.</p>
+        <p className="mt-2 text-sm text-text-secondary">Sensitive account changes require a fresh authenticator check. Sign-in MFA and this step-up are separate security events.</p>
+        <p className="mt-2 text-xs leading-5 text-text-muted">After verification, return to User Management and deliberately submit the action again. The verification window is 10 minutes.</p>
       </div>
       {!started ? (
         <button type="button" onClick={begin} disabled={busy} className={authPrimaryButtonClass}>
@@ -57,13 +59,27 @@ export function RecentTotpStepUpForm({ redirectTo }: { redirectTo: string }) {
       ) : (
         <>
           <label className="block text-sm text-text-secondary" htmlFor="step-up-code">Authenticator code</label>
-          <input id="step-up-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} className={'max-w-xs font-mono ' + authFieldClass} />
+          <input
+            id="step-up-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            value={code}
+            aria-describedby={error ? errorId : undefined}
+            aria-invalid={error ? 'true' : undefined}
+            onChange={(event) => {
+              setCode(event.target.value.replace(/\D/g, ''))
+              if (error) setError(null)
+            }}
+            className={'max-w-xs font-mono ' + authFieldClass}
+          />
           <button type="button" onClick={verify} disabled={busy || code.length !== 6} className={authPrimaryButtonClass}>
             {busy ? 'Verifying…' : 'Verify and continue'}
           </button>
         </>
       )}
-      {error && <p role="alert" className="text-sm text-status-danger">{error}</p>}
+      {error && <p id={errorId} role="alert" className="text-sm text-status-danger">{error}</p>}
     </section>
   )
 }

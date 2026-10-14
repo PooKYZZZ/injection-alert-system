@@ -58,6 +58,21 @@ function denied(status: 401 | 403 | 503): GuardResult {
   }
 }
 
+function recentReauthenticationRequired(): GuardResult {
+  return {
+    ok: false,
+    response: NextResponse.json(
+      {
+        error: {
+          code: 'RECENT_REAUTHENTICATION_REQUIRED',
+          message: 'A fresh authenticator verification is required for this action.',
+        },
+      },
+      { status: 403 }
+    ),
+  }
+}
+
 async function requirePermissionAtLevels(
   session: GuardSession,
   permission: Permission,
@@ -299,7 +314,7 @@ export async function requireRecentTotp(
     authTime > now + 30 ||
     now - authTime > 10 * 60
   ) {
-    return denied(403)
+    return recentReauthenticationRequired()
   }
   return { ok: true }
 }

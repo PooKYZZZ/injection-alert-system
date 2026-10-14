@@ -4,7 +4,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import Image from 'next/image'
 import QRCode from 'qrcode'
 
-import { authFieldClass, authHeadingClass, authPrimaryButtonClass } from '@/components/auth/authStyles'
+import {
+  authFieldClass,
+  authHeadingClass,
+  authPrimaryButtonClass,
+  authSecondaryButtonClass,
+} from '@/components/auth/authStyles'
 
 type Enrollment = {
   factor_id: string
@@ -21,6 +26,7 @@ export function TotpEnrollmentForm() {
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -71,11 +77,58 @@ export function TotpEnrollmentForm() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error?.message ?? 'Unable to verify code.')
+      if (!Array.isArray(payload.backup_codes) || !payload.backup_codes.every((value: unknown) => typeof value === 'string')) {
+        throw new Error('The backup codes could not be displayed.')
+      }
       setBackupCodes(payload.backup_codes)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to verify code.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function copyBackupCodes() {
+    if (!backupCodes) return
+    setError(null)
+    setSaveMessage(null)
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(backupCodes.join('\n'))
+      setSaveMessage('Backup codes copied.')
+    } catch {
+      setError('Unable to copy the backup codes. Use the download option or select the codes manually.')
+    }
+  }
+
+  function downloadBackupCodes() {
+    if (!backupCodes) return
+    setError(null)
+    setSaveMessage(null)
+    try {
+      const generatedDate = new Date().toISOString().slice(0, 10)
+      const contents = [
+        'CyberTrace Backup Codes',
+        'Recovery only. Each code can be used once.',
+        'Store these codes in a password manager or secure offline location.',
+        `Generated: ${generatedDate}`,
+        '',
+        ...backupCodes,
+        '',
+      ].join('\n')
+      const blob = new Blob([contents], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `CyberTrace-Backup-Codes-${generatedDate}.txt`
+      link.setAttribute('aria-hidden', 'true')
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setSaveMessage('Backup codes downloaded.')
+    } catch {
+      setError('Unable to download the backup codes. Select the codes manually and store them securely.')
     }
   }
 
@@ -102,10 +155,19 @@ export function TotpEnrollmentForm() {
     return (
       <section className="space-y-4" aria-labelledby="backup-code-heading">
         <h2 id="backup-code-heading" className="text-lg font-semibold text-text-primary">Save your backup codes</h2>
-        <p className="text-sm text-text-secondary">These codes are shown once. Store them in a password manager or secure offline location.</p>
+        <p className="text-sm text-text-secondary">These codes are shown once. Each code works once. Store them in a password manager or secure offline location.</p>
         <output className="grid grid-cols-2 gap-2 rounded-lg border border-border-subtle bg-surface-raised p-4 font-mono text-sm text-text-primary" aria-label="Backup codes">
           {backupCodes.map((backupCode) => <span key={backupCode}>{backupCode}</span>)}
         </output>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => void copyBackupCodes()} className={`${authSecondaryButtonClass} w-auto`}>
+            Copy backup codes
+          </button>
+          <button type="button" onClick={downloadBackupCodes} className={`${authSecondaryButtonClass} w-auto`}>
+            Download backup codes
+          </button>
+        </div>
+        {saveMessage && <p role="status" className="text-sm text-status-success">{saveMessage}</p>}
         <p className="text-sm text-status-success">Authenticator enrollment complete.</p>
         <button
           type="button"

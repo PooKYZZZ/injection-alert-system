@@ -20,6 +20,54 @@ import {
 
 type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
 
+const stepUpHref = '/mfa/step-up?returnTo=/user-management'
+
+class AccountRequestError extends Error {
+  constructor(
+    public readonly code: string | undefined,
+    public readonly status: number,
+  ) {
+    super('The account request failed.')
+    this.name = 'AccountRequestError'
+  }
+}
+
+function responseErrorCode(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const error = (payload as { error?: unknown }).error
+  if (typeof error !== 'object' || error === null) return undefined
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : undefined
+}
+
+function isRecentStepUpError(error: unknown): boolean {
+  return error instanceof AccountRequestError && error.code === 'RECENT_REAUTHENTICATION_REQUIRED'
+}
+
+function accountFailureMessage(fallback: string, error: unknown): string {
+  if (!(error instanceof AccountRequestError)) return fallback
+  switch (error.code) {
+    case 'RECENT_REAUTHENTICATION_REQUIRED':
+      return 'A fresh authenticator verification is required. Use Verify identity, then return and retry the action.'
+    case 'FORBIDDEN':
+      return 'Your signed-in role is not allowed to perform this action.'
+    case 'TRUSTED_ORIGIN_REJECTED':
+      return 'The request could not be verified. Reload User Management and try again.'
+    case 'CONFLICT':
+      return 'The request conflicts with an existing account or pending request.'
+    case 'INVALID_REQUEST':
+      return 'The request is invalid. Review the values and try again.'
+    case 'NOT_FOUND':
+      return 'The account is no longer available. Refresh the account list and try again.'
+    case 'LAST_ENABLED_OWNER':
+      return 'At least one enabled Owner must remain.'
+    case 'UNAVAILABLE':
+      return 'Account management is temporarily unavailable. Try again.'
+    default:
+      return fallback
+  }
+}
+
 function actionKey(accountId: string, action: AccountAction): string {
   return `${accountId}:${action}`
 }
@@ -82,6 +130,7 @@ export function UserManagementWorkspace({
   const [refreshPending, setRefreshPending] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({})
+  const [recentStepUpRequired, setRecentStepUpRequired] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
 
@@ -127,7 +176,10 @@ export function UserManagementWorkspace({
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     })
-    if (!response.ok) throw new Error('request_failed')
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null)
+      throw new AccountRequestError(responseErrorCode(payload), response.status)
+    }
   }
 
   async function runAction(
@@ -140,11 +192,13 @@ export function UserManagementWorkspace({
     const key = actionKey(accountId, action)
     setPendingActions((current) => ({ ...current, [key]: true }))
     setNotice(null)
+    setRecentStepUpRequired(false)
     try {
       await operation()
       setNotice(successMessage)
-    } catch {
-      setNotice(failureMessage)
+    } catch (error) {
+      setRecentStepUpRequired(isRecentStepUpError(error))
+      setNotice(accountFailureMessage(failureMessage, error))
     } finally {
       setPendingActions((current) => {
         const next = { ...current }
@@ -157,6 +211,7 @@ export function UserManagementWorkspace({
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setPending(true)
+    setRecentStepUpRequired(false)
     try {
       await mutate('/api/admin/users', 'POST', {
         email,
@@ -169,8 +224,9 @@ export function UserManagementWorkspace({
       setNotice('Invitation created. A password setup email is queued.')
       setCreateOpen(false)
       await refreshAccounts()
-    } catch {
-      setNotice('Unable to create the account. Confirm recent TOTP authentication and try again.')
+    } catch (error) {
+      setRecentStepUpRequired(isRecentStepUpError(error))
+      setNotice(accountFailureMessage('Unable to create the account. Try again.', error))
     } finally {
       setPending(false)
     }
@@ -190,9 +246,13 @@ export function UserManagementWorkspace({
     <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8">
       <PageHeader
         title="User Management"
-        description="Review account access and MFA enrollment state."
+        description="Review account access and MFA enrollment state. Sensitive account changes require a fresh authenticator check."
       >
-        <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+        <>
+          <a href={stepUpHref} className={`${secondaryButton} inline-flex min-h-10 items-center px-4 text-sm`}>
+            Verify identity
+          </a>
+          <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
           <Dialog.Trigger asChild>
             <button type="button" className={`${secondaryButton} inline-flex min-h-10 items-center px-4 text-sm`}>
               Invite user
@@ -205,7 +265,17 @@ export function UserManagementWorkspace({
               <Dialog.Description className="mt-2 text-sm leading-5 text-text-secondary">
                 Create an account and send a short-lived password setup link. The user chooses their password after accepting the invitation.
               </Dialog.Description>
-              <form onSubmit={createAccount} className="mt-6 grid gap-4">
+              {notice ? (
+                <p className="mt-4 text-sm text-text-secondary" role="status">
+                  {notice}
+                  {recentStepUpRequired ? (
+                    <a href={stepUpHref} className="ml-2 font-semibold text-accent underline underline-offset-4">
+                      Verify identity
+                    </a>
+                  ) : null}
+                </p>
+              ) : null}
+              <form onSubmit={createAccount} aria-busy={pending || undefined} className="mt-6 grid gap-4">
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-text-secondary">
                   Email address
                   <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -234,7 +304,8 @@ export function UserManagementWorkspace({
               </form>
             </Dialog.Content>
           </Dialog.Portal>
-        </Dialog.Root>
+          </Dialog.Root>
+        </>
       </PageHeader>
 
       <section aria-label="Account summary" className="border-b border-border-light pb-5">
@@ -244,7 +315,16 @@ export function UserManagementWorkspace({
         <p className="mt-1 text-xs leading-5 text-text-secondary">MFA required for {mfaRequiredCount} account{mfaRequiredCount === 1 ? '' : 's'}.</p>
       </section>
 
-      {notice && !selectedAccount ? <p className="-mb-4 text-sm text-text-secondary" role="status">{notice}</p> : null}
+      {notice && !selectedAccount && !createOpen ? (
+        <p className="-mb-4 text-sm text-text-secondary" role="status">
+          {notice}
+          {recentStepUpRequired ? (
+            <a href={stepUpHref} className="ml-2 font-semibold text-accent underline underline-offset-4">
+              Verify identity
+            </a>
+          ) : null}
+        </p>
+      ) : null}
 
       <section aria-labelledby="accounts-title" className="min-w-0">
         <div className="mb-4 flex flex-col gap-4 border-b border-border-light pb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -333,6 +413,7 @@ export function UserManagementWorkspace({
           if (!open) setSelectedAccountId(null)
         }}
         pendingActions={pendingActions}
+        recentStepUpRequired={recentStepUpRequired}
         pendingEmail={selectedAccount ? pendingEmails[selectedAccount.id] ?? '' : ''}
         onPendingEmailChange={(value) => {
           if (selectedAccount) setPendingEmails((current) => ({ ...current, [selectedAccount.id]: value }))

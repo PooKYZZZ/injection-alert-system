@@ -554,4 +554,32 @@ describe('requirePermission', () => {
       )
     ).resolves.toEqual({ ok: true })
   })
+
+  it('returns a distinct recent-reauthentication error after permission succeeds', async () => {
+    guardHarness.getAccount.mockResolvedValue(
+      currentAccount({ role: ROLES.ADMIN, mfaRequired: true })
+    )
+
+    const result = await requireRecentTotp(
+      session(ROLES.ADMIN, 1, {
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        auth_time: 1_000,
+        mfa_challenge_purpose: 'login_mfa',
+      }),
+      PERMISSIONS.ACCOUNTS_MANAGE,
+      () => 1_001
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.response.status).toBe(403)
+      await expect(result.response.json()).resolves.toEqual({
+        error: {
+          code: 'RECENT_REAUTHENTICATION_REQUIRED',
+          message: 'A fresh authenticator verification is required for this action.',
+        },
+      })
+    }
+  })
 })

@@ -35,7 +35,12 @@ export function requireTrustedOrigin(request: Request): Response | null {
     return null
   } catch {
     return NextResponse.json(
-      { error: { code: 'FORBIDDEN', message: 'Forbidden.' } },
+      {
+        error: {
+          code: 'TRUSTED_ORIGIN_REJECTED',
+          message: 'The request could not be verified. Reload the page and try again.',
+        },
+      },
       { status: 403 }
     )
   }
