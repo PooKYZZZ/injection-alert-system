@@ -24,6 +24,7 @@ type Props = {
   currentAccountRole?: UserRole
   assignableRoles?: readonly UserRole[]
   notice?: string | null
+  recentStepUpRequired: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   pendingActions: Record<string, boolean>
@@ -71,6 +72,7 @@ export function AccountActionsDialog({
   currentAccountRole,
   assignableRoles,
   notice,
+  recentStepUpRequired,
   open,
   onOpenChange,
   pendingActions,
@@ -129,7 +131,16 @@ export function AccountActionsDialog({
             </Dialog.Close>
           </div>
 
-          {notice ? <p className="border-b border-border-light px-6 py-3 text-sm text-text-secondary" role="status">{notice}</p> : null}
+          {notice ? (
+            <p className="border-b border-border-light px-6 py-3 text-sm text-text-secondary" role="status">
+              {notice}
+              {recentStepUpRequired ? (
+                <a href="/mfa/step-up?returnTo=/user-management" className="ml-2 font-semibold text-accent underline underline-offset-4">
+                  Verify identity
+                </a>
+              ) : null}
+            </p>
+          ) : null}
 
           <div className="flex flex-1 flex-col gap-8 px-6 py-6">
             <section aria-labelledby="account-overview-heading">

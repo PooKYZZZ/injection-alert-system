@@ -194,6 +194,32 @@ describe('UserManagementWorkspace', () => {
     })
   })
 
+  it('shows accurate recent-step-up guidance instead of assuming every failure is TOTP', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: {
+          code: 'RECENT_REAUTHENTICATION_REQUIRED',
+          message: 'A fresh authenticator verification is required for this action.',
+        },
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<UserManagementWorkspace initialAccounts={[]} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Invite user' }))
+    const dialog = screen.getByRole('dialog', { name: 'Invite user' })
+    fireEvent.change(within(dialog).getByLabelText('Email address'), { target: { value: 'new@example.test' } })
+    fireEvent.change(within(dialog).getByLabelText('Display name'), { target: { value: 'New Viewer' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send invite' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/fresh authenticator verification is required/i)
+    expect(screen.getAllByRole('link', { name: 'Verify identity' }).every((link) => (
+      link.getAttribute('href') === '/mfa/step-up?returnTo=/user-management'
+    ))).toBe(true)
+  })
+
   it('shows a refresh failure instead of silently retaining stale account state', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     render(<UserManagementWorkspace initialAccounts={[account]} />)

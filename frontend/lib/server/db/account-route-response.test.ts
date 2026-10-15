@@ -6,6 +6,7 @@ import { AccountManagementError } from './account-management'
 import {
   accountErrorResponse,
   recoveryErrorResponse,
+  requireTrustedOrigin,
   totpErrorResponse,
 } from './account-route-response'
 
@@ -59,6 +60,23 @@ describe('account route error responses', () => {
       error: {
         code: 'LAST_ENABLED_OWNER',
         message: 'At least one enabled Owner must remain.',
+      },
+    })
+  })
+
+  it('returns a distinct safe response for a rejected request origin', async () => {
+    process.env.AUTH_APP_ORIGIN = 'http://localhost'
+    const response = requireTrustedOrigin(
+      new Request('http://localhost/api/admin/users', {
+        headers: { origin: 'https://attacker.example' },
+      })
+    )
+
+    expect(response).not.toBeNull()
+    await expect(response?.json()).resolves.toEqual({
+      error: {
+        code: 'TRUSTED_ORIGIN_REJECTED',
+        message: 'The request could not be verified. Reload the page and try again.',
       },
     })
   })
