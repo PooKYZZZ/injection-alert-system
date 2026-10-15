@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { UserManagementWorkspace } from './UserManagementWorkspace'
@@ -53,6 +54,37 @@ describe('UserManagementWorkspace', () => {
     expect(screen.queryByLabelText('New email address')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Disable SOC Analyst' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Resend setup for SOC Analyst' })).not.toBeInTheDocument()
+  })
+
+  it('opens an account from any row cell and keeps keyboard access on its Account button', async () => {
+    const user = userEvent.setup()
+    const secondAccount = {
+      ...account,
+      id: '89a7fd9a-ec8f-4b0e-9c9a-5bcf1d260c2d',
+      display_name: 'SOC Admin',
+      email: 'admin@example.test',
+      role: 'ADMIN' as const,
+      mfa_status: 'active' as const,
+    }
+    render(<UserManagementWorkspace initialAccounts={[account, secondAccount]} />)
+
+    const rows = screen.getAllByRole('row')
+    const analystRow = rows.find((row) => row.textContent?.includes(account.email))
+    const adminRow = rows.find((row) => row.textContent?.includes(secondAccount.email))
+    if (!analystRow || !adminRow) throw new Error('Expected account rows were not rendered')
+    expect(analystRow).not.toHaveAttribute('tabindex')
+
+    fireEvent.click(within(analystRow).getByText('analyst@example.test'))
+    expect(screen.getByRole('dialog', { name: 'SOC Analyst' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close account details' }))
+    fireEvent.click(within(adminRow).getByText('admin@example.test'))
+    expect(screen.getByRole('dialog', { name: 'SOC Admin' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close account details' }))
+    within(analystRow).getByRole('button', { name: 'Open account details for SOC Analyst' }).focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('dialog', { name: 'SOC Analyst' })).toBeInTheDocument()
   })
 
   it('keeps role edits as a draft until the administrator saves or cancels', async () => {

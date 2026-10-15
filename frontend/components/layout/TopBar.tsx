@@ -169,11 +169,7 @@ export function DashboardTopBar() {
   return (
     <TopBar
       title={fallbackTitle}
-      showSearch={
-        pathname === '/dashboard' ||
-        pathname.startsWith('/traffic-history') ||
-        pathname.startsWith('/alerts')
-      }
+      showSearch={pathname === '/dashboard'}
       searchPlaceholder={DEFAULT_SEARCH_PLACEHOLDER}
       searchPath="/traffic-history"
     />

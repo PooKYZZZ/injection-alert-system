@@ -21,7 +21,20 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import Integer, and_, bindparam, case, func, or_, select, text, update
+from sqlalchemy import (
+    Integer,
+    String,
+    and_,
+    bindparam,
+    case,
+    cast,
+    func,
+    literal,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -209,6 +222,7 @@ class TrafficLogRepository(ITrafficLogRepository):
         confidence_tier_filter: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
+        timezone_name: Optional[str] = None,
         action: Optional[str] = None,
         triage_status: Optional[str] = None,
         confidence_levels: Optional[List[str]] = None,
@@ -254,15 +268,115 @@ class TrafficLogRepository(ITrafficLogRepository):
             )
 
         if search:
-            search_value = f"%{search.strip()}%"
-            if search_value != "%%":
+            search_term = search.strip()
+            if search_term:
+                escaped_search_term = (
+                    search_term.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                search_value = f"%{escaped_search_term}%"
+                timestamp_column = TrafficLog.timestamp
+                localized_timestamp_column = timestamp_column
+                if (
+                    timezone_name
+                    and self._session.get_bind().dialect.name == "postgresql"
+                ):
+                    localized_timestamp_column = func.timezone(
+                        timezone_name,
+                        timestamp_column,
+                    )
+                month_name = case(
+                    (func.extract("month", localized_timestamp_column) == 1, "Jan"),
+                    (func.extract("month", localized_timestamp_column) == 2, "Feb"),
+                    (func.extract("month", localized_timestamp_column) == 3, "Mar"),
+                    (func.extract("month", localized_timestamp_column) == 4, "Apr"),
+                    (func.extract("month", localized_timestamp_column) == 5, "May"),
+                    (func.extract("month", localized_timestamp_column) == 6, "Jun"),
+                    (func.extract("month", localized_timestamp_column) == 7, "Jul"),
+                    (func.extract("month", localized_timestamp_column) == 8, "Aug"),
+                    (func.extract("month", localized_timestamp_column) == 9, "Sep"),
+                    (func.extract("month", localized_timestamp_column) == 10, "Oct"),
+                    (func.extract("month", localized_timestamp_column) == 11, "Nov"),
+                    (func.extract("month", localized_timestamp_column) == 12, "Dec"),
+                    else_="",
+                )
+                display_date = (
+                    month_name
+                    + literal(" ")
+                    + cast(func.extract("day", localized_timestamp_column), String)
+                    + literal(", ")
+                    + cast(func.extract("year", localized_timestamp_column), String)
+                )
+                hour = func.extract("hour", localized_timestamp_column)
+                minute = func.extract("minute", localized_timestamp_column)
+                hour_12 = case(
+                    (hour == 0, 12),
+                    (hour > 12, hour - 12),
+                    else_=hour,
+                )
+                minute_text = case(
+                    (minute < 10, literal("0") + cast(minute, String)),
+                    else_=cast(minute, String),
+                )
+                display_timestamp = (
+                    display_date
+                    + literal(", ")
+                    + cast(hour_12, String)
+                    + literal(":")
+                    + minute_text
+                    + literal(" ")
+                    + case((hour < 12, "AM"), else_="PM")
+                )
+                timestamp_search_expressions = [
+                    cast(timestamp_column, String),
+                    cast(localized_timestamp_column, String),
+                    display_date,
+                    display_timestamp,
+                ]
+                if self._session.get_bind().dialect.name == "postgresql":
+                    timestamp_search_expressions.append(
+                        func.to_char(
+                            localized_timestamp_column,
+                            "Mon FMDD, YYYY, FMHH12:MI AM",
+                        )
+                    )
                 filters.append(
                     or_(
-                        TrafficLog.source_ip.ilike(search_value),
-                        TrafficLog.request_path.ilike(search_value),
-                        TrafficLog.request_method.ilike(search_value),
-                        TrafficLog.http_request.ilike(search_value),
-                        TrafficLog.prediction.ilike(search_value),
+                        TrafficLog.source_ip.ilike(search_value, escape="\\"),
+                        TrafficLog.request_path.ilike(search_value, escape="\\"),
+                        TrafficLog.request_method.ilike(search_value, escape="\\"),
+                        TrafficLog.query_string.ilike(search_value, escape="\\"),
+                        TrafficLog.http_request.ilike(search_value, escape="\\"),
+                        TrafficLog.prediction.ilike(search_value, escape="\\"),
+                        func.coalesce(TrafficLog.triage_status, "new").ilike(
+                            search_value,
+                            escape="\\",
+                        ),
+                        func.coalesce(TrafficLog.action_taken, "Unavailable").ilike(
+                            search_value,
+                            escape="\\",
+                        ),
+                        func.coalesce(TrafficLog.confidence_level, "UNKNOWN").ilike(
+                            search_value,
+                            escape="\\",
+                        ),
+                        *[
+                            expression.ilike(search_value, escape="\\")
+                            for expression in timestamp_search_expressions
+                        ],
+                        cast(TrafficLog.confidence, String).ilike(
+                            search_value,
+                            escape="\\",
+                        ),
+                        cast(TrafficLog.confidence * 100, String).ilike(
+                            search_value,
+                            escape="\\",
+                        ),
+                        cast(TrafficLog.crs_score, String).ilike(
+                            search_value,
+                            escape="\\",
+                        ),
                     )
                 )
         if action:
@@ -1684,6 +1798,7 @@ ORDER BY created_at DESC, id DESC
         confidence_tier_filter: Optional[str] = None,
         time_range: Optional[str] = None,
         search: Optional[str] = None,
+        timezone_name: Optional[str] = None,
         action: Optional[str] = None,
         triage_status: Optional[str] = None,
         confidence_levels: Optional[List[str]] = None,
@@ -1709,6 +1824,7 @@ ORDER BY created_at DESC, id DESC
                 confidence_tier_filter=confidence_tier_filter,
                 time_range=time_range,
                 search=search,
+                timezone_name=timezone_name,
                 action=action,
                 triage_status=triage_status,
                 confidence_levels=confidence_levels,

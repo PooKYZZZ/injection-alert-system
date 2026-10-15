@@ -1047,6 +1047,7 @@ const PARAM_MAP: Record<string, string> = {
   prediction: 'prediction',
   source_ip: 'source_ip',
   search: 'search',
+  timezone_name: 'timezone_name',
   window: 'time_range',
   timeRange: 'time_range',
   sort_by: 'sort_by',

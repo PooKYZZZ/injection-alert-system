@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Sidebar } from './Sidebar'
 import { signOut } from 'next-auth/react'
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/',
+}))
+
 vi.mock('next-auth/react', () => ({
   signOut: vi.fn(),
 }))
@@ -203,7 +207,8 @@ describe('Sidebar', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Help & Guide' })
     expect(within(dialog).getByRole('heading', { name: 'Getting started' })).toBeInTheDocument()
-    expect(within(dialog).getByText(/Confidence indicates how strongly the model supports/i)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Skip tour' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Next' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Help & Guide' })).not.toBeInTheDocument())

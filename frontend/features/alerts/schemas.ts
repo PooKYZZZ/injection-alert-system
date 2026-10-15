@@ -98,6 +98,7 @@ export const AlertFiltersSchema = z.object({
   prediction: z.enum(ALERT_PREDICTION_VALUES).optional(),
   source_ip: z.string().optional(),
   search: z.string().max(200).optional(),
+  timezone_name: z.string().min(1).max(64).optional(),
   window: z.enum(['1h', '6h', '24h', '7d']).optional(),
   sort_by: z.enum(['timestamp', 'confidence', 'severity', 'confidence_tier', 'action']).default('timestamp'),
   sort_dir: z.enum(['asc', 'desc']).default('desc'),
