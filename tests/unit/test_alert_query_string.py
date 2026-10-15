@@ -28,6 +28,7 @@ class TestAlertQueryParams:
         assert params.confidence_tier is None
         assert params.time_range is None
         assert params.search is None
+        assert params.timezone_name is None
         assert params.action is None
         assert params.triage_status is None
         assert params.confidence_level is None
@@ -53,6 +54,15 @@ class TestAlertQueryParams:
         for time_range in ["1h", "6h", "24h", "7d"]:
             params = AlertQueryParams(time_range=time_range)
             assert params.time_range == time_range
+
+    def test_valid_timestamp_search_timezone(self):
+        params = AlertQueryParams(timezone_name="Asia/Manila")
+
+        assert params.timezone_name == "Asia/Manila"
+
+    def test_invalid_timestamp_search_timezone_is_rejected(self):
+        with pytest.raises(ValidationError, match="valid IANA timezone"):
+            AlertQueryParams(timezone_name="not/a-timezone")
 
     def test_include_normal_defaults_off_and_accepts_explicit_opt_in(self):
         assert AlertQueryParams().include_normal is False

@@ -3,6 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import Image from 'next/image'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { usePathname } from 'next/navigation'
 import { NAV_ITEMS } from '@/lib/constants'
 import { PERMISSIONS, roleHasPermission, type UserRole } from '@/lib/auth/roles'
 import { signOut } from 'next-auth/react'
@@ -297,6 +298,7 @@ export function Sidebar({ displayName, secondaryLabel, role }: SidebarProps) {
   )
   const helpReturnFocusRef = useRef<HTMLButtonElement>(null)
   const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null)
+  const pathname = usePathname()
   const resolvedName = displayName?.trim() || 'SOC Analyst'
   const initials = getInitials(resolvedName)
   const handleLogout = () => signOut({ callbackUrl: '/login' })
@@ -435,6 +437,7 @@ export function Sidebar({ displayName, secondaryLabel, role }: SidebarProps) {
           open={isHelpOpen}
           onOpenChange={setIsHelpOpen}
           returnFocusRef={helpReturnFocusRef}
+          pathname={pathname}
         />
       </>
     </Dialog.Root>

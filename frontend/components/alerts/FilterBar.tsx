@@ -1,11 +1,10 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { TrafficHistoryExportButton } from '@/components/alerts/TrafficHistoryExportButton'
 import { TRIAGE_STATUS_VALUES } from '@/features/alerts/schemas'
-import { getCurrentSearchParams } from '@/lib/searchParams'
 import {
   ALERT_CONFIDENCE_TIER_VALUES,
   ALERT_ACTION_TAKEN_VALUES,
@@ -14,6 +13,7 @@ import {
 interface FilterBarProps {
   filteredCount?: number
   role?: unknown
+  tourTarget?: string
 }
 
 const CONFIDENCE_TIER_CYCLE = ['ALL', ...ALERT_CONFIDENCE_TIER_VALUES] as const
@@ -67,7 +67,7 @@ function FilterSelect<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <label className="flex min-w-0 flex-col gap-1 rounded-md border border-surface-border bg-surface-card px-2 py-1.5">
+    <label className="flex min-w-[112px] shrink-0 flex-col gap-1 rounded-md border border-surface-border bg-surface-card px-2 py-1.5">
       <span className="text-[11px] leading-none text-[var(--color-text-secondary)]">{label}</span>
       <select
         value={value}
@@ -84,10 +84,12 @@ function FilterSelect<T extends string>({
   )
 }
 
-export function FilterBar({ filteredCount, role }: FilterBarProps) {
+export function FilterBar({ filteredCount, role, tourTarget }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const searchParamsRef = useRef(new URLSearchParams(searchParams.toString()))
+  const [searchDraft, setSearchDraft] = useState(searchParams.get('search') ?? '')
 
   const currentConfidenceTier = asFilterValue(
     searchParams.get('confidence_tier') ?? searchParams.get('severity'),
@@ -97,24 +99,53 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
   const currentAction = asFilterValue(searchParams.get('action'), ACTION_CYCLE, 'ALL')
   const currentTriage = asFilterValue(searchParams.get('triage_status'), TRIAGE_CYCLE, 'ALL')
   const currentWindow = asFilterValue(searchParams.get('window'), WINDOW_CYCLE, 'ALL')
+  const currentSearch = searchParams.get('search') ?? ''
   const includeNormal = searchParams.get('include_normal') === 'true'
+  const hasSearch = currentSearch.trim().length > 0
   const activeFilterCount = [
     currentConfidenceTier !== 'ALL',
     currentAction !== 'ALL',
     currentTriage !== 'ALL',
     currentWindow !== 'ALL',
     includeNormal,
+    hasSearch,
   ].filter(Boolean).length
 
   const hasActiveFilters = activeFilterCount > 0
 
   const replaceWithParams = useCallback((mutator: (params: URLSearchParams) => void) => {
-    const params = getCurrentSearchParams(searchParams)
+    const params = new URLSearchParams(searchParamsRef.current.toString())
     mutator(params)
     params.set('page', '1')
+    searchParamsRef.current = new URLSearchParams(params.toString())
     const query = params.toString()
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
-  }, [router, pathname, searchParams])
+  }, [router, pathname])
+
+  useEffect(() => {
+    searchParamsRef.current = new URLSearchParams(searchParams.toString())
+  }, [searchParams])
+
+  useEffect(() => {
+    setSearchDraft(currentSearch)
+  }, [currentSearch])
+
+  useEffect(() => {
+    const nextSearch = searchDraft.trim()
+    if (nextSearch === currentSearch.trim()) return
+
+    const timeout = setTimeout(() => {
+      replaceWithParams((params) => {
+        if (nextSearch) {
+          params.set('search', nextSearch)
+        } else {
+          params.delete('search')
+        }
+      })
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [searchDraft, currentSearch, searchParams, replaceWithParams])
 
   function handleConfidenceTierChange(next: ConfidenceTierValue) {
     replaceWithParams((params) => {
@@ -169,6 +200,7 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
   }
 
   function handleClearAll() {
+    setSearchDraft('')
     replaceWithParams((params) => {
       params.delete('confidence_tier')
       params.delete('severity')
@@ -176,17 +208,19 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
       params.delete('triage_status')
       params.delete('window')
       params.delete('include_normal')
+      params.delete('search')
     })
   }
 
   return (
     <motion.div
+      data-tour-target={tourTarget}
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-3"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:flex-nowrap lg:overflow-x-auto">
           <span className="pt-2 text-xs font-medium text-[var(--color-text-secondary)]">Filters:</span>
           <FilterSelect
             label="Triage"
@@ -212,7 +246,7 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
             options={CONFIDENCE_TIER_CYCLE}
             onChange={handleConfidenceTierChange}
           />
-          <label className="flex min-h-[44px] items-center gap-2 rounded-md border border-surface-border bg-surface-card px-3 py-2 text-xs font-medium text-[var(--color-text-primary)]">
+          <label className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-md border border-surface-border bg-surface-card px-3 py-2 text-xs font-medium text-[var(--color-text-primary)]">
             <input
               type="checkbox"
               checked={includeNormal}
@@ -224,9 +258,40 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
             />
             Include Normal Traffic
           </label>
+          <label className="relative flex min-h-[44px] w-full min-w-0 shrink-0 items-center rounded-md border-2 border-action-border/50 bg-surface-card sm:w-64">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-[var(--color-text-muted)]"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <span className="sr-only">Search Traffic History</span>
+            <input
+              data-tour-target="history-search"
+              type="search"
+              size={1}
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              placeholder="Search Traffic History"
+              aria-label="Search Traffic History"
+              maxLength={200}
+              className="h-full w-full min-w-0 overflow-hidden rounded-md bg-transparent py-2 pl-10 pr-3 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none focus-visible:ring-0 focus-visible:ring-action-border"
+            />
+          </label>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3 sm:justify-start">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 sm:justify-start">
           {activeFilterCount > 0 && (
             <motion.span
               key={activeFilterCount}
@@ -236,6 +301,9 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
               {activeFilterCount}
             </motion.span>
           )}
+          {activeFilterCount === 0 && (
+            <span aria-hidden="true" className="h-5 min-w-[20px]" />
+          )}
           {hasActiveFilters && (
             <button
               type="button"
@@ -244,6 +312,11 @@ export function FilterBar({ filteredCount, role }: FilterBarProps) {
             >
               Clear all
             </button>
+          )}
+          {!hasActiveFilters && (
+            <span aria-hidden="true" className="invisible text-xs">
+              Clear all
+            </span>
           )}
           {filteredCount !== undefined && (
             <span className="text-xs text-[var(--color-text-secondary)]">

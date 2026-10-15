@@ -26,6 +26,28 @@ async def test_alerts_route_forwards_opt_in_scope_to_repository() -> None:
 
 
 @pytest.mark.asyncio
+async def test_alerts_route_forwards_timestamp_search_timezone() -> None:
+    repository = MagicMock()
+    repository.get_alert_list = AsyncMock(
+        return_value=TrafficLogPage(items=[], total=0, page=1, page_size=20)
+    )
+
+    response = await get_alerts(
+        query=AlertQueryParams(
+            search="Oct 3, 2026, 9:43 PM",
+            timezone_name="Asia/Manila",
+        ),
+        repository=repository,
+    )
+
+    assert response.total == 0
+    assert repository.get_alert_list.await_args.kwargs["search"] == (
+        "Oct 3, 2026, 9:43 PM"
+    )
+    assert repository.get_alert_list.await_args.kwargs["timezone_name"] == "Asia/Manila"
+
+
+@pytest.mark.asyncio
 async def test_alerts_list_does_not_serialize_persisted_query_string() -> None:
     entity = TrafficLogEntity(
         id=17,

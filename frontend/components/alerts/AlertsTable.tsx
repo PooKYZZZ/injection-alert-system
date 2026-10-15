@@ -176,10 +176,22 @@ function SortHeader({
   onSort: (column: SortColumn) => void
 }) {
   const help = ALERT_COLUMN_HELP[column.key]
+  const tourTarget =
+    column.key === 'attack_type'
+      ? 'history-prediction-column'
+      : column.key === 'confidence'
+        ? 'history-confidence-column'
+        : column.key === 'action'
+          ? 'history-action-column'
+          : undefined
 
   if (!column.sortable) {
     return (
-      <th scope="col" className="p-3 text-left text-xs font-semibold tracking-normal text-[var(--color-text-secondary)]">
+      <th
+        scope="col"
+        data-tour-target={tourTarget}
+        className="p-3 text-left text-xs font-semibold tracking-normal text-[var(--color-text-secondary)]"
+      >
         <span className="inline-flex items-center gap-1.5">
           {column.label}
           <InfoDisclosure label={column.label}>{help}</InfoDisclosure>
@@ -192,7 +204,7 @@ function SortHeader({
   const isAsc = isActive && sortDir === 'asc'
 
   return (
-    <th scope="col" className="p-3 text-left">
+    <th scope="col" data-tour-target={tourTarget} className="p-3 text-left">
       <span className="inline-flex items-center gap-1.5">
         <button
           type="button"
@@ -229,14 +241,22 @@ function AlertsTableContent({
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const browserTimeZone = isHydrated
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    : null
 
   const params = useMemo(
     () => normalizeAlertSearchParams(searchParamsToRecord(searchParams)),
     [searchParams]
   )
 
+  const requestParams = useMemo(() => {
+    if (!params.search || !browserTimeZone) return params
+    return { ...params, timezone_name: browserTimeZone }
+  }, [browserTimeZone, params])
+
   // Use full AlertFilters for the alerts page (not down-converted to DashboardFilters)
-  const { data, isPending, isFetching, isError, refetch } = useAlertsFromFilters(params)
+  const { data, isPending, isFetching, isError, refetch } = useAlertsFromFilters(requestParams)
   const alerts = data?.items ?? []
   const selectableAlerts = alerts.filter((alert) =>
     isActionableAttackClass(alert.prediction)
@@ -314,7 +334,7 @@ function AlertsTableContent({
         aria-label="Scrollable Traffic History table"
         className="max-h-none overflow-x-auto overflow-y-clip lg:max-h-[500px] lg:overflow-y-auto"
       >
-        <table className="w-full text-sm">
+        <table data-tour-target="history-table" className="w-full text-sm">
           <caption className="sr-only">
             Traffic records matching the current filters
           </caption>
@@ -343,7 +363,7 @@ function AlertsTableContent({
                   onSort={handleSort}
                 />
               ))}
-              <th scope="col" className="w-12 p-3" />
+              <th scope="col" data-tour-target="history-details-column" className="w-12 p-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-text-ghost)]">
@@ -472,7 +492,10 @@ function AlertsTableContent({
 
       {/* Pagination footer */}
       {!isHydrated ? (
-        <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
+        <div
+          data-tour-target="history-pagination"
+          className="flex items-center justify-between border-t border-surface-border px-4 py-3"
+        >
           <p className="text-xs text-[var(--color-text-secondary)]">Loading...</p>
           <div className="flex items-center gap-2">
             <button
@@ -493,7 +516,10 @@ function AlertsTableContent({
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
+        <div
+          data-tour-target="history-pagination"
+          className="flex items-center justify-between border-t border-surface-border px-4 py-3"
+        >
           <p className="text-xs text-[var(--color-text-secondary)]">
             {data?.total === 0 ? (
               'Showing 0 traffic records'

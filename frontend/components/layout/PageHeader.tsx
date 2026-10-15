@@ -6,11 +6,21 @@ interface PageHeaderProps {
   description?: string
   children?: ReactNode
   className?: string
+  dataTourTarget?: string
 }
 
-export function PageHeader({ title, description, children, className }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  description,
+  children,
+  className,
+  dataTourTarget,
+}: PageHeaderProps) {
   return (
-    <header className={cn('flex flex-wrap items-end justify-between gap-4', className)}>
+    <header
+      data-tour-target={dataTourTarget}
+      className={cn('flex flex-wrap items-end justify-between gap-4', className)}
+    >
       <div className="min-w-0">
         <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-text-primary sm:text-[28px]">
           {title}

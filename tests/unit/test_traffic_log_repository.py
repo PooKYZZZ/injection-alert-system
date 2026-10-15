@@ -207,6 +207,56 @@ async def test_get_alert_list_returns_filtered_total_and_stable_order(
 
 
 @pytest.mark.asyncio
+async def test_get_alert_list_search_matches_visible_alert_columns(
+    repository: TrafficLogRepository,
+):
+    saved = await repository.save(
+        TrafficLogEntity(
+            transaction_id="txn-search-visible-columns",
+            timestamp=datetime(2026, 10, 11, 12, 34, 56, tzinfo=timezone.utc),
+            source_ip="203.0.113.44",
+            request_path="/alerts/unique-path",
+            query_string="query=column-marker",
+            request_method="POST",
+            http_request="POST /alerts/unique-path payload-marker",
+            prediction="SQL Injection",
+            confidence=0.93,
+            confidence_level="HIGH",
+            crs_score=42,
+            action_taken="BLOCKED",
+            triage_status="in_review",
+        )
+    )
+
+    for search_term in (
+        "203.0.113.44",
+        "unique-path",
+        "post",
+        "column-marker",
+        "payload-marker",
+        "sql injection",
+        "review",
+        "blocked",
+        "high",
+        "0.93",
+        "93",
+        "42",
+        "2026-10-11",
+        "Oct 11, 2026",
+        "Oct 11, 2026, 12:34 PM",
+    ):
+        page = await repository.get_alert_list(
+            page=1,
+            page_size=20,
+            search=search_term,
+            timezone_name="UTC",
+        )
+
+        assert page.total == 1, search_term
+        assert [item.id for item in page.items] == [saved.id], search_term
+
+
+@pytest.mark.asyncio
 async def test_traffic_history_export_uses_half_open_bounds_and_stable_allowlisted_projection(
     repository: TrafficLogRepository,
 ):

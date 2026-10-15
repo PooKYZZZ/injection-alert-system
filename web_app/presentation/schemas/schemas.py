@@ -575,7 +575,13 @@ class AlertQueryParams(BaseModel):
     search: Optional[str] = Field(
         default=None,
         max_length=200,
-        description="Search in source IP, path, method, payload",
+        description="Search the visible traffic-history column values",
+    )
+    timezone_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="IANA timezone used when matching displayed timestamp values",
     )
     action: Optional[ActionTaken] = Field(
         default=None, description="Filter by action taken (BLOCKED, THROTTLED, ALLOWED)"
@@ -612,6 +618,17 @@ class AlertQueryParams(BaseModel):
             raise ValueError(
                 "severity and confidence_tier must match when both are provided"
             )
+
+    @field_validator("timezone_name")
+    @classmethod
+    def validate_timezone_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("timezone_name must be a valid IANA timezone") from exc
+        return value
 
     @property
     def effective_confidence_tier(self) -> Optional[

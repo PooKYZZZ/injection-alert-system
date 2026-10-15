@@ -855,6 +855,7 @@ async def get_alerts(
         confidence_tier_filter=query.effective_confidence_tier,
         time_range=query.time_range,
         search=query.search,
+        timezone_name=query.timezone_name,
         action=query.action,
         triage_status=query.triage_status,
         confidence_levels=query.confidence_level,

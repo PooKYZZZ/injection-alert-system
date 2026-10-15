@@ -259,11 +259,12 @@ describe('bff-client', () => {
         severity: 'HIGH',
         timeRange: '24h',
         search: '203.0.113.10',
+        timezone_name: 'Asia/Manila',
       })
     )
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&search=203.0.113.10&time_range=24h',
+      'http://localhost:8000/api/alerts?page=2&page_size=5&severity=HIGH&search=203.0.113.10&timezone_name=Asia%2FManila&time_range=24h',
       expect.objectContaining({
         cache: 'no-store',
         headers: {

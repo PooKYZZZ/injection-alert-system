@@ -144,6 +144,33 @@ describe('AlertsTable', () => {
     expect(confidenceHeaders.length).toBeGreaterThan(0)
   })
 
+  it('passes the browser timezone when searching displayed timestamps', async () => {
+    const searchParams = new URLSearchParams({
+      search: 'Oct 3, 2026, 9:43 PM',
+    })
+    mockedUseSearchParams.mockReturnValue(
+      searchParams as unknown as ReturnType<typeof useSearchParams>
+    )
+
+    render(
+      <AlertsTable
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+        onAlertClick={vi.fn()}
+      />
+    )
+
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    await waitFor(() => {
+      expect(mockedUseAlertsFromFilters).toHaveBeenCalledWith(
+        expect.objectContaining({
+          search: 'Oct 3, 2026, 9:43 PM',
+          timezone_name: browserTimeZone,
+        })
+      )
+    })
+  })
+
   it('retains CRS context and explains confidence, action, and CRS labels', async () => {
     const user = userEvent.setup()
     render(
