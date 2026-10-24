@@ -6,3 +6,4 @@
 *.md  text eol=lf
 *.yaml text eol=lf
 *.yml  text eol=lf
+dataset-share/raw/data_capec_multilabel.csv filter=lfs diff=lfs merge=lfs -text

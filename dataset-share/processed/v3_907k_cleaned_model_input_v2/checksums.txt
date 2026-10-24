@@ -1,0 +1,5 @@
+# SHA256 checksums — training splits
+# Algorithm: SHA256
+28d2797f50ad6f22149141a3697806e6975c1b68bbaf862223671233209df643  train.parquet
+ca6dcfb25604eef27db509ee269e580333a017125f9303f3107dab730f8ca073  validation.parquet
+3b7eed38a3a0cd1834ba86ef86a57ea44d555bb8221d94458a5c516ee0094e6b  test.parquet

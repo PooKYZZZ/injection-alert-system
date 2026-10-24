@@ -1,0 +1,48 @@
+{
+  "dataset_version": "v3_907k_cleaned_model_input_v2",
+  "pipeline_version": "3.1.0",
+  "preprocessing_version": "model-input-v2-redacted",
+  "text_column": "combined_payload",
+  "shared_builder_name": "ml_model.preprocessing.model_input.build_model_input_text",
+  "model_input_hash_policy": "sha256(model_input_text)",
+  "source_cleaning_version": "3.1.0",
+  "source_cleaning_commit": "983e827a3e0d110602211a5e69982edd55d9b829",
+  "audit_counts": {
+    "stage_1_initial_rows": 907815,
+    "stage_3_malformed_removed": 2,
+    "stage_3_remaining_rows": 907813,
+    "stage_4_exact_duplicates_removed": 544949,
+    "stage_4_unique_payloads": 362864,
+    "stage_6_suspicious_benign_quarantined": 23826,
+    "stage_7b_cluster_cap_removed": 155545,
+    "stage_7b_rows_after_cap": 183493,
+    "stage_9_train_split": 146794,
+    "stage_9_val_split": 18349,
+    "stage_9_test_split": 18350
+  },
+  "near_duplicate_stats": {
+    "total_clusters": 81836,
+    "singleton_clusters": 62559,
+    "non_singleton_clusters": 19277,
+    "largest_cluster_size": 12786,
+    "payloads_in_non_singleton_clusters": 276479,
+    "shingle_size": 5,
+    "threshold": 0.85,
+    "num_perm": 128,
+    "top_10_cluster_sizes": [
+      12786,
+      10192,
+      9882,
+      9408,
+      8124,
+      7802,
+      4664,
+      4171,
+      3981,
+      2569
+    ],
+    "clusters_above_1000": 46,
+    "max_cluster_size_cap": 100,
+    "largest_cluster_after_cap": 101
+  }
+}
