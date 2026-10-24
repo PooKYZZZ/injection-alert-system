@@ -1,0 +1,171 @@
+{
+    "metadata": {
+        "pipeline_version": "3.1.0",
+        "dataset_version": "v3_907k_cleaned_model_input_v2",
+        "preprocessing_version": "model-input-v2-redacted",
+        "text_column": "combined_payload",
+        "shared_builder_name": "ml_model.preprocessing.model_input.build_model_input_text",
+        "model_input_hash_policy": "sha256(model_input_text)",
+        "source_cleaning_version": "3.1.0",
+        "random_seed": 42,
+        "timestamp_utc": "2026-08-17T12:39:10.053062+00:00",
+        "git_commit": "983e827a3e0d110602211a5e69982edd55d9b829",
+        "label_priority_order": "SQL Injection > Code Injection > Other Attacks > Normal",
+        "minhash_config": {
+            "shingle_size": 5,
+            "threshold": 0.85,
+            "num_perm": 128
+        }
+    },
+    "counts": {
+        "stage_1_initial_rows": 907815,
+        "stage_3_malformed_removed": 2,
+        "stage_3_remaining_rows": 907813,
+        "stage_4_exact_duplicates_removed": 544949,
+        "stage_4_unique_payloads": 362864,
+        "stage_6_suspicious_benign_quarantined": 23826,
+        "stage_7b_cluster_cap_removed": 155545,
+        "stage_7b_rows_after_cap": 183493,
+        "stage_9_train_split": 146794,
+        "stage_9_val_split": 18349,
+        "stage_9_test_split": 18350
+    },
+    "statistics": {
+        "class_distribution_before_quarantine": {
+            "SQL Injection": 184610,
+            "Normal": 86536,
+            "Other Attacks": 80632,
+            "Code Injection": 11086
+        },
+        "multi_label_rows_resolved": 7873,
+        "quarantine_sample_flags": [
+            "get /blog/index.php/my-account/edit-profile/{{ data.link }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.uploadedtolink }}",
+            "get /blog/index.php/my-account/edit-profile/post.php?action=edit&post={{ data.id }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.sizes.large.url }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.sizes.full.url }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.icon }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.size.url }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.image.src }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.sizes.medium.url }}",
+            "get /blog/index.php/my-account/edit-profile/{{ data.model.url }}"
+        ],
+        "class_distribution_final": {
+            "SQL Injection": 184610,
+            "Other Attacks": 80632,
+            "Normal": 62710,
+            "Code Injection": 11086
+        },
+        "near_duplicate_clusters": {
+            "total_clusters": 81836,
+            "singleton_clusters": 62559,
+            "non_singleton_clusters": 19277,
+            "largest_cluster_size": 12786,
+            "payloads_in_non_singleton_clusters": 276479,
+            "shingle_size": 5,
+            "threshold": 0.85,
+            "num_perm": 128,
+            "top_10_cluster_sizes": [
+                12786,
+                10192,
+                9882,
+                9408,
+                8124,
+                7802,
+                4664,
+                4171,
+                3981,
+                2569
+            ],
+            "clusters_above_1000": 46,
+            "max_cluster_size_cap": 100,
+            "largest_cluster_after_cap": 101
+        },
+        "payload_length": {
+            "mean": 95.22631926013527,
+            "median": 86.0,
+            "max": 631,
+            "95th_percentile": 206.0,
+            "99th_percentile": 290.0
+        },
+        "estimated_tokens": {
+            "mean": 23.806579815033817,
+            "95th_percentile": 51.5,
+            "max": 157.75
+        },
+        "metadata_columns_removed": [
+            "src_ip",
+            "dst_ip",
+            "src_port",
+            "dst_port",
+            "timestamp",
+            "response_http_protocol",
+            "response_http_status_code",
+            "response_http_status_message",
+            "response_content_length",
+            "request_host",
+            "request_origin",
+            "request_referer",
+            "request_user_agent",
+            "request_cookie",
+            "request_content_type",
+            "request_accept",
+            "request_accept_language",
+            "request_accept_encoding",
+            "request_do_not_track",
+            "request_connection",
+            "request_http_protocol"
+        ],
+        "final_columns": [
+            "combined_payload",
+            "final_label",
+            "payload_hash",
+            "cluster_id",
+            "request_http_method",
+            "request_http_request",
+            "request_body"
+        ],
+        "split_selection": {
+            "candidates_tested": 5,
+            "chosen_seed": 0,
+            "score": 1.6e-05
+        },
+        "cross_split_verification": {
+            "exact_hash_overlap_train_val": 0,
+            "exact_hash_overlap_train_test": 0,
+            "exact_hash_overlap_val_test": 0,
+            "cluster_overlap_train_val": 0,
+            "cluster_overlap_train_test": 0,
+            "cluster_overlap_val_test": 0,
+            "status": "PASS",
+            "stratification_drift_warnings": [],
+            "near_dup_sample_test": {
+                "val_samples_tested": 5000,
+                "similar_to_train": 0,
+                "similarity_rate_pct": 0.0
+            }
+        }
+    },
+    "files": {
+        "train_parquet": {
+            "path": "train.parquet",
+            "sha256": "28d2797f50ad6f22149141a3697806e6975c1b68bbaf862223671233209df643"
+        },
+        "validation_parquet": {
+            "path": "validation.parquet",
+            "sha256": "ca6dcfb25604eef27db509ee269e580333a017125f9303f3107dab730f8ca073"
+        },
+        "test_parquet": {
+            "path": "test.parquet",
+            "sha256": "3b7eed38a3a0cd1834ba86ef86a57ea44d555bb8221d94458a5c516ee0094e6b"
+        },
+        "full_cleaned_parquet": {
+            "path": "cleaned_dataset.parquet",
+            "sha256": "b4ee76ae6f996f4d6e2e51477c33fd070cd0cef3853654c278ed8dd5bc05c109"
+        },
+        "quarantine_parquet": {
+            "path": "quarantine_dataset.parquet",
+            "sha256": "b4c318c5d2e03afa1fdf1236efb022109998db9acc5e7597f8121df15f7031b4"
+        }
+    }
+}
