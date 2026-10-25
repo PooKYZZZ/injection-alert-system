@@ -13,7 +13,7 @@ import {
   type UserRole,
 } from '@/lib/auth/roles'
 
-import type { SafeManagedAccount } from './contract'
+import type { PasswordSetupLinkLifetime, SafeManagedAccount } from './contract'
 import styles from './UserManagementWorkspace.module.css'
 
 type AccountAction = 'role' | 'status' | 'setup' | 'mfa' | 'email'
@@ -32,7 +32,7 @@ type Props = {
   onPendingEmailChange: (value: string) => void
   onRoleChange: (role: UserRole) => void
   onToggleStatus: () => void
-  onResendSetup: () => void
+  onResendSetup: (lifetime: PasswordSetupLinkLifetime) => void
   onResetMfa: (reason: string) => void
   onRequestEmail: () => void
 }
@@ -265,14 +265,19 @@ export function AccountActionsDialog({
               <h2 id="administrative-actions-heading" className="text-sm font-semibold text-text-primary">Administrative actions</h2>
               <div className="mt-4 divide-y divide-border-light border-y border-border-light">
                 {account.setup_status === 'pending' && account.enabled ? (
-                  <div className="flex items-start justify-between gap-4 py-4">
-                    <div>
+                  <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="max-w-[300px]">
                       <h3 className="text-sm font-medium text-text-primary">Password setup</h3>
-                      <p className="mt-1 text-xs leading-5 text-text-muted">Password setup is pending. Send a new short-lived link.</p>
+                      <p className="mt-1 text-xs leading-5 text-text-muted">Resending replaces the previous setup link. Choose a 30-minute or 2-day link.</p>
                     </div>
-                    <button type="button" className={secondaryButton} aria-label={`Resend setup for ${account.display_name}`} disabled={setupPending} onClick={onResendSetup}>
-                      {setupPending ? 'Queueing…' : 'Resend email'}
-                    </button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <button type="button" className={secondaryButton} aria-label={`Resend 30-minute setup email for ${account.display_name}`} disabled={setupPending} onClick={() => onResendSetup('30_minutes')}>
+                        {setupPending ? 'Queueing…' : 'Resend (30 min)'}
+                      </button>
+                      <button type="button" className={secondaryButton} aria-label={`Resend 2-day setup email for ${account.display_name}`} disabled={setupPending} onClick={() => onResendSetup('2_days')}>
+                        {setupPending ? 'Queueing…' : 'Resend (2 days)'}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 

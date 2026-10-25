@@ -15,6 +15,7 @@ import {
 import { AccountActionsDialog } from './AccountActionsDialog'
 import {
   managedAccountsResponseSchema,
+  type PasswordSetupLinkLifetime,
   type SafeManagedAccount,
 } from './contract'
 
@@ -494,13 +495,14 @@ export function UserManagementWorkspace({
             `Status change for ${selectedAccount.display_name} failed.`,
           )
         }}
-        onResendSetup={() => {
+        onResendSetup={(lifetime: PasswordSetupLinkLifetime) => {
           if (!selectedAccount) return
+          const expiryLabel = lifetime === '2_days' ? '2 days' : '30 minutes'
           runAccountAction(
             selectedAccount,
             'setup',
-            () => mutate(`/api/admin/users/${selectedAccount.id}/resend-setup`, 'POST'),
-            `Password setup email queued for ${selectedAccount.display_name}.`,
+            () => mutate(`/api/admin/users/${selectedAccount.id}/resend-setup`, 'POST', { lifetime }),
+            `Password setup email queued for ${selectedAccount.display_name}. The link expires in ${expiryLabel}.`,
             `Password setup email for ${selectedAccount.display_name} could not be queued.`,
           )
         }}

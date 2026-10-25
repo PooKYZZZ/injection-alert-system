@@ -10,6 +10,7 @@ import {
   accountRoleSchema,
   createAccountSchema,
   managedEmailSchema,
+  type PasswordSetupLinkLifetime,
   type SafeManagedAccount,
 } from '@/features/user-management/contract'
 import {
@@ -66,6 +67,13 @@ function configuredOrigin(): string {
 
 function expiresInThirtyMinutes(): string {
   return new Date(Date.now() + 30 * 60 * 1_000).toISOString()
+}
+
+function setupLinkExpiresAt(lifetime: PasswordSetupLinkLifetime): string {
+  const durationMs = lifetime === '2_days'
+    ? 2 * 24 * 60 * 60 * 1_000
+    : 30 * 60 * 1_000
+  return new Date(Date.now() + durationMs).toISOString()
 }
 
 function operationKeys(kind: string): {
@@ -189,7 +197,8 @@ export async function createManagedAccount(
 
 export async function resendPasswordSetup(
   actorAccountId: string,
-  targetAccountId: string
+  targetAccountId: string,
+  lifetime: PasswordSetupLinkLifetime = '30_minutes'
 ): Promise<void> {
   const actor = requestUuid(actorAccountId)
   const target = requestUuid(targetAccountId)
@@ -208,7 +217,7 @@ export async function resendPasswordSetup(
       p_target_account_id: target,
       p_recipient: recipient,
       p_setup_token_hash: digestOpaqueToken(token),
-      p_expires_at: expiresInThirtyMinutes(),
+      p_expires_at: setupLinkExpiresAt(lifetime),
       p_protected_payload: protectNotificationPayload(
         {
           kind: 'password_setup',

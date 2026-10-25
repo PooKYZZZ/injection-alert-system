@@ -139,7 +139,20 @@ describe('account management database boundary', () => {
     query.is.mockReturnValue(query)
     harness.from.mockReturnValue({ select: vi.fn().mockReturnValue(query) })
 
+    const defaultRequestedAt = Date.now()
     await resendPasswordSetup(actorId, actorId)
+    const defaultParams = harness.rpc.mock.calls[0]?.[1] as { p_expires_at: string }
+    const defaultExpiry = Date.parse(defaultParams.p_expires_at)
+    expect(defaultExpiry).toBeGreaterThanOrEqual(defaultRequestedAt + 30 * 60 * 1_000)
+    expect(defaultExpiry).toBeLessThanOrEqual(Date.now() + 30 * 60 * 1_000)
+
+    const extendedRequestedAt = Date.now()
+    await resendPasswordSetup(actorId, actorId, '2_days')
+    const extendedParams = harness.rpc.mock.calls[1]?.[1] as { p_expires_at: string }
+    const extendedExpiry = Date.parse(extendedParams.p_expires_at)
+    expect(extendedExpiry).toBeGreaterThanOrEqual(extendedRequestedAt + 2 * 24 * 60 * 60 * 1_000)
+    expect(extendedExpiry).toBeLessThanOrEqual(Date.now() + 2 * 24 * 60 * 60 * 1_000)
+
     await requestManagedEmailChange(actorId, actorId, {
       email: 'changed@example.test',
     })
@@ -153,6 +166,13 @@ describe('account management database boundary', () => {
     )
     expect(harness.rpc).toHaveBeenNthCalledWith(
       2,
+      'admin_resend_password_setup_protected_v61',
+      expect.objectContaining({
+        p_protected_payload: expect.objectContaining({ key_version: 1 }),
+      })
+    )
+    expect(harness.rpc).toHaveBeenNthCalledWith(
+      3,
       'admin_request_managed_email_change_protected_v61',
       expect.objectContaining({
         p_new_email: 'changed@example.test',

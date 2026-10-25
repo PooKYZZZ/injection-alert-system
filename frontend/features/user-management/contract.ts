@@ -25,6 +25,12 @@ export const accountRoleSchema = z.object({
 
 export const accountEnabledSchema = z.object({ enabled: z.boolean() })
 
+export const passwordSetupLinkLifetimeSchema = z.enum(['30_minutes', '2_days'])
+
+export const resendPasswordSetupRequestSchema = z.object({
+  lifetime: passwordSetupLinkLifetimeSchema.default('30_minutes'),
+}).strict()
+
 export const safeManagedAccountSchema = z.object({
   id: z.string().uuid(),
   display_name: z.string().min(1),
@@ -43,6 +49,7 @@ export const managedAccountsResponseSchema = z.object({
 }).strict()
 
 export type SafeManagedAccount = z.infer<typeof safeManagedAccountSchema>
+export type PasswordSetupLinkLifetime = z.infer<typeof passwordSetupLinkLifetimeSchema>
 
 export function mfaRequiredForRole(role: UserRole): boolean {
   return roleRequiresMfa(role)

@@ -53,7 +53,8 @@ describe('UserManagementWorkspace', () => {
     expect(screen.queryByLabelText('Reason for MFA reset')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('New email address')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Disable SOC Analyst' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Resend setup for SOC Analyst' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Resend 30-minute setup email for SOC Analyst' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Resend 2-day setup email for SOC Analyst' })).not.toBeInTheDocument()
   })
 
   it('opens an account from any row cell and keeps keyboard access on its Account button', async () => {
@@ -136,8 +137,35 @@ describe('UserManagementWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open account details for Pending Analyst' }))
 
-    expect(screen.getByRole('button', { name: 'Resend setup for Pending Analyst' })).toBeInTheDocument()
-    expect(screen.getByText(/Password setup is pending/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resend 30-minute setup email for Pending Analyst' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resend 2-day setup email for Pending Analyst' })).toBeInTheDocument()
+    expect(screen.getByText(/Resending replaces the previous setup link/)).toBeInTheDocument()
+  })
+
+  it('queues a 2-day setup link only for the pending account selected in its detail panel', async () => {
+    const pendingAccount = {
+      ...account,
+      id: 'c3d3d9e7-7a8d-40ed-b4b4-4d7f2b4cb23d',
+      display_name: 'Pending Analyst',
+      email: 'pending@example.test',
+      email_verified: false,
+      setup_status: 'pending' as const,
+    }
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<UserManagementWorkspace initialAccounts={[pendingAccount]} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open account details for Pending Analyst' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resend 2-day setup email for Pending Analyst' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/admin/users/${pendingAccount.id}/resend-setup`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ lifetime: '2_days' }),
+      }),
+    ))
+    expect(await screen.findByRole('status')).toHaveTextContent('The link expires in 2 days.')
   })
 
   it('does not expose self role or status mutations when the current account is known', () => {
@@ -284,7 +312,8 @@ describe('UserManagementWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable SOC Analyst' }))
 
     await waitFor(() => expect(disableButton).toBeDisabled())
-    expect(screen.getByRole('button', { name: 'Resend setup for SOC Analyst' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Resend 30-minute setup email for SOC Analyst' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Resend 2-day setup email for SOC Analyst' })).not.toBeDisabled()
 
     resolveFetch?.({ ok: true, json: async () => ({ accounts: [account] }) })
   })
