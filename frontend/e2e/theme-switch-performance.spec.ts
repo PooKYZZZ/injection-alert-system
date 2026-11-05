@@ -174,7 +174,7 @@ async function expectOpenDisclosureToUseCurrentTheme(
   trigger: Locator,
   requireHover = false
 ): Promise<void> {
-  const colors = await trigger.evaluate((element) => {
+  const readColors = () => trigger.evaluate((element) => {
     const root = document.documentElement
     const popover = document.getElementById(element.getAttribute('aria-controls') ?? '')
     const icon = element.querySelector('svg circle')
@@ -217,6 +217,15 @@ async function expectOpenDisclosureToUseCurrentTheme(
       hovered: element.matches(':hover'),
     }
   })
+
+  await expect
+    .poll(async () => {
+      const colors = await readColors()
+      return colors.expectedTriggerBorders.includes(colors.triggerBorder)
+    })
+    .toBe(true)
+
+  const colors = await readColors()
 
   expect(colors.theme).toMatch(/^(light|dark)$/)
   expect(colors.panel).toBe(colors.expectedPanel)
