@@ -81,7 +81,7 @@ async function installReadOnlyPageFixtures(page: Page): Promise<void> {
 }
 
 async function signIn(page: Page): Promise<void> {
-  const identity = requireAuthE2EState().identities.login
+  const identity = requireAuthE2EState().identities.theme
   await page.goto('/login')
   await page.getByLabel('Email or username').fill(identity.email)
   await page.getByLabel('Password').fill(identity.password)
