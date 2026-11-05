@@ -88,6 +88,6 @@ The explicit `npm run build` loaded the ignored local Next environment file as N
 ## Git / review state
 
 - Branch: `feat/auth-adaptive-turnstile-login` (pushed after each major green implementation slice).
-- Commits pushed: `ce61b31` audit/research; `0737f48` shared PostgreSQL throttle; `a49940e` stale-reservation fix; `54bcb58` Auth.js challenge enforcement; `7c9e877` conditional UI and CSP; `ac6a6b1` E2E and MFA regressions. A documentation closeout commit follows.
-- PR target: `master`; URL to be filled after the final push and PR creation.
+- Commits pushed before PR submission: `ce61b31` audit/research; `0737f48` shared PostgreSQL throttle; `a49940e` stale-reservation fix; `54bcb58` Auth.js challenge enforcement; `7c9e877` conditional UI and CSP; `ac6a6b1` E2E and MFA regressions; `c144b47` test evidence and rollout docs.
+- PR: [#185](https://github.com/PooKYZZZ/injection-alert-system/pull/185) targeting `master`; open for review.
 - No merge or production change is authorized by this implementation task.
