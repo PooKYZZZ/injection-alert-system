@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { requireRecentTotp } from '@/lib/auth/route-guard'
 import { PERMISSIONS } from '@/lib/auth/roles'
+import { resendPasswordSetupRequestSchema } from '@/features/user-management/contract'
 import {
   accountErrorResponse,
   accountManagementEnabled,
@@ -26,7 +27,26 @@ export async function POST(
   if (originError) return originError
   try {
     const { id } = await params
-    await resendPasswordSetup(session!.user.id, id)
+    const requestText = await request.text()
+    let requestBody: unknown = {}
+    if (requestText.trim()) {
+      try {
+        requestBody = JSON.parse(requestText)
+      } catch {
+        return NextResponse.json(
+          { error: { code: 'INVALID_REQUEST', message: 'The account request is invalid.' } },
+          { status: 400 }
+        )
+      }
+    }
+    const input = resendPasswordSetupRequestSchema.safeParse(requestBody)
+    if (!input.success) {
+      return NextResponse.json(
+        { error: { code: 'INVALID_REQUEST', message: 'The account request is invalid.' } },
+        { status: 400 }
+      )
+    }
+    await resendPasswordSetup(session!.user.id, id, input.data.lifetime)
     return NextResponse.json({ status: 'setup_sent' })
   } catch (error) {
     return accountErrorResponse(error)

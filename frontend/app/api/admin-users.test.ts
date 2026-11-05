@@ -188,4 +188,47 @@ describe('public setup and verification routes', () => {
       'opaque-token-that-is-long-enough'
     )
   })
+
+  it('defaults setup resend to 30 minutes and accepts only the fixed 2-day option', async () => {
+    const { POST } = await import('./admin/users/[id]/resend-setup/route')
+    const url = `http://localhost/api/admin/users/${accountId}/resend-setup`
+    const params = { params: Promise.resolve({ id: accountId }) }
+
+    const defaultResponse = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: { origin: 'http://localhost' },
+      }),
+      params
+    )
+
+    expect(defaultResponse.status).toBe(200)
+    expect(harness.resendSetup).toHaveBeenCalledWith(accountId, accountId, '30_minutes')
+
+    harness.resendSetup.mockClear()
+    const extendedResponse = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({ lifetime: '2_days' }),
+      }),
+      params
+    )
+
+    expect(extendedResponse.status).toBe(200)
+    expect(harness.resendSetup).toHaveBeenCalledWith(accountId, accountId, '2_days')
+
+    harness.resendSetup.mockClear()
+    const invalidResponse = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({ lifetime: '7_days' }),
+      }),
+      params
+    )
+
+    expect(invalidResponse.status).toBe(400)
+    expect(harness.resendSetup).not.toHaveBeenCalled()
+  })
 })
