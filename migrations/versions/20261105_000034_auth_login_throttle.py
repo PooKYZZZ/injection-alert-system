@@ -247,6 +247,7 @@ DECLARE
   v_now timestamptz := pg_catalog.clock_timestamp();
   v_state public.auth_login_throttle_state%ROWTYPE;
   v_reservation uuid;
+  v_reservation_expires_at timestamptz;
   v_failures integer;
   v_blocked_until timestamptz;
 BEGIN
@@ -274,9 +275,12 @@ BEGIN
   DELETE FROM public.auth_login_attempt_reservations AS reservation
   WHERE reservation.account_id = p_account_id
     AND reservation.attempt_id = p_attempt_id
-  RETURNING reservation.attempt_id INTO v_reservation;
+  RETURNING reservation.attempt_id, reservation.expires_at
+  INTO v_reservation, v_reservation_expires_at;
 
-  IF NOT FOUND THEN
+  IF NOT FOUND
+     OR v_reservation IS NULL
+     OR v_reservation_expires_at <= v_now THEN
     RETURN QUERY SELECT false, v_state.failure_count,
       COALESCE(v_state.blocked_until > v_now, false);
     RETURN;
