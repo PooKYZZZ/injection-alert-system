@@ -4,6 +4,7 @@ import {
   parseTotpSecret,
   totpCodeAtStep,
   totpCodeAtTime,
+  totpCodeForAttempt,
   totpTimeStep,
   waitForTotpStepAfter,
 } from './totp'
@@ -22,6 +23,30 @@ describe('authentication E2E TOTP support', () => {
       code: '287082',
       step: 1,
     })
+  })
+
+  it('waits for a fresh TOTP step on a Playwright retry', async () => {
+    let nowMs = 59_990
+    const sleep = vi.fn(async (durationMs: number) => {
+      nowMs += durationMs
+    })
+
+    const firstAttempt = await totpCodeForAttempt(
+      RFC_6238_BASE32_VECTOR,
+      0,
+      { now: () => nowMs, sleep }
+    )
+    const retry = await totpCodeForAttempt(
+      RFC_6238_BASE32_VECTOR,
+      1,
+      { now: () => nowMs, sleep }
+    )
+
+    expect(firstAttempt.step).toBe(1)
+    expect(retry.step).toBe(2)
+    expect(retry.code).not.toBe(firstAttempt.code)
+    expect(sleep).toHaveBeenCalledOnce()
+    expect(sleep).toHaveBeenCalledWith(60)
   })
 
   it('extracts only a valid Base32 secret from a provisioning URI', () => {

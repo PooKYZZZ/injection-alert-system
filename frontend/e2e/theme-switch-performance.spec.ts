@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import type { DashboardStats } from '@/features/stats/types'
 import { requireAuthE2EState } from '@/test-support/auth-e2e/state'
-import { totpCodeAtTime } from '@/test-support/auth-e2e/totp'
+import { totpCodeForAttempt } from '@/test-support/auth-e2e/totp'
 
 const dashboardStats: DashboardStats = {
   actionable_alerts: 7,
@@ -87,7 +87,8 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel('Password').fill(identity.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/mfa\/verify$/)
-  await page.getByLabel('Authenticator code').fill(totpCodeAtTime(identity.totpSecret).code)
+  const totp = await totpCodeForAttempt(identity.totpSecret, test.info().retry)
+  await page.getByLabel('Authenticator code').fill(totp.code)
   await page.getByRole('button', { name: 'Continue' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
 }
@@ -218,14 +219,31 @@ async function expectOpenDisclosureToUseCurrentTheme(
     }
   })
 
+  let matchingColors: Awaited<ReturnType<typeof readColors>> | undefined
   await expect
     .poll(async () => {
       const colors = await readColors()
-      return colors.expectedTriggerBorders.includes(colors.triggerBorder)
+      const matchesCurrentTheme =
+        colors.panel === colors.expectedPanel &&
+        colors.popoverBorder === colors.expectedBorder &&
+        colors.popoverText === colors.expectedSecondary &&
+        colors.titleText === colors.expectedPrimary &&
+        colors.expectedTriggerBorders.includes(colors.triggerBorder) &&
+        colors.expectedTriggerTexts.includes(colors.triggerText) &&
+        colors.iconStroke === colors.triggerText &&
+        (!requireHover ||
+          (colors.hovered &&
+            colors.triggerBorder === colors.expectedTriggerBorders[1] &&
+            colors.triggerText === colors.expectedTriggerTexts[1]))
+      if (matchesCurrentTheme) matchingColors = colors
+      return matchingColors !== undefined
     })
     .toBe(true)
 
-  const colors = await readColors()
+  if (!matchingColors) {
+    throw new Error('Expected disclosure colors to settle on the active theme.')
+  }
+  const colors = matchingColors
 
   expect(colors.theme).toMatch(/^(light|dark)$/)
   expect(colors.panel).toBe(colors.expectedPanel)

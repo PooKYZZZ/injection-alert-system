@@ -26,6 +26,7 @@
 - Green storage checkpoint was pushed as `0737f48` after the PostgreSQL and migration tests passed. Audit/research checkpoint `ce61b31` was pushed before implementation.
 - Hosted CI exposed an old PR7 migration test that hard-coded `20261007_000033` as the Alembic head. It now checks the invariant: one head, with the PR7 revision still in its history. The full local migration suite and hosted PostgreSQL migration suite pass.
 - Final acceptance tests added after the first green run cover failure-window expiry, cooldown expiry, expired reservations, a fresh token after a wrong password, unrelated-account availability, account aliases across browser contexts, and challenge followed by the existing TOTP handoff. These passed with the completed implementation.
+- Hosted run `41969067392` reached all 12 auth journeys: 11 passed, while the theme journey first sampled an intermediate border transition and its Playwright retry stayed on the MFA page. Because the test could reuse a TOTP step already accepted by its first attempt, retry login now waits for a fresh step in line with the existing replay policy. The E2E also captures one fully consistent theme-color snapshot; the focused regression, focused browser journey, and full 12-journey suite pass locally after both fixes.
 
 ## Final validation
 
@@ -33,11 +34,12 @@ All commands ran locally on **Node v24.20.0**. The managed auth harness created 
 
 | Command | Result |
 |---|---|
-| `npm run test -- --run` | **119 files / 839 tests passed** |
+| `npm exec -- vitest run --pool=threads` | **119 files / 840 tests passed** |
 | `npm run lint` | **0 errors**; 6 existing `window.location.assign()` warnings in unrelated navigation components |
 | `npm run typecheck` | Passed |
 | `npm run build` | Passed; local build used throwaway `AUTH_SECRET`/Supabase values, Turnstile disabled, and no public site key |
-| `npm run test:e2e:auth` | **12/12 Chromium journeys passed**; includes email/username/UUID rotation, refresh, fresh browser context, 390px layout, focus order, effective CSP, direct Auth.js callback denial, successful Turnstile, and TOTP completion |
+| `npm run test:e2e:auth` | **12/12 Chromium journeys passed**; includes email/username/UUID rotation, refresh, fresh browser context, 390px layout, focus order, effective CSP, direct Auth.js callback denial, successful Turnstile, TOTP completion, retry-safe TOTP, and transition-stable theme assertions |
+| `npm run test:e2e:auth -- --grep "theme changes and dashboard charts stay immediate across affected pages"` | **1/1 focused Chromium journey passed** after the hosted transition-snapshot failure |
 | Managed `tests/integration/test_auth_login_throttle_postgres.py` | **10 PostgreSQL cases passed** on disposable tmpfs DB: thresholds, disabled-feature cooldown, cross-connection concurrency, success reset, window/cooldown expiry, reservation pruning/expiry, unrelated-account availability, and grants/RLS |
 | Managed Alembic downgrade/re-upgrade | Passed on disposable PostgreSQL |
 | `.venv\Scripts\python.exe -m pytest -q --tb=short tests/migrations/test_auth_login_throttle_migration.py` | **2 passed** |
@@ -50,7 +52,7 @@ The explicit `npm run build` loaded the ignored local Next environment file as N
 
 ### Hosted CI
 
-On PR #185 at code head `5f49307`, backend tests and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, and WAF runtime checks passed. The auth E2E job failed before Playwright started on both attempts because Next.js `next/font/google` could not parse the external Orbitron font response (`TypeError: Cannot read properties of null (reading '1')`). The complete 12-journey auth E2E suite passed locally; the hosted job did not reach those journeys. A theme E2E border check was also made transition-aware without changing its exact token assertion and passed in both the focused and full local runs.
+On PR #185 at code head `5f49307`, backend tests and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, and WAF runtime checks passed. One auth E2E attempt failed before Playwright because Next.js `next/font/google` could not parse the external Orbitron font response (`TypeError: Cannot read properties of null (reading '1')`). A later hosted run at `e174a2b` ran the auth journeys: 11 passed and the theme journey exposed the intermediate-color/retried-TOTP issue recorded above; all other hosted jobs passed. Both E2E harness issues are fixed and the focused plus full suites pass locally. Hosted CI for the current follow-up commit is pending; no hosted result is claimed yet.
 
 ## Acceptance matrix
 
@@ -96,6 +98,6 @@ On PR #185 at code head `5f49307`, backend tests and `pip-audit`, PostgreSQL int
 
 - Branch: `feat/auth-adaptive-turnstile-login` (pushed after each major green implementation slice).
 - Commits pushed before PR submission: `ce61b31` audit/research; `0737f48` shared PostgreSQL throttle; `a49940e` stale-reservation fix; `54bcb58` Auth.js challenge enforcement; `7c9e877` conditional UI and CSP; `ac6a6b1` E2E and MFA regressions; `c144b47` test evidence and rollout docs.
-- Follow-up commits pushed: `aca85ad` PR link in evidence; `a05fb73` current migration-history assertion; `548c347` transition-aware theme E2E; `5f49307` certifi security pin.
+- Follow-up commits pushed: `aca85ad` PR link in evidence; `a05fb73` current migration-history assertion; `548c347` transition-aware theme E2E; `5f49307` certifi security pin. The final E2E regression fix adds retry-safe TOTP and validates colors from the same settled theme snapshot.
 - PR: [#185](https://github.com/PooKYZZZ/injection-alert-system/pull/185) targeting `master`; open for review.
 - No merge or production change is authorized by this implementation task.
