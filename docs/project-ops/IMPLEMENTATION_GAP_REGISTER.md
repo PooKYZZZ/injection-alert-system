@@ -579,7 +579,7 @@ Last reviewed: 2026-07-22
 
 ### DEFER-002 — Distributed login throttling and persistent audit storage
 
-Status: DEFERRED
+Status: PARTIAL
 
 Priority:
 MEDIUM
@@ -587,26 +587,37 @@ MEDIUM
 Area:
 Authentication operations
 
-Current implementation: Local/process protections are implemented.
+Current implementation: Known-account password failures use shared PostgreSQL
+state and atomic attempt reservations from migration
+`20261105_000034_auth_login_throttle`. Arbitrary unknown identifiers remain in
+the bounded process-local map. Login audit events remain structured stdout.
 
-Missing: Distributed throttling and persistent audit storage.
+Missing: Persistent audit storage and cross-process state for arbitrary unknown
+identifiers.
 
 Evidence:
 
-- `docs/project-ops/STATUS.md`
-- `docs/architecture.md` (current feature-state matrix)
+- `docs/security/LOGIN_TURNSTILE_DESIGN.md`
+- `docs/security/LOGIN_TURNSTILE_TEST_EVIDENCE.md`
+- `tests/integration/test_auth_login_throttle_postgres.py`
 
-Requirement: Shared runtime approval.
+Requirement: Keep persistent audit retention and unknown-account distributed
+throttling as separate follow-up decisions; the implemented known-account
+limiter requires the new migration before the feature is enabled.
 
-Impact: Protections remain local/process-bound.
+Impact: Known-account throttling is shared across app processes when all
+instances use the migrated database. Unknown-account handling and audit
+retention remain process/local-output bound.
 
-Dependencies / blockers: Approved shared runtime.
+Dependencies / blockers: Production migration, key provisioning, and staged
+rollout are outside this implementation proof.
 
-Recommended next step: Reassess only with that approval.
+Recommended next step: Review the test evidence and arrange the separate
+deployment path; consider audit storage independently.
 
 Introduced / identified: Login-hardening follow-up.
 
-Last reviewed: 2026-07-22
+Last reviewed: 2026-11-05
 
 ### DEFER-003 — MFA enrollment UI redesign
 

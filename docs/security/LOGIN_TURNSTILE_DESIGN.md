@@ -35,7 +35,9 @@ The same `authorize()` callback handles the browser Server Action and direct Aut
 
 ## State and concurrency
 
-Known accounts use a new additive PostgreSQL state row keyed by `auth_accounts.id`. This makes email, username, and UUID attempts converge without storing raw aliases. A short-lived reservation is inserted in the same transaction as the admission check; a row lock serializes concurrent checks. Completion consumes the reservation exactly once, increments a failed-password count or clears it after successful authentication, and applies the cooldown at five failures. Expired reservations are pruned on the next account operation. Table size is bounded by existing accounts plus a small bounded number of live reservations per account; account deletion cascades the transient state.
+Known accounts use a new additive PostgreSQL state row keyed by `auth_accounts.id`. This makes email, username, and UUID attempts converge without storing raw aliases. A short-lived reservation is inserted in the same transaction as the admission check; a row lock serializes concurrent checks. Completion consumes only a live reservation exactly once, increments a failed-password count or clears it after successful authentication, and applies the cooldown at five failures. Expired reservations are pruned on the next admission or rejected completion. Table size is bounded by existing accounts plus a small bounded number of live reservations per account; account deletion cascades the transient state.
+
+All serving application instances must use the same `AUTH_LOGIN_*` policy and `AUTH_TURNSTILE_ENABLED` setting. The database shares counters and serializes attempts; the policy and flag are supplied by each server call.
 
 Only the service-role server path can execute the narrow RPCs or access the throttle table. RPCs use `SECURITY INVOKER`, a blank `search_path`, qualified object names, and explicit grants. The table has RLS enabled; anon/authenticated/PUBLIC receive no table access or RPC execute grant. No client-side Supabase call or new database service is added.
 
@@ -46,7 +48,7 @@ Unknown account identifiers do not create persistent rows. They continue through
 - Keep `AUTH_TURNSTILE_SECRET_KEY` server-only. Add `NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY` only for the conditional widget.
 - Require an explicit expected hostname when enabled. Validate `success`, action `login`, exact hostname, non-empty token, and the current Cloudflare maximum token size of 2048 characters.
 - Bound Siteverify with a five-second abort timeout. No retry is made: tokens are single-use, and an uncertain retry could consume/replay the same token. Provider or configuration errors fail closed when the challenge is required.
-- Reject Cloudflare's documented dummy sitekeys/secrets in production configuration. The managed E2E harness remains flag-off; unit/integration verifier tests mock Siteverify. No production secret or test token is added to the repository.
+- Reject Cloudflare's documented dummy sitekeys/secrets in production configuration. The managed E2E harness alone enables the feature with Cloudflare's published dummy keys on loopback and uses the real Siteverify test response. Its exact `result_with_testing_key` response shape is accepted only when both dummy keys, the managed-test marker, and loopback app/database URLs match. Production credentials still require action `login` and the configured hostname. No production secret or test token is added to the repository.
 - Render the Managed widget only after the server signals that verification is required. Use explicit rendering for conditional React UI, clear the token after every submission, and reset on error/expiry/timeout. Keep keyboard-accessible status text and the existing generic credential error behavior.
 - Extend only CSP `script-src` and `frame-src` with `https://challenges.cloudflare.com`; retain `frame-ancestors 'none'` and `connect-src 'self'`.
 
@@ -62,6 +64,7 @@ Unknown account identifiers do not create persistent rows. They continue through
 | [Cloudflare CSP guidance](https://developers.cloudflare.com/turnstile/reference/content-security-policy/) | Permit only the Turnstile origin in `script-src` and `frame-src`, retaining existing restrictions. |
 | [Cloudflare testing guidance](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) | Official dummy keys exist for automated tests; production configuration must reject them. |
 | [Auth.js Credentials reference](https://authjs.dev/reference/core/providers/credentials) | Credentials `authorize()` is the full-control boundary; inputs need explicit validation. Custom credential error codes can reach direct callback URLs, so use a generic `verification_required` code with no account details. |
+| [Next.js environment variables](https://nextjs.org/docs/app/guides/environment-variables) | `NEXT_PUBLIC_` values are frozen during `next build`; provision the public Turnstile site key in the build environment. Keep the secret server-only. |
 | [Supabase database functions](https://supabase.com/docs/guides/database/functions) and [RLS guidance](https://supabase.com/docs/guides/database/postgres/row-level-security) | Restrict RPC execute grants; a service-role key bypasses RLS and therefore remains server-only. |
 | [WCAG 2.2, SC 3.3.8](https://www.w3.org/TR/WCAG22/#accessible-authentication-minimum) | Keep the challenge keyboard reachable, announce state/errors, and retain an accessible sign-in experience. |
 
@@ -78,8 +81,8 @@ Unknown account identifiers do not create persistent rows. They continue through
 ## Operational and rollback plan
 
 1. Apply the additive Alembic migration through the approved deployment path; do not run it against a live or unknown database during this task.
-2. Provision a production Turnstile site key restricted to the deployed application host, a matching secret, and the exact expected hostname. Never use the official dummy keys.
-3. Deploy with `AUTH_TURNSTILE_ENABLED=false`; confirm server-only secret and site-key wiring, migration/grants, CSP, and a controlled staging login path.
+2. Provision a production Turnstile site key restricted to the deployed application host, a matching secret, and the exact expected hostname. Set `NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY` before `next build` because Next.js freezes public values into the build. Keep `AUTH_TURNSTILE_SECRET_KEY` in the server-only runtime environment. Keep the `AUTH_LOGIN_*` values and feature flag identical on every replica. Never use the official dummy keys.
+3. Deploy with `AUTH_TURNSTILE_ENABLED=false`; confirm server-only secret and site-key wiring, migration/grants, CSP, and a controlled staging login path. The disposable local E2E test exercises the challenge using Cloudflare's official dummy credentials.
 4. Enable the flag only after those checks. Monitor generic challenge-required, verification-failure, cooldown, and database-error counts without logging tokens or raw identifiers.
 5. Roll back the feature by setting the flag false. The shared five-failure cooldown remains active. The additive table/RPC may remain in place during application rollback; dropping it requires a separate schema rollback after confirming no code version still calls it.
 
