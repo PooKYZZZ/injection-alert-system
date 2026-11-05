@@ -24,6 +24,7 @@
 - The real PostgreSQL slice exposed a qualified SQL `LEAST` issue. The Cloudflare dummy-key test exposed the official `example.com`/no-action response shape. E2E caught a missing isolated fixture identity and a shared MFA seed; each was corrected and retested.
 - Final independent SQL review added a stale-reservation completion test first: managed disposable PostgreSQL was **red (1 failed, 9 passed)** because an expired lease could still increment failures. The completion RPC was tightened to consume only a live reservation; the stale row is removed without changing the failure count. The rerun passed all **10 PostgreSQL cases** and the focused challenge journey.
 - Green storage checkpoint was pushed as `0737f48` after the PostgreSQL and migration tests passed. Audit/research checkpoint `ce61b31` was pushed before implementation.
+- Hosted CI exposed an old PR7 migration test that hard-coded `20261007_000033` as the Alembic head. It now checks the invariant: one head, with the PR7 revision still in its history. The full local migration suite and hosted PostgreSQL migration suite pass.
 - Final acceptance tests added after the first green run cover failure-window expiry, cooldown expiry, expired reservations, a fresh token after a wrong password, unrelated-account availability, account aliases across browser contexts, and challenge followed by the existing TOTP handoff. These passed with the completed implementation.
 
 ## Final validation
@@ -40,10 +41,16 @@ All commands ran locally on **Node v24.20.0**. The managed auth harness created 
 | Managed `tests/integration/test_auth_login_throttle_postgres.py` | **10 PostgreSQL cases passed** on disposable tmpfs DB: thresholds, disabled-feature cooldown, cross-connection concurrency, success reset, window/cooldown expiry, reservation pruning/expiry, unrelated-account availability, and grants/RLS |
 | Managed Alembic downgrade/re-upgrade | Passed on disposable PostgreSQL |
 | `.venv\Scripts\python.exe -m pytest -q --tb=short tests/migrations/test_auth_login_throttle_migration.py` | **2 passed** |
+| `.venv\Scripts\python.exe -m pytest -q --tb=short tests/migrations` | **64 passed**; includes the current single-head history invariant |
 | `.venv\Scripts\python.exe -m pytest -q --tb=short tests/unit/test_enforcement_route.py tests/unit/test_enforcement_repository.py tests/unit/test_enforcement_policy.py tests/unit/test_enforcement_auth_dependency.py tests/unit/test_enforcement_use_cases.py tests/unit/test_enforcement_turnstile.py tests/unit/test_enforcement_schema.py tests/unit/test_post_triage_enforcement.py tests/integration/test_enforcement_check_route.py tests/waf_runtime/test_compose.py` | **124 passed**; dedicated WAF Turnstile configuration/path remains separate |
+| `.venv\Scripts\python.exe -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2026-3447` | **No known vulnerabilities found**; the existing certifi pin is updated to `2026.10.18` |
 | `git diff --check` | Passed during final diff review |
 
 The explicit `npm run build` loaded the ignored local Next environment file as Next.js normally does; its contents were not read or recorded. The feature flag and public site key were explicitly set to disabled/empty for that build. The managed E2E build separately used only generated disposable test credentials.
+
+### Hosted CI
+
+On PR #185 at code head `5f49307`, backend tests and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, and WAF runtime checks passed. The auth E2E job failed before Playwright started on both attempts because Next.js `next/font/google` could not parse the external Orbitron font response (`TypeError: Cannot read properties of null (reading '1')`). The complete 12-journey auth E2E suite passed locally; the hosted job did not reach those journeys. A theme E2E border check was also made transition-aware without changing its exact token assertion and passed in both the focused and full local runs.
 
 ## Acceptance matrix
 
@@ -89,5 +96,6 @@ The explicit `npm run build` loaded the ignored local Next environment file as N
 
 - Branch: `feat/auth-adaptive-turnstile-login` (pushed after each major green implementation slice).
 - Commits pushed before PR submission: `ce61b31` audit/research; `0737f48` shared PostgreSQL throttle; `a49940e` stale-reservation fix; `54bcb58` Auth.js challenge enforcement; `7c9e877` conditional UI and CSP; `ac6a6b1` E2E and MFA regressions; `c144b47` test evidence and rollout docs.
+- Follow-up commits pushed: `aca85ad` PR link in evidence; `a05fb73` current migration-history assertion; `548c347` transition-aware theme E2E; `5f49307` certifi security pin.
 - PR: [#185](https://github.com/PooKYZZZ/injection-alert-system/pull/185) targeting `master`; open for review.
 - No merge or production change is authorized by this implementation task.
