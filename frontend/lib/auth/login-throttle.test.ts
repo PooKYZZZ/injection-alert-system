@@ -32,6 +32,9 @@ const authHarness = vi.hoisted(() => ({
   findAuthAccountByIdentifier: vi.fn(),
   verifyPasswordForAccount: vi.fn(),
   writeLoginAudit: vi.fn(),
+  beginLoginThrottleAttempt: vi.fn(),
+  completeLoginThrottleAttempt: vi.fn(),
+  verifyTurnstileToken: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -47,6 +50,10 @@ vi.mock('./preauth', () => ({
 }))
 
 vi.mock('next-auth', () => ({
+  CredentialsSignin: class CredentialsSignin extends Error {
+    code = 'credentials'
+    type = 'CredentialsSignin'
+  },
   default: vi.fn((config: CapturedAuthConfig) => {
     authHarness.config = config
     return {
@@ -83,6 +90,18 @@ vi.mock('../server/db/auth-accounts', () => ({
   findAuthAccountByIdentifier: authHarness.findAuthAccountByIdentifier,
 }))
 
+vi.mock('../server/db/login-throttle', () => ({
+  beginLoginThrottleAttempt: authHarness.beginLoginThrottleAttempt,
+  completeLoginThrottleAttempt: authHarness.completeLoginThrottleAttempt,
+}))
+
+vi.mock('./turnstile', () => ({
+  isTurnstileEnabled: () => process.env.AUTH_TURNSTILE_ENABLED === 'true',
+  isTurnstileConfigured: () => true,
+  shouldRequireTurnstile: (failureCount: number) => failureCount >= 3,
+  verifyTurnstileToken: authHarness.verifyTurnstileToken,
+}))
+
 function capturedAuthConfig(): CapturedAuthConfig {
   if (!authHarness.config) {
     throw new Error('Auth.js configuration was not captured')
@@ -114,15 +133,16 @@ function createThrottle(now: () => number) {
       identifierMaxFailures: 2,
       identifierWindowMs: 1_000,
       identifierCooldownMs: 2_000,
-      globalMaxFailures: 3,
-      globalWindowMs: 1_000,
-      globalCooldownMs: 2_000,
     },
     now
   )
 }
 
 describe('LoginThrottle', () => {
+  beforeEach(() => {
+    process.env.AUTH_SECRET = 'test-throttle-secret'
+  })
+
   it('blocks an identifier after its failure threshold', () => {
     const throttle = createThrottle(() => 0)
     const first = throttle.check(' Analyst@Example.Test ')
@@ -165,9 +185,6 @@ describe('LoginThrottle', () => {
         identifierMaxFailures: 2,
         identifierWindowMs: 1_000,
         identifierCooldownMs: 2_000,
-        globalMaxFailures: 3,
-        globalWindowMs: 1_000,
-        globalCooldownMs: 2_000,
         maxIdentifierEntries: 2,
       },
       () => now
@@ -195,6 +212,7 @@ describe('LoginThrottle', () => {
     expect(throttle.check('analyst@example.test')).toEqual({
       allowed: true,
       identifierHash: attempt.identifierHash,
+      failureCount: 0,
     })
   })
 
@@ -298,6 +316,21 @@ describe('Auth.js account integration', () => {
     authHarness.findAuthAccountByIdentifier.mockReset()
     authHarness.verifyPasswordForAccount.mockReset()
     authHarness.writeLoginAudit.mockReset()
+    authHarness.beginLoginThrottleAttempt.mockReset()
+    authHarness.beginLoginThrottleAttempt.mockResolvedValue({
+      allowed: true,
+      failureCount: 0,
+      attemptId: 'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+    })
+    authHarness.completeLoginThrottleAttempt.mockReset()
+    authHarness.completeLoginThrottleAttempt.mockResolvedValue({
+      completed: true,
+      failureCount: 1,
+      cooldownActive: false,
+    })
+    authHarness.verifyTurnstileToken.mockReset()
+    authHarness.verifyTurnstileToken.mockResolvedValue({ valid: true })
+    delete process.env.AUTH_TURNSTILE_ENABLED
     process.env.AUTH_SECRET = 'test-auth-secret'
     authHarness.findAuthAccountByIdentifier.mockResolvedValue({
       id: 'analyst-1',
@@ -325,6 +358,7 @@ describe('Auth.js account integration', () => {
       password: expect.objectContaining({ type: 'password' }),
       mfa_completion_token: expect.objectContaining({ type: 'password' }),
       recovery_completion_token: expect.objectContaining({ type: 'password' }),
+      turnstile_token: expect.objectContaining({ type: 'text' }),
     })
   })
 

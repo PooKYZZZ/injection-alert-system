@@ -10,7 +10,7 @@ const names = [
 ] as const
 
 afterEach(() => {
-  for (const name of names) vi.unstubAllEnvs()
+  vi.unstubAllEnvs()
 })
 
 describe('login throttle policy', () => {

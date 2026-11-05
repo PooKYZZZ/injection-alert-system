@@ -16,6 +16,27 @@ describe('Auth.js credential modes', () => {
     })
   })
 
+  it('accepts one bounded Turnstile token only with password credentials', () => {
+    expect(
+      parseCredentialMode({
+        identifier: 'admin@example.test',
+        password: 'correct horse battery staple',
+        turnstile_token: 'turnstile-token',
+      })
+    ).toEqual({
+      kind: 'password',
+      identifier: 'admin@example.test',
+      password: 'correct horse battery staple',
+      turnstileToken: 'turnstile-token',
+    })
+    expect(
+      parseCredentialMode({
+        mfa_completion_token: 'a'.repeat(43),
+        turnstile_token: 'unused',
+      })
+    ).toBeNull()
+  })
+
   it('accepts each one-time completion mode in isolation', () => {
     expect(
       parseCredentialMode({ mfa_completion_token: 'a'.repeat(43) })
@@ -32,6 +53,8 @@ describe('Auth.js credential modes', () => {
     { password: 'password-only' },
     { mfa_completion_token: 123 },
     { recovery_completion_token: '' },
+    { identifier: 'x'.repeat(321), password: 'password' },
+    { identifier: 'user@example.test', password: 'password', turnstile_token: 'x'.repeat(2049) },
     {
       identifier: 'admin@example.test',
       password: 'password',
