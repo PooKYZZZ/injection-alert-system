@@ -5,8 +5,8 @@ export function buildContentSecurityPolicy(
 ): string {
   const isDevelopment = nodeEnv === 'development'
   const scriptSrc = isDevelopment
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline'"
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com"
+    : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com"
 
   return [
     "default-src 'self'",
@@ -15,6 +15,7 @@ export function buildContentSecurityPolicy(
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "connect-src 'self'",
+    'frame-src https://challenges.cloudflare.com',
     "frame-ancestors 'none'",
   ].join('; ')
 }

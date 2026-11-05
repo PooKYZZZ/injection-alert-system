@@ -24,7 +24,11 @@ describe('buildContentSecurityPolicy', () => {
     const csp = buildContentSecurityPolicy('production')
 
     expect(csp).toContain("default-src 'self'")
-    expect(csp).toContain("script-src 'self' 'unsafe-inline'")
+    expect(csp).toContain(
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com"
+    )
+    expect(csp).toContain('frame-src https://challenges.cloudflare.com')
+    expect(csp).toContain("frame-ancestors 'none'")
     expect(csp).not.toContain("'unsafe-eval'")
   })
 
