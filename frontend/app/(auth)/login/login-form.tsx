@@ -15,29 +15,54 @@ import {
   authPageClass,
   authPrimaryButtonClass,
 } from '@/components/auth/authStyles'
+import { TurnstileWidget } from '@/components/auth/TurnstileWidget'
 import { loginAction } from './actions'
 
-export default function LoginForm() {
+type LoginFormProps = {
+  turnstileSiteKey: string
+}
+
+export default function LoginForm({ turnstileSiteKey }: LoginFormProps) {
   const router = useRouter()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [challengeRequired, setChallengeRequired] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const [widgetResetKey, setWidgetResetKey] = useState(0)
   const [pending, setPending] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrorMessage(null)
     setPending(true)
+    const submittedToken = turnstileToken
+    if (submittedToken) {
+      setTurnstileToken(null)
+      setWidgetResetKey((key) => key + 1)
+    }
 
     try {
-      const result = await loginAction(identifier, password)
+      const result = await loginAction(
+        identifier,
+        password,
+        submittedToken ?? undefined
+      )
 
       if (!result.ok) {
-        setErrorMessage(
-          result.code === 'INVALID_CREDENTIALS'
-            ? 'Invalid username or password.'
-            : 'Sign-in service is temporarily unavailable. Please try again shortly.'
-        )
+        if (result.code === 'VERIFICATION_REQUIRED') {
+          setChallengeRequired(true)
+          setErrorMessage(
+            'Please complete the security verification, then try again.'
+          )
+        } else if (result.code === 'INVALID_CREDENTIALS') {
+          setChallengeRequired(false)
+          setErrorMessage('Invalid username or password.')
+        } else {
+          setErrorMessage(
+            'Sign-in service is temporarily unavailable. Please try again shortly.'
+          )
+        }
       } else {
         router.replace('/dashboard')
       }
@@ -99,6 +124,24 @@ export default function LoginForm() {
             className={authFieldClass}
           />
         </div>
+
+        {challengeRequired ? (
+          <div className="grid gap-2" aria-live="polite">
+            <p className={authFieldLabelClass} id="security-verification-label">
+              Additional security verification
+            </p>
+            <TurnstileWidget
+              siteKey={turnstileSiteKey}
+              resetKey={widgetResetKey}
+              onToken={(token) => {
+                setTurnstileToken(token)
+              }}
+              onUnavailable={() => {
+                setTurnstileToken(null)
+              }}
+            />
+          </div>
+        ) : null}
 
         <button
           type="submit"

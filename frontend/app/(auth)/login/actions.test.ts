@@ -9,17 +9,13 @@ vi.mock('@/auth', () => ({
 }))
 
 vi.mock('next-auth', () => ({
-  AuthError: class AuthError extends Error {
-    type: string
-
-    constructor(type: string) {
-      super(type)
-      this.type = type
-    }
+  CredentialsSignin: class CredentialsSignin extends Error {
+    type = 'CredentialsSignin'
+    code = 'credentials'
   },
 }))
 
-import { AuthError } from 'next-auth'
+import { CredentialsSignin } from 'next-auth'
 import { loginAction } from './actions'
 
 beforeEach(() => {
@@ -41,13 +37,38 @@ describe('loginAction', () => {
     })
   })
 
+  it('forwards only the submitted token as a password credential', async () => {
+    signInMock.mockResolvedValue(undefined)
+
+    await expect(
+      loginAction('analyst@example.test', 'password', 'single-use-token')
+    ).resolves.toEqual({ ok: true })
+    expect(signInMock).toHaveBeenCalledWith('credentials', {
+      identifier: 'analyst@example.test',
+      password: 'password',
+      turnstile_token: 'single-use-token',
+      redirect: false,
+      redirectTo: '/dashboard',
+    })
+  })
+
   it('returns one generic result for invalid credentials', async () => {
-    signInMock.mockRejectedValue(new AuthError('CredentialsSignin'))
+    signInMock.mockRejectedValue(new CredentialsSignin())
 
     await expect(loginAction('missing@example.test', 'wrong')).resolves.toEqual({
       ok: false,
       code: 'INVALID_CREDENTIALS',
     })
+  })
+
+  it('returns a generic challenge-required state from Auth.js', async () => {
+    const error = new CredentialsSignin()
+    error.code = 'verification_required'
+    signInMock.mockRejectedValue(error)
+
+    await expect(
+      loginAction('analyst@example.test', 'password')
+    ).resolves.toEqual({ ok: false, code: 'VERIFICATION_REQUIRED' })
   })
 
   it('returns a safe server error for unexpected Auth.js failures', async () => {

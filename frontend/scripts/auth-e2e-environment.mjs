@@ -110,7 +110,10 @@ export function buildAuthE2EEnvironment({
     AUTH_MFA_ENROLLMENT_ENABLED: 'true',
     AUTH_EMAIL_RECOVERY_ENABLED: 'true',
     AUTH_PASSWORD_RESET_ENABLED: 'true',
-    AUTH_TURNSTILE_ENABLED: 'false',
+    AUTH_TURNSTILE_ENABLED: 'true',
+    NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+    AUTH_TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
+    AUTH_TURNSTILE_EXPECTED_HOSTNAME: new URL(frontendOrigin).hostname,
     USE_MOCK_API: useMockApi ? 'true' : 'false',
     PLAYWRIGHT_BASE_URL: frontendOrigin,
     CYBERTRACE_E2E_MANAGED: 'true',
@@ -706,22 +709,33 @@ GRANT anon, authenticated, service_role TO authenticator;
 
   const postgresPort = await dockerPublishedPort(names.postgres, 5432, signal)
   const databaseUrl = `postgresql+psycopg://${POSTGRES_USER}:${postgresPassword}@127.0.0.1:${postgresPort}/${DATABASE_NAME}`
+  const disposablePostgresUrl = databaseUrl.replace(
+    /^postgresql\+psycopg:/,
+    'postgresql:'
+  )
+  const postgresTestEnvironment = {
+    ...buildMigrationEnvironment({ databaseUrl }),
+    CYBERTRACE_POSTGRES_TEST_URL: disposablePostgresUrl,
+    CYBERTRACE_SQLALCHEMY_TEST_URL: databaseUrl,
+  }
   console.log('AUTH_E2E: applying the real Alembic migration chain')
   await runProcess(pythonExecutable(), ['-m', 'alembic', 'upgrade', 'head'], {
     env: buildMigrationEnvironment({ databaseUrl }),
     label: 'Alembic upgrade',
     signal,
   })
-  if (options.realApi) {
-    const disposablePostgresUrl = databaseUrl.replace(
-      /^postgresql\+psycopg:/,
-      'postgresql:'
-    )
-    const postgresTestEnvironment = {
-      ...buildMigrationEnvironment({ databaseUrl }),
-      CYBERTRACE_POSTGRES_TEST_URL: disposablePostgresUrl,
-      CYBERTRACE_SQLALCHEMY_TEST_URL: databaseUrl,
+  await runProcess(
+    pythonExecutable(),
+    ['-m', 'pytest', '-q', '--tb=short', 'tests/integration/test_auth_login_throttle_postgres.py'],
+    {
+      env: postgresTestEnvironment,
+      capture: true,
+      label: 'Disposable authentication login throttle PostgreSQL tests',
+      signal,
     }
+  )
+  console.log('AUTH_E2E: login throttle PostgreSQL tests passed on disposable tmpfs PostgreSQL')
+  if (options.realApi) {
     await runProcess(
       pythonExecutable(),
       [
@@ -880,6 +894,28 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
       label: 'Authentication Playwright suite',
       signal,
     })
+    console.log('AUTH_E2E: checking the login throttle migration downgrade and re-upgrade')
+    await runProcess(
+      pythonExecutable(),
+      ['-m', 'alembic', 'downgrade', '-1'],
+      {
+        env: buildMigrationEnvironment({ databaseUrl }),
+        capture: true,
+        label: 'Disposable login throttle migration rollback',
+        signal,
+      }
+    )
+    await runProcess(
+      pythonExecutable(),
+      ['-m', 'alembic', 'upgrade', 'head'],
+      {
+        env: buildMigrationEnvironment({ databaseUrl }),
+        capture: true,
+        label: 'Disposable login throttle migration re-upgrade',
+        signal,
+      }
+    )
+    console.log('AUTH_E2E: login throttle migration rollback and re-upgrade passed')
   } finally {
     if (backend) await backend.close()
     unregisterBackend()

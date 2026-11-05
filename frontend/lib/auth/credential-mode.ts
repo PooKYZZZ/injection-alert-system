@@ -11,14 +11,24 @@ export const AUTH_CREDENTIAL_FIELDS = {
     placeholder: '',
   },
   recovery_completion_token: {
-    label: 'Recovery completion token',
+    label: 'MFA recovery completion token',
     type: 'password',
+    placeholder: '',
+  },
+  turnstile_token: {
+    label: 'Turnstile verification token',
+    type: 'text',
     placeholder: '',
   },
 } as const
 
 export type CredentialMode =
-  | { kind: 'password'; identifier: string; password: string }
+  | {
+      kind: 'password'
+      identifier: string
+      password: string
+      turnstileToken?: string
+    }
   | { kind: 'mfa_completion'; token: string }
   | { kind: 'recovery_completion'; token: string }
 
@@ -27,6 +37,7 @@ const CREDENTIAL_KEYS = [
   'password',
   'mfa_completion_token',
   'recovery_completion_token',
+  'turnstile_token',
 ] as const
 
 type CredentialKey = (typeof CREDENTIAL_KEYS)[number]
@@ -66,15 +77,24 @@ export function parseCredentialMode(
   if (passwordModeRequested) {
     const identifier = values.identifier
     const password = values.password
-    if (typeof identifier !== 'string' || typeof password !== 'string') {
+    const turnstileToken = values.turnstile_token
+    if (
+      typeof identifier !== 'string' ||
+      identifier.trim().length < 1 ||
+      identifier.length > 320 ||
+      typeof password !== 'string' ||
+      (typeof turnstileToken === 'string' && turnstileToken.length > 2_048)
+    ) {
       return null
     }
     return {
       kind: 'password',
       identifier,
       password,
+      ...(typeof turnstileToken === 'string' ? { turnstileToken } : {}),
     }
   }
+  if (values.turnstile_token !== null) return null
   if (mfaModeRequested) {
     const token = values.mfa_completion_token
     return typeof token === 'string'

@@ -255,6 +255,126 @@ test.describe('critical authentication journeys', () => {
     await expectFinalSessionCookie(page)
   })
 
+  test('repeated failures require Turnstile across browser contexts at the credential boundary', async ({
+    browser,
+    page,
+  }) => {
+    const identity = requireAuthE2EState().identities.turnstile
+    await page.goto('/login')
+    await page.getByLabel('Email or username').fill(identity.email)
+
+    for (let failure = 1; failure <= 2; failure += 1) {
+      if (failure === 2) {
+        await page.reload()
+      }
+      const identifier = failure === 1 ? identity.email : identity.username
+      await page.getByLabel('Email or username').fill(identifier)
+      await page.getByLabel('Password').fill('incorrect-disposable-password')
+      await page.getByRole('button', { name: 'Sign in' }).click()
+      await expect(page.locator('#login-error')).toHaveText(
+        'Invalid username or password.'
+      )
+    }
+
+    const isolatedContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+    })
+    try {
+      const challengePage = await isolatedContext.newPage()
+      const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+      const loginResponse = await challengePage.goto(
+        new URL('/login', baseUrl).toString()
+      )
+      const contentSecurityPolicy = loginResponse?.headers()[
+        'content-security-policy'
+      ]
+      expect(contentSecurityPolicy).toContain(
+        'https://challenges.cloudflare.com'
+      )
+      expect(contentSecurityPolicy).toContain("frame-ancestors 'none'")
+      expect(
+        await challengePage.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth
+        )
+      ).toBe(true)
+      await challengePage.getByLabel('Email or username').fill(identity.id)
+      await challengePage
+        .getByLabel('Password')
+        .fill('incorrect-disposable-password')
+      await challengePage.getByRole('button', { name: 'Sign in' }).click()
+      await expect(challengePage.locator('#login-error')).toHaveText(
+        'Please complete the security verification, then try again.'
+      )
+
+      await expect(
+        challengePage.getByText('Additional security verification')
+      ).toBeVisible()
+      await expect(
+        challengePage.getByRole('group', {
+          name: 'Additional security verification',
+        })
+      ).toBeVisible()
+      await expect(challengePage.getByRole('status')).toHaveText(
+        'Security verification complete.'
+      )
+      await challengePage.getByLabel('Email or username').focus()
+      await challengePage.keyboard.press('Tab')
+      await expect(
+        challengePage.getByRole('link', { name: 'Forgot password?' })
+      ).toBeFocused()
+      await challengePage.keyboard.press('Tab')
+      await expect(challengePage.getByLabel('Password')).toBeFocused()
+
+      const bypass = await challengePage.evaluate(
+        async ({ email, password }) => {
+          const csrfResponse = await fetch('/api/auth/csrf')
+          const { csrfToken } = (await csrfResponse.json()) as {
+            csrfToken: string
+          }
+          const response = await fetch('/api/auth/callback/credentials', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/x-www-form-urlencoded',
+              'X-Auth-Return-Redirect': '1',
+            },
+            body: new URLSearchParams({
+              csrfToken,
+              callbackUrl: '/dashboard',
+              identifier: email,
+              password,
+            }),
+          })
+          return response.status
+        },
+        { email: identity.email, password: identity.password }
+      )
+      expect(bypass).toBeLessThan(500)
+      expect(await readSession(challengePage)).toBeNull()
+
+      await challengePage.getByLabel('Password').fill(identity.password)
+      await challengePage.getByRole('button', { name: 'Sign in' }).click()
+      await expect(challengePage).toHaveURL(/\/mfa\/verify$/, {
+        timeout: 30_000,
+      })
+      await challengePage
+        .getByLabel('Authenticator code')
+        .fill(totpCodeAtTime(identity.totpSecret).code)
+      await challengePage.getByRole('button', { name: 'Continue' }).click()
+      await expect(challengePage).toHaveURL(/\/dashboard$/)
+      expect(
+        await readSession(challengePage).then((session) => session.user)
+      ).toMatchObject({
+        id: identity.id,
+        auth_level: 'mfa',
+        auth_method: 'totp',
+        mfa_challenge_purpose: 'login_mfa',
+      })
+      await expectFinalSessionCookie(challengePage)
+    } finally {
+      await isolatedContext.close()
+    }
+  })
+
   test('backup-code recovery is one-time and forces authenticator re-enrollment', async ({
     page,
   }) => {

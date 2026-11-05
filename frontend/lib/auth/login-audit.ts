@@ -7,6 +7,10 @@ type FailureReason =
   | 'PASSWORD_HASH_BUSY'
   | 'CONFIGURATION_INVALID'
   | 'ACCOUNT_LOOKUP_FAILED'
+  | 'LOGIN_THROTTLE_UNAVAILABLE'
+  | 'VERIFICATION_REQUIRED'
+  | 'TURNSTILE_REJECTED'
+  | 'TURNSTILE_UNAVAILABLE'
 
 type LoginSuccessEvent = {
   event: 'auth.login_succeeded'
@@ -21,6 +25,10 @@ type LoginFailureEvent = {
   event:
     | 'auth.login_failed'
     | 'auth.login_throttled'
+    | 'auth.login_challenge_required'
+    | 'auth.login_challenge_rejected'
+    | 'auth.login_challenge_unavailable'
+    | 'auth.login_throttle_unavailable'
     | 'auth.configuration_invalid'
     | 'auth.account_lookup_failed'
   level: 'warn' | 'error'

@@ -40,6 +40,10 @@ const authHarness = vi.hoisted(() => ({
   findAccount: vi.fn(),
   verifyPasswordForAccount: vi.fn(),
   writeLoginAudit: vi.fn(),
+  beginThrottleAttempt: vi.fn(),
+  completeThrottleAttempt: vi.fn(),
+  verifyTurnstileToken: vi.fn(),
+  isTurnstileConfigured: vi.fn(),
   beginMfaChallenge: vi.fn(),
   consumeMfaCompletion: vi.fn(),
   consumeRecoveryCompletion: vi.fn(),
@@ -47,6 +51,10 @@ const authHarness = vi.hoisted(() => ({
 }))
 
 vi.mock('next-auth', () => ({
+  CredentialsSignin: class CredentialsSignin extends Error {
+    code = 'credentials'
+    type = 'CredentialsSignin'
+  },
   default: vi.fn((config: CapturedConfig) => {
     authHarness.config = config
     return {
@@ -77,6 +85,18 @@ vi.mock('./password-hash', () => {
 
 vi.mock('../server/db/auth-accounts', () => ({
   findAuthAccountByIdentifier: authHarness.findAccount,
+}))
+
+vi.mock('../server/db/login-throttle', () => ({
+  beginLoginThrottleAttempt: authHarness.beginThrottleAttempt,
+  completeLoginThrottleAttempt: authHarness.completeThrottleAttempt,
+}))
+
+vi.mock('./turnstile', () => ({
+  isTurnstileEnabled: () => process.env.AUTH_TURNSTILE_ENABLED === 'true',
+  isTurnstileConfigured: authHarness.isTurnstileConfigured,
+  shouldRequireTurnstile: (failureCount: number) => failureCount >= 3,
+  verifyTurnstileToken: authHarness.verifyTurnstileToken,
 }))
 
 vi.mock('./login-audit', () => ({
@@ -123,6 +143,10 @@ const originalAuthSecret = process.env.AUTH_SECRET
 const originalRegistry = process.env.AUTH_USERS_JSON
 const originalIdentifierMaxFailures =
   process.env.AUTH_LOGIN_MAX_FAILURES_PER_IDENTIFIER
+const originalTurnstileEnabled = process.env.AUTH_TURNSTILE_ENABLED
+const originalTurnstileSecret = process.env.AUTH_TURNSTILE_SECRET_KEY
+const originalTurnstileSiteKey = process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY
+const originalTurnstileHostname = process.env.AUTH_TURNSTILE_EXPECTED_HOSTNAME
 
 function restoreEnvironment(name: string, value: string | undefined): void {
   if (value === undefined) {
@@ -141,6 +165,13 @@ afterEach(() => {
     'AUTH_LOGIN_MAX_FAILURES_PER_IDENTIFIER',
     originalIdentifierMaxFailures
   )
+  restoreEnvironment('AUTH_TURNSTILE_ENABLED', originalTurnstileEnabled)
+  restoreEnvironment('AUTH_TURNSTILE_SECRET_KEY', originalTurnstileSecret)
+  restoreEnvironment(
+    'NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY',
+    originalTurnstileSiteKey
+  )
+  restoreEnvironment('AUTH_TURNSTILE_EXPECTED_HOSTNAME', originalTurnstileHostname)
 })
 
 beforeEach(() => {
@@ -149,6 +180,22 @@ beforeEach(() => {
   authHarness.verifyPasswordForAccount.mockReset()
   authHarness.verifyPasswordForAccount.mockResolvedValue(false)
   authHarness.writeLoginAudit.mockReset()
+  authHarness.beginThrottleAttempt.mockReset()
+  authHarness.beginThrottleAttempt.mockResolvedValue({
+    allowed: true,
+    failureCount: 0,
+    attemptId: 'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+  })
+  authHarness.completeThrottleAttempt.mockReset()
+  authHarness.completeThrottleAttempt.mockResolvedValue({
+    completed: true,
+    failureCount: 0,
+    cooldownActive: false,
+  })
+  authHarness.verifyTurnstileToken.mockReset()
+  authHarness.verifyTurnstileToken.mockResolvedValue({ valid: true })
+  authHarness.isTurnstileConfigured.mockReset()
+  authHarness.isTurnstileConfigured.mockReturnValue(true)
   authHarness.beginMfaChallenge.mockReset()
   authHarness.consumeMfaCompletion.mockReset()
   authHarness.consumeRecoveryCompletion.mockReset()
@@ -159,6 +206,10 @@ beforeEach(() => {
   })
   authHarness.setPreAuthCookie.mockResolvedValue(undefined)
   process.env.AUTH_SECRET = 'test-auth-secret'
+  delete process.env.AUTH_TURNSTILE_ENABLED
+  delete process.env.AUTH_TURNSTILE_SECRET_KEY
+  delete process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY
+  delete process.env.AUTH_TURNSTILE_EXPECTED_HOSTNAME
   delete process.env.AUTH_USERS_JSON
 })
 
@@ -171,6 +222,7 @@ describe('Auth.js credential login', () => {
       'password',
       'mfa_completion_token',
       'recovery_completion_token',
+      'turnstile_token',
     ])
   })
 
@@ -228,6 +280,11 @@ describe('Auth.js credential login', () => {
       password,
       TEST_ARGON2_HASH
     )
+    expect(authHarness.beginThrottleAttempt).toHaveBeenCalledWith(
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      { turnstileEnabled: false, turnstileVerified: false }
+    )
+    expect(authHarness.verifyTurnstileToken).not.toHaveBeenCalled()
     expect(user).toMatchObject({
       id: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
       email: 'admin@example.test',
@@ -275,6 +332,238 @@ describe('Auth.js credential login', () => {
         event: 'auth.login_failed',
         reasonCode: 'INVALID_CREDENTIALS',
       })
+    )
+  })
+
+  it('requires Turnstile at the authorization boundary after three failed passwords', async () => {
+    process.env.AUTH_TURNSTILE_ENABLED = 'true'
+    authHarness.findAccount.mockResolvedValue(validAccount())
+    authHarness.beginThrottleAttempt.mockResolvedValue({
+      allowed: false,
+      failureCount: 3,
+      reasonCode: 'VERIFICATION_REQUIRED',
+    })
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize({
+        identifier: 'admin@example.test',
+        password: 'fourth-password-guess',
+      })
+    ).rejects.toMatchObject({ code: 'verification_required' })
+    expect(authHarness.verifyTurnstileToken).not.toHaveBeenCalled()
+    expect(authHarness.verifyPasswordForAccount).not.toHaveBeenCalled()
+    expect(authHarness.completeThrottleAttempt).not.toHaveBeenCalled()
+  })
+
+  it('verifies a required token before Argon2 and keeps wrong passwords counted', async () => {
+    process.env.AUTH_TURNSTILE_ENABLED = 'true'
+    authHarness.beginThrottleAttempt
+      .mockResolvedValueOnce({
+        allowed: false,
+        failureCount: 3,
+        reasonCode: 'VERIFICATION_REQUIRED',
+      })
+      .mockResolvedValueOnce({
+        allowed: true,
+        failureCount: 3,
+        attemptId: 'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+      })
+    authHarness.completeThrottleAttempt.mockResolvedValue({
+      completed: true,
+      failureCount: 4,
+      cooldownActive: false,
+    })
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH })
+    )
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize({
+        identifier: 'admin@example.test',
+        password: 'wrong-password',
+        turnstile_token: 'single-use-token',
+      })
+    ).rejects.toMatchObject({ code: 'verification_required' })
+    expect(authHarness.verifyTurnstileToken).toHaveBeenCalledWith(
+      'single-use-token'
+    )
+    expect(authHarness.beginThrottleAttempt).toHaveBeenNthCalledWith(
+      2,
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      { turnstileEnabled: true, turnstileVerified: true }
+    )
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledOnce()
+    expect(authHarness.completeThrottleAttempt).toHaveBeenCalledWith(
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+      'failure'
+    )
+  })
+
+  it('requires a fresh one-use token after a challenged password is wrong', async () => {
+    process.env.AUTH_TURNSTILE_ENABLED = 'true'
+    authHarness.beginThrottleAttempt
+      .mockResolvedValueOnce({
+        allowed: false,
+        failureCount: 3,
+        reasonCode: 'VERIFICATION_REQUIRED',
+      })
+      .mockResolvedValueOnce({
+        allowed: true,
+        failureCount: 3,
+        attemptId: 'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+      })
+      .mockResolvedValueOnce({
+        allowed: false,
+        failureCount: 4,
+        reasonCode: 'VERIFICATION_REQUIRED',
+      })
+    authHarness.completeThrottleAttempt.mockResolvedValue({
+      completed: true,
+      failureCount: 4,
+      cooldownActive: false,
+    })
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH })
+    )
+    await import('@/auth')
+    const authorize = capturedConfig().providers[0].authorize
+
+    await expect(
+      authorize({
+        identifier: 'admin@example.test',
+        password: 'wrong-password',
+        turnstile_token: 'first-single-use-token',
+      })
+    ).rejects.toMatchObject({ code: 'verification_required' })
+    await expect(
+      authorize({ identifier: 'admin@example.test', password: 'another-guess' })
+    ).rejects.toMatchObject({ code: 'verification_required' })
+
+    expect(authHarness.verifyTurnstileToken).toHaveBeenCalledOnce()
+    expect(authHarness.verifyTurnstileToken).toHaveBeenCalledWith(
+      'first-single-use-token'
+    )
+    expect(authHarness.verifyPasswordForAccount).toHaveBeenCalledOnce()
+    expect(authHarness.completeThrottleAttempt).toHaveBeenCalledWith(
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+      'failure'
+    )
+  })
+
+  it('valid Turnstile permits only the password check and preserves the MFA handoff', async () => {
+    process.env.AUTH_TURNSTILE_ENABLED = 'true'
+    authHarness.beginThrottleAttempt
+      .mockResolvedValueOnce({
+        allowed: false,
+        failureCount: 3,
+        reasonCode: 'VERIFICATION_REQUIRED',
+      })
+      .mockResolvedValueOnce({
+        allowed: true,
+        failureCount: 3,
+        attemptId: 'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+      })
+    authHarness.verifyPasswordForAccount.mockResolvedValue(true)
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH, mfaRequired: true })
+    )
+    await import('@/auth')
+
+    const user = await capturedConfig().providers[0].authorize({
+      identifier: 'admin@example.test',
+      password: 'correct horse battery staple',
+      turnstile_token: 'single-use-token',
+    })
+
+    expect(user).toMatchObject({ auth_level: 'password', auth_method: 'password' })
+    expect(authHarness.beginMfaChallenge).toHaveBeenCalledWith(
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f'
+    )
+    expect(authHarness.completeThrottleAttempt).toHaveBeenCalledWith(
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      'd5c60380-817f-4f07-aadc-0ff30a2cb6dc',
+      'success'
+    )
+  })
+
+  it('fails closed when shared throttle storage is unavailable', async () => {
+    authHarness.findAccount.mockResolvedValue(validAccount())
+    authHarness.beginThrottleAttempt.mockRejectedValue(
+      new Error('database URL and service role leaked')
+    )
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize({
+        identifier: 'admin@example.test',
+        password: 'password',
+      })
+    ).rejects.toThrow('Authentication account store unavailable')
+    expect(authHarness.verifyPasswordForAccount).not.toHaveBeenCalled()
+    expect(JSON.stringify(authHarness.writeLoginAudit.mock.calls)).not.toContain(
+      'service role leaked'
+    )
+  })
+
+  it('fails closed when a required challenge is enabled without valid keys', async () => {
+    process.env.AUTH_TURNSTILE_ENABLED = 'true'
+    authHarness.isTurnstileConfigured.mockReturnValue(false)
+    authHarness.findAccount.mockResolvedValue(validAccount())
+    authHarness.beginThrottleAttempt.mockResolvedValue({
+      allowed: false,
+      failureCount: 3,
+      reasonCode: 'VERIFICATION_REQUIRED',
+    })
+    await import('@/auth')
+
+    await expect(
+      capturedConfig().providers[0].authorize({
+        identifier: 'admin@example.test',
+        password: 'password',
+      })
+    ).rejects.toThrow('Login verification is unavailable.')
+    expect(authHarness.verifyTurnstileToken).not.toHaveBeenCalled()
+    expect(authHarness.verifyPasswordForAccount).not.toHaveBeenCalled()
+    expect(authHarness.writeLoginAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'auth.login_challenge_unavailable',
+        reasonCode: 'CONFIGURATION_INVALID',
+      })
+    )
+  })
+
+  it('uses canonical account identity for email, username, and UUID attempts', async () => {
+    authHarness.findAccount.mockResolvedValue(
+      validAccount({ passwordHash: TEST_ARGON2_HASH })
+    )
+    await import('@/auth')
+    const authorize = capturedConfig().providers[0].authorize
+
+    await authorize({ identifier: 'admin@example.test', password: 'wrong' })
+    await authorize({ identifier: 'soc-admin', password: 'wrong' })
+    await authorize({
+      identifier: '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      password: 'wrong',
+    })
+
+    expect(authHarness.beginThrottleAttempt).toHaveBeenNthCalledWith(
+      1,
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      expect.any(Object)
+    )
+    expect(authHarness.beginThrottleAttempt).toHaveBeenNthCalledWith(
+      2,
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      expect.any(Object)
+    )
+    expect(authHarness.beginThrottleAttempt).toHaveBeenNthCalledWith(
+      3,
+      '7a7bb9de-1dff-44b7-9a44-12efe8a6716f',
+      expect.any(Object)
     )
   })
 
@@ -346,6 +635,7 @@ describe('Auth.js credential login', () => {
       'not-the-password',
       null
     )
+    expect(authHarness.beginThrottleAttempt).not.toHaveBeenCalled()
   })
 
   it.each([

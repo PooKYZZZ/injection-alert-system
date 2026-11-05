@@ -120,3 +120,20 @@ export async function waitForTotpStepAfter(
   }
   return nextStep
 }
+
+export async function totpCodeForAttempt(
+  secret: string,
+  retryCount: number,
+  options: WaitOptions = {}
+): Promise<{ code: string; step: number }> {
+  if (!Number.isSafeInteger(retryCount) || retryCount < 0) {
+    throw new Error('TOTP retry count is invalid.')
+  }
+
+  const currentStep = totpTimeStep((options.now ?? Date.now)())
+  const step =
+    retryCount > 0
+      ? await waitForTotpStepAfter(currentStep, options)
+      : currentStep
+  return { code: totpCodeAtStep(secret, step), step }
+}

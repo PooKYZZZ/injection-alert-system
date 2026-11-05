@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import type { DashboardStats } from '@/features/stats/types'
 import { requireAuthE2EState } from '@/test-support/auth-e2e/state'
-import { totpCodeAtTime } from '@/test-support/auth-e2e/totp'
+import { totpCodeForAttempt } from '@/test-support/auth-e2e/totp'
 
 const dashboardStats: DashboardStats = {
   actionable_alerts: 7,
@@ -81,13 +81,14 @@ async function installReadOnlyPageFixtures(page: Page): Promise<void> {
 }
 
 async function signIn(page: Page): Promise<void> {
-  const identity = requireAuthE2EState().identities.login
+  const identity = requireAuthE2EState().identities.theme
   await page.goto('/login')
   await page.getByLabel('Email or username').fill(identity.email)
   await page.getByLabel('Password').fill(identity.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/mfa\/verify$/)
-  await page.getByLabel('Authenticator code').fill(totpCodeAtTime(identity.totpSecret).code)
+  const totp = await totpCodeForAttempt(identity.totpSecret, test.info().retry)
+  await page.getByLabel('Authenticator code').fill(totp.code)
   await page.getByRole('button', { name: 'Continue' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
 }
@@ -174,7 +175,7 @@ async function expectOpenDisclosureToUseCurrentTheme(
   trigger: Locator,
   requireHover = false
 ): Promise<void> {
-  const colors = await trigger.evaluate((element) => {
+  const readColors = () => trigger.evaluate((element) => {
     const root = document.documentElement
     const popover = document.getElementById(element.getAttribute('aria-controls') ?? '')
     const icon = element.querySelector('svg circle')
@@ -217,6 +218,32 @@ async function expectOpenDisclosureToUseCurrentTheme(
       hovered: element.matches(':hover'),
     }
   })
+
+  let matchingColors: Awaited<ReturnType<typeof readColors>> | undefined
+  await expect
+    .poll(async () => {
+      const colors = await readColors()
+      const matchesCurrentTheme =
+        colors.panel === colors.expectedPanel &&
+        colors.popoverBorder === colors.expectedBorder &&
+        colors.popoverText === colors.expectedSecondary &&
+        colors.titleText === colors.expectedPrimary &&
+        colors.expectedTriggerBorders.includes(colors.triggerBorder) &&
+        colors.expectedTriggerTexts.includes(colors.triggerText) &&
+        colors.iconStroke === colors.triggerText &&
+        (!requireHover ||
+          (colors.hovered &&
+            colors.triggerBorder === colors.expectedTriggerBorders[1] &&
+            colors.triggerText === colors.expectedTriggerTexts[1]))
+      if (matchesCurrentTheme) matchingColors = colors
+      return matchingColors !== undefined
+    })
+    .toBe(true)
+
+  if (!matchingColors) {
+    throw new Error('Expected disclosure colors to settle on the active theme.')
+  }
+  const colors = matchingColors
 
   expect(colors.theme).toMatch(/^(light|dark)$/)
   expect(colors.panel).toBe(colors.expectedPanel)

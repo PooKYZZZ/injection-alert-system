@@ -16,6 +16,8 @@ const validState = {
       backup: { ...identity, id: '9c9bb9de-1dff-44b7-9a44-12efe8a6716f', email: 'backup-e2e@example.test', backupCode: 'ABCD-EFGH-JKLM' },
       email: { ...identity, id: 'adabb9de-1dff-44b7-9a44-12efe8a6716f', email: 'email-e2e@example.test' },
       stepup: { ...identity, id: 'bebbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'stepup-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+    theme: { ...identity, id: 'f3dd1ed2-f71b-4f51-b134-3ec2a0df8191', email: 'theme-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP' },
+    turnstile: { ...identity, id: 'fb9ac8a1-2587-4378-b3ee-0a31f1b14161', email: 'turnstile-e2e@example.test', totpSecret: 'JBSWY3DPEHPK3PXP', username: 'e2e-turnstile' },
       managedTargets: [
         { ...identity, id: 'aaabb9de-1dff-44b7-9a44-12efe8a6716f', email: 'managed-one@example.test' },
         { ...identity, id: 'abbbb9de-1dff-44b7-9a44-12efe8a6716f', email: 'managed-two@example.test' },
@@ -32,6 +34,16 @@ const validState = {
 describe('authentication E2E state', () => {
   it('accepts isolated identities and purpose-specific secret material', () => {
     expect(parseAuthE2EState(JSON.stringify(validState))).toEqual(validState)
+  })
+
+  it('keeps the Turnstile journey identity isolated', () => {
+    const parsed = parseAuthE2EState(JSON.stringify(validState))
+    expect(parsed.identities.turnstile).toEqual(validState.identities.turnstile)
+  })
+
+  it('keeps the theme journey TOTP identity isolated', () => {
+    const parsed = parseAuthE2EState(JSON.stringify(validState))
+    expect(parsed.identities.theme).toEqual(validState.identities.theme)
   })
 
   it('rejects identities that are not isolated from one another', () => {

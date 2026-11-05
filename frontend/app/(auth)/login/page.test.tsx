@@ -7,6 +7,22 @@ vi.mock('next-auth', () => ({
   AuthError: class AuthError extends Error {},
 }))
 
+vi.mock('@/components/auth/TurnstileWidget', () => ({
+  TurnstileWidget: ({ resetKey, onToken }: {
+    resetKey: number
+    onToken: (token: string) => void
+  }) => (
+    <div role="group" aria-label="Security verification">
+      <button
+        type="button"
+        onClick={() => onToken(`single-use-token-${resetKey}`)}
+      >
+        Complete security verification
+      </button>
+    </div>
+  ),
+}))
+
 const { replaceMock } = vi.hoisted(() => ({ replaceMock: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
@@ -33,6 +49,7 @@ function renderLogin() {
 
 afterEach(() => {
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
   cleanup()
 })
 
@@ -77,6 +94,59 @@ describe('LoginPage', () => {
       await screen.findByText('Invalid username or password.')
     ).toBeInTheDocument()
     expect(screen.queryByText(/account.*not found/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the conditional challenge only after the server requires it', async () => {
+    const user = userEvent.setup()
+    vi.stubEnv('NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY', 'public-test-site-key')
+    mockedLoginAction.mockResolvedValue({
+      ok: false,
+      code: 'VERIFICATION_REQUIRED',
+    })
+
+    renderLogin()
+
+    await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
+    await user.type(screen.getByLabelText('Password'), 'wrong-password')
+    expect(screen.queryByRole('group', { name: 'Security verification' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(
+      await screen.findByRole('group', { name: 'Security verification' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Please complete the security verification, then try again.')
+    ).toHaveAttribute('role', 'alert')
+  })
+
+  it('submits a fresh widget token and discards it after the attempt', async () => {
+    const user = userEvent.setup()
+    vi.stubEnv('NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY', 'public-test-site-key')
+    mockedLoginAction
+      .mockResolvedValueOnce({ ok: false, code: 'VERIFICATION_REQUIRED' })
+      .mockResolvedValueOnce({ ok: false, code: 'VERIFICATION_REQUIRED' })
+
+    renderLogin()
+
+    await user.type(screen.getByLabelText('Email or username'), 'analyst@example.test')
+    await user.type(screen.getByLabelText('Password'), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await screen.findByRole('group', { name: 'Security verification' })
+    await user.click(
+      screen.getByRole('button', { name: 'Complete security verification' })
+    )
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(mockedLoginAction).toHaveBeenNthCalledWith(
+      2,
+      'analyst@example.test',
+      'wrong-password',
+      'single-use-token-0'
+    )
+    expect(
+      await screen.findByRole('group', { name: 'Security verification' })
+    ).toBeInTheDocument()
   })
 
   it('shows fallback message on unexpected sign-in failure', async () => {
