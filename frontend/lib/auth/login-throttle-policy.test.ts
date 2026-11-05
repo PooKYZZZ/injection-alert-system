@@ -14,13 +14,13 @@ afterEach(() => {
 })
 
 describe('login throttle policy', () => {
-  it('uses the reviewed 3/5 and 300-second defaults', () => {
+  it('uses the reviewed 3/5 thresholds, 300-second window, and 60-second cooldown', () => {
     for (const name of names) vi.stubEnv(name, '')
     expect(readLoginThrottlePolicy()).toEqual({
       challengeThreshold: 3,
       maxFailures: 5,
       windowSeconds: 300,
-      cooldownSeconds: 300,
+      cooldownSeconds: 60,
     })
   })
 

@@ -46,7 +46,7 @@ describe('shared login throttle adapter', () => {
         p_challenge_threshold: 3,
         p_max_failures: 5,
         p_window_seconds: 300,
-        p_cooldown_seconds: 300,
+        p_cooldown_seconds: 60,
         p_attempt_id: expect.any(String),
       })
     )

@@ -49,7 +49,7 @@ export function readLoginThrottlePolicy(): LoginThrottlePolicy {
     ),
     cooldownSeconds: configuredInteger(
       'AUTH_LOGIN_IDENTIFIER_COOLDOWN_SECONDS',
-      300,
+      60,
       1,
       3_600
     ),

@@ -27,6 +27,7 @@
 - Hosted CI exposed an old PR7 migration test that hard-coded `20261007_000033` as the Alembic head. It now checks the invariant: one head, with the PR7 revision still in its history. The full local migration suite and hosted PostgreSQL migration suite pass.
 - Final acceptance tests added after the first green run cover failure-window expiry, cooldown expiry, expired reservations, a fresh token after a wrong password, unrelated-account availability, account aliases across browser contexts, and challenge followed by the existing TOTP handoff. These passed with the completed implementation.
 - Hosted run `41969067392` reached all 12 auth journeys: 11 passed, while the theme journey first sampled an intermediate border transition and its Playwright retry stayed on the MFA page. Because the test could reuse a TOTP step already accepted by its first attempt, retry login now waits for a fresh step in line with the existing replay policy. The E2E also captures one fully consistent theme-color snapshot; the focused regression, focused browser journey, and full 12-journey suite pass locally after both fixes.
+- The user then requested shortening the known-account cooldown from 300 to 60 seconds. RED tests confirmed the old 300-second default was still wired through the policy and PostgreSQL adapter; the code default and sample environment now use 60 seconds. GREEN: 49 targeted policy/adapter/Auth.js tests, the 840-test frontend suite, and the 12-journey managed auth E2E passed with the 60-second default. The 300-second failure window, five-failure limit, Turnstile token lifetime, and configurable environment override remain unchanged. No migration or database contract change was needed.
 
 ## Final validation
 
@@ -34,11 +35,12 @@ All commands ran locally on **Node v24.20.0**. The managed auth harness created 
 
 | Command | Result |
 |---|---|
-| `npm exec -- vitest run --pool=threads` | **119 files / 840 tests passed** |
+| `npm exec -- vitest run --pool=threads` | **119 files / 840 tests passed**; rerun after the cooldown change |
+| `npm exec -- vitest run lib/auth/login-throttle-policy.test.ts lib/auth/login-throttle.test.ts lib/server/db/login-throttle.test.ts lib/auth/auth.integration.test.ts` | **49 passed** after the cooldown change |
 | `npm run lint` | **0 errors**; 6 existing `window.location.assign()` warnings in unrelated navigation components |
 | `npm run typecheck` | Passed |
 | `npm run build` | Passed; local build used throwaway `AUTH_SECRET`/Supabase values, Turnstile disabled, and no public site key |
-| `npm run test:e2e:auth` | **12/12 Chromium journeys passed**; includes email/username/UUID rotation, refresh, fresh browser context, 390px layout, focus order, effective CSP, direct Auth.js callback denial, successful Turnstile, TOTP completion, retry-safe TOTP, and transition-stable theme assertions |
+| `npm run test:e2e:auth` | **12/12 Chromium journeys passed**; rerun after the cooldown change; includes email/username/UUID rotation, refresh, fresh browser context, 390px layout, focus order, effective CSP, direct Auth.js callback denial, successful Turnstile, TOTP completion, retry-safe TOTP, and transition-stable theme assertions |
 | `npm run test:e2e:auth -- --grep "theme changes and dashboard charts stay immediate across affected pages"` | **1/1 focused Chromium journey passed** after the hosted transition-snapshot failure |
 | Managed `tests/integration/test_auth_login_throttle_postgres.py` | **10 PostgreSQL cases passed** on disposable tmpfs DB: thresholds, disabled-feature cooldown, cross-connection concurrency, success reset, window/cooldown expiry, reservation pruning/expiry, unrelated-account availability, and grants/RLS |
 | Managed Alembic downgrade/re-upgrade | Passed on disposable PostgreSQL |
@@ -52,7 +54,7 @@ The explicit `npm run build` loaded the ignored local Next environment file as N
 
 ### Hosted CI
 
-On PR #185 at code head `3ff67bb`, all eight hosted CI jobs passed, including backend tests and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, WAF runtime checks, and auth E2E. The hosted auth job ran **12/12 Chromium journeys** and passed its disposable PostgreSQL throttle tests and migration downgrade/re-upgrade. Earlier runs at `5f49307` and `849606a` hit an intermittent external `next/font/google` Orbitron response parse error before Playwright. Run `41969067392` at `e174a2b` reached Playwright and passed 11/12 journeys; the theme journey exposed the intermediate-color/retried-TOTP issue recorded above. The E2E fixes were verified locally and the latest hosted run is green. No CI workflow or production font changes were made to mask the intermittent fetch issue.
+On PR #185 at code head `4820dee`, all eight hosted CI jobs passed, including backend tests and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, WAF runtime checks, and auth E2E. The hosted auth job ran **12/12 Chromium journeys** and passed its disposable PostgreSQL throttle tests and migration downgrade/re-upgrade. Earlier runs at `5f49307` and `849606a` hit an intermittent external `next/font/google` Orbitron response parse error before Playwright. Run `41969067392` at `e174a2b` reached Playwright and passed 11/12 journeys; the theme journey exposed the intermediate-color/retried-TOTP issue recorded above. Those E2E fixes were verified locally and the latest hosted run was green. The 60-second cooldown adjustment is locally verified; hosted CI will rerun after it is pushed.
 
 ## Acceptance matrix
 
@@ -65,7 +67,7 @@ On PR #185 at code head `3ff67bb`, all eight hosted CI jobs passed, including ba
 | AT-05 | PASS | Direct credentials callback E2E without a token produces no session. |
 | AT-06 | PASS | Auth integration test verifies a valid token before Argon2 and counts the wrong password. |
 | AT-07 | PASS | Auth integration preserves the MFA handoff; E2E completes Turnstile, password, and TOTP in order. |
-| AT-08 | PASS | Disposable PostgreSQL test confirms the fifth failure starts cooldown and even verified attempts remain blocked. |
+| AT-08 | PASS | Disposable PostgreSQL test confirms the fifth failure starts the 60-second cooldown and even verified attempts remain blocked. |
 | AT-09 | PASS | E2E reloads the login page and uses a clean browser context; shared state continues across both. |
 | AT-10 | PARTIAL | PostgreSQL integration uses independent connections and proves shared persistent state/concurrent admission. Separate application processes or a production replica/restart were not started. |
 | AT-11 | PASS | Auth integration and real seeded E2E rotate the same account through email, username, and UUID. |
@@ -79,7 +81,7 @@ On PR #185 at code head `3ff67bb`, all eight hosted CI jobs passed, including ba
 | AT-19 | PARTIAL | Full E2E covers TOTP login/enrollment, backup/email recovery, step-up, forgot-password privacy, roles, and session freshness. The password-reset feature remains disabled in the managed environment, so reset completion E2E was not run. |
 | AT-20 | PASS | CSP config tests plus a browser assertion on the effective login response confirm the Turnstile origin and `frame-ancestors 'none'`. |
 | AT-21 | PARTIAL | Component roles/status, keyboard focus order, and a 390px browser layout pass. A manual screen-reader review was not performed. |
-| AT-22 | PASS | Feature-off PostgreSQL test preserves the five-failure cooldown; invalid enabled config fails closed before password verification. |
+| AT-22 | PASS | Feature-off PostgreSQL test preserves the five-failure, 60-second cooldown; invalid enabled config fails closed before password verification. |
 | AT-23 | PASS | Audit unit tests and auth integration assertions verify credentials, raw identifiers, tokens, secrets, and store errors are not logged. |
 | AT-24 | PASS | 124 focused backend enforcement/WAF tests passed; the auth feature uses separate `AUTH_TURNSTILE_*` settings. |
 | AT-25 | PASS | Config test rejects Cloudflare's dummy credentials in production outside the guarded managed loopback harness. |
@@ -89,9 +91,9 @@ On PR #185 at code head `3ff67bb`, all eight hosted CI jobs passed, including ba
 
 ## Deployment requirements and residual limits
 
-- Keep `AUTH_TURNSTILE_ENABLED=false` until the approved deployment applies migration `20261105_000034`, provisions production site/secret keys for the exact application hostname, rebuilds with `NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY`, and validates CSP/grants/login in staging.
+- Keep `AUTH_TURNSTILE_ENABLED=false` until the approved deployment applies migration `20261105_000034`, provisions production site/secret keys for the exact application hostname, sets the cooldown override to 60 seconds if present, rebuilds with `NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY`, and validates CSP/grants/login in staging.
 - Never deploy the official dummy keys. The task did not modify production, hosted database state, Cloudflare configuration, CI, or deployment secrets.
-- The five-failure cooldown can still be targeted against one known account. Unknown-identifier throttling remains process-local and bounded; persistent audit storage and trusted-IP global controls remain separate decisions.
+- The five-failure, 60-second cooldown can still be targeted against one known account; the shorter delay allows a new failure round sooner than the original five-minute default. Unknown-identifier throttling remains process-local and bounded; persistent audit storage and trusted-IP global controls remain separate decisions.
 - Local browser/database evidence does not establish hosted routing, production credentials, Cloudflare provider availability, app-replica behavior, or production migration state. Screen-reader and reset-completion E2E also remain unverified as listed above.
 
 ## Git / review state

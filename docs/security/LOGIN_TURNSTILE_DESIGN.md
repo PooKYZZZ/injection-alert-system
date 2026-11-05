@@ -7,11 +7,11 @@
 
 - Count consecutive failed **password** attempts over a 300-second window.
 - After three failed password attempts, require Turnstile for the next password attempt when `AUTH_TURNSTILE_ENABLED=true`.
-- Preserve the five-failure hard limit and 300-second cooldown as the initial policy. A challenge is only permission to try the password; it does not reset failure history or create a session.
+- Preserve the five-failure hard limit and use a 60-second cooldown by default. This shortens the original 300-second lockout at the user's request; the 300-second failure-count window is unchanged. A challenge is only permission to try the password; it does not reset failure history or create a session.
 - A successful password authentication clears the canonical account failure state. If MFA is required, the existing MFA handoff still follows that password check.
 - Keep CAPTCHA disabled by default. Turning it off does not turn off the five-failure throttle.
 
-The values are application policy, not OWASP or NIST mandates. OWASP recommends layered defenses and warns that account lockout can be abused for denial of service. The challenge therefore starts before the hard cooldown, and there is no process-wide failure bucket that can lock unrelated accounts. The remaining targeted cooldown risk is disclosed in the re-audit and deployment evidence.
+The values are application policy, not OWASP or NIST mandates. OWASP recommends layered defenses and warns that account lockout can be abused for denial of service. The shorter cooldown reduces the time a targeted account remains locked, while allowing a new five-failure round sooner; Turnstile is still required after the third failure. There is no process-wide failure bucket that can lock unrelated accounts. The remaining targeted lockout and increased attempt-rate risks are disclosed in the re-audit and deployment evidence. Cloudflare's separate five-minute token lifetime is provider-defined and is unchanged.
 
 ## Authentication flow
 
@@ -81,9 +81,9 @@ Unknown account identifiers do not create persistent rows. They continue through
 ## Operational and rollback plan
 
 1. Apply the additive Alembic migration through the approved deployment path; do not run it against a live or unknown database during this task.
-2. Provision a production Turnstile site key restricted to the deployed application host, a matching secret, and the exact expected hostname. Set `NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY` before `next build` because Next.js freezes public values into the build. Keep `AUTH_TURNSTILE_SECRET_KEY` in the server-only runtime environment. Keep the `AUTH_LOGIN_*` values and feature flag identical on every replica. Never use the official dummy keys.
+2. Provision a production Turnstile site key restricted to the deployed application host, a matching secret, and the exact expected hostname. Set `NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY` before `next build` because Next.js freezes public values into the build. Keep `AUTH_TURNSTILE_SECRET_KEY` in the server-only runtime environment. Keep the `AUTH_LOGIN_*` values and feature flag identical on every replica; set the cooldown override to `60` seconds if it is present. Never use the official dummy keys.
 3. Deploy with `AUTH_TURNSTILE_ENABLED=false`; confirm server-only secret and site-key wiring, migration/grants, CSP, and a controlled staging login path. The disposable local E2E test exercises the challenge using Cloudflare's official dummy credentials.
 4. Enable the flag only after those checks. Monitor generic challenge-required, verification-failure, cooldown, and database-error counts without logging tokens or raw identifiers.
-5. Roll back the feature by setting the flag false. The shared five-failure cooldown remains active. The additive table/RPC may remain in place during application rollback; dropping it requires a separate schema rollback after confirming no code version still calls it.
+5. Roll back the feature by setting the flag false. The shared five-failure, 60-second cooldown remains active. The additive table/RPC may remain in place during application rollback; dropping it requires a separate schema rollback after confirming no code version still calls it.
 
 No production deployment, live migration, or Cloudflare dashboard change is part of this implementation task.
