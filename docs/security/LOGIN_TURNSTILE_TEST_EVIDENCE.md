@@ -52,7 +52,7 @@ The explicit `npm run build` loaded the ignored local Next environment file as N
 
 ### Hosted CI
 
-On PR #185 at code head `5f49307`, backend tests and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, and WAF runtime checks passed. One auth E2E attempt failed before Playwright because Next.js `next/font/google` could not parse the external Orbitron font response (`TypeError: Cannot read properties of null (reading '1')`). A later hosted run at `e174a2b` ran the auth journeys: 11 passed and the theme journey exposed the intermediate-color/retried-TOTP issue recorded above; all other hosted jobs passed. Both E2E harness issues are fixed and the focused plus full suites pass locally. Hosted CI for the current follow-up commit is pending; no hosted result is claimed yet.
+On PR #185 at code head `849606a`, backend and `pip-audit`, PostgreSQL integration and migrations, frontend lint/typecheck/Vitest/build, dependency review, secret scan, container smoke, and WAF runtime checks passed. The auth E2E job failed before Playwright because Next.js `next/font/google` could not parse the external Orbitron font response (`TypeError: Cannot read properties of null (reading '1')`); this is the same external font-fetch failure seen in the earlier run at `5f49307`. A hosted run at `e174a2b` reached Playwright and passed 11/12 journeys; the theme journey exposed the intermediate-color/retried-TOTP issue recorded above. Both E2E harness issues are fixed and the focused plus full 12/12 suite pass locally on `849606a`. The hosted auth job did not reach the journeys on the latest run, so hosted E2E remains unverified. No CI workflow or production font changes were made to mask the external fetch issue.
 
 ## Acceptance matrix
 
@@ -98,6 +98,6 @@ On PR #185 at code head `5f49307`, backend tests and `pip-audit`, PostgreSQL int
 
 - Branch: `feat/auth-adaptive-turnstile-login` (pushed after each major green implementation slice).
 - Commits pushed before PR submission: `ce61b31` audit/research; `0737f48` shared PostgreSQL throttle; `a49940e` stale-reservation fix; `54bcb58` Auth.js challenge enforcement; `7c9e877` conditional UI and CSP; `ac6a6b1` E2E and MFA regressions; `c144b47` test evidence and rollout docs.
-- Follow-up commits pushed: `aca85ad` PR link in evidence; `a05fb73` current migration-history assertion; `548c347` transition-aware theme E2E; `5f49307` certifi security pin. The final E2E regression fix adds retry-safe TOTP and validates colors from the same settled theme snapshot.
+- Follow-up commits pushed: `aca85ad` PR link in evidence; `a05fb73` current migration-history assertion; `548c347` transition-aware theme E2E; `5f49307` certifi security pin; `849606a` retry-safe TOTP and consistent theme-color snapshots.
 - PR: [#185](https://github.com/PooKYZZZ/injection-alert-system/pull/185) targeting `master`; open for review.
 - No merge or production change is authorized by this implementation task.
